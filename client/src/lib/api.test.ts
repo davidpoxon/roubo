@@ -61,6 +61,7 @@ import {
   reconcileTestbench,
   fetchPluginConsent,
   grantPluginConsent,
+  fetchMarketplaceCatalog,
 } from "./api";
 
 const mockFetch = vi.fn();
@@ -1070,5 +1071,33 @@ describe("grantPluginConsent (issue #615)", () => {
       }),
     );
     expect(result.pluginId).toBe("db-plugin");
+  });
+});
+
+// Issue #557: the merged multi-source catalog. `sourceId` is the source filter
+// chip's scoping param and rides alongside the existing q / kind params.
+describe("fetchMarketplaceCatalog", () => {
+  it("requests the bare catalog when no params are given", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ curated: true, listings: [] }));
+    await fetchMarketplaceCatalog();
+    expect(mockFetch).toHaveBeenCalledWith("/api/marketplace/plugins", expect.anything());
+  });
+
+  it("threads q, kind, and sourceId into the query string", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ curated: true, listings: [] }));
+    await fetchMarketplaceCatalog({ q: "ghe", kind: "integration", sourceId: "acme-1a2b3c4d" });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/marketplace/plugins?q=ghe&kind=integration&sourceId=acme-1a2b3c4d",
+      expect.anything(),
+    );
+  });
+
+  it("omits sourceId entirely when the list is not scoped to one source", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ curated: true, listings: [] }));
+    await fetchMarketplaceCatalog({ kind: "component" });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/marketplace/plugins?kind=component",
+      expect.anything(),
+    );
   });
 });

@@ -1,19 +1,54 @@
 import { Button } from "react-aria-components";
-import { ArrowRight, Check, Download, Package, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Download, Globe, Package, RefreshCw, ShieldCheck } from "lucide-react";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { MarketplaceListing } from "@roubo/shared";
 
 // One catalog card (CP-FR-020 / CP-US-010, issue #621). State-aware affordance:
 //   - update available -> Update button
 //   - installed (current) -> "Installed" badge, NO install affordance
 //   - not installed -> Install button
-// Each card shows the display-only verified marker and the version.
+// Each card shows the display-only verified marker, the version, and exactly one
+// source provenance chip naming where the entry came from (CPHMTP-FR-004, issue
+// #557).
 
 const STRINGS = {
   verified: "Verified",
   install: "Install",
   update: "Update",
   installed: "Installed",
+  provenanceLabel: (label: string) => `Source: ${label}`,
 };
+
+/**
+ * The per-entry source provenance chip (CPHMTP-FR-004, issue #557). Exactly one
+ * renders per card. First-party is deliberately a DISTINCT treatment from a
+ * registered third-party source: green (matching the first-party verified marker
+ * below) versus amber, so provenance is legible at a glance and an unsigned
+ * source cannot visually pass itself off as the curated catalog. The label is
+ * screen-reader-prefixed with "Source:" so the chip is not just a bare hostname
+ * out of context (CPHMTP-NFR-008).
+ */
+function SourceChip({ sourceId, label }: { sourceId: string; label: string }) {
+  const isFirstParty = sourceId === FIRST_PARTY_SOURCE_ID;
+  const cls = isFirstParty
+    ? "border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-300"
+    : "border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200";
+  return (
+    <span
+      data-testid="marketplace-card-source"
+      data-source-id={sourceId}
+      aria-label={STRINGS.provenanceLabel(label)}
+      className={`inline-flex max-w-[12rem] items-center gap-1 rounded-full border ${cls} px-2 py-0.5 text-[10px] font-medium`}
+    >
+      {isFirstParty ? (
+        <ShieldCheck size={11} aria-hidden className="shrink-0" />
+      ) : (
+        <Globe size={11} aria-hidden className="shrink-0" />
+      )}
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
 
 function KindPill({ kind }: { kind: MarketplaceListing["kind"] }) {
   const cls =
@@ -32,12 +67,24 @@ function KindPill({ kind }: { kind: MarketplaceListing["kind"] }) {
 
 interface Props {
   listing: MarketplaceListing;
+  /**
+   * Display label for `listing.sourceId`, resolved from the catalog response's
+   * per-source status rows (a registered source row carries no display name, so
+   * the server derives the label from its URL host).
+   */
+  sourceLabel: string;
   onOpenDetail: (id: string) => void;
   onInstall: (listing: MarketplaceListing) => void;
   onUpdate: (listing: MarketplaceListing) => void;
 }
 
-export default function MarketplaceCard({ listing, onOpenDetail, onInstall, onUpdate }: Props) {
+export default function MarketplaceCard({
+  listing,
+  sourceLabel,
+  onOpenDetail,
+  onInstall,
+  onUpdate,
+}: Props) {
   const showInstalled = listing.installed && !listing.updateAvailable;
 
   return (
@@ -64,6 +111,9 @@ export default function MarketplaceCard({ listing, onOpenDetail, onInstall, onUp
           <p className="mt-0.5 font-mono text-[11px] text-stone-400 dark:text-stone-500">
             {listing.id}
           </p>
+          <div className="mt-1.5">
+            <SourceChip sourceId={listing.sourceId} label={sourceLabel} />
+          </div>
         </div>
       </div>
 

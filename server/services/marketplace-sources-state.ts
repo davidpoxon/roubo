@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import {
+  FIRST_PARTY_SOURCE_ID,
   MARKETPLACE_SOURCES_STATE_SCHEMA_VERSION,
   MarketplaceSourcesStateSchema,
   type MarketplaceSource,
@@ -38,10 +39,11 @@ function filePath(): string {
 // The built-in first-party catalog, synthesised into the list and NON-REMOVABLE.
 // Its URL mirrors DEFAULT_CATALOG_URL in catalog-client.ts (kept local so this
 // module stays decoupled from the signed-chain client construction). The reserved
-// id can never collide with a generated third-party id: generated ids end in an
-// 8-char hex suffix, and "party" is not hex.
-export const FIRST_PARTY_SOURCE_ID = "first-party";
-const FIRST_PARTY_URL = "https://davidpoxon.github.io/roubo-plugins/catalog.json";
+// id (FIRST_PARTY_SOURCE_ID, shared so the client can recognise it too) can never
+// collide with a generated third-party id: generated ids end in an 8-char hex
+// suffix, and "party" is not hex.
+export { FIRST_PARTY_SOURCE_ID };
+export const FIRST_PARTY_URL = "https://davidpoxon.github.io/roubo-plugins/catalog.json";
 // Sentinel timestamp for the always-present built-in (registered since first
 // launch); the row exists by construction rather than by a registration event.
 const FIRST_PARTY_REGISTERED_AT = "1970-01-01T00:00:00.000Z";
@@ -192,6 +194,21 @@ function keyringAccount(id: string): string {
 
 async function storeCredential(id: string, credential: string): Promise<void> {
   await credentialStore.set(keyringAccount(id), "token", credential);
+}
+
+/**
+ * Reads a registered source's keyring credential, or null when it has none.
+ *
+ * The read counterpart of the private `storeCredential`: a source registered with
+ * a credential is unlistable without it (the fetch would 401), so the multi-source
+ * listing fan-out reads it here and passes it to `createThirdPartyCatalogClient`,
+ * which hands it to guardedFetch to attach as an `Authorization` header on the
+ * source origin only (CPHMTP-NFR-002, issue #557). The value is returned to the
+ * caller and never persisted outside the keyring, and never leaves the server: the
+ * sources API projects only `hasCredential`.
+ */
+export async function readSourceCredential(id: string): Promise<string | null> {
+  return credentialStore.get(keyringAccount(id), "token");
 }
 
 async function deleteCredential(id: string): Promise<void> {

@@ -10,7 +10,7 @@ import {
   RadioGroup,
   SearchField,
 } from "react-aria-components";
-import { Loader2, Search, ShieldAlert, ShieldCheck } from "lucide-react";
+import { CloudOff, Loader2, Search, ShieldAlert, ShieldCheck } from "lucide-react";
 import type {
   InstallErrorCode,
   InstallPreview,
@@ -36,10 +36,17 @@ import { deriveStageStatuses, describeArtifact } from "./marketplace-install-sta
 import MarketplaceOfflineBanner from "./MarketplaceOfflineBanner";
 
 // Marketplace catalog view (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621).
-// First-party curated: there is deliberately NO third-party submission
-// affordance anywhere in this view. Browse + search + kind filter; install and
-// update reuse the existing staging -> consent -> commit flow via the consent
-// modal.
+// There is deliberately NO third-party SUBMISSION affordance anywhere in this
+// view: entries come from the first-party curated catalog and from marketplace
+// sources the consumer explicitly registered elsewhere. Browse + search + kind
+// filter; install and update reuse the existing staging -> consent -> commit flow
+// via the consent modal.
+//
+// Multi-source browse (CPHMTP-FR-004, issue #557): the list is the MERGED catalog
+// across the first-party source and every registered source, each card carrying
+// exactly one provenance chip. The source filter chip row scopes the list to a
+// single source and back to all, and a source that could serve nothing is called
+// out on its own without disturbing the sources that listed fine.
 
 const STRINGS = {
   heading: "Plugin Marketplace",
@@ -49,6 +56,12 @@ const STRINGS = {
   searchLabel: "Search plugins",
   searchPlaceholder: "Search plugins",
   filterLabel: "Filter by kind",
+  sourceFilterLabel: "Filter by source",
+  allSources: "All sources",
+  sourcesUnavailable: (labels: string[]) =>
+    labels.length === 1
+      ? `${labels[0]} is unavailable right now, so its plugins are not listed. Every other source is unaffected.`
+      : `${labels.join(", ")} are unavailable right now, so their plugins are not listed. Every other source is unaffected.`,
   loading: "Loading catalog…",
   loadFailedPrefix: "Failed to load catalog: ",
   catalogUnverified:
@@ -69,6 +82,29 @@ const KIND_TABS: { id: "all" | MarketplaceKind; label: string }[] = [
   { id: "component", label: "Component" },
   { id: "integration", label: "Integration" },
 ];
+
+// Sentinel for the unscoped source filter. Safe against collision with a real
+// source id: registered ids are `<host-slug>-<8 hex>` and the built-in is
+// `first-party`, so no source can ever be called `__all__`.
+const ALL_SOURCES = "__all__";
+
+// Shared chip styling for both filter rows, so the source chips read as the same
+// control as the kind chips rather than a second, competing pattern.
+function chipClasses({
+  isSelected,
+  isFocusVisible,
+}: {
+  isSelected: boolean;
+  isFocusVisible: boolean;
+}): string {
+  return [
+    "cursor-pointer rounded-lg px-3 py-1.5 text-[12px] font-medium outline-none transition-colors",
+    isSelected
+      ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
+      : "text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-800 dark:hover:text-stone-200",
+    isFocusVisible ? "ring-2 ring-amber-500" : "",
+  ].join(" ");
+}
 
 interface PendingConsent {
   mode: "install" | "update";
@@ -96,6 +132,7 @@ function errorMessage(err: unknown, fallback: string): string {
 export default function Marketplace() {
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"all" | MarketplaceKind>("all");
+  const [sourceId, setSourceId] = useState<string>(ALL_SOURCES);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingConsent | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
@@ -105,6 +142,7 @@ export default function Marketplace() {
   const { data, isLoading, error } = useMarketplaceCatalog({
     q: search.trim() || undefined,
     kind: queryKind,
+    sourceId: sourceId === ALL_SOURCES ? undefined : sourceId,
   });
 
   const installPreview = useMarketplaceInstallPreview();
@@ -119,6 +157,20 @@ export default function Marketplace() {
     () => listings.find((l) => l.id === detailId) ?? null,
     [listings, detailId],
   );
+
+  // The per-source status rows always describe EVERY source in the fan-out, even
+  // while the listings are scoped to one, so the chip row stays complete and the
+  // user can always get back to "All sources" (CPHMTP-FR-004).
+  const sources = useMemo(() => data?.sources ?? [], [data]);
+  const sourceLabels = useMemo(() => new Map(sources.map((s) => [s.id, s.label])), [sources]);
+  // Only registered third-party sources can be unavailable: the first-party chain
+  // always has the bundled seed to fall back on. Called out per source, so one
+  // dead source never implies the others failed (CPHMTP-NFR-007).
+  const unavailable = useMemo(() => sources.filter((s) => s.unavailable), [sources]);
+  // One chip per source, plus the unscoped default. Rendered only once there is
+  // more than the built-in source to choose between: a single-source install has
+  // nothing to filter.
+  const showSourceFilter = sources.length > 1;
 
   const stagingPending = installPreview.isPending || updatePreview.isPending;
 
@@ -246,15 +298,7 @@ export default function Marketplace() {
               key={t.id}
               value={t.id}
               data-testid={`marketplace-filter-${t.id}`}
-              className={({ isSelected, isFocusVisible }) =>
-                [
-                  "cursor-pointer rounded-lg px-3 py-1.5 text-[12px] font-medium outline-none transition-colors",
-                  isSelected
-                    ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
-                    : "text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-800 dark:hover:text-stone-200",
-                  isFocusVisible ? "ring-2 ring-amber-500" : "",
-                ].join(" ")
-              }
+              className={chipClasses}
             >
               {t.label}
             </Radio>
@@ -262,7 +306,48 @@ export default function Marketplace() {
         </RadioGroup>
       </div>
 
+      {showSourceFilter && (
+        <div className="mt-3">
+          <RadioGroup
+            aria-label={STRINGS.sourceFilterLabel}
+            value={sourceId}
+            onChange={setSourceId}
+            data-testid="marketplace-source-filter"
+            className="flex flex-wrap items-center gap-1.5"
+          >
+            <Radio
+              value={ALL_SOURCES}
+              data-testid={`marketplace-source-filter-${ALL_SOURCES}`}
+              className={chipClasses}
+            >
+              {STRINGS.allSources}
+            </Radio>
+            {sources.map((s) => (
+              <Radio
+                key={s.id}
+                value={s.id}
+                data-testid={`marketplace-source-filter-${s.id}`}
+                className={chipClasses}
+              >
+                {s.label}
+              </Radio>
+            ))}
+          </RadioGroup>
+        </div>
+      )}
+
       <div className="mt-7">
+        {unavailable.length > 0 && (
+          <div
+            role="status"
+            data-testid="marketplace-sources-unavailable"
+            className="mb-5 flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-[13px] text-amber-800 dark:text-amber-200"
+          >
+            <CloudOff size={15} className="shrink-0 mt-0.5" aria-hidden />
+            <span>{STRINGS.sourcesUnavailable(unavailable.map((s) => s.label))}</span>
+          </div>
+        )}
+
         {data && data.source !== "network" && (
           <div className="mb-5">
             <MarketplaceOfflineBanner source={data.source} fetchedAt={data.fetchedAt} />
@@ -311,8 +396,9 @@ export default function Marketplace() {
           >
             {listings.map((listing) => (
               <MarketplaceCard
-                key={listing.id}
+                key={`${listing.sourceId}:${listing.id}`}
                 listing={listing}
+                sourceLabel={sourceLabels.get(listing.sourceId) ?? listing.sourceId}
                 onOpenDetail={setDetailId}
                 onInstall={beginInstall}
                 onUpdate={beginUpdate}
