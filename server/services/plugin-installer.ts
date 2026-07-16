@@ -214,7 +214,7 @@ async function assertPackageIntegrity(
   if (!ok) {
     throw new InstallError(
       "integrity-failed",
-      "Plugin package failed integrity verification: its content digest does not match the signed catalog entry.",
+      "Plugin package failed integrity verification: its content digest does not match the digest published for this artifact.",
     );
   }
 }
