@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
-import type { MarketplaceListing } from "@roubo/shared";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
+import type { MarketplaceListing, MarketplaceSourceStatus } from "@roubo/shared";
 
 vi.mock("../services/marketplace.js", () => ({
   listCatalog: vi.fn(),
@@ -77,19 +78,35 @@ const LISTING: MarketplaceListing = {
   installed: false,
   installedVersion: null,
   updateAvailable: false,
+  declaredPermissions: null,
+  lifecycle: null,
+  sourceId: FIRST_PARTY_SOURCE_ID,
 };
 
 const FETCHED_AT = "2026-06-28T00:00:00.000Z";
 
-// The CatalogResult shape listCatalog now resolves to: listings plus the served
-// catalog's provenance (source / fetchedAt), forwarded by GET /plugins so the
-// client can render the offline / staleness banner (issue #372).
+// The always-present built-in source's status row (issue #557): the fan-out
+// reports it first, and it is never unavailable (its chain has the seed floor).
+const FIRST_PARTY_STATUS: MarketplaceSourceStatus = {
+  id: FIRST_PARTY_SOURCE_ID,
+  url: "https://davidpoxon.github.io/roubo-plugins/catalog.json",
+  label: "Roubo first-party",
+  source: "network",
+  fetchedAt: FETCHED_AT,
+  unavailable: false,
+};
+
+// The CatalogResult shape listCatalog now resolves to: the merged listings, the
+// first-party catalog's provenance (source / fetchedAt) for the offline /
+// staleness banner (issue #372), and the per-source status of every source in the
+// fan-out (issue #557). GET /plugins forwards all of it.
 function catalogResult(
   listings: MarketplaceListing[],
   source: "network" | "cache" | "seed" = "network",
   fetchedAt: string | null = FETCHED_AT,
+  sources: MarketplaceSourceStatus[] = [FIRST_PARTY_STATUS],
 ): Awaited<ReturnType<typeof marketplace.listCatalog>> {
-  return { listings, source, fetchedAt };
+  return { listings, source, fetchedAt, sources };
 }
 
 const PREVIEW = {
@@ -113,8 +130,13 @@ describe("GET /api/marketplace/plugins", () => {
       listings: [LISTING],
       source: "network",
       fetchedAt: FETCHED_AT,
+      sources: [FIRST_PARTY_STATUS],
     });
-    expect(listCatalog).toHaveBeenCalledWith({ q: undefined, kind: undefined });
+    expect(listCatalog).toHaveBeenCalledWith({
+      q: undefined,
+      kind: undefined,
+      sourceId: undefined,
+    });
   });
 
   // CPHM-TC-043 (issue #372): when the marketplace is unreachable the catalog
@@ -142,13 +164,54 @@ describe("GET /api/marketplace/plugins", () => {
   it("passes through q and a valid kind", async () => {
     listCatalog.mockResolvedValue(catalogResult([]));
     await request(makeApp()).get("/api/marketplace/plugins?q=red&kind=component");
-    expect(listCatalog).toHaveBeenCalledWith({ q: "red", kind: "component" });
+    expect(listCatalog).toHaveBeenCalledWith({
+      q: "red",
+      kind: "component",
+      sourceId: undefined,
+    });
   });
 
   it("ignores an invalid kind", async () => {
     listCatalog.mockResolvedValue(catalogResult([]));
     await request(makeApp()).get("/api/marketplace/plugins?kind=bogus");
-    expect(listCatalog).toHaveBeenCalledWith({ q: undefined, kind: undefined });
+    expect(listCatalog).toHaveBeenCalledWith({
+      q: undefined,
+      kind: undefined,
+      sourceId: undefined,
+    });
+  });
+
+  // Issue #557: the source filter chip scopes the merged multi-source list to one
+  // source, so the chosen id is threaded through to the service.
+  it("passes through sourceId so the list can be scoped to one source", async () => {
+    listCatalog.mockResolvedValue(catalogResult([]));
+    await request(makeApp()).get("/api/marketplace/plugins?sourceId=acme-example-1a2b3c4d");
+    expect(listCatalog).toHaveBeenCalledWith({
+      q: undefined,
+      kind: undefined,
+      sourceId: "acme-example-1a2b3c4d",
+    });
+  });
+
+  // Issue #557: the per-source status rows ride back on the response so the client
+  // can render one filter chip per source and call out only the failed one.
+  it("forwards the per-source status of every source in the fan-out", async () => {
+    const acme: MarketplaceSourceStatus = {
+      id: "marketplace-acme-example-1a2b3c4d",
+      url: "https://marketplace.acme.example/catalog.json",
+      label: "marketplace.acme.example",
+      source: "cache",
+      fetchedAt: null,
+      unavailable: true,
+    };
+    listCatalog.mockResolvedValue(
+      catalogResult([LISTING], "network", FETCHED_AT, [FIRST_PARTY_STATUS, acme]),
+    );
+    const res = await request(makeApp()).get("/api/marketplace/plugins");
+    expect(res.status).toBe(200);
+    expect(res.body.sources).toEqual([FIRST_PARTY_STATUS, acme]);
+    // A dead third-party source never flips the first-party offline banner.
+    expect(res.body.source).toBe("network");
   });
 
   // CP-TC-118 / CPHM-TC-006: when even the seed fails verification the service

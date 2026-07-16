@@ -60,6 +60,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { InstallPreview, MarketplaceListing, PluginManifest } from "@roubo/shared";
 import Marketplace from "./Marketplace";
 
@@ -129,6 +130,7 @@ function redisListing(over: Partial<MarketplaceListing> = {}): MarketplaceListin
     updateAvailable: false,
     declaredPermissions: null,
     lifecycle: null,
+    sourceId: FIRST_PARTY_SOURCE_ID,
     ...over,
   };
 }
@@ -269,6 +271,18 @@ beforeEach(() => {
       // the offline / staleness banner stays absent (issue #372).
       source: "network",
       fetchedAt: "2026-06-28T00:00:00.000Z",
+      // First-party only: this journey registers no third-party source, so the
+      // fan-out is a single healthy source and no filter chips render (#557).
+      sources: [
+        {
+          id: FIRST_PARTY_SOURCE_ID,
+          url: "https://davidpoxon.github.io/roubo-plugins/catalog.json",
+          label: "Roubo first-party",
+          source: "network",
+          fetchedAt: "2026-06-28T00:00:00.000Z",
+          unavailable: false,
+        },
+      ],
     }),
   );
   mockedInstall.mockResolvedValue(installPreview("1.3.0"));

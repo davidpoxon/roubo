@@ -2,13 +2,15 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import semver from "semver";
-import { parseManifest } from "@roubo/shared";
+import { FIRST_PARTY_SOURCE_ID, parseManifest } from "@roubo/shared";
 import type {
   InstallPreview,
   MarketplaceCatalogEntry,
   MarketplaceCatalogSource,
   MarketplaceKind,
   MarketplaceListing,
+  MarketplaceSource,
+  MarketplaceSourceStatus,
   PluginLifecycle,
   PluginManifest,
   PluginRecord,
@@ -16,7 +18,8 @@ import type {
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginInstaller from "./plugin-installer.js";
 import * as catalogClient from "./catalog-client.js";
-import type { VerifiedCatalog } from "./catalog-client.js";
+import type { ThirdPartyCatalogClient, VerifiedCatalog } from "./catalog-client.js";
+import * as sourcesState from "./marketplace-sources-state.js";
 
 // Marketplace catalog service (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621;
 // CP-FR-021 / CP-US-011, issue #622; hosted-marketplace catalog-client,
@@ -37,23 +40,66 @@ import type { VerifiedCatalog } from "./catalog-client.js";
 // with a clear `marketplace-unreachable` error (CPHM-TC-045/050/051); seeded and
 // already-installed plugins are unaffected.
 
+// Multi-source listing (CPHMTP-FR-004 / NFR-006 / NFR-007, issue #557): listCatalog
+// no longer reads the first-party client alone. It fans out over the first-party
+// catalog AND every registered source concurrently (Promise.all), merging the
+// results into one list where every entry is stamped with the `sourceId` it came
+// from. Isolation falls out of the fan-out: each third-party client owns the
+// existing 5s per-fetch timeout and 256KB cap and never throws, so a dead source
+// costs at most its own timeout and can never block a healthy source or the
+// first-party section. Per-source health rides back on `sources` rather than one
+// catalog-wide scalar, so only the failed source shows as unavailable.
+//
+// Install and update stay FIRST-PARTY ONLY on this slice: unsigned install (issue
+// #559) and cross-source id collisions (issue #558) are separate slices, so a
+// third-party entry lists here but is not installable yet.
+
 export interface ListCatalogParams {
   q?: string;
   kind?: MarketplaceKind;
+  /** Scope the merged list to one source's entries (the source filter chips). */
+  sourceId?: string;
 }
 
 /**
- * The annotated, filtered catalog plus the served catalog's provenance. `source`
- * and `fetchedAt` come straight from the catalog-client's degrade chain so the
- * route can forward them to the client, which renders the offline / staleness
- * banner when `source !== "network"` (CPHM-FR-009 / CPHM-NFR-003, issue #372).
- * `fetchedAt` is the ISO fetch timestamp (network / cache), or `null` for the
- * bundled seed.
+ * The merged, annotated, filtered multi-source catalog.
+ *
+ * `source` and `fetchedAt` are the FIRST-PARTY catalog's provenance, straight from
+ * the first-party catalog-client's degrade chain, so the route can forward them to
+ * the client, which renders the offline / staleness banner when
+ * `source !== "network"` (CPHM-FR-009 / CPHM-NFR-003, issue #372). `fetchedAt` is
+ * the ISO fetch timestamp (network / cache), or `null` for the bundled seed. They
+ * stay first-party-scoped: a third-party source going dark must not flip the
+ * first-party banner.
+ *
+ * `sources` is the per-source status of every source in the fan-out (first-party
+ * first, then registered sources in registration order), so one dead source is
+ * reported as unavailable on its own row while the rest list normally
+ * (CPHMTP-NFR-007). It always describes every source, even when `params.sourceId`
+ * scoped the listings to one, so the client can keep rendering the full chip row.
  */
 export interface CatalogResult {
   listings: MarketplaceListing[];
   source: MarketplaceCatalogSource;
   fetchedAt: string | null;
+  sources: MarketplaceSourceStatus[];
+}
+
+/** Display label for the built-in catalog's provenance chip and filter chip. */
+const FIRST_PARTY_LABEL = "Roubo first-party";
+
+/**
+ * A registered source row carries a URL but no display name, so the chip label is
+ * derived from the URL's host (`marketplace.acme.example` reads better than the
+ * generated `marketplace-acme-example-1a2b3c4d` slug). Falls back to the raw URL
+ * for an unparseable value, so a label is never empty.
+ */
+function sourceLabel(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }
 
 /**
@@ -101,7 +147,7 @@ function readEntryManifest(
   }
 }
 
-function annotate(entry: MarketplaceCatalogEntry): MarketplaceListing {
+function annotate(entry: MarketplaceCatalogEntry, sourceId: string): MarketplaceListing {
   const record = pluginManager.listInstalled().find((r) => r.id === entry.id);
   const installed = record !== undefined;
   const installedVersion = record?.manifest?.version ?? null;
@@ -131,6 +177,16 @@ function annotate(entry: MarketplaceCatalogEntry): MarketplaceListing {
     updateAvailable,
     declaredPermissions,
     lifecycle,
+    // Per-entry provenance (CPHMTP-FR-004, issue #557): stamped from the client
+    // that returned the entry, never read off the entry itself.
+    sourceId,
+    // `verified` is the display-only first-party curation flag, and it is a field
+    // of the (unsigned, unverifiable) third-party payload, so a hostile source
+    // could serve `verified: true` and borrow the green first-party treatment.
+    // Only the first-party signed chain can assert it: force it false for every
+    // third-party entry here, where provenance is known. The persistent unverified
+    // badge proper (CPHMTP-NFR-001) is issue #563.
+    verified: sourceId === FIRST_PARTY_SOURCE_ID ? entry.verified : false,
   };
 }
 
@@ -139,35 +195,150 @@ function matchesQuery(listing: MarketplaceListing, q: string): boolean {
   return haystack.includes(q);
 }
 
+/** One source's contribution to the merged listing: its entries and its health. */
+interface SourceResult {
+  entries: MarketplaceCatalogEntry[];
+  status: MarketplaceSourceStatus;
+}
+
+// Third-party clients are cached per source id for the life of the process, so a
+// listCatalog call reuses the client's in-memory memo (and its warmed per-source
+// cache) instead of re-fetching every source on every keystroke: constructing a
+// fresh client per call would hand each one an empty memo and defeat the
+// fetch-on-marketplace-open budget the first-party path already respects. A row
+// whose URL changed (or that was removed and re-registered at a new URL) is
+// rebuilt rather than reused, and a removed row's client is simply never asked
+// again.
+const thirdPartyClients = new Map<string, { url: string; client: ThirdPartyCatalogClient }>();
+
+async function getThirdPartyClient(row: MarketplaceSource): Promise<ThirdPartyCatalogClient> {
+  const cached = thirdPartyClients.get(row.id);
+  if (cached && cached.url === row.url) return cached.client;
+  // A credentialed source is unlistable without its credential (the fetch would
+  // 401), so read it from the keyring and pass it through. guardedFetch attaches
+  // it as an Authorization header on the source origin only, and never after a
+  // cross-origin redirect (CPHMTP-NFR-002).
+  const credential = row.hasCredential
+    ? ((await sourcesState.readSourceCredential(row.id)) ?? undefined)
+    : undefined;
+  const client = catalogClient.createThirdPartyCatalogClient(row, { credential });
+  thirdPartyClients.set(row.id, { url: row.url, client });
+  return client;
+}
+
 /**
- * Return the curated catalog, annotated with install/update state, filtered by
- * an optional free-text query (name / id / summary, case-insensitive) and an
- * optional kind. Revoked entries are filtered out (CP-TC-109). Serves the most
- * recently resolved catalog (the catalog-client refreshes it from the network at
- * most once per its short memo TTL: fetch-on-marketplace-open, NFR-004),
- * degrading to cache then seed; the list is never zero. Filtering runs in memory,
- * so search-as-you-type does not force a fetch + signature verify per keystroke.
- * Throws `CatalogUnverifiedError` only when even the bundled seed fails
- * verification (the route maps that to 502).
+ * Fetch ONE registered source. Never throws: the third-party client already
+ * degrades NETWORK -> CACHE -> empty behind its own 5s timeout and 256KB cap, and
+ * the try/catch is the backstop for the one step outside it (the keyring read,
+ * which can fail on an unavailable headless keyring). A source that can serve
+ * nothing is reported unavailable on its own status row and contributes no
+ * entries, so every other source and the first-party section list unaffected
+ * (CPHMTP-NFR-007).
+ */
+async function fetchSource(row: MarketplaceSource): Promise<SourceResult> {
+  const base = { id: row.id, url: row.url, label: sourceLabel(row.url) };
+  try {
+    const client = await getThirdPartyClient(row);
+    const result = await client.getCatalog();
+    // A third-party source has NO seed floor, so its degrade chain bottoms out at
+    // an empty result stamped with a null fetchedAt (catalog-client.ts): nothing
+    // fetched and no usable cache. That null is the unavailable marker; every
+    // served result, network or cache, carries a real timestamp.
+    return {
+      entries: result.entries,
+      status: {
+        ...base,
+        source: result.source,
+        fetchedAt: result.fetchedAt,
+        unavailable: result.fetchedAt === null,
+      },
+    };
+  } catch (err) {
+    console.warn(`marketplace: source ${row.id} could not be listed: ${(err as Error).message}`);
+    return {
+      entries: [],
+      status: { ...base, source: "cache", fetchedAt: null, unavailable: true },
+    };
+  }
+}
+
+/** Fetch the first-party signed catalog. Propagates CatalogUnverifiedError (502). */
+async function fetchFirstParty(): Promise<SourceResult> {
+  const { entries, source, fetchedAt } = await catalogClient.getVerifiedCatalog();
+  return {
+    entries,
+    status: {
+      id: FIRST_PARTY_SOURCE_ID,
+      url: sourcesState.FIRST_PARTY_URL,
+      label: FIRST_PARTY_LABEL,
+      source,
+      fetchedAt,
+      // The first-party chain always has the bundled seed to fall back on, so it
+      // is never unavailable: it either serves entries or throws
+      // CatalogUnverifiedError.
+      unavailable: false,
+    },
+  };
+}
+
+/**
+ * Return the merged multi-source catalog: the first-party curated entries plus
+ * every registered source's entries, each annotated with install/update state and
+ * stamped with its originating `sourceId` (CPHMTP-FR-004, issue #557). Filtered by
+ * an optional free-text query (name / id / summary, case-insensitive), an optional
+ * kind, and an optional sourceId (the source filter chips). Revoked entries are
+ * filtered out (CP-TC-109).
  *
- * Returns the served catalog's provenance (`source` / `fetchedAt`) alongside the
- * listings so the route can forward it: when the catalog was served from the
- * cache or the seed (the marketplace was unreachable), the client renders the
- * offline / staleness banner (CPHM-FR-009 / CPHM-NFR-003, issue #372).
+ * Sources are fetched CONCURRENTLY, not serially, so the list costs the slowest
+ * single source rather than the sum of all of them (CPHMTP-NFR-006). Each source
+ * carries its own 5s timeout and 256KB cap inside its client and cannot throw, so
+ * a dead source adds at most its own timeout and never blocks another source or
+ * the first-party section; it comes back unavailable on its own status row while
+ * the rest list normally (CPHMTP-NFR-007).
+ *
+ * Each client serves its most recently resolved catalog (refreshing from the
+ * network at most once per its short memo TTL: fetch-on-marketplace-open,
+ * CPHM-NFR-004), degrading through its own chain: the first-party chain degrades
+ * to cache then seed so it is never zero, while a third-party chain degrades to
+ * cache then empty (there is no third-party seed). Filtering runs in memory over
+ * the merged list, so search-as-you-type does not force a fetch + signature verify
+ * per keystroke. Throws `CatalogUnverifiedError` only when even the bundled
+ * first-party seed fails verification (the route maps that to 502).
  */
 export async function listCatalog(params: ListCatalogParams = {}): Promise<CatalogResult> {
-  const { entries, source, fetchedAt } = await catalogClient.getVerifiedCatalog();
+  // The fan-out: first-party plus one client per registered source, all in flight
+  // at once. listSources() is a local file read, so nothing here serialises a
+  // network call behind another.
+  const results = await Promise.all([
+    fetchFirstParty(),
+    ...sourcesState.listSources().map(fetchSource),
+  ]);
+
   const q = params.q?.trim().toLowerCase() ?? "";
   const kind = params.kind;
-  const listings = entries
-    .filter((e) => e.revoked !== true)
-    .map(annotate)
+  const sourceId = params.sourceId;
+  // Merge, THEN filter: each source's entries are annotated with that source's id
+  // through the same single annotate() pass, and the filters apply to the merged
+  // list so a kind / query / source filter scopes across every source uniformly.
+  const listings = results
+    .flatMap(({ entries, status }) =>
+      entries.filter((e) => e.revoked !== true).map((e) => annotate(e, status.id)),
+    )
     .filter(
       (listing) =>
         (kind === undefined || listing.kind === kind) &&
+        (sourceId === undefined || listing.sourceId === sourceId) &&
         (q.length === 0 || matchesQuery(listing, q)),
     );
-  return { listings, source, fetchedAt };
+
+  const firstParty = results[0].status;
+  return {
+    listings,
+    // First-party-scoped provenance for the existing offline banner (issue #372).
+    source: firstParty.source,
+    fetchedAt: firstParty.fetchedAt,
+    sources: results.map((r) => r.status),
+  };
 }
 
 /**
@@ -258,3 +429,11 @@ export async function update(id: string): Promise<InstallPreview> {
     entry.source.directory,
   );
 }
+
+// Test-only reset for the per-source client cache, so one test's fake source
+// clients never leak into the next.
+export const __test = {
+  resetSourceClients(): void {
+    thirdPartyClients.clear();
+  },
+};

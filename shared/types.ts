@@ -120,6 +120,7 @@ export type {
 } from "./plugin-consent-schema.js";
 
 export {
+  FIRST_PARTY_SOURCE_ID,
   MARKETPLACE_SOURCES_STATE_SCHEMA_VERSION,
   MarketplaceSourceSchema,
   MarketplaceSourcesStateSchema,
@@ -380,6 +381,43 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // `null` for integration plugins and when the manifest is unavailable.
   declaredPermissions: PluginPermissions | null;
   lifecycle: PluginLifecycle | null;
+  // The id of the marketplace source this entry came from: `FIRST_PARTY_SOURCE_ID`
+  // for the built-in catalog, otherwise the registered source's generated id
+  // (CPHMTP-FR-004, issue #557). Every listing carries exactly one, so the card
+  // renders exactly one provenance chip and the source filter chips can scope the
+  // merged list to a single source.
+  //
+  // Derived server-side in `annotate()` from which client returned the entry, and
+  // deliberately NOT a field of the signed `MarketplaceCatalogEntry`: adding it
+  // there would need the out-of-band signing key and would trip the marketplace
+  // drift guard. Same precedent as `declaredPermissions` / `lifecycle` above.
+  //
+  // Not to be confused with `MarketplaceCatalogEntry.source` (the artifact fetch
+  // descriptor) or `.provenance` (the registry path string the drawer shows).
+  // Neither means "originating marketplace source".
+  sourceId: string;
+}
+
+/**
+ * The health and provenance of ONE marketplace source in a merged multi-source
+ * listing (CPHMTP-FR-004 / CPHMTP-NFR-007, issue #557). `MarketplaceCatalogResponse`
+ * carries one of these per source alongside the merged listings, so a single dead
+ * source can show as unavailable while every healthy source lists normally, rather
+ * than one catalog-wide scalar forcing an all-or-nothing degrade.
+ *
+ * `label` is a display name derived from the source URL's host (a registered
+ * source row carries no display name). `source` / `fetchedAt` are this source's own
+ * degrade-chain provenance. `unavailable` is true when the source could serve
+ * nothing at all: unreachable with no usable cache (a third-party source has no
+ * seed floor, so a cold offline source is empty).
+ */
+export interface MarketplaceSourceStatus {
+  id: string;
+  url: string;
+  label: string;
+  source: MarketplaceCatalogSource;
+  fetchedAt: string | null;
+  unavailable: boolean;
 }
 
 /**
@@ -393,17 +431,28 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
 export type MarketplaceCatalogSource = "network" | "cache" | "seed";
 
 /**
- * Response shape for `GET /api/marketplace/plugins`. `source` and `fetchedAt`
- * carry the served catalog's provenance to the client: when `source !== "network"`
- * the marketplace was unreachable and the Plugins view shows the offline /
- * staleness banner. `fetchedAt` is the ISO timestamp the served envelope was
- * fetched (network / cache), or `null` for the bundled seed (no fetch happened).
+ * Response shape for `GET /api/marketplace/plugins`. `listings` is the merged
+ * multi-source catalog: the first-party entries plus every registered source's
+ * entries, each stamped with its own `sourceId` (CPHMTP-FR-004, issue #557).
+ *
+ * `source` and `fetchedAt` carry the FIRST-PARTY catalog's provenance to the
+ * client: when `source !== "network"` the first-party marketplace was unreachable
+ * and the Plugins view shows the offline / staleness banner. `fetchedAt` is the ISO
+ * timestamp the served envelope was fetched (network / cache), or `null` for the
+ * bundled seed (no fetch happened). They stay first-party-scoped so the existing
+ * banner keeps meaning exactly what it always meant.
+ *
+ * `sources` carries the per-source status of every source in the fan-out (the
+ * first-party row first), so one dead source renders as unavailable while the
+ * others list normally (CPHMTP-NFR-007), and so the Browse screen can render one
+ * filter chip per source.
  */
 export interface MarketplaceCatalogResponse {
   curated: true;
   listings: MarketplaceListing[];
   source: MarketplaceCatalogSource;
   fetchedAt: string | null;
+  sources: MarketplaceSourceStatus[];
 }
 
 /**

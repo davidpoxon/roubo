@@ -6,10 +6,11 @@
 // trap, amber focus rings, aria-disabled gating that stays keyboard reachable).
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { InstallPreview, MarketplaceListing } from "@roubo/shared";
 
 declare module "vitest" {
@@ -62,6 +63,7 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     updateAvailable: false,
     declaredPermissions: null,
     lifecycle: null,
+    sourceId: FIRST_PARTY_SOURCE_ID,
     ...over,
   };
 }
@@ -94,17 +96,53 @@ function preview(): InstallPreview {
   } as unknown as InstallPreview;
 }
 
-function setCatalogData(source: "network" | "cache" | "seed", fetchedAt: string | null) {
+const FIRST_PARTY_STATUS = {
+  id: FIRST_PARTY_SOURCE_ID,
+  url: "https://davidpoxon.github.io/roubo-plugins/catalog.json",
+  label: "Roubo first-party",
+  source: "network",
+  fetchedAt: null,
+  unavailable: false,
+};
+
+const ACME_SOURCE_ID = "marketplace-acme-example-1a2b3c4d";
+
+const ACME_STATUS = {
+  id: ACME_SOURCE_ID,
+  url: "https://marketplace.acme.example/catalog.json",
+  label: "ACME workplace",
+  source: "network",
+  fetchedAt: "2026-07-02T00:00:00.000Z",
+  unavailable: false,
+};
+
+function setCatalogData(
+  source: "network" | "cache" | "seed",
+  fetchedAt: string | null,
+  over: {
+    listings?: MarketplaceListing[];
+    sources?: unknown[];
+  } = {},
+) {
   mockedCatalog.mockReturnValue({
     data: {
       curated: true,
-      listings: [listing(), listing({ id: "github-com", kind: "integration" })],
+      listings: over.listings ?? [listing(), listing({ id: "github-com", kind: "integration" })],
       source,
       fetchedAt,
+      sources: over.sources ?? [FIRST_PARTY_STATUS],
     },
     isLoading: false,
     error: null,
   } as unknown as ReturnType<typeof _useCatalog>);
+}
+
+/** The merged multi-source surfaces: provenance chips plus the source chip row. */
+function setMultiSourceData(over: { unavailable?: boolean } = {}) {
+  setCatalogData("network", null, {
+    listings: [listing(), listing({ id: "ghe", verified: false, sourceId: ACME_SOURCE_ID })],
+    sources: [FIRST_PARTY_STATUS, { ...ACME_STATUS, unavailable: over.unavailable ?? false }],
+  });
 }
 
 beforeEach(() => {
@@ -114,6 +152,46 @@ beforeEach(() => {
   mockedUpdatePreview.mockReturnValue(mutationStub());
   mockedConfirm.mockReturnValue(mutationStub());
   mockedCancel.mockReturnValue(mutationStub());
+});
+
+// CPHMTP-NFR-008 (issue #557): the new multi-source surfaces (per-entry
+// provenance chips, the source filter chip row, the per-source unavailable
+// notice) meet the same bar as the rest of this view.
+describe("Marketplace multi-source surfaces: axe-core (CPHMTP-NFR-008)", () => {
+  it("has no axe violations in the merged multi-source grid and filter chips", async () => {
+    setMultiSourceData();
+    const { baseElement } = render(<Marketplace />);
+    const results = await axe(baseElement);
+    expect(results).toHaveNoViolations();
+  });
+
+  it("has no axe violations with a source reported unavailable", async () => {
+    setMultiSourceData({ unavailable: true });
+    const { baseElement } = render(<Marketplace />);
+    const results = await axe(baseElement);
+    expect(results).toHaveNoViolations();
+  });
+
+  it("makes every source filter chip reachable and selectable by keyboard", async () => {
+    const user = userEvent.setup();
+    setMultiSourceData();
+    render(<Marketplace />);
+
+    // A radio group is one tab stop; arrow keys move within it. Tab to the group,
+    // then walk to the ACME chip and select it without touching the mouse.
+    const group = screen.getByRole("radiogroup", { name: "Filter by source" });
+    const chips = within(group).getAllByRole("radio");
+    // React Aria updates the radio's focus state on focus, so drive it through
+    // act(): an unwrapped focus() would warn on stderr.
+    act(() => chips[0].focus());
+    expect(document.activeElement).toBe(chips[0]);
+
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    await waitFor(() => expect(chips[2]).toBeChecked());
+    expect(mockedCatalog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sourceId: ACME_SOURCE_ID }),
+    );
+  });
 });
 
 describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {

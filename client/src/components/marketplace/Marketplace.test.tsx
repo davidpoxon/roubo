@@ -7,10 +7,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type {
   InstallPreview,
   MarketplaceCatalogSource,
   MarketplaceListing,
+  MarketplaceSourceStatus,
   PluginPermissions,
 } from "@roubo/shared";
 import { ApiError } from "../../lib/api";
@@ -58,6 +60,7 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     updateAvailable: false,
     declaredPermissions: null,
     lifecycle: null,
+    sourceId: FIRST_PARTY_SOURCE_ID,
     ...over,
   };
 }
@@ -95,13 +98,40 @@ function mutationStub<T>(extra: Record<string, unknown> = {}) {
   } as unknown as T;
 }
 
+// The always-present built-in source's status row (issue #557). The fan-out
+// reports it first and it is never unavailable, so a first-party-only catalog
+// renders no source filter chips (there is nothing to choose between).
+const FIRST_PARTY_STATUS: MarketplaceSourceStatus = {
+  id: FIRST_PARTY_SOURCE_ID,
+  url: "https://davidpoxon.github.io/roubo-plugins/catalog.json",
+  label: "Roubo first-party",
+  source: "network",
+  fetchedAt: null,
+  unavailable: false,
+};
+
+const ACME_SOURCE_ID = "marketplace-acme-example-1a2b3c4d";
+
+function sourceStatus(over: Partial<MarketplaceSourceStatus> = {}): MarketplaceSourceStatus {
+  return {
+    id: ACME_SOURCE_ID,
+    url: "https://marketplace.acme.example/catalog.json",
+    label: "ACME workplace",
+    source: "network",
+    fetchedAt: "2026-07-02T00:00:00.000Z",
+    unavailable: false,
+    ...over,
+  };
+}
+
 function setCatalog(
   listings: MarketplaceListing[],
   source: MarketplaceCatalogSource = "network",
   fetchedAt: string | null = null,
+  sources: MarketplaceSourceStatus[] = [FIRST_PARTY_STATUS],
 ) {
   mockedCatalog.mockReturnValue({
-    data: { curated: true, listings, source, fetchedAt },
+    data: { curated: true, listings, source, fetchedAt, sources },
     isLoading: false,
     error: null,
   } as unknown as ReturnType<typeof _useCatalog>);
@@ -437,6 +467,180 @@ describe("Marketplace catalog", () => {
 
 // The 4-step install progress surface (issue #374). The four stages already run
 // across the two existing server calls (preview = download + verify catalog
+// Issue #557 (CPHMTP-FR-004 / CPHMTP-TC-028 / CPHMTP-TC-029): the Browse screen
+// renders the MERGED multi-source list. Every card carries exactly one source
+// provenance chip, first-party rendered distinctly from a registered source, and
+// the source filter chip row scopes the list to one source and back to all.
+describe("Marketplace multi-source browse (issue #557)", () => {
+  const MERGED: MarketplaceListing[] = [
+    listing({ id: "redis", name: "Redis" }),
+    listing({
+      id: "ghe",
+      name: "GitHub Enterprise",
+      kind: "integration",
+      summary: "Connect a self-hosted GitHub Enterprise instance.",
+      verified: false,
+      sourceId: ACME_SOURCE_ID,
+    }),
+  ];
+
+  function setMerged(over: Partial<MarketplaceSourceStatus> = {}) {
+    setCatalog(MERGED, "network", null, [FIRST_PARTY_STATUS, sourceStatus(over)]);
+  }
+
+  function cardFor(id: string): HTMLElement {
+    const card = screen
+      .getAllByTestId("marketplace-card")
+      .find((c) => c.getAttribute("data-plugin-id") === id);
+    if (!card) throw new Error(`expected a card for ${id}`);
+    return card;
+  }
+
+  // CPHMTP-TC-028 S001: the list contains entries from the first-party catalog
+  // and from every registered source.
+  it("renders first-party and registered-source entries in one list", () => {
+    setMerged();
+    render(<Marketplace />);
+    expect(screen.getAllByTestId("marketplace-card")).toHaveLength(2);
+    expect(cardFor("redis")).toBeTruthy();
+    expect(cardFor("ghe")).toBeTruthy();
+  });
+
+  // CPHMTP-TC-028 S002-O01: every entry carries exactly one visible provenance
+  // chip naming its originating source.
+  it("gives every entry exactly one provenance chip naming its source", () => {
+    setMerged();
+    render(<Marketplace />);
+    for (const card of screen.getAllByTestId("marketplace-card")) {
+      expect(within(card).getAllByTestId("marketplace-card-source")).toHaveLength(1);
+    }
+    expect(within(cardFor("redis")).getByTestId("marketplace-card-source")).toHaveTextContent(
+      "Roubo first-party",
+    );
+    expect(within(cardFor("ghe")).getByTestId("marketplace-card-source")).toHaveTextContent(
+      "ACME workplace",
+    );
+  });
+
+  // CPHMTP-TC-028 S002-O02: first-party provenance is rendered DISTINCTLY from
+  // third-party provenance (green versus amber), so an unsigned source cannot
+  // visually pass itself off as the curated catalog.
+  it("renders first-party provenance distinctly from a third-party source", () => {
+    setMerged();
+    render(<Marketplace />);
+    const firstParty = within(cardFor("redis")).getByTestId("marketplace-card-source");
+    const thirdParty = within(cardFor("ghe")).getByTestId("marketplace-card-source");
+    expect(firstParty.getAttribute("data-source-id")).toBe(FIRST_PARTY_SOURCE_ID);
+    expect(thirdParty.getAttribute("data-source-id")).toBe(ACME_SOURCE_ID);
+    expect(firstParty.className).toContain("green");
+    expect(thirdParty.className).toContain("amber");
+    expect(firstParty.className).not.toContain("amber");
+  });
+
+  it("labels each provenance chip for a screen reader rather than showing a bare host", () => {
+    setMerged();
+    render(<Marketplace />);
+    expect(screen.getByLabelText("Source: Roubo first-party")).toBeTruthy();
+    expect(screen.getByLabelText("Source: ACME workplace")).toBeTruthy();
+  });
+
+  // CPHMTP-TC-029: the filter chips scope the list to a single source and back.
+  // Filtering is server-side (the same seam as the kind chips), so what the chip
+  // must do here is re-query with the chosen sourceId.
+  it("scopes the list to a single source and back to all sources (CPHMTP-TC-029)", async () => {
+    const user = userEvent.setup();
+    setMerged();
+    render(<Marketplace />);
+
+    // S001: pick the first-party chip.
+    await user.click(screen.getByTestId(`marketplace-source-filter-${FIRST_PARTY_SOURCE_ID}`));
+    await waitFor(() =>
+      expect(mockedCatalog).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sourceId: FIRST_PARTY_SOURCE_ID }),
+      ),
+    );
+
+    // S002: pick the ACME workplace chip.
+    await user.click(screen.getByTestId(`marketplace-source-filter-${ACME_SOURCE_ID}`));
+    await waitFor(() =>
+      expect(mockedCatalog).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sourceId: ACME_SOURCE_ID }),
+      ),
+    );
+
+    // S003: back to all sources; the scoping is dropped entirely.
+    await user.click(screen.getByTestId("marketplace-source-filter-__all__"));
+    await waitFor(() =>
+      expect(mockedCatalog).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sourceId: undefined }),
+      ),
+    );
+  });
+
+  it("renders one filter chip per source plus the all-sources default", () => {
+    setMerged();
+    render(<Marketplace />);
+    // React Aria's Radio renders a visually-hidden input for the radio role and
+    // labels it with the chip's own element, so read the chips themselves.
+    const row = screen.getByTestId("marketplace-source-filter");
+    const chips = [...row.children].map((c) => c.textContent);
+    expect(chips).toEqual(["All sources", "Roubo first-party", "ACME workplace"]);
+  });
+
+  it("keeps the full chip row while the list is scoped to one source", async () => {
+    const user = userEvent.setup();
+    setMerged();
+    render(<Marketplace />);
+    await user.click(screen.getByTestId(`marketplace-source-filter-${ACME_SOURCE_ID}`));
+    // Without the other chips there would be no way back to the merged list.
+    expect(screen.getByTestId(`marketplace-source-filter-${FIRST_PARTY_SOURCE_ID}`)).toBeTruthy();
+    expect(screen.getByTestId("marketplace-source-filter-__all__")).toBeTruthy();
+  });
+
+  it("hides the source filter entirely when only the built-in source exists", () => {
+    // Nothing to filter between: the chip row would be a control with one choice.
+    setCatalog(CATALOG);
+    render(<Marketplace />);
+    expect(screen.queryByTestId("marketplace-source-filter")).toBeNull();
+  });
+
+  // CPHMTP-TC-046 / CPHMTP-TC-036 S002-O01: only the failed source shows a
+  // degraded state; the healthy sources' entries stay listed.
+  it("calls out only the unavailable source while the rest list normally", () => {
+    setMerged({ unavailable: true, source: "cache", fetchedAt: null });
+    render(<Marketplace />);
+    const notice = screen.getByTestId("marketplace-sources-unavailable");
+    expect(notice).toHaveTextContent("ACME workplace is unavailable right now");
+    expect(notice).toHaveTextContent("Every other source is unaffected");
+    // First-party entries are unaffected, and the first-party offline banner
+    // (a separate, first-party-scoped surface) stays away.
+    expect(cardFor("redis")).toBeTruthy();
+    expect(screen.queryByTestId("marketplace-offline-banner")).toBeNull();
+  });
+
+  it("shows no unavailable notice while every source is healthy", () => {
+    setMerged();
+    render(<Marketplace />);
+    expect(screen.queryByTestId("marketplace-sources-unavailable")).toBeNull();
+  });
+
+  it("names every unavailable source when more than one is down", () => {
+    setCatalog(MERGED, "network", null, [
+      FIRST_PARTY_STATUS,
+      sourceStatus({ unavailable: true, fetchedAt: null }),
+      sourceStatus({
+        id: "other",
+        label: "other.example",
+        unavailable: true,
+        fetchedAt: null,
+      }),
+    ]);
+    render(<Marketplace />);
+    const notice = screen.getByTestId("marketplace-sources-unavailable");
+    expect(notice).toHaveTextContent("ACME workplace, other.example are unavailable right now");
+  });
+});
+
 // signature + verify artifact digest; confirm = unpack & install); this widget
 // surfaces them, fail-closed, across both the staging phase (a dedicated
 // progress modal) and the confirm phase (inside the consent modal).

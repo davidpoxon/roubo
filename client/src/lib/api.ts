@@ -1315,13 +1315,21 @@ export type { InstallPreview, InstallSource };
 // first-party curated; install/update reuse the existing two-stage plugin
 // install flow (they return a staging token, then confirmInstallPlugin /
 // cancelInstallPlugin drive the commit step through the consent UI).
+/**
+ * The merged multi-source catalog: first-party plus every registered source
+ * (issue #557). `sourceId` scopes the listings to a single source (the Browse
+ * screen's source filter chips); the response's `sources` array always describes
+ * every source regardless, so the chip row stays complete while filtered.
+ */
 export function fetchMarketplaceCatalog(params?: {
   q?: string;
   kind?: MarketplaceKind;
+  sourceId?: string;
 }): Promise<MarketplaceCatalogResponse> {
   const search = new URLSearchParams();
   if (params?.q) search.set("q", params.q);
   if (params?.kind) search.set("kind", params.kind);
+  if (params?.sourceId) search.set("sourceId", params.sourceId);
   const qs = search.toString();
   return request(`/marketplace/plugins${qs ? `?${qs}` : ""}`);
 }

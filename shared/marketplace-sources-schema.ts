@@ -15,6 +15,16 @@ import { z } from "zod";
 
 export const MARKETPLACE_SOURCES_STATE_SCHEMA_VERSION = 1 as const;
 
+/**
+ * The reserved id of the built-in first-party catalog: the always-present,
+ * non-removable source. Shared (rather than server-local) because the client
+ * needs it too, to tell a first-party listing's provenance chip from a
+ * third-party one (CPHMTP-FR-004, issue #557). It can never collide with a
+ * generated third-party id: generated ids end in an 8-char hex suffix, and
+ * "party" is not hex.
+ */
+export const FIRST_PARTY_SOURCE_ID = "first-party";
+
 export const MarketplaceSourceSchema = z
   .object({
     // Generated slug derived from the source URL: filesystem- and keyring-safe

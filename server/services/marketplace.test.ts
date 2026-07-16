@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type {
   MarketplaceCatalogEntry,
+  MarketplaceSource,
   PluginLifecycle,
   PluginPermissions,
   PluginRecord,
 } from "@roubo/shared";
-import type { CatalogSource, VerifiedCatalog } from "./catalog-client.js";
+import type { CatalogSource, ThirdPartyCatalogResult, VerifiedCatalog } from "./catalog-client.js";
 
 vi.mock("./plugin-manager.js", () => ({
   listInstalled: vi.fn(() => [] as PluginRecord[]),
@@ -31,12 +33,22 @@ vi.mock("./plugin-installer.js", () => {
 
 vi.mock("./catalog-client.js", () => ({
   getVerifiedCatalog: vi.fn(),
+  createThirdPartyCatalogClient: vi.fn(),
+}));
+
+const FIRST_PARTY_URL = "https://davidpoxon.github.io/roubo-plugins/catalog.json";
+
+vi.mock("./marketplace-sources-state.js", () => ({
+  FIRST_PARTY_URL: "https://davidpoxon.github.io/roubo-plugins/catalog.json",
+  listSources: vi.fn(),
+  readSourceCredential: vi.fn(),
 }));
 
 import * as marketplace from "./marketplace.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginInstaller from "./plugin-installer.js";
 import * as catalogClient from "./catalog-client.js";
+import * as sourcesState from "./marketplace-sources-state.js";
 
 const listInstalled = vi.mocked(pluginManager.listInstalled);
 const previewFromGitUrl = vi.mocked(pluginInstaller.previewFromGitUrl);
@@ -44,6 +56,9 @@ const previewUpdateFromGitUrl = vi.mocked(pluginInstaller.previewUpdateFromGitUr
 const previewFromRelease = vi.mocked(pluginInstaller.previewFromRelease);
 const previewUpdateFromRelease = vi.mocked(pluginInstaller.previewUpdateFromRelease);
 const getVerifiedCatalog = vi.mocked(catalogClient.getVerifiedCatalog);
+const createThirdPartyCatalogClient = vi.mocked(catalogClient.createThirdPartyCatalogClient);
+const listSources = vi.mocked(sourcesState.listSources);
+const readSourceCredential = vi.mocked(sourcesState.readSourceCredential);
 
 const ENTRIES: MarketplaceCatalogEntry[] = [
   {
@@ -171,6 +186,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   listInstalled.mockReturnValue([]);
   setCatalog("network");
+  // Default: no third-party source registered, so the fan-out is first-party only
+  // and every pre-existing expectation below holds unchanged.
+  listSources.mockReturnValue([]);
+  readSourceCredential.mockResolvedValue(null);
+  marketplace.__test.resetSourceClients();
 });
 
 describe("isNewerVersion", () => {
@@ -390,6 +410,411 @@ describe("annotate enrichment: declared permissions + lifecycle (issue #401)", (
     ]);
     const annotated = await annotatedById("oneshot-deploy");
     expect(annotated.lifecycle).toBe("one-shot");
+  });
+});
+
+// Issue #557 (CPHMTP-FR-004 / NFR-006 / NFR-007): listCatalog fans out over the
+// first-party catalog AND every registered source concurrently, merges the
+// results with per-entry provenance, and reports each source's health on its own
+// row so one dead source cannot take the others down with it.
+describe("multi-source listing (issue #557)", () => {
+  const ACME_URL = "https://marketplace.acme.example/catalog.json";
+  const OTHER_URL = "https://plugins.other.example/catalog.json";
+
+  function sourceRow(over: Partial<MarketplaceSource> = {}): MarketplaceSource {
+    return {
+      id: "marketplace-acme-example-1a2b3c4d",
+      url: ACME_URL,
+      unsigned: true,
+      hasCredential: false,
+      allowHttp: false,
+      registeredAt: "2026-07-01T00:00:00.000Z",
+      ...over,
+    };
+  }
+
+  function thirdPartyEntry(over: Partial<MarketplaceCatalogEntry> = {}): MarketplaceCatalogEntry {
+    return {
+      id: "ghe",
+      name: "GitHub Enterprise",
+      kind: "integration",
+      version: "1.0.0",
+      summary: "Connect a self-hosted GitHub Enterprise instance",
+      source: { type: "release", assetUrl: "https://marketplace.acme.example/ghe-1.0.0.tgz" },
+      provenance: "acme/marketplace@ghe",
+      integrity: "sha256-ghe",
+      verified: false,
+      ...over,
+    };
+  }
+
+  interface FakeSource {
+    row: MarketplaceSource;
+    /** What this source's client resolves to; the client itself never throws. */
+    result: ThirdPartyCatalogResult;
+    /** Simulated fetch duration, so concurrency is observable. */
+    delayMs?: number;
+  }
+
+  /** The per-source fetch windows a fan-out produced, in wall-clock ms. */
+  const windows: { id: string; start: number; end: number }[] = [];
+  let concurrentPeak = 0;
+
+  /**
+   * Wire `createThirdPartyCatalogClient` to serve these fakes, keyed by source id,
+   * and register their rows. Each fake records when its fetch started and ended so
+   * a test can prove the windows overlap (parallel) rather than abut (serial).
+   */
+  function registerSources(fakes: FakeSource[]) {
+    listSources.mockReturnValue(fakes.map((f) => f.row));
+    let inFlight = 0;
+    createThirdPartyCatalogClient.mockImplementation((source) => {
+      const fake = fakes.find((f) => f.row.id === source.id);
+      if (!fake) throw new Error(`unexpected source ${source.id}`);
+      return {
+        async getCatalog() {
+          const start = Date.now();
+          inFlight += 1;
+          concurrentPeak = Math.max(concurrentPeak, inFlight);
+          if (fake.delayMs) await new Promise((r) => setTimeout(r, fake.delayMs));
+          inFlight -= 1;
+          windows.push({ id: fake.row.id, start, end: Date.now() });
+          return fake.result;
+        },
+      };
+    });
+  }
+
+  function served(
+    entries: MarketplaceCatalogEntry[],
+    over: Partial<ThirdPartyCatalogResult> = {},
+  ): ThirdPartyCatalogResult {
+    return { entries, source: "network", fetchedAt: "2026-07-02T00:00:00.000Z", ...over };
+  }
+
+  /**
+   * What a third-party client resolves to when it can serve nothing at all:
+   * unreachable with no usable cache. There is no third-party seed floor, so the
+   * chain bottoms out at an empty result with a null fetchedAt.
+   */
+  function unreachable(): ThirdPartyCatalogResult {
+    return { entries: [], source: "cache", fetchedAt: null };
+  }
+
+  beforeEach(() => {
+    windows.length = 0;
+    concurrentPeak = 0;
+  });
+
+  // AC1 / CPHMTP-TC-028 S001: the list contains entries from the first-party
+  // catalog AND every registered source, merged into one list.
+  it("merges first-party entries with every registered source's entries", async () => {
+    registerSources([
+      { row: sourceRow(), result: served([thirdPartyEntry()]) },
+      {
+        row: sourceRow({ id: "plugins-other-example-99887766", url: OTHER_URL }),
+        result: served([thirdPartyEntry({ id: "jira-self-hosted", name: "Jira (self-hosted)" })]),
+      },
+    ]);
+    const { listings } = await marketplace.listCatalog();
+    const ids = listings.map((l) => l.id);
+    // First-party entries survive the merge, and each source contributed its own.
+    expect(ids).toContain("database");
+    expect(ids).toContain("github-com");
+    expect(ids).toContain("ghe");
+    expect(ids).toContain("jira-self-hosted");
+  });
+
+  // AC1 / CPHMTP-TC-028 S002-O01: every entry carries exactly one source
+  // provenance naming where it came from.
+  it("stamps every entry with exactly one sourceId naming its originating source", async () => {
+    const acme = sourceRow();
+    registerSources([{ row: acme, result: served([thirdPartyEntry()]) }]);
+    const { listings } = await marketplace.listCatalog();
+    for (const listing of listings) {
+      expect(typeof listing.sourceId).toBe("string");
+      expect(listing.sourceId.length).toBeGreaterThan(0);
+    }
+    expect(listings.find((l) => l.id === "database")?.sourceId).toBe(FIRST_PARTY_SOURCE_ID);
+    expect(listings.find((l) => l.id === "ghe")?.sourceId).toBe(acme.id);
+  });
+
+  // The `verified` flag lives on the (unsigned, unverifiable) third-party payload,
+  // so a hostile source could claim it and borrow the first-party treatment. Only
+  // the signed chain can assert it: force it false for third-party entries.
+  it("forces verified false on a third-party entry even when the source claims true", async () => {
+    registerSources([{ row: sourceRow(), result: served([thirdPartyEntry({ verified: true })]) }]);
+    const { listings } = await marketplace.listCatalog();
+    expect(listings.find((l) => l.id === "ghe")?.verified).toBe(false);
+    // The first-party entries keep their signed curation flag.
+    expect(listings.find((l) => l.id === "database")?.verified).toBe(true);
+  });
+
+  it("reports the first-party source first, then each registered source with a host-derived label", async () => {
+    const acme = sourceRow();
+    registerSources([{ row: acme, result: served([thirdPartyEntry()]) }]);
+    const { sources } = await marketplace.listCatalog();
+    expect(sources).toHaveLength(2);
+    expect(sources[0]).toMatchObject({
+      id: FIRST_PARTY_SOURCE_ID,
+      url: FIRST_PARTY_URL,
+      label: "Roubo first-party",
+      source: "network",
+      unavailable: false,
+    });
+    // A registered row carries no display name, so the label is derived from the
+    // URL host rather than the generated slug.
+    expect(sources[1]).toMatchObject({
+      id: acme.id,
+      url: ACME_URL,
+      label: "marketplace.acme.example",
+      unavailable: false,
+    });
+  });
+
+  // AC2 / CPHMTP-TC-029: the source filter scopes the merged list to a single
+  // source, and back to all when unset.
+  it("scopes the merged list to one source and back to all", async () => {
+    const acme = sourceRow();
+    registerSources([{ row: acme, result: served([thirdPartyEntry()]) }]);
+
+    const firstPartyOnly = await marketplace.listCatalog({ sourceId: FIRST_PARTY_SOURCE_ID });
+    expect(firstPartyOnly.listings.length).toBeGreaterThan(0);
+    expect(firstPartyOnly.listings.every((l) => l.sourceId === FIRST_PARTY_SOURCE_ID)).toBe(true);
+    expect(firstPartyOnly.listings.some((l) => l.id === "ghe")).toBe(false);
+
+    const acmeOnly = await marketplace.listCatalog({ sourceId: acme.id });
+    expect(acmeOnly.listings.map((l) => l.id)).toEqual(["ghe"]);
+
+    const all = await marketplace.listCatalog();
+    expect(all.listings.some((l) => l.sourceId === FIRST_PARTY_SOURCE_ID)).toBe(true);
+    expect(all.listings.some((l) => l.sourceId === acme.id)).toBe(true);
+  });
+
+  it("keeps reporting every source while the listings are scoped to one", async () => {
+    const acme = sourceRow();
+    registerSources([{ row: acme, result: served([thirdPartyEntry()]) }]);
+    // The chip row must stay complete while filtered, or there is no way back.
+    const { sources } = await marketplace.listCatalog({ sourceId: FIRST_PARTY_SOURCE_ID });
+    expect(sources.map((s) => s.id)).toEqual([FIRST_PARTY_SOURCE_ID, acme.id]);
+  });
+
+  it("applies the kind and query filters across the merged list, not per source", async () => {
+    registerSources([
+      {
+        row: sourceRow(),
+        result: served([
+          thirdPartyEntry(),
+          thirdPartyEntry({ id: "acme-cache", name: "ACME Cache", kind: "component" }),
+        ]),
+      },
+    ]);
+    const { listings: integrations } = await marketplace.listCatalog({ kind: "integration" });
+    // github-com (first-party) and ghe (third-party) both survive a kind filter.
+    expect(integrations.every((l) => l.kind === "integration")).toBe(true);
+    expect(integrations.map((l) => l.id)).toEqual(expect.arrayContaining(["github-com", "ghe"]));
+
+    const { listings: byQuery } = await marketplace.listCatalog({ q: "acme" });
+    expect(byQuery.map((l) => l.id)).toEqual(["acme-cache"]);
+  });
+
+  it("filters a revoked third-party entry out of the merged list (CP-TC-109)", async () => {
+    registerSources([
+      {
+        row: sourceRow(),
+        result: served([thirdPartyEntry(), thirdPartyEntry({ id: "dead-plugin", revoked: true })]),
+      },
+    ]);
+    const { listings } = await marketplace.listCatalog();
+    expect(listings.some((l) => l.id === "dead-plugin")).toBe(false);
+  });
+
+  it("annotates a third-party entry's installed state the same way as a first-party one", async () => {
+    listInstalled.mockReturnValue([installedRecord("ghe", "0.9.0")]);
+    registerSources([{ row: sourceRow(), result: served([thirdPartyEntry()]) }]);
+    const { listings } = await marketplace.listCatalog();
+    const ghe = listings.find((l) => l.id === "ghe");
+    expect(ghe?.installed).toBe(true);
+    expect(ghe?.installedVersion).toBe("0.9.0");
+    expect(ghe?.updateAvailable).toBe(true);
+  });
+
+  // AC3 / CPHMTP-TC-045 / CPHMTP-TC-032 S002: sources are fetched concurrently,
+  // not serially, so the list costs the slowest single source rather than the sum.
+  it("fetches every source concurrently rather than serially (CPHMTP-TC-045)", async () => {
+    const fakes: FakeSource[] = [0, 1, 2, 3, 4].map((i) => ({
+      row: sourceRow({ id: `src-${i}`, url: `https://s${i}.example/catalog.json` }),
+      result: served([thirdPartyEntry({ id: `plugin-${i}` })]),
+      delayMs: 50,
+    }));
+    registerSources(fakes);
+
+    const startedAt = Date.now();
+    const { listings } = await marketplace.listCatalog();
+    const elapsed = Date.now() - startedAt;
+
+    // S001-O01: all five sources were in flight at once, so the windows overlap.
+    expect(concurrentPeak).toBe(5);
+    const lastStart = Math.max(...windows.map((w) => w.start));
+    const firstEnd = Math.min(...windows.map((w) => w.end));
+    expect(lastStart).toBeLessThanOrEqual(firstEnd);
+    // S001-O02: total approximates the slowest single source (~50ms), not the sum
+    // of all five (~250ms). The bound is deliberately loose: it only has to
+    // separate "parallel" from "serial", not measure the runtime precisely.
+    expect(elapsed).toBeLessThan(200);
+    // Five healthy sources plus first-party all contributed.
+    expect(listings.filter((l) => l.id.startsWith("plugin-"))).toHaveLength(5);
+  });
+
+  // AC4 / CPHMTP-TC-039: a dead source is bounded by its own timeout and never
+  // blocks a healthy source or the first-party section. The 5s per-fetch timeout
+  // itself lives in the client (third-party-catalog-client.test.ts); what matters
+  // here is that the fan-out neither serialises behind it nor drops the healthy
+  // sources' entries.
+  it("lets a dead source cost only its own timeout, never blocking healthy sources (CPHMTP-TC-039)", async () => {
+    registerSources([
+      // Stands in for a source that hangs until its own 5s timeout fires, then
+      // degrades to the empty result.
+      { row: sourceRow({ id: "dead" }), result: unreachable(), delayMs: 80 },
+      ...[0, 1, 2, 3].map((i) => ({
+        row: sourceRow({ id: `healthy-${i}`, url: `https://h${i}.example/catalog.json` }),
+        result: served([thirdPartyEntry({ id: `healthy-plugin-${i}` })]),
+        delayMs: 10,
+      })),
+    ]);
+
+    const startedAt = Date.now();
+    const { listings, sources } = await marketplace.listCatalog();
+    const elapsed = Date.now() - startedAt;
+
+    // S002-O01: the dead source contributes at most its own wait; no healthy
+    // source is delayed beyond its own fetch time (they all finish inside the
+    // dead source's window rather than queueing after it).
+    expect(elapsed).toBeLessThan(160);
+    const dead = windows.find((w) => w.id === "dead");
+    if (!dead) throw new Error("expected the dead source to have been fetched");
+    for (const healthy of windows.filter((w) => w.id !== "dead")) {
+      expect(healthy.end).toBeLessThanOrEqual(dead.end);
+    }
+    // S001-O01: 100% of the healthy sources' entries are listed regardless.
+    expect(listings.filter((l) => l.id.startsWith("healthy-plugin-"))).toHaveLength(4);
+    expect(listings.some((l) => l.id === "database")).toBe(true);
+    expect(sources.find((s) => s.id === "dead")?.unavailable).toBe(true);
+  });
+
+  // AC5 / CPHMTP-TC-046 / CPHMTP-TC-036: a cold source with no cache and no
+  // network shows unavailable while every other source lists normally.
+  it("marks only the cold, unreachable source unavailable while the rest list normally (CPHMTP-TC-046)", async () => {
+    registerSources([
+      { row: sourceRow({ id: "cold" }), result: unreachable() },
+      {
+        row: sourceRow({ id: "healthy", url: OTHER_URL }),
+        result: served([thirdPartyEntry({ id: "healthy-plugin" })]),
+      },
+    ]);
+    const { listings, sources, source } = await marketplace.listCatalog();
+
+    // S001-O01: the cold source contributed nothing and is flagged unavailable.
+    expect(sources.find((s) => s.id === "cold")).toMatchObject({
+      unavailable: true,
+      fetchedAt: null,
+    });
+    // S001-O02: first-party and every other healthy source are unaffected.
+    expect(sources.find((s) => s.id === "healthy")?.unavailable).toBe(false);
+    expect(sources.find((s) => s.id === FIRST_PARTY_SOURCE_ID)?.unavailable).toBe(false);
+    expect(listings.some((l) => l.id === "healthy-plugin")).toBe(true);
+    expect(listings.some((l) => l.id === "database")).toBe(true);
+    // A dead third-party source must NOT flip the first-party offline banner.
+    expect(source).toBe("network");
+  });
+
+  // CPHMTP-TC-036 S002-O01: a source serving from its own cache is degraded but
+  // still populated, so it is not "unavailable"; only a source that can serve
+  // nothing is.
+  it("does not mark a cache-degraded source unavailable while it still serves entries", async () => {
+    registerSources([
+      {
+        row: sourceRow({ id: "cached" }),
+        result: served([thirdPartyEntry()], { source: "cache" }),
+      },
+    ]);
+    const { sources, listings } = await marketplace.listCatalog();
+    expect(sources.find((s) => s.id === "cached")).toMatchObject({
+      source: "cache",
+      unavailable: false,
+    });
+    expect(listings.some((l) => l.id === "ghe")).toBe(true);
+  });
+
+  it("keeps the first-party offline banner scoped to the first-party chain", async () => {
+    setCatalog("cache");
+    registerSources([{ row: sourceRow(), result: served([thirdPartyEntry()]) }]);
+    const { source, sources } = await marketplace.listCatalog();
+    // The first-party chain degraded, so the banner fires; the healthy
+    // third-party source is untouched by it.
+    expect(source).toBe("cache");
+    expect(sources[0]).toMatchObject({ id: FIRST_PARTY_SOURCE_ID, source: "cache" });
+    expect(sources[1].source).toBe("network");
+  });
+
+  it("reads a credentialed source's keyring token and passes it to its client", async () => {
+    const acme = sourceRow({ hasCredential: true });
+    readSourceCredential.mockResolvedValue("ghp_secret");
+    registerSources([{ row: acme, result: served([thirdPartyEntry()]) }]);
+    await marketplace.listCatalog();
+    expect(readSourceCredential).toHaveBeenCalledWith(acme.id);
+    expect(createThirdPartyCatalogClient).toHaveBeenCalledWith(
+      acme,
+      expect.objectContaining({ credential: "ghp_secret" }),
+    );
+  });
+
+  it("never reads the keyring for a source that has no credential", async () => {
+    registerSources([{ row: sourceRow({ hasCredential: false }), result: served([]) }]);
+    await marketplace.listCatalog();
+    expect(readSourceCredential).not.toHaveBeenCalled();
+  });
+
+  // The keyring read is the one step outside the client's never-throws contract
+  // (an unavailable headless keyring throws), so it must not take the fan-out
+  // down with it.
+  it("isolates a keyring failure to its own source", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    readSourceCredential.mockRejectedValue(new Error("keyring unavailable"));
+    registerSources([
+      { row: sourceRow({ id: "credentialed", hasCredential: true }), result: served([]) },
+      {
+        row: sourceRow({ id: "healthy", url: OTHER_URL }),
+        result: served([thirdPartyEntry({ id: "healthy-plugin" })]),
+      },
+    ]);
+    const { listings, sources } = await marketplace.listCatalog();
+    expect(sources.find((s) => s.id === "credentialed")?.unavailable).toBe(true);
+    expect(listings.some((l) => l.id === "healthy-plugin")).toBe(true);
+    expect(listings.some((l) => l.id === "database")).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("source credentialed could not be listed"),
+    );
+  });
+
+  // Constructing a fresh client per call would hand each one an empty memo, so
+  // every keystroke in the search field would re-fetch every source.
+  it("reuses one client per source across calls so search-as-you-type does not refetch", async () => {
+    registerSources([{ row: sourceRow(), result: served([thirdPartyEntry()]) }]);
+    await marketplace.listCatalog();
+    await marketplace.listCatalog({ q: "gh" });
+    await marketplace.listCatalog({ q: "ghe" });
+    expect(createThirdPartyCatalogClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("rebuilds a source's client when its registered URL changes", async () => {
+    registerSources([{ row: sourceRow(), result: served([thirdPartyEntry()]) }]);
+    await marketplace.listCatalog();
+    // Same id, re-registered at a new URL: the cached client points at the old
+    // origin, so it must not be reused.
+    registerSources([{ row: sourceRow({ url: OTHER_URL }), result: served([thirdPartyEntry()]) }]);
+    await marketplace.listCatalog();
+    expect(createThirdPartyCatalogClient).toHaveBeenCalledTimes(2);
   });
 });
 

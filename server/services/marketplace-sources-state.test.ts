@@ -208,6 +208,39 @@ describe("addSource", () => {
   });
 });
 
+// Issue #557: the read counterpart of the private storeCredential. A credentialed
+// source is unlistable without its token, so the multi-source listing fan-out
+// reads it here and hands it to that source's catalog client.
+describe("readSourceCredential", () => {
+  it("reads back the credential a registration stored, from the keyring account", async () => {
+    const credStore = await import("./credential-store.js");
+    const secret = "ghp_multi_source_token";
+    const result = await mod.addSource({ url: URL_A, credential: secret });
+    expect(result.outcome).toBe("created");
+    if (result.outcome !== "created") return;
+
+    await expect(mod.readSourceCredential(result.source.id)).resolves.toBe(secret);
+    // Read from the namespaced account the row was written under: the `source:`
+    // prefix keeps it from colliding with a plugin id's slot.
+    expect(credStore.get).toHaveBeenCalledWith(`source:${result.source.id}`, "token");
+  });
+
+  it("returns null for a source registered without a credential", async () => {
+    const result = await mod.addSource({ url: URL_A });
+    expect(result.outcome).toBe("created");
+    if (result.outcome !== "created") return;
+    await expect(mod.readSourceCredential(result.source.id)).resolves.toBeNull();
+  });
+
+  it("reads back the replacement after a credential rotation", async () => {
+    await mod.addSource({ url: URL_A, credential: "old-token" });
+    const rotated = await mod.addSource({ url: URL_A, credential: "new-token" });
+    expect(rotated.outcome).toBe("replaced");
+    if (rotated.outcome !== "replaced") return;
+    await expect(mod.readSourceCredential(rotated.source.id)).resolves.toBe("new-token");
+  });
+});
+
 describe("removeSource", () => {
   it("refuses to remove the built-in first-party source", async () => {
     const result = await mod.removeSource(mod.FIRST_PARTY_SOURCE_ID);
