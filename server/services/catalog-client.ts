@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
 import { Readable } from "node:stream";
 import path from "node:path";
+import { fetch as undiciFetch } from "undici";
 import type {
   KeyRingEntry,
   MarketplaceCatalogEntry,
@@ -257,7 +258,10 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
   const cacheFile = path.join(cacheDir, CACHE_FILENAME);
   const rootPublicKeyPem = options.rootPublicKeyPem;
   const seed = options.seed ?? (seedCatalog as SignedMarketplaceCatalog);
-  const doFetch = options.fetchImpl ?? globalThis.fetch;
+  // Default to npm undici's fetch (not Node's built-in global fetch) so the
+  // guarded transport's connect-pinning dispatcher (issue #590), built from the
+  // same undici, is protocol-compatible on this catalog path.
+  const doFetch = options.fetchImpl ?? (undiciFetch as unknown as typeof fetch);
   const log = options.log ?? ((message: string) => console.warn(message));
   const memoTtlMs = options.memoTtlMs ?? MEMO_TTL_MS;
   const maxCatalogBytes = options.maxCatalogBytes ?? MAX_CATALOG_BYTES;
