@@ -537,11 +537,24 @@ describe("Marketplace multi-source browse (issue #557)", () => {
     expect(firstParty.className).not.toContain("amber");
   });
 
-  it("labels each provenance chip for a screen reader rather than showing a bare host", () => {
+  // The "Source: " prefix must live in the chip's subtree as sr-only text, not in
+  // an aria-label: the chip is a role-less span (ARIA role `generic`), which
+  // prohibits aria-label, and a generic container is not a navigation stop, so a
+  // screen reader announces its subtree text rather than its name (issue #596).
+  // Assert the announced text, not the DOM attribute.
+  it("prefixes each provenance chip with screen-reader-only source context rather than showing a bare host", () => {
     setMerged();
     render(<Marketplace />);
-    expect(screen.getByLabelText("Source: Roubo first-party")).toBeTruthy();
-    expect(screen.getByLabelText("Source: ACME workplace")).toBeTruthy();
+    const firstParty = within(cardFor("redis")).getByTestId("marketplace-card-source");
+    const thirdParty = within(cardFor("ghe")).getByTestId("marketplace-card-source");
+    expect(firstParty).toHaveTextContent("Source: Roubo first-party");
+    expect(thirdParty).toHaveTextContent("Source: ACME workplace");
+    // The prefix is announced but never seen: it carries the sr-only treatment.
+    expect(within(firstParty).getByText("Source:", { exact: false }).className).toContain(
+      "sr-only",
+    );
+    expect(firstParty.getAttribute("aria-label")).toBeNull();
+    expect(thirdParty.getAttribute("aria-label")).toBeNull();
   });
 
   // CPHMTP-TC-029: the filter chips scope the list to a single source and back.
