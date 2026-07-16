@@ -223,6 +223,23 @@
           }
         }
       }
+    },
+    "marketplaces": {
+      "type": "array",
+      "description": "Optional third-party plugin marketplaces this project declares so the project-open flow can offer to register them. Each entry is a URL only, never a credential. Declaring this block requires an app version that supports it.",
+      "items": {
+        "type": "object",
+        "required": ["url"],
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://",
+            "description": "The marketplace base URL (http or https only). Never a credential."
+          }
+        }
+      }
     }
   }
 }

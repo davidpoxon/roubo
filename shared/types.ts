@@ -34,6 +34,7 @@ export type {
   ConfigFieldError,
   JigSettings,
   SourceEntry,
+  MarketplaceDeclaration,
 } from "./config-schema.js";
 
 export {
@@ -52,6 +53,7 @@ export {
   IntegrationOverrideSchema,
   CapturedUserIdSchema,
   SourceEntrySchema,
+  MarketplaceDeclarationSchema,
   zodIssuesToValidationErrors,
   zodIssuesToFieldMap,
 } from "./config-schema.js";
