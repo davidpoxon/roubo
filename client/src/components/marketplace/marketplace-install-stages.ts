@@ -28,10 +28,14 @@ export const INSTALL_STAGE_INDEX = {
 // Maps an InstallErrorCode to the 0-based index of the stage that fails:
 //   download-failed                          -> stage 1 (Download built artifact)
 //   catalog-unverified, marketplace-unreachable -> stage 2 (Verify catalog signature)
-//   integrity-failed, unpack-failed          -> stage 3 (Verify artifact digest)
+//   integrity-failed, unpack-failed, missing-integrity -> stage 3 (Verify artifact digest)
 //   anything else (confirm/commit phase)     -> stage 4 (Unpack & install)
 // Codes that can only surface during (or are not specific to a stage before) the
 // confirm/commit phase fall through to the final "Unpack & install" stage.
+// missing-integrity (an unsigned entry with no usable digest, #559) is rejected
+// BEFORE the download, so it precedes every stage. It is mapped to the digest
+// stage regardless, because that is the stage whose promise it fails: the default
+// fall-through would misreport a pre-fetch refusal as an unpack failure.
 export function stageIndexForErrorCode(code: InstallErrorCode | undefined): number {
   switch (code) {
     case "download-failed":
@@ -41,6 +45,7 @@ export function stageIndexForErrorCode(code: InstallErrorCode | undefined): numb
       return INSTALL_STAGE_INDEX.catalogSignature;
     case "integrity-failed":
     case "unpack-failed":
+    case "missing-integrity":
       return INSTALL_STAGE_INDEX.artifactDigest;
     default:
       return INSTALL_STAGE_INDEX.unpackInstall;
@@ -63,9 +68,15 @@ export function stageFailMessage(stageIndex: number, code?: InstallErrorCode): s
         ? "Marketplace unreachable: install paused, nothing written."
         : "Catalog signature unverified: install refused, nothing written.";
     case INSTALL_STAGE_INDEX.artifactDigest:
-      return code === "unpack-failed"
-        ? "Artifact could not be safely unpacked: nothing written, nothing executed."
-        : "Digest mismatch: nothing written, nothing executed.";
+      if (code === "unpack-failed") {
+        return "Artifact could not be safely unpacked: nothing written, nothing executed.";
+      }
+      // Not a mismatch: there was no digest to check against, so the artifact was
+      // never fetched. Say that plainly rather than implying tampering (#559).
+      if (code === "missing-integrity") {
+        return "Uninstallable without a per-artifact digest: nothing fetched, nothing written.";
+      }
+      return "Digest mismatch: nothing written, nothing executed.";
     default:
       return "Install failed: nothing written, nothing executed.";
   }

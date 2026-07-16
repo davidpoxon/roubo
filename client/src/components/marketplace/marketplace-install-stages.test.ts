@@ -42,6 +42,13 @@ describe("stageIndexForErrorCode", () => {
     expect(stageIndexForErrorCode("unpack-failed")).toBe(INSTALL_STAGE_INDEX.artifactDigest);
   });
 
+  it("maps missing-integrity to the Verify artifact digest stage, not the default (issue #559)", () => {
+    // A pre-fetch refusal must not fall through to "Unpack & install", which would
+    // misreport an unverifiable entry as an unpack failure.
+    expect(stageIndexForErrorCode("missing-integrity")).toBe(INSTALL_STAGE_INDEX.artifactDigest);
+    expect(stageIndexForErrorCode("missing-integrity")).not.toBe(INSTALL_STAGE_INDEX.unpackInstall);
+  });
+
   it("maps any other / confirm-phase code (and undefined) to the Unpack & install stage", () => {
     const others: (InstallErrorCode | undefined)[] = [
       "duplicate-id",
@@ -90,6 +97,15 @@ describe("stageFailMessage", () => {
     const message = stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest, "unpack-failed");
     expect(message).toMatch(/could not be safely unpacked/i);
     expect(message).not.toMatch(/digest mismatch/i);
+  });
+
+  it("states a missing digest makes the plugin uninstallable, not tampered (issue #559)", () => {
+    const message = stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest, "missing-integrity");
+    expect(message).toMatch(/uninstallable without a per-artifact digest/i);
+    // There was no digest to compare against and nothing was fetched, so neither
+    // a mismatch nor an unpack failure describes what happened.
+    expect(message).not.toMatch(/digest mismatch/i);
+    expect(message).toMatch(/nothing fetched/i);
   });
 
   it("returns the generic install-failed message for the Unpack & install stage", () => {

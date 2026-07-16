@@ -56,10 +56,12 @@ function installErrorStatus(code: InstallErrorCode): number {
     // switch must stay exhaustive over InstallErrorCode.
     case "revoked":
       return 410;
-    // integrity-failed (tampered digest) and unpack-failed (zip-slip / bad entry
-    // / over limit, #370) are both unprocessable-content: 422.
+    // integrity-failed (tampered digest), unpack-failed (zip-slip / bad entry
+    // / over limit, #370), and missing-integrity (an unsigned entry with no
+    // usable per-artifact digest, #559) are all unprocessable-content: 422.
     case "integrity-failed":
     case "unpack-failed":
+    case "missing-integrity":
       return 422;
     case "marketplace-unreachable":
       return 503;

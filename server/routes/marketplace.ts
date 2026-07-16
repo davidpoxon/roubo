@@ -58,9 +58,13 @@ function installErrorStatus(code: InstallErrorCode): number {
     // A tampered package whose digest does not match the signed catalog entry:
     // 422 Unprocessable Entity (the request was well-formed but the content
     // failed verification). unpack-failed (zip-slip / bad entry / over limit) is
-    // the same unprocessable-content class (#370).
+    // the same unprocessable-content class (#370). missing-integrity (an unsigned
+    // entry with no usable per-artifact digest, #559) is the same class: the
+    // request is well-formed but the entry is unverifiable, so it is refused
+    // before any artifact is fetched.
     case "integrity-failed":
     case "unpack-failed":
+    case "missing-integrity":
       return 422;
     // The marketplace is unreachable (catalog served from cache/seed), so a new
     // install/update is paused: 503 Service Unavailable.

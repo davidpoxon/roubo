@@ -447,6 +447,20 @@ describe("POST /install", () => {
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("unpack-failed");
   });
+
+  // Issue #559: missing-integrity does not arise on this raw install path (it
+  // threads no catalog digest and no third-party context), but the switch must
+  // stay exhaustive over InstallErrorCode and map it to the same 422 class.
+  it("maps missing-integrity to 422", async () => {
+    vi.mocked(pluginInstaller.previewFromGitUrl).mockRejectedValue(
+      new pluginInstaller.InstallError("missing-integrity", "no digest"),
+    );
+    const res = await request(app)
+      .post("/install")
+      .send({ source: "git", value: "https://github.com/x/y.git" });
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe("missing-integrity");
+  });
 });
 
 describe("POST /install/:token/confirm", () => {
