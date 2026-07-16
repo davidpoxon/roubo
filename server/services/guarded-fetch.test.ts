@@ -289,9 +289,12 @@ function at(origin: "A" | "B", path: string): SeenRequest {
   return match;
 }
 
-// guardedFetch defaults to global fetch; the download path uses npm undici. Pin
-// both so the manual redirect loop is transport-parity-checked (a redirect case
-// per transport), while the credential-detail cases run once on global fetch.
+// guardedFetch now defaults to npm undici's fetch (so the issue #590 connect-pin
+// dispatcher is honoured); the download path uses npm undici too. The transports
+// array still pins both node-global and npm-undici for the redirect parity cases
+// (a redirect case per transport; those hops are IP literals, so no pin is
+// attached and global fetch stays valid), while the credential-detail cases
+// inject no fetchImpl and so run on the npm-undici-fetch default.
 const transports: [name: string, doFetch: typeof globalThis.fetch][] = [
   ["node-global-fetch", globalThis.fetch],
   ["npm-undici-fetch", npmUndiciFetch as unknown as typeof globalThis.fetch],

@@ -375,11 +375,15 @@ export function buildPinnedLookup(addresses: ResolvedAddress[]): net.LookupFunct
 /**
  * Build a per-hop undici dispatcher that pins the connect to `addresses` (issue
  * #590). The dispatcher is a fresh Agent whose connector lookup is
- * buildPinnedLookup(addresses); both transports in play (the catalog path's Node
- * global fetch and the installer path's undici.fetch) honour an init.dispatcher,
- * so attaching it forces the connect to the exact validated IP(s) rather than a
- * re-resolved address. Built only for DNS-name hops with a successful validated
- * resolution; IP-literal hops need no pin (no DNS step, no rebind window).
+ * buildPinnedLookup(addresses). Only npm undici's fetch honours an
+ * init.dispatcher, so it is the guarded transport's default and what both the
+ * catalog and installer paths inject; Node's built-in global fetch bundles a
+ * different undici major whose dispatch-handler protocol does NOT honour this
+ * dispatcher, so reverting the transport to global fetch would silently disable
+ * the pin. Attaching it forces the connect to the exact validated IP(s) rather
+ * than a re-resolved address. Built only for DNS-name hops with a successful
+ * validated resolution; IP-literal hops need no pin (no DNS step, no rebind
+ * window).
  */
 export function buildPinnedDispatcher(addresses: ResolvedAddress[]): Dispatcher {
   return new Agent({ connect: { lookup: buildPinnedLookup(addresses) } });
