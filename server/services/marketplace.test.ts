@@ -746,6 +746,26 @@ describe("multi-source listing (issue #557)", () => {
     expect(listings.some((l) => l.id === "ghe")).toBe(true);
   });
 
+  // A cache the app did not write (corrupted, hand-edited, or from a future
+  // schema) can hold entries alongside a non-string fetchedAt, which the client's
+  // shape guard null-coalesces. The source is still serving, so it must not be
+  // flagged unavailable above its own listed plugins.
+  it("does not mark a source unavailable when it serves entries with a null fetchedAt", async () => {
+    registerSources([
+      {
+        row: sourceRow({ id: "stale-stamp" }),
+        result: served([thirdPartyEntry()], { source: "cache", fetchedAt: null }),
+      },
+    ]);
+    const { sources, listings } = await marketplace.listCatalog();
+    expect(sources.find((s) => s.id === "stale-stamp")).toMatchObject({
+      source: "cache",
+      fetchedAt: null,
+      unavailable: false,
+    });
+    expect(listings.some((l) => l.id === "ghe")).toBe(true);
+  });
+
   it("keeps the first-party offline banner scoped to the first-party chain", async () => {
     setCatalog("cache");
     registerSources([{ row: sourceRow(), result: served([thirdPartyEntry()]) }]);

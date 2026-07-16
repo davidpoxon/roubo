@@ -261,15 +261,19 @@ async function fetchSource(row: MarketplaceSource): Promise<SourceResult> {
     const result = await client.getCatalog();
     // A third-party source has NO seed floor, so its degrade chain bottoms out at
     // an empty result stamped with a null fetchedAt (catalog-client.ts): nothing
-    // fetched and no usable cache. That null is the unavailable marker; every
-    // served result, network or cache, carries a real timestamp.
+    // fetched and no usable cache. A null fetchedAt is the marker for that
+    // bottomed-out case, but it is not a guarantee the client enforces: its cache
+    // shape guard validates only entries and null-coalesces a non-string
+    // fetchedAt, so a cache the app did not write can yield entries with no
+    // timestamp. Unavailability therefore keys off the source actually serving
+    // nothing, not off the timestamp alone (#594).
     return {
       entries: result.entries,
       status: {
         ...base,
         source: result.source,
         fetchedAt: result.fetchedAt,
-        unavailable: result.fetchedAt === null,
+        unavailable: result.entries.length === 0 && result.fetchedAt === null,
       },
     };
   } catch (err) {
