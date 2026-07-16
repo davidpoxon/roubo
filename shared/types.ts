@@ -120,6 +120,13 @@ export type {
 } from "./plugin-consent-schema.js";
 
 export {
+  PLUGIN_PROVENANCE_STATE_SCHEMA_VERSION,
+  PluginProvenanceRecordSchema,
+  PluginProvenanceStateSchema,
+} from "./plugin-provenance-schema.js";
+export type { PluginProvenanceRecord, PluginProvenanceState } from "./plugin-provenance-schema.js";
+
+export {
   FIRST_PARTY_SOURCE_ID,
   MARKETPLACE_SOURCES_STATE_SCHEMA_VERSION,
   MarketplaceSourceSchema,
@@ -396,6 +403,21 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // descriptor) or `.provenance` (the registry path string the drawer shows).
   // Neither means "originating marketplace source".
   sourceId: string;
+  // Set when this plugin id is served by MORE THAN ONE source (CPHMTP-FR-005,
+  // issue #558). `sourceIds` names every source serving the id, in fan-out order
+  // (first-party first, then registered sources in registration order), and always
+  // includes this listing's own `sourceId`.
+  //
+  // Deliberately NOT resolved by precedence: there is no shadowing and no silent
+  // winner, so EVERY colliding listing renders (one card per source) and each is
+  // marked. Install/update of a colliding id is refused with an `ambiguous-source`
+  // 409 until the caller names a source explicitly.
+  //
+  // Derived in `listCatalog` over the UNFILTERED merged list, so a kind / query /
+  // source-scoped view still marks the collision rather than presenting the one
+  // surviving listing as unambiguous (CPHMTP-TC-044). Absent (undefined) for the
+  // overwhelmingly common single-source id.
+  collision?: { sourceIds: string[] };
 }
 
 /**
@@ -466,6 +488,28 @@ export interface MarketplaceCatalogResponse {
 export interface MarketplaceCatalogErrorBody {
   error: string;
   code: "catalog-unverified";
+}
+
+/**
+ * Error body returned by `POST /api/marketplace/plugins/:id/install` and
+ * `/update` (HTTP 409) when the id is served by more than one registered source
+ * and the request named none (CPHMTP-FR-005, issue #558).
+ *
+ * The refusal is deliberate and happens BEFORE any artifact is fetched: with no
+ * precedence order, picking a source for the caller would silently choose whose
+ * code to run. `sourceIds` names every source serving the id so the client can
+ * offer one explicit install-from-<source> choice per source; re-issuing the
+ * request with a `sourceId` resolves it.
+ *
+ * Deliberately NOT an `InstallErrorCode`: that union is carried by `InstallError`,
+ * which conveys only a code plus a message, and this body must carry the
+ * `sourceIds` payload. It follows the `catalog-unverified` precedent, a typed body
+ * with its own sender, rather than widening the install-error channel.
+ */
+export interface MarketplaceAmbiguousSourceErrorBody {
+  error: string;
+  code: "ambiguous-source";
+  sourceIds: string[];
 }
 
 /**

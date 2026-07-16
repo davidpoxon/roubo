@@ -1,5 +1,14 @@
 import { Button } from "react-aria-components";
-import { ArrowRight, Check, Download, Globe, Package, RefreshCw, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  Download,
+  Globe,
+  Package,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
 import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { MarketplaceListing } from "@roubo/shared";
 
@@ -17,6 +26,11 @@ const STRINGS = {
   update: "Update",
   installed: "Installed",
   provenancePrefix: "Source: ",
+  collisionPill: (count: number) => `Served by ${count} sources`,
+  // Names every contributing source, so the collision is legible from the card
+  // without opening anything (CPHMTP-TC-033 S001-O02).
+  collisionLabel: (labels: string[]) =>
+    `Plugin id served by ${labels.length} sources: ${labels.join(", ")}. Choose a source to install from.`,
 };
 
 /**
@@ -54,6 +68,31 @@ function SourceChip({ sourceId, label }: { sourceId: string; label: string }) {
   );
 }
 
+/**
+ * The cross-source collision pill (CPHMTP-FR-005, issue #558). Renders beside the
+ * SourceChip on every card whose id another source also serves, so each colliding
+ * card is marked and none is presented as the winner: there is no precedence, and
+ * the ambiguity is surfaced rather than resolved.
+ *
+ * Red (not the amber of a third-party chip) because this is not provenance, it is
+ * a blocked action: install/update of this id is refused until the consumer picks a
+ * source. It names every contributing source via its accessible label, so the mark
+ * is not just an unexplained count (CPHMTP-NFR-008).
+ */
+function CollisionPill({ sourceLabels }: { sourceLabels: string[] }) {
+  return (
+    <span
+      data-testid="marketplace-card-collision"
+      data-source-count={sourceLabels.length}
+      aria-label={STRINGS.collisionLabel(sourceLabels)}
+      className="inline-flex items-center gap-1 rounded-full border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 text-[10px] font-medium text-red-800 dark:text-red-300"
+    >
+      <AlertTriangle size={11} aria-hidden className="shrink-0" />
+      <span className="truncate">{STRINGS.collisionPill(sourceLabels.length)}</span>
+    </span>
+  );
+}
+
 function KindPill({ kind }: { kind: MarketplaceListing["kind"] }) {
   const cls =
     kind === "component"
@@ -77,6 +116,11 @@ interface Props {
    * the server derives the label from its URL host).
    */
   sourceLabel: string;
+  /**
+   * Display labels for every source in `listing.collision.sourceIds`, resolved the
+   * same way. Empty when this listing is not a collision.
+   */
+  collisionSourceLabels: string[];
   onOpenDetail: (id: string) => void;
   onInstall: (listing: MarketplaceListing) => void;
   onUpdate: (listing: MarketplaceListing) => void;
@@ -85,11 +129,13 @@ interface Props {
 export default function MarketplaceCard({
   listing,
   sourceLabel,
+  collisionSourceLabels,
   onOpenDetail,
   onInstall,
   onUpdate,
 }: Props) {
   const showInstalled = listing.installed && !listing.updateAvailable;
+  const isCollision = listing.collision !== undefined;
 
   return (
     <article
@@ -115,8 +161,9 @@ export default function MarketplaceCard({
           <p className="mt-0.5 font-mono text-[11px] text-stone-400 dark:text-stone-500">
             {listing.id}
           </p>
-          <div className="mt-1.5">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <SourceChip sourceId={listing.sourceId} label={sourceLabel} />
+            {isCollision && <CollisionPill sourceLabels={collisionSourceLabels} />}
           </div>
         </div>
       </div>

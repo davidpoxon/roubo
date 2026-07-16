@@ -4,13 +4,31 @@ import request from "supertest";
 import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { MarketplaceListing, MarketplaceSourceStatus } from "@roubo/shared";
 
-vi.mock("../services/marketplace.js", () => ({
-  listCatalog: vi.fn(),
-  resolveEntry: vi.fn(),
-  install: vi.fn(),
-  update: vi.fn(),
-  invalidateSourceClient: vi.fn(),
-}));
+vi.mock("../services/marketplace.js", () => {
+  // The route narrows with `err instanceof marketplace.AmbiguousSourceError`, so
+  // the mock must export a real class: an undefined right-hand side makes
+  // `instanceof` throw a TypeError that the catch would report as a 500, masking
+  // every mapped status (issue #558).
+  class AmbiguousSourceError extends Error {
+    readonly code = "ambiguous-source" as const;
+    readonly pluginId: string;
+    readonly sourceIds: string[];
+    constructor(pluginId: string, sourceIds: string[]) {
+      super(`Plugin "${pluginId}" is served by ${sourceIds.length} sources.`);
+      this.pluginId = pluginId;
+      this.sourceIds = sourceIds;
+      this.name = "AmbiguousSourceError";
+    }
+  }
+  return {
+    AmbiguousSourceError,
+    listCatalog: vi.fn(),
+    resolveEntry: vi.fn(),
+    install: vi.fn(),
+    update: vi.fn(),
+    invalidateSourceClient: vi.fn(),
+  };
+});
 
 vi.mock("../services/plugin-installer.js", () => {
   class InstallError extends Error {
@@ -241,7 +259,9 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
     expect(res.status).toBe(200);
     expect(res.body.stagingToken).toBe(PREVIEW.stagingToken);
-    expect(install).toHaveBeenCalledWith("redis");
+    // No body, so no explicit source choice: the id must resolve from exactly one
+    // source (issue #558).
+    expect(install).toHaveBeenCalledWith("redis", undefined);
   });
 
   it("rejects an invalid id with 400", async () => {
@@ -336,7 +356,7 @@ describe("POST /api/marketplace/plugins/:id/update", () => {
     update.mockResolvedValue(PREVIEW);
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/update");
     expect(res.status).toBe(200);
-    expect(update).toHaveBeenCalledWith("redis");
+    expect(update).toHaveBeenCalledWith("redis", undefined);
   });
 
   it("rejects an invalid id with 400", async () => {
@@ -506,5 +526,66 @@ describe("DELETE /api/marketplace/sources/:id", () => {
     const res = await request(makeApp()).delete("/api/marketplace/sources/ghost-00000000");
     expect(res.status).toBe(404);
     expect(res.body.code).toBe("not-found");
+  });
+});
+
+// Issue #558 (CPHMTP-FR-005): a cross-source id collision surfaces as a typed 409
+// carrying the contributing source ids, at BOTH the install and update paths. It
+// is deliberately not an InstallError: that channel flattens to { error, code }
+// and would drop the sourceIds the client needs to offer the pick-a-source choices.
+describe("ambiguous-source refusal (issue #558)", () => {
+  const SOURCE_IDS = [FIRST_PARTY_SOURCE_ID, "marketplace-acme-example-1a2b3c4d"];
+
+  function ambiguous(): Error {
+    return new marketplace.AmbiguousSourceError("database", SOURCE_IDS);
+  }
+
+  it("maps an ambiguous install to 409 with the source ids", async () => {
+    install.mockRejectedValue(ambiguous());
+    const res = await request(makeApp()).post("/api/marketplace/plugins/database/install");
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("ambiguous-source");
+    // The payload the client renders its install-from choices from; a flattened
+    // body would leave it with nothing to offer.
+    expect(res.body.sourceIds).toEqual(SOURCE_IDS);
+    expect(res.body.error).toContain("database");
+  });
+
+  // AC3: enforced at the update path too, not only install.
+  it("maps an ambiguous update to 409 with the source ids", async () => {
+    update.mockRejectedValue(ambiguous());
+    const res = await request(makeApp()).post("/api/marketplace/plugins/database/update");
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("ambiguous-source");
+    expect(res.body.sourceIds).toEqual(SOURCE_IDS);
+  });
+
+  it("forwards an explicit sourceId from the install body", async () => {
+    install.mockResolvedValue(PREVIEW);
+    const res = await request(makeApp())
+      .post("/api/marketplace/plugins/database/install")
+      .send({ sourceId: "marketplace-acme-example-1a2b3c4d" });
+    expect(res.status).toBe(200);
+    expect(install).toHaveBeenCalledWith("database", "marketplace-acme-example-1a2b3c4d");
+  });
+
+  it("forwards an explicit sourceId from the update body", async () => {
+    update.mockResolvedValue(PREVIEW);
+    const res = await request(makeApp())
+      .post("/api/marketplace/plugins/database/update")
+      .send({ sourceId: "marketplace-acme-example-1a2b3c4d" });
+    expect(res.status).toBe(200);
+    expect(update).toHaveBeenCalledWith("database", "marketplace-acme-example-1a2b3c4d");
+  });
+
+  // A malformed sourceId is not a 400: it reads as "no choice", and the service
+  // rejects it against the sources that actually serve the id.
+  it("treats a non-string sourceId as no choice", async () => {
+    install.mockResolvedValue(PREVIEW);
+    const res = await request(makeApp())
+      .post("/api/marketplace/plugins/database/install")
+      .send({ sourceId: 42 });
+    expect(res.status).toBe(200);
+    expect(install).toHaveBeenCalledWith("database", undefined);
   });
 });

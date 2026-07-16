@@ -1334,15 +1334,27 @@ export function fetchMarketplaceCatalog(params?: {
   return request(`/marketplace/plugins${qs ? `?${qs}` : ""}`);
 }
 
-export function installFromMarketplace(id: string): Promise<InstallPreview> {
+/**
+ * Stage an install. `sourceId` names which marketplace source to install from
+ * (CPHMTP-FR-005, issue #558); omit it for the ordinary single-source case.
+ *
+ * When an id is served by several sources and none is named, the server refuses
+ * with 409 `ambiguous-source` rather than picking one. `request` preserves the full
+ * error body on `ApiError.details`, so the refusal's `sourceIds` reach the caller
+ * and it can offer one explicit install-from choice per source.
+ */
+export function installFromMarketplace(id: string, sourceId?: string): Promise<InstallPreview> {
   return request(`/marketplace/plugins/${encodeURIComponent(id)}/install`, {
     method: "POST",
+    body: JSON.stringify(sourceId !== undefined ? { sourceId } : {}),
   });
 }
 
-export function updateFromMarketplace(id: string): Promise<InstallPreview> {
+/** Stage an update. `sourceId` carries the same pick-a-source meaning as install. */
+export function updateFromMarketplace(id: string, sourceId?: string): Promise<InstallPreview> {
   return request(`/marketplace/plugins/${encodeURIComponent(id)}/update`, {
     method: "POST",
+    body: JSON.stringify(sourceId !== undefined ? { sourceId } : {}),
   });
 }
 

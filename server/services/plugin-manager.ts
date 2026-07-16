@@ -42,6 +42,7 @@ import * as pluginInstaller from "./plugin-installer.js";
 import { resolveActivePlugin } from "./active-plugin.js";
 import * as pluginEnableState from "./plugin-enable-state.js";
 import * as pluginConsentState from "./plugin-consent-state.js";
+import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import * as issueSnapshotCache from "./issue-snapshot-cache.js";
 import { cutListQueryService } from "./cut-list-query-service.js";
 import type { PluginEnableState } from "@roubo/shared";
@@ -644,6 +645,29 @@ function makeRecord(
     lastError,
     restartHistory: [],
     pid: null,
+    ...marketplaceProvenanceFields(id),
+  };
+}
+
+/**
+ * The marketplace provenance fields for a record being rebuilt from disk (issue
+ * #558). A PluginRecord is re-derived from the plugin directory on every load, so
+ * the source the consumer chose at install cannot survive on the record itself: it
+ * is read back here from the ledger the install commit wrote.
+ *
+ * Returns an empty object when the plugin has no ledger row (a bundled plugin, or
+ * an install predating the ledger), so the fields stay genuinely absent rather
+ * than present-and-undefined, and absent keeps meaning first-party / verified.
+ */
+function marketplaceProvenanceFields(
+  id: string,
+): Pick<PluginRecord, "sourceId" | "sourceUrl" | "unverified"> {
+  const provenance = pluginProvenanceState.getProvenance(id);
+  if (!provenance) return {};
+  return {
+    sourceId: provenance.sourceId,
+    sourceUrl: provenance.sourceUrl,
+    unverified: provenance.unverified,
   };
 }
 
@@ -1935,6 +1959,11 @@ export async function uninstall(pluginId: string): Promise<void> {
   // admits it. Deliberately NOT done in uninstallForUpdate: an in-place update
   // keeps the same id and preserves consent.
   pluginConsentState.removeConsent(pluginId);
+  // Issue #558: drop the marketplace provenance row for the same reason. A
+  // re-installed id is a fresh install-from choice, so a stale row must not make
+  // it look like it still came from the previously chosen source. Also NOT done in
+  // uninstallForUpdate: an in-place update re-stamps the row itself.
+  pluginProvenanceState.removeProvenance(pluginId);
   // FR-014: a re-installed plugin id is a different deployment; previously
   // cached issues should not bleed across the uninstall boundary. Note that
   // we deliberately do *not* clear the snapshot on disable(): FR-014 calls

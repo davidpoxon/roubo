@@ -272,7 +272,9 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
     );
     await user.click(screen.getByTestId("plugin-reinstall-action"));
     expect(updateMutate).toHaveBeenCalledTimes(1);
-    expect(updateMutate.mock.calls[0][0]).toBe("my-component");
+    // Reinstall names no source: this banner acts on an installed id, and the
+    // Marketplace owns the pick-a-source flow (issue #558).
+    expect(updateMutate.mock.calls[0][0]).toEqual({ id: "my-component" });
   });
 
   it("surfaces the consent dialog once the update-preview is staged", async () => {

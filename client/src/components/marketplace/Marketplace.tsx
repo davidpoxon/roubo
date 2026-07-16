@@ -75,6 +75,16 @@ const STRINGS = {
   stagingFailed:
     "The install was refused before anything was written. Nothing ran on your machine.",
   stagingClose: "Close",
+  // Pick-a-source refusal (CPHMTP-FR-005, issue #558). The heading names the
+  // condition; the body explains why nothing was chosen for the consumer.
+  ambiguousTitle: "Ambiguous source",
+  ambiguousBody: (id: string, count: number) =>
+    `"${id}" is served by ${count} sources. Roubo will not pick one for you, because that would silently decide whose code runs. Choose the source to install from. Nothing has been downloaded.`,
+  ambiguousUpdateBody: (id: string, count: number) =>
+    `"${id}" is now served by ${count} sources. Roubo will not pick one for you, because that would silently swap in another publisher's code. Choose the source to update from. Your installed copy is unchanged.`,
+  installFrom: (label: string) => `Install from ${label}`,
+  updateFrom: (label: string) => `Update from ${label}`,
+  ambiguousNothingFetched: "No artifact was fetched. Choose a source above, or close.",
 };
 
 const KIND_TABS: { id: "all" | MarketplaceKind; label: string }[] = [
@@ -121,6 +131,26 @@ interface ActiveStaging {
   listing: MarketplaceListing;
   failed: boolean;
   errorCode?: InstallErrorCode;
+  // The source ids the server named when it refused this id as ambiguous
+  // (CPHMTP-FR-005, issue #558). Present only for an `ambiguous-source` refusal,
+  // and what the pick-a-source banner renders its per-source choices from.
+  ambiguousSourceIds?: string[];
+}
+
+/**
+ * The `sourceIds` from a 409 `ambiguous-source` refusal, or undefined for any
+ * other failure. `ApiError` keeps the whole response body on `details`, so the
+ * list rides back on the existing transport with no special-casing in `request`.
+ *
+ * Validated rather than cast: this is a network payload, and the banner maps over
+ * it, so a malformed body must read as "not an ambiguity refusal" and fall through
+ * to the ordinary failure surface instead of throwing inside render.
+ */
+function ambiguousSourceIds(err: unknown): string[] | undefined {
+  if (!(err instanceof ApiError) || err.code !== "ambiguous-source") return undefined;
+  const ids = (err.details as { sourceIds?: unknown } | null | undefined)?.sourceIds;
+  if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string")) return undefined;
+  return ids;
 }
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -173,39 +203,79 @@ export default function Marketplace() {
   const showSourceFilter = sources.length > 1;
 
   const stagingPending = installPreview.isPending || updatePreview.isPending;
+  // The pick-a-source choices for a refused install/update, or undefined for every
+  // other staging state. Scoped to a FAILED staging: an in-flight retry after the
+  // consumer picks must show progress, not the banner it was launched from.
+  const ambiguous = staging?.failed ? staging.ambiguousSourceIds : undefined;
 
   function stagingErrorCode(err: unknown): InstallErrorCode | undefined {
     return err instanceof ApiError ? (err.code as InstallErrorCode | undefined) : undefined;
   }
 
-  function beginInstall(listing: MarketplaceListing) {
+  // `sourceId` is the consumer's explicit pick-a-source choice, passed only when
+  // they press one of the banner's install-from buttons. A press of the CARD's
+  // Install button deliberately passes none, even though the card knows its own
+  // source: sending it would silently resolve the collision from whichever card
+  // happened to be clicked, which is the precedence behaviour FR-005 refuses. The
+  // server answers with the 409 and the consumer chooses (CPHMTP-TC-034).
+  function beginInstall(listing: MarketplaceListing, sourceId?: string) {
     setConsentError(null);
     setStaging({ mode: "install", listing, failed: false });
-    installPreview.mutate(listing.id, {
-      onSuccess: (preview) => {
-        setStaging(null);
-        setPending({ mode: "install", listing, preview });
+    installPreview.mutate(
+      { id: listing.id, sourceId },
+      {
+        onSuccess: (preview) => {
+          setStaging(null);
+          setPending({ mode: "install", listing, preview });
+        },
+        onError: (err) => {
+          setStaging({
+            mode: "install",
+            listing,
+            failed: true,
+            errorCode: stagingErrorCode(err),
+            ambiguousSourceIds: ambiguousSourceIds(err),
+          });
+          addToast(errorMessage(err, STRINGS.installFailed));
+        },
       },
-      onError: (err) => {
-        setStaging({ mode: "install", listing, failed: true, errorCode: stagingErrorCode(err) });
-        addToast(errorMessage(err, STRINGS.installFailed));
-      },
-    });
+    );
   }
 
-  function beginUpdate(listing: MarketplaceListing) {
+  function beginUpdate(listing: MarketplaceListing, sourceId?: string) {
     setConsentError(null);
     setStaging({ mode: "update", listing, failed: false });
-    updatePreview.mutate(listing.id, {
-      onSuccess: (preview) => {
-        setStaging(null);
-        setPending({ mode: "update", listing, preview });
+    updatePreview.mutate(
+      { id: listing.id, sourceId },
+      {
+        onSuccess: (preview) => {
+          setStaging(null);
+          setPending({ mode: "update", listing, preview });
+        },
+        onError: (err) => {
+          setStaging({
+            mode: "update",
+            listing,
+            failed: true,
+            errorCode: stagingErrorCode(err),
+            ambiguousSourceIds: ambiguousSourceIds(err),
+          });
+          addToast(errorMessage(err, STRINGS.installFailed));
+        },
       },
-      onError: (err) => {
-        setStaging({ mode: "update", listing, failed: true, errorCode: stagingErrorCode(err) });
-        addToast(errorMessage(err, STRINGS.installFailed));
-      },
-    });
+    );
+  }
+
+  /**
+   * Retry the refused install/update against the source the consumer just picked
+   * (CPHMTP-TC-042). Routes back through the same begin* path, so the chosen
+   * install runs the identical staging -> consent -> commit flow.
+   */
+  function chooseSource(sourceId: string) {
+    if (!staging) return;
+    const { mode, listing } = staging;
+    if (mode === "update") beginUpdate(listing, sourceId);
+    else beginInstall(listing, sourceId);
   }
 
   function dismissStaging() {
@@ -399,6 +469,9 @@ export default function Marketplace() {
                 key={`${listing.sourceId}:${listing.id}`}
                 listing={listing}
                 sourceLabel={sourceLabels.get(listing.sourceId) ?? listing.sourceId}
+                collisionSourceLabels={(listing.collision?.sourceIds ?? []).map(
+                  (id) => sourceLabels.get(id) ?? id,
+                )}
                 onOpenDetail={setDetailId}
                 onInstall={beginInstall}
                 onUpdate={beginUpdate}
@@ -456,21 +529,60 @@ export default function Marketplace() {
                 plugin · v{staging.listing.version}
               </p>
 
-              <div className="mt-4">
-                <MarketplaceInstallProgress
-                  statuses={deriveStageStatuses({
-                    stagingPending: !staging.failed,
-                    stagingSettled: false,
-                    confirmPending: false,
-                    confirmSettled: false,
-                    failedPhase: staging.failed ? "staging" : undefined,
-                    errorCode: staging.errorCode,
-                  })}
-                  pluginId={staging.listing.id}
-                  artifactLabel={describeArtifact(staging.listing.source, staging.listing)}
-                  errorCode={staging.errorCode}
-                />
-              </div>
+              {/*
+                An ambiguity refusal is not a pipeline failure: it happens before a
+                single byte is fetched, so the 4-step download/verify progress
+                surface would misreport it as a download that got somewhere. The
+                pick-a-source banner replaces it and carries the resolution
+                (CPHMTP-TC-034).
+              */}
+              {ambiguous ? (
+                <div
+                  role="alert"
+                  data-testid="marketplace-ambiguous-source"
+                  className="mt-4 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 p-3"
+                >
+                  <p className="flex items-center gap-1.5 text-[13px] font-semibold text-red-800 dark:text-red-300">
+                    <ShieldAlert size={14} aria-hidden /> {STRINGS.ambiguousTitle}
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-red-700 dark:text-red-300/90">
+                    {staging.mode === "update"
+                      ? STRINGS.ambiguousUpdateBody(staging.listing.id, ambiguous.length)
+                      : STRINGS.ambiguousBody(staging.listing.id, ambiguous.length)}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {ambiguous.map((id) => (
+                      <Button
+                        key={id}
+                        data-testid="marketplace-ambiguous-choice"
+                        data-source-id={id}
+                        onPress={() => chooseSource(id)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-[12px] font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                      >
+                        {staging.mode === "update"
+                          ? STRINGS.updateFrom(sourceLabels.get(id) ?? id)
+                          : STRINGS.installFrom(sourceLabels.get(id) ?? id)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <MarketplaceInstallProgress
+                    statuses={deriveStageStatuses({
+                      stagingPending: !staging.failed,
+                      stagingSettled: false,
+                      confirmPending: false,
+                      confirmSettled: false,
+                      failedPhase: staging.failed ? "staging" : undefined,
+                      errorCode: staging.errorCode,
+                    })}
+                    pluginId={staging.listing.id}
+                    artifactLabel={describeArtifact(staging.listing.source, staging.listing)}
+                    errorCode={staging.errorCode}
+                  />
+                </div>
+              )}
 
               {staging.failed && (
                 <div className="mt-4 flex items-center justify-between gap-3">
@@ -479,7 +591,7 @@ export default function Marketplace() {
                     data-testid="marketplace-install-progress-failed"
                     className="text-xs text-red-700 dark:text-red-300"
                   >
-                    {STRINGS.stagingFailed}
+                    {ambiguous ? STRINGS.ambiguousNothingFetched : STRINGS.stagingFailed}
                   </p>
                   <Button
                     autoFocus

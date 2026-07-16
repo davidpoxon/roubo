@@ -47,4 +47,25 @@ export interface PluginRecord {
   restartHistory: RestartEvent[];
   pid: number | null;
   isolationNotices?: IsolationNotice[];
+  // Marketplace install provenance (CPHMTP-FR-005 / CPHMTP-FR-006, issue #558).
+  // Additive and OPTIONAL: `source` above says only how the plugin reached the
+  // machine (bundled with the app vs installed by the user), never WHICH
+  // marketplace source served it, and every record predating the provenance
+  // ledger simply omits these. Absent means first-party / verified, so no
+  // migration is needed.
+  //
+  // Stamped when a record is rebuilt from disk, read from the provenance ledger
+  // (~/.roubo/plugins-provenance.json) that the install commit wrote: the record
+  // itself is re-derived from the plugin directory on every load and cannot carry
+  // the choice forward on its own.
+  //
+  // `sourceId` is the marketplace source the consumer explicitly chose at install
+  // (`first-party` or a registered source's slug); `sourceUrl` is that source's
+  // catalog URL, retained so the record still reads standalone once the source row
+  // is removed; `unverified` is true when the chosen source is unsigned. Rendering
+  // the persistent unverified badge from these fields across every plugin surface
+  // is issue #563.
+  sourceId?: string;
+  sourceUrl?: string;
+  unverified?: boolean;
 }

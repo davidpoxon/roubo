@@ -228,7 +228,10 @@ describe("Marketplace catalog", () => {
     const user = userEvent.setup();
     render(<Marketplace />);
     await user.click(screen.getByTestId("marketplace-card-install"));
-    expect(mutate).toHaveBeenCalledWith("redis", expect.anything());
+    // Pressing the CARD's Install sends no sourceId: an ambiguous id must be
+    // refused by the server rather than resolved from whichever card was clicked
+    // (issue #558).
+    expect(mutate).toHaveBeenCalledWith({ id: "redis", sourceId: undefined }, expect.anything());
   });
 
   it("stages an update preview when Update is pressed", async () => {
@@ -238,7 +241,10 @@ describe("Marketplace catalog", () => {
     const user = userEvent.setup();
     render(<Marketplace />);
     await user.click(screen.getByTestId("marketplace-card-update"));
-    expect(mutate).toHaveBeenCalledWith("worker-queue", expect.anything());
+    expect(mutate).toHaveBeenCalledWith(
+      { id: "worker-queue", sourceId: undefined },
+      expect.anything(),
+    );
   });
 
   it("opens the detail drawer from a card title", async () => {
@@ -882,5 +888,167 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
       "data-status",
       "failed",
     );
+  });
+});
+
+// Issue #558 (CPHMTP-FR-005 / CPHMTP-US-005): a colliding id is marked on the card
+// and its install is refused with a pick-a-source banner offering one explicit
+// install-from choice per source. No source is ever pre-selected for the consumer.
+describe("cross-source id collision (issue #558)", () => {
+  const BOTH = [FIRST_PARTY_SOURCE_ID, ACME_SOURCE_ID];
+  const SOURCES = [FIRST_PARTY_STATUS, sourceStatus()];
+
+  /** The same id served by first-party and by ACME: two cards, both marked. */
+  function collidingCatalog(): MarketplaceListing[] {
+    return [
+      listing({ id: "process", name: "Process", collision: { sourceIds: BOTH } }),
+      listing({
+        id: "process",
+        name: "Process",
+        sourceId: ACME_SOURCE_ID,
+        verified: false,
+        collision: { sourceIds: BOTH },
+      }),
+    ];
+  }
+
+  /** An ApiError shaped like the server's 409 ambiguous-source body. */
+  function ambiguousError(): ApiError {
+    return new ApiError('Plugin "process" is served by 2 sources.', 409, "ambiguous-source", {
+      error: 'Plugin "process" is served by 2 sources.',
+      code: "ambiguous-source",
+      sourceIds: BOTH,
+    });
+  }
+
+  // CPHMTP-TC-033 S001: the collision pill names how many sources serve the id,
+  // and its accessible label names which.
+  it("marks every card of a colliding id with a collision pill naming both sources", async () => {
+    setCatalog(collidingCatalog(), "network", null, SOURCES);
+    render(<Marketplace />);
+    const pills = await screen.findAllByTestId("marketplace-card-collision");
+    // S002-O01: BOTH cards render and both are marked, so no source is silently
+    // shadowed or pre-selected as the winner.
+    expect(pills).toHaveLength(2);
+    for (const pill of pills) {
+      expect(pill).toHaveTextContent("Served by 2 sources");
+      expect(pill).toHaveAttribute(
+        "aria-label",
+        expect.stringContaining("Roubo first-party, ACME workplace"),
+      );
+    }
+  });
+
+  it("renders no collision pill for a single-source listing", async () => {
+    setCatalog([listing()], "network", null, SOURCES);
+    render(<Marketplace />);
+    await screen.findByTestId("marketplace-card");
+    expect(screen.queryByTestId("marketplace-card-collision")).not.toBeInTheDocument();
+  });
+
+  // CPHMTP-TC-034 S001: pressing Install on a colliding card is refused, and the
+  // banner names both sources and offers an explicit choice for each.
+  it("shows the pick-a-source banner with per-source choices when install is refused", async () => {
+    const mutate = vi.fn((_vars: unknown, opts: { onError: (e: unknown) => void }) => {
+      opts.onError(ambiguousError());
+    });
+    mockedInstallPreview.mockReturnValue(mutationStub({ mutate }));
+    setCatalog(collidingCatalog(), "network", null, SOURCES);
+    render(<Marketplace />);
+
+    await userEvent.click((await screen.findAllByTestId("marketplace-card-install"))[0]);
+
+    const banner = await screen.findByTestId("marketplace-ambiguous-source");
+    expect(banner).toHaveTextContent("Ambiguous source");
+    const choices = within(banner).getAllByTestId("marketplace-ambiguous-choice");
+    expect(choices.map((c) => c.textContent)).toEqual([
+      "Install from Roubo first-party",
+      "Install from ACME workplace",
+    ]);
+  });
+
+  // The card knows its own source, but must not send it: doing so would resolve
+  // the collision by "whichever card was clicked", i.e. precedence.
+  it("sends no sourceId when the card's Install is pressed", async () => {
+    const mutate = vi.fn((_vars: unknown, opts: { onError: (e: unknown) => void }) => {
+      opts.onError(ambiguousError());
+    });
+    mockedInstallPreview.mockReturnValue(mutationStub({ mutate }));
+    setCatalog(collidingCatalog(), "network", null, SOURCES);
+    render(<Marketplace />);
+
+    await userEvent.click((await screen.findAllByTestId("marketplace-card-install"))[1]);
+    expect(mutate).toHaveBeenCalledWith({ id: "process", sourceId: undefined }, expect.anything());
+  });
+
+  // CPHMTP-TC-042 S001: choosing a source re-issues the install naming it.
+  it("re-issues the install with the chosen source id", async () => {
+    const mutate = vi.fn((vars: { sourceId?: string }, opts: { onError: (e: unknown) => void }) => {
+      // Only the un-scoped first attempt is ambiguous; the explicit retry proceeds.
+      if (vars.sourceId === undefined) opts.onError(ambiguousError());
+    });
+    mockedInstallPreview.mockReturnValue(mutationStub({ mutate }));
+    setCatalog(collidingCatalog(), "network", null, SOURCES);
+    render(<Marketplace />);
+
+    await userEvent.click((await screen.findAllByTestId("marketplace-card-install"))[0]);
+    const banner = await screen.findByTestId("marketplace-ambiguous-source");
+    const acmeChoice = within(banner)
+      .getAllByTestId("marketplace-ambiguous-choice")
+      .find((c) => c.getAttribute("data-source-id") === ACME_SOURCE_ID);
+    expect(acmeChoice).toBeDefined();
+    await userEvent.click(acmeChoice as HTMLElement);
+
+    expect(mutate).toHaveBeenLastCalledWith(
+      { id: "process", sourceId: ACME_SOURCE_ID },
+      expect.anything(),
+    );
+  });
+
+  // CPHMTP-TC-035: the same banner at the update path, worded for an update.
+  it("shows update-from choices when an update is refused as ambiguous", async () => {
+    const mutate = vi.fn((_vars: unknown, opts: { onError: (e: unknown) => void }) => {
+      opts.onError(ambiguousError());
+    });
+    mockedUpdatePreview.mockReturnValue(mutationStub({ mutate }));
+    setCatalog(
+      [
+        listing({
+          id: "process",
+          name: "Process",
+          installed: true,
+          installedVersion: "1.0.0",
+          updateAvailable: true,
+          collision: { sourceIds: BOTH },
+        }),
+      ],
+      "network",
+      null,
+      SOURCES,
+    );
+    render(<Marketplace />);
+
+    await userEvent.click(await screen.findByTestId("marketplace-card-update"));
+    const banner = await screen.findByTestId("marketplace-ambiguous-source");
+    expect(banner).toHaveTextContent("installed copy is unchanged");
+    expect(
+      within(banner)
+        .getAllByTestId("marketplace-ambiguous-choice")
+        .map((c) => c.textContent),
+    ).toEqual(["Update from Roubo first-party", "Update from ACME workplace"]);
+  });
+
+  // An ordinary failure must keep the existing progress surface, not the banner.
+  it("keeps the install-progress surface for a non-ambiguity failure", async () => {
+    const mutate = vi.fn((_vars: unknown, opts: { onError: (e: unknown) => void }) => {
+      opts.onError(new ApiError("tampered", 422, "integrity-failed", {}));
+    });
+    mockedInstallPreview.mockReturnValue(mutationStub({ mutate }));
+    setCatalog(collidingCatalog(), "network", null, SOURCES);
+    render(<Marketplace />);
+
+    await userEvent.click((await screen.findAllByTestId("marketplace-card-install"))[0]);
+    await screen.findByTestId("marketplace-install-progress");
+    expect(screen.queryByTestId("marketplace-ambiguous-source")).not.toBeInTheDocument();
   });
 });

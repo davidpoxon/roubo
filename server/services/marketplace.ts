@@ -18,7 +18,7 @@ import type {
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginInstaller from "./plugin-installer.js";
 import * as catalogClient from "./catalog-client.js";
-import type { ThirdPartyCatalogClient, VerifiedCatalog } from "./catalog-client.js";
+import type { ThirdPartyCatalogClient } from "./catalog-client.js";
 import * as sourcesState from "./marketplace-sources-state.js";
 
 // Marketplace catalog service (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621;
@@ -50,15 +50,55 @@ import * as sourcesState from "./marketplace-sources-state.js";
 // first-party section. Per-source health rides back on `sources` rather than one
 // catalog-wide scalar, so only the failed source shows as unavailable.
 //
-// Install and update stay FIRST-PARTY ONLY on this slice: unsigned install (issue
-// #559) and cross-source id collisions (issue #558) are separate slices, so a
-// third-party entry lists here but is not installable yet.
+// Cross-source id collisions (CPHMTP-FR-005, issue #558): a plugin id served by
+// MORE THAN ONE source is ambiguous, and this module refuses to resolve that
+// ambiguity for the caller. There is deliberately no precedence order and no
+// shadowing: picking a winner would silently decide whose code runs. The rule is
+// enforced at BOTH code paths the FR names:
+//   - listing: `listCatalog` indexes id -> sourceIds over the UNFILTERED merge and
+//     stamps `collision` on every contributing listing, so each colliding source
+//     still gets its own card and the mark survives a kind / query / source filter.
+//   - install/update: `assertInstallable` re-derives the collision from the same
+//     merged view and throws `AmbiguousSourceError` (409) before any artifact is
+//     fetched, unless the caller named a `sourceId` explicitly.
+// The listing mark is display; the install guard is the enforcement. Neither
+// trusts the other, so a stale client cannot install a colliding id by skipping
+// the listing.
 
 export interface ListCatalogParams {
   q?: string;
   kind?: MarketplaceKind;
   /** Scope the merged list to one source's entries (the source filter chips). */
   sourceId?: string;
+}
+
+/**
+ * A plugin id is served by more than one source and the caller named none, so
+ * install/update is refused (CPHMTP-FR-005, issue #558). The route maps this to
+ * `409 { code: "ambiguous-source", sourceIds }`.
+ *
+ * Deliberately NOT an `InstallError`: that class carries only a code plus a
+ * message, and the client needs `sourceIds` to offer one explicit
+ * install-from-<source> choice per source. Widening `InstallErrorCode` for a code
+ * that must carry a payload would make the install-error channel dishonest, so
+ * this follows the `CatalogUnverifiedError` precedent instead: a dedicated error
+ * class with its own typed body and its own sender in the route.
+ *
+ * Thrown BEFORE any artifact is fetched or staged, so a refused install leaves
+ * nothing on disk (CPHMTP-TC-034 S002).
+ */
+export class AmbiguousSourceError extends Error {
+  readonly code = "ambiguous-source" as const;
+  readonly pluginId: string;
+  readonly sourceIds: string[];
+  constructor(pluginId: string, sourceIds: string[]) {
+    super(
+      `Plugin "${pluginId}" is served by ${sourceIds.length} sources. Choose which source to install it from.`,
+    );
+    this.pluginId = pluginId;
+    this.sourceIds = sourceIds;
+    this.name = "AmbiguousSourceError";
+  }
 }
 
 /**
@@ -147,7 +187,16 @@ function readEntryManifest(
   }
 }
 
-function annotate(entry: MarketplaceCatalogEntry, sourceId: string): MarketplaceListing {
+function annotate(
+  entry: MarketplaceCatalogEntry,
+  sourceId: string,
+  /**
+   * Every source serving this entry's id, from the collision index built over the
+   * UNFILTERED merge. One element (this source alone) is the common case and is
+   * not a collision; two or more stamps `collision` (CPHMTP-FR-005, issue #558).
+   */
+  servingSourceIds: string[] = [sourceId],
+): MarketplaceListing {
   const record = pluginManager.listInstalled().find((r) => r.id === entry.id);
   const installed = record !== undefined;
   const installedVersion = record?.manifest?.version ?? null;
@@ -187,6 +236,10 @@ function annotate(entry: MarketplaceCatalogEntry, sourceId: string): Marketplace
     // third-party entry here, where provenance is known. The persistent unverified
     // badge proper (CPHMTP-NFR-001) is issue #563.
     verified: sourceId === FIRST_PARTY_SOURCE_ID ? entry.verified : false,
+    // Mark the cross-source collision rather than resolving it (CPHMTP-FR-005,
+    // issue #558). Spread last and only when it applies, so a single-source
+    // listing carries no `collision` key at all.
+    ...(servingSourceIds.length > 1 ? { collision: { sourceIds: servingSourceIds } } : {}),
   };
 }
 
@@ -199,6 +252,14 @@ function matchesQuery(listing: MarketplaceListing, q: string): boolean {
 interface SourceResult {
   entries: MarketplaceCatalogEntry[];
   status: MarketplaceSourceStatus;
+  /**
+   * The registry row backing this source, absent for the synthesised first-party
+   * one. Carried so an install resolved to this source can build its
+   * ThirdPartyInstallContext (consented origin + credential + allowHttp) without a
+   * second registry lookup, and so the install path cannot mistake a third-party
+   * source for the first-party one: the row's presence IS the third-party marker.
+   */
+  row?: MarketplaceSource;
 }
 
 // Third-party clients are cached per source id for the life of the process, so a
@@ -305,6 +366,7 @@ async function fetchSource(row: MarketplaceSource): Promise<SourceResult> {
     // nothing, not off the timestamp alone (#594).
     return {
       entries: result.entries,
+      row,
       status: {
         ...base,
         source: result.source,
@@ -316,9 +378,53 @@ async function fetchSource(row: MarketplaceSource): Promise<SourceResult> {
     console.warn(`marketplace: source ${row.id} could not be listed: ${(err as Error).message}`);
     return {
       entries: [],
+      row,
       status: { ...base, source: "cache", fetchedAt: null, unavailable: true },
     };
   }
+}
+
+/**
+ * The fan-out: the first-party catalog plus one client per registered source, all
+ * in flight at once. `listSources()` is a local file read, so nothing here
+ * serialises a network call behind another.
+ *
+ * Shared by `listCatalog` and the install/update resolution path, so both see the
+ * SAME merged view of who serves what. That sharing is what makes the FR-005
+ * install guard trustworthy: the listing's collision mark and the install-time
+ * ambiguity check are derived from one source of truth, so they cannot disagree.
+ */
+async function fetchAllSources(): Promise<SourceResult[]> {
+  return Promise.all([fetchFirstParty(), ...sourcesState.listSources().map(fetchSource)]);
+}
+
+/**
+ * Index plugin id -> every source id serving it, over the merged fan-out
+ * (CPHMTP-FR-005, issue #558). An id mapping to two or more source ids is a
+ * cross-source collision.
+ *
+ * Revoked entries are excluded: a revoked entry is not served to anyone (the
+ * listing filters it out and install refuses it), so counting it would invent a
+ * collision for an id only one source actually serves.
+ *
+ * Source ids preserve fan-out order (first-party first, then registered sources in
+ * registration order) and are de-duplicated, so a single source listing an id twice
+ * is not mistaken for a collision.
+ */
+function buildCollisionIndex(results: SourceResult[]): Map<string, string[]> {
+  const byId = new Map<string, string[]>();
+  for (const { entries, status } of results) {
+    for (const entry of entries) {
+      if (entry.revoked === true) continue;
+      const serving = byId.get(entry.id);
+      if (serving === undefined) {
+        byId.set(entry.id, [status.id]);
+      } else if (!serving.includes(status.id)) {
+        serving.push(status.id);
+      }
+    }
+  }
+  return byId;
 }
 
 /** Fetch the first-party signed catalog. Propagates CatalogUnverifiedError (502). */
@@ -365,23 +471,25 @@ async function fetchFirstParty(): Promise<SourceResult> {
  * first-party seed fails verification (the route maps that to 502).
  */
 export async function listCatalog(params: ListCatalogParams = {}): Promise<CatalogResult> {
-  // The fan-out: first-party plus one client per registered source, all in flight
-  // at once. listSources() is a local file read, so nothing here serialises a
-  // network call behind another.
-  const results = await Promise.all([
-    fetchFirstParty(),
-    ...sourcesState.listSources().map(fetchSource),
-  ]);
+  const results = await fetchAllSources();
+  const collisions = buildCollisionIndex(results);
 
   const q = params.q?.trim().toLowerCase() ?? "";
   const kind = params.kind;
   const sourceId = params.sourceId;
-  // Merge, THEN filter: each source's entries are annotated with that source's id
-  // through the same single annotate() pass, and the filters apply to the merged
-  // list so a kind / query / source filter scopes across every source uniformly.
+  // Merge, ANNOTATE, THEN filter, with the collision index built BEFORE any of it.
+  // The order is load-bearing: a collision is a property of the whole merged
+  // catalog, not of the current view, so it is derived from the UNFILTERED merge.
+  // Derived after filtering instead, scoping to one source (or to a kind, or
+  // typing a query only one colliding entry matched) would leave a single
+  // surviving listing that looked unambiguous, and the view would silently resolve
+  // the very ambiguity the FR refuses to resolve (CPHMTP-TC-044). Filtering last
+  // means every surviving listing still carries the mark.
   const listings = results
     .flatMap(({ entries, status }) =>
-      entries.filter((e) => e.revoked !== true).map((e) => annotate(e, status.id)),
+      entries
+        .filter((e) => e.revoked !== true)
+        .map((e) => annotate(e, status.id, collisions.get(e.id) ?? [status.id])),
     )
     .filter(
       (listing) =>
@@ -401,39 +509,164 @@ export async function listCatalog(params: ListCatalogParams = {}): Promise<Catal
 }
 
 /**
- * Resolve a catalog entry by id, or null when it is not in the verified
- * catalog. Reuses the most recently resolved catalog (the one the open
+ * Resolve a catalog entry by id across EVERY source, or null when no source
+ * serves it. Reuses each client's most recently resolved catalog (the one the open
  * Plugins view fetched) rather than forcing another network round-trip. Revoked
- * entries are still returned here so install/update can emit a specific
- * `revoked` error rather than a generic unknown-id error.
+ * entries are still returned here so install/update can emit a specific `revoked`
+ * error rather than a generic unknown-id error.
+ *
+ * Multi-source since issue #558: this is the route's unknown-id (404) pre-check,
+ * and reading the first-party catalog alone made it lie about every third-party
+ * id. A third-party-only id 404'd before install could run, and a colliding id
+ * resolved to the first-party entry and sailed past the ambiguity check that is
+ * the whole point of FR-005. It resolves over the merged fan-out for that reason.
+ *
+ * Returns the FIRST match in fan-out order, which is safe precisely because it is
+ * only an existence check: it answers "does any source serve this id", never
+ * "which source wins". `assertInstallable` owns the ambiguity decision, and no
+ * caller may use this to pick a source.
  */
 export async function resolveEntry(id: string): Promise<MarketplaceCatalogEntry | null> {
-  const { entries } = await catalogClient.getVerifiedCatalog();
-  return entries.find((e) => e.id === id) ?? null;
+  const results = await fetchAllSources();
+  for (const { entries } of results) {
+    const entry = entries.find((e) => e.id === id);
+    if (entry) return entry;
+  }
+  return null;
 }
 
-function assertInstallable(catalog: VerifiedCatalog, id: string): MarketplaceCatalogEntry {
-  const entry = catalog.entries.find((e) => e.id === id) ?? null;
-  if (!entry) {
+/** One source's offer of a given id: the entry plus the source that served it. */
+interface InstallCandidate {
+  entry: MarketplaceCatalogEntry;
+  status: MarketplaceSourceStatus;
+  /** The registry row when the serving source is third-party; absent for first-party. */
+  row?: MarketplaceSource;
+}
+
+/**
+ * Resolve which source's entry an install/update should use, enforcing the
+ * no-precedence rule (CPHMTP-FR-005, issue #558).
+ *
+ * `sourceId` names the source explicitly (the pick-a-source choice); omitted, the
+ * id must resolve from exactly one source or the call is refused with
+ * `AmbiguousSourceError`. Every rejection here happens before any artifact is
+ * fetched or staged.
+ */
+function assertInstallable(
+  results: SourceResult[],
+  id: string,
+  sourceId?: string,
+): InstallCandidate {
+  const candidates: InstallCandidate[] = results.flatMap(({ entries, status, row }) =>
+    entries.filter((e) => e.id === id).map((entry) => ({ entry, status, row })),
+  );
+
+  if (candidates.length === 0) {
     throw new pluginInstaller.InstallError("invalid-input", `Unknown catalog plugin: ${id}`);
   }
-  if (entry.revoked === true) {
+
+  // An explicit choice is honoured as given: the caller named the source, so no
+  // ambiguity remains to resolve. The named source must actually serve the id;
+  // otherwise the choice is stale (the source stopped serving it, or was removed)
+  // and is refused rather than quietly falling back to another source, which would
+  // install code from somewhere the consumer did not choose.
+  if (sourceId !== undefined) {
+    const chosen = candidates.find((c) => c.status.id === sourceId);
+    if (!chosen) {
+      throw new pluginInstaller.InstallError(
+        "invalid-input",
+        `Source "${sourceId}" does not serve plugin "${id}".`,
+      );
+    }
+    return assertServable(chosen, id);
+  }
+
+  // No explicit choice. A revoked entry is not served, so it cannot make an id
+  // ambiguous: filter before counting, or a revoked first-party entry would block
+  // an install the one remaining source can satisfy honestly.
+  const servable = candidates.filter((c) => c.entry.revoked !== true);
+  if (servable.length > 1) {
+    throw new AmbiguousSourceError(
+      id,
+      servable.map((c) => c.status.id),
+    );
+  }
+  // Nothing servable: every candidate is revoked. Report that specifically (410)
+  // rather than as an unknown id.
+  if (servable.length === 0) {
+    return assertServable(candidates[0], id);
+  }
+  return assertServable(servable[0], id);
+}
+
+/** The per-candidate gates that apply once exactly one source is settled on. */
+function assertServable(candidate: InstallCandidate, id: string): InstallCandidate {
+  if (candidate.entry.revoked === true) {
     throw new pluginInstaller.InstallError(
       "revoked",
       `Plugin "${id}" has been revoked and can no longer be installed or updated.`,
     );
   }
-  if (catalog.source !== "network") {
-    // Degraded to cache / seed: the marketplace is unreachable, so a new
-    // install/update is paused with a clear message rather than attempting (and
-    // failing) a fetch (CPHM-TC-045/050/051). Seeded and already-installed
-    // plugins keep working.
+  if (candidate.status.source !== "network") {
+    // Degraded to cache / seed: the source is unreachable, so a new install/update
+    // is paused with a clear message rather than attempting (and failing) a fetch
+    // (CPHM-TC-045/050/051). Seeded and already-installed plugins keep working.
+    // Scoped to the CHOSEN source's own degrade state, so one stale source cannot
+    // pause an install from a healthy one.
     throw new pluginInstaller.InstallError(
       "marketplace-unreachable",
       `Can't install "${id}" while the marketplace is unreachable. Seeded and already-installed plugins remain available; new installs resume when the marketplace is reachable again.`,
     );
   }
-  return entry;
+  return candidate;
+}
+
+/**
+ * The provenance an install/update commit records for the chosen source
+ * (CPHMTP-FR-005 AC4 / CPHMTP-FR-006). `unverified` is derived from WHICH source
+ * was chosen, never from the entry payload: only the first-party signed chain can
+ * assert verification, and a third-party catalog is unsigned, so any third-party
+ * source is unverified by construction.
+ */
+function provenanceOf(status: MarketplaceSourceStatus): pluginInstaller.InstallProvenance {
+  return {
+    sourceId: status.id,
+    sourceUrl: status.url,
+    unverified: status.id !== FIRST_PARTY_SOURCE_ID,
+  };
+}
+
+/**
+ * Build the installer's ThirdPartyInstallContext for a chosen source, or
+ * `undefined` for the first-party one.
+ *
+ * This is the seam issue #559 built and left dormant ("there is no production
+ * third-party install caller yet"): #558 is that caller, since naming a source
+ * explicitly is what first makes a third-party entry installable. Passing the
+ * context is what engages the unsigned-source trust treatment (CPHMTP-FR-005 AC4):
+ * it makes the per-artifact digest MANDATORY (CPHMTP-NFR-004, an unsigned source
+ * has no signature chain, so the digest is the only integrity anchor) and scopes
+ * the artifact download to the source's consented origin, attaching the credential
+ * there and nowhere else (CPHMTP-NFR-002). Omitting it would install third-party
+ * code with both guards dormant.
+ *
+ * The credential is read per install rather than cached: installs are rare (unlike
+ * the per-keystroke listing path, which is why the LISTING caches its clients), so
+ * the keyring cost is irrelevant here and a rotated token is always current.
+ */
+async function thirdPartyContextFor(
+  candidate: InstallCandidate,
+): Promise<pluginInstaller.ThirdPartyInstallContext | undefined> {
+  const { row } = candidate;
+  if (row === undefined) return undefined;
+  const credential = row.hasCredential
+    ? ((await sourcesState.readSourceCredential(row.id)) ?? undefined)
+    : undefined;
+  return {
+    sourceOrigin: new URL(row.url).origin,
+    credential,
+    allowHttp: row.allowHttp,
+  };
 }
 
 /**
@@ -442,21 +675,37 @@ function assertInstallable(catalog: VerifiedCatalog, id: string): MarketplaceCat
  * `release` source downloads + unpacks the built artifact (`previewFromRelease`,
  * issue #370). Returns an InstallPreview (staging token + manifest) the client
  * drives through the existing consent + confirm endpoints. Throws when the id is
- * not in the curated catalog (`invalid-input`), has been revoked (`revoked`), or
- * the marketplace is unreachable (`marketplace-unreachable`). The entry's expected
+ * served by no source (`invalid-input`), has been revoked (`revoked`), or the
+ * chosen source is unreachable (`marketplace-unreachable`). The entry's expected
  * integrity digest is threaded to the installer so a tampered package is rejected
  * before commit (CP-TC-107/108).
+ *
+ * `sourceId` names which source to install from (CPHMTP-FR-005, issue #558).
+ * Omitted, the id must be served by exactly one source: when several serve it this
+ * throws `AmbiguousSourceError` (409) rather than picking one, and nothing is
+ * fetched. The chosen source's provenance rides to the installer so the commit can
+ * record the choice on the install record (AC4).
  */
-export async function install(id: string): Promise<InstallPreview> {
-  const catalog = await catalogClient.getVerifiedCatalog();
-  const entry = assertInstallable(catalog, id);
+export async function install(id: string, sourceId?: string): Promise<InstallPreview> {
+  const results = await fetchAllSources();
+  const candidate = assertInstallable(results, id, sourceId);
+  const { entry, status } = candidate;
+  const thirdParty = await thirdPartyContextFor(candidate);
+  const provenance = provenanceOf(status);
   if (entry.source.type === "release") {
-    return pluginInstaller.previewFromRelease(entry.source.assetUrl, entry.integrity);
+    return pluginInstaller.previewFromRelease(
+      entry.source.assetUrl,
+      entry.integrity,
+      thirdParty,
+      provenance,
+    );
   }
   return pluginInstaller.previewFromGitUrl(
     entry.source.url,
     entry.integrity,
     entry.source.directory,
+    thirdParty,
+    provenance,
   );
 }
 
@@ -466,19 +715,31 @@ export async function install(id: string): Promise<InstallPreview> {
  * re-clones (`previewUpdateFromGitUrl`), a `release` source downloads + unpacks
  * the new built artifact (`previewUpdateFromRelease`, issue #370). Either replaces
  * the installed copy at commit time. Returns an InstallPreview. Throws when the id
- * is not in the catalog (`invalid-input`), has been revoked (`revoked`), or the
- * marketplace is unreachable (`marketplace-unreachable`). The expected integrity
+ * is served by no source (`invalid-input`), has been revoked (`revoked`), or the
+ * chosen source is unreachable (`marketplace-unreachable`). The expected integrity
  * digest is threaded so a tampered package is rejected before commit, leaving the
  * existing version intact (CP-TC-112).
+ *
+ * Ambiguity is enforced HERE too, not only at the listing (CPHMTP-FR-005 AC3,
+ * issue #558): a plugin installed from one source whose id a newly registered
+ * source starts serving becomes ambiguous to update, and updating it by precedence
+ * could silently swap in a different publisher's code. Without an explicit
+ * `sourceId` such an update throws `AmbiguousSourceError` (409) and the installed
+ * copy is left untouched.
  */
-export async function update(id: string): Promise<InstallPreview> {
-  const catalog = await catalogClient.getVerifiedCatalog();
-  const entry = assertInstallable(catalog, id);
+export async function update(id: string, sourceId?: string): Promise<InstallPreview> {
+  const results = await fetchAllSources();
+  const candidate = assertInstallable(results, id, sourceId);
+  const { entry, status } = candidate;
+  const thirdParty = await thirdPartyContextFor(candidate);
+  const provenance = provenanceOf(status);
   if (entry.source.type === "release") {
     return pluginInstaller.previewUpdateFromRelease(
       entry.source.assetUrl,
       entry.id,
       entry.integrity,
+      thirdParty,
+      provenance,
     );
   }
   return pluginInstaller.previewUpdateFromGitUrl(
@@ -486,6 +747,8 @@ export async function update(id: string): Promise<InstallPreview> {
     entry.id,
     entry.integrity,
     entry.source.directory,
+    thirdParty,
+    provenance,
   );
 }
 

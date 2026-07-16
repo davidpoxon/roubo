@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type {
   InstallErrorCode,
+  MarketplaceAmbiguousSourceErrorBody,
   MarketplaceCatalogErrorBody,
   MarketplaceCatalogResponse,
   MarketplaceKind,
@@ -14,8 +15,8 @@ import { CatalogUnverifiedError } from "../services/catalog-client.js";
 // CP-FR-021 / CP-US-011, issue #622).
 //
 //   GET  /api/marketplace/plugins?q=&kind=&sourceId=   merged catalog, annotated
-//   POST /api/marketplace/plugins/:id/install  -> InstallPreview (staging token)
-//   POST /api/marketplace/plugins/:id/update   -> InstallPreview (staging token)
+//   POST /api/marketplace/plugins/:id/install  { sourceId? } -> InstallPreview
+//   POST /api/marketplace/plugins/:id/update   { sourceId? } -> InstallPreview
 //
 // Install/update return a staging token; the client drives the existing
 // `/api/plugins/install/:token/confirm` and `/cancel` endpoints for the commit
@@ -26,8 +27,16 @@ import { CatalogUnverifiedError } from "../services/catalog-client.js";
 // Multi-source listing (issue #557): GET /plugins serves the MERGED catalog
 // (first-party plus every registered source, fetched concurrently), each listing
 // stamped with its `sourceId`, plus a per-source `sources` status array. `sourceId`
-// scopes the list to one source. Install/update remain first-party only on this
-// slice (issues #558 / #559 own the third-party install path).
+// scopes the list to one source.
+//
+// Cross-source collisions (issue #558, CPHMTP-FR-005): a listing whose id is served
+// by several sources carries a `collision`, and install/update of such an id is
+// refused with 409 `{ code: "ambiguous-source", sourceIds }` unless the body names
+// a `sourceId`. There is no precedence: the server never picks a source for the
+// caller. Naming a source is also what makes a THIRD-PARTY entry installable at
+// all (it selects the unsigned source's trust treatment: mandatory per-artifact
+// digest and origin-scoped download), so install/update are no longer
+// first-party-only.
 //
 // Channel integrity (issue #622) + hosted catalog (issue #306): the catalog is
 // fetched + verified per request via the catalog-client, which degrades
@@ -111,6 +120,41 @@ function sendCatalogUnverified(res: Parameters<Parameters<typeof router.get>[1]>
   res.status(502).json(body);
 }
 
+/**
+ * The id is served by several sources and the request named none, so the
+ * install/update is refused with 409 and the contributing source ids
+ * (CPHMTP-FR-005, issue #558). The client renders one explicit
+ * install-from-<source> choice per id and re-issues the request with a `sourceId`.
+ *
+ * Its own sender rather than a `sendInstallError` code, following the
+ * `sendCatalogUnverified` precedent above: `sendInstallError` flattens every body
+ * to `{ error, code }`, which would drop the `sourceIds` the client needs to offer
+ * the choices at all.
+ */
+function sendAmbiguousSource(
+  res: Parameters<Parameters<typeof router.post>[1]>[1],
+  err: marketplace.AmbiguousSourceError,
+): void {
+  const body: MarketplaceAmbiguousSourceErrorBody = {
+    error: err.message,
+    code: "ambiguous-source",
+    sourceIds: err.sourceIds,
+  };
+  res.status(409).json(body);
+}
+
+/**
+ * The optional explicit source choice on an install/update body. A non-string (or
+ * absent) value reads as "no choice", which is the ambiguity guard's input, not an
+ * error: an unknown or non-serving id is rejected downstream by `assertInstallable`
+ * against the sources that actually serve the plugin, so there is nothing to
+ * validate here.
+ */
+function parseSourceId(body: unknown): string | undefined {
+  const raw = (body as { sourceId?: unknown } | null | undefined)?.sourceId;
+  return typeof raw === "string" && raw.length > 0 ? raw : undefined;
+}
+
 router.get("/plugins", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q : undefined;
   const kind = parseKind(req.query.kind);
@@ -158,11 +202,15 @@ router.post("/plugins/:id/install", async (req, res) => {
       res.status(404).json({ error: `Unknown catalog plugin: ${id}`, code: "invalid-input" });
       return;
     }
-    const preview = await marketplace.install(id);
+    const preview = await marketplace.install(id, parseSourceId(req.body));
     res.status(200).json(preview);
   } catch (err) {
     if (err instanceof CatalogUnverifiedError) {
       sendCatalogUnverified(res);
+      return;
+    }
+    if (err instanceof marketplace.AmbiguousSourceError) {
+      sendAmbiguousSource(res, err);
       return;
     }
     sendInstallError(res, err);
@@ -180,11 +228,18 @@ router.post("/plugins/:id/update", async (req, res) => {
       res.status(404).json({ error: `Unknown catalog plugin: ${id}`, code: "invalid-input" });
       return;
     }
-    const preview = await marketplace.update(id);
+    const preview = await marketplace.update(id, parseSourceId(req.body));
     res.status(200).json(preview);
   } catch (err) {
     if (err instanceof CatalogUnverifiedError) {
       sendCatalogUnverified(res);
+      return;
+    }
+    // Enforced at the UPDATE path too, not only install (CPHMTP-FR-005 AC3): an
+    // installed plugin whose id a second source starts serving is ambiguous to
+    // update, and the installed copy is left untouched until a source is named.
+    if (err instanceof marketplace.AmbiguousSourceError) {
+      sendAmbiguousSource(res, err);
       return;
     }
     sendInstallError(res, err);

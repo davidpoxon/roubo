@@ -329,6 +329,15 @@ class InProcessInstallError extends Error {
  * Mirror marketplace.ts assertInstallable (shared by install + update): resolve over
  * the verified set (revoked included), reject an unknown id (`invalid-input`) and a
  * revoked entry (`revoked`) fail-closed.
+ *
+ * Scope note (issue #558): the real assertInstallable now resolves over the MERGED
+ * multi-source fan-out and adds the cross-source ambiguity gate
+ * (`AmbiguousSourceError`). This mirror deliberately models only the FIRST-PARTY,
+ * single-source slice that TC-014's journey exercises, where the two gates below
+ * behave identically. It is a hand-maintained model, not a call into the real
+ * function, so it does not fail to compile when that signature moves: the collision
+ * gate is covered directly in marketplace.test.ts, and this mirror must not be read
+ * as evidence that ambiguity is unenforced.
  */
 function assertInstallable(catalog: SignedMarketplaceCatalog, id: string): MarketplaceCatalogEntry {
   const entry = hostVerifiedEntries(catalog).find((e) => e.id === id);

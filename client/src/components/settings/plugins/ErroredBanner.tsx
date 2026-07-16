@@ -65,10 +65,17 @@ export default function ErroredBanner({ pluginId, lastError, kind, onViewLogs }:
 
   function beginReinstall() {
     setConsentError(null);
-    updatePreview.mutate(pluginId, {
-      onSuccess: (preview) => setPending(preview),
-      onError: (err) => addToast(errorMessage(err, STRINGS.reinstallFailed)),
-    });
+    // No source choice here: this banner reinstalls a known-errored plugin by id.
+    // If that id turns out to be served by several sources the server refuses it
+    // (409 ambiguous-source, issue #558) and its message surfaces as the toast,
+    // pointing the consumer at the Marketplace, which owns the pick-a-source UI.
+    updatePreview.mutate(
+      { id: pluginId },
+      {
+        onSuccess: (preview) => setPending(preview),
+        onError: (err) => addToast(errorMessage(err, STRINGS.reinstallFailed)),
+      },
+    );
   }
 
   function handleConsentCancel() {

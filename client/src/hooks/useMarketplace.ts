@@ -39,15 +39,26 @@ export function useMarketplaceCatalog(params: {
   });
 }
 
+// Install / update take an optional `sourceId`: the consumer's explicit
+// pick-a-source choice for an id served by several sources (CPHMTP-FR-005, issue
+// #558). A plain browse-and-install passes none, and the server refuses an
+// ambiguous id with a 409 rather than choosing one.
+export interface MarketplacePreviewVars {
+  id: string;
+  sourceId?: string;
+}
+
 export function useMarketplaceInstallPreview() {
   return useMutation({
-    mutationFn: (id: string) => api.installFromMarketplace(id),
+    mutationFn: ({ id, sourceId }: MarketplacePreviewVars) =>
+      api.installFromMarketplace(id, sourceId),
   });
 }
 
 export function useMarketplaceUpdatePreview() {
   return useMutation({
-    mutationFn: (id: string) => api.updateFromMarketplace(id),
+    mutationFn: ({ id, sourceId }: MarketplacePreviewVars) =>
+      api.updateFromMarketplace(id, sourceId),
   });
 }
 
