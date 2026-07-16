@@ -17,6 +17,7 @@ import {
 } from "@roubo/shared";
 import { runCommand } from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
+import { guardedFetch } from "./guarded-fetch.js";
 import { verifyPackageIntegrity } from "./marketplace-integrity.js";
 import { PLUGIN_ID_RE, UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
@@ -347,9 +348,22 @@ async function clonePackageInto(
 // both up front (declared content-length) and as bytes flow (a server may lie
 // about or omit content-length), so the cap holds either way (issue #370).
 async function downloadAssetToFile(assetUrl: string, destFile: string): Promise<void> {
-  let res: Awaited<ReturnType<typeof fetch>>;
+  let res: Response;
   try {
-    res = await fetch(assetUrl, { redirect: "follow" });
+    // Route through the shared guarded transport (issue #554): SSRF / redirect
+    // guarding, per-hop range re-validation, and the origin-scoped credential
+    // rule live in guardedFetch. The asset origin is the consented source origin;
+    // this slice attaches no credential. The undici fetch stays the injected
+    // transport so the test seam is unchanged, timeoutMs null keeps the download
+    // bounded by its byte cap rather than a wall-clock timeout, and the
+    // content-length + streaming maxDownloadBytes guard below is untouched. A
+    // guard block surfaces as a thrown error and maps to download-failed here,
+    // just like a transport error.
+    res = await guardedFetch(assetUrl, {
+      sourceOrigin: new URL(assetUrl).origin,
+      fetchImpl: fetch as unknown as typeof globalThis.fetch,
+      timeoutMs: null,
+    });
   } catch (err) {
     throw new InstallError(
       "download-failed",
