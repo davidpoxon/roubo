@@ -20,7 +20,7 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { fetch as npmUndiciFetch } from "undici";
+import { Agent, type Dispatcher, fetch as npmUndiciFetch } from "undici";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DNS,
@@ -28,6 +28,8 @@ import {
   HARD,
   PUBLIC,
   SOFT,
+  buildPinnedDispatcher,
+  buildPinnedLookup,
   classifyHost,
   formAuthorization,
   guardedFetch,
@@ -301,10 +303,14 @@ async function drain(res: Response): Promise<void> {
 
 // Transport that maps the public hostname for server B back to loopback, so a
 // guard-permitted PUBLIC cross-origin hop physically reaches the loopback server.
+// Routes through npm undici's fetch (not Node's built-in global fetch) so a
+// guarded hop carrying the issue #590 connect-pinning dispatcher, an npm undici
+// Agent, dispatches on a protocol-compatible transport. The rewritten loopback
+// literal means the pinned lookup is never consulted (an IP literal skips DNS).
 const routedFetch: typeof globalThis.fetch = (input, init) => {
   const u = new URL(String(input));
   if (u.hostname === PUBLIC_B_HOST) u.hostname = "127.0.0.1";
-  return globalThis.fetch(u.toString(), init);
+  return (npmUndiciFetch as unknown as typeof globalThis.fetch)(u.toString(), init);
 };
 
 // Resolver that reports the public hostname as a public IP so the DNS
@@ -558,5 +564,114 @@ describe("guardedFetch: DNS resolve-and-recheck (issue #554 decision point)", ()
     expect(err.reason).toBe("hard-blocked-range");
     expect(err.url).toBe("http://x/");
     expect(PUBLIC).toBe("public");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Layer 3: pin the validated IP to the socket connect (issue #590). Closes the
+// residual TOCTOU DNS-rebinding window by forcing the connect to the exact
+// address that passed the range check. Deterministic and socket-free: the pin
+// helper is exercised directly, and the wiring is asserted through the injected
+// fetchImpl seam (no real DNS, no live connection).
+// ---------------------------------------------------------------------------
+
+// Resolve a pinned lookup's callback into a value, handling both node forms.
+function lookupAll(
+  lookup: ReturnType<typeof buildPinnedLookup>,
+): Promise<{ address: string; family: number }[]> {
+  return new Promise((resolve, reject) =>
+    lookup("pinned.example", { all: true }, (err, addresses) =>
+      err ? reject(err) : resolve(addresses as { address: string; family: number }[]),
+    ),
+  );
+}
+function lookupSingle(
+  lookup: ReturnType<typeof buildPinnedLookup>,
+): Promise<[string, number | undefined]> {
+  return new Promise((resolve, reject) =>
+    lookup("pinned.example", {}, (err, address, family) =>
+      err ? reject(err) : resolve([address as string, family]),
+    ),
+  );
+}
+
+describe("guardedFetch: pin the validated IP to the socket connect (issue #590)", () => {
+  it("buildPinnedLookup answers only with the validated pinned addresses, correct family, both node forms", async () => {
+    const lookup = buildPinnedLookup([
+      { address: "93.184.216.34" },
+      { address: "2606:2800:220:1:248:1893:25c8:1946" },
+    ]);
+    // The all:true form (node's autoSelectFamily path) returns the pinned array.
+    expect(await lookupAll(lookup)).toEqual([
+      { address: "93.184.216.34", family: 4 },
+      { address: "2606:2800:220:1:248:1893:25c8:1946", family: 6 },
+    ]);
+    // The single-address form returns the first pinned address and its family.
+    expect(await lookupSingle(lookup)).toEqual(["93.184.216.34", 4]);
+  });
+
+  it("buildPinnedDispatcher returns a fresh undici Agent (no live socket)", async () => {
+    const dispatcher = buildPinnedDispatcher([{ address: "93.184.216.34" }]);
+    expect(dispatcher).toBeInstanceOf(Agent);
+    await dispatcher.close();
+  });
+
+  it("pins a validated DNS hop to its resolution via an init.dispatcher, no real DNS", async () => {
+    let seenDispatcher: unknown = "unset";
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      seenDispatcher = (init as { dispatcher?: unknown } | undefined)?.dispatcher;
+      return new Response("ok", { status: 200 });
+    });
+    const lookup: LookupFn = async () => [{ address: "93.184.216.34" }];
+    const res = await guardedFetch("https://ghe.corp.example/catalog.json", {
+      sourceOrigin: "https://ghe.corp.example",
+      fetchImpl: fetchImpl as unknown as typeof globalThis.fetch,
+      lookup,
+    });
+    await res.arrayBuffer();
+    expect(res.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    // A pinned dispatcher rode the request, resolving the host to the validated IP.
+    expect(seenDispatcher).toBeInstanceOf(Agent);
+    expect(await lookupSingle(buildPinnedLookup([{ address: "93.184.216.34" }]))).toEqual([
+      "93.184.216.34",
+      4,
+    ]);
+    await (seenDispatcher as Dispatcher).close();
+  });
+
+  it("does not pin an IP-literal hop (no DNS step, no rebind window)", async () => {
+    let seenDispatcher: unknown = "unset";
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      seenDispatcher = (init as { dispatcher?: unknown } | undefined)?.dispatcher;
+      return new Response("ok", { status: 200 });
+    });
+    const res = await guardedFetch("http://127.0.0.1:9/x", {
+      sourceOrigin: "http://127.0.0.1:9",
+      allowHttp: true,
+      fetchImpl: fetchImpl as unknown as typeof globalThis.fetch,
+    });
+    await res.arrayBuffer();
+    expect(res.status).toBe(200);
+    expect(seenDispatcher).toBeUndefined();
+  });
+
+  it("attaches no dispatcher when resolution fails (transport keeps its own connect, adds no failure)", async () => {
+    let seenDispatcher: unknown = "unset";
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      seenDispatcher = (init as { dispatcher?: unknown } | undefined)?.dispatcher;
+      return new Response("ok", { status: 200 });
+    });
+    const lookup: LookupFn = async () => {
+      throw new Error("ENOTFOUND");
+    };
+    const res = await guardedFetch("https://marketplace.example.com/catalog.json", {
+      sourceOrigin: "https://marketplace.example.com",
+      fetchImpl: fetchImpl as unknown as typeof globalThis.fetch,
+      lookup,
+    });
+    await res.arrayBuffer();
+    expect(res.status).toBe(200);
+    expect(seenDispatcher).toBeUndefined();
   });
 });

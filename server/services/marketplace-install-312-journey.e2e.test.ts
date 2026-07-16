@@ -51,6 +51,9 @@ vi.mock("./plugin-manager.js", () => ({
 
 vi.mock("undici", () => ({
   fetch: vi.fn(),
+  // guarded-fetch builds a connect-pinning Agent (issue #590); the mocked fetch
+  // ignores the dispatcher, so a constructable stub is all this mock needs.
+  Agent: vi.fn(),
 }));
 
 import * as marketplace from "./marketplace.js";
