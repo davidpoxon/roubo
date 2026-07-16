@@ -209,7 +209,21 @@ interface SourceResult {
 // whose URL changed (or that was removed and re-registered at a new URL) is
 // rebuilt rather than reused, and a removed row's client is simply never asked
 // again.
-const thirdPartyClients = new Map<string, { url: string; client: ThirdPartyCatalogClient }>();
+//
+// The cached value is the in-flight BUILD PROMISE, not the resolved client, and
+// the entry is `set` SYNCHRONOUSLY, before the build's first await (issue #595).
+// That invariant is what makes invalidation correct. The build reads the keyring,
+// an OS process spawn that Express handlers interleave at, so caching only the
+// resolved client left a window in which a concurrent invalidateSourceClient found
+// no entry, deleted nothing, and let the resuming build cache a pre-rotation
+// client that every later listCatalog reused. With an entry present from the
+// instant the cold path starts, an invalidation always has a real entry to drop.
+// The same invariant collapses the duplicate cold build: a second concurrent
+// caller awaits the same promise, so one keyring spawn and one client.
+const thirdPartyClients = new Map<
+  string,
+  { url: string; client: Promise<ThirdPartyCatalogClient> }
+>();
 
 /**
  * Drop a source's cached client so the next listCatalog rebuilds it from the
@@ -230,9 +244,8 @@ export function invalidateSourceClient(id: string): void {
   thirdPartyClients.delete(id);
 }
 
-async function getThirdPartyClient(row: MarketplaceSource): Promise<ThirdPartyCatalogClient> {
-  const cached = thirdPartyClients.get(row.id);
-  if (cached && cached.url === row.url) return cached.client;
+/** Read the source's keyring credential, then construct its client. */
+async function buildThirdPartyClient(row: MarketplaceSource): Promise<ThirdPartyCatalogClient> {
   // A credentialed source is unlistable without its credential (the fetch would
   // 401), so read it from the keyring and pass it through. guardedFetch attaches
   // it as an Authorization header on the source origin only, and never after a
@@ -240,8 +253,31 @@ async function getThirdPartyClient(row: MarketplaceSource): Promise<ThirdPartyCa
   const credential = row.hasCredential
     ? ((await sourcesState.readSourceCredential(row.id)) ?? undefined)
     : undefined;
-  const client = catalogClient.createThirdPartyCatalogClient(row, { credential });
+  return catalogClient.createThirdPartyCatalogClient(row, { credential });
+}
+
+/**
+ * The cached build promise for a source, starting one on a miss. Deliberately NOT
+ * async: the cache entry has to be `set` before the build's first await, so a
+ * concurrent invalidateSourceClient can never land inside the keyring-read window
+ * and be lost (issue #595). Callers still await the returned promise.
+ */
+function getThirdPartyClient(row: MarketplaceSource): Promise<ThirdPartyCatalogClient> {
+  const cached = thirdPartyClients.get(row.id);
+  if (cached && cached.url === row.url) return cached.client;
+  const client = buildThirdPartyClient(row);
   thirdPartyClients.set(row.id, { url: row.url, client });
+  // Caching the promise means a REJECTED build would otherwise stay cached and be
+  // rethrown by every later call, pinning the source unavailable until a process
+  // restart after one transient keyring failure (strictly worse than the race this
+  // fixes). Self-evict instead, and only while this exact promise is still the
+  // cached one, so a late rejection cannot delete a newer entry that an intervening
+  // invalidate-and-rebuild installed. This also marks the rejection handled;
+  // fetchSource awaits the promise inside its own try/catch and reports the source
+  // unavailable, so behaviour at the call site is unchanged.
+  client.catch(() => {
+    if (thirdPartyClients.get(row.id)?.client === client) thirdPartyClients.delete(row.id);
+  });
   return client;
 }
 

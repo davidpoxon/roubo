@@ -883,6 +883,72 @@ describe("multi-source listing (issue #557)", () => {
     expect(createThirdPartyCatalogClient).toHaveBeenCalledTimes(1);
     expect(readSourceCredential).toHaveBeenCalledTimes(1);
   });
+
+  // Issue #595: the cache entry used to be `set` only AFTER the keyring read
+  // resolved, so a rotation landing inside that window found no entry, deleted
+  // nothing, and the resuming build then cached a pre-rotation client that every
+  // later call reused (the exact failure the invalidation exists to prevent).
+  it("drops a client whose credential was invalidated during its keyring read", async () => {
+    const acme = sourceRow({ hasCredential: true });
+    let releaseKeyring!: (token: string) => void;
+    readSourceCredential.mockReturnValue(
+      new Promise<string>((resolve) => {
+        releaseKeyring = resolve;
+      }),
+    );
+    registerSources([{ row: acme, result: served([thirdPartyEntry()]) }]);
+
+    // A cold listCatalog, suspended on the keyring read with no client built yet.
+    const inFlight = marketplace.listCatalog();
+    // The credential rotates while that read is still outstanding.
+    marketplace.invalidateSourceClient(acme.id);
+    releaseKeyring("ghp_old");
+    await inFlight;
+
+    readSourceCredential.mockResolvedValue("ghp_rotated");
+    await marketplace.listCatalog();
+
+    // The pre-rotation client must not have survived the invalidation.
+    expect(createThirdPartyCatalogClient).toHaveBeenLastCalledWith(
+      acme,
+      expect.objectContaining({ credential: "ghp_rotated" }),
+    );
+  });
+
+  // Caching the build PROMISE means a rejected build would otherwise be cached and
+  // rethrown by every later call, pinning the source unavailable until a process
+  // restart after one transient keyring hiccup. The build self-evicts on rejection.
+  it("rebuilds a source's client after a transient keyring failure instead of pinning it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const acme = sourceRow({ hasCredential: true });
+    readSourceCredential.mockRejectedValueOnce(new Error("keyring unavailable"));
+    readSourceCredential.mockResolvedValue("ghp_secret");
+    registerSources([{ row: acme, result: served([thirdPartyEntry()]) }]);
+
+    const first = await marketplace.listCatalog();
+    expect(first.sources.find((s) => s.id === acme.id)?.unavailable).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(`source ${acme.id} could not be listed`),
+    );
+
+    // Keyring healthy again: the failed build must not have been cached.
+    const second = await marketplace.listCatalog();
+    expect(second.sources.find((s) => s.id === acme.id)?.unavailable).toBe(false);
+    expect(second.listings.some((l) => l.id === "ghe")).toBe(true);
+  });
+
+  // The same set-after-await window let two concurrent cold calls each build their
+  // own client and spawn their own keyring read for one source. Caching the promise
+  // collapses that: the second caller awaits the first caller's build.
+  it("builds one client for two concurrent cold calls for the same source", async () => {
+    readSourceCredential.mockResolvedValue("ghp_secret");
+    registerSources([{ row: sourceRow({ hasCredential: true }), result: served([]) }]);
+
+    await Promise.all([marketplace.listCatalog(), marketplace.listCatalog()]);
+
+    expect(createThirdPartyCatalogClient).toHaveBeenCalledTimes(1);
+    expect(readSourceCredential).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("resolveEntry", () => {
