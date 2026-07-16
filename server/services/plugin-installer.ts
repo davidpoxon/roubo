@@ -13,10 +13,12 @@ import {
   type InstallPreview,
   type InstallSource,
   type PluginManifest,
+  type PluginProvenanceRecord,
   type PluginRecord,
 } from "@roubo/shared";
 import { runCommand } from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
+import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import { guardedFetch } from "./guarded-fetch.js";
 import { verifyPackageIntegrity } from "./marketplace-integrity.js";
 import { PLUGIN_ID_RE, UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
@@ -40,6 +42,25 @@ let maxDownloadBytes = DEFAULT_MAX_DOWNLOAD_BYTES;
 let maxUnpackedBytes = DEFAULT_MAX_UNPACKED_BYTES;
 let maxTarballEntries = DEFAULT_MAX_TARBALL_ENTRIES;
 
+/**
+ * The marketplace source an install was resolved from, carried from the preview
+ * through to the commit so the install record can remember the consumer's explicit
+ * pick-a-source choice (CPHMTP-FR-005 AC4 / CPHMTP-FR-006, issue #558).
+ *
+ * Recorded only at COMMIT: a staged install the consumer never confirmed must
+ * leave no provenance behind, exactly as it leaves no plugin behind. Optional on
+ * every entry point, so the raw git / local-directory install paths (which have no
+ * marketplace source) stay behaviourally unchanged and write nothing.
+ */
+export interface InstallProvenance {
+  /** The chosen source's id (`first-party`, or a registered source's slug). */
+  sourceId: string;
+  /** The chosen source's catalog URL. */
+  sourceUrl: string;
+  /** True when the chosen source is unsigned, i.e. any third-party source. */
+  unverified: boolean;
+}
+
 interface StagedInstall {
   stagingDir: string;
   source: InstallSource;
@@ -50,6 +71,9 @@ interface StagedInstall {
   // The id must equal `manifest.id`; the installer uninstalls the existing
   // copy before moving the staged copy into place.
   replaceId?: string;
+  // The marketplace source this install was resolved from, recorded to the
+  // provenance ledger at commit (issue #558). Absent for non-marketplace installs.
+  provenance?: InstallProvenance;
 }
 
 const staged = new Map<string, StagedInstall>();
@@ -660,6 +684,7 @@ export async function previewFromRelease(
   assetUrl: string,
   expectedIntegrity?: string | null,
   thirdParty?: ThirdPartyInstallContext,
+  provenance?: InstallProvenance,
 ): Promise<InstallPreview> {
   // Pre-fetch: an unsigned entry with no usable digest is uninstallable, and must
   // be refused before a single artifact byte is fetched (CPHMTP-NFR-004).
@@ -672,7 +697,7 @@ export async function previewFromRelease(
     await assertPackageIntegrity(stagingDir, expectedIntegrity, thirdParty);
     assertNotDuplicate(manifest.id);
     const source: InstallSource = { type: "release", assetUrl: safeUrl };
-    staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
+    staged.set(token, { stagingDir, source, manifest, createdAt: Date.now(), provenance });
     return { stagingToken: token, manifest, source };
   } catch (err) {
     await rmStaging(stagingDir);
@@ -698,6 +723,7 @@ export async function previewUpdateFromRelease(
   expectedId: string,
   expectedIntegrity?: string | null,
   thirdParty?: ThirdPartyInstallContext,
+  provenance?: InstallProvenance,
 ): Promise<InstallPreview> {
   // Pre-fetch (issue #559): refuse an unsigned entry with no usable digest before
   // any download. Ordered after the installed-plugin guard below only in that both
@@ -736,6 +762,7 @@ export async function previewUpdateFromRelease(
       manifest,
       createdAt: Date.now(),
       replaceId: expectedId,
+      provenance,
     });
     return { stagingToken: token, manifest, source };
   } catch (err) {
@@ -841,6 +868,7 @@ export async function previewFromGitUrl(
   expectedIntegrity?: string | null,
   directory?: string,
   thirdParty?: ThirdPartyInstallContext,
+  provenance?: InstallProvenance,
 ): Promise<InstallPreview> {
   // Pre-clone (issue #559): an unsigned entry with no usable digest is refused
   // before the repository is fetched.
@@ -869,7 +897,7 @@ export async function previewFromGitUrl(
       url: safeUrl,
       ...(directory !== undefined ? { directory } : {}),
     };
-    staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
+    staged.set(token, { stagingDir, source, manifest, createdAt: Date.now(), provenance });
     return { stagingToken: token, manifest, source };
   } catch (err) {
     await rmStaging(stagingDir);
@@ -892,6 +920,7 @@ export async function previewUpdateFromGitUrl(
   expectedIntegrity?: string | null,
   directory?: string,
   thirdParty?: ThirdPartyInstallContext,
+  provenance?: InstallProvenance,
 ): Promise<InstallPreview> {
   // Pre-clone (issue #559): an unsigned entry with no usable digest is refused
   // before the repository is fetched.
@@ -945,6 +974,7 @@ export async function previewUpdateFromGitUrl(
       manifest,
       createdAt: Date.now(),
       replaceId: expectedId,
+      provenance,
     });
     return { stagingToken: token, manifest, source };
   } catch (err) {
@@ -1066,19 +1096,43 @@ export async function commit(stagingToken: string): Promise<PluginRecord> {
     throw new InstallError("internal", `Failed to install plugin: ${(err as Error).message}`);
   }
 
+  // Record the chosen marketplace source BEFORE registering, so the record the
+  // registry builds already carries its provenance (issue #558, AC4).
+  // registerInstalled reads the ledger while building the record from disk, so
+  // writing after it would leave this install's record unstamped until the next
+  // reload.
+  recordInstallProvenance(entry);
+
   let record: PluginRecord;
   try {
     record = await pluginManager.registerInstalled(target);
   } catch (err) {
     // Best-effort rollback: remove the moved directory so the user can retry
-    // without manual cleanup.
+    // without manual cleanup. Drop the provenance row too, so a failed install
+    // leaves no ledger entry claiming a plugin that is not installed.
     await rmStaging(target);
+    if (entry.provenance !== undefined) {
+      pluginProvenanceState.removeProvenance(entry.manifest.id);
+    }
     staged.delete(stagingToken);
     throw new InstallError("internal", (err as Error).message);
   }
 
   staged.delete(stagingToken);
   return record;
+}
+
+/**
+ * Persist the source a marketplace install was resolved from (issue #558, AC4).
+ * A no-op for the raw git / local-directory paths, which carry no marketplace
+ * provenance and must leave the ledger untouched.
+ */
+function recordInstallProvenance(entry: StagedInstall): void {
+  if (entry.provenance === undefined) return;
+  pluginProvenanceState.recordProvenance({
+    pluginId: entry.manifest.id,
+    ...entry.provenance,
+  });
 }
 
 /**
@@ -1175,13 +1229,26 @@ async function commitUpdate(
     throw new InstallError("internal", `Failed to install plugin: ${(err as Error).message}`);
   }
 
-  // 4. Register the new copy.
+  // 4. Re-stamp the provenance to the source this update was resolved from, then
+  //    register the new copy (registerInstalled reads the ledger, so the write
+  //    precedes it). The previous row is captured first: an update that fails at
+  //    registration restores the old plugin, so its provenance must be restored
+  //    with it rather than left describing a copy that was rolled back.
+  const previousProvenance = pluginProvenanceState.getProvenance(replaceId);
+  recordInstallProvenance(entry);
+
   let record: PluginRecord;
   try {
     record = await pluginManager.registerInstalled(target);
   } catch (err) {
-    // The new copy is broken: discard it and restore the backup.
+    // The new copy is broken: discard it and restore the backup. Put the
+    // provenance back BEFORE restoring, mirroring the forward path above and for
+    // the same reason: restoreUpdateBackup re-registers the old copy, and
+    // registerInstalled stamps the record it builds from the ledger. Restoring
+    // after would register the restored copy carrying the discarded update's
+    // source, reporting a first-party plugin as unverified until the next reload.
     await rmStaging(target);
+    restoreProvenance(replaceId, previousProvenance, entry);
     await restoreUpdateBackup(backupDir, target);
     staged.delete(stagingToken);
     throw new InstallError("internal", (err as Error).message);
@@ -1191,6 +1258,31 @@ async function commitUpdate(
   await rmStaging(backupDir);
   staged.delete(stagingToken);
   return record;
+}
+
+/**
+ * Put the pre-update provenance back after a rolled-back update (issue #558), so
+ * the ledger keeps describing the copy that is actually on disk. A no-op when this
+ * update carried no provenance of its own (nothing was overwritten). When there
+ * was no previous row, the stamp this update wrote is removed rather than left
+ * behind describing the restored, differently-sourced copy.
+ */
+function restoreProvenance(
+  pluginId: string,
+  previous: PluginProvenanceRecord | null,
+  entry: StagedInstall,
+): void {
+  if (entry.provenance === undefined) return;
+  if (previous === null) {
+    pluginProvenanceState.removeProvenance(pluginId);
+    return;
+  }
+  pluginProvenanceState.recordProvenance({
+    pluginId,
+    sourceId: previous.sourceId,
+    sourceUrl: previous.sourceUrl,
+    unverified: previous.unverified,
+  });
 }
 
 export async function cancel(stagingToken: string): Promise<void> {

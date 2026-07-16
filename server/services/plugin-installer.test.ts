@@ -26,9 +26,18 @@ vi.mock("undici", () => ({
   Agent: vi.fn(),
 }));
 
+// Issue #558: the ledger is real-filesystem state under ~/.roubo. Mock it so the
+// commit paths can be asserted without writing the developer's own state dir.
+vi.mock("./plugin-provenance-state.js", () => ({
+  recordProvenance: vi.fn(),
+  removeProvenance: vi.fn(),
+  getProvenance: vi.fn(() => null),
+}));
+
 import * as pluginInstaller from "./plugin-installer.js";
 import * as exec from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
+import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import { fetch } from "undici";
 import { resolveWithin } from "../lib/safe-path.js";
 
@@ -416,6 +425,137 @@ describe("commit", () => {
       code: "duplicate-id",
     });
     expect(await listStaging()).not.toContain(preview.stagingToken);
+  });
+});
+
+// Issue #558 AC4 / CPHMTP-TC-042: an explicit pick-a-source install records the
+// chosen source. A PluginRecord is rebuilt from disk on every load, so the ledger
+// is the only thing carrying the choice forward: these assert the wiring from the
+// commit paths into it, which the service-level tests (which mock this module
+// wholesale) cannot see.
+describe("commit records the marketplace provenance (issue #558, AC4)", () => {
+  const PROVENANCE = {
+    sourceId: "marketplace-acme-example-1a2b3c4d",
+    sourceUrl: "https://marketplace.acme.example/catalog.json",
+    unverified: true,
+  };
+
+  beforeEach(() => {
+    // Reset call history and re-arm the default, as the suite does for its other
+    // module mocks: the factory's implementation does not survive between tests.
+    vi.mocked(pluginProvenanceState.recordProvenance).mockReset();
+    vi.mocked(pluginProvenanceState.removeProvenance).mockReset();
+    vi.mocked(pluginProvenanceState.getProvenance).mockReset();
+    vi.mocked(pluginProvenanceState.getProvenance).mockReturnValue(null);
+  });
+
+  /** Stage a marketplace-sourced install of `echo` carrying `PROVENANCE`. */
+  async function stageMarketplaceInstall(): Promise<string> {
+    fakeClone(ECHO_MANIFEST);
+    const preview = await pluginInstaller.previewFromGitUrl(
+      "https://github.com/example/echo.git",
+      undefined,
+      undefined,
+      undefined,
+      PROVENANCE,
+    );
+    return preview.stagingToken;
+  }
+
+  it("writes the chosen source to the ledger before registering", async () => {
+    const token = await stageMarketplaceInstall();
+    vi.mocked(pluginManager.registerInstalled).mockResolvedValue(
+      mockRecord({ id: "echo", status: "enabled" }),
+    );
+
+    await pluginInstaller.commit(token);
+
+    expect(pluginProvenanceState.recordProvenance).toHaveBeenCalledWith({
+      pluginId: "echo",
+      ...PROVENANCE,
+    });
+    // registerInstalled rebuilds the record by READING the ledger, so the write
+    // must land first or this install's record stays unstamped until a reload.
+    expect(
+      vi.mocked(pluginProvenanceState.recordProvenance).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(pluginManager.registerInstalled).mock.invocationCallOrder[0]);
+  });
+
+  it("leaves the ledger untouched on the raw git path (no marketplace source)", async () => {
+    fakeClone(ECHO_MANIFEST);
+    const preview = await pluginInstaller.previewFromGitUrl("https://github.com/example/echo.git");
+    vi.mocked(pluginManager.registerInstalled).mockResolvedValue(
+      mockRecord({ id: "echo", status: "enabled" }),
+    );
+
+    await pluginInstaller.commit(preview.stagingToken);
+
+    expect(pluginProvenanceState.recordProvenance).not.toHaveBeenCalled();
+    expect(pluginProvenanceState.removeProvenance).not.toHaveBeenCalled();
+  });
+
+  it("drops the row again when registering the install fails", async () => {
+    const token = await stageMarketplaceInstall();
+    vi.mocked(pluginManager.registerInstalled).mockRejectedValue(new Error("register boom"));
+
+    await expect(pluginInstaller.commit(token)).rejects.toMatchObject({ code: "internal" });
+
+    // A rolled-back install must leave no row claiming a plugin that is not there.
+    expect(pluginProvenanceState.removeProvenance).toHaveBeenCalledWith("echo");
+  });
+
+  it("restores the pre-update row when an update fails to register", async () => {
+    const target = path.join(pluginsRoot, "echo");
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(target, "OLD"), "old", "utf8");
+
+    const previous = {
+      pluginId: "echo",
+      sourceId: "first-party",
+      sourceUrl: "https://davidpoxon.github.io/roubo-plugins/catalog.json",
+      unverified: false,
+      installedAt: "2026-07-01T00:00:00.000Z",
+    };
+    vi.mocked(pluginProvenanceState.getProvenance).mockReturnValue(previous);
+
+    fakeClone(ECHO_MANIFEST);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "user" }),
+    ]);
+    const preview = await pluginInstaller.previewUpdateFromGitUrl(
+      "https://github.com/example/echo.git",
+      "echo",
+      undefined,
+      undefined,
+      undefined,
+      PROVENANCE,
+    );
+    // The new copy fails to register; restoring the backed-up old copy succeeds.
+    vi.mocked(pluginManager.registerInstalled)
+      .mockRejectedValueOnce(new Error("register boom"))
+      .mockResolvedValue(mockRecord({ id: "echo", status: "enabled" }));
+
+    await expect(pluginInstaller.commit(preview.stagingToken)).rejects.toMatchObject({
+      code: "internal",
+    });
+
+    // The old copy is back on disk, so the ledger must describe it again rather
+    // than the update that was rolled back.
+    expect(pluginProvenanceState.recordProvenance).toHaveBeenLastCalledWith({
+      pluginId: "echo",
+      sourceId: previous.sourceId,
+      sourceUrl: previous.sourceUrl,
+      unverified: previous.unverified,
+    });
+    // And it must land BEFORE the restore re-registers the old copy: that
+    // registerInstalled stamps its record from the ledger, so restoring the row
+    // afterwards would leave the first-party copy reported as the discarded
+    // update's unverified third-party source until the next reload.
+    const ledgerWrites = vi.mocked(pluginProvenanceState.recordProvenance).mock.invocationCallOrder;
+    const registrations = vi.mocked(pluginManager.registerInstalled).mock.invocationCallOrder;
+    expect(ledgerWrites[ledgerWrites.length - 1]).toBeLessThan(
+      registrations[registrations.length - 1],
+    );
   });
 });
 

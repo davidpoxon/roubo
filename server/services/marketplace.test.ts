@@ -38,6 +38,15 @@ vi.mock("./catalog-client.js", () => ({
 
 const FIRST_PARTY_URL = "https://davidpoxon.github.io/roubo-plugins/catalog.json";
 
+// What install/update record for a first-party install (issue #558): the built-in
+// source, and verified, since the first-party signed chain is the only thing that
+// can assert verification.
+const FIRST_PARTY_PROVENANCE = {
+  sourceId: FIRST_PARTY_SOURCE_ID,
+  sourceUrl: FIRST_PARTY_URL,
+  unverified: false,
+};
+
 vi.mock("./marketplace-sources-state.js", () => ({
   FIRST_PARTY_URL: "https://davidpoxon.github.io/roubo-plugins/catalog.json",
   listSources: vi.fn(),
@@ -974,6 +983,11 @@ describe("install", () => {
       (entry.source as { type: "git"; url: string; directory?: string }).url,
       entry.integrity,
       (entry.source as { type: "git"; url: string; directory?: string }).directory,
+      // A first-party install passes NO ThirdPartyInstallContext (the seam that
+      // makes the digest mandatory applies to unsigned sources only), and records
+      // first-party, verified provenance (issue #558).
+      undefined,
+      FIRST_PARTY_PROVENANCE,
     );
     // A git entry never touches the release preview.
     expect(previewFromRelease).not.toHaveBeenCalled();
@@ -992,6 +1006,8 @@ describe("install", () => {
     expect(previewFromRelease).toHaveBeenCalledWith(
       (RELEASE_ENTRY.source as { type: "release"; assetUrl: string }).assetUrl,
       RELEASE_ENTRY.integrity,
+      undefined,
+      FIRST_PARTY_PROVENANCE,
     );
     // The git clone path is not taken, so "Git URL is required" never throws.
     expect(previewFromGitUrl).not.toHaveBeenCalled();
@@ -1041,6 +1057,8 @@ describe("update", () => {
       entry.id,
       entry.integrity,
       (entry.source as { type: "git"; url: string; directory?: string }).directory,
+      undefined,
+      FIRST_PARTY_PROVENANCE,
     );
     expect(previewUpdateFromRelease).not.toHaveBeenCalled();
   });
@@ -1058,6 +1076,8 @@ describe("update", () => {
       (RELEASE_ENTRY.source as { type: "release"; assetUrl: string }).assetUrl,
       RELEASE_ENTRY.id,
       RELEASE_ENTRY.integrity,
+      undefined,
+      FIRST_PARTY_PROVENANCE,
     );
     expect(previewUpdateFromGitUrl).not.toHaveBeenCalled();
   });
@@ -1079,5 +1099,343 @@ describe("update", () => {
       code: "marketplace-unreachable",
     });
     expect(previewUpdateFromGitUrl).not.toHaveBeenCalled();
+  });
+});
+
+// Issue #558 (CPHMTP-FR-005 / CPHMTP-US-005): a plugin id served by more than one
+// source is a collision. The listing marks it and names the sources; install and
+// update refuse it with an ambiguity error until a source is named. There is no
+// precedence and no shadowing anywhere in this block: that is the point of the FR.
+describe("cross-source id collisions (issue #558)", () => {
+  const ACME_URL = "https://marketplace.acme.example/catalog.json";
+  const OTHER_URL = "https://plugins.other.example/catalog.json";
+  const ACME_ID = "marketplace-acme-example-1a2b3c4d";
+  const OTHER_ID = "plugins-other-example-5e6f7a8b";
+
+  function row(id: string, url: string, over: Partial<MarketplaceSource> = {}): MarketplaceSource {
+    return {
+      id,
+      url,
+      unsigned: true,
+      hasCredential: false,
+      allowHttp: false,
+      registeredAt: "2026-07-01T00:00:00.000Z",
+      ...over,
+    };
+  }
+
+  /** A third-party entry for `id`, distinguishable from the first-party one. */
+  function entry(id: string, over: Partial<MarketplaceCatalogEntry> = {}): MarketplaceCatalogEntry {
+    return {
+      id,
+      name: `${id} (third-party)`,
+      kind: "component",
+      version: "9.9.9",
+      summary: `A third-party ${id}`,
+      source: { type: "release", assetUrl: `https://marketplace.acme.example/${id}.tgz` },
+      provenance: `acme/marketplace@${id}`,
+      integrity: "sha256-acme",
+      verified: false,
+      ...over,
+    };
+  }
+
+  /** Wire the given third-party sources, each serving `entries`. */
+  function wire(fakes: { row: MarketplaceSource; entries: MarketplaceCatalogEntry[] }[]) {
+    listSources.mockReturnValue(fakes.map((f) => f.row));
+    createThirdPartyCatalogClient.mockImplementation((source) => {
+      const fake = fakes.find((f) => f.row.id === source.id);
+      if (!fake) throw new Error(`unexpected source ${source.id}`);
+      return {
+        async getCatalog() {
+          return {
+            entries: fake.entries,
+            source: "network",
+            fetchedAt: "2026-07-02T00:00:00.000Z",
+          };
+        },
+      };
+    });
+  }
+
+  /** The first-party catalog serves `database`; ACME serves `database` too. */
+  function wireCollision() {
+    wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("database")] }]);
+  }
+
+  describe("listing marks the collision (AC1)", () => {
+    // CPHMTP-TC-033 S001: the colliding id is marked and both sources are named.
+    it("marks both listings of a colliding id and names every serving source", async () => {
+      wireCollision();
+      const { listings } = await marketplace.listCatalog();
+      const colliding = listings.filter((l) => l.id === "database");
+      // No shadowing: BOTH sources' entries survive into the list, so the consumer
+      // sees one card per source rather than a silently chosen winner.
+      expect(colliding).toHaveLength(2);
+      for (const listing of colliding) {
+        expect(listing.collision).toEqual({ sourceIds: [FIRST_PARTY_SOURCE_ID, ACME_ID] });
+      }
+    });
+
+    it("names all three sources when three serve the same id", async () => {
+      wire([
+        { row: row(ACME_ID, ACME_URL), entries: [entry("database")] },
+        { row: row(OTHER_ID, OTHER_URL), entries: [entry("database")] },
+      ]);
+      const { listings } = await marketplace.listCatalog();
+      expect(listings.find((l) => l.id === "database")?.collision).toEqual({
+        sourceIds: [FIRST_PARTY_SOURCE_ID, ACME_ID, OTHER_ID],
+      });
+    });
+
+    it("leaves a single-source id unmarked", async () => {
+      wireCollision();
+      const { listings } = await marketplace.listCatalog();
+      // `github-com` is first-party only, so it is not a collision and carries no
+      // key at all (rather than an empty one).
+      expect(listings.find((l) => l.id === "github-com")).not.toHaveProperty("collision");
+    });
+
+    // A source listing an id twice is one source, not a collision.
+    it("does not mark an id one source happens to serve twice", async () => {
+      wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("acme-only"), entry("acme-only")] }]);
+      const { listings } = await marketplace.listCatalog();
+      for (const listing of listings.filter((l) => l.id === "acme-only")) {
+        expect(listing.collision).toBeUndefined();
+      }
+    });
+
+    // A revoked entry is served to nobody, so it cannot make an id ambiguous.
+    it("does not mark a collision against a revoked entry", async () => {
+      wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("database", { revoked: true })] }]);
+      const { listings } = await marketplace.listCatalog();
+      const colliding = listings.filter((l) => l.id === "database");
+      expect(colliding).toHaveLength(1);
+      expect(colliding[0].collision).toBeUndefined();
+    });
+  });
+
+  // CPHMTP-TC-044 S001: the mark is a property of the merged catalog, not of the
+  // current view, so every filter that leaves the id visible still shows it marked.
+  describe("the mark survives filter views (AC5, CPHMTP-TC-044)", () => {
+    it("keeps the mark when scoped to the first-party source alone", async () => {
+      wireCollision();
+      const { listings } = await marketplace.listCatalog({ sourceId: FIRST_PARTY_SOURCE_ID });
+      const listing = listings.find((l) => l.id === "database");
+      // Only the first-party listing survives the filter, but it must NOT read as
+      // unambiguous: that would be the view silently resolving the collision.
+      expect(listing?.sourceId).toBe(FIRST_PARTY_SOURCE_ID);
+      expect(listing?.collision).toEqual({ sourceIds: [FIRST_PARTY_SOURCE_ID, ACME_ID] });
+    });
+
+    it("keeps the mark when scoped to the third-party source alone", async () => {
+      wireCollision();
+      const { listings } = await marketplace.listCatalog({ sourceId: ACME_ID });
+      const listing = listings.find((l) => l.id === "database");
+      expect(listing?.sourceId).toBe(ACME_ID);
+      expect(listing?.collision).toEqual({ sourceIds: [FIRST_PARTY_SOURCE_ID, ACME_ID] });
+    });
+
+    it("keeps the mark under a kind filter", async () => {
+      wireCollision();
+      const { listings } = await marketplace.listCatalog({ kind: "component" });
+      expect(listings.find((l) => l.id === "database")?.collision).toEqual({
+        sourceIds: [FIRST_PARTY_SOURCE_ID, ACME_ID],
+      });
+    });
+
+    // The query matches only the third-party entry's name, so the first-party one
+    // is filtered out; the survivor must still be marked.
+    it("keeps the mark under a query that matches only one of the colliding entries", async () => {
+      wireCollision();
+      const { listings } = await marketplace.listCatalog({ q: "third-party" });
+      const listing = listings.find((l) => l.id === "database");
+      expect(listing?.sourceId).toBe(ACME_ID);
+      expect(listing?.collision).toEqual({ sourceIds: [FIRST_PARTY_SOURCE_ID, ACME_ID] });
+    });
+
+    // CPHMTP-TC-044 S002: re-derived per call, so a refresh cannot lose it.
+    it("re-derives the mark on a refetch", async () => {
+      wireCollision();
+      await marketplace.listCatalog();
+      const { listings } = await marketplace.listCatalog();
+      expect(listings.find((l) => l.id === "database")?.collision).toEqual({
+        sourceIds: [FIRST_PARTY_SOURCE_ID, ACME_ID],
+      });
+    });
+  });
+
+  // CPHMTP-TC-034 / TC-035: enforcement at the install AND update paths, not just
+  // the listing. Nothing is fetched, so no artifact touches the machine.
+  describe("install/update refuse an ambiguous id (AC2, AC3)", () => {
+    it("refuses an install of a colliding id and names both sources", async () => {
+      wireCollision();
+      await expect(marketplace.install("database")).rejects.toMatchObject({
+        code: "ambiguous-source",
+        sourceIds: [FIRST_PARTY_SOURCE_ID, ACME_ID],
+      });
+      // CPHMTP-TC-034 S002: refused BEFORE any artifact was fetched or staged.
+      expect(previewFromGitUrl).not.toHaveBeenCalled();
+      expect(previewFromRelease).not.toHaveBeenCalled();
+    });
+
+    it("refuses an update of a colliding id at the update path", async () => {
+      wireCollision();
+      await expect(marketplace.update("database")).rejects.toMatchObject({
+        code: "ambiguous-source",
+        sourceIds: [FIRST_PARTY_SOURCE_ID, ACME_ID],
+      });
+      // CPHMTP-TC-035 S002: the installed copy is left untouched.
+      expect(previewUpdateFromGitUrl).not.toHaveBeenCalled();
+      expect(previewUpdateFromRelease).not.toHaveBeenCalled();
+    });
+
+    it("still installs a single-source id with no source named", async () => {
+      wireCollision();
+      previewFromGitUrl.mockResolvedValue({ stagingToken: "t" } as Awaited<
+        ReturnType<typeof pluginInstaller.previewFromGitUrl>
+      >);
+      // `github-com` is served by first-party alone, so it is unambiguous and the
+      // collision guard must not block it.
+      await expect(marketplace.install("github-com")).resolves.toBeDefined();
+      expect(previewFromGitUrl).toHaveBeenCalled();
+    });
+
+    // The listing counterpart ("does not mark an id one source happens to serve
+    // twice") de-dupes by source id, so this gate must count DISTINCT sources too.
+    // Counting entries would refuse an install the listing shows as unambiguous.
+    it("still installs when one source lists the same id twice", async () => {
+      wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("acme-only"), entry("acme-only")] }]);
+      previewFromRelease.mockResolvedValue({ stagingToken: "t" } as Awaited<
+        ReturnType<typeof pluginInstaller.previewFromRelease>
+      >);
+      await expect(marketplace.install("acme-only")).resolves.toBeDefined();
+      expect(previewFromRelease).toHaveBeenCalled();
+    });
+  });
+
+  // CPHMTP-TC-042: an explicit choice resolves the ambiguity, and the trust
+  // treatment follows the CHOSEN source.
+  describe("an explicit source choice resolves it (AC4, CPHMTP-TC-042)", () => {
+    it("installs from the named third-party source and records that choice as unverified", async () => {
+      wireCollision();
+      previewFromRelease.mockResolvedValue({ stagingToken: "t" } as Awaited<
+        ReturnType<typeof pluginInstaller.previewFromRelease>
+      >);
+      await marketplace.install("database", ACME_ID);
+      expect(previewFromRelease).toHaveBeenCalledWith(
+        "https://marketplace.acme.example/database.tgz",
+        "sha256-acme",
+        // The unsigned source's trust treatment: the ThirdPartyInstallContext is
+        // what makes the per-artifact digest mandatory and scopes the download to
+        // the consented origin (CPHMTP-NFR-004 / NFR-002).
+        {
+          sourceOrigin: "https://marketplace.acme.example",
+          credential: undefined,
+          allowHttp: false,
+        },
+        // AC4: the record captures the chosen source, marked unverified because
+        // that source is unsigned.
+        { sourceId: ACME_ID, sourceUrl: ACME_URL, unverified: true },
+      );
+      // The first-party entry of the same id was NOT installed.
+      expect(previewFromGitUrl).not.toHaveBeenCalled();
+    });
+
+    it("installs from the named first-party source and records it as verified", async () => {
+      wireCollision();
+      previewFromGitUrl.mockResolvedValue({ stagingToken: "t" } as Awaited<
+        ReturnType<typeof pluginInstaller.previewFromGitUrl>
+      >);
+      await marketplace.install("database", FIRST_PARTY_SOURCE_ID);
+      // CPHMTP-TC-042 S002: the first-party choice keeps the verified treatment,
+      // and passes no third-party context.
+      expect(previewFromGitUrl).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.anything(),
+        undefined,
+        FIRST_PARTY_PROVENANCE,
+      );
+      expect(previewFromRelease).not.toHaveBeenCalled();
+    });
+
+    it("passes the source's keyring credential and allowHttp opt-in to the installer", async () => {
+      wire([
+        {
+          row: row(ACME_ID, ACME_URL, { hasCredential: true, allowHttp: true }),
+          entries: [entry("database")],
+        },
+      ]);
+      readSourceCredential.mockResolvedValue("tok-123");
+      previewFromRelease.mockResolvedValue({ stagingToken: "t" } as Awaited<
+        ReturnType<typeof pluginInstaller.previewFromRelease>
+      >);
+      await marketplace.install("database", ACME_ID);
+      expect(previewFromRelease).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        {
+          sourceOrigin: "https://marketplace.acme.example",
+          credential: "tok-123",
+          allowHttp: true,
+        },
+        expect.anything(),
+      );
+    });
+
+    it("updates from the named source", async () => {
+      wireCollision();
+      previewUpdateFromRelease.mockResolvedValue({ stagingToken: "t" } as Awaited<
+        ReturnType<typeof pluginInstaller.previewUpdateFromRelease>
+      >);
+      await marketplace.update("database", ACME_ID);
+      expect(previewUpdateFromRelease).toHaveBeenCalledWith(
+        "https://marketplace.acme.example/database.tgz",
+        "database",
+        "sha256-acme",
+        expect.objectContaining({ sourceOrigin: "https://marketplace.acme.example" }),
+        { sourceId: ACME_ID, sourceUrl: ACME_URL, unverified: true },
+      );
+    });
+
+    // A stale choice must not fall back to another source: that would install code
+    // from somewhere the consumer did not pick.
+    it("refuses a choice naming a source that does not serve the id", async () => {
+      wireCollision();
+      await expect(marketplace.install("database", OTHER_ID)).rejects.toMatchObject({
+        code: "invalid-input",
+      });
+      expect(previewFromRelease).not.toHaveBeenCalled();
+      expect(previewFromGitUrl).not.toHaveBeenCalled();
+    });
+
+    it("refuses an explicit choice of a revoked entry as revoked, not ambiguous", async () => {
+      wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("database", { revoked: true })] }]);
+      await expect(marketplace.install("database", ACME_ID)).rejects.toMatchObject({
+        code: "revoked",
+      });
+    });
+  });
+
+  // A third-party-only id must reach install rather than 404 at the route's
+  // resolveEntry pre-check, which used to read the first-party catalog alone.
+  describe("resolveEntry spans every source", () => {
+    it("resolves an id only a third-party source serves", async () => {
+      wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("acme-only")] }]);
+      await expect(marketplace.resolveEntry("acme-only")).resolves.toMatchObject({
+        id: "acme-only",
+      });
+    });
+
+    it("resolves a colliding id rather than reporting it unknown", async () => {
+      wireCollision();
+      await expect(marketplace.resolveEntry("database")).resolves.not.toBeNull();
+    });
+
+    it("returns null for an id no source serves", async () => {
+      wireCollision();
+      await expect(marketplace.resolveEntry("nope")).resolves.toBeNull();
+    });
   });
 });
