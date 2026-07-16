@@ -10,6 +10,7 @@ import type {
   SignedMarketplaceCatalog,
 } from "@roubo/shared";
 import { getRouboDir } from "./state.js";
+import { guardedFetch } from "./guarded-fetch.js";
 import {
   canonicalize,
   fingerprintKeyId,
@@ -41,10 +42,15 @@ import seedCatalog from "./marketplace-catalog.json";
 // key) is the always-available floor.
 //
 // node:crypto + Node fetch primitives only; adds no crypto/supply-chain
-// dependency (CPHM-NFR-006). The fetch URLs point at a fixed hosted feed and are
-// overridable only via createCatalogClient options (tests / embedding), never
-// from the environment: an env-derived outbound-request URL is the classic
-// request-forgery (SSRF) shape, so the environment cannot redirect the fetch.
+// dependency (CPHM-NFR-006). SSRF stance (amended for the third-party-source
+// increment, CPHMTP-NFR-005): no silent or env-derived URLs; consented and
+// validated sources only. The first-party feed URLs still point at a fixed
+// hosted feed and are overridable only via createCatalogClient options (tests /
+// embedding), never from the environment, so the classic env-derived
+// request-forgery (SSRF) vector stays closed. Every fetch now flows through the
+// shared guardedFetch transport (issue #554), which validates the scheme and
+// range table on every hop and blocks link-local / loopback / cloud-metadata
+// targets before connecting.
 
 /**
  * Where the served catalog came from. A re-export of the shared
@@ -143,10 +149,11 @@ export interface CatalogClient {
 }
 
 export function createCatalogClient(options: CatalogClientOptions = {}): CatalogClient {
-  // The fetch target is a fixed hosted feed. It is overridable only via options
-  // (tests / embedding), never from the environment: an env-derived URL flowing
-  // into an outbound fetch is the classic request-forgery (SSRF) shape, so we do
-  // not let an environment value redirect the request.
+  // SSRF stance (amended, CPHMTP-NFR-005): no silent or env-derived URLs;
+  // consented and validated sources only. The fetch target is a fixed hosted
+  // feed, overridable only via options (tests / embedding), never from the
+  // environment, and every request runs through guardedFetch below so the scheme
+  // and blocked-range table are enforced on the initial hop and each redirect.
   const catalogUrl = options.catalogUrl ?? DEFAULT_CATALOG_URL;
   const keyRingUrl = options.keyRingUrl ?? DEFAULT_KEY_RING_URL;
   const cacheDir = options.cacheDir ?? path.join(getRouboDir(), "marketplace");
@@ -188,7 +195,16 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
 
   async function fetchEnvelope<T>(url: string): Promise<T | null> {
     try {
-      const res = await doFetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      // Route through the shared guarded transport (issue #554): SSRF / redirect
+      // guarding and per-hop range validation live in guardedFetch. The
+      // first-party feed origin is the consented source origin; this slice
+      // attaches no credential. doFetch stays the injected transport so the test
+      // / e2e seam is unchanged, and the size-cap streaming below is untouched.
+      const res = await guardedFetch(url, {
+        sourceOrigin: new URL(url).origin,
+        fetchImpl: doFetch,
+        timeoutMs: FETCH_TIMEOUT_MS,
+      });
       if (!res.ok) return null;
       // Bound the payload to the size budget (CPHM-NFR-002, issue #495), enforced the
       // same two ways as the release-asset limiter in plugin-installer.ts. Up front,
