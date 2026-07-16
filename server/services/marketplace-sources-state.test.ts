@@ -267,3 +267,18 @@ describe("removeSource", () => {
     expect(credStore.deleteSlot).not.toHaveBeenCalled();
   });
 });
+
+describe("sourceCacheDir", () => {
+  it("resolves a valid id under the marketplace sources root", () => {
+    const dir = mod.__test.sourceCacheDir("example-com-1a2b3c4d");
+    expect(dir.endsWith(path.join("marketplace", "sources", "example-com-1a2b3c4d"))).toBe(true);
+  });
+
+  it("refuses to resolve a traversal id outside the sources root", () => {
+    // The id reaching fs.rmSync originates from a request path param. A traversal
+    // segment must be rejected before it can hand a path outside the cache root to a
+    // recursive delete (CWE-22, defense in depth).
+    expect(() => mod.__test.sourceCacheDir("../../escape")).toThrow();
+    expect(() => mod.__test.sourceCacheDir("a/../../escape")).toThrow();
+  });
+});

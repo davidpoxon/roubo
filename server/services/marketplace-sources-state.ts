@@ -9,6 +9,7 @@ import {
   type MarketplaceSourceSummary,
 } from "@roubo/shared";
 import { atomicWrite, ensureDirs, getRouboDir } from "./state.js";
+import { resolveWithin } from "../lib/safe-path.js";
 import * as credentialStore from "./credential-store.js";
 
 // Issue #553 / CPHMTP-FR-001, CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003:
@@ -198,7 +199,15 @@ async function deleteCredential(id: string): Promise<void> {
 }
 
 function sourceCacheDir(id: string): string {
-  return path.join(getRouboDir(), "marketplace", "sources", id);
+  // `id` originates from a request path param (DELETE /sources/:id). Persisted ids
+  // are always `[a-z0-9-]` slugs (slugFromUrl), and removeSource only reaches the
+  // fs.rmSync cleanup after matching id against a persisted row, so a traversal id
+  // never resolves here in practice. Route the join through resolveWithin regardless
+  // so the value is confined to the marketplace sources root before it reaches
+  // fs.rmSync: a segment that escaped the slug shape throws UnsafePathError rather
+  // than letting a recursive delete touch a directory outside the cache (CWE-22,
+  // defense in depth).
+  return resolveWithin(path.join(getRouboDir(), "marketplace", "sources"), id);
 }
 
 export type AddSourceResult =
