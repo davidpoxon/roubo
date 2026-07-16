@@ -5,7 +5,12 @@ import path from "node:path";
 import * as tar from "tar";
 import { fileURLToPath } from "node:url";
 import { computePackageDigest } from "./marketplace-integrity.js";
-import type { BrokerContext, PluginEnableState, PluginRecord } from "@roubo/shared";
+import type {
+  BrokerContext,
+  PluginEnableState,
+  PluginProvenanceRecord,
+  PluginRecord,
+} from "@roubo/shared";
 import type { ConnectionStatus } from "@roubo/plugin-sdk";
 
 vi.mock("./project-registry.js", () => ({
@@ -47,6 +52,18 @@ const consentStateMocks = vi.hoisted(() => ({
   removeConsent: vi.fn<(id: string) => void>(),
 }));
 vi.mock("./plugin-consent-state.js", () => consentStateMocks);
+
+// Issue #558 (CPHMTP-FR-005/006): makeRecord stamps a rebuilt record with the
+// marketplace source the consumer chose, read back from the provenance ledger.
+// Mock that persistence boundary for the same reason as the two above: these
+// tests must not touch the real ~/.roubo/plugins-provenance.json (the file IO is
+// covered by plugin-provenance-state.test.ts).
+const provenanceStateMocks = vi.hoisted(() => ({
+  getProvenance: vi.fn<(id: string) => PluginProvenanceRecord | null>(() => null),
+  recordProvenance: vi.fn(),
+  removeProvenance: vi.fn<(id: string) => void>(),
+}));
+vi.mock("./plugin-provenance-state.js", () => provenanceStateMocks);
 
 // dockerode is lazy-imported by the real isolation probe (#675) and by
 // ensureImage (#740). Mock it so the boot-install and image-pull branches can
@@ -114,6 +131,9 @@ beforeEach(() => {
   }));
   enableStateMocks.removePlugin.mockReset();
   consentStateMocks.removeConsent.mockReset();
+  provenanceStateMocks.removeProvenance.mockReset();
+  provenanceStateMocks.getProvenance.mockReset();
+  provenanceStateMocks.getProvenance.mockReturnValue(null);
   cutListMocks.evictPlugin.mockReset();
   cutListMocks.evictProject.mockReset();
   childProcessControl.override = null;
@@ -226,6 +246,49 @@ describe("discovery", () => {
     expect(ids).toEqual(["echo", "incompatible"]);
     expect(findRecord(installed, "echo").source).toBe("bundled");
     expect(findRecord(installed, "incompatible").source).toBe("user");
+  });
+
+  // Issue #558 AC4 / CPHMTP-TC-042: a record is re-derived from the plugin
+  // directory on every load, so the source the consumer chose at install can only
+  // survive via the ledger. These assert the read-back that makes the choice (and
+  // its trust treatment) durable across a reload.
+  describe("marketplace provenance stamping (issue #558, AC4)", () => {
+    it("stamps a record from its ledger row", async () => {
+      provenanceStateMocks.getProvenance.mockImplementation((id) =>
+        id === "echo"
+          ? {
+              pluginId: "echo",
+              sourceId: "marketplace-acme-example-1a2b3c4d",
+              sourceUrl: "https://marketplace.acme.example/catalog.json",
+              unverified: true,
+              installedAt: "2026-07-01T00:00:00.000Z",
+            }
+          : null,
+      );
+      sandbox = await makeSandbox({ user: ["echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+
+      const echo = findRecord(mgr.listInstalled(), "echo");
+      expect(echo.sourceId).toBe("marketplace-acme-example-1a2b3c4d");
+      expect(echo.sourceUrl).toBe("https://marketplace.acme.example/catalog.json");
+      expect(echo.unverified).toBe(true);
+    });
+
+    it("omits the keys entirely for a plugin with no ledger row", async () => {
+      provenanceStateMocks.getProvenance.mockReturnValue(null);
+      sandbox = await makeSandbox({ user: ["echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+
+      // Absent, not present-and-undefined: absent is what reads as
+      // first-party / verified, so an install predating the ledger needs no
+      // migration.
+      const echo = findRecord(mgr.listInstalled(), "echo");
+      expect(echo).not.toHaveProperty("sourceId");
+      expect(echo).not.toHaveProperty("sourceUrl");
+      expect(echo).not.toHaveProperty("unverified");
+    });
   });
 
   it("flags invalid manifest as 'invalid' and continues boot (TC-002, FR-033)", async () => {
@@ -1894,6 +1957,10 @@ permissions:
     // Issue #399 (CP-TC-096): uninstall drops the plugin's ConsentRecord so a
     // stale consent does not survive; a re-install must re-acknowledge.
     expect(consentStateMocks.removeConsent).toHaveBeenCalledWith("to-remove");
+    // Issue #558: and its marketplace provenance row, for the same reason. A
+    // re-installed id is a fresh install-from choice, so a stale row must not
+    // make it look like it still came from the previously chosen source.
+    expect(provenanceStateMocks.removeProvenance).toHaveBeenCalledWith("to-remove");
     // FR-004 / NFR-001: uninstall evicts the persistent disk cache for the
     // plugin (additive to the in-memory clearSnapshot).
     expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("to-remove");
@@ -2017,6 +2084,9 @@ permissions:
     // Issue #399 (CP-TC-096): an in-place update keeps the same id, so its
     // ConsentRecord is preserved. uninstallForUpdate must NOT remove consent.
     expect(consentStateMocks.removeConsent).not.toHaveBeenCalled();
+    // Issue #558: likewise the provenance row. The update re-stamps it itself,
+    // so dropping it here would strand the copy on disk with no recorded source.
+    expect(provenanceStateMocks.removeProvenance).not.toHaveBeenCalled();
   });
 
   it("does NOT apply the active-integration guard (an in-use integration is updatable)", async () => {

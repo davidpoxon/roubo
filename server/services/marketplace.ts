@@ -585,11 +585,13 @@ function assertInstallable(
   // ambiguous: filter before counting, or a revoked first-party entry would block
   // an install the one remaining source can satisfy honestly.
   const servable = candidates.filter((c) => c.entry.revoked !== true);
-  if (servable.length > 1) {
-    throw new AmbiguousSourceError(
-      id,
-      servable.map((c) => c.status.id),
-    );
+  // Count DISTINCT serving sources, not candidate entries. One source listing the
+  // same id twice is that source's own duplicate, not a cross-source collision, and
+  // buildCollisionIndex de-dupes by source id the same way, so the listing and this
+  // gate stay in agreement.
+  const servingSourceIds = [...new Set(servable.map((c) => c.status.id))];
+  if (servingSourceIds.length > 1) {
+    throw new AmbiguousSourceError(id, servingSourceIds);
   }
   // Nothing servable: every candidate is revoked. Report that specifically (410)
   // rather than as an unknown id.

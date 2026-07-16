@@ -1241,10 +1241,15 @@ async function commitUpdate(
   try {
     record = await pluginManager.registerInstalled(target);
   } catch (err) {
-    // The new copy is broken: discard it and restore the backup.
+    // The new copy is broken: discard it and restore the backup. Put the
+    // provenance back BEFORE restoring, mirroring the forward path above and for
+    // the same reason: restoreUpdateBackup re-registers the old copy, and
+    // registerInstalled stamps the record it builds from the ledger. Restoring
+    // after would register the restored copy carrying the discarded update's
+    // source, reporting a first-party plugin as unverified until the next reload.
     await rmStaging(target);
-    await restoreUpdateBackup(backupDir, target);
     restoreProvenance(replaceId, previousProvenance, entry);
+    await restoreUpdateBackup(backupDir, target);
     staged.delete(stagingToken);
     throw new InstallError("internal", (err as Error).message);
   }

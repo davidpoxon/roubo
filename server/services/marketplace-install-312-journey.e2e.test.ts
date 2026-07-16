@@ -56,6 +56,16 @@ vi.mock("undici", () => ({
   Agent: vi.fn(),
 }));
 
+// This journey drives the REAL install() and commit(), and commit now records the
+// chosen marketplace source to ~/.roubo/plugins-provenance.json (issue #558). Mock
+// that persistence boundary so the journey cannot write the developer's own state
+// dir; the ledger's file IO is covered by plugin-provenance-state.test.ts.
+vi.mock("./plugin-provenance-state.js", () => ({
+  recordProvenance: vi.fn(),
+  removeProvenance: vi.fn(),
+  getProvenance: vi.fn(() => null),
+}));
+
 import * as marketplace from "./marketplace.js";
 import * as pluginInstaller from "./plugin-installer.js";
 import * as catalogClient from "./catalog-client.js";

@@ -1300,6 +1300,18 @@ describe("cross-source id collisions (issue #558)", () => {
       await expect(marketplace.install("github-com")).resolves.toBeDefined();
       expect(previewFromGitUrl).toHaveBeenCalled();
     });
+
+    // The listing counterpart ("does not mark an id one source happens to serve
+    // twice") de-dupes by source id, so this gate must count DISTINCT sources too.
+    // Counting entries would refuse an install the listing shows as unambiguous.
+    it("still installs when one source lists the same id twice", async () => {
+      wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("acme-only"), entry("acme-only")] }]);
+      previewFromRelease.mockResolvedValue({ stagingToken: "t" } as Awaited<
+        ReturnType<typeof pluginInstaller.previewFromRelease>
+      >);
+      await expect(marketplace.install("acme-only")).resolves.toBeDefined();
+      expect(previewFromRelease).toHaveBeenCalled();
+    });
   });
 
   // CPHMTP-TC-042: an explicit choice resolves the ambiguity, and the trust
