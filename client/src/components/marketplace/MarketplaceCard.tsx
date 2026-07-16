@@ -16,7 +16,7 @@ const STRINGS = {
   install: "Install",
   update: "Update",
   installed: "Installed",
-  provenanceLabel: (label: string) => `Source: ${label}`,
+  provenancePrefix: "Source: ",
 };
 
 /**
@@ -24,9 +24,13 @@ const STRINGS = {
  * renders per card. First-party is deliberately a DISTINCT treatment from a
  * registered third-party source: green (matching the first-party verified marker
  * below) versus amber, so provenance is legible at a glance and an unsigned
- * source cannot visually pass itself off as the curated catalog. The label is
- * screen-reader-prefixed with "Source:" so the chip is not just a bare hostname
- * out of context (CPHMTP-NFR-008).
+ * source cannot visually pass itself off as the curated catalog. A visually
+ * hidden "Source: " prefix leads the chip's subtree text, so a screen reader
+ * announces "Source: ACME workplace" rather than a bare hostname out of context
+ * (CPHMTP-NFR-008). It is deliberately subtree text and not an `aria-label`: the
+ * chip is a role-less span (ARIA role `generic`), which prohibits `aria-label`,
+ * and a generic container is not a navigation stop, so assistive tech reads the
+ * subtree rather than the name (issue #596).
  */
 function SourceChip({ sourceId, label }: { sourceId: string; label: string }) {
   const isFirstParty = sourceId === FIRST_PARTY_SOURCE_ID;
@@ -37,7 +41,6 @@ function SourceChip({ sourceId, label }: { sourceId: string; label: string }) {
     <span
       data-testid="marketplace-card-source"
       data-source-id={sourceId}
-      aria-label={STRINGS.provenanceLabel(label)}
       className={`inline-flex max-w-[12rem] items-center gap-1 rounded-full border ${cls} px-2 py-0.5 text-[10px] font-medium`}
     >
       {isFirstParty ? (
@@ -45,6 +48,7 @@ function SourceChip({ sourceId, label }: { sourceId: string; label: string }) {
       ) : (
         <Globe size={11} aria-hidden className="shrink-0" />
       )}
+      <span className="sr-only">{STRINGS.provenancePrefix}</span>
       <span className="truncate">{label}</span>
     </span>
   );
