@@ -444,28 +444,6 @@ describe("guardedFetch: SSRF / redirect guard (CPHMTP-NFR-005)", () => {
     ).rejects.toMatchObject({ reason: "scheme-not-allowed" });
   });
 
-  it("hands the transport only guard-approved origins across a public redirect (sink allowlist barrier)", async () => {
-    // The sink barrier admits a request only for an approved origin: the
-    // consented source origin A, plus a redirect target validated as a
-    // public-redirect-target. Record the origin of every URL that actually
-    // reaches the transport and assert it is exactly those two, in order, so a
-    // tainted URL can never become an outbound request to an un-approved origin.
-    const contactedOrigins: string[] = [];
-    const recordingFetch: typeof globalThis.fetch = (input, init) => {
-      contactedOrigins.push(new URL(String(input)).origin);
-      return routedFetch(input, init);
-    };
-    const res = await guardedFetch(`${origins.A}/cross-origin-redirect`, {
-      sourceOrigin: origins.A,
-      allowHttp: true,
-      fetchImpl: recordingFetch,
-      lookup: publicLookup,
-    });
-    await drain(res);
-    expect(res.status).toBe(200);
-    expect(contactedOrigins).toEqual([origins.A, new URL(publicB).origin]);
-  });
-
   it("blocks a direct fetch to a HARD/SOFT literal before connecting (TC-062)", async () => {
     const fetchImpl = vi.fn();
     await expect(

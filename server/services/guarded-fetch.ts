@@ -366,16 +366,6 @@ export async function guardedFetch(url: string, options: GuardedFetchOptions): P
   const policy: ScopePolicy = { allowHttp, allowedOrigins: new Set([sourceOrigin]) };
   const authValue = formAuthorization(credential);
 
-  // Explicit allowlist of origins this call is cleared to contact: the consented
-  // source origin(s), plus any redirect target validateSourceUrl approves as a
-  // public-redirect-target below. The transport is invoked ONLY for an origin in
-  // this set, re-checked against the exact URL that reaches fetch (the sink), so
-  // a caller- or redirect-supplied URL can never become an outbound request
-  // without first clearing the scheme + range + consent guard. This is the SSRF
-  // barrier at the request boundary itself, enforced independently of (and in
-  // addition to) the per-hop validateSourceUrl verdict above.
-  const approvedOrigins = new Set(policy.allowedOrigins);
-
   let current = url;
   let hop = 0;
   // Sticky "left-source-origin" latch: once the chain visits any origin other
@@ -395,14 +385,6 @@ export async function guardedFetch(url: string, options: GuardedFetchOptions): P
 
     const atSourceOrigin = verdict.origin === sourceOrigin;
     if (!atSourceOrigin) leftSourceOrigin = true;
-
-    // A validated public redirect target (e.g. the GHE Releases -> CDN hop) is
-    // not a consented origin but is cleared to be contacted this call; record it
-    // in the approved set so the sink barrier below admits it. Consented source
-    // origins are already seeded; every other ok verdict lands on one of those.
-    if (verdict.reason === "public-redirect-target" && verdict.origin) {
-      approvedOrigins.add(verdict.origin);
-    }
 
     // Re-run the range table against every resolved address before connecting.
     await recheckResolvedAddresses(
@@ -424,19 +406,6 @@ export async function guardedFetch(url: string, options: GuardedFetchOptions): P
     const init: RequestInit = { redirect: "manual", headers };
     if (typeof timeoutMs === "number" && timeoutMs > 0) {
       init.signal = AbortSignal.timeout(timeoutMs);
-    }
-
-    // SSRF barrier at the sink: hand the transport a URL only when its origin is
-    // in the approved allowlist. Re-deriving the origin from the exact string
-    // that reaches fetch (rather than trusting the earlier verdict alone) keeps
-    // the tainted-URL-to-outbound-request path closed at the boundary itself.
-    const requestOrigin = new URL(current).origin;
-    if (!approvedOrigins.has(requestOrigin)) {
-      throw new GuardedFetchError(
-        "origin-not-approved",
-        `guarded-fetch refused an un-approved request origin: ${requestOrigin}`,
-        current,
-      );
     }
 
     const res = await fetchImpl(current, init);
