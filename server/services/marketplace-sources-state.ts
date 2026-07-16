@@ -236,6 +236,15 @@ export async function addSource(input: {
     return { outcome: "invalid-url" };
   }
 
+  // The built-in first-party catalog is reserved: registering its URL as a
+  // third-party source would surface a removable unsigned duplicate of the
+  // non-removable built-in in GET /sources (the duplicate check below only scans
+  // persisted third-party rows). It is a well-formed URL but not a valid
+  // third-party source to register, so reject it as invalid.
+  if (validated.href === FIRST_PARTY_URL) {
+    return { outcome: "invalid-url" };
+  }
+
   const current = loadSourcesState() ?? {
     schemaVersion: MARKETPLACE_SOURCES_STATE_SCHEMA_VERSION,
     sources: [],
@@ -306,10 +315,23 @@ export async function removeSource(id: string): Promise<RemoveSourceResult> {
   };
   saveSourcesState(next);
 
-  // Best-effort side-effect cleanup. The cache dir may not exist yet (POST is a
-  // pure write, so nothing is fetched until the next listing); force ignores that.
+  // Best-effort side-effect cleanup, all AFTER the row is already persisted above:
+  // a cleanup failure must not turn an already-completed removal into an error. The
+  // cache dir may not exist yet (POST is a pure write, so nothing is fetched until
+  // the next listing); force ignores that. The keyring credential is deleted only
+  // when the row claimed one, and a keyring failure (e.g. an unavailable headless
+  // Linux keyring) is logged rather than propagated so the removal still reports as
+  // completed.
   fs.rmSync(sourceCacheDir(id), { recursive: true, force: true });
-  await deleteCredential(id);
+  if (existing.hasCredential) {
+    try {
+      await deleteCredential(id);
+    } catch (err) {
+      console.warn(
+        `marketplace-sources-state: failed to delete keyring credential for source "${id}": ${(err as Error).message}`,
+      );
+    }
+  }
 
   return "removed";
 }

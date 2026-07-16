@@ -197,6 +197,15 @@ describe("addSource", () => {
     expect(r2.source.id).not.toBe(r1.source.id);
     expect(r1.source.id).not.toBe(restarted.FIRST_PARTY_SOURCE_ID);
   });
+
+  it("refuses to register the built-in first-party URL as a third-party source", async () => {
+    // A well-formed URL, but reserved: registering it would otherwise surface a
+    // removable unsigned duplicate of the non-removable built-in in GET /sources.
+    const firstPartyUrl = mod.listSourceSummaries()[0].url;
+    const result = await mod.addSource({ url: firstPartyUrl });
+    expect(result.outcome).toBe("invalid-url");
+    expect(mod.listSources()).toHaveLength(0);
+  });
 });
 
 describe("removeSource", () => {
@@ -229,5 +238,32 @@ describe("removeSource", () => {
     expect(fs.existsSync(cacheDir)).toBe(false);
     expect(credStore.deleteSlot).toHaveBeenCalledWith(`source:${id}`, "token");
     expect(keyring.has(`source:${id}/token`)).toBe(false);
+  });
+
+  it("still reports removed when the keyring credential delete fails", async () => {
+    const credStore = await import("./credential-store.js");
+    const added = await mod.addSource({ url: URL_A, credential: "tok" });
+    expect(added.outcome).toBe("created");
+    if (added.outcome !== "created") return;
+    // A headless-Linux keyring can be unavailable. The row is already persisted as
+    // removed before cleanup, so a keyring delete failure is logged, not propagated:
+    // the removal must not be reported as failed after it already completed.
+    vi.mocked(credStore.deleteSlot).mockRejectedValueOnce(new Error("keyring unavailable"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await mod.removeSource(added.source.id);
+    expect(result).toBe("removed");
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+    expect(mod.listSources()).toHaveLength(0);
+  });
+
+  it("skips the keyring delete for a credential-less source", async () => {
+    const credStore = await import("./credential-store.js");
+    const added = await mod.addSource({ url: URL_A });
+    expect(added.outcome).toBe("created");
+    if (added.outcome !== "created") return;
+    const result = await mod.removeSource(added.source.id);
+    expect(result).toBe("removed");
+    expect(credStore.deleteSlot).not.toHaveBeenCalled();
   });
 });
