@@ -211,6 +211,25 @@ interface SourceResult {
 // again.
 const thirdPartyClients = new Map<string, { url: string; client: ThirdPartyCatalogClient }>();
 
+/**
+ * Drop a source's cached client so the next listCatalog rebuilds it from the
+ * current registry row and keyring credential. The registry-mutating routes call
+ * this after a successful add / re-register / remove.
+ *
+ * A client captures its credential once at construction, and a re-registration
+ * resolves to the SAME id and url (the id is a deterministic slug of the
+ * normalised href), so a rotated token would otherwise never reach the client:
+ * the source would 401, report unavailable, and stay that way until the process
+ * restarted. Invalidating here, at the one place the registry changes, keeps the
+ * keyring read on the cold path. Re-reading it per listCatalog instead would
+ * spawn a keyring process (`security find-generic-password` / `secret-tool
+ * lookup`) per credentialed source on every keystroke in the search field, and
+ * would darken a healthy source whenever the keyring hiccupped.
+ */
+export function invalidateSourceClient(id: string): void {
+  thirdPartyClients.delete(id);
+}
+
 async function getThirdPartyClient(row: MarketplaceSource): Promise<ThirdPartyCatalogClient> {
   const cached = thirdPartyClients.get(row.id);
   if (cached && cached.url === row.url) return cached.client;

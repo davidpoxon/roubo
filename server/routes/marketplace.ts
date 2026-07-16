@@ -226,10 +226,16 @@ router.post("/sources", async (req, res) => {
     if (result.outcome === "replaced") {
       // The URL is already registered: no second entry is created, but the
       // credential was replaced. Reject the duplicate registration with 409 while
-      // returning the (updated) row (CPHMTP-FR-001 / issue #553 AC).
+      // returning the (updated) row (CPHMTP-FR-001 / issue #553 AC). The cached
+      // client still holds the OLD credential, so drop it (issue #557).
+      marketplace.invalidateSourceClient(result.source.id);
       res.status(409).json(result.source);
       return;
     }
+    // A fresh registration can still resolve to an id that was cached earlier in
+    // this process (removed and re-registered at the same URL yields the same
+    // slug), so drop any client left over from that row.
+    marketplace.invalidateSourceClient(result.source.id);
     res.status(201).json(result.source);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message, code: "internal" });
@@ -250,6 +256,9 @@ router.delete("/sources/:id", async (req, res) => {
       res.status(404).json({ error: `Unknown source: ${req.params.id}`, code: "not-found" });
       return;
     }
+    // The row is gone, so listCatalog stops asking for it, but the cached client
+    // would outlive a same-URL re-registration (which resolves to the same id).
+    marketplace.invalidateSourceClient(req.params.id);
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: (err as Error).message, code: "internal" });

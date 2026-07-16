@@ -9,6 +9,7 @@ vi.mock("../services/marketplace.js", () => ({
   resolveEntry: vi.fn(),
   install: vi.fn(),
   update: vi.fn(),
+  invalidateSourceClient: vi.fn(),
 }));
 
 vi.mock("../services/plugin-installer.js", () => {
@@ -50,6 +51,7 @@ const listCatalog = vi.mocked(marketplace.listCatalog);
 const resolveEntry = vi.mocked(marketplace.resolveEntry);
 const install = vi.mocked(marketplace.install);
 const update = vi.mocked(marketplace.update);
+const invalidateSourceClient = vi.mocked(marketplace.invalidateSourceClient);
 const listSourceSummaries = vi.mocked(sourcesState.listSourceSummaries);
 const addSource = vi.mocked(sourcesState.addSource);
 const removeSource = vi.mocked(sourcesState.removeSource);
@@ -452,6 +454,25 @@ describe("POST /api/marketplace/sources", () => {
     expect(res.body).toEqual(SUMMARY);
   });
 
+  // A cached client captured the OLD credential at construction, and a rotation
+  // changes neither the id nor the url, so the registry write is the only place
+  // that knows the client is stale (issue #557).
+  it("drops the source's cached client when a rotation replaces its credential", async () => {
+    addSource.mockResolvedValue({ outcome: "replaced", source: SUMMARY });
+    await request(makeApp())
+      .post("/api/marketplace/sources")
+      .send({ url: SUMMARY.url, credential: "rotated" });
+    expect(invalidateSourceClient).toHaveBeenCalledWith(SUMMARY.id);
+  });
+
+  it("drops any client left over from a same-URL row on a fresh registration", async () => {
+    addSource.mockResolvedValue({ outcome: "created", source: SUMMARY });
+    await request(makeApp())
+      .post("/api/marketplace/sources")
+      .send({ url: SUMMARY.url, credential: "tok" });
+    expect(invalidateSourceClient).toHaveBeenCalledWith(SUMMARY.id);
+  });
+
   it("returns 500 when the store throws (e.g. keyring unavailable)", async () => {
     addSource.mockRejectedValue(new Error("keyring unavailable"));
     const res = await request(makeApp())
@@ -459,15 +480,18 @@ describe("POST /api/marketplace/sources", () => {
       .send({ url: SUMMARY.url, credential: "tok" });
     expect(res.status).toBe(500);
     expect(res.body.code).toBe("internal");
+    expect(invalidateSourceClient).not.toHaveBeenCalled();
   });
 });
 
 describe("DELETE /api/marketplace/sources/:id", () => {
-  it("removes a registered source with 204", async () => {
+  it("removes a registered source with 204 and drops its cached client", async () => {
     removeSource.mockResolvedValue("removed");
     const res = await request(makeApp()).delete(`/api/marketplace/sources/${SUMMARY.id}`);
     expect(res.status).toBe(204);
     expect(removeSource).toHaveBeenCalledWith(SUMMARY.id);
+    // The client would otherwise outlive a same-URL re-registration.
+    expect(invalidateSourceClient).toHaveBeenCalledWith(SUMMARY.id);
   });
 
   it("refuses to remove the first-party source with 403", async () => {

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../lib/api";
 import type { MarketplaceKind } from "../lib/api";
 
@@ -29,6 +29,13 @@ export function useMarketplaceCatalog(params: {
     queryKey: marketplaceQueryKey(params),
     queryFn: () => api.fetchMarketplaceCatalog(params),
     refetchOnWindowFocus: false,
+    // The source filter chips and the offline banner both render from the
+    // response, and q/kind/sourceId are all in the query key, so without this a
+    // chip click (or any keystroke) empties `data` while the new query is in
+    // flight and unmounts the chip row the user just pressed, taking keyboard
+    // focus and the "All sources" way back with it. Holding the previous page's
+    // data keeps the chips mounted across the refetch.
+    placeholderData: keepPreviousData,
   });
 }
 

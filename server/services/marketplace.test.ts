@@ -816,6 +816,53 @@ describe("multi-source listing (issue #557)", () => {
     await marketplace.listCatalog();
     expect(createThirdPartyCatalogClient).toHaveBeenCalledTimes(2);
   });
+
+  // A client captures its credential once at construction, and a re-registration
+  // keeps the same id AND url (the id is a deterministic slug of the href), so
+  // nothing about the row itself reveals a rotation. The registry routes drop the
+  // client instead, and the rebuild must pick the new token up from the keyring.
+  it("rebuilds a source's client with the new credential after invalidation", async () => {
+    const acme = sourceRow({ hasCredential: true });
+    readSourceCredential.mockResolvedValue("ghp_old");
+    registerSources([{ row: acme, result: served([thirdPartyEntry()]) }]);
+    await marketplace.listCatalog();
+
+    readSourceCredential.mockResolvedValue("ghp_rotated");
+    marketplace.invalidateSourceClient(acme.id);
+    await marketplace.listCatalog();
+
+    expect(createThirdPartyCatalogClient).toHaveBeenCalledTimes(2);
+    expect(createThirdPartyCatalogClient).toHaveBeenLastCalledWith(
+      acme,
+      expect.objectContaining({ credential: "ghp_rotated" }),
+    );
+  });
+
+  it("leaves other sources' clients alone when one is invalidated", async () => {
+    const acme = sourceRow();
+    const other = sourceRow({ id: "other", url: OTHER_URL });
+    registerSources([
+      { row: acme, result: served([thirdPartyEntry()]) },
+      { row: other, result: served([thirdPartyEntry({ id: "other-plugin" })]) },
+    ]);
+    await marketplace.listCatalog();
+    marketplace.invalidateSourceClient(acme.id);
+    await marketplace.listCatalog();
+    // Two on the cold start, plus one rebuild of the invalidated source only.
+    expect(createThirdPartyCatalogClient).toHaveBeenCalledTimes(3);
+  });
+
+  // The keyring read spawns an OS process, so keeping it on the cold path is what
+  // stops a keystroke from spawning one per credentialed source.
+  it("never re-reads the keyring while a source's client is still cached", async () => {
+    readSourceCredential.mockResolvedValue("ghp_secret");
+    registerSources([{ row: sourceRow({ hasCredential: true }), result: served([]) }]);
+    await marketplace.listCatalog();
+    await marketplace.listCatalog({ q: "gh" });
+    await marketplace.listCatalog({ q: "ghe" });
+    expect(createThirdPartyCatalogClient).toHaveBeenCalledTimes(1);
+    expect(readSourceCredential).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("resolveEntry", () => {
