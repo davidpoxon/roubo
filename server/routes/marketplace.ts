@@ -7,6 +7,7 @@ import type {
 } from "@roubo/shared";
 import * as marketplace from "../services/marketplace.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
+import * as sourcesState from "../services/marketplace-sources-state.js";
 import { CatalogUnverifiedError } from "../services/catalog-client.js";
 
 // Marketplace routes (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621;
@@ -159,6 +160,71 @@ router.post("/plugins/:id/update", async (req, res) => {
       return;
     }
     sendInstallError(res, err);
+  }
+});
+
+// Third-party marketplace source registry (issue #553; CPHMTP-FR-001,
+// CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003).
+//
+//   GET    /api/marketplace/sources        list registered sources (+ built-in)
+//   POST   /api/marketplace/sources        register a source (pure write)
+//   DELETE /api/marketplace/sources/:id     remove a registered source
+//
+// POST is a PURE WRITE: the server validates the URL shape and persists the row
+// plus optional keyring credential, but makes NO network call to the candidate URL
+// (CPHMTP-NFR-003). The built-in first-party source is always listed and cannot be
+// removed.
+
+router.get("/sources", (_req, res) => {
+  res.json({ sources: sourcesState.listSourceSummaries() });
+});
+
+router.post("/sources", async (req, res) => {
+  const body = (req.body ?? {}) as {
+    url?: unknown;
+    credential?: unknown;
+    allowHttp?: unknown;
+  };
+  try {
+    const result = await sourcesState.addSource({
+      url: body.url,
+      credential: body.credential,
+      allowHttp: body.allowHttp,
+    });
+    if (result.outcome === "invalid-url") {
+      res.status(400).json({ error: "Invalid source URL", code: "invalid-url" });
+      return;
+    }
+    if (result.outcome === "replaced") {
+      // The URL is already registered: no second entry is created, but the
+      // credential was replaced. Reject the duplicate registration with 409 while
+      // returning the (updated) row (CPHMTP-FR-001 / issue #553 AC).
+      res.status(409).json(result.source);
+      return;
+    }
+    res.status(201).json(result.source);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message, code: "internal" });
+  }
+});
+
+router.delete("/sources/:id", async (req, res) => {
+  try {
+    const result = await sourcesState.removeSource(req.params.id);
+    if (result === "first-party") {
+      // The built-in first-party source cannot be removed.
+      res
+        .status(403)
+        .json({ error: "The first-party source cannot be removed", code: "forbidden" });
+      return;
+    }
+    if (result === "not-found") {
+      res.status(404).json({ error: `Unknown source: ${req.params.id}`, code: "not-found" });
+      return;
+    }
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message, code: "internal" });
   }
 });
 

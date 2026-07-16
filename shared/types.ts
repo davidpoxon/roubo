@@ -119,6 +119,17 @@ export type {
   PluginConsentState,
 } from "./plugin-consent-schema.js";
 
+export {
+  MARKETPLACE_SOURCES_STATE_SCHEMA_VERSION,
+  MarketplaceSourceSchema,
+  MarketplaceSourcesStateSchema,
+} from "./marketplace-sources-schema.js";
+export type {
+  MarketplaceSource,
+  MarketplaceSourcesState,
+  MarketplaceSourceSummary,
+} from "./marketplace-sources-schema.js";
+
 export type {
   SourceCandidateIcon,
   SourceCandidateItem,
