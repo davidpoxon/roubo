@@ -5,6 +5,7 @@ import {
   FIRST_PARTY_SOURCE_ID,
   MARKETPLACE_SOURCES_STATE_SCHEMA_VERSION,
   MarketplaceSourcesStateSchema,
+  normalizeSourceUrl,
   type MarketplaceSource,
   type MarketplaceSourcesState,
   type MarketplaceSourceSummary,
@@ -166,24 +167,28 @@ function slugFromUrl(normalizedHref: string, host: string): string {
  * No network call is made (CPHMTP-NFR-003). Rules: must parse as a WHATWG URL;
  * scheme must be https or http; an `http:` URL is allowed only when `allowHttp`
  * is set (Spike 551). Returns `null` when the URL is rejected.
+ *
+ * The parse-and-canonicalise half (WHATWG `URL.href`, https/http gate) is the
+ * shared `normalizeSourceUrl` from @roubo/shared (issue #565), so this
+ * registration path and the client's project-open declared-source comparison
+ * normalise identically. The `allowHttp` gate and the slug id stay here: they are
+ * registration-policy concerns the client comparison has no need for.
  */
 function validateAndNormalize(
   url: string,
   allowHttp: boolean,
 ): { href: string; id: string } | null {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
+  const href = normalizeSourceUrl(url);
+  if (href === null) {
     return null;
   }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    return null;
-  }
+  // href came from a successful parse, so this re-parse cannot throw; it recovers
+  // the protocol and host the shared helper does not surface.
+  const parsed = new URL(href);
   if (parsed.protocol === "http:" && !allowHttp) {
     return null;
   }
-  return { href: parsed.href, id: slugFromUrl(parsed.href, parsed.host) };
+  return { href, id: slugFromUrl(href, parsed.host) };
 }
 
 function keyringAccount(id: string): string {

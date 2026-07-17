@@ -137,6 +137,7 @@ export type {
   MarketplaceSourcesState,
   MarketplaceSourceSummary,
 } from "./marketplace-sources-schema.js";
+export { normalizeSourceUrl } from "./normalize-source-url.js";
 
 export type {
   SourceCandidateIcon,
