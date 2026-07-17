@@ -12,6 +12,7 @@ import {
 import { atomicWrite, ensureDirs, getRouboDir } from "./state.js";
 import { resolveWithin } from "../lib/safe-path.js";
 import * as credentialStore from "./credential-store.js";
+import * as pluginProvenanceState from "./plugin-provenance-state.js";
 
 // Issue #553 / CPHMTP-FR-001, CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003:
 // persistent registry of third-party marketplace sources. See:
@@ -320,10 +321,9 @@ export type RemoveSourceResult = "removed" | "not-found" | "first-party";
 
 /**
  * Removes a registered source: deletes the row, its per-source cache directory,
- * and its keyring credential. The built-in first-party source is NON-REMOVABLE.
- *
- * Note: stamping `orphaned: true` on installed PluginRecords (CPHMTP-FR-009) is a
- * later slice and out of scope for issue #553.
+ * and its keyring credential, and stamps `orphaned: true` on the provenance ledger
+ * rows of every plugin installed from it (issue #560 / CPHMTP-FR-009). The built-in
+ * first-party source is NON-REMOVABLE.
  */
 export async function removeSource(id: string): Promise<RemoveSourceResult> {
   if (isFirstParty(id)) {
@@ -347,8 +347,17 @@ export async function removeSource(id: string): Promise<RemoveSourceResult> {
   // the next listing); force ignores that. The keyring credential is deleted only
   // when the row claimed one, and a keyring failure (e.g. an unavailable headless
   // Linux keyring) is logged rather than propagated so the removal still reports as
-  // completed.
+  // completed. Orphan-stamping the provenance ledger (issue #560) belongs here for
+  // the same reason: the plugins installed from this source stay on disk and keep
+  // working, so failing to mark them must not fail the removal itself.
   fs.rmSync(sourceCacheDir(id), { recursive: true, force: true });
+  try {
+    pluginProvenanceState.markOrphanedBySource(id);
+  } catch (err) {
+    console.warn(
+      `marketplace-sources-state: failed to stamp orphaned provenance for source "${id}": ${(err as Error).message}`,
+    );
+  }
   if (existing.hasCredential) {
     try {
       await deleteCredential(id);
