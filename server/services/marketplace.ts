@@ -535,6 +535,36 @@ export async function resolveEntry(id: string): Promise<MarketplaceCatalogEntry 
   return null;
 }
 
+/**
+ * Every source that SERVES `id`, in fan-out order (first-party first, then
+ * registered sources in registration order), or an empty array when no source
+ * does (CPHMTP-FR-008, issue #566).
+ *
+ * This is the resolver the missing-plugin surface needs and the one thing
+ * `resolveEntry` may not be used for: that function returns the first match as an
+ * existence check only, explicitly refusing to answer "which source", so a caller
+ * deciding between one install action and pick-a-source cannot build on it.
+ *
+ * Semantics are kept in lockstep with `buildCollisionIndex` and `assertInstallable`
+ * so the error, the listing's collision mark, and the eventual install gate cannot
+ * disagree about whether an id is ambiguous: revoked entries are excluded (a
+ * revoked entry is served to no one, so counting it would invent an ambiguity), and
+ * serving sources are de-duplicated by source id (one source listing an id twice is
+ * its own duplicate, not a cross-source collision).
+ *
+ * Reuses the shared fan-out and its memoised per-source clients, so this adds no
+ * new network shape: it reads the same merged view `listCatalog` already resolved.
+ */
+export async function resolveServingSources(id: string): Promise<MarketplaceSourceStatus[]> {
+  const results = await fetchAllSources();
+  const serving: MarketplaceSourceStatus[] = [];
+  for (const { entries, status } of results) {
+    if (serving.some((s) => s.id === status.id)) continue;
+    if (entries.some((e) => e.id === id && e.revoked !== true)) serving.push(status);
+  }
+  return serving;
+}
+
 /** One source's offer of a given id: the entry plus the source that served it. */
 interface InstallCandidate {
   entry: MarketplaceCatalogEntry;

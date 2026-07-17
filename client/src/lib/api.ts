@@ -61,6 +61,7 @@ import type {
   MarketplaceListing,
   MarketplaceSourceSummary,
   MigrationRecord,
+  MissingPluginResolution,
   SourceCandidatesResponse,
   StatusCategoriesResponse,
   SourceOptionsResult,
@@ -125,6 +126,28 @@ export function isDirtyBenchError(err: unknown): err is ApiError & {
     err.details !== null &&
     Array.isArray((err.details as { reasons?: unknown }).reasons)
   );
+}
+
+/**
+ * A start failed because the component's bound plugin is not installed, AND the
+ * server resolved somewhere it can be installed from (CPHMTP-FR-008, issue #566).
+ *
+ * Narrow deliberately: the guard requires an ACTIONABLE resolution (`single-source`
+ * or `ambiguous`), so an id no source serves does not match and its plain
+ * dead-end error flows through the ordinary error path with no install affordance
+ * offered (CPHMTP-TC-082). Mirrors the `isDirtyBenchError` precedent: a typed body
+ * read off `ApiError.details`, which `request` populates with the whole error body.
+ */
+export function isMissingPluginError(err: unknown): err is ApiError & {
+  code: "COMPONENT_NOT_BOUND";
+  details: { resolution: MissingPluginResolution };
+} {
+  if (!(err instanceof ApiError) || err.code !== "COMPONENT_NOT_BOUND") return false;
+  if (typeof err.details !== "object" || err.details === null) return false;
+  const resolution = (err.details as { resolution?: unknown }).resolution;
+  if (typeof resolution !== "object" || resolution === null) return false;
+  const state = (resolution as { state?: unknown }).state;
+  return state === "single-source" || state === "ambiguous";
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {

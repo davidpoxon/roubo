@@ -3,6 +3,7 @@ import type { DirtyReason } from "@roubo/shared";
 import {
   ApiError,
   isDirtyBenchError,
+  isMissingPluginError,
   fetchProjects,
   registerProject,
   unregisterProject,
@@ -152,6 +153,53 @@ describe("request helper (tested through exported functions)", () => {
         expect(err.details.reasons).toEqual(reasons);
       }
     }
+  });
+
+  // Issue #566 (CPHMTP-FR-008): the guard gates whether the missing-plugin dialog
+  // opens at all, so it must match ONLY an actionable resolution.
+  describe("isMissingPluginError", () => {
+    function notBound(resolution?: unknown) {
+      return new ApiError("not installed", 400, "COMPONENT_NOT_BOUND", {
+        error: "not installed",
+        code: "COMPONENT_NOT_BOUND",
+        ...(resolution ? { resolution } : {}),
+      });
+    }
+
+    it("identifies a single-source resolution", () => {
+      const err = notBound({
+        pluginId: "google-clasp",
+        state: "single-source",
+        source: { sourceId: "acme-1a2b", label: "ACME", registered: true },
+      });
+      expect(isMissingPluginError(err)).toBe(true);
+      if (isMissingPluginError(err)) {
+        expect(err.details.resolution.pluginId).toBe("google-clasp");
+      }
+    });
+
+    it("identifies an ambiguous resolution", () => {
+      expect(isMissingPluginError(notBound({ pluginId: "process", state: "ambiguous" }))).toBe(
+        true,
+      );
+    });
+
+    // CPHMTP-TC-082: an id no source serves must NOT open an install affordance,
+    // so the guard rejects it even though the error itself is COMPONENT_NOT_BOUND.
+    it("rejects an unresolvable resolution", () => {
+      expect(isMissingPluginError(notBound({ pluginId: "nope", state: "unresolvable" }))).toBe(
+        false,
+      );
+    });
+
+    it("rejects a COMPONENT_NOT_BOUND error carrying no resolution", () => {
+      expect(isMissingPluginError(notBound())).toBe(false);
+    });
+
+    it("rejects an unrelated error", () => {
+      expect(isMissingPluginError(new ApiError("nope", 500, "OTHER"))).toBe(false);
+      expect(isMissingPluginError(new Error("plain"))).toBe(false);
+    });
   });
 
   it("falls back to statusText when JSON parse fails", async () => {

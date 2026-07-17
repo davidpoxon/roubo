@@ -39,7 +39,13 @@ import {
   useStopComponent,
   useDismissBenchNotifications,
 } from "../hooks/useBenches";
-import type { Bench, ProvisioningStep, DirtyReason, CapturedUserId } from "@roubo/shared";
+import type {
+  Bench,
+  ProvisioningStep,
+  DirtyReason,
+  CapturedUserId,
+  MissingPluginResolution,
+} from "@roubo/shared";
 import { COMPONENT_STEP_PREFIX } from "@roubo/shared";
 import { useProjects } from "../hooks/useProjects";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
@@ -56,8 +62,9 @@ import { stepIcon, stepTextColor, phaseIcon, phaseTextColor } from "../lib/provi
 import Spinner from "./Spinner";
 import NotificationIndicator from "./NotificationIndicator";
 import { useBenchViewState, type BenchTabId } from "../hooks/useBenchViewState";
-import { isDirtyBenchError } from "../lib/api";
+import { isDirtyBenchError, isMissingPluginError } from "../lib/api";
 import ClearBenchDirtyDialog from "./ClearBenchDirtyDialog";
+import MissingPluginDialog from "./MissingPluginDialog";
 import { useToast } from "../hooks/useToast";
 import { useBenchIssue } from "../hooks/useBenchIssue";
 import IssueTransitionDropdown from "./IssueTransitionDropdown";
@@ -192,6 +199,28 @@ function ComponentsTab({
   const unassign = useUnassignContainer();
   const [openLogs, setOpenLogs] = useState<Set<string>>(new Set());
   const [assignModal, setAssignModal] = useState<string | null>(null);
+  // The component whose start failed on an uninstalled-but-installable bound
+  // plugin, plus where it can be installed from (CPHMTP-FR-008, issue #566). Only
+  // an ACTIONABLE resolution lands here (isMissingPluginError narrows to
+  // single-source / ambiguous), so an id no source serves never opens the dialog
+  // and keeps the plain component-status error it already had (CPHMTP-TC-082).
+  const [missingPlugin, setMissingPlugin] = useState<{
+    component: string;
+    resolution: MissingPluginResolution;
+  } | null>(null);
+
+  const startComponentWithRecovery = (component: string) => {
+    startComponent.mutate(
+      { projectId, benchId, component },
+      {
+        onError: (err) => {
+          if (isMissingPluginError(err)) {
+            setMissingPlugin({ component, resolution: err.details.resolution });
+          }
+        },
+      },
+    );
+  };
 
   const toggleLogs = (component: string) => {
     setOpenLogs((prev) => {
@@ -255,7 +284,7 @@ function ComponentsTab({
                     isDisabled={isBusyComponent}
                     onPress={() => {
                       if (isRunning) stopComponent.mutate({ projectId, benchId, component: name });
-                      else startComponent.mutate({ projectId, benchId, component: name });
+                      else startComponentWithRecovery(name);
                     }}
                     className="px-2.5 py-1 rounded-md text-xs text-stone-500 not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
                   >
@@ -295,6 +324,22 @@ function ComponentsTab({
           onOpenChange={(open) => {
             if (!open) setAssignModal(null);
           }}
+        />
+      )}
+
+      {missingPlugin && (
+        <MissingPluginDialog
+          projectId={projectId}
+          pluginId={missingPlugin.resolution.pluginId}
+          pluginSource={undefined}
+          resolution={missingPlugin.resolution}
+          componentName={missingPlugin.component}
+          onClose={() => setMissingPlugin(null)}
+          onSkip={() => setMissingPlugin(null)}
+          // Resume the start the missing plugin blocked, now that it is installed
+          // (CPHMTP-TC-077 S003-O02). Retrying the SAME component start is the
+          // resume: the binding now resolves, so it provisions instead of throwing.
+          onInstalled={() => startComponentWithRecovery(missingPlugin.component)}
         />
       )}
     </>
