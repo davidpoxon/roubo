@@ -435,6 +435,30 @@ describe("MissingPluginDialog", () => {
       );
     });
 
+    // Progress belongs to the source the consumer actually pressed. A shared
+    // pending flag would relabel EVERY source's button, which in a pick-a-source
+    // list erases the very choice the consumer just made (CPHMTP-FR-005).
+    it("shows progress only on the source the consumer pressed", async () => {
+      const user = userEvent.setup();
+      // A mutate that never settles leaves the install in flight, so the pressed
+      // source stays pending for the assertions below.
+      setupMutations({ marketplacePreviewMutate: () => {} });
+      renderDialog({ resolution: ambiguous(), componentName: "backend" });
+
+      await user.click(screen.getByRole("button", { name: /Install from ACME workplace/i }));
+
+      expect(screen.getByRole("button", { name: /Inspecting/i })).toHaveAttribute(
+        "data-testid",
+        `missing-plugin-install-from-${ACME_ID}`,
+      );
+      expect(
+        screen.getByRole("button", { name: /Install from Roubo first-party/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Install from ACME workplace/i }),
+      ).not.toBeInTheDocument();
+    });
+
     it("navigates to the marketplace and closes on view-in-marketplace", async () => {
       const user = userEvent.setup();
       setupMutations();
@@ -461,6 +485,33 @@ describe("MissingPluginDialog", () => {
       expect(
         screen.getByRole("button", { name: /Install from ACME workplace/i }),
       ).toBeInTheDocument();
+    });
+
+    // One source's failure must not read as another's. Each row in the
+    // pick-a-source list is its own trust decision, so a stale error beside a
+    // different source's in-flight install actively misinforms it.
+    it("clears a failed source's error when a different source is picked", async () => {
+      const user = userEvent.setup();
+      let failNext = true;
+      setupMutations({
+        // Only the first press fails; the second is left in flight, so any error
+        // still on screen afterwards can only be the stale one from press one.
+        marketplacePreviewMutate: (_vars, cb) => {
+          if (failNext) {
+            failNext = false;
+            cb.onError?.(new ApiError("Source is unreachable", 503, "marketplace-unreachable"));
+          }
+        },
+      });
+      renderDialog({ resolution: ambiguous(), componentName: "backend" });
+
+      await user.click(screen.getByRole("button", { name: /Install from ACME workplace/i }));
+      expect(await screen.findByTestId("missing-plugin-error")).toHaveTextContent(
+        "Source is unreachable",
+      );
+
+      await user.click(screen.getByRole("button", { name: /Install from Roubo first-party/i }));
+      expect(screen.queryByTestId("missing-plugin-error")).not.toBeInTheDocument();
     });
 
     // The Git-URL affordances belong to the project-integration path only: a

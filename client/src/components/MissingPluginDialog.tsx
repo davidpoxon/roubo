@@ -178,6 +178,14 @@ function MissingPluginDialogContent({
       : initialSourceStep(detectSourceTab("")),
   );
 
+  // Which source's install is in flight, or null. `marketplacePreviewMutation`
+  // carries a single `isPending` for the whole dialog, so it can say THAT an
+  // install is staging but not WHICH source is staging it. In the ambiguous list
+  // that difference is the point: the consumer picked one source deliberately
+  // (CPHMTP-FR-005 refuses to pick for them), so only the pressed source may show
+  // progress. Every other source's label must stay put.
+  const [pendingSourceId, setPendingSourceId] = useState<string | null>(null);
+
   const isSubmitting =
     previewMutation.isPending || marketplacePreviewMutation.isPending || confirmMutation.isPending;
 
@@ -223,11 +231,22 @@ function MissingPluginDialogContent({
    * actually pressed is what keeps the install honest either way.
    */
   function handleInstallFromSource(sourceId: string) {
+    setPendingSourceId(sourceId);
+    // Clear the previous attempt's error before staging this one, mirroring
+    // `handleSubmitSource`. Without this, a failure from one source stays on
+    // screen while a DIFFERENT source is staging, reading as that source's
+    // failure. The pick-a-source list is exactly where that misattribution
+    // matters, since each row is a distinct trust decision.
+    setState({ step: "prompt", error: null });
     marketplacePreviewMutation.mutate(
       { id: effectivePluginId, sourceId },
       {
-        onSuccess: onPreviewSuccess,
+        onSuccess: (preview) => {
+          setPendingSourceId(null);
+          onPreviewSuccess(preview);
+        },
         onError: (err) => {
+          setPendingSourceId(null);
           setState({
             step: "prompt",
             error: errorMessage(err, STRINGS.installFromSourceFallback),
@@ -306,6 +325,7 @@ function MissingPluginDialogContent({
               resolution={resolution}
               error={state.error}
               installing={marketplacePreviewMutation.isPending}
+              pendingSourceId={pendingSourceId}
               onInstallFromSource={handleInstallFromSource}
               onViewInMarketplace={handleViewInMarketplace}
               onSkip={handleSkip}
@@ -381,6 +401,7 @@ function MarketplaceSourceScreen({
   resolution,
   error,
   installing,
+  pendingSourceId,
   onInstallFromSource,
   onViewInMarketplace,
   onSkip,
@@ -390,6 +411,7 @@ function MarketplaceSourceScreen({
   resolution: MissingPluginResolution;
   error: string | null;
   installing: boolean;
+  pendingSourceId: string | null;
   onInstallFromSource: (sourceId: string) => void;
   onViewInMarketplace: () => void;
   onSkip: () => void;
@@ -450,7 +472,9 @@ function MarketplaceSourceScreen({
                 className="inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 <Download size={13} />
-                {installing ? STRINGS.inspecting : STRINGS.installFromSource(source.label)}
+                {pendingSourceId === source.sourceId
+                  ? STRINGS.inspecting
+                  : STRINGS.installFromSource(source.label)}
               </Button>
             </div>
           ))}
