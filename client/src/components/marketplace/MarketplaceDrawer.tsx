@@ -4,7 +4,7 @@ import { declaredCategories } from "@roubo/shared";
 import type { MarketplaceListing, PluginLifecycle } from "@roubo/shared";
 import { CATEGORY_META } from "./permission-categories";
 import ProvenanceBadge from "./ProvenanceBadge";
-import { listingProvenance, trustTreatmentOf } from "./plugin-provenance";
+import { isFirstPartySource, listingProvenance } from "./plugin-provenance";
 
 // Detail drawer for one catalog entry (CP-FR-020, issue #621; CP-FR-021, issue
 // #622). A right-side modal panel mirroring the prototype: identity, summary,
@@ -17,9 +17,12 @@ import { listingProvenance, trustTreatmentOf } from "./plugin-provenance";
 // first-party catalog carries a signature, so only a first-party entry can claim
 // "signed by Roubo": a third-party source is unsigned, and its integrity floor is
 // the per-artifact sha256 digest the installer recomputes and fails closed on
-// (CPHMTP-NFR-004), which is what its row says instead. The Curation row renders
-// the shared ProvenanceBadge, so the drawer carries the same non-dismissible
-// Unverified badge and source provenance as the card (CPHMTP-TC-031).
+// (CPHMTP-NFR-004), which is what its row says instead. The claim keys off the
+// SOURCE (`isFirstPartySource`), not the per-entry curation flag: catalog signing
+// is a source property, so an uncurated first-party entry is still signed by Roubo
+// even though its Curation row grades it Unverified (issue #603). The Curation row
+// renders the shared ProvenanceBadge, so the drawer carries the same
+// non-dismissible Unverified badge and source provenance as the card (CPHMTP-TC-031).
 
 const STRINGS = {
   title: "Plugin detail",
@@ -78,7 +81,7 @@ export default function MarketplaceDrawer({
 }: Props) {
   const showInstalled = listing.installed && !listing.updateAvailable;
   const provenance = listingProvenance(listing, sourceLabel);
-  const isSigned = trustTreatmentOf(provenance) === "verified";
+  const isSigned = isFirstPartySource(provenance);
   // PRE-INSTALL provenance the server derived onto the listing (issue #401): the
   // declared permission categories (exactly those the manifest requests, via
   // `declaredCategories`) and the component lifecycle. Both are null when the

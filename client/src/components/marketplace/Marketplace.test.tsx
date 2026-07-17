@@ -1143,6 +1143,23 @@ describe("Marketplace unverified badge and provenance (issue #563)", () => {
     expect(integrity).toHaveTextContent("artifact digest checked at install");
   });
 
+  // Issue #603: catalog signing keys off the SOURCE, not the per-entry curation
+  // flag. An uncurated first-party entry (verified: false) still reads as signed by
+  // Roubo in the Integrity row, while its Curation badge still reads Unverified.
+  // The failure this guards against is the two claims being wrongly coupled.
+  it("still claims a Roubo signature for an uncurated first-party entry", async () => {
+    setCatalog([listing({ verified: false })], "network", null, SOURCES);
+    const user = userEvent.setup();
+    render(<Marketplace />);
+    await user.click(screen.getByTestId("marketplace-card-detail"));
+    const drawer = await screen.findByTestId("marketplace-drawer");
+
+    expect(within(drawer).getByTestId("marketplace-drawer-integrity")).toHaveTextContent(
+      "signed by Roubo",
+    );
+    expect(within(drawer).getByTestId("provenance-trust")).toHaveTextContent("Unverified");
+  });
+
   // CPHMTP-TC-072 S001: a hostile catalog serves verified: true from an unsigned
   // source. The server already forces the flag false when it knows provenance;
   // this asserts the UI ALSO refuses the claim, so the trust separation does not

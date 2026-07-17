@@ -71,6 +71,19 @@ export function trustTreatmentOf(provenance: PluginProvenance): TrustTreatment {
 }
 
 /**
+ * Whether a plugin came from the first-party catalog. This is a SOURCE property,
+ * distinct from {@link trustTreatmentOf}: catalog signing is decided by the source
+ * the entry reached the UI through (only the first-party catalog carries a Roubo
+ * signature), not by the per-entry `curated` flag. So an uncurated first-party
+ * entry (`curated: false`) is still signed-by-Roubo here, while `trustTreatmentOf`
+ * still grades it unverified. Callers deciding curation must use `trustTreatmentOf`;
+ * callers deciding the catalog signature use this (issue #603).
+ */
+export function isFirstPartySource(provenance: PluginProvenance): boolean {
+  return provenance.sourceId === FIRST_PARTY_SOURCE_ID;
+}
+
+/**
  * A registered source row carries no display name, so derive the label from its
  * catalog URL host the way the server does for the marketplace chips. Falls back
  * to the raw URL, then to the source id, so a label is never empty.
