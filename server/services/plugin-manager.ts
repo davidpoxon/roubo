@@ -396,10 +396,11 @@ function userPluginsRoot(): string {
 // github-com / ghe / jira-self-hosted). The seed set is the common-case app:
 // the github-com integration plus the two component plugins.
 //
-// Defined in @roubo/shared and re-exported here for the server's own callers:
-// the client needs the same set to tell a seeded plugin (no provenance ledger
-// row, first-party) from a raw git/local install (also no row, NOT first-party)
-// when it renders the trust badge (issue #563).
+// Defined in @roubo/shared and re-exported here for the server's own callers: the
+// seed loop below (`seedFromBundled`) and the fresh-launch test route. The client
+// no longer needs it: the seed pass now stamps each seed with a first-party
+// provenance ledger row (davidpoxon/roubo-development#607), so the badge grades a
+// seed by its row rather than its id and absent provenance fails closed (#563).
 export { SEED_PLUGIN_IDS };
 
 // The seed-set version applied, recorded in the marker (.seed-version.json) for

@@ -137,11 +137,33 @@ describe("listingProvenance / recordProvenance normalisation", () => {
     );
   });
 
-  // A seeded first-party default carries no ledger row (the seed install writes
-  // none), so for the seed set specifically, absence reads as first-party.
-  it("reads a seeded plugin with no provenance fields as verified first-party", () => {
+  // The durable fix (#607): every install path now stamps a ledger row, so the
+  // client no longer reads a seed id as first-party on absence. A seed id with no
+  // provenance fields (in practice a record predating the ledger) fails closed to
+  // unverified, exactly like any other unstamped record: the self-asserted id is
+  // not a trust root.
+  it("fails a seed id with no provenance fields closed to unverified, not first-party", () => {
     for (const id of SEED_PLUGIN_IDS) {
       const result = recordProvenance(record({ id, source: "user" }));
+      expect(result.sourceId).toBe(UNKNOWN_SOURCE_ID);
+      expect(result.sourceLabel).toBe(UNKNOWN_SOURCE_LABEL);
+      expect(trustTreatmentOf(result)).toBe("unverified");
+    }
+  });
+
+  // A seed now carries a STAMPED first-party row (the seed install writes one,
+  // #607), and that row, not the id, is what earns the verified treatment.
+  it("reads a seed carrying a stamped first-party row as verified first-party", () => {
+    for (const id of SEED_PLUGIN_IDS) {
+      const result = recordProvenance(
+        record({
+          id,
+          source: "user",
+          sourceId: FIRST_PARTY_SOURCE_ID,
+          sourceUrl: "https://davidpoxon.github.io/roubo-plugins/catalog.json",
+          unverified: false,
+        }),
+      );
       expect(result).toEqual({
         sourceId: FIRST_PARTY_SOURCE_ID,
         sourceLabel: FIRST_PARTY_LABEL,
@@ -152,11 +174,10 @@ describe("listingProvenance / recordProvenance normalisation", () => {
     }
   });
 
-  // The fail-open this closes (CPHMTP-NFR-001, CPHMTP-TC-056 S002-O01). A plugin
-  // installed from a raw git URL or local path also carries no ledger row: the
-  // install path records none. Absence therefore cannot mean first-party on its
-  // own, or arbitrary third-party code wears the green first-party treatment in
-  // the installed-plugins tab.
+  // The fail-open this closes (CPHMTP-NFR-001, CPHMTP-TC-056 S002-O01). Absence
+  // fails closed regardless of id: a record with no provenance fields grades
+  // unverified, so arbitrary code can never wear the green first-party treatment
+  // in the installed-plugins tab by carrying no row (#607).
   it("reads a NON-seeded plugin with no provenance fields as unverified, not first-party", () => {
     const result = recordProvenance(record({ id: "totally-evil", source: "user" }));
     expect(result.sourceId).toBe(UNKNOWN_SOURCE_ID);
@@ -164,10 +185,9 @@ describe("listingProvenance / recordProvenance normalisation", () => {
     expect(trustTreatmentOf(result)).toBe("unverified");
   });
 
-  // Absence is only consulted when the ledger did not stamp the record: a stamped
-  // third-party row stays authoritative even for a seed id (a plugin that took a
-  // seed's id cannot buy first-party by name alone).
-  it("prefers a stamped source id over the seed-id reading of absence", () => {
+  // A stamped row is always authoritative, even for a seed id: a plugin that took
+  // a seed's id but carries a third-party row cannot buy first-party by name.
+  it("prefers a stamped third-party source id even for a seed id", () => {
     const result = recordProvenance(
       record({ id: "process", sourceId: ACME_SOURCE_ID, unverified: true }),
     );
