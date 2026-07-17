@@ -166,4 +166,42 @@ describe("MarketplacesTab: screen-reader labelling (TC-023 S002)", () => {
       expect(remove.getAttribute("aria-label")).toContain("Remove");
     }
   });
+
+  it("keeps same-host sources' Remove controls distinguishable by their raw URL", () => {
+    // The registry keys a source on its full normalised URL, so one host can
+    // serve several distinct sources. The display name is only the host, so the
+    // two Remove controls share an aria-label: each is described by its own row's
+    // raw URL, which is what keeps them tellable apart.
+    const teamA: MarketplaceSourceSummary = {
+      id: "marketplace-ghe-acme-internal-aaaa1111",
+      url: "https://ghe.acme.internal/team-a/catalog.json",
+      hasCredential: false,
+      registeredAt: "2026-07-16T11:00:00.000Z",
+    };
+    const teamB: MarketplaceSourceSummary = {
+      id: "marketplace-ghe-acme-internal-bbbb2222",
+      url: "https://ghe.acme.internal/team-b/catalog.json",
+      hasCredential: false,
+      registeredAt: "2026-07-16T12:00:00.000Z",
+    };
+    setSources([FIRST_PARTY, teamA, teamB]);
+    render(<MarketplacesTab />);
+
+    const removes = screen.getAllByTestId("marketplace-source-remove");
+    expect(removes).toHaveLength(2);
+    // The host-derived names alone are identical, so they cannot disambiguate.
+    expect(removes.map((r) => r.getAttribute("aria-label"))).toEqual([
+      "Remove ghe.acme.internal…",
+      "Remove ghe.acme.internal…",
+    ]);
+
+    // Each control's description resolves to its own row's raw URL.
+    const describedUrls = removes.map((remove) => {
+      const id = remove.getAttribute("aria-describedby");
+      expect(id).toBeTruthy();
+      return document.getElementById(id as string)?.textContent;
+    });
+    expect(describedUrls).toEqual([teamA.url, teamB.url]);
+    expect(new Set(describedUrls).size).toBe(2);
+  });
 });

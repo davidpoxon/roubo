@@ -49,8 +49,8 @@ function ProvenancePill({ verified }: { verified: boolean }) {
 interface Props {
   source: MarketplaceSourceSummary;
   /**
-   * Opens the removal consequences dialog. Wired as a seam here: the dialog
-   * itself is a separate slice and explicitly out of scope for issue #561.
+   * Opens the removal consequences dialog (issue #564). Wired as a seam here:
+   * that dialog is a separate slice and explicitly out of scope for issue #561.
    */
   onRemove: (source: MarketplaceSourceSummary) => void;
 }
@@ -58,6 +58,11 @@ interface Props {
 export default function MarketplaceSourceRow({ source, onRemove }: Props) {
   const isFirstParty = source.id === FIRST_PARTY_SOURCE_ID;
   const name = sourceDisplayName(source);
+  // The display name is only the host, so two sources on the same host (distinct
+  // rows: the registry keys a source on its full normalised URL) would otherwise
+  // give their Remove controls identical accessible names. Describing the button
+  // by the row's raw URL keeps the name concise and the control unambiguous.
+  const urlId = `marketplace-source-url-${source.id}`;
 
   return (
     <li
@@ -81,6 +86,7 @@ export default function MarketplaceSourceRow({ source, onRemove }: Props) {
         {/* The raw URL, always shown verbatim and never shortened: the operator
             judges a source by the exact origin they consented to (CPHMTP-NFR-003). */}
         <p
+          id={urlId}
           data-testid="marketplace-source-url"
           className="font-mono text-[11px] break-all text-stone-500 dark:text-stone-400"
         >
@@ -102,6 +108,7 @@ export default function MarketplaceSourceRow({ source, onRemove }: Props) {
         <Button
           data-testid="marketplace-source-remove"
           aria-label={STRINGS.removeLabel(name)}
+          aria-describedby={urlId}
           onPress={() => onRemove(source)}
           className="flex-none rounded-md border border-red-200 dark:border-red-900/50 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 outline-none transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 focus-visible:ring-2 focus-visible:ring-amber-500"
         >

@@ -10,10 +10,10 @@ import MarketplaceSourceRow from "./MarketplaceSourceRow";
 //
 // The server synthesises the first-party row into GET /api/marketplace/sources,
 // so this list renders the response as-is rather than merging the built-in in
-// itself. Both dialogs the entry points lead to (the registration consent dialog
-// and the removal consequences dialog) are separate slices and out of scope here:
-// this section wires the controls to seams and holds the pending selection, so a
-// later slice mounts the real dialogs without reshaping the section.
+// itself. Both dialogs the entry points lead to (the registration consent dialog,
+// issue #562, and the removal consequences dialog, issue #564) are separate slices
+// and out of scope here: this section wires the controls to seams, so those slices
+// mount the real dialogs without reshaping the section.
 
 const STRINGS = {
   heading: "Marketplaces",
@@ -31,11 +31,11 @@ const STRINGS = {
 
 interface Props {
   /**
-   * Opens the registration consent dialog (a separate slice, out of scope for
-   * issue #561). Defaults to a no-op so the section is renderable on its own.
+   * Opens the registration consent dialog (issue #562, out of scope for issue
+   * #561). Defaults to a no-op so the section is renderable on its own.
    */
   onAddSource?: () => void;
-  /** Opens the removal consequences dialog (a separate slice, out of scope here). */
+  /** Opens the removal consequences dialog (issue #564, out of scope here). */
   onRemoveSource?: (source: MarketplaceSourceSummary) => void;
 }
 

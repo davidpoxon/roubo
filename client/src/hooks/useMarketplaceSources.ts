@@ -7,9 +7,13 @@ import * as api from "../lib/api";
 // merged catalog, because dropping a source changes which listings the Browse
 // screen shows.
 //
-// Registration lives in useMarketplace.ts as `useRegisterMarketplaceSource`
-// (issue #562), next to the consent dialog that is its only caller. It is not
-// restated here: one POST /marketplace/sources deserves one mutation hook.
+// The list query is the only one issue #561 consumes: remove is the write half of
+// the same registry, and its caller arrives with the removal consequences dialog
+// (issue #564), out of scope here.
+//
+// Registration is deliberately absent: it lives in useMarketplace.ts as
+// `useRegisterMarketplaceSource` (issue #562), next to the consent dialog that is
+// its only caller. One POST /marketplace/sources deserves one mutation hook.
 
 const MARKETPLACE_SOURCES_KEY = ["marketplace-sources"] as const;
 const MARKETPLACE_KEY = ["marketplace"] as const;

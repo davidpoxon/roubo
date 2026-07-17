@@ -7,13 +7,15 @@ import {
   useMarketplaceSources,
   useRemoveMarketplaceSource,
 } from "./useMarketplaceSources";
-import type { MarketplaceSourceSummary } from "@roubo/shared";
+import { useMarketplaceCatalog } from "./useMarketplace";
+import type { MarketplaceCatalogResponse, MarketplaceSourceSummary } from "@roubo/shared";
 
 vi.mock("../lib/api");
 import * as api from "../lib/api";
 
 const fetchMarketplaceSources = vi.mocked(api.fetchMarketplaceSources);
 const removeMarketplaceSource = vi.mocked(api.removeMarketplaceSource);
+const fetchMarketplaceCatalog = vi.mocked(api.fetchMarketplaceCatalog);
 
 // The Marketplaces settings section (issue #561) reads the registry through this
 // hook. Removing a source changes which listings the merged Browse catalog
@@ -26,6 +28,14 @@ const ACME: MarketplaceSourceSummary = {
   url: "https://marketplace.acme.example/catalog.json",
   hasCredential: true,
   registeredAt: "2026-07-15T09:30:00.000Z",
+};
+
+const CATALOG: MarketplaceCatalogResponse = {
+  curated: true,
+  listings: [],
+  source: "network",
+  fetchedAt: "2026-07-15T09:30:00.000Z",
+  sources: [],
 };
 
 beforeEach(() => {
@@ -59,15 +69,18 @@ describe("useMarketplaceSources", () => {
 });
 
 describe("useRemoveMarketplaceSource", () => {
-  it("deletes by id and refreshes the source list", async () => {
+  it("deletes by id and refreshes the source list and the catalog", async () => {
     fetchMarketplaceSources.mockResolvedValue({ sources: [ACME] });
+    fetchMarketplaceCatalog.mockResolvedValue(CATALOG);
     removeMarketplaceSource.mockResolvedValue(undefined);
 
     const { result } = renderHookWithProviders(() => ({
       remove: useRemoveMarketplaceSource(),
       list: useMarketplaceSources(),
+      catalog: useMarketplaceCatalog({}),
     }));
     await waitFor(() => expect(result.current.list.data).toEqual({ sources: [ACME] }));
+    await waitFor(() => expect(fetchMarketplaceCatalog).toHaveBeenCalledTimes(1));
 
     fetchMarketplaceSources.mockResolvedValue({ sources: [] });
     result.current.remove.mutate(ACME.id);
@@ -75,5 +88,8 @@ describe("useRemoveMarketplaceSource", () => {
     await waitFor(() => expect(result.current.remove.isSuccess).toBe(true));
     expect(removeMarketplaceSource).toHaveBeenCalledWith(ACME.id);
     await waitFor(() => expect(result.current.list.data).toEqual({ sources: [] }));
+    // Removing a source drops its listings from Browse, so the catalog must
+    // refetch here too, not just the source list.
+    await waitFor(() => expect(fetchMarketplaceCatalog).toHaveBeenCalledTimes(2));
   });
 });

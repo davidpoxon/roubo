@@ -33,6 +33,10 @@ vi.mock("../hooks/useToast", () => ({
   useToast: vi.fn(() => ({ addToast: vi.fn(), removeToast: vi.fn() })),
 }));
 
+vi.mock("../hooks/useMarketplaceSources", () => ({
+  useMarketplaceSources: vi.fn(),
+}));
+
 vi.mock("./jig-editor/jigIcons", () => ({
   getJigIcon: () => () => null,
   JIG_ICONS: [],
@@ -54,6 +58,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
 import { useGlobalJigs, useDeleteGlobalJig, useDuplicateGlobalJig } from "../hooks/useJigs";
 import { useToast } from "../hooks/useToast";
+import { useMarketplaceSources } from "../hooks/useMarketplaceSources";
 import { ApiError } from "../lib/api";
 
 const mockedUseNavigate = vi.mocked(useNavigate);
@@ -63,6 +68,7 @@ const mockedUseGlobalJigs = vi.mocked(useGlobalJigs);
 const mockedUseDeleteGlobalJig = vi.mocked(useDeleteGlobalJig);
 const mockedUseDuplicateGlobalJig = vi.mocked(useDuplicateGlobalJig);
 const mockedUseToast = vi.mocked(useToast);
+const mockedUseMarketplaceSources = vi.mocked(useMarketplaceSources);
 
 const defaultSettings = {
   theme: "dark" as const,
@@ -99,6 +105,11 @@ function setupDefaultMocks() {
   mockedUseDuplicateGlobalJig.mockReturnValue(
     noopMutation as unknown as ReturnType<typeof useDuplicateGlobalJig>,
   );
+  mockedUseMarketplaceSources.mockReturnValue({
+    data: { sources: [] },
+    isLoading: false,
+    error: null,
+  } as unknown as ReturnType<typeof useMarketplaceSources>);
 }
 
 beforeEach(() => {
@@ -127,13 +138,14 @@ describe("ProjectSettings", () => {
       expect(wrapper.className).not.toMatch(/\bmax-w-/);
     });
 
-    it("renders all six tab labels", () => {
+    it("renders the settings tab labels", () => {
       render();
       expect(screen.getByRole("tab", { name: "Benches" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "TestBench" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Appearance" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Jigs" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Plugins" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Marketplaces" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Claude Code" })).toBeInTheDocument();
     });
 
@@ -157,6 +169,20 @@ describe("ProjectSettings", () => {
       mockedUseLocation.mockReturnValue({ hash: "#plugins" } as ReturnType<typeof useLocation>);
       render();
       expect(screen.getByRole("tab", { name: "Plugins" })).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("pre-selects the Marketplaces tab when the URL hash is #marketplaces (issue #561)", () => {
+      mockedUseLocation.mockReturnValue({ hash: "#marketplaces" } as ReturnType<
+        typeof useLocation
+      >);
+      render();
+      expect(screen.getByRole("tab", { name: "Marketplaces" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      // The panel really mounts the section, so the deep link reaches the
+      // Marketplaces UI rather than just selecting an empty tab.
+      expect(screen.getByRole("region", { name: "Marketplaces" })).toBeInTheDocument();
     });
 
     it("ignores an unknown hash and falls back to the default tab", () => {
