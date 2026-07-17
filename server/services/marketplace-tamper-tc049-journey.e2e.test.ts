@@ -23,17 +23,32 @@
 //
 // Real vs stood in. Real: the source registry (add + persist + load, including the
 // real JSON write, schema validation and read-back), the listing fan-out and its
-// provenance stamping, the install routing, the guarded download's origin scoping,
-// the unpack, and the sha256 recompute + comparison. Stood in, at the process
-// boundaries only: the catalog fetch (catalog-client is mocked so the hostile source
-// serves its entry without a network round-trip), the network download (undici.fetch
-// streams a REAL gzipped tarball built on disk), the plugin registry/runtime
-// (plugin-manager), the provenance ledger's file IO (plugin-provenance-state), the OS
-// keyring (credential-store), and the state directory (state.getRouboDir is
-// redirected to a sandbox tmpdir so the journey NEVER writes the developer's real
-// ~/.roubo). Redirecting the state dir rather than mocking the registry module keeps
-// addSource() and its persistence real, which is exactly what S002-O02 asserts. The
-// journey is deterministic, network-free, and runs under `npm test`.
+// provenance stamping, the install routing, the unpack, and the sha256 recompute +
+// comparison. Stood in, at the process boundaries only: the catalog fetch
+// (catalog-client is mocked so the hostile source serves its entry without a network
+// round-trip), the network download (undici.fetch streams a REAL gzipped tarball built
+// on disk), the plugin registry/runtime (plugin-manager), the provenance ledger's file
+// IO (plugin-provenance-state), the OS keyring (credential-store), and the state
+// directory (state.getRouboDir is redirected to a sandbox tmpdir so the journey NEVER
+// writes the developer's real ~/.roubo). Redirecting the state dir rather than mocking
+// the registry module keeps addSource() and its persistence real, which is exactly what
+// S002-O02 asserts. The journey runs under `npm test`.
+//
+// One boundary is NOT stood in, and it is the one exception to "no network": guardedFetch
+// resolves the asset host and rechecks the resolved addresses BEFORE it calls fetchImpl,
+// and plugin-installer injects no lookup seam, so the DNS lookup for the hostile host runs
+// against the real resolver on every S004 run. No artifact bytes cross the network (those
+// come from the mocked undici.fetch); only the lookup does. It is harmless here because
+// the host lives under `.invalid` (RFC 2606 reserves it, so it cannot resolve) and
+// recheckResolvedAddresses swallows a resolution failure, adding no block and no connect
+// pin. The one environment that would turn this red is a resolver that hijacks NXDOMAIN to
+// a link-local or cloud-metadata address (169.254.0.0/16 and friends): that range is HARD
+// blocked, and recheckResolvedAddresses rejects it regardless of consent. A hijack to a
+// private or loopback address would NOT turn it red: that range is SOFT blocked, and SOFT
+// is rejected only when the hop is not the consented origin, whereas here the asset URL IS
+// the consented source origin (the fixture puts the catalog and the asset on one origin).
+// Origin scoping itself is NOT proven here (see S004-O01 below); it is covered by #554's
+// own unit tests.
 //
 // The TC-049 precondition that makes this the TAMPER journey and not a different one:
 // the hostile catalog declares a VALID-FORMAT sha256 that does not match the served
@@ -519,8 +534,16 @@ describe("CPHMTP-TC-049: tamper rejection from a hostile source, fail closed wit
     ).toMatch(/integrity/i);
 
     // S004-O01: guarded-fetch really downloaded the artifact (the digest recompute ran
-    // over FETCHED bytes, not over a short-circuit), and it was scoped to the hostile
-    // source's own consented origin.
+    // over FETCHED bytes, not over a short-circuit), and it fetched the declared asset
+    // URL. That is the whole of what these two assertions establish, and it is exactly
+    // what S004-O01 asks for.
+    //
+    // Origin scoping is deliberately NOT claimed here: it is unfalsifiable in this
+    // journey. downloadAssetToFile passes `thirdParty?.sourceOrigin ?? new URL(assetUrl)
+    // .origin`, and the fixture's catalog and asset URLs are same-origin by construction,
+    // so the real sourceOrigin and the fallback resolve to the identical string and no
+    // assertion here could tell them apart. #554's own unit tests cover origin scoping on
+    // a cross-origin fixture, where it is falsifiable.
     const fetchCalls = vi.mocked(fetch).mock.calls;
     expect(
       fetchCalls.length,
@@ -528,11 +551,17 @@ describe("CPHMTP-TC-049: tamper rejection from a hostile source, fail closed wit
     ).toBeGreaterThan(0);
     expect(
       String(fetchCalls[0][0]),
-      `CPHMTP-TC-049 step S004 (S004-O01) diverged: expected the artifact download to target the hostile source's declared asset URL on its consented origin\n    expected: ${HOSTILE_ASSET_URL}\n    actual:   ${String(fetchCalls[0][0])}. Owning slice: ${SLICE_GUARDED_FETCH}.`,
+      `CPHMTP-TC-049 step S004 (S004-O01) diverged: expected the artifact download to target the hostile source's declared asset URL\n    expected: ${HOSTILE_ASSET_URL}\n    actual:   ${String(fetchCalls[0][0])}. Owning slice: ${SLICE_GUARDED_FETCH}.`,
     ).toBe(HOSTILE_ASSET_URL);
 
     // S005-O01 (fail closed): no plugin record is written, no artifact is left on disk,
     // and no plugin code is executed.
+    //
+    // The two assertions immediately below carry the proof. install() stages, so a
+    // preview that did NOT reject would leave the unpacked artifact under the staging
+    // root and record a committable token. Both being empty is what discriminates a
+    // rejected artifact from an accepted one: delete the integrity recompute and these
+    // two go red.
     expect(
       await listStaging(),
       `CPHMTP-TC-049 step S005 (S005-O01) diverged: expected the install to fail closed with NO artifact left on disk, but the staging root still holds ${JSON.stringify(
@@ -545,6 +574,17 @@ describe("CPHMTP-TC-049: tamper rejection from a hostile source, fail closed wit
         pluginInstaller.__test.listTokens(),
       )}. Owning slice: ${SLICE_MANDATORY_DIGEST}.`,
     ).toEqual([]);
+    // The next two are unreachability guards, NOT the proof, and the distinction is
+    // deliberate: marketplace.install() only ever stages (it returns previewFromRelease),
+    // and the only writer of the plugin directory and the only caller of registerInstalled
+    // REACHABLE FROM install() is plugin-installer.commit(). (Other writers exist off this
+    // path: plugin-installer's installSeedArtifact renames straight to the plugins root,
+    // and plugin-manager's bundled-to-user copy calls registerInstalled directly. Neither
+    // is reachable from install().) This journey never calls commit(), so both assertions
+    // would hold on a successful preview too and neither can discriminate a rejected
+    // artifact on its own. They are kept to pin the reject path against a future change
+    // that smuggles a commit into it. The sibling marketplace-install-312-journey makes
+    // the same two checks in the same spirit.
     await expect(
       stat(path.join(pluginsRoot, PLUGIN_ID)),
       `CPHMTP-TC-049 step S005 (S005-O01) diverged: expected NO plugin directory to exist for the rejected hostile plugin, but ${path.join(
@@ -552,12 +592,9 @@ describe("CPHMTP-TC-049: tamper rejection from a hostile source, fail closed wit
         PLUGIN_ID,
       )} was created. Owning slice: ${SLICE_MANDATORY_DIGEST}.`,
     ).rejects.toMatchObject({ code: "ENOENT" });
-    // No plugin record written, and no plugin code executed: registerInstalled is the
-    // one call that both records the plugin and hands it to the runtime, so its absence
-    // is what "no record is written and no plugin code is executed" means here.
     expect(
       vi.mocked(pluginManager.registerInstalled).mock.calls.length,
-      `CPHMTP-TC-049 step S005 (S005-O01) diverged: expected NO plugin record to be written and NO plugin code to be executed for a rejected artifact, but plugin-manager.registerInstalled was called ${vi.mocked(pluginManager.registerInstalled).mock.calls.length} time(s). Owning slice: ${SLICE_MANDATORY_DIGEST}.`,
+      `CPHMTP-TC-049 step S005 (S005-O01) diverged: expected the reject path never to reach a commit, but plugin-manager.registerInstalled was called ${vi.mocked(pluginManager.registerInstalled).mock.calls.length} time(s). The only registerInstalled call reachable from marketplace.install() is plugin-installer.commit(), which records the plugin and hands it to the runtime, so any call here means the failed install committed. Owning slice: ${SLICE_MANDATORY_DIGEST}.`,
     ).toBe(0);
 
     // S005-O03: the source REMAINS registered so the user can retry from a corrected
