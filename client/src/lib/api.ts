@@ -59,6 +59,7 @@ import type {
   MarketplaceCatalogResponse,
   MarketplaceKind,
   MarketplaceListing,
+  MarketplaceSourceSummary,
   MigrationRecord,
   SourceCandidatesResponse,
   StatusCategoriesResponse,
@@ -1355,6 +1356,38 @@ export function updateFromMarketplace(id: string, sourceId?: string): Promise<In
   return request(`/marketplace/plugins/${encodeURIComponent(id)}/update`, {
     method: "POST",
     body: JSON.stringify(sourceId !== undefined ? { sourceId } : {}),
+  });
+}
+
+/**
+ * Register a third-party marketplace source (CPHMTP-FR-002 / CPHMTP-NFR-003,
+ * issue #562). The consent dialog is the only caller: this POST is what turns an
+ * acknowledged candidate URL into a persisted source row, and that row IS the
+ * consent record (url + unsigned + registeredAt).
+ *
+ * The endpoint is a PURE WRITE: the server validates the URL shape and persists
+ * the row plus the optional keyring credential, and makes NO network call to the
+ * candidate URL. Nothing reaches the URL until a later catalog fetch, so consent
+ * always precedes the first request (CPHMTP-NFR-003).
+ *
+ * `allowHttp` is the per-source "allow http (intranet)" opt-in (Spike 551,
+ * issue #551). https is always allowed; a plain-http URL is registrable only when
+ * this is explicitly true, and the server answers 400 `invalid-url` otherwise, so
+ * http is never permitted silently.
+ *
+ * Failure shapes reach the caller as `ApiError`: 400 `invalid-url` (malformed
+ * URL, a non-http(s) scheme, plain http without the opt-in, or the reserved
+ * first-party URL) and 409 for an already-registered URL (no second row is
+ * created; a supplied credential replaces the stored one).
+ */
+export function registerMarketplaceSource(body: {
+  url: string;
+  credential?: string;
+  allowHttp?: boolean;
+}): Promise<MarketplaceSourceSummary> {
+  return request("/marketplace/sources", {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 }
 

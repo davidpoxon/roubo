@@ -78,3 +78,28 @@ export function useMarketplaceInstallCancel() {
     mutationFn: (stagingToken: string) => api.cancelInstallPlugin(stagingToken),
   });
 }
+
+// Registering a third-party marketplace source (CPHMTP-FR-002, issue #562). The
+// consent dialog's container calls this on confirm and nowhere else: the POST is
+// the write that records consent (url + unsigned + registeredAt), so it must not
+// run while the dialog is merely open (CPHMTP-NFR-003).
+export interface RegisterMarketplaceSourceVars {
+  url: string;
+  credential?: string;
+  // The per-source "allow http (intranet)" opt-in (Spike 551). Omitted or false
+  // means a plain-http URL is refused by the server.
+  allowHttp?: boolean;
+}
+
+export function useRegisterMarketplaceSource() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: RegisterMarketplaceSourceVars) => api.registerMarketplaceSource(vars),
+    onSuccess: () => {
+      // A new source changes the merged catalog and its `sources` array, so the
+      // whole marketplace key tree is invalidated. The prefix also covers a
+      // sources list keyed under it, so the settings list re-reads too.
+      void queryClient.invalidateQueries({ queryKey: [MARKETPLACE_KEY] });
+    },
+  });
+}
