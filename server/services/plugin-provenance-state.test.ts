@@ -157,6 +157,80 @@ describe("recordProvenance", () => {
   });
 });
 
+// Issue #560 / CPHMTP-FR-009 AC4: removing a source stamps the plugins that came
+// from it, and the stamp is persisted rather than recomputed by joining against
+// the (now gone) source registry.
+describe("markOrphanedBySource", () => {
+  it("stamps every row installed from the removed source", () => {
+    mod.recordProvenance(ACME);
+    mod.recordProvenance({ ...ACME, pluginId: "redis" });
+
+    expect(mod.markOrphanedBySource(ACME.sourceId)).toBe(2);
+    expect(mod.getProvenance("database")?.orphaned).toBe(true);
+    expect(mod.getProvenance("redis")?.orphaned).toBe(true);
+  });
+
+  it("leaves rows from other sources untouched", () => {
+    mod.recordProvenance(ACME);
+    mod.recordProvenance({
+      ...ACME,
+      pluginId: "redis",
+      sourceId: "marketplace-other-example-99887766",
+    });
+
+    expect(mod.markOrphanedBySource(ACME.sourceId)).toBe(1);
+    expect(mod.getProvenance("database")?.orphaned).toBe(true);
+    expect(mod.getProvenance("redis")).not.toHaveProperty("orphaned");
+  });
+
+  it("keeps sourceUrl on a stamped row so it still reads standalone", () => {
+    // The source row is gone after removal, so the ledger is the only remaining
+    // record of where the plugin came from.
+    mod.recordProvenance(ACME);
+    mod.markOrphanedBySource(ACME.sourceId);
+    expect(mod.getProvenance("database")).toMatchObject({
+      sourceUrl: ACME.sourceUrl,
+      unverified: true,
+      orphaned: true,
+    });
+  });
+
+  it("persists the stamp across a fresh module load", async () => {
+    mod.recordProvenance(ACME);
+    mod.markOrphanedBySource(ACME.sourceId);
+    const fresh = await freshImport();
+    expect(fresh.getProvenance("database")?.orphaned).toBe(true);
+  });
+
+  it("returns 0 and writes nothing when no row matches", () => {
+    mod.recordProvenance(ACME);
+    const before = fs.readFileSync(statePath(), "utf-8");
+    expect(mod.markOrphanedBySource("marketplace-ghost-example-00000000")).toBe(0);
+    expect(fs.readFileSync(statePath(), "utf-8")).toBe(before);
+  });
+
+  it("is a no-op when no file exists", () => {
+    expect(mod.markOrphanedBySource(ACME.sourceId)).toBe(0);
+    expect(fs.existsSync(statePath())).toBe(false);
+  });
+
+  it("is idempotent: re-stamping an already-orphaned row writes nothing", () => {
+    mod.recordProvenance(ACME);
+    expect(mod.markOrphanedBySource(ACME.sourceId)).toBe(1);
+    expect(mod.markOrphanedBySource(ACME.sourceId)).toBe(0);
+    expect(mod.getProvenance("database")?.orphaned).toBe(true);
+  });
+
+  it("a reinstall from a re-registered source clears the stamp", () => {
+    // recordProvenance re-stamps rather than merges, so a stale orphan marker must
+    // not survive an install that resolved against a source that exists again.
+    mod.recordProvenance(ACME);
+    mod.markOrphanedBySource(ACME.sourceId);
+    mod.recordProvenance(ACME);
+    expect(mod.getProvenance("database")).not.toHaveProperty("orphaned");
+  });
+});
+
 describe("removeProvenance", () => {
   it("drops the row", () => {
     mod.recordProvenance(ACME);

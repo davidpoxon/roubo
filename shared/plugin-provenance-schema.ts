@@ -36,6 +36,14 @@ export const PluginProvenanceRecordSchema = z
      * time and never read off the (unsigned, unverifiable) third-party payload.
      */
     unverified: z.boolean(),
+    /**
+     * True once the source this plugin came from has been removed from the
+     * registry (issue #560 / CPHMTP-FR-009). Stamped at removal time and
+     * persisted, never recomputed at read time by joining against the source
+     * registry. Optional so rows written before this field stay valid under the
+     * strict schema: absent means "not orphaned", so no migration is required.
+     */
+    orphaned: z.boolean().optional(),
     installedAt: z.string().min(1),
   })
   .strict();

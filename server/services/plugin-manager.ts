@@ -661,14 +661,18 @@ function makeRecord(
  */
 function marketplaceProvenanceFields(
   id: string,
-): Pick<PluginRecord, "sourceId" | "sourceUrl" | "unverified"> {
+): Pick<PluginRecord, "sourceId" | "sourceUrl" | "unverified" | "orphaned"> {
   const provenance = pluginProvenanceState.getProvenance(id);
   if (!provenance) return {};
-  return {
+  const fields: Pick<PluginRecord, "sourceId" | "sourceUrl" | "unverified" | "orphaned"> = {
     sourceId: provenance.sourceId,
     sourceUrl: provenance.sourceUrl,
     unverified: provenance.unverified,
   };
+  // Only surfaced once the source was removed (issue #560): an un-orphaned row
+  // leaves the key genuinely absent rather than present-and-false.
+  if (provenance.orphaned !== undefined) fields.orphaned = provenance.orphaned;
+  return fields;
 }
 
 function isValidEntryPath(entry: string): boolean {

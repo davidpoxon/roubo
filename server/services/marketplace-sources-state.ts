@@ -12,6 +12,7 @@ import {
 import { atomicWrite, ensureDirs, getRouboDir } from "./state.js";
 import { resolveWithin } from "../lib/safe-path.js";
 import * as credentialStore from "./credential-store.js";
+import * as pluginProvenanceState from "./plugin-provenance-state.js";
 
 // Issue #553 / CPHMTP-FR-001, CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003:
 // persistent registry of third-party marketplace sources. See:
@@ -320,10 +321,9 @@ export type RemoveSourceResult = "removed" | "not-found" | "first-party";
 
 /**
  * Removes a registered source: deletes the row, its per-source cache directory,
- * and its keyring credential. The built-in first-party source is NON-REMOVABLE.
- *
- * Note: stamping `orphaned: true` on installed PluginRecords (CPHMTP-FR-009) is a
- * later slice and out of scope for issue #553.
+ * and its keyring credential, and stamps `orphaned: true` on the provenance ledger
+ * rows of every plugin installed from it (issue #560 / CPHMTP-FR-009). The built-in
+ * first-party source is NON-REMOVABLE.
  */
 export async function removeSource(id: string): Promise<RemoveSourceResult> {
   if (isFirstParty(id)) {
@@ -342,13 +342,35 @@ export async function removeSource(id: string): Promise<RemoveSourceResult> {
   saveSourcesState(next);
 
   // Best-effort side-effect cleanup, all AFTER the row is already persisted above:
-  // a cleanup failure must not turn an already-completed removal into an error. The
-  // cache dir may not exist yet (POST is a pure write, so nothing is fetched until
-  // the next listing); force ignores that. The keyring credential is deleted only
-  // when the row claimed one, and a keyring failure (e.g. an unavailable headless
-  // Linux keyring) is logged rather than propagated so the removal still reports as
-  // completed.
-  fs.rmSync(sourceCacheDir(id), { recursive: true, force: true });
+  // a cleanup failure must not turn an already-completed removal into an error, so
+  // every step here is individually guarded and logged rather than propagated.
+  //
+  // Orphan-stamping the provenance ledger (issue #560) runs FIRST, before the
+  // filesystem and keyring steps: it is the only one carrying state the consumer
+  // still needs (the plugins stay on disk and keep working, marked orphaned), and
+  // it is unrecoverable if skipped. The row is already gone, so a retry returns
+  // "not-found" and never reaches the stamp again, leaving those plugins
+  // un-orphaned forever. Cache and credential leftovers, by contrast, are inert.
+  try {
+    pluginProvenanceState.markOrphanedBySource(id);
+  } catch (err) {
+    console.warn(
+      `marketplace-sources-state: failed to stamp orphaned provenance for source "${id}": ${(err as Error).message}`,
+    );
+  }
+  // The cache dir may not exist yet (POST is a pure write, so nothing is fetched
+  // until the next listing); force ignores that ENOENT. A permission or busy error
+  // still throws, hence the guard.
+  try {
+    fs.rmSync(sourceCacheDir(id), { recursive: true, force: true });
+  } catch (err) {
+    console.warn(
+      `marketplace-sources-state: failed to remove cache dir for source "${id}": ${(err as Error).message}`,
+    );
+  }
+  // The keyring credential is deleted only when the row claimed one, and a keyring
+  // failure (e.g. an unavailable headless Linux keyring) is logged rather than
+  // propagated so the removal still reports as completed.
   if (existing.hasCredential) {
     try {
       await deleteCredential(id);

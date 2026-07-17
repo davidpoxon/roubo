@@ -101,7 +101,9 @@ export function getProvenance(pluginId: string): PluginProvenanceRecord | null {
  * empty document on an absent file, then persists the record under `pluginId`.
  *
  * An update re-stamps the row rather than merging: the update was resolved against
- * a specific source too, so the newest choice is the truth.
+ * a specific source too, so the newest choice is the truth. That also clears any
+ * `orphaned` stamp (issue #560): reinstalling from a re-registered source resolved
+ * against a source that exists again, so a stale orphan marker must not survive.
  */
 export function recordProvenance(input: {
   pluginId: string;
@@ -125,6 +127,34 @@ export function recordProvenance(input: {
     plugins: { ...current.plugins, [input.pluginId]: record },
   });
   return record;
+}
+
+/**
+ * Stamps `orphaned: true` on every ledger row installed from `sourceId`, called
+ * when that source is removed from the registry (issue #560 / CPHMTP-FR-009).
+ *
+ * The stamp is persisted rather than recomputed at read time by joining records
+ * against the live source registry: the row keeps its `sourceUrl`, so an orphaned
+ * plugin still reads standalone once the source row is gone. Returns the number of
+ * rows stamped, and no-ops cleanly (returning 0, writing nothing) when the file is
+ * absent or no row matches.
+ */
+export function markOrphanedBySource(sourceId: string): number {
+  const current = loadProvenanceState();
+  if (!current) return 0;
+  const nextPlugins: Record<string, PluginProvenanceRecord> = {};
+  let stamped = 0;
+  for (const [id, record] of Object.entries(current.plugins)) {
+    if (record.sourceId === sourceId && record.orphaned !== true) {
+      nextPlugins[id] = { ...record, orphaned: true };
+      stamped += 1;
+    } else {
+      nextPlugins[id] = record;
+    }
+  }
+  if (stamped === 0) return 0;
+  saveProvenanceState({ ...current, plugins: nextPlugins });
+  return stamped;
 }
 
 /**

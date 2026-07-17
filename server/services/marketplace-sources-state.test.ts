@@ -290,6 +290,97 @@ describe("removeSource", () => {
     expect(mod.listSources()).toHaveLength(0);
   });
 
+  // Issue #560 / CPHMTP-FR-009 AC4: the plugins installed from a removed source
+  // stay on disk and keep working, so removal stamps them as orphaned rather than
+  // uninstalling them. The stamp is persisted, not recomputed later by joining
+  // against a source registry the row has just left.
+  it("stamps orphaned on the provenance rows of plugins installed from it", async () => {
+    const provenance = await import("./plugin-provenance-state.js");
+    const added = await mod.addSource({ url: URL_A });
+    expect(added.outcome).toBe("created");
+    if (added.outcome !== "created") return;
+    const id = added.source.id;
+    provenance.recordProvenance({
+      pluginId: "database",
+      sourceId: id,
+      sourceUrl: URL_A,
+      unverified: true,
+    });
+
+    expect(await mod.removeSource(id)).toBe("removed");
+
+    const row = provenance.getProvenance("database");
+    expect(row?.orphaned).toBe(true);
+    // The plugin still reads standalone: the source row is gone, the URL is not.
+    expect(row?.sourceUrl).toBe(URL_A);
+  });
+
+  it("leaves provenance rows from a different source untouched", async () => {
+    const provenance = await import("./plugin-provenance-state.js");
+    const a = await mod.addSource({ url: URL_A });
+    const b = await mod.addSource({ url: URL_B });
+    if (a.outcome !== "created" || b.outcome !== "created") throw new Error("setup failed");
+    provenance.recordProvenance({
+      pluginId: "database",
+      sourceId: b.source.id,
+      sourceUrl: URL_B,
+      unverified: true,
+    });
+
+    expect(await mod.removeSource(a.source.id)).toBe("removed");
+    expect(provenance.getProvenance("database")).not.toHaveProperty("orphaned");
+  });
+
+  it("still reports removed when the orphan stamping fails", async () => {
+    const provenance = await import("./plugin-provenance-state.js");
+    const added = await mod.addSource({ url: URL_A });
+    expect(added.outcome).toBe("created");
+    if (added.outcome !== "created") return;
+    // The row is already persisted as removed before cleanup runs, so a stamping
+    // failure is logged rather than propagated: it must not turn an
+    // already-completed removal into an error.
+    const stamp = vi.spyOn(provenance, "markOrphanedBySource").mockImplementation(() => {
+      throw new Error("disk full");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(await mod.removeSource(added.source.id)).toBe("removed");
+    expect(warn).toHaveBeenCalled();
+
+    warn.mockRestore();
+    stamp.mockRestore();
+    expect(mod.listSources()).toHaveLength(0);
+  });
+
+  it("stamps orphaned even when the cache-dir removal throws", async () => {
+    const provenance = await import("./plugin-provenance-state.js");
+    const added = await mod.addSource({ url: URL_A });
+    expect(added.outcome).toBe("created");
+    if (added.outcome !== "created") return;
+    const id = added.source.id;
+    provenance.recordProvenance({
+      pluginId: "database",
+      sourceId: id,
+      sourceUrl: URL_A,
+      unverified: true,
+    });
+    // The stamp is the one cleanup step carrying state the consumer still needs,
+    // and it is unrecoverable once the row is gone (a retry returns "not-found" and
+    // never reaches it again), so it must not sit behind a step that can throw.
+    // force:true swallows ENOENT, but a permission or busy error still throws.
+    const rm = vi.spyOn(fs, "rmSync").mockImplementationOnce(() => {
+      throw new Error("EACCES: permission denied");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(await mod.removeSource(id)).toBe("removed");
+    expect(provenance.getProvenance("database")?.orphaned).toBe(true);
+    expect(warn).toHaveBeenCalled();
+
+    warn.mockRestore();
+    rm.mockRestore();
+  });
+
   it("skips the keyring delete for a credential-less source", async () => {
     const credStore = await import("./credential-store.js");
     const added = await mod.addSource({ url: URL_A });

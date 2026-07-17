@@ -62,6 +62,7 @@ const provenanceStateMocks = vi.hoisted(() => ({
   getProvenance: vi.fn<(id: string) => PluginProvenanceRecord | null>(() => null),
   recordProvenance: vi.fn(),
   removeProvenance: vi.fn<(id: string) => void>(),
+  markOrphanedBySource: vi.fn<(sourceId: string) => number>(() => 0),
 }));
 vi.mock("./plugin-provenance-state.js", () => provenanceStateMocks);
 
@@ -275,6 +276,53 @@ describe("discovery", () => {
       expect(echo.unverified).toBe(true);
     });
 
+    // Issue #560 / CPHMTP-FR-009 AC4: the source-removal stamp survives the rebuild
+    // too, so an orphaned plugin still reads as orphaned after a restart.
+    it("stamps orphaned from the ledger row when the source was removed", async () => {
+      provenanceStateMocks.getProvenance.mockImplementation((id) =>
+        id === "echo"
+          ? {
+              pluginId: "echo",
+              sourceId: "marketplace-acme-example-1a2b3c4d",
+              sourceUrl: "https://marketplace.acme.example/catalog.json",
+              unverified: true,
+              orphaned: true,
+              installedAt: "2026-07-01T00:00:00.000Z",
+            }
+          : null,
+      );
+      sandbox = await makeSandbox({ user: ["echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+
+      const echo = findRecord(mgr.listInstalled(), "echo");
+      expect(echo.orphaned).toBe(true);
+      // The URL outlives the source row it came from.
+      expect(echo.sourceUrl).toBe("https://marketplace.acme.example/catalog.json");
+    });
+
+    it("omits orphaned for a plugin whose source is still registered", async () => {
+      provenanceStateMocks.getProvenance.mockImplementation((id) =>
+        id === "echo"
+          ? {
+              pluginId: "echo",
+              sourceId: "marketplace-acme-example-1a2b3c4d",
+              sourceUrl: "https://marketplace.acme.example/catalog.json",
+              unverified: true,
+              installedAt: "2026-07-01T00:00:00.000Z",
+            }
+          : null,
+      );
+      sandbox = await makeSandbox({ user: ["echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+
+      // Absent, not present-and-false: absent is what reads as "not orphaned".
+      const echo = findRecord(mgr.listInstalled(), "echo");
+      expect(echo).not.toHaveProperty("orphaned");
+      expect(echo.unverified).toBe(true);
+    });
+
     it("omits the keys entirely for a plugin with no ledger row", async () => {
       provenanceStateMocks.getProvenance.mockReturnValue(null);
       sandbox = await makeSandbox({ user: ["echo"] });
@@ -288,6 +336,7 @@ describe("discovery", () => {
       expect(echo).not.toHaveProperty("sourceId");
       expect(echo).not.toHaveProperty("sourceUrl");
       expect(echo).not.toHaveProperty("unverified");
+      expect(echo).not.toHaveProperty("orphaned");
     });
   });
 
