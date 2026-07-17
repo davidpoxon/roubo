@@ -78,7 +78,11 @@ interface Props {
    * same way. Empty when this listing is not a collision.
    */
   collisionSourceLabels: string[];
-  onOpenDetail: (id: string) => void;
+  /**
+   * Passes the whole listing, not its id: an id can be served by several sources
+   * at once (CPHMTP-FR-005), so only the entry itself identifies the row pressed.
+   */
+  onOpenDetail: (listing: MarketplaceListing) => void;
   onInstall: (listing: MarketplaceListing) => void;
   onUpdate: (listing: MarketplaceListing) => void;
 }
@@ -108,7 +112,7 @@ export default function MarketplaceCard({
           <div className="flex items-center gap-2">
             <Button
               data-testid="marketplace-card-detail"
-              onPress={() => onOpenDetail(listing.id)}
+              onPress={() => onOpenDetail(listing)}
               className="truncate text-[14px] font-semibold text-stone-900 dark:text-stone-100 hover:text-amber-700 dark:hover:text-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
             >
               {listing.name}

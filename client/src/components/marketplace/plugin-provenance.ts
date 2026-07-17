@@ -1,4 +1,4 @@
-import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
+import { FIRST_PARTY_SOURCE_ID, SEED_PLUGIN_IDS } from "@roubo/shared";
 import type { MarketplaceListing, PluginRecord } from "@roubo/shared";
 
 // The trust derivation behind the shared ProvenanceBadge (CPHMTP-FR-006 /
@@ -19,6 +19,19 @@ import type { MarketplaceListing, PluginRecord } from "@roubo/shared";
 
 /** Display label for the built-in catalog, mirroring the server's own chip label. */
 export const FIRST_PARTY_LABEL = "Roubo first-party";
+
+/**
+ * Stand-in source for an installed plugin the provenance ledger does not describe
+ * and which is not a first-party seed default: in practice one installed from a
+ * raw git URL or a local path, whose install path deliberately records no ledger
+ * row. It is NOT a real source id (a generated third-party id ends in an 8-char
+ * hex suffix, and "source" is not hex), and exists so such a plugin grades
+ * unverified rather than letting missing provenance read as first-party.
+ */
+export const UNKNOWN_SOURCE_ID = "unknown-source";
+
+/** Display label for {@link UNKNOWN_SOURCE_ID}. */
+export const UNKNOWN_SOURCE_LABEL = "Unknown source";
 
 /**
  * The normalised trust input every surface passes. Both shapes that reach the UI
@@ -64,6 +77,7 @@ export function trustTreatmentOf(provenance: PluginProvenance): TrustTreatment {
  */
 function sourceLabelFor(sourceId: string, sourceUrl: string | undefined): string {
   if (sourceId === FIRST_PARTY_SOURCE_ID) return FIRST_PARTY_LABEL;
+  if (sourceId === UNKNOWN_SOURCE_ID) return UNKNOWN_SOURCE_LABEL;
   if (sourceUrl === undefined) return sourceId;
   try {
     return new URL(sourceUrl).host;
@@ -89,14 +103,37 @@ export function listingProvenance(
 }
 
 /**
+ * Which source an installed plugin came from when the ledger does not say.
+ *
+ * Absence is ambiguous and must NOT be read as first-party on its own: a seeded
+ * first-party default carries no ledger row (the seed install writes none), but
+ * neither does a plugin the user installed from a raw git URL or local path
+ * (`POST /api/plugins/install`, whose provenance recording is a documented no-op
+ * on those paths). Defaulting absence to first-party therefore handed the green
+ * first-party treatment to arbitrary third-party code, breaking CPHMTP-NFR-001
+ * ("0 UI states where a third-party plugin renders first-party verified styling")
+ * on the installed-plugins tab that TC-056 enumerates.
+ *
+ * The plugin's id is the only signal that separates the two here, so absence
+ * reads as first-party only for the seed set and unverified for everything else.
+ * That is a display-layer heuristic, not a trust root: stamping a ledger row on
+ * the seed and raw-install paths, so this can simply fail closed, is the durable
+ * fix (davidpoxon/roubo-development#607).
+ */
+function unstampedSourceIdFor(plugin: PluginRecord): string {
+  return (SEED_PLUGIN_IDS as readonly string[]).includes(plugin.id)
+    ? FIRST_PARTY_SOURCE_ID
+    : UNKNOWN_SOURCE_ID;
+}
+
+/**
  * Provenance of an installed plugin (installed-plugins settings tab, permission
- * review dialog). The provenance fields are optional on `PluginRecord` and absent
- * for every record predating the provenance ledger, which means bundled /
- * first-party: an absent `sourceId` reads as first-party and an absent
- * `unverified` reads as verified, matching the ledger's documented default.
+ * review dialog). The provenance fields are optional on `PluginRecord`: when the
+ * ledger stamped them they are authoritative, and when it did not,
+ * `unstampedSourceIdFor` decides what the absence means (see above).
  */
 export function recordProvenance(plugin: PluginRecord): PluginProvenance {
-  const sourceId = plugin.sourceId ?? FIRST_PARTY_SOURCE_ID;
+  const sourceId = plugin.sourceId ?? unstampedSourceIdFor(plugin);
   return {
     sourceId,
     sourceLabel: sourceLabelFor(sourceId, plugin.sourceUrl),

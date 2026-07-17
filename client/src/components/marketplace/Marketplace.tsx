@@ -160,11 +160,26 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * Identity of one catalog entry: the plugin id alone is NOT unique, because a
+ * collision means several sources serve the same id and the server marks it rather
+ * than picking a winner (CPHMTP-FR-005). Source plus id is what identifies the
+ * exact row the consumer pressed.
+ */
+function listingKey(listing: MarketplaceListing): string {
+  return `${listing.sourceId}:${listing.id}`;
+}
+
 export default function Marketplace() {
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"all" | MarketplaceKind>("all");
   const [sourceId, setSourceId] = useState<string>(ALL_SOURCES);
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // Keyed by source AND id, never by id alone: two sources may serve the same
+  // plugin id (a marked, deliberately unresolved collision, CPHMTP-FR-005), so a
+  // bare id would open whichever entry sorted first and could show a first-party
+  // entry's verified treatment for the third-party card the consumer pressed
+  // (CPHMTP-NFR-001, issue #563).
+  const [detailKey, setDetailKey] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingConsent | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
   const [staging, setStaging] = useState<ActiveStaging | null>(null);
@@ -185,8 +200,8 @@ export default function Marketplace() {
 
   const listings = useMemo(() => data?.listings ?? [], [data]);
   const detailListing = useMemo(
-    () => listings.find((l) => l.id === detailId) ?? null,
-    [listings, detailId],
+    () => listings.find((l) => listingKey(l) === detailKey) ?? null,
+    [listings, detailKey],
   );
 
   // The per-source status rows always describe EVERY source in the fan-out, even
@@ -317,7 +332,7 @@ export default function Marketplace() {
         setPending(null);
         setConsentError(null);
         setStaging(null);
-        setDetailId(null);
+        setDetailKey(null);
       },
       onError: (err) => setConsentError(errorMessage(err, STRINGS.installFailed)),
     });
@@ -470,11 +485,11 @@ export default function Marketplace() {
           >
             {listings.map((listing) => (
               <MarketplaceCard
-                key={`${listing.sourceId}:${listing.id}`}
+                key={listingKey(listing)}
                 listing={listing}
                 sourceLabel={labelFor(listing.sourceId)}
                 collisionSourceLabels={(listing.collision?.sourceIds ?? []).map(labelFor)}
-                onOpenDetail={setDetailId}
+                onOpenDetail={(opened) => setDetailKey(listingKey(opened))}
                 onInstall={beginInstall}
                 onUpdate={beginUpdate}
               />
@@ -487,7 +502,7 @@ export default function Marketplace() {
         <MarketplaceDrawer
           listing={detailListing}
           sourceLabel={labelFor(detailListing.sourceId)}
-          onClose={() => setDetailId(null)}
+          onClose={() => setDetailKey(null)}
           onInstall={beginInstall}
           onUpdate={beginUpdate}
         />

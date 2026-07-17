@@ -8,10 +8,12 @@
 // injecting `verified: true` (CPHMTP-TC-072 S001).
 
 import { describe, it, expect } from "vitest";
-import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
+import { FIRST_PARTY_SOURCE_ID, SEED_PLUGIN_IDS } from "@roubo/shared";
 import type { MarketplaceListing, PluginRecord } from "@roubo/shared";
 import {
   FIRST_PARTY_LABEL,
+  UNKNOWN_SOURCE_ID,
+  UNKNOWN_SOURCE_LABEL,
   listingProvenance,
   recordProvenance,
   trustTreatmentOf,
@@ -118,17 +120,42 @@ describe("listingProvenance / recordProvenance normalisation", () => {
     );
   });
 
-  // Records predating the provenance ledger carry none of the fields; absent means
-  // first-party / verified, which is the ledger's documented default.
-  it("reads a record with no provenance fields as verified first-party", () => {
-    const result = recordProvenance(record({ source: "bundled" }));
-    expect(result).toEqual({
-      sourceId: FIRST_PARTY_SOURCE_ID,
-      sourceLabel: FIRST_PARTY_LABEL,
-      curated: true,
-      orphaned: false,
-    });
-    expect(trustTreatmentOf(result)).toBe("verified");
+  // A seeded first-party default carries no ledger row (the seed install writes
+  // none), so for the seed set specifically, absence reads as first-party.
+  it("reads a seeded plugin with no provenance fields as verified first-party", () => {
+    for (const id of SEED_PLUGIN_IDS) {
+      const result = recordProvenance(record({ id, source: "user" }));
+      expect(result).toEqual({
+        sourceId: FIRST_PARTY_SOURCE_ID,
+        sourceLabel: FIRST_PARTY_LABEL,
+        curated: true,
+        orphaned: false,
+      });
+      expect(trustTreatmentOf(result)).toBe("verified");
+    }
+  });
+
+  // The fail-open this closes (CPHMTP-NFR-001, CPHMTP-TC-056 S002-O01). A plugin
+  // installed from a raw git URL or local path also carries no ledger row: the
+  // install path records none. Absence therefore cannot mean first-party on its
+  // own, or arbitrary third-party code wears the green first-party treatment in
+  // the installed-plugins tab.
+  it("reads a NON-seeded plugin with no provenance fields as unverified, not first-party", () => {
+    const result = recordProvenance(record({ id: "totally-evil", source: "user" }));
+    expect(result.sourceId).toBe(UNKNOWN_SOURCE_ID);
+    expect(result.sourceLabel).toBe(UNKNOWN_SOURCE_LABEL);
+    expect(trustTreatmentOf(result)).toBe("unverified");
+  });
+
+  // Absence is only consulted when the ledger did not stamp the record: a stamped
+  // third-party row stays authoritative even for a seed id (a plugin that took a
+  // seed's id cannot buy first-party by name alone).
+  it("prefers a stamped source id over the seed-id reading of absence", () => {
+    const result = recordProvenance(
+      record({ id: "process", sourceId: ACME_SOURCE_ID, unverified: true }),
+    );
+    expect(result.sourceId).toBe(ACME_SOURCE_ID);
+    expect(trustTreatmentOf(result)).toBe("unverified");
   });
 
   it("derives a third-party record's label from its retained source URL", () => {

@@ -1188,6 +1188,48 @@ describe("Marketplace unverified badge and provenance (issue #563)", () => {
     expect(within(drawer).getByTestId("provenance-badge").querySelector("button")).toBeNull();
   });
 
+  // CPHMTP-TC-056 S002-O01 on the drawer, for a COLLIDING id. Several sources may
+  // serve one id and the server marks the collision rather than picking a winner
+  // (CPHMTP-FR-005), so the drawer must open the entry whose card was pressed.
+  // Selecting by bare id would open whichever entry sorted first and dress the
+  // third-party row the consumer pressed in the first-party verified treatment.
+  it("opens the pressed source's entry when two sources serve the same id", async () => {
+    const both = [FIRST_PARTY_SOURCE_ID, ACME_SOURCE_ID];
+    setCatalog(
+      [
+        listing({ id: "process", name: "Process", collision: { sourceIds: both } }),
+        listing({
+          id: "process",
+          name: "Process",
+          sourceId: ACME_SOURCE_ID,
+          verified: false,
+          collision: { sourceIds: both },
+        }),
+      ],
+      "network",
+      null,
+      SOURCES,
+    );
+    const user = userEvent.setup();
+    render(<Marketplace />);
+
+    // Both cards carry the same id and name, so the source chip is what tells them
+    // apart: exactly the ambiguity the consumer faces.
+    const acmeCard = screen
+      .getAllByTestId("marketplace-card")
+      .find((c) => within(c).getByTestId("provenance-source").dataset.sourceId === ACME_SOURCE_ID);
+    if (!acmeCard) throw new Error("expected an ACME card for the colliding id");
+
+    await user.click(within(acmeCard).getByTestId("marketplace-card-detail"));
+    const drawer = await screen.findByTestId("marketplace-drawer");
+    expect(within(drawer).getByTestId("provenance-source").dataset.sourceId).toBe(ACME_SOURCE_ID);
+    expect(within(drawer).getByTestId("provenance-trust")).toHaveTextContent("Unverified");
+    expect(within(drawer).getByTestId("provenance-trust").className).not.toContain("green");
+    expect(within(drawer).getByTestId("marketplace-drawer-integrity")).not.toHaveTextContent(
+      "signed by Roubo",
+    );
+  });
+
   // CPHMTP-TC-056 S002 / CPHMTP-TC-072 S002: the consent dialog is the last gate
   // before third-party code is committed, so it must not lead with a first-party
   // verification claim. It is driven from the LISTING's provenance, not from the

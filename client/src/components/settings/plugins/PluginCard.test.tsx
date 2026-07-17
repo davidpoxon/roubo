@@ -668,11 +668,14 @@ describe("PluginCard: unverified and orphaned badges (issue #563)", () => {
     expect(screen.getByTestId("plugin-source-label").dataset.source).toBe("user");
   });
 
-  // Records predating the provenance ledger carry no provenance fields at all;
-  // absent means bundled / first-party, so the tab must not flag every existing
-  // install as unverified.
-  it("shows the verified first-party treatment for a bundled plugin with no provenance fields", () => {
-    render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
+  // A seeded first-party default carries no provenance fields (the seed install
+  // writes no ledger row), so the tab must not flag it as unverified. What earns
+  // the verified treatment here is the SEED ID, not the record's `source`, which
+  // `recordProvenance` never reads: post-clean-break a seed is `source: "user"`
+  // like any other install. The id is passed explicitly rather than leaning on the
+  // `record()` default, so the test names what it actually depends on.
+  it("shows the verified first-party treatment for a seeded plugin with no provenance fields", () => {
+    render(<PluginCard plugin={record({ id: "github-com" })} hostApiVersion="1.0.0" />);
     const trust = screen.getByTestId("provenance-trust");
     expect(trust).toHaveTextContent("Verified · first-party");
     expect(trust).not.toHaveTextContent("Unverified");
@@ -685,6 +688,23 @@ describe("PluginCard: unverified and orphaned badges (issue #563)", () => {
     render(<PluginCard plugin={thirdPartyRecord({ orphaned: true })} hostApiVersion="1.0.0" />);
     expect(screen.getByTestId("provenance-orphaned")).toHaveTextContent("Orphaned");
     expect(screen.getByTestId("provenance-trust")).toHaveTextContent("Unverified");
+  });
+
+  // CPHMTP-TC-056 S002-O01 on this surface. A plugin installed from a raw git URL
+  // or local path (the Install dialog's git/local tabs) gets NO provenance ledger
+  // row, exactly like a seeded first-party default. It must still not wear the
+  // first-party treatment: absence is not evidence of verification.
+  it("shows Unverified for a non-seeded plugin installed with no provenance fields", () => {
+    render(
+      <PluginCard
+        plugin={record({ id: "from-some-git-url", source: "user" })}
+        hostApiVersion="1.0.0"
+      />,
+    );
+    const trust = screen.getByTestId("provenance-trust");
+    expect(trust).toHaveTextContent("Unverified");
+    expect(trust.className).not.toContain("green");
+    expect(screen.getByTestId("provenance-source")).toHaveTextContent("Source: Unknown source");
   });
 
   // CPHMTP-TC-041 S001-O01: the badge carries no dismiss affordance here either.
