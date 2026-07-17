@@ -37,6 +37,7 @@ import { useToast } from "../hooks/useToast";
 import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
 import JigRow from "./jig-editor/JigRow";
 import PluginsTab from "./settings/plugins/PluginsTab";
+import MarketplacesTab from "./settings/plugins/MarketplacesTab";
 import Marketplace from "./marketplace/Marketplace";
 import { INPUT } from "./setup/styles";
 
@@ -676,10 +677,13 @@ function AppearanceTab() {
   );
 }
 
+// "marketplace" is the Browse view; "marketplaces" (issue #561) is the source
+// registry section. Near-identical ids, deliberately distinct sections.
 const TAB_LABELS: Record<string, string> = {
   "claude-code": "Claude Code",
   benches: "Benches",
   testbench: "TestBench",
+  marketplaces: "Marketplaces",
 };
 
 const HASH_TAB_IDS = new Set([
@@ -689,6 +693,7 @@ const HASH_TAB_IDS = new Set([
   "jigs",
   "plugins",
   "marketplace",
+  "marketplaces",
   "claude-code",
 ]);
 
@@ -720,6 +725,7 @@ export default function ProjectSettings() {
               "jigs",
               "plugins",
               "marketplace",
+              "marketplaces",
               "claude-code",
             ] as const
           ).map((id) => (
@@ -765,6 +771,10 @@ export default function ProjectSettings() {
 
         <TabPanel id="marketplace" className="outline-none">
           <Marketplace />
+        </TabPanel>
+
+        <TabPanel id="marketplaces" className="outline-none">
+          <MarketplacesTab />
         </TabPanel>
 
         <TabPanel id="claude-code" className="outline-none">

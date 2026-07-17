@@ -1359,6 +1359,15 @@ export function updateFromMarketplace(id: string, sourceId?: string): Promise<In
   });
 }
 
+// Third-party marketplace source registry (CPHMTP-FR-001, issue #561). The
+// server synthesises the built-in first-party row into the list, so the client
+// renders whatever GET returns rather than merging the built-in in itself; the
+// row is recognised by its reserved FIRST_PARTY_SOURCE_ID.
+/** Every registered source: the built-in first-party row first, then third-party rows. */
+export function fetchMarketplaceSources(): Promise<{ sources: MarketplaceSourceSummary[] }> {
+  return request("/marketplace/sources");
+}
+
 /**
  * Register a third-party marketplace source (CPHMTP-FR-002 / CPHMTP-NFR-003,
  * issue #562). The consent dialog is the only caller: this POST is what turns an
@@ -1391,7 +1400,17 @@ export function registerMarketplaceSource(body: {
   });
 }
 
-export type { MarketplaceCatalogResponse, MarketplaceListing, MarketplaceKind };
+/** Remove a registered source. The built-in first-party source is refused with 403. */
+export function removeMarketplaceSource(id: string): Promise<void> {
+  return requestVoid(`/marketplace/sources/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export type {
+  MarketplaceCatalogResponse,
+  MarketplaceListing,
+  MarketplaceKind,
+  MarketplaceSourceSummary,
+};
 
 // Migration (WU-024 / issue #42)
 export function fetchMigrationStatus(): Promise<MigrationStatusResponse> {
