@@ -1,14 +1,19 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { waitFor } from "@testing-library/react";
-import { renderHookWithProviders } from "../test/renderWithProviders";
-import { marketplaceQueryKey, useMarketplaceCatalog } from "./useMarketplace";
+import { makeQueryClient, renderHookWithProviders } from "../test/renderWithProviders";
+import {
+  marketplaceQueryKey,
+  useMarketplaceCatalog,
+  useRegisterMarketplaceSource,
+} from "./useMarketplace";
 import type { MarketplaceCatalogResponse } from "@roubo/shared";
 
 vi.mock("../lib/api");
 import * as api from "../lib/api";
 
 const fetchMarketplaceCatalog = vi.mocked(api.fetchMarketplaceCatalog);
+const registerMarketplaceSource = vi.mocked(api.registerMarketplaceSource);
 
 // The marketplace catalog query is cached per filter combination, so the key has
 // to carry every param that changes the server's answer. Issue #557 added the
@@ -94,5 +99,70 @@ describe("useMarketplaceCatalog", () => {
     resolveScoped(scoped);
     await waitFor(() => expect(result.current.data).toEqual(scoped));
     expect(result.current.data).not.toEqual(merged);
+  });
+});
+
+// Registering a third-party marketplace source (CPHMTP-FR-002, issue #562). The
+// mutation is the consent write: it must run only when the dialog's container
+// fires it, and a new source changes the merged catalog and its `sources` array,
+// so the marketplace key tree has to be re-read afterwards.
+describe("useRegisterMarketplaceSource", () => {
+  const created = {
+    id: "marketplace-acme-example-1a2b3c4d",
+    url: "https://marketplace.acme.example/catalog.json",
+    hasCredential: false,
+    registeredAt: "2026-07-02T00:00:00.000Z",
+  };
+
+  beforeEach(() => {
+    registerMarketplaceSource.mockReset();
+  });
+
+  it("registers nothing until the mutation is fired (CPHMTP-NFR-003)", () => {
+    renderHookWithProviders(() => useRegisterMarketplaceSource());
+    expect(registerMarketplaceSource).not.toHaveBeenCalled();
+  });
+
+  it("passes the consented url, credential, and allow-http opt-in through", async () => {
+    registerMarketplaceSource.mockResolvedValue({ ...created, hasCredential: true });
+    const { result } = renderHookWithProviders(() => useRegisterMarketplaceSource());
+
+    result.current.mutate({ url: created.url, credential: "tok-abc", allowHttp: true });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(registerMarketplaceSource).toHaveBeenCalledWith({
+      url: created.url,
+      credential: "tok-abc",
+      allowHttp: true,
+    });
+    expect(result.current.data).toEqual({ ...created, hasCredential: true });
+  });
+
+  it("invalidates the marketplace key tree once a source is registered", async () => {
+    registerMarketplaceSource.mockResolvedValue(created);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useRegisterMarketplaceSource(), {
+      queryClient,
+    });
+
+    result.current.mutate({ url: created.url });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
+  });
+
+  it("does not invalidate when the registration is refused", async () => {
+    registerMarketplaceSource.mockRejectedValue(new Error("Invalid source URL"));
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useRegisterMarketplaceSource(), {
+      queryClient,
+    });
+
+    result.current.mutate({ url: "not-a-url" });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });

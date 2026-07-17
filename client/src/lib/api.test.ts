@@ -62,6 +62,7 @@ import {
   fetchPluginConsent,
   grantPluginConsent,
   fetchMarketplaceCatalog,
+  registerMarketplaceSource,
 } from "./api";
 
 const mockFetch = vi.fn();
@@ -1099,5 +1100,70 @@ describe("fetchMarketplaceCatalog", () => {
       "/api/marketplace/plugins?kind=component",
       expect.anything(),
     );
+  });
+});
+
+// Issue #562: the consent dialog's write. The endpoint is a pure write (no call
+// to the candidate URL), so this POST is the whole of "registering" a source, and
+// the row it returns is the consent record (CPHMTP-FR-002 / CPHMTP-NFR-003).
+describe("registerMarketplaceSource", () => {
+  const created = {
+    id: "marketplace-acme-example-1a2b3c4d",
+    url: "https://marketplace.acme.example/catalog.json",
+    hasCredential: false,
+    registeredAt: "2026-07-02T00:00:00.000Z",
+  };
+
+  it("posts the acknowledged URL and returns the registered row", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(created, 201, "Created"));
+    const result = await registerMarketplaceSource({ url: created.url });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/marketplace/sources",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ url: created.url }),
+      }),
+    );
+    expect(result).toEqual(created);
+  });
+
+  it("carries the credential and the allow-http opt-in when they are supplied", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ ...created, hasCredential: true }, 201, "Created"));
+    await registerMarketplaceSource({
+      url: "http://marketplace.intranet/catalog.json",
+      credential: "tok-abc",
+      allowHttp: true,
+    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/marketplace/sources",
+      expect.objectContaining({
+        body: JSON.stringify({
+          url: "http://marketplace.intranet/catalog.json",
+          credential: "tok-abc",
+          allowHttp: true,
+        }),
+      }),
+    );
+  });
+
+  it("surfaces the invalid-url refusal as an ApiError with its code", async () => {
+    // The shape an http URL registered without the opt-in comes back as
+    // (CPHMTP-TC-104 S001): http is never permitted silently.
+    mockFetch.mockResolvedValue(
+      jsonResponse({ error: "Invalid source URL", code: "invalid-url" }, 400, "Bad Request"),
+    );
+    await expect(
+      registerMarketplaceSource({ url: "http://marketplace.intranet/catalog.json" }),
+    ).rejects.toMatchObject({
+      name: "ApiError",
+      status: 400,
+      code: "invalid-url",
+      message: "Invalid source URL",
+    });
+  });
+
+  it("surfaces an already-registered URL as a 409 ApiError", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(created, 409, "Conflict"));
+    await expect(registerMarketplaceSource({ url: created.url })).rejects.toBeInstanceOf(ApiError);
   });
 });
