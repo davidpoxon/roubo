@@ -8,16 +8,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import GatesOverview from "./GatesOverview";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../../test/axe";
 
 vi.mock("../../lib/api");
 import * as api from "../../lib/api";
@@ -264,7 +257,7 @@ describe("GatesOverview", () => {
       <GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />,
     );
     await waitFor(() => expect(screen.getByTestId("gate-card")).toBeTruthy());
-    expect(await axe(container)).toHaveNoViolations();
+    expectNoAxeFindings(await axe(container));
   });
 });
 

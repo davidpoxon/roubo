@@ -3,8 +3,8 @@
 // #484 TSPF-NFR-003 / TSPF-TC-015: the partitioned spec picker reports zero axe
 // violations in BOTH modes (create + repoint) and BOTH partition states (a mixed
 // needs-attention/all-passed list and the all-passed-only empty state), including
-// the expanded all-passed disclosure. Follows the vitest-axe wiring established by
-// CaseList.a11y.test.tsx and the hook-mock setup from SpecPickerModal.test.tsx.
+// the expanded all-passed disclosure. Asserts through the shared expectNoAxeFindings
+// helper (client/src/test/axe.ts) and the hook-mock setup from SpecPickerModal.test.tsx.
 //
 // Coverage gap (#493): jsdom has no layout/paint engine, so axe cannot execute the
 // color-contrast rule here (it silently reports zero contrast violations even when
@@ -17,17 +17,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import type { DiscoveredSpec, SpecVerification } from "../../lib/api";
 import type { ManualPathState } from "../../hooks/useTestbenchSpecs";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../../test/axe";
 
 // Build a verification payload with sensible defaults; each fixture states only
 // the fields it needs (mirrors SpecPickerModal.test.tsx).
@@ -144,7 +137,7 @@ function renderModal(props: Partial<React.ComponentProps<typeof SpecPickerModal>
 // we are auditing the picker component, not a whole page.
 async function expectNoViolations() {
   const results = await axe(screen.getByRole("dialog"));
-  expect(results).toHaveNoViolations();
+  expectNoAxeFindings(results);
 }
 
 describe("SpecPickerModal a11y (#484)", () => {

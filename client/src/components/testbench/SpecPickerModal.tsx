@@ -423,7 +423,13 @@ export default function SpecPickerModal({
                             </span>
                           </Button>
                           {allPassedExpanded && (
-                            <div aria-label="All passed specs" className="flex flex-col gap-1.5">
+                            // role=group: aria-label is ARIA-prohibited on a
+                            // role-less div (issue roubo-development#600).
+                            <div
+                              role="group"
+                              aria-label="All passed specs"
+                              className="flex flex-col gap-1.5"
+                            >
                               {allPassed.map((spec) => renderRow(spec, true))}
                             </div>
                           )}

@@ -9,17 +9,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { InstallPreview, MarketplaceListing } from "@roubo/shared";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../../test/axe";
 
 vi.mock("../../hooks/useMarketplace");
 vi.mock("../../hooks/useToast", () => ({
@@ -162,14 +154,14 @@ describe("Marketplace multi-source surfaces: axe-core (CPHMTP-NFR-008)", () => {
     setMultiSourceData();
     const { baseElement } = render(<Marketplace />);
     const results = await axe(baseElement);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   it("has no axe violations with a source reported unavailable", async () => {
     setMultiSourceData({ unavailable: true });
     const { baseElement } = render(<Marketplace />);
     const results = await axe(baseElement);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   it("makes every source filter chip reachable and selectable by keyboard", async () => {
@@ -198,7 +190,7 @@ describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
   it("has no axe violations in the catalog grid", async () => {
     const { baseElement } = render(<Marketplace />);
     const results = await axe(baseElement);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   // CPHM-NFR-007 + issue #372: the offline / staleness banner (shown when the
@@ -208,7 +200,7 @@ describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
     const { baseElement, getByTestId } = render(<Marketplace />);
     expect(getByTestId("marketplace-offline-banner")).toBeInTheDocument();
     const results = await axe(baseElement);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   it("has no axe violations in the gated consent modal", async () => {
@@ -223,7 +215,7 @@ describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
       />,
     );
     const results = await axe(baseElement);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   it("exposes a modal dialog and keeps the gated confirm control keyboard reachable", async () => {

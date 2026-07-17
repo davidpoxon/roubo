@@ -224,6 +224,9 @@ export default function TestBenchPanel({
   // Switching back to the overview clears any open batch.
   const modeToggle = (
     <div
+      // role=group: aria-label is ARIA-prohibited on a role-less div (issue
+      // roubo-development#600), and the segmented switch is a group of toggles.
+      role="group"
       aria-label="TestBench view"
       className="inline-flex self-start rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 p-0.5"
     >
