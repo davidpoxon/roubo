@@ -352,6 +352,35 @@ describe("removeSource", () => {
     expect(mod.listSources()).toHaveLength(0);
   });
 
+  it("stamps orphaned even when the cache-dir removal throws", async () => {
+    const provenance = await import("./plugin-provenance-state.js");
+    const added = await mod.addSource({ url: URL_A });
+    expect(added.outcome).toBe("created");
+    if (added.outcome !== "created") return;
+    const id = added.source.id;
+    provenance.recordProvenance({
+      pluginId: "database",
+      sourceId: id,
+      sourceUrl: URL_A,
+      unverified: true,
+    });
+    // The stamp is the one cleanup step carrying state the consumer still needs,
+    // and it is unrecoverable once the row is gone (a retry returns "not-found" and
+    // never reaches it again), so it must not sit behind a step that can throw.
+    // force:true swallows ENOENT, but a permission or busy error still throws.
+    const rm = vi.spyOn(fs, "rmSync").mockImplementationOnce(() => {
+      throw new Error("EACCES: permission denied");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(await mod.removeSource(id)).toBe("removed");
+    expect(provenance.getProvenance("database")?.orphaned).toBe(true);
+    expect(warn).toHaveBeenCalled();
+
+    warn.mockRestore();
+    rm.mockRestore();
+  });
+
   it("skips the keyring delete for a credential-less source", async () => {
     const credStore = await import("./credential-store.js");
     const added = await mod.addSource({ url: URL_A });

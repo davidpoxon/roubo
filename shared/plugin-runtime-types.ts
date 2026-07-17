@@ -70,7 +70,7 @@ export interface PluginRecord {
   // removed from the registry (issue #560). It is stamped onto the ledger at
   // removal time rather than recomputed here by joining against the source
   // registry, so the plugin keeps reading as orphaned across restarts. Absent
-  // means not orphaned. The removal UX that consumes it is a separate slice.
+  // means not orphaned. The removal UX that consumes it is issue #564.
   sourceId?: string;
   sourceUrl?: string;
   unverified?: boolean;
