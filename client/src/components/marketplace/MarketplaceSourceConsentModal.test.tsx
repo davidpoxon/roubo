@@ -56,6 +56,14 @@ function confirmButton() {
   return screen.getByTestId("marketplace-source-consent-confirm");
 }
 
+// The ModalOverlay backdrop: the dialog's portalled outermost element, so it sits
+// on baseElement rather than the render container.
+function backdrop(baseElement: HTMLElement) {
+  const el = baseElement.querySelector("[data-rac][class*='fixed inset-0']");
+  if (!el) throw new Error("modal backdrop not found");
+  return el as HTMLElement;
+}
+
 // CPHMTP-TC-005: the consumer sees the exact string that will be fetched, plus
 // the arbitrary-code / not-signed / permanently-Unverified warning.
 describe("MarketplaceSourceConsentModal: raw URL and warning (CPHMTP-TC-005)", () => {
@@ -155,6 +163,15 @@ describe("MarketplaceSourceConsentModal: acknowledgement gate (CPHMTP-TC-020)", 
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+  it("keeps Register gated when the URL field holds only whitespace", async () => {
+    const user = userEvent.setup();
+    const { onConfirm } = renderModal({ initialUrl: "   " });
+    await user.click(ackCheckbox());
+    expect(confirmButton()).toHaveAttribute("aria-disabled", "true");
+    await user.click(confirmButton());
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it("gates Register while a registration is already in flight", async () => {
     const user = userEvent.setup();
     const { onConfirm } = renderModal({ isPending: true });
@@ -177,6 +194,16 @@ describe("MarketplaceSourceConsentModal: confirm payload", () => {
       credential: undefined,
       allowHttp: false,
     });
+  });
+
+  // The payload URL is the exact string the consent record is built from, so a
+  // stray copy-paste space must not reach it verbatim.
+  it("confirms with the URL trimmed, not as it was pasted", async () => {
+    const user = userEvent.setup();
+    const { onConfirm } = renderModal({ initialUrl: `  ${CANDIDATE_URL}  ` });
+    await user.click(ackCheckbox());
+    await user.click(confirmButton());
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ url: CANDIDATE_URL }));
   });
 
   it("leaves the allow http (intranet) opt-in unchecked on open (Spike 551)", () => {
@@ -259,6 +286,25 @@ describe("MarketplaceSourceConsentModal: declining (CPHMTP-TC-019)", () => {
     const user = userEvent.setup();
     const { onCancel } = renderModal({ isPending: true });
     await user.keyboard("{Escape}");
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  // The third declining path: pressing the backdrop. It routes through the same
+  // onOpenChange -> handleCancel wiring as Cancel and Escape, isPending guard
+  // included, so it is covered here rather than assumed from ModalOverlay.
+  it("cancels on a backdrop press, registering and fetching nothing", async () => {
+    const user = userEvent.setup();
+    const { onCancel, onConfirm, baseElement } = renderModal();
+    await user.click(backdrop(baseElement));
+    await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1));
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not cancel on a backdrop press while a registration is in flight", async () => {
+    const user = userEvent.setup();
+    const { onCancel, baseElement } = renderModal({ isPending: true });
+    await user.click(backdrop(baseElement));
     expect(onCancel).not.toHaveBeenCalled();
   });
 });

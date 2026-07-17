@@ -100,6 +100,31 @@ describe("MarketplaceSourceConsentModal: keyboard operation (CPHMTP-TC-024 S002)
     expect(getByTestId("marketplace-source-consent-confirm")).toBeInTheDocument();
   });
 
+  // Each hint carries something the label does not say: that the URL is the exact
+  // string that will be fetched, where the credential is stored, and that plain
+  // http is readable and tamperable on the network. A hint that is merely adjacent
+  // in the DOM is never announced on focus, and axe has no rule for it, so the
+  // association is asserted directly (CPHMTP-NFR-008).
+  it("describes the URL, credential, and allow-http controls, not just labels them", () => {
+    const { getByLabelText, getByTestId } = renderModal();
+
+    function describedText(el: Element): string {
+      const ids = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+      expect(ids.length).toBeGreaterThan(0);
+      return ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
+    }
+
+    expect(describedText(getByLabelText("Marketplace URL"))).toMatch(
+      /shown exactly as it will be fetched/i,
+    );
+    expect(describedText(getByLabelText("Credential (optional)"))).toMatch(/OS keyring/i);
+    expect(
+      describedText(
+        within(getByTestId("marketplace-source-consent-allow-http")).getByRole("checkbox"),
+      ),
+    ).toMatch(/read and tamper with/i);
+  });
+
   it("keeps the gated Register control focusable and toggles it from the keyboard alone", async () => {
     const user = userEvent.setup();
     const { getByTestId } = renderModal();

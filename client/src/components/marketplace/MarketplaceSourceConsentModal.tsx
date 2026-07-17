@@ -8,6 +8,7 @@ import {
   Label,
   Modal,
   ModalOverlay,
+  Text,
   TextField,
 } from "react-aria-components";
 import { AlertTriangle, Check, PlusCircle, ShieldAlert } from "lucide-react";
@@ -52,6 +53,10 @@ const STRINGS = {
   confirm: "Register marketplace",
   registering: "Registering…",
 };
+
+// Only one of these dialogs is ever mounted at a time (it is modal), so a module
+// constant is enough to tie the allow-http hint to its checkbox; no useId needed.
+const ALLOW_HTTP_HINT_ID = "marketplace-source-consent-allow-http-hint";
 
 // Issue #424: React Aria Components intentionally omits `aria-modal` from the
 // rendered dialog, and <Dialog> strips an `aria-modal` prop via filterDOMProps,
@@ -172,9 +177,12 @@ export default function MarketplaceSourceConsentModal({
                 autoFocus={initialUrl.length === 0}
                 className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-sm text-stone-900 dark:text-stone-100 font-mono outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               />
-              <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+              <Text
+                slot="description"
+                className="mt-1 block text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed"
+              >
                 {STRINGS.urlHint}
-              </p>
+              </Text>
             </TextField>
 
             <TextField
@@ -191,9 +199,12 @@ export default function MarketplaceSourceConsentModal({
               {/* type="password" rides on the TextField above, so the value is
                   masked on screen and kept out of autofill history. */}
               <Input className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-sm text-stone-900 dark:text-stone-100 font-mono outline-none focus-visible:ring-2 focus-visible:ring-amber-500" />
-              <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+              <Text
+                slot="description"
+                className="mt-1 block text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed"
+              >
                 {STRINGS.credentialHint}
-              </p>
+              </Text>
             </TextField>
 
             <div>
@@ -201,6 +212,13 @@ export default function MarketplaceSourceConsentModal({
                 isSelected={allowHttp}
                 onChange={setAllowHttp}
                 isDisabled={isPending}
+                // The label alone says "allow plain http"; the consequence (anyone
+                // on the network can read and tamper with it) lives in the hint, so
+                // it is wired as a description rather than left as an adjacent
+                // paragraph a screen reader would not announce on focus. The
+                // TextFields above get this from <Text slot="description">, which a
+                // bare Checkbox has no equivalent for (CPHMTP-NFR-008).
+                aria-describedby={ALLOW_HTTP_HINT_ID}
                 data-testid="marketplace-source-consent-allow-http"
                 className="group flex items-start gap-2.5 text-[13px] text-stone-700 dark:text-stone-200 cursor-pointer outline-none"
               >
@@ -213,7 +231,10 @@ export default function MarketplaceSourceConsentModal({
                 </span>
                 <span>{STRINGS.allowHttpLabel}</span>
               </Checkbox>
-              <p className="mt-1 ml-6.5 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+              <p
+                id={ALLOW_HTTP_HINT_ID}
+                className="mt-1 ml-6.5 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed"
+              >
                 {STRINGS.allowHttpHint}
               </p>
             </div>
