@@ -14,6 +14,7 @@ import {
   FIRST_PARTY_LABEL,
   UNKNOWN_SOURCE_ID,
   UNKNOWN_SOURCE_LABEL,
+  isFirstPartySource,
   listingProvenance,
   recordProvenance,
   trustTreatmentOf,
@@ -96,6 +97,22 @@ describe("trustTreatmentOf: the single trust gate (CPHMTP-NFR-001)", () => {
     expect(trustTreatmentOf(provenance({ sourceId: ACME_SOURCE_ID, orphaned: true }))).toBe(
       "unverified",
     );
+  });
+});
+
+// Catalog signing is a SOURCE property, decoupled from the per-entry curation flag
+// that `trustTreatmentOf` gates on (issue #603). An uncurated first-party entry is
+// still signed by Roubo (the catalog it reached the UI through validated), even
+// though it grades unverified for curation.
+describe("isFirstPartySource: the source-signature predicate (issue #603)", () => {
+  it("is true for a first-party provenance regardless of the curation flag", () => {
+    expect(isFirstPartySource(provenance({ curated: true }))).toBe(true);
+    expect(isFirstPartySource(provenance({ curated: false }))).toBe(true);
+  });
+
+  it("is false for a third-party source id", () => {
+    expect(isFirstPartySource(provenance({ sourceId: ACME_SOURCE_ID }))).toBe(false);
+    expect(isFirstPartySource(provenance({ sourceId: UNKNOWN_SOURCE_ID }))).toBe(false);
   });
 });
 

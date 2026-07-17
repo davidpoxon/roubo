@@ -1,6 +1,10 @@
 import { Globe, ShieldAlert, ShieldCheck, Unplug } from "lucide-react";
-import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
-import { trustTreatmentOf, type PluginProvenance, type TrustTreatment } from "./plugin-provenance";
+import {
+  isFirstPartySource,
+  trustTreatmentOf,
+  type PluginProvenance,
+  type TrustTreatment,
+} from "./plugin-provenance";
 
 // The ONE trust treatment in the app (CPHMTP-FR-006 / CPHMTP-NFR-001, issue
 // #563). Every plugin surface (marketplace card, detail drawer, installed-plugins
@@ -89,12 +93,12 @@ function OrphanedPill() {
  * prohibits `aria-label`, and a generic container is not a navigation stop, so
  * assistive tech reads the subtree rather than the name (issue #596).
  */
-function SourceChip({ sourceId, label }: { sourceId: string; label: string }) {
-  const isFirstParty = sourceId === FIRST_PARTY_SOURCE_ID;
+function SourceChip({ provenance }: { provenance: PluginProvenance }) {
+  const isFirstParty = isFirstPartySource(provenance);
   return (
     <span
       data-testid="provenance-source"
-      data-source-id={sourceId}
+      data-source-id={provenance.sourceId}
       className={`${PILL_CLASS} max-w-[12rem] ${
         isFirstParty ? TRUST_STYLES.verified : TRUST_STYLES.unverified
       }`}
@@ -105,7 +109,7 @@ function SourceChip({ sourceId, label }: { sourceId: string; label: string }) {
         <Globe size={11} aria-hidden className="shrink-0" />
       )}
       <span className="sr-only">{STRINGS.provenancePrefix}</span>
-      <span className="truncate">{label}</span>
+      <span className="truncate">{provenance.sourceLabel}</span>
     </span>
   );
 }
@@ -121,7 +125,7 @@ export default function ProvenanceBadge({ provenance }: { provenance: PluginProv
     >
       <TrustPill treatment={treatment} />
       {provenance.orphaned && <OrphanedPill />}
-      <SourceChip sourceId={provenance.sourceId} label={provenance.sourceLabel} />
+      <SourceChip provenance={provenance} />
     </span>
   );
 }
