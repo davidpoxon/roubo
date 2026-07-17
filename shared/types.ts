@@ -152,6 +152,7 @@ export type {
   SourceSelectionEntry,
 } from "./integration-types.js";
 
+export { SEED_PLUGIN_IDS } from "./plugin-runtime-types.js";
 export type {
   PluginStatus,
   PluginSource,

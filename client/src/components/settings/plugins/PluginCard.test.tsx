@@ -632,3 +632,86 @@ describe("PluginCard: keyboard tab order (TC-135, NFR-016)", () => {
     expect(primaryIndex).toBeGreaterThan(switchIndex);
   });
 });
+
+// Issue #563 (CPHMTP-FR-006 / CPHMTP-US-005): the installed-plugins settings tab
+// is one of the surfaces the persistent Unverified badge must reach. It was
+// provenance-blind before this: a plugin installed from an unsigned third-party
+// source was indistinguishable here from a bundled first-party one. The record's
+// provenance fields (stamped from the provenance ledger, issue #558/#560) drive
+// the badge; the trust derivation itself is pinned in ProvenanceBadge.test.tsx.
+describe("PluginCard: unverified and orphaned badges (issue #563)", () => {
+  const ACME_SOURCE_ID = "marketplace-acme-example-1a2b3c4d";
+
+  function thirdPartyRecord(over: Partial<PluginRecord> = {}): PluginRecord {
+    return record({
+      id: "ghe",
+      source: "user",
+      sourceId: ACME_SOURCE_ID,
+      sourceUrl: "https://marketplace.acme.example/catalog.json",
+      unverified: true,
+      ...over,
+    });
+  }
+
+  it("shows the Unverified badge and source provenance for a third-party plugin", () => {
+    render(<PluginCard plugin={thirdPartyRecord()} hostApiVersion="1.0.0" />);
+    const trust = screen.getByTestId("provenance-trust");
+    expect(trust).toHaveTextContent("Unverified");
+    expect(trust.dataset.treatment).toBe("unverified");
+    // CPHMTP-TC-056 S002-O01: no first-party verified styling in this UI state.
+    expect(trust.className).not.toContain("green");
+    // CPHMTP-FR-006 AC4: provenance alongside the badge, naming the source.
+    expect(screen.getByTestId("provenance-source")).toHaveTextContent(
+      "Source: marketplace.acme.example",
+    );
+    // The install-location label is a different fact and still renders.
+    expect(screen.getByTestId("plugin-source-label").dataset.source).toBe("user");
+  });
+
+  // A seeded first-party default carries no provenance fields (the seed install
+  // writes no ledger row), so the tab must not flag it as unverified. What earns
+  // the verified treatment here is the SEED ID, not the record's `source`, which
+  // `recordProvenance` never reads: post-clean-break a seed is `source: "user"`
+  // like any other install. The id is passed explicitly rather than leaning on the
+  // `record()` default, so the test names what it actually depends on.
+  it("shows the verified first-party treatment for a seeded plugin with no provenance fields", () => {
+    render(<PluginCard plugin={record({ id: "github-com" })} hostApiVersion="1.0.0" />);
+    const trust = screen.getByTestId("provenance-trust");
+    expect(trust).toHaveTextContent("Verified · first-party");
+    expect(trust).not.toHaveTextContent("Unverified");
+    expect(screen.queryByTestId("provenance-orphaned")).not.toBeInTheDocument();
+  });
+
+  // CPHMTP-FR-009: an orphaned plugin (its source deregistered) is flagged, and
+  // KEEPS its unverified badge rather than swapping one for the other.
+  it("shows the Orphaned badge alongside the retained Unverified badge", () => {
+    render(<PluginCard plugin={thirdPartyRecord({ orphaned: true })} hostApiVersion="1.0.0" />);
+    expect(screen.getByTestId("provenance-orphaned")).toHaveTextContent("Orphaned");
+    expect(screen.getByTestId("provenance-trust")).toHaveTextContent("Unverified");
+  });
+
+  // CPHMTP-TC-056 S002-O01 on this surface. A plugin installed from a raw git URL
+  // or local path (the Install dialog's git/local tabs) gets NO provenance ledger
+  // row, exactly like a seeded first-party default. It must still not wear the
+  // first-party treatment: absence is not evidence of verification.
+  it("shows Unverified for a non-seeded plugin installed with no provenance fields", () => {
+    render(
+      <PluginCard
+        plugin={record({ id: "from-some-git-url", source: "user" })}
+        hostApiVersion="1.0.0"
+      />,
+    );
+    const trust = screen.getByTestId("provenance-trust");
+    expect(trust).toHaveTextContent("Unverified");
+    expect(trust.className).not.toContain("green");
+    expect(screen.getByTestId("provenance-source")).toHaveTextContent("Source: Unknown source");
+  });
+
+  // CPHMTP-TC-041 S001-O01: the badge carries no dismiss affordance here either.
+  it("offers no way to dismiss the badge", () => {
+    render(<PluginCard plugin={thirdPartyRecord()} hostApiVersion="1.0.0" />);
+    const badge = screen.getByTestId("provenance-badge");
+    expect(badge.querySelector("button")).toBeNull();
+    expect(badge.textContent).not.toMatch(/dismiss|hide/i);
+  });
+});

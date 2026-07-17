@@ -5,6 +5,8 @@ import { declaredCategories, type InstallPreview, type PermissionCategory } from
 import MarketplaceInstallProgress from "./MarketplaceInstallProgress";
 import { deriveStageStatuses, describeArtifact } from "./marketplace-install-stages";
 import { CATEGORY_META } from "./permission-categories";
+import ProvenanceBadge from "./ProvenanceBadge";
+import { trustTreatmentOf, type PluginProvenance } from "./plugin-provenance";
 
 // Install/update consent for a marketplace catalog entry (CP-FR-020, issue
 // #621). It shows every permission category the STAGED manifest declares (the
@@ -14,13 +16,24 @@ import { CATEGORY_META } from "./permission-categories";
 // keyboard-operable while gated (NFR-007). On confirm it hands the acknowledged
 // categories to the container, which mints/refreshes the plugin's ConsentRecord
 // after the commit succeeds (issue #399).
+//
+// The trust banner is provenance-driven (CPHMTP-FR-006, issue #563): the consent
+// step is the last moment before third-party code is committed to the machine, so
+// it is the one surface where claiming "Verified, first-party" over an unsigned
+// plugin would do the most damage. Both the lead copy and the badge come from the
+// shared ProvenanceBadge derivation, so this dialog cannot assert verification the
+// listing path did not (CPHMTP-NFR-001, CPHMTP-TC-056 S002).
 
 const STRINGS = {
   installTitle: (name: string) => `Install ${name}?`,
   updateTitle: (name: string) => `Update ${name}?`,
   intro: "This plugin requests the access listed below. Review it before continuing.",
-  trust:
+  verifiedLead: "Verified, first-party.",
+  verifiedTrust:
     "Verified, first-party, but unsandboxed in this release. Enforced isolation arrives later; until then, review the access below.",
+  unverifiedLead: "Unverified, third-party.",
+  unverifiedTrust:
+    "This plugin comes from a source you registered, not from Roubo. It is unsigned, so Roubo cannot vouch for its contents, and it is unsandboxed in this release: it will run with your privileges. Review the access below.",
   noDeclared: "This plugin declares no special permissions.",
   acknowledge:
     "I understand this plugin runs with my privileges and acknowledge the access listed above.",
@@ -35,6 +48,11 @@ const STRINGS = {
 
 interface Props {
   preview: InstallPreview;
+  /**
+   * The provenance of the entry being installed, derived by the container from the
+   * LISTING (the server-stamped source id), never from the staged manifest.
+   */
+  provenance: PluginProvenance;
   mode: "install" | "update";
   error: string | null;
   isPending: boolean;
@@ -47,6 +65,7 @@ interface Props {
 
 export default function MarketplaceConsentModal({
   preview,
+  provenance,
   mode,
   error,
   isPending,
@@ -54,6 +73,7 @@ export default function MarketplaceConsentModal({
   onConfirm,
 }: Props) {
   const [acknowledged, setAcknowledged] = useState(false);
+  const isVerified = trustTreatmentOf(provenance) === "verified";
   const { manifest } = preview;
   const declared = manifest.permissions;
   const categories = declaredCategories(declared);
@@ -127,12 +147,19 @@ export default function MarketplaceConsentModal({
           <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
             <div
               data-testid="marketplace-consent-trust"
-              className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
+              data-treatment={isVerified ? "verified" : "unverified"}
+              className="space-y-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
             >
-              <ShieldAlert size={14} className="shrink-0 mt-0.5" />
-              <span>
-                <span className="font-semibold">Verified, first-party.</span> {STRINGS.trust}
-              </span>
+              <div className="flex items-start gap-2">
+                <ShieldAlert size={14} className="shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-semibold">
+                    {isVerified ? STRINGS.verifiedLead : STRINGS.unverifiedLead}
+                  </span>{" "}
+                  {isVerified ? STRINGS.verifiedTrust : STRINGS.unverifiedTrust}
+                </span>
+              </div>
+              <ProvenanceBadge provenance={provenance} />
             </div>
 
             <div className="space-y-2">

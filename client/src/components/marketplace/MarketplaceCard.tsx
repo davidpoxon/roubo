@@ -1,72 +1,29 @@
 import { Button } from "react-aria-components";
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  Download,
-  Globe,
-  Package,
-  RefreshCw,
-  ShieldCheck,
-} from "lucide-react";
-import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
+import { AlertTriangle, ArrowRight, Check, Download, Package, RefreshCw } from "lucide-react";
 import type { MarketplaceListing } from "@roubo/shared";
+import ProvenanceBadge from "./ProvenanceBadge";
+import { listingProvenance } from "./plugin-provenance";
 
 // One catalog card (CP-FR-020 / CP-US-010, issue #621). State-aware affordance:
 //   - update available -> Update button
 //   - installed (current) -> "Installed" badge, NO install affordance
 //   - not installed -> Install button
-// Each card shows the display-only verified marker, the version, and exactly one
-// source provenance chip naming where the entry came from (CPHMTP-FR-004, issue
-// #557).
+// Each card shows the version and one ProvenanceBadge: the shared trust treatment
+// (Verified / Unverified) plus exactly one source provenance chip naming where the
+// entry came from (CPHMTP-FR-004, issue #557; CPHMTP-FR-006, issue #563). The card
+// renders no trust marker of its own: the badge owns that decision so a third-party
+// entry cannot reach the first-party verified styling from here (CPHMTP-NFR-001).
 
 const STRINGS = {
-  verified: "Verified",
   install: "Install",
   update: "Update",
   installed: "Installed",
-  provenancePrefix: "Source: ",
   collisionPill: (count: number) => `Served by ${count} sources`,
   // Names every contributing source, so the collision is legible from the card
   // without opening anything (CPHMTP-TC-033 S001-O02).
   collisionLabel: (labels: string[]) =>
     `Plugin id served by ${labels.length} sources: ${labels.join(", ")}. Choose a source to install from.`,
 };
-
-/**
- * The per-entry source provenance chip (CPHMTP-FR-004, issue #557). Exactly one
- * renders per card. First-party is deliberately a DISTINCT treatment from a
- * registered third-party source: green (matching the first-party verified marker
- * below) versus amber, so provenance is legible at a glance and an unsigned
- * source cannot visually pass itself off as the curated catalog. A visually
- * hidden "Source: " prefix leads the chip's subtree text, so a screen reader
- * announces "Source: ACME workplace" rather than a bare hostname out of context
- * (CPHMTP-NFR-008). It is deliberately subtree text and not an `aria-label`: the
- * chip is a role-less span (ARIA role `generic`), which prohibits `aria-label`,
- * and a generic container is not a navigation stop, so assistive tech reads the
- * subtree rather than the name (issue #596).
- */
-function SourceChip({ sourceId, label }: { sourceId: string; label: string }) {
-  const isFirstParty = sourceId === FIRST_PARTY_SOURCE_ID;
-  const cls = isFirstParty
-    ? "border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-300"
-    : "border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200";
-  return (
-    <span
-      data-testid="marketplace-card-source"
-      data-source-id={sourceId}
-      className={`inline-flex max-w-[12rem] items-center gap-1 rounded-full border ${cls} px-2 py-0.5 text-[10px] font-medium`}
-    >
-      {isFirstParty ? (
-        <ShieldCheck size={11} aria-hidden className="shrink-0" />
-      ) : (
-        <Globe size={11} aria-hidden className="shrink-0" />
-      )}
-      <span className="sr-only">{STRINGS.provenancePrefix}</span>
-      <span className="truncate">{label}</span>
-    </span>
-  );
-}
 
 /**
  * The cross-source collision pill (CPHMTP-FR-005, issue #558). Renders beside the
@@ -121,7 +78,11 @@ interface Props {
    * same way. Empty when this listing is not a collision.
    */
   collisionSourceLabels: string[];
-  onOpenDetail: (id: string) => void;
+  /**
+   * Passes the whole listing, not its id: an id can be served by several sources
+   * at once (CPHMTP-FR-005), so only the entry itself identifies the row pressed.
+   */
+  onOpenDetail: (listing: MarketplaceListing) => void;
   onInstall: (listing: MarketplaceListing) => void;
   onUpdate: (listing: MarketplaceListing) => void;
 }
@@ -151,7 +112,7 @@ export default function MarketplaceCard({
           <div className="flex items-center gap-2">
             <Button
               data-testid="marketplace-card-detail"
-              onPress={() => onOpenDetail(listing.id)}
+              onPress={() => onOpenDetail(listing)}
               className="truncate text-[14px] font-semibold text-stone-900 dark:text-stone-100 hover:text-amber-700 dark:hover:text-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
             >
               {listing.name}
@@ -162,7 +123,7 @@ export default function MarketplaceCard({
             {listing.id}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <SourceChip sourceId={listing.sourceId} label={sourceLabel} />
+            <ProvenanceBadge provenance={listingProvenance(listing, sourceLabel)} />
             {isCollision && <CollisionPill sourceLabels={collisionSourceLabels} />}
           </div>
         </div>
@@ -174,15 +135,6 @@ export default function MarketplaceCard({
 
       <div className="mt-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-[11px]">
-          {listing.verified && (
-            <span
-              data-testid="marketplace-card-verified"
-              className="inline-flex items-center gap-1 text-green-700 dark:text-green-400"
-            >
-              <ShieldCheck size={14} aria-hidden /> {STRINGS.verified}
-            </span>
-          )}
-          <span className="text-stone-300 dark:text-stone-700">·</span>
           {listing.updateAvailable && listing.installedVersion ? (
             <span data-testid="marketplace-card-version">
               <span className="font-mono text-stone-400 dark:text-stone-500 line-through">

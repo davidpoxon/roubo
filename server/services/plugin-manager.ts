@@ -8,6 +8,7 @@ import semver from "semver";
 import treeKill from "tree-kill";
 import {
   parseManifest,
+  SEED_PLUGIN_IDS,
   type ConnectionState,
   type IsolationNotice,
   type LogLine,
@@ -394,7 +395,12 @@ function userPluginsRoot(): string {
 // is deliberately NOT BUNDLED_PLUGIN_IDS (the legacy integration-only bundle:
 // github-com / ghe / jira-self-hosted). The seed set is the common-case app:
 // the github-com integration plus the two component plugins.
-export const SEED_PLUGIN_IDS = ["github-com", "process", "database"] as const;
+//
+// Defined in @roubo/shared and re-exported here for the server's own callers:
+// the client needs the same set to tell a seeded plugin (no provenance ledger
+// row, first-party) from a raw git/local install (also no row, NOT first-party)
+// when it renders the trust badge (issue #563).
+export { SEED_PLUGIN_IDS };
 
 // The seed-set version applied, recorded in the marker (.seed-version.json) for
 // forward compatibility and diagnostics. The seed gate is existence-only: the

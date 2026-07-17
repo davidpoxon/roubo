@@ -3,24 +3,31 @@ import { Check, Download, Package, RefreshCw, ShieldAlert, ShieldCheck, X } from
 import { declaredCategories } from "@roubo/shared";
 import type { MarketplaceListing, PluginLifecycle } from "@roubo/shared";
 import { CATEGORY_META } from "./permission-categories";
+import ProvenanceBadge from "./ProvenanceBadge";
+import { listingProvenance, trustTreatmentOf } from "./plugin-provenance";
 
 // Detail drawer for one catalog entry (CP-FR-020, issue #621; CP-FR-021, issue
 // #622). A right-side modal panel mirroring the prototype: identity, summary,
 // metadata (integrity, provenance, sandbox status, kind, version, curation), and
 // the same state-aware affordance as the card (Update / Installed / Install).
-// The Integrity row reflects the signed-catalog verification (the entry only
-// reaches this drawer when the catalog signature validated, so a verified entry
-// is "signed by Roubo"); the Provenance row shows the registry path; the Sandbox
-// row flags that enforced isolation is not yet active.
+// The Provenance row shows the registry path; the Sandbox row flags that enforced
+// isolation is not yet active.
+//
+// The Integrity row is provenance-dependent (CPHMTP-FR-006, issue #563). Only the
+// first-party catalog carries a signature, so only a first-party entry can claim
+// "signed by Roubo": a third-party source is unsigned, and its integrity floor is
+// the per-artifact sha256 digest the installer recomputes and fails closed on
+// (CPHMTP-NFR-004), which is what its row says instead. The Curation row renders
+// the shared ProvenanceBadge, so the drawer carries the same non-dismissible
+// Unverified badge and source provenance as the card (CPHMTP-TC-031).
 
 const STRINGS = {
   title: "Plugin detail",
   close: "Close",
   integrity: "Integrity",
   integrityVerified: "Verified · signed by Roubo",
+  integrityUnsigned: "Unsigned source · artifact digest checked at install",
   provenance: "Provenance",
-  verified: "Verified · first-party curated",
-  curatedOnly: "First-party curated. Listed by Roubo maintainers.",
   kind: "Kind",
   version: "Version",
   curation: "Curation",
@@ -46,6 +53,8 @@ const LIFECYCLE_DESCRIPTION: Record<PluginLifecycle, string> = {
 
 interface Props {
   listing: MarketplaceListing;
+  /** Display label for `listing.sourceId`, resolved by the container the same way the card's is. */
+  sourceLabel: string;
   onClose: () => void;
   onInstall: (listing: MarketplaceListing) => void;
   onUpdate: (listing: MarketplaceListing) => void;
@@ -60,8 +69,16 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-export default function MarketplaceDrawer({ listing, onClose, onInstall, onUpdate }: Props) {
+export default function MarketplaceDrawer({
+  listing,
+  sourceLabel,
+  onClose,
+  onInstall,
+  onUpdate,
+}: Props) {
   const showInstalled = listing.installed && !listing.updateAvailable;
+  const provenance = listingProvenance(listing, sourceLabel);
+  const isSigned = trustTreatmentOf(provenance) === "verified";
   // PRE-INSTALL provenance the server derived onto the listing (issue #401): the
   // declared permission categories (exactly those the manifest requests, via
   // `declaredCategories`) and the component lifecycle. Both are null when the
@@ -124,9 +141,21 @@ export default function MarketplaceDrawer({ listing, onClose, onInstall, onUpdat
               <MetaRow label={STRINGS.integrity}>
                 <span
                   data-testid="marketplace-drawer-integrity"
-                  className="inline-flex items-center gap-1 text-green-700 dark:text-green-400"
+                  className={`inline-flex items-center gap-1 ${
+                    isSigned
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-amber-700 dark:text-amber-400"
+                  }`}
                 >
-                  <ShieldCheck size={14} aria-hidden /> {STRINGS.integrityVerified}
+                  {isSigned ? (
+                    <>
+                      <ShieldCheck size={14} aria-hidden /> {STRINGS.integrityVerified}
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert size={14} aria-hidden /> {STRINGS.integrityUnsigned}
+                    </>
+                  )}
                 </span>
               </MetaRow>
               <MetaRow label={STRINGS.provenance}>
@@ -146,13 +175,7 @@ export default function MarketplaceDrawer({ listing, onClose, onInstall, onUpdat
                 <span className="font-mono">v{listing.version}</span>
               </MetaRow>
               <MetaRow label={STRINGS.curation}>
-                {listing.verified ? (
-                  <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400">
-                    <ShieldCheck size={14} aria-hidden /> {STRINGS.verified}
-                  </span>
-                ) : (
-                  STRINGS.curatedOnly
-                )}
+                <ProvenanceBadge provenance={provenance} />
               </MetaRow>
               <MetaRow label={STRINGS.sandbox}>
                 <span

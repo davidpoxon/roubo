@@ -32,6 +32,7 @@ import {
 } from "../../hooks/useMarketplace";
 import Marketplace from "./Marketplace";
 import MarketplaceConsentModal from "./MarketplaceConsentModal";
+import type { PluginProvenance } from "./plugin-provenance";
 
 const mockedCatalog = vi.mocked(_useCatalog);
 const mockedInstallPreview = vi.mocked(_useInstallPreview);
@@ -106,6 +107,16 @@ const ACME_STATUS = {
   source: "network",
   fetchedAt: "2026-07-02T00:00:00.000Z",
   unavailable: false,
+};
+
+// The consent modal is handed the entry's provenance by its container (issue
+// #563). These scans cover the first-party install; the unverified badge's own
+// a11y is covered by the multi-source scans below, which list a third-party entry.
+const A11Y_PROVENANCE: PluginProvenance = {
+  sourceId: FIRST_PARTY_SOURCE_ID,
+  sourceLabel: "Roubo first-party",
+  curated: true,
+  orphaned: false,
 };
 
 function setCatalogData(
@@ -207,6 +218,7 @@ describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
     const { baseElement } = render(
       <MarketplaceConsentModal
         preview={preview()}
+        provenance={A11Y_PROVENANCE}
         mode="install"
         error={null}
         isPending={false}
@@ -223,6 +235,7 @@ describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
     const { getByRole, getByTestId } = render(
       <MarketplaceConsentModal
         preview={preview()}
+        provenance={A11Y_PROVENANCE}
         mode="install"
         error={null}
         isPending={false}

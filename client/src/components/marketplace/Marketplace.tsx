@@ -32,6 +32,7 @@ import MarketplaceCard from "./MarketplaceCard";
 import MarketplaceDrawer from "./MarketplaceDrawer";
 import MarketplaceConsentModal from "./MarketplaceConsentModal";
 import MarketplaceInstallProgress from "./MarketplaceInstallProgress";
+import { listingProvenance } from "./plugin-provenance";
 import { deriveStageStatuses, describeArtifact } from "./marketplace-install-stages";
 import MarketplaceOfflineBanner from "./MarketplaceOfflineBanner";
 
@@ -159,11 +160,26 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * Identity of one catalog entry: the plugin id alone is NOT unique, because a
+ * collision means several sources serve the same id and the server marks it rather
+ * than picking a winner (CPHMTP-FR-005). Source plus id is what identifies the
+ * exact row the consumer pressed.
+ */
+function listingKey(listing: MarketplaceListing): string {
+  return `${listing.sourceId}:${listing.id}`;
+}
+
 export default function Marketplace() {
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"all" | MarketplaceKind>("all");
   const [sourceId, setSourceId] = useState<string>(ALL_SOURCES);
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // Keyed by source AND id, never by id alone: two sources may serve the same
+  // plugin id (a marked, deliberately unresolved collision, CPHMTP-FR-005), so a
+  // bare id would open whichever entry sorted first and could show a first-party
+  // entry's verified treatment for the third-party card the consumer pressed
+  // (CPHMTP-NFR-001, issue #563).
+  const [detailKey, setDetailKey] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingConsent | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
   const [staging, setStaging] = useState<ActiveStaging | null>(null);
@@ -184,8 +200,8 @@ export default function Marketplace() {
 
   const listings = useMemo(() => data?.listings ?? [], [data]);
   const detailListing = useMemo(
-    () => listings.find((l) => l.id === detailId) ?? null,
-    [listings, detailId],
+    () => listings.find((l) => listingKey(l) === detailKey) ?? null,
+    [listings, detailKey],
   );
 
   // The per-source status rows always describe EVERY source in the fan-out, even
@@ -193,6 +209,9 @@ export default function Marketplace() {
   // user can always get back to "All sources" (CPHMTP-FR-004).
   const sources = useMemo(() => data?.sources ?? [], [data]);
   const sourceLabels = useMemo(() => new Map(sources.map((s) => [s.id, s.label])), [sources]);
+  // Falls back to the raw source id, so a source the status rows do not describe
+  // still names its origin rather than rendering an empty chip.
+  const labelFor = (id: string): string => sourceLabels.get(id) ?? id;
   // Only registered third-party sources can be unavailable: the first-party chain
   // always has the bundled seed to fall back on. Called out per source, so one
   // dead source never implies the others failed (CPHMTP-NFR-007).
@@ -313,7 +332,7 @@ export default function Marketplace() {
         setPending(null);
         setConsentError(null);
         setStaging(null);
-        setDetailId(null);
+        setDetailKey(null);
       },
       onError: (err) => setConsentError(errorMessage(err, STRINGS.installFailed)),
     });
@@ -466,13 +485,11 @@ export default function Marketplace() {
           >
             {listings.map((listing) => (
               <MarketplaceCard
-                key={`${listing.sourceId}:${listing.id}`}
+                key={listingKey(listing)}
                 listing={listing}
-                sourceLabel={sourceLabels.get(listing.sourceId) ?? listing.sourceId}
-                collisionSourceLabels={(listing.collision?.sourceIds ?? []).map(
-                  (id) => sourceLabels.get(id) ?? id,
-                )}
-                onOpenDetail={setDetailId}
+                sourceLabel={labelFor(listing.sourceId)}
+                collisionSourceLabels={(listing.collision?.sourceIds ?? []).map(labelFor)}
+                onOpenDetail={(opened) => setDetailKey(listingKey(opened))}
                 onInstall={beginInstall}
                 onUpdate={beginUpdate}
               />
@@ -484,7 +501,8 @@ export default function Marketplace() {
       {detailListing && (
         <MarketplaceDrawer
           listing={detailListing}
-          onClose={() => setDetailId(null)}
+          sourceLabel={labelFor(detailListing.sourceId)}
+          onClose={() => setDetailKey(null)}
           onInstall={beginInstall}
           onUpdate={beginUpdate}
         />
@@ -493,6 +511,11 @@ export default function Marketplace() {
       {pending && (
         <MarketplaceConsentModal
           preview={pending.preview}
+          // The consent modal's trust lead is provenance-driven (CPHMTP-FR-006,
+          // issue #563): it is derived from the LISTING being installed, the only
+          // shape here that carries the server-stamped source id, never from the
+          // staged preview (whose manifest is the plugin's own, unverifiable copy).
+          provenance={listingProvenance(pending.listing, labelFor(pending.listing.sourceId))}
           mode={pending.mode}
           error={consentError}
           isPending={confirmMutation.isPending}

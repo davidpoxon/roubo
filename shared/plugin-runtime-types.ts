@@ -4,6 +4,20 @@ export type PluginStatus = "enabled" | "disabled" | "errored" | "incompatible" |
 
 export type PluginSource = "bundled" | "user";
 
+/**
+ * The default plugins seeded once, offline, on first launch (CPHM-FR-004 /
+ * CPHM-US-001). Shared rather than server-local because the client needs it too:
+ * a seeded plugin carries no provenance ledger row (the seed install never writes
+ * one), so its id is the only thing that distinguishes it from a plugin the user
+ * installed from a raw git URL, which likewise has no row. The badge derivation
+ * (`recordProvenance`) uses that to read absent provenance as first-party ONLY for
+ * these ids and unverified for anything else (CPHMTP-NFR-001, issue #563).
+ *
+ * The server's seed pass is the authority on the set; this is its single
+ * definition, re-exported from `plugin-manager` for the server's own callers.
+ */
+export const SEED_PLUGIN_IDS = ["github-com", "process", "database"] as const;
+
 export interface RestartEvent {
   at: string;
   reason: "unexpected-exit" | "spawn-failed" | "sandbox-fallback";
@@ -51,8 +65,15 @@ export interface PluginRecord {
   // Additive and OPTIONAL: `source` above says only how the plugin reached the
   // machine (bundled with the app vs installed by the user), never WHICH
   // marketplace source served it, and every record predating the provenance
-  // ledger simply omits these. Absent means first-party / verified, so no
-  // migration is needed.
+  // ledger simply omits these, so no migration is needed.
+  //
+  // Absent does NOT mean verified. A first-party seed default carries no ledger
+  // row (the seed install writes none), but neither does a plugin installed from
+  // a raw git URL or local path, so absence alone cannot be trusted: the UI reads
+  // it as first-party only for `SEED_PLUGIN_IDS` above and unverified otherwise
+  // (CPHMTP-NFR-001, issue #563). Stamping a row for the seed and raw-install
+  // paths, so absence can simply fail closed, is the durable fix
+  // (davidpoxon/roubo-development#607).
   //
   // Stamped when a record is rebuilt from disk, read from the provenance ledger
   // (~/.roubo/plugins-provenance.json) that the install commit wrote: the record
