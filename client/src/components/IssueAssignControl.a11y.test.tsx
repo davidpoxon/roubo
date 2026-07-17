@@ -4,21 +4,13 @@
 // enabled, disabled-with-tooltip, and disabled-bare states. The disabled
 // variant is the WU-033 "alert-backed bench" affordance.
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CapturedUserId } from "@roubo/shared";
 import IssueAssignControl from "./IssueAssignControl";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../test/axe";
 
 vi.mock("../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/api")>();
@@ -51,7 +43,7 @@ describe("IssueAssignControl: axe-core (WU-036)", () => {
       />,
     );
     const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   it("has no axe violations in the assigned state", async () => {
@@ -64,7 +56,7 @@ describe("IssueAssignControl: axe-core (WU-036)", () => {
       />,
     );
     const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   it("has no axe violations in the disabled state with a documented tooltip", async () => {
@@ -79,7 +71,7 @@ describe("IssueAssignControl: axe-core (WU-036)", () => {
       />,
     );
     const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   it("has no axe violations in the disabled state without a tooltip", async () => {
@@ -93,6 +85,6 @@ describe("IssueAssignControl: axe-core (WU-036)", () => {
       />,
     );
     const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 });

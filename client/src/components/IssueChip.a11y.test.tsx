@@ -3,20 +3,12 @@
 // WU-036 / TC-099: zero serious axe violations on the issues-list
 // `security-category` chip variant across all three SecurityCategory values.
 
-import { describe, it, expect } from "vitest";
+import { describe, it } from "vitest";
 import { render } from "@testing-library/react";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import type { SecurityCategory } from "../lib/chip-mapping";
 import IssueChip from "./IssueChip";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../test/axe";
 
 const CATEGORIES: { value: SecurityCategory; label: string }[] = [
   { value: "codeql", label: "CodeQL" },
@@ -33,7 +25,7 @@ describe("IssueChip security-category: axe-core (WU-036)", () => {
         </IssueChip>,
       );
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      expectNoAxeFindings(results);
     });
 
     it(`has no axe violations on the ${value} variant with a tooltip`, async () => {
@@ -48,7 +40,7 @@ describe("IssueChip security-category: axe-core (WU-036)", () => {
         </IssueChip>,
       );
       const results = await axe(container);
-      expect(results).toHaveNoViolations();
+      expectNoAxeFindings(results);
     });
   }
 });

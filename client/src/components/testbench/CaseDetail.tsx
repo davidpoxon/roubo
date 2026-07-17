@@ -119,6 +119,10 @@ export default function CaseDetail({
   return (
     <div
       ref={rootRef}
+      // role=region: aria-label is ARIA-prohibited on a role-less div (issue
+      // roubo-development#600), and the detail pane is a significant, navigable
+      // surface worth a labelled landmark.
+      role="region"
       className="relative flex flex-col min-h-0 flex-1"
       aria-label={`Case detail: ${testCase.title}`}
     >
@@ -206,8 +210,11 @@ export default function CaseDetail({
           </div>
 
           {/* Per-case observation progress (#508), distinct from the overall and
-              per-level case rollups. */}
+              per-level case rollups. role=status: aria-label is ARIA-prohibited
+              on a role-less div (issue roubo-development#600), and the chip is a
+              status readout that updates as observations are marked. */}
           <div
+            role="status"
             className="mt-3 inline-flex items-center gap-2 self-start rounded-md bg-stone-100/80 dark:bg-stone-800/50 px-2.5 py-1 font-mono text-[11px] text-stone-500 dark:text-stone-400 tabular-nums"
             aria-label={`${progress.marked} of ${progress.total} observations marked`}
           >

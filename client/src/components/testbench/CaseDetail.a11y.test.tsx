@@ -20,16 +20,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
 import CaseDetail from "./CaseDetail";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../../test/axe";
 
 vi.mock("../../hooks/useTestbenchMarks");
 import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestbenchMarks";
@@ -460,7 +453,7 @@ describe("CaseDetail a11y (TC-036)", () => {
       <CaseDetail projectId="p1" benchId={1} testCase={CASE} result={result} onBack={() => {}} />,
     );
     const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 });
 

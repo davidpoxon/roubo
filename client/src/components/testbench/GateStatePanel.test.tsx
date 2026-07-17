@@ -8,16 +8,9 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import type { GateState } from "../../lib/api";
 import GateStatePanel from "./GateStatePanel";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../../test/axe";
 
 const nonPassed: GateState = {
   gateId: "WU-099",
@@ -85,6 +78,6 @@ describe("GateStatePanel", () => {
 
   it("has no axe violations", async () => {
     const { container } = render(<GateStatePanel gate={nonPassed} />);
-    expect(await axe(container)).toHaveNoViolations();
+    expectNoAxeFindings(await axe(container));
   });
 });

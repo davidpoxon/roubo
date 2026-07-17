@@ -7,17 +7,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import type { Case } from "@roubo/shared/testbench-contracts";
 import { buildRollup, flattenRollup } from "./rollup";
 import CaseList from "./CaseList";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../../test/axe";
 
 // jsdom reports zero layout. Give the scroll container a fixed viewport height
 // and a stable per-row height so @tanstack/react-virtual produces a real window
@@ -268,7 +261,7 @@ describe("CaseList level collapse (#508)", () => {
     const { container } = render(<CaseList rows={rowsFor(30)} />);
     fireEvent.click(screen.getByRole("button", { name: "Collapse Level 1" }));
     const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   it("keeps the roving tab stop on the same case when a level above it collapses (corr-1)", () => {
@@ -303,6 +296,6 @@ describe("CaseList a11y", () => {
   it("has no axe violations", async () => {
     const { container } = render(<CaseList rows={rowsFor(30)} />);
     const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 });

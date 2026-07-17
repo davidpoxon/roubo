@@ -5,24 +5,16 @@
 // a `<ul>` (the parent ResultStrip renders an unordered list, so the row's
 // `<li>` is wrapped accordingly here to keep axe happy).
 
-import { describe, it, expect } from "vitest";
+import { describe, it } from "vitest";
 import { render } from "@testing-library/react";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import type {
   IntegrationCategoryId,
   IntegrationCategoryReport,
   IntegrationCategoryStatus,
 } from "@roubo/shared";
 import { CategoryRow } from "./PluginConfigureDialog";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../test/axe";
 
 const CATEGORIES: { category: IntegrationCategoryId; label: string }[] = [
   { category: "issues", label: "Issues" },
@@ -50,7 +42,7 @@ describe("PluginConfigureDialog CategoryRow: axe-core (WU-036)", () => {
           </ul>,
         );
         const results = await axe(container);
-        expect(results).toHaveNoViolations();
+        expectNoAxeFindings(results);
       });
     }
   }

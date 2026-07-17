@@ -11,17 +11,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import EnablePluginPromptModal from "./EnablePluginPromptModal";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../test/axe";
 
 vi.mock("../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/api")>();
@@ -65,7 +57,7 @@ describe("EnablePluginPromptModal: axe-core (TC-152, WCAG 2.1 AA)", () => {
     // React Aria's Modal portals outside the render container; scan the full
     // document body so the dialog markup is included.
     const results = await axe(baseElement);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 
   it("has no axe violations in the inline-error state", async () => {
@@ -87,6 +79,6 @@ describe("EnablePluginPromptModal: axe-core (TC-152, WCAG 2.1 AA)", () => {
     });
 
     const results = await axe(baseElement);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 });

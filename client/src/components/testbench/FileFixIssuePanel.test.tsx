@@ -12,19 +12,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import FileFixIssuePanel from "./FileFixIssuePanel";
 import { ApiError } from "../../lib/api";
+import { expectNoAxeFindings } from "../../test/axe";
 
 vi.mock("../../hooks/useGates");
 import { useFileFixIssue } from "../../hooks/useGates";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-expect.extend({ toHaveNoViolations });
 
 const mockUseFileFixIssue = vi.mocked(useFileFixIssue);
 
@@ -204,6 +197,6 @@ describe("FileFixIssuePanel a11y", () => {
   it("has no axe violations", async () => {
     const { container } = renderPanel();
     const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    expectNoAxeFindings(results);
   });
 });

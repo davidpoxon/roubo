@@ -7,16 +7,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { axe } from "vitest-axe";
-import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import type { TestCasesPlan, BenchResults, Case } from "@roubo/shared/testbench-contracts";
 import type { TestbenchPlanResponse } from "../../lib/api";
-
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
-  }
-}
-expect.extend({ toHaveNoViolations });
+import { expectNoAxeFindings } from "../../test/axe";
 
 vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: vi.fn(),
@@ -135,7 +128,7 @@ describe("TestBenchPanel", () => {
     expect(screen.getAllByText("Failed").length).toBeGreaterThan(0);
 
     const results2 = await axe(container);
-    expect(results2).toHaveNoViolations();
+    expectNoAxeFindings(results2);
   });
 
   it("never serialises raw plan/result JSON into the DOM", () => {
