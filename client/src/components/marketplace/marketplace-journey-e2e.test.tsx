@@ -351,7 +351,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         });
         const card = getAllByTestId("marketplace-card")[0];
         expect(within(card).getByTestId("marketplace-card-install")).toBeInTheDocument();
-        expect(within(card).getByTestId("marketplace-card-verified")).toHaveTextContent("Verified");
+        expect(within(card).getByTestId("provenance-trust")).toHaveTextContent("Verified");
         expect(within(card).getByTestId("marketplace-card-version")).toHaveTextContent("v1.3.0");
       },
     );

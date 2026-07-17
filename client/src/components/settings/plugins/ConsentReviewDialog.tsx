@@ -4,6 +4,8 @@ import { AlertTriangle, Check, ShieldAlert, ShieldCheck } from "lucide-react";
 import { declaredCategories, type PluginPermissions } from "@roubo/shared";
 import { useGrantConsent } from "../../../hooks/usePlugins";
 import { CATEGORY_META } from "../../marketplace/permission-categories";
+import ProvenanceBadge from "../../marketplace/ProvenanceBadge";
+import { trustTreatmentOf, type PluginProvenance } from "../../marketplace/plugin-provenance";
 
 // Consent affordance for an already-installed component plugin (issue #490).
 // Bundled component plugins (process / database) ship installed but never pass
@@ -15,14 +17,23 @@ import { CATEGORY_META } from "../../marketplace/permission-categories";
 // deliberately NOT MarketplaceConsentModal: that modal is coupled to the install
 // flow (staging token, 4-step install-progress widget, "Install/Update" labels),
 // all of which would mislead here since the plugin is already installed.
+//
+// The trust banner is provenance-driven (CPHMTP-FR-006, issue #563): this dialog
+// is one of the enumerated plugin surfaces, so a third-party plugin must wear its
+// non-dismissible Unverified badge and its source provenance here too, and the
+// lead copy must not assert first-party verification the record does not carry
+// (CPHMTP-NFR-001, CPHMTP-TC-056 S002).
 
 const STRINGS = {
   title: (name: string) => `Review permissions for ${name}`,
   intro:
     "This installed plugin declares the access listed below. Acknowledge it so benches can use this plugin.",
-  trustLead: "Verified, first-party.",
-  trust:
+  verifiedLead: "Verified, first-party.",
+  verifiedTrust:
     "Verified, first-party, but unsandboxed in this release. Enforced isolation arrives later; until then, review the access below.",
+  unverifiedLead: "Unverified, third-party.",
+  unverifiedTrust:
+    "This plugin came from a source you registered, not from Roubo. It is unsigned, so Roubo cannot vouch for its contents, and it is unsandboxed in this release: it runs with your privileges. Review the access below.",
   noDeclared: "This plugin declares no special permissions.",
   acknowledge:
     "I understand this plugin runs with my privileges and acknowledge the access listed above.",
@@ -35,6 +46,8 @@ interface Props {
   pluginId: string;
   pluginName: string;
   declared: PluginPermissions;
+  /** The installed record's provenance, via `recordProvenance` at the call site. */
+  provenance: PluginProvenance;
   version?: string;
   onClose: () => void;
 }
@@ -43,10 +56,12 @@ export default function ConsentReviewDialog({
   pluginId,
   pluginName,
   declared,
+  provenance,
   version,
   onClose,
 }: Props) {
   const [acknowledged, setAcknowledged] = useState(false);
+  const isVerified = trustTreatmentOf(provenance) === "verified";
   const grantConsent = useGrantConsent();
   const categories = declaredCategories(declared);
   const isPending = grantConsent.isPending;
@@ -104,12 +119,19 @@ export default function ConsentReviewDialog({
 
             <div
               data-testid="consent-review-trust"
-              className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
+              data-treatment={isVerified ? "verified" : "unverified"}
+              className="space-y-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
             >
-              <ShieldAlert size={14} className="shrink-0 mt-0.5" />
-              <span>
-                <span className="font-semibold">{STRINGS.trustLead}</span> {STRINGS.trust}
-              </span>
+              <div className="flex items-start gap-2">
+                <ShieldAlert size={14} className="shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-semibold">
+                    {isVerified ? STRINGS.verifiedLead : STRINGS.unverifiedLead}
+                  </span>{" "}
+                  {isVerified ? STRINGS.verifiedTrust : STRINGS.unverifiedTrust}
+                </span>
+              </div>
+              <ProvenanceBadge provenance={provenance} />
             </div>
 
             {categories.length === 0 ? (

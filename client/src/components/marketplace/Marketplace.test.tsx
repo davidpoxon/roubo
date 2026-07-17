@@ -165,9 +165,10 @@ describe("Marketplace catalog", () => {
     render(<Marketplace />);
     const cards = screen.getAllByTestId("marketplace-card");
     expect(cards).toHaveLength(3);
-    // every card has a verified badge and a version
+    // every card has a trust badge and a version. These are first-party curated
+    // entries, so the badge carries the verified treatment (issue #563).
     for (const card of cards) {
-      expect(within(card).getByTestId("marketplace-card-verified")).toBeInTheDocument();
+      expect(within(card).getByTestId("provenance-trust")).toHaveTextContent("Verified");
       expect(within(card).getByTestId("marketplace-card-version")).toBeInTheDocument();
     }
     // both kinds present
@@ -518,12 +519,12 @@ describe("Marketplace multi-source browse (issue #557)", () => {
     setMerged();
     render(<Marketplace />);
     for (const card of screen.getAllByTestId("marketplace-card")) {
-      expect(within(card).getAllByTestId("marketplace-card-source")).toHaveLength(1);
+      expect(within(card).getAllByTestId("provenance-source")).toHaveLength(1);
     }
-    expect(within(cardFor("redis")).getByTestId("marketplace-card-source")).toHaveTextContent(
+    expect(within(cardFor("redis")).getByTestId("provenance-source")).toHaveTextContent(
       "Roubo first-party",
     );
-    expect(within(cardFor("ghe")).getByTestId("marketplace-card-source")).toHaveTextContent(
+    expect(within(cardFor("ghe")).getByTestId("provenance-source")).toHaveTextContent(
       "ACME workplace",
     );
   });
@@ -534,8 +535,8 @@ describe("Marketplace multi-source browse (issue #557)", () => {
   it("renders first-party provenance distinctly from a third-party source", () => {
     setMerged();
     render(<Marketplace />);
-    const firstParty = within(cardFor("redis")).getByTestId("marketplace-card-source");
-    const thirdParty = within(cardFor("ghe")).getByTestId("marketplace-card-source");
+    const firstParty = within(cardFor("redis")).getByTestId("provenance-source");
+    const thirdParty = within(cardFor("ghe")).getByTestId("provenance-source");
     expect(firstParty.getAttribute("data-source-id")).toBe(FIRST_PARTY_SOURCE_ID);
     expect(thirdParty.getAttribute("data-source-id")).toBe(ACME_SOURCE_ID);
     expect(firstParty.className).toContain("green");
@@ -551,8 +552,8 @@ describe("Marketplace multi-source browse (issue #557)", () => {
   it("prefixes each provenance chip with screen-reader-only source context rather than showing a bare host", () => {
     setMerged();
     render(<Marketplace />);
-    const firstParty = within(cardFor("redis")).getByTestId("marketplace-card-source");
-    const thirdParty = within(cardFor("ghe")).getByTestId("marketplace-card-source");
+    const firstParty = within(cardFor("redis")).getByTestId("provenance-source");
+    const thirdParty = within(cardFor("ghe")).getByTestId("provenance-source");
     expect(firstParty).toHaveTextContent("Source: Roubo first-party");
     expect(thirdParty).toHaveTextContent("Source: ACME workplace");
     // The prefix is announced but never seen: it carries the sr-only treatment.
@@ -1050,5 +1051,212 @@ describe("cross-source id collision (issue #558)", () => {
     await userEvent.click((await screen.findAllByTestId("marketplace-card-install"))[0]);
     await screen.findByTestId("marketplace-install-progress");
     expect(screen.queryByTestId("marketplace-ambiguous-source")).not.toBeInTheDocument();
+  });
+});
+
+// Issue #563 (CPHMTP-FR-006 / CPHMTP-NFR-001 / CPHMTP-US-005): the persistent,
+// non-dismissible Unverified badge plus source provenance across the marketplace
+// surfaces (list row / card, and detail drawer), and the install consent dialog
+// that gates the commit. The trust decision itself is pinned as a unit in
+// ProvenanceBadge.test.tsx; these tests pin that each surface actually renders
+// that badge and asserts nothing of its own (CPHMTP-TC-030 / TC-031 / TC-056 /
+// TC-072).
+describe("Marketplace unverified badge and provenance (issue #563)", () => {
+  const THIRD_PARTY = listing({
+    id: "ghe",
+    name: "GitHub Enterprise",
+    kind: "integration",
+    summary: "Connect a self-hosted GitHub Enterprise instance.",
+    verified: false,
+    sourceId: ACME_SOURCE_ID,
+  });
+
+  const SOURCES = [FIRST_PARTY_STATUS, sourceStatus()];
+
+  function cardFor(id: string): HTMLElement {
+    const card = screen
+      .getAllByTestId("marketplace-card")
+      .find((c) => c.getAttribute("data-plugin-id") === id);
+    if (!card) throw new Error(`expected a card for ${id}`);
+    return card;
+  }
+
+  // CPHMTP-TC-030 S001 / S002: in one merged list, the third-party entry wears the
+  // Unverified pill and no first-party treatment, while the first-party entry
+  // wears the verified treatment and no Unverified pill.
+  it("marks the third-party entry unverified and the first-party entry verified in the list", () => {
+    setCatalog([listing(), THIRD_PARTY], "network", null, SOURCES);
+    render(<Marketplace />);
+
+    const thirdParty = within(cardFor("ghe")).getByTestId("provenance-trust");
+    expect(thirdParty).toHaveTextContent("Unverified");
+    expect(thirdParty).not.toHaveTextContent("first-party");
+    expect(thirdParty.className).not.toContain("green");
+
+    const firstParty = within(cardFor("redis")).getByTestId("provenance-trust");
+    expect(firstParty).toHaveTextContent("Verified · first-party");
+    expect(firstParty).not.toHaveTextContent("Unverified");
+  });
+
+  // CPHMTP-TC-056 S001-O02 / CPHMTP-TC-031 S001-S002: the badge is accompanied by
+  // the source provenance naming where the entry came from.
+  it("shows source provenance alongside the badge on the card", () => {
+    setCatalog([THIRD_PARTY], "network", null, SOURCES);
+    render(<Marketplace />);
+    const card = screen.getByTestId("marketplace-card");
+    expect(within(card).getByTestId("provenance-source")).toHaveTextContent(
+      "Source: ACME workplace",
+    );
+    expect(within(card).getByTestId("provenance-source").dataset.sourceId).toBe(ACME_SOURCE_ID);
+  });
+
+  // CPHMTP-TC-031 S003: the drawer is one of the enumerated surfaces, so the same
+  // plugin's badge and provenance render there too.
+  it("renders the same Unverified badge and provenance in the detail drawer", async () => {
+    setCatalog([THIRD_PARTY], "network", null, SOURCES);
+    const user = userEvent.setup();
+    render(<Marketplace />);
+    await user.click(screen.getByTestId("marketplace-card-detail"));
+    const drawer = await screen.findByTestId("marketplace-drawer");
+
+    expect(within(drawer).getByTestId("provenance-trust")).toHaveTextContent("Unverified");
+    expect(within(drawer).getByTestId("provenance-source")).toHaveTextContent(
+      "Source: ACME workplace",
+    );
+    // CPHMTP-TC-056 S002-O01: no first-party verified styling in this UI state.
+    expect(within(drawer).getByTestId("provenance-trust").className).not.toContain("green");
+  });
+
+  // The drawer's Integrity row claimed "Verified, signed by Roubo" for every entry
+  // regardless of source. Only the first-party catalog is signed; a third-party
+  // entry's floor is the per-artifact digest (CPHMTP-NFR-004).
+  it("does not claim a Roubo signature for a third-party entry's integrity", async () => {
+    setCatalog([THIRD_PARTY], "network", null, SOURCES);
+    const user = userEvent.setup();
+    render(<Marketplace />);
+    await user.click(screen.getByTestId("marketplace-card-detail"));
+    await screen.findByTestId("marketplace-drawer");
+
+    const integrity = screen.getByTestId("marketplace-drawer-integrity");
+    expect(integrity).not.toHaveTextContent("signed by Roubo");
+    expect(integrity).toHaveTextContent("Unsigned source");
+    expect(integrity).toHaveTextContent("artifact digest checked at install");
+  });
+
+  // CPHMTP-TC-072 S001: a hostile catalog serves verified: true from an unsigned
+  // source. The server already forces the flag false when it knows provenance;
+  // this asserts the UI ALSO refuses the claim, so the trust separation does not
+  // rest on that single server line alone.
+  it("ignores an injected verified flag from a hostile third-party catalog", async () => {
+    const hostile = listing({
+      id: "ghe",
+      name: "GitHub Enterprise",
+      verified: true,
+      sourceId: ACME_SOURCE_ID,
+    });
+    setCatalog([hostile], "network", null, SOURCES);
+    const user = userEvent.setup();
+    render(<Marketplace />);
+
+    const card = screen.getByTestId("marketplace-card");
+    expect(within(card).getByTestId("provenance-trust")).toHaveTextContent("Unverified");
+    expect(within(card).getByTestId("provenance-trust").className).not.toContain("green");
+    // CPHMTP-TC-072 S001-O02: the provenance still renders.
+    expect(within(card).getByTestId("provenance-source")).toHaveTextContent("ACME workplace");
+
+    await user.click(within(card).getByTestId("marketplace-card-detail"));
+    const drawer = await screen.findByTestId("marketplace-drawer");
+    expect(within(drawer).getByTestId("provenance-trust")).toHaveTextContent("Unverified");
+    expect(within(drawer).getByTestId("marketplace-drawer-integrity")).not.toHaveTextContent(
+      "signed by Roubo",
+    );
+  });
+
+  // CPHMTP-TC-041 S001-O01: no dismiss affordance in any marketplace surface, so
+  // the badge cannot be got rid of while the plugin remains unverified.
+  it("offers no way to dismiss the badge in the card or the drawer", async () => {
+    setCatalog([THIRD_PARTY], "network", null, SOURCES);
+    const user = userEvent.setup();
+    render(<Marketplace />);
+    const cardBadge = within(screen.getByTestId("marketplace-card")).getByTestId(
+      "provenance-badge",
+    );
+    expect(cardBadge.querySelector("button")).toBeNull();
+
+    await user.click(screen.getByTestId("marketplace-card-detail"));
+    const drawer = await screen.findByTestId("marketplace-drawer");
+    expect(within(drawer).getByTestId("provenance-badge").querySelector("button")).toBeNull();
+  });
+
+  // CPHMTP-TC-056 S002 / CPHMTP-TC-072 S002: the consent dialog is the last gate
+  // before third-party code is committed, so it must not lead with a first-party
+  // verification claim. It is driven from the LISTING's provenance, not from the
+  // staged manifest (which is the plugin's own, unverifiable copy).
+  describe("install consent dialog", () => {
+    function previewFor(id: string): InstallPreview {
+      return {
+        stagingToken: `staging-${id}`,
+        manifest: {
+          id,
+          name: "GitHub Enterprise",
+          version: "1.0.0",
+          description: "Connect a self-hosted GitHub Enterprise instance.",
+          kind: "integration",
+          roubo: ">=0.1.0",
+          entry: "index.js",
+          permissions: {
+            network: { hosts: [] },
+            credentials: { slots: [] },
+            filesystem: { paths: [] },
+            processes: false,
+          },
+        },
+        source: { type: "release", assetUrl: "https://acme.example/ghe-1.0.0.tgz" },
+      } as unknown as InstallPreview;
+    }
+
+    async function openConsentFor(entry: MarketplaceListing) {
+      mockedInstallPreview.mockReturnValue(
+        mutationStub({
+          mutate: vi.fn((_vars: unknown, opts: { onSuccess: (p: InstallPreview) => void }) => {
+            opts.onSuccess(previewFor(entry.id));
+          }),
+        }),
+      );
+      setCatalog([entry], "network", null, SOURCES);
+      const user = userEvent.setup();
+      render(<Marketplace />);
+      await user.click(screen.getByTestId("marketplace-card-install"));
+      return screen.findByTestId("marketplace-consent-modal");
+    }
+
+    it("leads with an unverified, third-party warning and the badge for a third-party install", async () => {
+      const modal = await openConsentFor(THIRD_PARTY);
+      const trust = within(modal).getByTestId("marketplace-consent-trust");
+      expect(trust.dataset.treatment).toBe("unverified");
+      expect(trust).toHaveTextContent("Unverified, third-party.");
+      expect(trust).not.toHaveTextContent("Verified, first-party.");
+      expect(within(trust).getByTestId("provenance-trust")).toHaveTextContent("Unverified");
+      expect(within(trust).getByTestId("provenance-source")).toHaveTextContent("ACME workplace");
+    });
+
+    it("keeps the verified, first-party lead for a first-party install", async () => {
+      const modal = await openConsentFor(listing());
+      const trust = within(modal).getByTestId("marketplace-consent-trust");
+      expect(trust.dataset.treatment).toBe("verified");
+      expect(trust).toHaveTextContent("Verified, first-party.");
+      expect(within(trust).getByTestId("provenance-trust")).toHaveTextContent("Verified");
+    });
+
+    // CPHMTP-TC-072 S002-O01: an entry CLAIMING verification still consents as
+    // third-party, because the dialog reads provenance, not the claim.
+    it("still leads unverified when the hostile entry claims to be verified", async () => {
+      const modal = await openConsentFor(
+        listing({ id: "ghe", verified: true, sourceId: ACME_SOURCE_ID }),
+      );
+      const trust = within(modal).getByTestId("marketplace-consent-trust");
+      expect(trust.dataset.treatment).toBe("unverified");
+      expect(trust).not.toHaveTextContent("Verified, first-party.");
+    });
   });
 });

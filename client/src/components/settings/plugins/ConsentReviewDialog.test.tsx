@@ -2,13 +2,36 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { PluginPermissions } from "@roubo/shared";
+import { FIRST_PARTY_LABEL, type PluginProvenance } from "../../marketplace/plugin-provenance";
 
 vi.mock("../../../hooks/usePlugins");
 import { useGrantConsent as _useGrantConsent } from "../../../hooks/usePlugins";
 import ConsentReviewDialog from "./ConsentReviewDialog";
 
 const mockedGrantConsent = vi.mocked(_useGrantConsent);
+
+// The two trust levels this dialog can be handed. It never derives them itself:
+// PluginCard normalises the installed record via `recordProvenance` (issue #563).
+function firstParty(): PluginProvenance {
+  return {
+    sourceId: FIRST_PARTY_SOURCE_ID,
+    sourceLabel: FIRST_PARTY_LABEL,
+    curated: true,
+    orphaned: false,
+  };
+}
+
+function thirdParty(over: Partial<PluginProvenance> = {}): PluginProvenance {
+  return {
+    sourceId: "marketplace-acme-example-1a2b3c4d",
+    sourceLabel: "marketplace.acme.example",
+    curated: false,
+    orphaned: false,
+    ...over,
+  };
+}
 
 function permissions(over: Partial<PluginPermissions> = {}): PluginPermissions {
   return {
@@ -45,6 +68,7 @@ describe("ConsentReviewDialog: declared permissions (issue #490)", () => {
         pluginId="database"
         pluginName="Database"
         declared={dockerPerms}
+        provenance={firstParty()}
         version="1.0.0"
         onClose={vi.fn()}
       />,
@@ -62,6 +86,7 @@ describe("ConsentReviewDialog: declared permissions (issue #490)", () => {
         pluginId="process"
         pluginName="Process"
         declared={noPerms}
+        provenance={firstParty()}
         onClose={vi.fn()}
       />,
     );
@@ -80,6 +105,7 @@ describe("ConsentReviewDialog: acknowledge gate (issue #490)", () => {
         pluginId="database"
         pluginName="Database"
         declared={dockerPerms}
+        provenance={firstParty()}
         onClose={vi.fn()}
       />,
     );
@@ -98,6 +124,7 @@ describe("ConsentReviewDialog: acknowledge gate (issue #490)", () => {
         pluginId="database"
         pluginName="Database"
         declared={dockerPerms}
+        provenance={firstParty()}
         onClose={vi.fn()}
       />,
     );
@@ -121,6 +148,7 @@ describe("ConsentReviewDialog: acknowledge gate (issue #490)", () => {
         pluginId="process"
         pluginName="Process"
         declared={noPerms}
+        provenance={firstParty()}
         onClose={vi.fn()}
       />,
     );
@@ -145,6 +173,7 @@ describe("ConsentReviewDialog: outcome (issue #490)", () => {
         pluginId="database"
         pluginName="Database"
         declared={dockerPerms}
+        provenance={firstParty()}
         onClose={onClose}
       />,
     );
@@ -163,6 +192,7 @@ describe("ConsentReviewDialog: outcome (issue #490)", () => {
         pluginId="database"
         pluginName="Database"
         declared={dockerPerms}
+        provenance={firstParty()}
         onClose={onClose}
       />,
     );
@@ -180,10 +210,60 @@ describe("ConsentReviewDialog: outcome (issue #490)", () => {
         pluginId="database"
         pluginName="Database"
         declared={dockerPerms}
+        provenance={firstParty()}
         onClose={vi.fn()}
       />,
     );
     const alert = screen.getByTestId("consent-review-error");
     expect(alert.textContent).toContain("consent store write failed");
+  });
+});
+
+// Issue #563 (CPHMTP-FR-006 / CPHMTP-NFR-001): the review dialog is one of the
+// enumerated plugin surfaces, so it must wear the plugin's real trust level.
+// Before this, its banner led "Verified, first-party." for every plugin, which
+// would have told the consumer that an unsigned third-party component was
+// first-party verified at the exact moment they were asked to trust it.
+describe("ConsentReviewDialog: trust provenance (issue #563)", () => {
+  function renderWith(provenance: PluginProvenance) {
+    render(
+      <ConsentReviewDialog
+        pluginId="ghe"
+        pluginName="GitHub Enterprise"
+        declared={dockerPerms}
+        provenance={provenance}
+        onClose={vi.fn()}
+      />,
+    );
+    return screen.getByTestId("consent-review-trust");
+  }
+
+  it("leads unverified and shows the badge plus provenance for a third-party plugin", () => {
+    const trust = renderWith(thirdParty());
+    expect(trust.dataset.treatment).toBe("unverified");
+    expect(trust).toHaveTextContent("Unverified, third-party.");
+    expect(trust).not.toHaveTextContent("Verified, first-party.");
+    expect(within(trust).getByTestId("provenance-trust")).toHaveTextContent("Unverified");
+    expect(within(trust).getByTestId("provenance-source")).toHaveTextContent(
+      "Source: marketplace.acme.example",
+    );
+    // CPHMTP-TC-056 S002-O01: no first-party verified styling in this UI state.
+    expect(within(trust).getByTestId("provenance-trust").className).not.toContain("green");
+  });
+
+  it("keeps the verified, first-party lead for a first-party plugin", () => {
+    const trust = renderWith(firstParty());
+    expect(trust.dataset.treatment).toBe("verified");
+    expect(trust).toHaveTextContent("Verified, first-party.");
+    expect(within(trust).getByTestId("provenance-trust")).toHaveTextContent(
+      "Verified · first-party",
+    );
+  });
+
+  // CPHMTP-TC-041 S001-O01: no dismiss affordance on the badge in this surface.
+  it("offers no way to dismiss the badge", () => {
+    const trust = renderWith(thirdParty({ orphaned: true }));
+    expect(within(trust).getByTestId("provenance-badge").querySelector("button")).toBeNull();
+    expect(within(trust).getByTestId("provenance-orphaned")).toHaveTextContent("Orphaned");
   });
 });

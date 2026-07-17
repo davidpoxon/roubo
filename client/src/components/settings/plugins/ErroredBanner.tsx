@@ -16,6 +16,7 @@ import {
 } from "../../../hooks/useMarketplace";
 import { useToast } from "../../../hooks/useToast";
 import MarketplaceConsentModal from "../../marketplace/MarketplaceConsentModal";
+import type { PluginProvenance } from "../../marketplace/plugin-provenance";
 
 const STRINGS = {
   // Shown only for integration plugins, which fall back to a cached snapshot
@@ -44,10 +45,22 @@ interface Props {
   pluginId: string;
   lastError: PluginError | null;
   kind: PluginManifest["kind"] | undefined;
+  /**
+   * The errored plugin's install provenance, handed to the reinstall consent modal
+   * so that dialog states the trust level of the plugin actually being reinstalled
+   * rather than defaulting to a first-party claim (CPHMTP-FR-006, issue #563).
+   */
+  provenance: PluginProvenance;
   onViewLogs: () => void;
 }
 
-export default function ErroredBanner({ pluginId, lastError, kind, onViewLogs }: Props) {
+export default function ErroredBanner({
+  pluginId,
+  lastError,
+  kind,
+  provenance,
+  onViewLogs,
+}: Props) {
   const restart = useRestartPlugin();
   // #496: reuse the marketplace update -> consent -> commit machinery (the same
   // staging/consent flow the Marketplace view drives) to reinstall an errored
@@ -158,6 +171,7 @@ export default function ErroredBanner({ pluginId, lastError, kind, onViewLogs }:
       {pending && (
         <MarketplaceConsentModal
           preview={pending}
+          provenance={provenance}
           mode="update"
           error={consentError}
           isPending={confirmMutation.isPending}

@@ -32,6 +32,7 @@ import MarketplaceCard from "./MarketplaceCard";
 import MarketplaceDrawer from "./MarketplaceDrawer";
 import MarketplaceConsentModal from "./MarketplaceConsentModal";
 import MarketplaceInstallProgress from "./MarketplaceInstallProgress";
+import { listingProvenance } from "./plugin-provenance";
 import { deriveStageStatuses, describeArtifact } from "./marketplace-install-stages";
 import MarketplaceOfflineBanner from "./MarketplaceOfflineBanner";
 
@@ -193,6 +194,9 @@ export default function Marketplace() {
   // user can always get back to "All sources" (CPHMTP-FR-004).
   const sources = useMemo(() => data?.sources ?? [], [data]);
   const sourceLabels = useMemo(() => new Map(sources.map((s) => [s.id, s.label])), [sources]);
+  // Falls back to the raw source id, so a source the status rows do not describe
+  // still names its origin rather than rendering an empty chip.
+  const labelFor = (id: string): string => sourceLabels.get(id) ?? id;
   // Only registered third-party sources can be unavailable: the first-party chain
   // always has the bundled seed to fall back on. Called out per source, so one
   // dead source never implies the others failed (CPHMTP-NFR-007).
@@ -468,10 +472,8 @@ export default function Marketplace() {
               <MarketplaceCard
                 key={`${listing.sourceId}:${listing.id}`}
                 listing={listing}
-                sourceLabel={sourceLabels.get(listing.sourceId) ?? listing.sourceId}
-                collisionSourceLabels={(listing.collision?.sourceIds ?? []).map(
-                  (id) => sourceLabels.get(id) ?? id,
-                )}
+                sourceLabel={labelFor(listing.sourceId)}
+                collisionSourceLabels={(listing.collision?.sourceIds ?? []).map(labelFor)}
                 onOpenDetail={setDetailId}
                 onInstall={beginInstall}
                 onUpdate={beginUpdate}
@@ -484,6 +486,7 @@ export default function Marketplace() {
       {detailListing && (
         <MarketplaceDrawer
           listing={detailListing}
+          sourceLabel={labelFor(detailListing.sourceId)}
           onClose={() => setDetailId(null)}
           onInstall={beginInstall}
           onUpdate={beginUpdate}
@@ -493,6 +496,11 @@ export default function Marketplace() {
       {pending && (
         <MarketplaceConsentModal
           preview={pending.preview}
+          // The consent modal's trust lead is provenance-driven (CPHMTP-FR-006,
+          // issue #563): it is derived from the LISTING being installed, the only
+          // shape here that carries the server-stamped source id, never from the
+          // staged preview (whose manifest is the plugin's own, unverifiable copy).
+          provenance={listingProvenance(pending.listing, labelFor(pending.listing.sourceId))}
           mode={pending.mode}
           error={consentError}
           isPending={confirmMutation.isPending}

@@ -2,7 +2,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { InstallPreview, PermissionCategory, PluginError } from "@roubo/shared";
+import { FIRST_PARTY_LABEL, type PluginProvenance } from "../../marketplace/plugin-provenance";
+
+// The banner never derives trust: PluginCard hands it the record's provenance so
+// the reinstall consent modal states the real trust level (issue #563).
+const FIRST_PARTY_PROVENANCE: PluginProvenance = {
+  sourceId: FIRST_PARTY_SOURCE_ID,
+  sourceLabel: FIRST_PARTY_LABEL,
+  curated: true,
+  orphaned: false,
+};
 
 vi.mock("../../../hooks/usePlugins");
 vi.mock("../../../hooks/useMarketplace");
@@ -116,6 +127,7 @@ describe("ErroredBanner (issue #302)", () => {
         pluginId="my-component"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -138,6 +150,7 @@ describe("ErroredBanner (issue #302)", () => {
           message: "Plugin failed to start after 3 restart attempts.",
         }}
         kind="integration"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -159,6 +172,7 @@ describe("ErroredBanner (issue #302)", () => {
         pluginId="big-plugin"
         lastError={{ code: "manifest-load-failed", message: longMessage }}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -173,6 +187,7 @@ describe("ErroredBanner (issue #302)", () => {
         pluginId="github-com"
         lastError={null}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -189,6 +204,7 @@ describe("ErroredBanner (issue #302)", () => {
         pluginId="github-com"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -204,6 +220,7 @@ describe("ErroredBanner (issue #302)", () => {
         pluginId="github-com"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={onViewLogs}
       />,
     );
@@ -218,6 +235,7 @@ describe("ErroredBanner (issue #302)", () => {
         pluginId="github-com"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -238,6 +256,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
         pluginId="my-component"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -253,6 +272,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
         pluginId="github-com"
         lastError={missingEntryError}
         kind="integration"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -267,6 +287,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
         pluginId="my-component"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -290,6 +311,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
         pluginId="my-component"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -311,6 +333,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
         pluginId="my-component"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -335,6 +358,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
         pluginId="my-component"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -371,6 +395,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
         pluginId="my-component"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -397,6 +422,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
         pluginId="my-component"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );
@@ -416,6 +442,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
         pluginId="my-component"
         lastError={missingEntryError}
         kind="component"
+        provenance={FIRST_PARTY_PROVENANCE}
         onViewLogs={() => {}}
       />,
     );

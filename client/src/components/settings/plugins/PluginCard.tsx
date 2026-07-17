@@ -11,6 +11,8 @@ import {
 } from "../../../hooks/usePlugins";
 import { useGlobalPluginIntegration } from "../../../hooks/useGlobalPluginIntegration";
 import PluginConfigureDialog from "../../PluginConfigureDialog";
+import ProvenanceBadge from "../../marketplace/ProvenanceBadge";
+import { recordProvenance } from "../../marketplace/plugin-provenance";
 import Spinner from "../../Spinner";
 import ConnectionStatusPill from "./ConnectionStatusPill";
 import ConsentReviewDialog from "./ConsentReviewDialog";
@@ -78,6 +80,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
   const consentStatus = consentQuery.data;
   const needsConsent = isComponent && consentStatus !== undefined && !consentStatus.consentedAt;
 
+  const provenance = recordProvenance(plugin);
   const displayName = plugin.manifest?.name ?? plugin.id;
   const version = plugin.manifest?.version;
   const description = plugin.manifest?.description;
@@ -131,8 +134,17 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
               </span>
             )}
           </div>
-          <div className="mt-1">
+          {/*
+            SourceLabel says where the plugin lives on THIS machine (bundled with
+            the app, or unpacked under ~/.roubo/plugins); the badge says which
+            marketplace source served it and at what trust level (CPHMTP-FR-006,
+            issue #563). Different facts, so both render: the installed tab is one
+            of the surfaces the persistent Unverified badge must reach, and an
+            orphaned plugin (its source deregistered) is flagged here too.
+          */}
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             <SourceLabel source={plugin.source} pluginId={plugin.id} />
+            <ProvenanceBadge provenance={provenance} />
           </div>
         </div>
         <ConnectionStatusPill status={pillStatus} rechecking={connectionQuery.isFetching} />
@@ -150,6 +162,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
             pluginId={plugin.id}
             lastError={plugin.lastError}
             kind={plugin.manifest?.kind}
+            provenance={provenance}
             onViewLogs={() => setLogsOpen(true)}
           />
         </div>
@@ -248,6 +261,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
           pluginId={plugin.id}
           pluginName={displayName}
           declared={consentStatus.declared}
+          provenance={provenance}
           version={version}
           onClose={() => setConsentOpen(false)}
         />
