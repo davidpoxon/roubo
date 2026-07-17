@@ -50,7 +50,16 @@ function handleBenchError(res: import("express").Response, err: unknown) {
     const status = ["NOT_FOUND", "PROJECT_NOT_FOUND", "CONTAINER_NOT_FOUND"].includes(err.code)
       ? 404
       : 400;
-    res.status(status).json({ error: err.message, code: err.code });
+    // A COMPONENT_NOT_BOUND error whose bound plugin is merely uninstalled carries
+    // where it can be installed from (CPHMTP-FR-008, issue #566). Spread it through
+    // so the client can offer install-from-<source> / pick-a-source rather than
+    // re-resolving the sources itself. Every other error omits the key entirely, so
+    // an absent `resolution` keeps meaning "no install affordance".
+    res.status(status).json({
+      error: err.message,
+      code: err.code,
+      ...(err.resolution ? { resolution: err.resolution } : {}),
+    });
   } else {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -360,7 +369,17 @@ router.post("/:projectId/benches/:id/components/:name/start", async (req, res) =
     if (err instanceof RouteError) {
       res.status(err.statusCode).json({ error: err.message });
     } else if (err instanceof BenchError) {
-      res.status(400).json({ error: err.message, code: err.code });
+      // This route is the one that surfaces an actionable missing-plugin error:
+      // per-component Start is non-resilient, so a COMPONENT_NOT_BOUND throw
+      // propagates here rather than being recorded on the component's status.
+      // Carry the resolution through so the dialog can offer install-from-<source>
+      // (CPHMTP-FR-008, issue #566). Kept as its own 400 rather than routed through
+      // handleBenchError, which would remap this route's NOT_FOUND codes to 404.
+      res.status(400).json({
+        error: err.message,
+        code: err.code,
+        ...(err.resolution ? { resolution: err.resolution } : {}),
+      });
     } else {
       res.status(500).json({ error: (err as Error).message });
     }

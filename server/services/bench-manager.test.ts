@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { BenchNotification, RouboConfig, ComponentConfig } from "@roubo/shared";
-import { COMPONENT_STEP_PREFIX } from "@roubo/shared";
+import { COMPONENT_STEP_PREFIX, FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import { makeConfig, makeProject, makePersistedBench } from "../test/fixtures.js";
 import { DEFAULT_BRANCH_RESOLUTION_ERROR } from "./git-helpers.js";
 import { RESOLVE_DEFAULT_BRANCH_PHASE } from "./bench-manager.js";
@@ -177,6 +177,14 @@ vi.mock("./plugin-manager.js", () => ({
   unregisterBrokerContext: vi.fn(),
 }));
 
+// The missing-plugin enrichment (issue #566) resolves which marketplace sources
+// serve an uninstalled bound plugin. Mocked to serve nothing by default: the real
+// resolver fans out across every registered source over the network, and only the
+// not-installed tests below care about the answer.
+vi.mock("./marketplace.js", () => ({
+  resolveServingSources: vi.fn(async () => []),
+}));
+
 let benchManager: typeof import("./bench-manager.js");
 let projectRegistry: typeof import("./project-registry.js");
 let stateService: typeof import("./state.js");
@@ -195,6 +203,7 @@ let gitHelpers: typeof import("./git-helpers.js");
 let fs: typeof import("node:fs");
 let pluginManager: typeof import("./plugin-manager.js");
 let componentRegistry: typeof import("./component-plugin-registry.js");
+let marketplace: typeof import("./marketplace.js");
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -227,6 +236,7 @@ beforeEach(async () => {
   fs = await import("node:fs");
   pluginManager = await import("./plugin-manager.js");
   componentRegistry = await import("./component-plugin-registry.js");
+  marketplace = await import("./marketplace.js");
 
   // Re-establish default success impls for the engine-driven host calls, so a
   // prior test's failure override (e.g. setup exitCode 1, or a not-bound
@@ -238,6 +248,10 @@ beforeEach(async () => {
       return { pluginId, connection: {} as never };
     },
   );
+  // No source serves anything unless a test says otherwise, so a stray
+  // not-installed binding degrades to the plain dead end rather than inheriting a
+  // previous test's serving sources.
+  vi.mocked(marketplace.resolveServingSources).mockResolvedValue([]);
   vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0, timedOut: false });
   vi.mocked(processManager.startProcess).mockResolvedValue({ pid: 12345 });
   vi.mocked(dockerService.composeUp).mockResolvedValue({
@@ -3280,6 +3294,164 @@ describe("startComponent", () => {
 
     await expect(benchManager.startComponent("test-project", 1, "backend")).rejects.toMatchObject({
       code: "COMPONENT_NOT_BOUND",
+    });
+  });
+
+  // Issue #566 (CPHMTP-FR-008 / CPHMTP-US-002): a bound-but-uninstalled plugin id
+  // is resolved against the merged catalog so the missing-plugin error can be
+  // actionable. The three states are the three honest outcomes of the FR-005
+  // no-precedence rule, and each fixes what the error may offer.
+  describe("missing-plugin install-from-source resolution (issue #566)", () => {
+    const ACME_ID = "marketplace-acme-example-1a2b3c4d";
+
+    function source(id: string, label: string) {
+      return {
+        id,
+        label,
+        url: `https://${label}/catalog.json`,
+        source: "network" as const,
+        fetchedAt: "2026-07-02T00:00:00.000Z",
+        unavailable: false,
+      };
+    }
+
+    /** The bound plugin for `backend` is not installed. */
+    function bindUninstalled(pluginId = "google-clasp") {
+      vi.mocked(componentRegistry.resolveBinding).mockReturnValue({
+        reason: "not-installed",
+        pluginId,
+      });
+    }
+
+    // CPHMTP-TC-077 S001-O01 (AC1): the error names the id, the component, and the
+    // one source it can be installed from, marked as registered.
+    it("names the single serving source in the error and payload", async () => {
+      setupExistingBench();
+      setupProcessMocks();
+      bindUninstalled();
+      vi.mocked(marketplace.resolveServingSources).mockResolvedValue([
+        source(ACME_ID, "marketplace.acme.example"),
+      ]);
+
+      await expect(benchManager.startComponent("test-project", 1, "backend")).rejects.toMatchObject(
+        {
+          code: "COMPONENT_NOT_BOUND",
+          message: expect.stringContaining(
+            "'google-clasp' for component 'backend' is not installed; it is available from marketplace.acme.example (registered)",
+          ),
+          resolution: {
+            pluginId: "google-clasp",
+            state: "single-source",
+            source: { sourceId: ACME_ID, label: "marketplace.acme.example", registered: true },
+          },
+        },
+      );
+    });
+
+    // The first-party catalog is built in, not registered, so it carries no
+    // "(registered)" marker: `registered` is derived from the source id.
+    it("does not mark the first-party catalog as registered", async () => {
+      setupExistingBench();
+      setupProcessMocks();
+      bindUninstalled("process");
+      vi.mocked(marketplace.resolveServingSources).mockResolvedValue([
+        source(FIRST_PARTY_SOURCE_ID, "Roubo first-party"),
+      ]);
+
+      await expect(benchManager.startComponent("test-project", 1, "backend")).rejects.toMatchObject(
+        {
+          resolution: {
+            state: "single-source",
+            source: { sourceId: FIRST_PARTY_SOURCE_ID, registered: false },
+          },
+        },
+      );
+      const err = await benchManager
+        .startComponent("test-project", 1, "backend")
+        .catch((e: Error) => e);
+      expect(err.message).toContain("available from Roubo first-party.");
+      expect(err.message).not.toContain("(registered)");
+    });
+
+    // CPHMTP-TC-081 S001-O01 (AC2): two sources means NO single install action. The
+    // error marks the ambiguity and names every source instead of picking one.
+    it("reports an id served by two sources as ambiguous, naming both", async () => {
+      setupExistingBench();
+      setupProcessMocks();
+      bindUninstalled("process");
+      vi.mocked(marketplace.resolveServingSources).mockResolvedValue([
+        source(FIRST_PARTY_SOURCE_ID, "Roubo first-party"),
+        source(ACME_ID, "marketplace.acme.example"),
+      ]);
+
+      const err = await benchManager
+        .startComponent("test-project", 1, "backend")
+        .catch((e: Error & { resolution?: unknown }) => e);
+      expect(err.message).toContain("is served by 2 sources");
+      expect(err.message).toContain("Roubo first-party, marketplace.acme.example (registered)");
+      expect(err.resolution).toMatchObject({
+        pluginId: "process",
+        state: "ambiguous",
+        sources: [
+          { sourceId: FIRST_PARTY_SOURCE_ID, registered: false },
+          { sourceId: ACME_ID, registered: true },
+        ],
+      });
+    });
+
+    // CPHMTP-TC-082 S001-O01 (AC3): an id no source serves keeps the plain dead-end
+    // message, and the payload offers nothing to install.
+    it("keeps the plain dead-end message when no source serves the id", async () => {
+      setupExistingBench();
+      setupProcessMocks();
+      bindUninstalled("nowhere");
+      vi.mocked(marketplace.resolveServingSources).mockResolvedValue([]);
+
+      const err = await benchManager
+        .startComponent("test-project", 1, "backend")
+        .catch((e: Error & { resolution?: { state?: string } }) => e);
+      expect(err.message).toBe(
+        "Component plugin 'nowhere' for component 'backend' is not installed; install it before starting 'backend'",
+      );
+      expect(err.message).not.toContain("available from");
+      expect(err.resolution?.state).toBe("unresolvable");
+    });
+
+    // The error surface must not depend on a reachable catalog: a resolution
+    // failure degrades to the dead end the consumer would have seen anyway, rather
+    // than replacing the real blocker with a marketplace error.
+    it("degrades to the plain dead end when source resolution itself fails", async () => {
+      setupExistingBench();
+      setupProcessMocks();
+      bindUninstalled("google-clasp");
+      vi.mocked(marketplace.resolveServingSources).mockRejectedValue(
+        new Error("catalog signature verification failed"),
+      );
+
+      const err = await benchManager
+        .startComponent("test-project", 1, "backend")
+        .catch((e: Error & { resolution?: { state?: string } }) => e);
+      expect(err.message).toContain("is not installed; install it before starting");
+      expect(err.message).not.toContain("signature");
+      expect(err.resolution?.state).toBe("unresolvable");
+    });
+
+    // Only not-installed is enrichable: a consent or compatibility blocker is not
+    // something a marketplace install fixes, so those carry no install affordance.
+    it("does not resolve sources for a reason an install cannot fix", async () => {
+      setupExistingBench();
+      setupProcessMocks();
+      vi.mocked(componentRegistry.resolveBinding).mockReturnValue({
+        reason: "not-consented",
+        pluginId: "process",
+      });
+
+      const err = await benchManager
+        .startComponent("test-project", 1, "backend")
+        .catch((e: Error & { resolution?: unknown }) => e);
+      expect(err.message).toContain("has not been consented");
+      expect(err.resolution).toBeUndefined();
+      expect(marketplace.resolveServingSources).not.toHaveBeenCalled();
     });
   });
 

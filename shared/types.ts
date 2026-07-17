@@ -513,6 +513,55 @@ export interface MarketplaceAmbiguousSourceErrorBody {
 }
 
 /**
+ * ONE marketplace source that serves a bound-but-uninstalled plugin id, as named
+ * by a `COMPONENT_NOT_BOUND` error's `resolution` payload (CPHMTP-FR-008, issue
+ * #566).
+ *
+ * `label` is the source's display name (the first-party catalog's own label, or a
+ * registered source's URL host), so the error and its actions can name the source
+ * the consumer would be installing from rather than an opaque generated id.
+ * `registered` distinguishes a registered third-party source from the built-in
+ * first-party catalog, which is what the error message's "(registered)" suffix
+ * keys off. It is derived from the source id, never from the entry payload, on the
+ * same reasoning as `provenanceOf`: only the first-party signed chain is built-in,
+ * so every other serving source is a source the consumer registered.
+ */
+export interface MissingPluginSourceOffer {
+  sourceId: string;
+  label: string;
+  registered: boolean;
+}
+
+/**
+ * How a bound-but-uninstalled component plugin id resolves against the merged
+ * multi-source catalog, attached to the `COMPONENT_NOT_BOUND` bench-start error so
+ * the missing-plugin surface can be actionable (CPHMTP-FR-008, issue #566).
+ *
+ * The three states are the three honest outcomes of the FR-005 no-precedence rule,
+ * and each one fixes what the surface may offer:
+ *
+ * - `unresolvable`: no source serves the id, so there is nothing to install from
+ *   and the plain dead-end message stands with NO install affordance
+ *   (CPHMTP-TC-082). This is also the best-effort fallback when resolution itself
+ *   fails: an error surface must not depend on a reachable catalog.
+ * - `single-source`: exactly one source serves the id, so a one-click
+ *   install-from-<source> is unambiguous and offered (CPHMTP-TC-077 / TC-083).
+ * - `ambiguous`: two or more sources serve the id, so NO single install action is
+ *   offered; the consumer picks a source explicitly (CPHMTP-TC-081). Resolving it
+ *   for them would silently choose whose code to run, which is exactly what
+ *   CPHMTP-FR-005 refuses.
+ *
+ * Deliberately NOT a new `BenchError` code: the code union conveys only a string,
+ * and this payload must carry source ids and labels. It follows the
+ * `MarketplaceAmbiguousSourceErrorBody` precedent, a typed body carried alongside
+ * the existing code, rather than widening the error-code channel.
+ */
+export type MissingPluginResolution =
+  | { pluginId: string; state: "unresolvable" }
+  | { pluginId: string; state: "single-source"; source: MissingPluginSourceOffer }
+  | { pluginId: string; state: "ambiguous"; sources: MissingPluginSourceOffer[] };
+
+/**
  * Tells the Issue source tile which caption to render under the configured
  * variant. Derived server-side from the committed roubo.yaml integration block
  * and the per-user override.

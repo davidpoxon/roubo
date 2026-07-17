@@ -895,6 +895,37 @@ describe("POST /:projectId/benches/:id/components/:name/start", () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("start component failed");
   });
+
+  // Issue #566 (CPHMTP-FR-008): the missing-plugin resolution rides along with the
+  // COMPONENT_NOT_BOUND body so the client can offer install-from-<source> without
+  // re-resolving the sources itself.
+  it("serialises the missing-plugin resolution payload", async () => {
+    const resolution = {
+      pluginId: "google-clasp",
+      state: "single-source" as const,
+      source: { sourceId: "acme-1a2b", label: "marketplace.acme.example", registered: true },
+    };
+    vi.mocked(benchManager.startComponent).mockRejectedValue(
+      new BenchError("not installed; available from ACME", "COMPONENT_NOT_BOUND", resolution),
+    );
+
+    const res = await request(app).post("/my-project/benches/1/components/backend/start");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("COMPONENT_NOT_BOUND");
+    expect(res.body.resolution).toEqual(resolution);
+  });
+
+  // An absent resolution must keep meaning "no install affordance": the key is
+  // omitted rather than sent as null, so the client's guard cannot mistake an
+  // unenrichable error for an actionable one.
+  it("omits the resolution key entirely for an error that carries none", async () => {
+    vi.mocked(benchManager.startComponent).mockRejectedValue(
+      new BenchError("Component not found", "COMPONENT_NOT_FOUND"),
+    );
+
+    const res = await request(app).post("/my-project/benches/1/components/backend/start");
+    expect(res.body).not.toHaveProperty("resolution");
+  });
 });
 
 describe("POST /:projectId/benches/:id/components/:name/stop", () => {

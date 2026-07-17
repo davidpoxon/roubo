@@ -11,12 +11,14 @@ import type {
   ComponentStatusValue,
   ComponentConfig,
   ComponentPhase,
+  MissingPluginResolution,
+  MissingPluginSourceOffer,
   ProvisioningStep,
   ProvisioningStepStatus,
   RegisteredProject,
   RouboConfig,
 } from "@roubo/shared";
-import { COMPONENT_STEP_PREFIX, declaredCategories } from "@roubo/shared";
+import { COMPONENT_STEP_PREFIX, FIRST_PARTY_SOURCE_ID, declaredCategories } from "@roubo/shared";
 import type { PermissionCategory } from "@roubo/shared";
 import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
@@ -25,6 +27,7 @@ import type { ContainerStatusResult } from "./docker.js";
 import * as processManager from "./process-manager.js";
 import * as ledger from "./resource-ownership-ledger.js";
 import * as pluginManager from "./plugin-manager.js";
+import * as marketplace from "./marketplace.js";
 import { resolveBinding, isNotBound, type NotBound } from "./component-plugin-registry.js";
 import { runDescriptor, type LifecycleContext } from "./lifecycle-engine.js";
 import type { ProvisionDescriptor } from "@roubo/shared/provision-descriptor-schema";
@@ -1808,6 +1811,92 @@ function notBoundMessage(componentName: string, nb: NotBound): string {
   }
 }
 
+/** Describe one serving source for the missing-plugin payload and its message. */
+function toSourceOffer(status: { id: string; label: string }): MissingPluginSourceOffer {
+  // `registered` is derived from WHICH source served the id, never from the entry:
+  // only the first-party catalog is built in, so every other serving source is one
+  // the consumer registered (mirrors marketplace `provenanceOf`).
+  return {
+    sourceId: status.id,
+    label: status.label,
+    registered: status.id !== FIRST_PARTY_SOURCE_ID,
+  };
+}
+
+/** How an offered source reads in the error prose: "ACME (registered)". */
+function describeOffer(offer: MissingPluginSourceOffer): string {
+  return offer.registered ? `${offer.label} (registered)` : offer.label;
+}
+
+/**
+ * Resolve which marketplace sources serve a bound-but-uninstalled plugin id
+ * (CPHMTP-FR-008, issue #566). Enrichment lives HERE, in the async provision path,
+ * rather than in `resolveBinding`: that resolver is synchronous and this is a
+ * network fan-out across every registered source.
+ *
+ * Best-effort by construction. Resolution reaches the network, and this is the
+ * error surface for a bench that is already failing to start, so a failure to
+ * resolve must never replace the actionable "plugin not installed" error with an
+ * unrelated marketplace error. Any failure (an unverified first-party catalog, an
+ * unavailable keyring) degrades to `unresolvable`, which is exactly the plain
+ * dead-end the consumer would have seen before this feature existed.
+ */
+async function resolveMissingPlugin(pluginId: string): Promise<MissingPluginResolution> {
+  let serving: { id: string; label: string }[];
+  try {
+    serving = await marketplace.resolveServingSources(pluginId);
+  } catch {
+    return { pluginId, state: "unresolvable" };
+  }
+  if (serving.length === 1) {
+    return { pluginId, state: "single-source", source: toSourceOffer(serving[0]) };
+  }
+  if (serving.length > 1) {
+    return { pluginId, state: "ambiguous", sources: serving.map(toSourceOffer) };
+  }
+  return { pluginId, state: "unresolvable" };
+}
+
+/**
+ * The not-installed message, enriched with where the id can be installed from.
+ * Each state says only what is honestly actionable: name the one source, refuse to
+ * pick between several, or fall back to the plain dead-end.
+ */
+function missingPluginMessage(
+  componentName: string,
+  resolution: MissingPluginResolution,
+  fallback: string,
+): string {
+  const { pluginId } = resolution;
+  switch (resolution.state) {
+    case "single-source":
+      return `Component plugin '${pluginId}' for component '${componentName}' is not installed; it is available from ${describeOffer(resolution.source)}. Install it from that source to start '${componentName}'.`;
+    case "ambiguous": {
+      const names = resolution.sources.map(describeOffer).join(", ");
+      return `Component plugin '${pluginId}' for component '${componentName}' is not installed and is served by ${resolution.sources.length} sources (${names}); choose which source to install it from before starting '${componentName}'.`;
+    }
+    case "unresolvable":
+      return fallback;
+  }
+}
+
+/**
+ * Build the `COMPONENT_NOT_BOUND` error for an unresolved binding. Only the
+ * `not-installed` reason is enriched: it is the one reason a marketplace install
+ * can actually fix, so every other reason (not-consented, incompatible, and the
+ * rest) keeps its existing message and carries no install affordance.
+ */
+async function notBoundError(componentName: string, nb: NotBound): Promise<BenchError> {
+  const fallback = notBoundMessage(componentName, nb);
+  if (nb.reason !== "not-installed") return new BenchError(fallback, "COMPONENT_NOT_BOUND");
+  const resolution = await resolveMissingPlugin(nb.pluginId);
+  return new BenchError(
+    missingPluginMessage(componentName, resolution, fallback),
+    "COMPONENT_NOT_BOUND",
+    resolution,
+  );
+}
+
 /**
  * Which dispatch path a component's bound plugin uses. An `imperative` plugin
  * implements the start/stop/health/cleanup hooks and the host invokes them
@@ -1866,7 +1955,7 @@ async function provisionComponent(
 
   const binding = resolveBinding(projectId, componentName);
   if (isNotBound(binding)) {
-    throw new BenchError(notBoundMessage(componentName, binding), "COMPONENT_NOT_BOUND");
+    throw await notBoundError(componentName, binding);
   }
 
   const project = projectRegistry.getProject(projectId);
@@ -2979,6 +3068,14 @@ export class BenchError extends Error {
   constructor(
     message: string,
     public code: string,
+    /**
+     * Set only on a `COMPONENT_NOT_BOUND` error whose bound plugin is not
+     * installed: where that plugin id can be installed from (CPHMTP-FR-008, issue
+     * #566). The route serialises it so the missing-plugin surface can offer
+     * install-from-<source> (or pick-a-source) instead of a dead end. Absent for
+     * every other error, which carries no install affordance.
+     */
+    public resolution?: MissingPluginResolution,
   ) {
     super(message);
     this.name = "BenchError";

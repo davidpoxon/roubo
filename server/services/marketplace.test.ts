@@ -1438,4 +1438,52 @@ describe("cross-source id collisions (issue #558)", () => {
       await expect(marketplace.resolveEntry("nope")).resolves.toBeNull();
     });
   });
+
+  // Issue #566 (CPHMTP-FR-008): the missing-plugin surface needs to know WHICH
+  // sources serve an id, which resolveEntry explicitly refuses to answer. These
+  // must stay in lockstep with the collision index and the install gate above: the
+  // three read the same merged fan-out, so they cannot disagree about ambiguity.
+  describe("resolveServingSources (issue #566)", () => {
+    it("names the one source serving a third-party-only id", async () => {
+      wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("acme-only")] }]);
+      const serving = await marketplace.resolveServingSources("acme-only");
+      expect(serving).toHaveLength(1);
+      expect(serving[0]).toMatchObject({ id: ACME_ID, label: "marketplace.acme.example" });
+    });
+
+    it("names every source serving a colliding id, in fan-out order", async () => {
+      wireCollision();
+      const serving = await marketplace.resolveServingSources("database");
+      // First-party first, then registered sources in registration order: the same
+      // order buildCollisionIndex reports, so the pick-a-source list matches the
+      // listing's collision mark.
+      expect(serving.map((s) => s.id)).toEqual([FIRST_PARTY_SOURCE_ID, ACME_ID]);
+    });
+
+    it("returns nothing for an id no source serves", async () => {
+      wireCollision();
+      await expect(marketplace.resolveServingSources("nope")).resolves.toEqual([]);
+    });
+
+    // A revoked entry is served to no one, so counting it would invent an ambiguity
+    // for an id only one source honestly serves (parity with buildCollisionIndex).
+    it("excludes a source whose only matching entry is revoked", async () => {
+      wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("database", { revoked: true })] }]);
+      const serving = await marketplace.resolveServingSources("database");
+      expect(serving.map((s) => s.id)).toEqual([FIRST_PARTY_SOURCE_ID]);
+    });
+
+    // One source listing an id twice is its own duplicate, not a cross-source
+    // collision, so it must not read as ambiguous.
+    it("de-duplicates a source that lists the same id twice", async () => {
+      wire([
+        {
+          row: row(ACME_ID, ACME_URL),
+          entries: [entry("acme-only"), entry("acme-only", { version: "1.0.0" })],
+        },
+      ]);
+      const serving = await marketplace.resolveServingSources("acme-only");
+      expect(serving.map((s) => s.id)).toEqual([ACME_ID]);
+    });
+  });
 });

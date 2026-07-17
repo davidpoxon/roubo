@@ -36,6 +36,33 @@ vi.mock("./IssueAssignControl", () => ({
 vi.mock("../hooks/useBenchIssue", () => ({
   useBenchIssue: vi.fn(() => ({ data: undefined })),
 }));
+// Issue #566: stand in for the dialog so these tests assert the WIRING (does a
+// missing-plugin start error open it, with which resolution, and does resuming
+// retry the start), not the dialog's own rendering, which MissingPluginDialog.test
+// covers.
+vi.mock("./MissingPluginDialog", () => ({
+  default: ({
+    pluginId,
+    componentName,
+    resolution,
+    onInstalled,
+  }: {
+    pluginId: string;
+    componentName?: string;
+    resolution?: { state: string };
+    onInstalled?: () => void;
+  }) => (
+    <div data-testid="missing-plugin-dialog">
+      <span data-testid="missing-plugin-dialog-id">{pluginId}</span>
+      <span data-testid="missing-plugin-dialog-component">{componentName}</span>
+      <span data-testid="missing-plugin-dialog-state">{resolution?.state}</span>
+      <button data-testid="missing-plugin-dialog-installed" onClick={() => onInstalled?.()}>
+        installed
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("./testbench/TestBenchPanel", () => ({
   default: () => <div data-testid="testbench-panel" />,
 }));
@@ -1059,6 +1086,91 @@ describe("BenchDetail", () => {
         </MemoryRouter>,
       );
       expect(screen.getByRole("button", { name: /collapse bench header/i })).toBeInTheDocument();
+    });
+  });
+
+  // Issue #566 (CPHMTP-FR-008 / CPHMTP-US-002): a component start blocked by an
+  // uninstalled bound plugin becomes actionable, but ONLY when the server resolved
+  // somewhere to install it from.
+  describe("missing-plugin start recovery (issue #566)", () => {
+    const stoppedBench = {
+      ...baseBench,
+      components: {
+        server: { status: "stopped", startedAt: null, phases: [], setupComplete: true },
+      },
+    };
+
+    const singleSource = {
+      pluginId: "google-clasp",
+      state: "single-source",
+      source: { sourceId: "acme-1a2b", label: "ACME workplace", registered: true },
+    };
+
+    /** Fail the next component start with `body` as the error response. */
+    function failStartWith(body: Record<string, unknown> | null) {
+      const mutate = vi.fn((_vars: unknown, cb: { onError?: (err: unknown) => void }) => {
+        cb.onError?.(
+          body === null
+            ? new Error("network down")
+            : new ApiError("not installed", 400, "COMPONENT_NOT_BOUND", body),
+        );
+      });
+      vi.mocked(useStartComponent).mockReturnValue({ mutate, isPending: false } as never);
+      return mutate;
+    }
+
+    it("opens the dialog with the resolved source when start hits a missing plugin", async () => {
+      const user = userEvent.setup();
+      failStartWith({ code: "COMPONENT_NOT_BOUND", resolution: singleSource });
+      renderBench(stoppedBench as never);
+
+      await user.click(screen.getByRole("button", { name: /^Start$/ }));
+
+      expect(screen.getByTestId("missing-plugin-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("missing-plugin-dialog-id")).toHaveTextContent("google-clasp");
+      expect(screen.getByTestId("missing-plugin-dialog-component")).toHaveTextContent("server");
+      expect(screen.getByTestId("missing-plugin-dialog-state")).toHaveTextContent("single-source");
+    });
+
+    // CPHMTP-TC-077 S003-O02 (AC1): the install resumes the start it blocked, by
+    // retrying the SAME component.
+    it("retries the blocked component start once the plugin is installed", async () => {
+      const user = userEvent.setup();
+      const mutate = failStartWith({ code: "COMPONENT_NOT_BOUND", resolution: singleSource });
+      renderBench(stoppedBench as never);
+
+      await user.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(mutate).toHaveBeenCalledTimes(1);
+
+      await user.click(screen.getByTestId("missing-plugin-dialog-installed"));
+      expect(mutate).toHaveBeenCalledTimes(2);
+      expect(mutate).toHaveBeenLastCalledWith(
+        { projectId: "proj-1", benchId: 1, component: "server" },
+        expect.anything(),
+      );
+    });
+
+    // CPHMTP-TC-082 S002-O01 (AC3): an id no source serves offers nothing. The
+    // plain error stands and no install affordance appears.
+    it("does not open the dialog for an unresolvable id", async () => {
+      const user = userEvent.setup();
+      failStartWith({
+        code: "COMPONENT_NOT_BOUND",
+        resolution: { pluginId: "nowhere", state: "unresolvable" },
+      });
+      renderBench(stoppedBench as never);
+
+      await user.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(screen.queryByTestId("missing-plugin-dialog")).not.toBeInTheDocument();
+    });
+
+    it("does not open the dialog for an unrelated start failure", async () => {
+      const user = userEvent.setup();
+      failStartWith(null);
+      renderBench(stoppedBench as never);
+
+      await user.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(screen.queryByTestId("missing-plugin-dialog")).not.toBeInTheDocument();
     });
   });
 });
