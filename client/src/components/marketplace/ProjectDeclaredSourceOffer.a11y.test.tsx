@@ -44,6 +44,7 @@ function makeProject(): RegisteredProject {
 beforeEach(() => {
   vi.mocked(_useSources).mockReturnValue({
     data: { sources: [FIRST_PARTY_SUMMARY] },
+    isSuccess: true,
   } as unknown as ReturnType<typeof _useSources>);
   vi.mocked(_useRegister).mockReturnValue({
     mutate: vi.fn(),

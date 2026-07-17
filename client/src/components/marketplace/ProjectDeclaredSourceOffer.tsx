@@ -49,7 +49,13 @@ interface Props {
 }
 
 export default function ProjectDeclaredSourceOffer({ projectId, project }: Props) {
-  const { data: sourcesData } = useMarketplaceSources();
+  // `isSuccess` gates the whole offer: until the registered-source set has
+  // actually loaded, `sourcesData` is undefined (initial load, or an errored
+  // query), so `registeredHrefs` would be empty and an already-registered
+  // declared source would flash a false offer. Suppressing offers until the set
+  // is known keeps criterion 5 / CPHMTP-TC-079 ("shows no offer") honest and is
+  // the safe direction: offer nothing until we can prove a source is unregistered.
+  const { data: sourcesData, isSuccess: sourcesLoaded } = useMarketplaceSources();
   const { isDeclined, decline } = useDeclinedSourceOffers();
   const register = useRegisterMarketplaceSource();
   const { addToast } = useToast();
@@ -124,7 +130,7 @@ export default function ProjectDeclaredSourceOffer({ projectId, project }: Props
     );
   }
 
-  if (offers.length === 0) return null;
+  if (!sourcesLoaded || offers.length === 0) return null;
 
   return (
     <>

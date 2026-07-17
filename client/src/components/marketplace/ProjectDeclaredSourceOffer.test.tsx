@@ -53,7 +53,10 @@ const FIRST_PARTY_SUMMARY: MarketplaceSourceSummary = {
 };
 
 function setSources(sources: MarketplaceSourceSummary[]) {
-  mockedSources.mockReturnValue({ data: { sources } } as unknown as ReturnType<typeof _useSources>);
+  mockedSources.mockReturnValue({
+    data: { sources },
+    isSuccess: true,
+  } as unknown as ReturnType<typeof _useSources>);
 }
 
 function makeProject(
@@ -252,6 +255,43 @@ describe("ProjectDeclaredSourceOffer: already-registered sources (CPHMTP-TC-079,
     setSources([FIRST_PARTY_SUMMARY, summary(DECLARED_URL)]);
     renderOffer(makeProject([{ url: DECLARED_URL }]));
     expect(screen.queryByTestId("declared-source-offer")).not.toBeInTheDocument();
+  });
+});
+
+// CPHMTP-TC-079 (guard): the "shows no offer" property must also hold while the
+// registered-source set is still unknown. Until the sources query resolves,
+// `data` is undefined, so the offer must stay suppressed: otherwise an
+// already-registered declared source would flash a false offer on cold open (and
+// persist if the query errored). Nothing is fetched from the declared URL either.
+describe("ProjectDeclaredSourceOffer: registered set not yet loaded (CPHMTP-TC-079 guard)", () => {
+  it("shows no offer while the sources query is still loading", () => {
+    mockedSources.mockReturnValue({
+      data: undefined,
+      isSuccess: false,
+    } as unknown as ReturnType<typeof _useSources>);
+    renderOffer(makeProject([{ url: DECLARED_URL }]));
+    expect(screen.queryByTestId("declared-source-offer")).not.toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows no offer when the sources query has errored (no registered set to compare against)", () => {
+    mockedSources.mockReturnValue({
+      data: undefined,
+      isSuccess: false,
+      isError: true,
+    } as unknown as ReturnType<typeof _useSources>);
+    renderOffer(makeProject([{ url: DECLARED_URL }]));
+    expect(screen.queryByTestId("declared-source-offer")).not.toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows the offer once the sources query resolves without the declared source", () => {
+    // Sanity counterpart: with the registered set loaded and the declared URL
+    // absent from it, the offer does appear, so the guard suppresses only the
+    // not-yet-known window, not the genuine unregistered case.
+    setSources([FIRST_PARTY_SUMMARY]);
+    renderOffer(makeProject([{ url: DECLARED_URL }]));
+    expect(screen.getByTestId("declared-source-offer")).toBeInTheDocument();
   });
 });
 
