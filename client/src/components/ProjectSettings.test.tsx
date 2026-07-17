@@ -35,7 +35,17 @@ vi.mock("../hooks/useToast", () => ({
 
 vi.mock("../hooks/useMarketplaceSources", () => ({
   useMarketplaceSources: vi.fn(),
+  useRemoveMarketplaceSource: vi.fn(),
 }));
+
+// Partial mock: the Plugins tab still renders PluginsTab, which relies on the
+// module's other exports (useOpportunisticRecheckOnMount, etc.), so only
+// usePlugins is overridden here (the Marketplaces panel derives its orphaned
+// count from it).
+vi.mock("../hooks/usePlugins", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../hooks/usePlugins")>();
+  return { ...actual, usePlugins: vi.fn() };
+});
 
 vi.mock("./jig-editor/jigIcons", () => ({
   getJigIcon: () => () => null,
@@ -58,7 +68,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
 import { useGlobalJigs, useDeleteGlobalJig, useDuplicateGlobalJig } from "../hooks/useJigs";
 import { useToast } from "../hooks/useToast";
-import { useMarketplaceSources } from "../hooks/useMarketplaceSources";
+import { useMarketplaceSources, useRemoveMarketplaceSource } from "../hooks/useMarketplaceSources";
+import { usePlugins } from "../hooks/usePlugins";
 import { ApiError } from "../lib/api";
 
 const mockedUseNavigate = vi.mocked(useNavigate);
@@ -69,6 +80,8 @@ const mockedUseDeleteGlobalJig = vi.mocked(useDeleteGlobalJig);
 const mockedUseDuplicateGlobalJig = vi.mocked(useDuplicateGlobalJig);
 const mockedUseToast = vi.mocked(useToast);
 const mockedUseMarketplaceSources = vi.mocked(useMarketplaceSources);
+const mockedUseRemoveMarketplaceSource = vi.mocked(useRemoveMarketplaceSource);
+const mockedUsePlugins = vi.mocked(usePlugins);
 
 const defaultSettings = {
   theme: "dark" as const,
@@ -110,6 +123,12 @@ function setupDefaultMocks() {
     isLoading: false,
     error: null,
   } as unknown as ReturnType<typeof useMarketplaceSources>);
+  mockedUseRemoveMarketplaceSource.mockReturnValue(
+    noopMutation as unknown as ReturnType<typeof useRemoveMarketplaceSource>,
+  );
+  mockedUsePlugins.mockReturnValue({
+    data: undefined,
+  } as unknown as ReturnType<typeof usePlugins>);
 }
 
 beforeEach(() => {
