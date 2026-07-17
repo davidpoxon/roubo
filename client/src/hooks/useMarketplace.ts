@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../lib/api";
 import type { MarketplaceKind } from "../lib/api";
+import { marketplaceSourcesQueryKey } from "./useMarketplaceSources";
 
 // React Query hooks for the marketplace catalog (CP-FR-020 / CP-US-010, issue
 // #621). The catalog query is keyed on the q/kind/sourceId params (sourceId is the
@@ -97,9 +98,13 @@ export function useRegisterMarketplaceSource() {
     mutationFn: (vars: RegisterMarketplaceSourceVars) => api.registerMarketplaceSource(vars),
     onSuccess: () => {
       // A new source changes the merged catalog and its `sources` array, so the
-      // whole marketplace key tree is invalidated. The prefix also covers a
-      // sources list keyed under it, so the settings list re-reads too.
+      // whole marketplace key tree is invalidated.
       void queryClient.invalidateQueries({ queryKey: [MARKETPLACE_KEY] });
+      // The Marketplaces settings list (issue #561) is keyed ["marketplace-sources"],
+      // a sibling of this prefix rather than a child, so it is NOT covered by the
+      // invalidation above and must be named explicitly. Without this, registering
+      // a source leaves the settings list showing the pre-registration rows.
+      void queryClient.invalidateQueries({ queryKey: marketplaceSourcesQueryKey() });
     },
   });
 }

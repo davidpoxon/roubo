@@ -7,6 +7,7 @@ import {
   useMarketplaceCatalog,
   useRegisterMarketplaceSource,
 } from "./useMarketplace";
+import { useMarketplaceSources } from "./useMarketplaceSources";
 import type { MarketplaceCatalogResponse } from "@roubo/shared";
 
 vi.mock("../lib/api");
@@ -14,6 +15,7 @@ import * as api from "../lib/api";
 
 const fetchMarketplaceCatalog = vi.mocked(api.fetchMarketplaceCatalog);
 const registerMarketplaceSource = vi.mocked(api.registerMarketplaceSource);
+const fetchMarketplaceSources = vi.mocked(api.fetchMarketplaceSources);
 
 // The marketplace catalog query is cached per filter combination, so the key has
 // to carry every param that changes the server's answer. Issue #557 added the
@@ -150,6 +152,27 @@ describe("useRegisterMarketplaceSource", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
+  });
+
+  it("refetches the Marketplaces settings list once a source is registered (issue #561)", async () => {
+    // The settings list is keyed ["marketplace-sources"], a sibling of the
+    // ["marketplace"] prefix rather than a child, so the key-tree invalidation
+    // above does NOT reach it. Assert the real refetch: a spy on invalidateQueries
+    // would pass even if the key never matched a live query.
+    registerMarketplaceSource.mockResolvedValue(created);
+    fetchMarketplaceSources.mockResolvedValue({ sources: [] });
+
+    const { result } = renderHookWithProviders(() => ({
+      register: useRegisterMarketplaceSource(),
+      list: useMarketplaceSources(),
+    }));
+    await waitFor(() => expect(result.current.list.data).toEqual({ sources: [] }));
+
+    fetchMarketplaceSources.mockResolvedValue({ sources: [created] });
+    result.current.register.mutate({ url: created.url });
+
+    await waitFor(() => expect(result.current.register.isSuccess).toBe(true));
+    await waitFor(() => expect(result.current.list.data).toEqual({ sources: [created] }));
   });
 
   it("does not invalidate when the registration is refused", async () => {
