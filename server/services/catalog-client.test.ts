@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type {
@@ -581,6 +581,19 @@ describe("seedThirdPartyCacheForE2E (ROUBO_E2E third-party-source seam, #575)", 
     delete process.env.ROUBO_E2E;
     const mod = await import("./catalog-client.js");
     expect(await mod.seedThirdPartyCacheForE2E("acme-abcd1234", [googleClaspEntry()])).toBeNull();
+  });
+
+  it("rejects (returns null, writes nothing) a sourceId that escapes the per-source root", async () => {
+    process.env.ROUBO_E2E = "1";
+    const mod = await import("./catalog-client.js");
+    for (const bad of ["..", "../escape", "../../etc/passwd", "sub/../../escape"]) {
+      expect(await mod.seedThirdPartyCacheForE2E(bad, [googleClaspEntry()])).toBeNull();
+    }
+    // The traversal was rejected before any mkdir, so nothing reached disk under
+    // (or above) the sources root.
+    await expect(readdir(path.join(cacheHome, "marketplace", "sources"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("seeds a per-source cache the third-party client then serves from CACHE with no network", async () => {

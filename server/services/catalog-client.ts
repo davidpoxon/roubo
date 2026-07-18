@@ -793,7 +793,13 @@ export async function seedThirdPartyCacheForE2E(
   fetchedAt: string = new Date().toISOString(),
 ): Promise<string | null> {
   if (process.env.ROUBO_E2E !== "1") return null;
-  const cacheDir = path.join(getRouboDir(), "marketplace", "sources", sourceId);
+  const sourcesRoot = path.join(getRouboDir(), "marketplace", "sources");
+  const cacheDir = path.join(sourcesRoot, sourceId);
+  // Reject a sourceId whose joined path escapes the per-source cache root (path
+  // traversal; CodeQL js/path-injection). Real generated source ids are flat
+  // `[a-z0-9-]` slugs (marketplace-sources-schema.ts), so a well-formed caller
+  // never trips this; a malformed one is rejected fail-closed before any write.
+  if (!cacheDir.startsWith(sourcesRoot + path.sep)) return null;
   const cacheFile = path.join(cacheDir, CACHE_FILENAME);
   const cache: ThirdPartyCache = { entries, fetchedAt };
   await mkdir(cacheDir, { recursive: true });
