@@ -185,15 +185,38 @@ async function linuxDelete(account: string): Promise<void> {
   );
 }
 
+// Issue #571 (CPHMTP-TC-011): a ROUBO_E2E-gated, process-local in-memory keyring.
+// The real backends (macOS `security`, Linux `secret-tool`) are not portable
+// under the e2e harness: a headless Linux CI runner typically has no Secret
+// Service, so `secret-tool` would raise `keyring-unavailable` and make the
+// credential leg of the marketplace-removal journey (S006: assert the stored
+// credential is gone) non-deterministic. When ROUBO_E2E=1 the store swaps to this
+// map, keyed by the same `${pluginId}/${slot}` account the real backends use, so
+// get / set / deleteSlot are deterministic and CI-portable. Never engaged outside
+// the e2e gate: production and unit-test runs (which do not set ROUBO_E2E) take
+// the platform paths below unchanged.
+const e2eKeyring = new Map<string, string>();
+
+function isE2E(): boolean {
+  return process.env.ROUBO_E2E === "1";
+}
+
 export async function get(pluginId: string, slot: string): Promise<string | null> {
-  const platform = requireSupportedPlatform();
   const account = storageAccount(pluginId, slot);
+  if (isE2E()) {
+    return e2eKeyring.has(account) ? (e2eKeyring.get(account) as string) : null;
+  }
+  const platform = requireSupportedPlatform();
   return platform === "darwin" ? macosGet(account) : linuxGet(account);
 }
 
 export async function set(pluginId: string, slot: string, value: string): Promise<void> {
-  const platform = requireSupportedPlatform();
   const account = storageAccount(pluginId, slot);
+  if (isE2E()) {
+    e2eKeyring.set(account, value);
+    return;
+  }
+  const platform = requireSupportedPlatform();
   if (platform === "darwin") {
     await macosSet(account, value);
   } else {
@@ -214,7 +237,20 @@ export async function set(pluginId: string, slot: string, value: string): Promis
 }
 
 export async function deleteSlot(pluginId: string, slot: string): Promise<void> {
-  const platform = requireSupportedPlatform();
   const account = storageAccount(pluginId, slot);
+  if (isE2E()) {
+    e2eKeyring.delete(account);
+    return;
+  }
+  const platform = requireSupportedPlatform();
   return platform === "darwin" ? macosDelete(account) : linuxDelete(account);
 }
+
+// Test-only reset for the ROUBO_E2E in-memory keyring (issue #571), so each
+// Playwright spec starts with no leaked credentials. Called from the e2e
+// /test/__reset handler; a no-op on the real platform backends.
+export const __test = {
+  resetE2EKeyring(): void {
+    e2eKeyring.clear();
+  },
+};

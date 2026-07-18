@@ -2564,6 +2564,29 @@ export const __test = {
   getE2EConfig(): { scenario: string | null; now: string | null } {
     return { scenario: e2eScenario, now: e2eNow };
   },
+  // Issue #571 (CPHMTP-TC-011): re-derive every live record's marketplace
+  // provenance (sourceId / sourceUrl / unverified / orphaned) from the on-disk
+  // ledger, WITHOUT respawning the plugin processes. A PluginRecord's provenance
+  // is baked on at build time (makeRecord -> marketplaceProvenanceFields), so a
+  // row written or orphan-stamped in plugins-provenance.json AFTER initialize()
+  // only reaches the record on the next rebuild, which in production is a
+  // relaunch (see the "stamps orphaned from the ledger row when the source was
+  // removed" unit test, which sets the ledger then re-initialize()s). The
+  // marketplace-removal e2e drives that rebuild explicitly through this
+  // ROUBO_E2E-only seam so the orphaned aftermath is observable in-session the
+  // way it becomes visible after a relaunch. Each record's four provenance keys
+  // are stripped then re-applied so a field that left the ledger goes genuinely
+  // absent (the "absent means not orphaned / first-party-eligible" contract).
+  refreshProvenanceFromLedger(): void {
+    for (const entry of plugins.values()) {
+      const base = { ...entry.record };
+      delete base.sourceId;
+      delete base.sourceUrl;
+      delete base.unverified;
+      delete base.orphaned;
+      entry.record = { ...base, ...marketplaceProvenanceFields(entry.record.id) };
+    }
+  },
   resetConnectionStatusCache(): void {
     connectionStatusCache.clear();
     inFlightConnectionStatusRequests.clear();

@@ -29,6 +29,8 @@ import { cutListQueryService } from "../services/cut-list-query-service.js";
 import * as catalogClient from "../services/catalog-client.js";
 import * as marketplace from "../services/marketplace.js";
 import * as sourcesState from "../services/marketplace-sources-state.js";
+import * as pluginProvenanceState from "../services/plugin-provenance-state.js";
+import * as credentialStore from "../services/credential-store.js";
 import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
 import {
   IntegrationConfigSchema,
@@ -265,7 +267,15 @@ function wipePersistedTestState(): void {
   if (!rouboDir.includes(`${path.sep}.roubo-dev${path.sep}`)) {
     throw new Error(`wipePersistedTestState refuses to wipe a non-dev roubo dir: ${rouboDir}`);
   }
-  for (const name of ["projects.json", "state.json", "marketplace-sources.json"]) {
+  for (const name of [
+    "projects.json",
+    "state.json",
+    // #571 (CPHMTP-TC-011): the third-party marketplace registry and the plugin
+    // provenance ledger the marketplace-removal journey seeds. Wiped alongside the
+    // rest so a seeded source / orphan stamp never leaks into a later spec (NFR-018).
+    "marketplace-sources.json",
+    "plugins-provenance.json",
+  ]) {
     const file = path.join(rouboDir, name);
     try {
       fs.rmSync(file, { force: true });
@@ -281,6 +291,8 @@ function wipePersistedTestState(): void {
   // serve stale entries), breaking 10x determinism (NFR-018). Paired with the
   // marketplace-sources.json removal above and the in-memory resets in
   // /__reset, so a later spec starts with no registered third-party sources.
+  // #571 (CPHMTP-TC-011): also drops the per-source cache tree the
+  // __seed-marketplace-source seam pre-creates (`marketplace/sources/<id>/`).
   try {
     fs.rmSync(path.join(rouboDir, "marketplace"), { recursive: true, force: true });
   } catch {
@@ -441,6 +453,15 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // the helper itself refuses to run unless ROUBO_PRODUCTION is unset and
     // the resolved roubo dir lives under `.roubo-dev/`.
     wipePersistedTestState();
+    // #571 (CPHMTP-TC-011): drop the in-process caches for the plugin provenance
+    // ledger and the ROUBO_E2E in-memory keyring that wipePersistedTestState just
+    // cleared on disk, so a seeded provenance row / credential never bleeds into
+    // the next spec (NFR-018). The load helpers return null on an absent file, but
+    // the saved `lastKnown` snapshot would otherwise survive a corrupt-file
+    // fallback. (The marketplace-sources snapshot + per-source client cache are
+    // reset in the #575 block below.)
+    pluginProvenanceState.__test.reset();
+    credentialStore.__test.resetE2EKeyring();
     // #568: restore the cut-list disk-cache bypass to its env-derived default.
     // The cut-list-refresh drift guard (CLI-TC-017) un-bypasses the disk path
     // via /test/__set-cut-list-disk-cache to reach the warm-snapshot serve;
@@ -655,6 +676,120 @@ router.post("/__seed-source-catalog", async (req: Request, res: Response) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("/test/__seed-source-catalog failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /test/__seed-marketplace-source (#571, CPHMTP-TC-011): stand up the
+// preconditions for the marketplace-removal journey, which has no pure-UI path to
+// reach ("a third-party source registered WITH a credential, and one plugin
+// installed FROM it"). Registering a source is a UI flow, but installing a plugin
+// from a specific third-party source is not scriptable end to end in the harness,
+// so this seam writes the state directly, exactly as the shipping install commit
+// would: it registers the source via sourcesState.addSource (which also stores the
+// credential in the keyring), records a provenance-ledger row tying the target
+// plugin to that source, and pre-creates the per-source catalog cache dir. It then
+// re-derives the live plugin records from the ledger (the same rebuild a relaunch
+// does) so the seeded plugin's record carries the source before the removal step.
+// Gated by ROUBO_E2E; production builds 404 the URL.
+//
+// Body: { url?, pluginId?, credential? }. Defaults model the CPHMTP-TC-011
+// preconditions (a credentialled third-party source, the e2e-stub plugin installed
+// from it). Returns the generated { sourceId, sourceUrl, pluginId }.
+const SEED_SOURCE_DEFAULT_URL = "https://marketplace.e2e-remove.test/catalog.json";
+const SEED_SOURCE_DEFAULT_PLUGIN_ID = "e2e-stub";
+const SEED_SOURCE_DEFAULT_CREDENTIAL = "e2e-source-token";
+const SEED_PLUGIN_ID_RE = /^[a-z][a-z0-9-]*$/;
+router.post("/__seed-marketplace-source", async (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as { url?: unknown; pluginId?: unknown; credential?: unknown };
+  const url =
+    typeof body.url === "string" && body.url.length > 0 ? body.url : SEED_SOURCE_DEFAULT_URL;
+  const credential =
+    typeof body.credential === "string" && body.credential.length > 0
+      ? body.credential
+      : SEED_SOURCE_DEFAULT_CREDENTIAL;
+  let pluginId = SEED_SOURCE_DEFAULT_PLUGIN_ID;
+  if (body.pluginId !== undefined) {
+    if (typeof body.pluginId !== "string" || !SEED_PLUGIN_ID_RE.test(body.pluginId)) {
+      return res
+        .status(400)
+        .json({ error: "pluginId must be a kebab-case string matching /^[a-z][a-z0-9-]*$/" });
+    }
+    pluginId = body.pluginId;
+  }
+  try {
+    const result = await sourcesState.addSource({ url, credential });
+    if (result.outcome === "invalid-url") {
+      return res.status(400).json({ error: `Invalid source URL: ${url}` });
+    }
+    const source = result.source;
+    // Record the provenance row the install commit would have written, tying the
+    // plugin to the just-registered source and marking it unsigned (unverified),
+    // the trust treatment every third-party source carries.
+    pluginProvenanceState.recordProvenance({
+      pluginId,
+      sourceId: source.id,
+      sourceUrl: source.url,
+      unverified: true,
+    });
+    // Pre-create the per-source catalog cache dir with a placeholder catalog so
+    // S006 can prove the removal deletes it (the pure-write registration fetches
+    // nothing, so nothing else would create it).
+    const cacheDir = sourcesState.__test.sourceCacheDir(source.id);
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, "catalog.json"), "{}\n", "utf-8");
+    // Re-derive the live records so the seeded plugin's record carries the source
+    // provenance before the journey's removal step (the rebuild a relaunch does).
+    pluginManager.__test.refreshProvenanceFromLedger();
+    res.status(200).json({ sourceId: source.id, sourceUrl: source.url, pluginId });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__seed-marketplace-source failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /test/__refresh-plugin-provenance (#571, CPHMTP-TC-011): re-derive the live
+// plugin records from the provenance ledger without a server restart. The orphan
+// stamp a source removal writes to the ledger only reaches a record on its next
+// rebuild (a relaunch in production); the marketplace-removal journey calls this
+// AFTER the removal so the orphaned aftermath is observable in-session. Gated by
+// ROUBO_E2E; production builds 404 the URL.
+router.post("/__refresh-plugin-provenance", (_req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  pluginManager.__test.refreshProvenanceFromLedger();
+  res.status(200).json({ ok: true });
+});
+
+// GET /test/__inspect-marketplace-source?id= (#571, CPHMTP-TC-011): read the
+// on-disk aftermath of a source removal (S006) directly, so the drift guard can
+// assert the registry row, the per-source catalog cache dir, and the keyring
+// credential are all gone without the spec poking the filesystem/keyring itself.
+// Gated by ROUBO_E2E; production builds 404 the URL.
+const INSPECT_SOURCE_ID_RE = /^[a-z0-9-]+$/;
+router.get("/__inspect-marketplace-source", async (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const id = req.query.id;
+  if (typeof id !== "string" || !INSPECT_SOURCE_ID_RE.test(id)) {
+    return res
+      .status(400)
+      .json({ error: "id query param must be a source slug matching /^[a-z0-9-]+$/" });
+  }
+  try {
+    const registryPresent = sourcesState.listSources().some((s) => s.id === id);
+    const cacheDirExists = fs.existsSync(sourcesState.__test.sourceCacheDir(id));
+    const credentialPresent = (await sourcesState.readSourceCredential(id)) !== null;
+    res.status(200).json({ registryPresent, cacheDirExists, credentialPresent });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__inspect-marketplace-source failed:", message);
     res.status(500).json({ error: message });
   }
 });

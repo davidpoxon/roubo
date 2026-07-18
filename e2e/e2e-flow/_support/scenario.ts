@@ -187,6 +187,60 @@ export async function seedSourceCatalog(
   expect(res.status(), `seed source catalog for ${opts.sourceId}`).toBe(200);
 }
 
+/**
+ * #571 (CPHMTP-TC-011): stand up the marketplace-removal journey's preconditions
+ * via the ROUBO_E2E-gated `POST /test/__seed-marketplace-source`: a third-party
+ * source registered WITH a credential, and one plugin (default `e2e-stub`) whose
+ * provenance ledger row ties it to that source, plus the source's catalog cache
+ * dir pre-created. There is no pure-UI path to "a plugin installed from a specific
+ * third-party source", so the seam writes the state the install commit would, then
+ * re-derives the live records so the seeded plugin's record carries the source.
+ * `/test/__reset` wipes the registry, ledger, cache dir, and keyring credential so
+ * the seed never leaks into a later spec (NFR-018). Returns the generated
+ * { sourceId, sourceUrl, pluginId }.
+ */
+export async function seedMarketplaceSource(
+  request: APIRequestContext,
+  opts: { url?: string; pluginId?: string; credential?: string } = {},
+): Promise<{ sourceId: string; sourceUrl: string; pluginId: string }> {
+  const res = await request.post("/test/__seed-marketplace-source", { data: opts });
+  expect(res.status(), "seed marketplace source").toBe(200);
+  return (await res.json()) as { sourceId: string; sourceUrl: string; pluginId: string };
+}
+
+/**
+ * #571 (CPHMTP-TC-011): re-derive the live plugin records from the provenance
+ * ledger via `POST /test/__refresh-plugin-provenance`, without a server restart. A
+ * source removal stamps the ledger orphaned, but a PluginRecord only picks that up
+ * on its next rebuild (a relaunch in production, see plugin-manager's
+ * `refreshProvenanceFromLedger`), so the journey calls this AFTER the removal to
+ * make the orphaned aftermath observable in-session the way it becomes visible
+ * after a relaunch.
+ */
+export async function refreshPluginProvenance(request: APIRequestContext): Promise<void> {
+  const res = await request.post("/test/__refresh-plugin-provenance");
+  expect(res.status(), "refresh plugin provenance from ledger").toBe(200);
+}
+
+/**
+ * #571 (CPHMTP-TC-011): read the on-disk aftermath of a source removal (S006) via
+ * `GET /test/__inspect-marketplace-source`, so the drift guard can assert the
+ * registry row, the per-source catalog cache dir, and the keyring credential are
+ * all gone without poking the filesystem/keyring from the test process.
+ */
+export async function inspectMarketplaceSource(
+  request: APIRequestContext,
+  id: string,
+): Promise<{ registryPresent: boolean; cacheDirExists: boolean; credentialPresent: boolean }> {
+  const res = await request.get(`/test/__inspect-marketplace-source?id=${encodeURIComponent(id)}`);
+  expect(res.status(), "inspect marketplace source").toBe(200);
+  return (await res.json()) as {
+    registryPresent: boolean;
+    cacheDirExists: boolean;
+    credentialPresent: boolean;
+  };
+}
+
 // #313 (CPHM-TC-041): one installed seed plugin's on-disk shape, as reported by
 // `POST /test/__seed-fresh-launch`. Keep in lock-step with `SeedPluginSnapshot`
 // in server/routes/test.ts.
