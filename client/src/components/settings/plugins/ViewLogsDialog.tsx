@@ -9,6 +9,7 @@ import {
   ModalOverlay,
   TextField,
 } from "react-aria-components";
+import { stampAriaModal } from "../../../lib/aria-modal";
 import { RefreshCw, X } from "lucide-react";
 import type { LogLine } from "@roubo/shared";
 import { usePluginLogs } from "../../../hooks/usePlugins";
@@ -90,6 +91,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
     >
       <Modal className="w-full max-w-3xl mx-4">
         <Dialog
+          ref={stampAriaModal}
           aria-label={STRINGS.logsAriaLabel(pluginName)}
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
         >

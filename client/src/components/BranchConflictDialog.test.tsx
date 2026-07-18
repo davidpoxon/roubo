@@ -109,4 +109,19 @@ describe("BranchConflictDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    render(
+      <BranchConflictDialog
+        isOpen
+        onClose={vi.fn()}
+        conflict={conflict}
+        onResume={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
 });

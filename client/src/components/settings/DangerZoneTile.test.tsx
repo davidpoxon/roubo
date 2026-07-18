@@ -152,6 +152,16 @@ describe("DangerZoneTile", () => {
     expect(screen.getByText("Unregister My App?")).toBeInTheDocument();
   });
 
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the confirmation dialog", async () => {
+    setupMocks();
+    const user = userEvent.setup();
+    render(<DangerZoneTile projectId="proj-1" />);
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   it("does not call mutate when Cancel is clicked in the dialog", async () => {
     setupMocks();
     const user = userEvent.setup();

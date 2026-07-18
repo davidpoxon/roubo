@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { ModalOverlay, Modal, Dialog, Heading, Button } from "react-aria-components";
+import { stampAriaModal } from "../lib/aria-modal";
 import { Tag, ExternalLink, Lock, ChevronLeft, ChevronRight } from "lucide-react";
 import Spinner from "./Spinner";
 import IssueChip from "./IssueChip";
@@ -181,7 +182,10 @@ export default function IssuePickerModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col overflow-hidden">
+        <Dialog
+          ref={stampAriaModal}
+          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col overflow-hidden"
+        >
           {() => (
             <>
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">

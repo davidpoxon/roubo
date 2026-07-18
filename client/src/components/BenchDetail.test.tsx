@@ -250,6 +250,14 @@ describe("BenchDetail", () => {
     expect(screen.getByText(/clear bench/i)).toBeInTheDocument();
   });
 
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the teardown dialog", async () => {
+    renderBench();
+    await userEvent.click(screen.getByRole("button", { name: /clear/i }));
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   it("calls teardown mutation and registerTeardown (via onSuccess) when confirmed in dialog", async () => {
     const registerTeardown = vi.fn();
     const teardownMutate = vi.fn((_vars: unknown, options?: { onSuccess?: () => void }) => {

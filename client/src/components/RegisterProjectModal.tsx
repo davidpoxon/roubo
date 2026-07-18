@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ModalOverlay, Modal, Dialog, Heading, Button } from "react-aria-components";
+import { stampAriaModal } from "../lib/aria-modal";
 import { FolderOpen, Check, AlertCircle, Loader2 } from "lucide-react";
 import type { RegisteredProject } from "@roubo/shared";
 import { useCheckConfig, useRegisterProject } from "../hooks/useProjects";
@@ -85,7 +86,10 @@ export default function RegisterProjectModal({
       <Modal
         className={`w-full mx-4 flex flex-col max-h-[85vh] ${inSetup ? "max-w-2xl" : "max-w-xl"}`}
       >
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit]">
+        <Dialog
+          ref={stampAriaModal}
+          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit]"
+        >
           {({ close }) => (
             <>
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 flex items-center justify-between shrink-0">

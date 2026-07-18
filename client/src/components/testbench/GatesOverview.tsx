@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button, Checkbox, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
+import { stampAriaModal } from "../../lib/aria-modal";
 import { AlertTriangle, ChevronRight, GitMerge, Split, X } from "lucide-react";
 import type { GateState, InvalidGateSpec } from "../../lib/api";
 import { ApiError } from "../../lib/api";
@@ -272,7 +273,10 @@ function SplitDialog({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-md mx-4 flex flex-col max-h-[85vh]">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden">
+        <Dialog
+          ref={stampAriaModal}
+          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
+        >
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 shrink-0 flex items-center justify-between gap-3">
             <Heading
               slot="title"

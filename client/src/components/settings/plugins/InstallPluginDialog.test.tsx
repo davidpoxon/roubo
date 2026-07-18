@@ -131,6 +131,14 @@ describe("source step", () => {
     expect(screen.getByTestId("install-plugin-submit")).toBeInTheDocument();
   });
 
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    setupMutations();
+    renderDialog();
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   it("validates that the Git URL field is not empty", async () => {
     const user = userEvent.setup();
     const { previewMutate } = setupMutations();

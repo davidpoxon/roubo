@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button, Dialog, DialogTrigger, Modal, ModalOverlay, Switch } from "react-aria-components";
+import { stampAriaModal } from "../../../lib/aria-modal";
 import { Plug, Puzzle } from "lucide-react";
 import type { ConnectionStatus, PluginRecord } from "@roubo/shared";
 import {
@@ -350,7 +351,10 @@ function ConfigureLoadingDialog() {
   return (
     <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <Modal className="w-full max-w-sm mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none px-5 py-6">
+        <Dialog
+          ref={stampAriaModal}
+          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none px-5 py-6"
+        >
           <div
             role="status"
             className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400"
@@ -370,6 +374,7 @@ function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () 
     <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <Modal className="w-full max-w-sm mx-4">
         <Dialog
+          ref={stampAriaModal}
           role="alertdialog"
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none px-5 py-6"
         >

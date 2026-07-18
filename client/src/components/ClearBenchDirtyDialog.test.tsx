@@ -149,4 +149,11 @@ describe("ClearBenchDirtyDialog", () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
+
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    renderDialog();
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
 });

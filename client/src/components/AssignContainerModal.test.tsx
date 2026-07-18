@@ -162,4 +162,22 @@ describe("AssignContainerModal", () => {
     );
     expect(screen.queryByText(/assign container/i)).not.toBeInTheDocument();
   });
+
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    mockUseContainers.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
+      typeof useContainers
+    >);
+    render(
+      <AssignContainerModal
+        projectId="p1"
+        benchId={1}
+        component="db"
+        isOpen
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
 });

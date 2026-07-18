@@ -62,6 +62,22 @@ beforeEach(() => {
 });
 
 describe("ConsentReviewDialog: declared permissions (issue #490)", () => {
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    render(
+      <ConsentReviewDialog
+        pluginId="database"
+        pluginName="Database"
+        declared={dockerPerms}
+        provenance={firstParty()}
+        version="1.0.0"
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   it("renders the trust banner and each declared permission category", () => {
     render(
       <ConsentReviewDialog

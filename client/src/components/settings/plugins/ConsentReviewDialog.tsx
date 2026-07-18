@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button, Checkbox, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
+import { stampAriaModal } from "../../../lib/aria-modal";
 import { AlertTriangle, Check, ShieldAlert, ShieldCheck } from "lucide-react";
 import { declaredCategories, type PluginPermissions } from "@roubo/shared";
 import { useGrantConsent } from "../../../hooks/usePlugins";
@@ -98,6 +99,7 @@ export default function ConsentReviewDialog({
     >
       <Modal className="w-full max-w-lg mx-4">
         <Dialog
+          ref={stampAriaModal}
           data-testid="consent-review-dialog"
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
         >

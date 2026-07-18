@@ -304,6 +304,23 @@ describe("Marketplace catalog", () => {
     expect(screen.getByTestId("marketplace-card-install")).toBeInTheDocument();
   });
 
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref makes the staging progress modal's modality explicit to AT.
+  it("stamps aria-modal on the staging progress modal", async () => {
+    const mutate = vi.fn((_id: string, opts: { onError: (e: unknown) => void }) => {
+      opts.onError(new ApiError("integrity verification failure", 422, "integrity-failed"));
+    });
+    mockedInstallPreview.mockReturnValue(mutationStub({ mutate }));
+    setCatalog([CATALOG[0]]); // redis, not installed
+    const user = userEvent.setup();
+    render(<Marketplace />);
+    await user.click(screen.getByTestId("marketplace-card-install"));
+    expect(screen.getByTestId("marketplace-install-progress-modal")).toHaveAttribute(
+      "aria-modal",
+      "true",
+    );
+  });
+
   it("shows integrity, provenance, and sandbox rows in the detail drawer (CP-TC-104)", async () => {
     const user = userEvent.setup();
     setCatalog([CATALOG[0]]);
