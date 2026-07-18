@@ -54,9 +54,8 @@ describe("MarketplaceSourceConsentModal: modal semantics (CPHMTP-TC-024 S001)", 
     const { getByRole } = renderModal();
     const dialog = getByRole("dialog");
     // React Aria omits aria-modal deliberately and strips the prop, so this only
-    // holds because the component stamps it through a ref (issue #424 / #974).
-    // Asserted explicitly here rather than assumed: Marketplace.a11y.test.tsx
-    // claims the same coverage in a comment without checking it.
+    // holds because the component stamps it through a ref via the shared
+    // stampAriaModal helper (issue #424).
     expect(dialog).toHaveAttribute("aria-modal", "true");
 
     const labelledBy = dialog.getAttribute("aria-labelledby");

@@ -7,6 +7,7 @@ import { deriveStageStatuses, describeArtifact } from "./marketplace-install-sta
 import { CATEGORY_META } from "./permission-categories";
 import ProvenanceBadge from "./ProvenanceBadge";
 import { trustTreatmentOf, type PluginProvenance } from "./plugin-provenance";
+import { stampAriaModal } from "../../lib/aria-modal";
 
 // Install/update consent for a marketplace catalog entry (CP-FR-020, issue
 // #621). It shows every permission category the STAGED manifest declares (the
@@ -126,6 +127,7 @@ export default function MarketplaceConsentModal({
     >
       <Modal className="w-full max-w-lg mx-4">
         <Dialog
+          ref={stampAriaModal}
           data-testid="marketplace-consent-modal"
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
         >
