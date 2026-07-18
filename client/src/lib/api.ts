@@ -150,6 +150,26 @@ export function isMissingPluginError(err: unknown): err is ApiError & {
   return state === "single-source" || state === "ambiguous";
 }
 
+/**
+ * A start failed because the component's bound plugin is installed but has no
+ * ConsentRecord: its permissions were never acknowledged (issue #617, AC3). The
+ * server carries `consent.pluginId` on the `COMPONENT_NOT_BOUND` body so the bench
+ * page can open an actionable consent prompt instead of stopping silently. Mirrors
+ * `isMissingPluginError`: a typed body read off `ApiError.details`, which `request`
+ * populates with the whole error body.
+ */
+export function isConsentError(err: unknown): err is ApiError & {
+  code: "COMPONENT_NOT_BOUND";
+  details: { consent: { pluginId: string } };
+} {
+  if (!(err instanceof ApiError) || err.code !== "COMPONENT_NOT_BOUND") return false;
+  if (typeof err.details !== "object" || err.details === null) return false;
+  const consent = (err.details as { consent?: unknown }).consent;
+  if (typeof consent !== "object" || consent === null) return false;
+  const pluginId = (consent as { pluginId?: unknown }).pluginId;
+  return typeof pluginId === "string" && pluginId.length > 0;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },

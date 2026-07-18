@@ -63,9 +63,12 @@ import { stepIcon, stepTextColor, phaseIcon, phaseTextColor } from "../lib/provi
 import Spinner from "./Spinner";
 import NotificationIndicator from "./NotificationIndicator";
 import { useBenchViewState, type BenchTabId } from "../hooks/useBenchViewState";
-import { isDirtyBenchError, isMissingPluginError } from "../lib/api";
+import { isDirtyBenchError, isMissingPluginError, isConsentError } from "../lib/api";
 import ClearBenchDirtyDialog from "./ClearBenchDirtyDialog";
 import MissingPluginDialog from "./MissingPluginDialog";
+import ConsentReviewDialog from "./settings/plugins/ConsentReviewDialog";
+import { recordProvenance } from "./marketplace/plugin-provenance";
+import { usePlugins } from "../hooks/usePlugins";
 import { useToast } from "../hooks/useToast";
 import { useBenchIssue } from "../hooks/useBenchIssue";
 import IssueTransitionDropdown from "./IssueTransitionDropdown";
@@ -209,6 +212,20 @@ function ComponentsTab({
     component: string;
     resolution: MissingPluginResolution;
   } | null>(null);
+  // The component whose resumed start still dead-ended at the consent gate: the
+  // bound plugin is installed but its permissions were never acknowledged (issue
+  // #617, AC3). Defensive fallback so the bench page surfaces an actionable consent
+  // prompt instead of a silent stop with the dialog closed. The plugin record (for
+  // the declared permissions + provenance the prompt needs) is read from the shared
+  // plugins query below.
+  const [consentPrompt, setConsentPrompt] = useState<{
+    component: string;
+    pluginId: string;
+  } | null>(null);
+  const plugins = usePlugins();
+  const consentPluginRecord = consentPrompt
+    ? (plugins.data?.plugins.find((p) => p.id === consentPrompt.pluginId) ?? null)
+    : null;
 
   const startComponentWithRecovery = (component: string) => {
     startComponent.mutate(
@@ -217,6 +234,8 @@ function ComponentsTab({
         onError: (err) => {
           if (isMissingPluginError(err)) {
             setMissingPlugin({ component, resolution: err.details.resolution });
+          } else if (isConsentError(err)) {
+            setConsentPrompt({ component, pluginId: err.details.consent.pluginId });
           }
         },
       },
@@ -341,6 +360,25 @@ function ComponentsTab({
           // (CPHMTP-TC-077 S003-O02). Retrying the SAME component start is the
           // resume: the binding now resolves, so it provisions instead of throwing.
           onInstalled={() => startComponentWithRecovery(missingPlugin.component)}
+        />
+      )}
+
+      {/*
+        Defensive consent fallback (issue #617, AC3): the resumed start still hit the
+        consent gate, so surface the same PermissionsScreen-style acknowledgement the
+        install flow uses (declared permissions + provenance off the installed
+        record). On grant, resume the SAME component start: the ConsentRecord now
+        exists, so the gate passes instead of throwing.
+      */}
+      {consentPrompt && consentPluginRecord?.manifest && (
+        <ConsentReviewDialog
+          pluginId={consentPluginRecord.id}
+          pluginName={consentPluginRecord.manifest.name ?? consentPluginRecord.id}
+          declared={consentPluginRecord.manifest.permissions}
+          provenance={recordProvenance(consentPluginRecord)}
+          version={consentPluginRecord.manifest.version}
+          onGranted={() => startComponentWithRecovery(consentPrompt.component)}
+          onClose={() => setConsentPrompt(null)}
         />
       )}
     </>

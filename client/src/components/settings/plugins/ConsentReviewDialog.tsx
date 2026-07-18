@@ -51,6 +51,12 @@ interface Props {
   provenance: PluginProvenance;
   version?: string;
   onClose: () => void;
+  /**
+   * Fired after consent is successfully recorded, before `onClose`. The bench-page
+   * consent fallback (issue #617, AC3) uses it to resume the component start the
+   * consent gate blocked; the Settings caller omits it and just closes.
+   */
+  onGranted?: () => void;
 }
 
 export default function ConsentReviewDialog({
@@ -60,6 +66,7 @@ export default function ConsentReviewDialog({
   provenance,
   version,
   onClose,
+  onGranted,
 }: Props) {
   const [acknowledged, setAcknowledged] = useState(false);
   const isVerified = trustTreatmentOf(provenance) === "verified";
@@ -83,7 +90,12 @@ export default function ConsentReviewDialog({
     // affordance clears without a manual refetch.
     grantConsent.mutate(
       { pluginId, acknowledgedCategories: categories },
-      { onSuccess: () => onClose() },
+      {
+        onSuccess: () => {
+          onGranted?.();
+          onClose();
+        },
+      },
     );
   }
 

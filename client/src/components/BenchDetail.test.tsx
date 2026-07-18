@@ -15,6 +15,7 @@ vi.mock("../hooks/useProjectIntegration", () => ({
 }));
 vi.mock("../hooks/useClearingTracker");
 vi.mock("../hooks/useContainers");
+vi.mock("../hooks/usePlugins");
 vi.mock("../hooks/useToast");
 vi.mock("../hooks/useElapsed", () => ({ useElapsed: () => null }));
 vi.mock("./ComponentStatusDot", () => ({ default: () => <span data-testid="status-dot" /> }));
@@ -63,6 +64,34 @@ vi.mock("./MissingPluginDialog", () => ({
   ),
 }));
 
+// Issue #617 (AC3): the bench page's defensive consent fallback. We assert the
+// WIRING (a consent-gate 400 opens the prompt, granting re-runs the start), not the
+// dialog's own rendering, which ConsentReviewDialog.test covers.
+vi.mock("./settings/plugins/ConsentReviewDialog", () => ({
+  default: ({
+    pluginId,
+    pluginName,
+    onGranted,
+    onClose,
+  }: {
+    pluginId: string;
+    pluginName?: string;
+    onGranted?: () => void;
+    onClose?: () => void;
+  }) => (
+    <div data-testid="consent-review-dialog">
+      <span data-testid="consent-review-dialog-id">{pluginId}</span>
+      <span data-testid="consent-review-dialog-name">{pluginName}</span>
+      <button data-testid="consent-review-dialog-grant" onClick={() => onGranted?.()}>
+        grant
+      </button>
+      <button data-testid="consent-review-dialog-close" onClick={() => onClose?.()}>
+        close
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("./testbench/TestBenchPanel", () => ({
   default: () => <div data-testid="testbench-panel" />,
 }));
@@ -83,6 +112,7 @@ import { useProjects } from "../hooks/useProjects";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { useTeardownTracker } from "../hooks/useClearingTracker";
 import { useUnassignContainer } from "../hooks/useContainers";
+import { usePlugins } from "../hooks/usePlugins";
 import { useToast } from "../hooks/useToast";
 
 const mockUseBenchDetail = vi.mocked(useBenchDetail);
@@ -139,6 +169,9 @@ beforeEach(() => {
   vi.mocked(useStopComponent).mockReturnValue(makeMutation());
   vi.mocked(useDismissBenchNotifications).mockReturnValue(makeMutation());
   mockUseUnassignContainer.mockReturnValue(makeMutation());
+  vi.mocked(usePlugins).mockReturnValue({
+    data: { hostApiVersion: "1.0.0", plugins: [] },
+  } as never);
   mockUseTeardownTracker.mockReturnValue({ register: vi.fn(), teardowns: new Map() } as never);
   mockUseProjects.mockReturnValue({ data: [baseProject] } as never);
   vi.mocked(useToast).mockReturnValue({ addToast: vi.fn(), removeToast: vi.fn() });
@@ -1179,6 +1212,97 @@ describe("BenchDetail", () => {
 
       await user.click(screen.getByRole("button", { name: /^Start$/ }));
       expect(screen.queryByTestId("missing-plugin-dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  // Issue #617 (AC3): defensive fallback for when the resumed start still hits the
+  // consent gate. The bench page must surface an actionable consent prompt rather
+  // than stopping silently with the dialog closed, and granting must resume the
+  // start it blocked.
+  describe("consent-gate start recovery (issue #617)", () => {
+    const stoppedBench = {
+      ...baseBench,
+      components: {
+        server: { status: "stopped", startedAt: null, phases: [], setupComplete: true },
+      },
+    };
+
+    const claspRecord = {
+      id: "google-clasp",
+      manifest: {
+        id: "google-clasp",
+        name: "Google Clasp",
+        version: "1.2.3",
+        permissions: {
+          network: { hosts: ["script.google.com"] },
+          credentials: { slots: [] },
+          filesystem: { paths: [] },
+          processes: true,
+        },
+      },
+      source: "user",
+      status: "enabled",
+    };
+
+    /** Fail the next component start with a consent-gate 400 for `pluginId`. */
+    function failStartWithConsent(pluginId: string) {
+      const mutate = vi.fn((_vars: unknown, cb: { onError?: (err: unknown) => void }) => {
+        cb.onError?.(
+          new ApiError("has not been consented", 400, "COMPONENT_NOT_BOUND", {
+            code: "COMPONENT_NOT_BOUND",
+            consent: { pluginId },
+          }),
+        );
+      });
+      vi.mocked(useStartComponent).mockReturnValue({ mutate, isPending: false } as never);
+      return mutate;
+    }
+
+    it("opens the consent prompt when start hits the consent gate", async () => {
+      const user = userEvent.setup();
+      failStartWithConsent("google-clasp");
+      vi.mocked(usePlugins).mockReturnValue({
+        data: { hostApiVersion: "1.0.0", plugins: [claspRecord] },
+      } as never);
+      renderBench(stoppedBench as never);
+
+      await user.click(screen.getByRole("button", { name: /^Start$/ }));
+
+      expect(screen.getByTestId("consent-review-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("consent-review-dialog-id")).toHaveTextContent("google-clasp");
+      expect(screen.getByTestId("consent-review-dialog-name")).toHaveTextContent("Google Clasp");
+    });
+
+    // Granting consent resumes the start it blocked, by retrying the SAME component.
+    it("retries the blocked component start once consent is granted", async () => {
+      const user = userEvent.setup();
+      const mutate = failStartWithConsent("google-clasp");
+      vi.mocked(usePlugins).mockReturnValue({
+        data: { hostApiVersion: "1.0.0", plugins: [claspRecord] },
+      } as never);
+      renderBench(stoppedBench as never);
+
+      await user.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(mutate).toHaveBeenCalledTimes(1);
+
+      await user.click(screen.getByTestId("consent-review-dialog-grant"));
+      expect(mutate).toHaveBeenCalledTimes(2);
+      expect(mutate).toHaveBeenLastCalledWith(
+        { projectId: "proj-1", benchId: 1, component: "server" },
+        expect.anything(),
+      );
+    });
+
+    it("does not open the consent prompt for an unrelated start failure", async () => {
+      const user = userEvent.setup();
+      const mutate = vi.fn((_vars: unknown, cb: { onError?: (err: unknown) => void }) => {
+        cb.onError?.(new Error("network down"));
+      });
+      vi.mocked(useStartComponent).mockReturnValue({ mutate, isPending: false } as never);
+      renderBench(stoppedBench as never);
+
+      await user.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(screen.queryByTestId("consent-review-dialog")).not.toBeInTheDocument();
     });
   });
 });

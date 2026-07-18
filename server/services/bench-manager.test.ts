@@ -3438,6 +3438,8 @@ describe("startComponent", () => {
 
     // Only not-installed is enrichable: a consent or compatibility blocker is not
     // something a marketplace install fixes, so those carry no install affordance.
+    // The consent blocker still carries its own `consent.pluginId` payload so the
+    // bench page can open an actionable consent prompt (issue #617, AC3).
     it("does not resolve sources for a reason an install cannot fix", async () => {
       setupExistingBench();
       setupProcessMocks();
@@ -3448,10 +3450,45 @@ describe("startComponent", () => {
 
       const err = await benchManager
         .startComponent("test-project", 1, "backend")
-        .catch((e: Error & { resolution?: unknown }) => e);
+        .catch((e: Error & { resolution?: unknown; consent?: unknown }) => e);
       expect(err.message).toContain("has not been consented");
       expect(err.resolution).toBeUndefined();
+      expect(err.consent).toEqual({ pluginId: "process" });
       expect(marketplace.resolveServingSources).not.toHaveBeenCalled();
+    });
+
+    // Issue #617 (AC4): a per-component Start rejected at the consent gate must not
+    // strand the bench in the busy `preparing` state with the component's
+    // provisioning step stuck `running` (which disables the bench page Start
+    // controls). The step is marked `error`, the bench settles back to a non-busy
+    // state, and the component stays in its non-busy `stopped` state so Start stays
+    // usable after the 400.
+    it("leaves the bench non-busy and the step not running after a consent-gate rejection (issue #617, AC4)", async () => {
+      setupExistingBench();
+      setupProcessMocks();
+      vi.mocked(componentRegistry.resolveBinding).mockReturnValue({
+        reason: "not-consented",
+        pluginId: "process",
+      });
+
+      await expect(benchManager.startComponent("test-project", 1, "backend")).rejects.toMatchObject(
+        {
+          code: "COMPONENT_NOT_BOUND",
+          consent: { pluginId: "process" },
+        },
+      );
+
+      const bench = benchManager.getBench("test-project", 1);
+      if (!bench) throw new Error("expected bench");
+      // Not stuck `preparing`: the busy state that disables Start is cleared.
+      expect(bench.status).not.toBe("preparing");
+      expect(bench.status).toBe("idle");
+      // The provisioning step is `error`, never left stuck `running`.
+      const step = bench.provisioningSteps.find((s) => s.id === `${COMPONENT_STEP_PREFIX}backend`);
+      expect(step?.status).toBe("error");
+      // The component never launched (the gate rejects before `starting`), so it
+      // stays in its non-busy `stopped` state: the Start control is usable again.
+      expect(bench.components.backend.status).toBe("stopped");
     });
   });
 

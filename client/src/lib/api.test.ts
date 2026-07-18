@@ -4,6 +4,7 @@ import {
   ApiError,
   isDirtyBenchError,
   isMissingPluginError,
+  isConsentError,
   fetchProjects,
   registerProject,
   unregisterProject,
@@ -199,6 +200,50 @@ describe("request helper (tested through exported functions)", () => {
     it("rejects an unrelated error", () => {
       expect(isMissingPluginError(new ApiError("nope", 500, "OTHER"))).toBe(false);
       expect(isMissingPluginError(new Error("plain"))).toBe(false);
+    });
+  });
+
+  // Issue #617 (AC3): a bound-but-unconsented plugin carries `consent.pluginId` on
+  // the COMPONENT_NOT_BOUND body so the bench page can open an actionable consent
+  // prompt.
+  describe("isConsentError", () => {
+    function notConsented(consent?: unknown) {
+      return new ApiError("has not been consented", 400, "COMPONENT_NOT_BOUND", {
+        error: "has not been consented",
+        code: "COMPONENT_NOT_BOUND",
+        ...(consent ? { consent } : {}),
+      });
+    }
+
+    it("identifies a consent-gate error and narrows to the plugin id", () => {
+      const err = notConsented({ pluginId: "google-clasp" });
+      expect(isConsentError(err)).toBe(true);
+      if (isConsentError(err)) {
+        expect(err.details.consent.pluginId).toBe("google-clasp");
+      }
+    });
+
+    it("rejects a COMPONENT_NOT_BOUND error carrying no consent payload", () => {
+      expect(isConsentError(notConsented())).toBe(false);
+    });
+
+    it("rejects a consent payload with no plugin id", () => {
+      expect(isConsentError(notConsented({}))).toBe(false);
+    });
+
+    // The missing-plugin resolution and the consent payload are disjoint: an
+    // install-affordance error must not be mistaken for a consent one.
+    it("rejects a missing-plugin resolution error", () => {
+      const err = new ApiError("not installed", 400, "COMPONENT_NOT_BOUND", {
+        code: "COMPONENT_NOT_BOUND",
+        resolution: { pluginId: "google-clasp", state: "single-source" },
+      });
+      expect(isConsentError(err)).toBe(false);
+    });
+
+    it("rejects an unrelated error", () => {
+      expect(isConsentError(new ApiError("nope", 500, "OTHER"))).toBe(false);
+      expect(isConsentError(new Error("plain"))).toBe(false);
     });
   });
 
