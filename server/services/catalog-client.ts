@@ -766,3 +766,43 @@ export async function __setE2EMarketplaceReachable(
   const resolved = await getDefaultClient().getVerifiedCatalog({ forceRefresh: true });
   return resolved.source;
 }
+
+// ── ROUBO_E2E third-party-source seam (issue #575, CPHMTP-TC-073) ──────────────
+//
+// The declared-source-consent-install-journey e2e
+// (e2e/e2e-flow/declared-source-consent-install-journey.spec.ts) walks the
+// fresh-clone journey where a project declares an unregistered ACME marketplace,
+// the user consents/registers it, and a bench-start then resolves a component's
+// binding to a plugin served ONLY by that ACME source. Registering the source is
+// a pure write (CPHMTP-NFR-003), so nothing is fetched from the declared URL; the
+// declared URL (ghe.acme.internal) is unreachable under the harness, so a live
+// fetch would only degrade to this source's per-source CACHE.
+//
+// This seam seeds that per-source cache deterministically, so a registered ACME
+// source resolves a catalog serving the declared plugin with NO real network:
+// the third-party client's NETWORK -> CACHE degrade chain (createThirdPartyCatalogClient
+// above) bottoms out at the file this writes, keyed to the same cache dir + filename
+// + JSON shape the client reads. It mirrors the offline-journey `e2eFetch` seam in
+// spirit (deterministic, no real network, ROUBO_E2E-only) but for the unsigned
+// third-party path, which has no signature chain and degrades to cache rather than
+// a seed floor. A no-op outside the e2e gate (returns null); none of this is
+// reachable in a production build. Returns the written cache file path.
+export async function seedThirdPartyCacheForE2E(
+  sourceId: string,
+  entries: MarketplaceCatalogEntry[],
+  fetchedAt: string = new Date().toISOString(),
+): Promise<string | null> {
+  if (process.env.ROUBO_E2E !== "1") return null;
+  const sourcesRoot = path.join(getRouboDir(), "marketplace", "sources");
+  const cacheDir = path.join(sourcesRoot, sourceId);
+  // Reject a sourceId whose joined path escapes the per-source cache root (path
+  // traversal; CodeQL js/path-injection). Real generated source ids are flat
+  // `[a-z0-9-]` slugs (marketplace-sources-schema.ts), so a well-formed caller
+  // never trips this; a malformed one is rejected fail-closed before any write.
+  if (!cacheDir.startsWith(sourcesRoot + path.sep)) return null;
+  const cacheFile = path.join(cacheDir, CACHE_FILENAME);
+  const cache: ThirdPartyCache = { entries, fetchedAt };
+  await mkdir(cacheDir, { recursive: true });
+  await writeFile(cacheFile, `${JSON.stringify(cache, null, 2)}\n`, "utf8");
+  return cacheFile;
+}

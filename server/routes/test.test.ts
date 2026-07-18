@@ -136,6 +136,28 @@ vi.mock("../services/catalog-client.js", () => ({
   __setE2EMarketplaceReachable: vi.fn(async (reachable: boolean) =>
     reachable ? "network" : "seed",
   ),
+  // #575 (CPHMTP-TC-073): the seam the /test/__seed-source-catalog route writes
+  // through. Mocked so the unit suite asserts the route wiring without touching
+  // the real per-source cache file; echoes a fake path the route surfaces.
+  seedThirdPartyCacheForE2E: vi.fn(
+    async (sourceId: string) => `/tmp/${sourceId}/catalog-cache.json`,
+  ),
+}));
+
+// #575 (CPHMTP-TC-073): the marketplace service members the seed-source-catalog
+// route and /test/__reset call (drop a memoised source client, clear the whole
+// client cache). Mocked so the unit suite asserts the wiring without loading the
+// real fan-out (network clients, plugin-installer).
+vi.mock("../services/marketplace.js", () => ({
+  invalidateSourceClient: vi.fn(),
+  __test: { resetSourceClients: vi.fn() },
+}));
+
+// #575 (CPHMTP-TC-073): the sources-state in-memory reset /test/__reset calls so
+// a registered source never survives a reset in memory. Mocked to the one member
+// the route touches.
+vi.mock("../services/marketplace-sources-state.js", () => ({
+  __test: { reset: vi.fn() },
 }));
 
 import router, { isE2eRateLimitExempt } from "./test.js";
@@ -149,6 +171,8 @@ import * as pluginEnableState from "../services/plugin-enable-state.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
 import { cutListQueryService } from "../services/cut-list-query-service.js";
 import * as catalogClient from "../services/catalog-client.js";
+import * as marketplace from "../services/marketplace.js";
+import * as sourcesState from "../services/marketplace-sources-state.js";
 import { BUNDLED_PLUGIN_IDS, ONLY_TO_DO_NOTICE_MARKER } from "@roubo/shared";
 
 const app = express();
@@ -280,6 +304,11 @@ describe("POST /test/__reset", () => {
     // reachable (network) default so a prior spec's offline toggle cannot leak an
     // "unreachable" state into the next spec.
     expect(catalogClient.__setE2EMarketplaceReachable).toHaveBeenCalledWith(true);
+    // #575 (CPHMTP-TC-073): the in-memory marketplace-sources snapshot and the
+    // per-source third-party client cache are cleared so a source registered by
+    // the declared-source journey cannot survive a reset in memory.
+    expect(sourcesState.__test.reset).toHaveBeenCalledTimes(1);
+    expect(marketplace.__test.resetSourceClients).toHaveBeenCalledTimes(1);
     expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
     // No body: setE2EConfig still fires with null/null so any prior pinning is
     // cleared on a plain reset.
@@ -677,6 +706,79 @@ describe("POST /test/__set-marketplace-reachable", () => {
   });
 });
 
+// #575 (CPHMTP-TC-073): seed a registered third-party source's per-source catalog
+// cache so the declared-source-consent-install-journey drift guard makes a
+// registered ACME source serve `google-clasp` with no real network.
+describe("POST /test/__seed-source-catalog", () => {
+  const acmeEntry = {
+    id: "google-clasp",
+    name: "google-clasp",
+    kind: "component",
+    version: "1.0.0",
+    summary: "Apps Script deploy component",
+    source: { type: "git", url: "https://ghe.acme.internal/acme/google-clasp.git" },
+    provenance: "acme/google-clasp",
+    integrity: "sha256-google-clasp",
+    verified: false,
+  };
+
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app)
+      .post("/test/__seed-source-catalog")
+      .send({ sourceId: "acme-abcd1234", entries: [acmeEntry] });
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(catalogClient.seedThirdPartyCacheForE2E).not.toHaveBeenCalled();
+    expect(marketplace.invalidateSourceClient).not.toHaveBeenCalled();
+  });
+
+  it("seeds the per-source cache and drops the memoised client when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__seed-source-catalog")
+      .send({
+        sourceId: "acme-abcd1234",
+        entries: [acmeEntry],
+        fetchedAt: "2026-07-18T10:00:00.000Z",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(catalogClient.seedThirdPartyCacheForE2E).toHaveBeenCalledWith(
+      "acme-abcd1234",
+      [acmeEntry],
+      "2026-07-18T10:00:00.000Z",
+    );
+    expect(marketplace.invalidateSourceClient).toHaveBeenCalledWith("acme-abcd1234");
+  });
+
+  it("returns 400 when sourceId is missing", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__seed-source-catalog")
+      .send({ entries: [acmeEntry] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/sourceId/);
+    expect(catalogClient.seedThirdPartyCacheForE2E).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when entries is not an array", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__seed-source-catalog")
+      .send({ sourceId: "acme-abcd1234", entries: "nope" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/entries/);
+    expect(catalogClient.seedThirdPartyCacheForE2E).not.toHaveBeenCalled();
+  });
+});
+
 // #313 (CPHM-TC-041): drive a genuine offline first-run seed of the default
 // plugins and report the installed set + idempotency marker, so the
 // fresh-launch-seed-journey drift guard can assert the integrated seed run
@@ -1035,6 +1137,72 @@ describe("POST /test/__register-fixture-project", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/componentPlugin/);
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
+  // CPHMTP-TC-073 (#575): `declaredMarketplaces` writes a `marketplaces:` block
+  // (URL-only entries) so the declared-source registration-offer flow has a
+  // declared-but-unregistered source; `componentBinding` binds an arbitrary
+  // named component to an arbitrary (possibly uninstalled) plugin id.
+  it("writes declaredMarketplaces + componentBinding into the fixture roubo.yaml", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "acme-webapp",
+        declaredMarketplaces: ["https://ghe.acme.internal/marketplace/catalog.json"],
+        componentBinding: { name: "apps-script", pluginId: "google-clasp" },
+      });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).toMatch(/^marketplaces:$/m);
+    expect(yaml).toMatch(/^ {2}- url: https:\/\/ghe\.acme\.internal\/marketplace\/catalog\.json$/m);
+    expect(yaml).toMatch(/^\s{2}apps-script:$/m);
+    expect(yaml).toMatch(/^\s{6}id: google-clasp$/m);
+  });
+
+  it("omits the marketplaces block when declaredMarketplaces is not provided", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-no-market", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).not.toMatch(/^marketplaces:$/m);
+  });
+
+  it("returns 400 when a declaredMarketplaces entry is not an http(s) URL", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-bad-market", declaredMarketplaces: ["ftp://acme.internal"] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/declaredMarketplaces/);
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when componentBinding.name is not kebab-case", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-bad-binding",
+        componentBinding: { name: "Bad_Name", pluginId: "google-clasp" },
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/componentBinding\.name/);
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 
