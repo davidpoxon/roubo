@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog, Modal, ModalOverlay } from "react-aria-components";
+import { stampAriaModal } from "../../../lib/aria-modal";
 import { ApiError } from "../../../lib/api";
 import {
   useInstallPluginCancel,
@@ -42,7 +43,10 @@ export default function InstallPluginDialog() {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-lg mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+        <Dialog
+          ref={stampAriaModal}
+          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+        >
           {({ close }) => (
             <InstallFlow
               close={close}

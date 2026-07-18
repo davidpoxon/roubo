@@ -141,6 +141,13 @@ async function expectNoViolations() {
 }
 
 describe("SpecPickerModal a11y (#484)", () => {
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    renderModal();
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   describe("create mode", () => {
     it("has no axe violations for a mixed needs-attention/all-passed list", async () => {
       renderModal();

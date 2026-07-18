@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
+import { stampAriaModal } from "../lib/aria-modal";
 import { AlertTriangle, Download, Store } from "lucide-react";
 import type {
   InstallPreview,
@@ -317,7 +318,10 @@ function MissingPluginDialogContent({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-lg mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+        <Dialog
+          ref={stampAriaModal}
+          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+        >
           {state.step === "prompt" && resolution && (
             <MarketplaceSourceScreen
               pluginId={effectivePluginId}

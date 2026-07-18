@@ -166,6 +166,17 @@ describe("GatesOverview", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the split dialog's modality explicit to AT.
+  it("stamps aria-modal on the split dialog", async () => {
+    mockedApi.fetchGates.mockResolvedValue(gatesData([bigPhase]) as never);
+    renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("PHASE-2")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("gate-split-trigger"));
+    await waitFor(() => expect(screen.getByTestId("split-confirm")).toBeTruthy());
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   it("toggles selection from the merge checkbox without opening the gate (AC3)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([phase2, phase3]) as never);
     const onOpen = vi.fn();

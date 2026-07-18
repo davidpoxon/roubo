@@ -75,6 +75,16 @@ describe("IssuePickerModal", () => {
     expect(screen.getByRole("heading", { name: /pick an issue/i })).toBeInTheDocument();
   });
 
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    mockUseIssues.mockReturnValue(defaultResult({ isLoading: true }));
+    render(
+      <IssuePickerModal isOpen onClose={vi.fn()} onSelect={vi.fn()} projectId="p1" benches={[]} />,
+    );
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   it("shows loading spinner while fetching", () => {
     mockUseIssues.mockReturnValue(defaultResult({ isLoading: true }));
     render(

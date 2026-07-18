@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
+import { stampAriaModal } from "../lib/aria-modal";
 import { AlertTriangle, Power } from "lucide-react";
 import { ApiError } from "../lib/api";
 import { useEnablePlugin } from "../hooks/usePlugins";
@@ -75,6 +76,7 @@ export default function EnablePluginPromptModal({
     >
       <Modal className="w-full max-w-lg mx-4">
         <Dialog
+          ref={stampAriaModal}
           data-testid="enable-plugin-modal"
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
         >

@@ -9,6 +9,7 @@ import {
   Radio,
   RadioGroup,
 } from "react-aria-components";
+import { stampAriaModal } from "../lib/aria-modal";
 import { AlertTriangle, Check } from "lucide-react";
 import type { InstalledPluginSummary } from "@roubo/shared";
 import { useInstalledPlugins } from "../hooks/useInstalledPlugins";
@@ -65,7 +66,10 @@ export default function SwitchIntegrationDialog({ projectId, currentPluginId }: 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-md mx-4 max-h-[calc(100vh-2rem)] flex">
-        <Dialog className="flex flex-col w-full max-h-full overflow-y-auto bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+        <Dialog
+          ref={stampAriaModal}
+          className="flex flex-col w-full max-h-full overflow-y-auto bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+        >
           {({ close }) => (
             <SwitchFlow
               currentPluginId={currentPluginId}

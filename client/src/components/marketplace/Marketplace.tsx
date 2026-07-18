@@ -10,6 +10,7 @@ import {
   RadioGroup,
   SearchField,
 } from "react-aria-components";
+import { stampAriaModal } from "../../lib/aria-modal";
 import { CloudOff, Loader2, Search, ShieldAlert, ShieldCheck } from "lucide-react";
 import type {
   InstallErrorCode,
@@ -536,6 +537,7 @@ export default function Marketplace() {
         >
           <Modal className="w-full max-w-lg mx-4">
             <Dialog
+              ref={stampAriaModal}
               data-testid="marketplace-install-progress-modal"
               className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none p-5"
             >

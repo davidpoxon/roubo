@@ -9,6 +9,7 @@ import {
   Label,
   Input,
 } from "react-aria-components";
+import { stampAriaModal } from "../lib/aria-modal";
 import { useProjects } from "../hooks/useProjects";
 import { useCreateBench } from "../hooks/useBenches";
 import { useGlobalCap } from "../hooks/useGlobalCap";
@@ -61,7 +62,10 @@ export default function CreateBenchModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
       <Modal className="w-full max-w-md mx-4">
-        <Dialog className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none">
+        <Dialog
+          ref={stampAriaModal}
+          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+        >
           {({ close }) => (
             <>
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">

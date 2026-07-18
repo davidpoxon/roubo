@@ -53,4 +53,11 @@ describe("UserPickerModal", () => {
     render(<UserPickerModal isOpen onClose={vi.fn()} onSelect={vi.fn()} users={usersNoProps} />);
     expect(screen.getByText("Charlie")).toBeInTheDocument();
   });
+
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    render(<UserPickerModal isOpen onClose={vi.fn()} onSelect={vi.fn()} users={users} />);
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
 });

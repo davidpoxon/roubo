@@ -188,6 +188,14 @@ beforeEach(() => {
 });
 
 describe("MissingPluginDialog", () => {
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    setupMutations();
+    renderDialog({ pluginSource: "git@github.com:acme/roubo-jira-plugin.git" });
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   describe("prompt step (pluginSource present)", () => {
     it("shows the heading, plugin id, and one-click install button (TC-028)", () => {
       setupMutations();

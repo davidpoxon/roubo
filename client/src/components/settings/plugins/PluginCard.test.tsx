@@ -347,6 +347,29 @@ describe("PluginCard: Connect-on-disabled gesture (acceptance criterion 2)", () 
     expect(screen.getByRole("status").textContent).toMatch(/Loading plugin configuration/);
   });
 
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref makes the configure loading dialog's modality explicit to AT.
+  it("stamps aria-modal on the configure loading dialog", async () => {
+    const user = userEvent.setup();
+    render(<PluginCard plugin={record({ status: "disabled" })} hostApiVersion="1.0.0" />);
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
+  // The error variant is an alertdialog; it too carries the stamped modality (issue #612).
+  it("stamps aria-modal on the configure error dialog", async () => {
+    const user = userEvent.setup();
+    mockedGlobalIntegration.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("nope"),
+    } as unknown as ReturnType<typeof _useGlobalIntegration>);
+    render(<PluginCard plugin={record({ status: "disabled" })} hostApiVersion="1.0.0" />);
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    expect(screen.getByRole("alertdialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   it("does NOT call enable when Connect is pressed on an already-enabled (disconnected) plugin", async () => {
     const user = userEvent.setup();
     const enableMutate = vi.fn();

@@ -1,4 +1,5 @@
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
+import { stampAriaModal } from "../../lib/aria-modal";
 import { Check, Download, Package, RefreshCw, ShieldAlert, ShieldCheck, X } from "lucide-react";
 import { declaredCategories } from "@roubo/shared";
 import type { MarketplaceListing, PluginLifecycle } from "@roubo/shared";
@@ -101,6 +102,7 @@ export default function MarketplaceDrawer({
     >
       <Modal className="h-full w-full max-w-md">
         <Dialog
+          ref={stampAriaModal}
           data-testid="marketplace-drawer"
           className="h-full w-full overflow-y-auto border-l border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 outline-none"
         >

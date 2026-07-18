@@ -64,6 +64,13 @@ beforeEach(() => {
 });
 
 describe("SwitchIntegrationDialog", () => {
+  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // shared stampAriaModal ref is what makes the modality explicit to AT.
+  it("stamps aria-modal on the dialog", () => {
+    renderDialog({ currentPluginId: "github-com" });
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
   it("shows the bench-survival explanation when a current plugin is set", () => {
     renderDialog({ currentPluginId: "github-com" });
 
