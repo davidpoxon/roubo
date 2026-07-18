@@ -245,6 +245,9 @@ describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
     );
     const dialog = getByRole("dialog");
     expect(dialog).toBeInTheDocument();
+    // React Aria omits aria-modal deliberately and strips the prop, so the shared
+    // stampAriaModal helper (issue #424) is what makes the modality explicit here.
+    expect(dialog).toHaveAttribute("aria-modal", "true");
 
     // The confirm control is aria-disabled while gated but remains focusable.
     const confirm = getByTestId("marketplace-consent-confirm");

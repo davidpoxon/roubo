@@ -12,6 +12,7 @@ import {
   TextField,
 } from "react-aria-components";
 import { AlertTriangle, Check, PlusCircle, ShieldAlert } from "lucide-react";
+import { stampAriaModal } from "../../lib/aria-modal";
 
 // Registration consent for a third-party marketplace source (CPHMTP-FR-002 /
 // CPHMTP-NFR-003 / CPHMTP-NFR-008, issue #562). This dialog is the ONLY path to
@@ -57,16 +58,6 @@ const STRINGS = {
 // Only one of these dialogs is ever mounted at a time (it is modal), so a module
 // constant is enough to tie the allow-http hint to its checkbox; no useId needed.
 const ALLOW_HTTP_HINT_ID = "marketplace-source-consent-allow-http-hint";
-
-// Issue #424: React Aria Components intentionally omits `aria-modal` from the
-// rendered dialog, and <Dialog> strips an `aria-modal` prop via filterDOMProps,
-// so it has to be stamped on the element through a ref. ModalOverlay/Modal's
-// ariaHideOutside already inerts the background; this makes the modality explicit
-// to assistive technology too (CPHMTP-NFR-008, WCAG modal semantics). Copied from
-// PluginConfigureDialog rather than shared: the extraction is issue #974.
-function stampAriaModal(el: HTMLElement | null): void {
-  el?.setAttribute("aria-modal", "true");
-}
 
 export interface MarketplaceSourceConsentInput {
   url: string;

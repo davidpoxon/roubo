@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { AlertTriangle, Puzzle, Trash2, Unlink } from "lucide-react";
+import { stampAriaModal } from "../../lib/aria-modal";
 
 // Removal consequences dialog for a third-party marketplace source
 // (CPHMTP-FR-009 / CPHMTP-US-006, issue #564). Removing a source is a cascade the
@@ -16,8 +17,8 @@ import { AlertTriangle, Puzzle, Trash2, Unlink } from "lucide-react";
 // is the default (CPHMTP-TC-012 S001-O02).
 //
 // aria-modal is stamped through a ref because React Aria deliberately omits it and
-// <Dialog> strips the prop via filterDOMProps (issue #424); copied from the
-// consent modal rather than shared, as that extraction is issue #974.
+// <Dialog> strips the prop via filterDOMProps (issue #424), via the shared
+// stampAriaModal helper.
 
 const STRINGS = {
   title: (name: string) => `Remove "${name}"?`,
@@ -37,16 +38,6 @@ const STRINGS = {
   confirm: "Remove marketplace",
   removing: "Removing…",
 };
-
-// Issue #424: React Aria Components intentionally omits `aria-modal` from the
-// rendered dialog, and <Dialog> strips an `aria-modal` prop via filterDOMProps, so
-// it has to be stamped on the element through a ref. ModalOverlay/Modal's
-// ariaHideOutside already inerts the background; this makes the modality explicit
-// to assistive technology too. Copied from MarketplaceSourceConsentModal rather
-// than shared: the extraction is issue #974.
-function stampAriaModal(el: HTMLElement | null): void {
-  el?.setAttribute("aria-modal", "true");
-}
 
 interface Props {
   /** The source's display name (its URL host), shown in the title. */
