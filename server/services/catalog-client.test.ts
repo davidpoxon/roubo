@@ -532,3 +532,81 @@ describe("__setE2EMarketplaceReachable (ROUBO_E2E offline-journey seam, #314)", 
     expect(await mod.__setE2EMarketplaceReachable(true)).toBe("network");
   });
 });
+
+describe("seedThirdPartyCacheForE2E (ROUBO_E2E third-party-source seam, #575)", () => {
+  const originalE2E = process.env.ROUBO_E2E;
+  let cacheHome: string;
+
+  const acmeSource = {
+    id: "acme-abcd1234",
+    url: "https://ghe.acme.internal/marketplace/catalog.json",
+    unsigned: true as const,
+    hasCredential: false,
+    allowHttp: false,
+    registeredAt: "2026-07-18T00:00:00.000Z",
+  };
+
+  function googleClaspEntry(): MarketplaceCatalogEntry {
+    return {
+      id: "google-clasp",
+      name: "google-clasp",
+      kind: "component",
+      version: "1.0.0",
+      summary: "Apps Script deploy component",
+      source: { type: "git", url: "https://ghe.acme.internal/acme/google-clasp.git" },
+      provenance: "acme/google-clasp",
+      integrity: "sha256-google-clasp",
+      verified: false,
+    };
+  }
+
+  beforeEach(async () => {
+    cacheHome = await mkdtemp(path.join(tmpdir(), "catalog-tp-seam-"));
+    vi.resetModules();
+    vi.doMock("./state.js", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("./state.js")>();
+      return { ...actual, getRouboDir: () => cacheHome };
+    });
+  });
+
+  afterEach(async () => {
+    vi.doUnmock("./state.js");
+    vi.resetModules();
+    if (originalE2E === undefined) delete process.env.ROUBO_E2E;
+    else process.env.ROUBO_E2E = originalE2E;
+    await rm(cacheHome, { recursive: true, force: true });
+  });
+
+  it("is a no-op (returns null) outside the ROUBO_E2E gate", async () => {
+    delete process.env.ROUBO_E2E;
+    const mod = await import("./catalog-client.js");
+    expect(await mod.seedThirdPartyCacheForE2E("acme-abcd1234", [googleClaspEntry()])).toBeNull();
+  });
+
+  it("seeds a per-source cache the third-party client then serves from CACHE with no network", async () => {
+    process.env.ROUBO_E2E = "1";
+    const mod = await import("./catalog-client.js");
+    const fetchedAt = "2026-07-18T10:00:00.000Z";
+    const written = await mod.seedThirdPartyCacheForE2E(
+      acmeSource.id,
+      [googleClaspEntry()],
+      fetchedAt,
+    );
+
+    // The seam writes the same cache dir + filename + JSON shape the third-party
+    // client reads, so a real client over a FAILING fetch degrades to it (no
+    // real network) and serves the seeded google-clasp entry from CACHE.
+    const perSourceDir = path.join(cacheHome, "marketplace", "sources", acmeSource.id);
+    expect(written).toBe(path.join(perSourceDir, CACHE_FILENAME));
+
+    const client = mod.createThirdPartyCatalogClient(acmeSource, {
+      cacheDir: perSourceDir,
+      fetchImpl: failingFetch,
+      log: vi.fn(),
+    });
+    const result = await client.getCatalog();
+    expect(result.source).toBe("cache");
+    expect(result.fetchedAt).toBe(fetchedAt);
+    expect(result.entries.map((e) => e.id)).toEqual(["google-clasp"]);
+  });
+});

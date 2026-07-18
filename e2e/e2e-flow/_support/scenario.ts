@@ -1,5 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
-import type { AssignedIssue, PluginRecord } from "@roubo/shared";
+import type { AssignedIssue, MarketplaceCatalogEntry, PluginRecord } from "@roubo/shared";
 
 // TC-153: shape of one entry in the ROUBO_E2E=1-only tap exposed by
 // `GET /test/__connection-state-log`. The tap mirrors the structured log
@@ -162,6 +162,31 @@ export async function setMarketplaceReachable(
   return body.source;
 }
 
+/**
+ * #575 (CPHMTP-TC-073): seed a registered third-party source's per-source catalog
+ * CACHE via the ROUBO_E2E-gated `/test/__seed-source-catalog` endpoint, so the
+ * source deterministically serves the given entries with NO real network.
+ * Registering a source is a pure write (CPHMTP-NFR-003) and the declared ACME URL
+ * (ghe.acme.internal) is unreachable under the harness, so the source's
+ * NETWORK -> CACHE degrade chain would otherwise bottom out empty. This seeds the
+ * cache the chain degrades to and drops any memoised client, so the missing-plugin
+ * bench-start resolution names the source (registered). `/test/__reset` clears the
+ * sources + per-source caches so nothing leaks into a later spec (NFR-018).
+ */
+export async function seedSourceCatalog(
+  request: APIRequestContext,
+  opts: { sourceId: string; entries: MarketplaceCatalogEntry[]; fetchedAt?: string },
+): Promise<void> {
+  const res = await request.post("/test/__seed-source-catalog", {
+    data: {
+      sourceId: opts.sourceId,
+      entries: opts.entries,
+      ...(opts.fetchedAt === undefined ? {} : { fetchedAt: opts.fetchedAt }),
+    },
+  });
+  expect(res.status(), `seed source catalog for ${opts.sourceId}`).toBe(200);
+}
+
 // #313 (CPHM-TC-041): one installed seed plugin's on-disk shape, as reported by
 // `POST /test/__seed-fresh-launch`. Keep in lock-step with `SeedPluginSnapshot`
 // in server/routes/test.ts.
@@ -274,6 +299,15 @@ export async function registerFixtureProject(
     // an existing roubo.yaml that binds process + a second component plugin
     // (e.g. CPHM-TC-061 binding process + database).
     componentPlugin?: string;
+    // CPHMTP-TC-073 (#575): optional third-party marketplace URLs written into
+    // the fixture roubo.yaml `marketplaces:` block, so the project-open flow has
+    // a declared-but-unregistered source to offer registering.
+    declaredMarketplaces?: string[];
+    // CPHMTP-TC-073 (#575): optional binding of an arbitrary named component to
+    // an arbitrary (possibly uninstalled) plugin id, e.g. an `apps-script`
+    // component bound to `google-clasp`. Drives the missing-plugin bench-start
+    // resolution for a plugin served only by a declared marketplace.
+    componentBinding?: { name: string; pluginId: string };
   },
 ): Promise<{ projectId: string; repoPath: string }> {
   const res = await request.post("/test/__register-fixture-project", { data: opts });

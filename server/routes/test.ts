@@ -27,8 +27,15 @@ import * as pluginEnableState from "../services/plugin-enable-state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
 import { cutListQueryService } from "../services/cut-list-query-service.js";
 import * as catalogClient from "../services/catalog-client.js";
+import * as marketplace from "../services/marketplace.js";
+import * as sourcesState from "../services/marketplace-sources-state.js";
 import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
-import { IntegrationConfigSchema, type AssignedIssue, type IntegrationConfig } from "@roubo/shared";
+import {
+  IntegrationConfigSchema,
+  type AssignedIssue,
+  type IntegrationConfig,
+  type MarketplaceCatalogEntry,
+} from "@roubo/shared";
 import {
   TEST_RESULTS_SCHEMA_ID,
   TEST_RESULTS_SCHEMA_VERSION,
@@ -156,6 +163,8 @@ function writeFixtureRouboYaml(
   portBase: number = FIXTURE_DEFAULT_PORT_BASE,
   componentPlugin: string | null = null,
   enforceIssueDependencies = false,
+  declaredMarketplaces: string[] = [],
+  componentBinding: { name: string; pluginId: string } | null = null,
 ): void {
   const dotRoubo = path.join(repoPath, ".roubo");
   fs.mkdirSync(dotRoubo, { recursive: true });
@@ -175,6 +184,26 @@ function writeFixtureRouboYaml(
       id: ${componentPlugin}
     config: {}`
     : "";
+  // CPHMTP-TC-073 (#575): bind an arbitrary named component to an arbitrary
+  // plugin id, which may be UNINSTALLED (e.g. an `apps-script` component bound to
+  // `google-clasp`, served only by a declared third-party marketplace). The
+  // binding stays valid at config-load (unknown-plugin bindings are tolerated,
+  // see project-registry.applyComponentBindingValidation) and surfaces the
+  // not-installed missing-plugin resolution at bench-start.
+  const extraComponent = componentBinding
+    ? `
+  ${componentBinding.name}:
+    plugin:
+      id: ${componentBinding.pluginId}
+    config: {}`
+    : "";
+  // CPHMTP-TC-073 (#575): declare one or more third-party marketplaces so the
+  // project-open flow offers to register the declared-but-unregistered source.
+  // Each entry is a URL only (never a credential), matching the strict schema.
+  const marketplacesBlock =
+    declaredMarketplaces.length > 0
+      ? `\nmarketplaces:\n${declaredMarketplaces.map((url) => `  - url: ${url}`).join("\n")}`
+      : "";
   const yaml = `project:
   name: ${projectId}
   displayName: Roubo E2E Fixture
@@ -186,12 +215,12 @@ components:
     plugin:
       id: process
     config:
-      command: "true"${deployComponent}
+      command: "true"${deployComponent}${extraComponent}
 ports:
   app:
     base: ${portBase}
 benches:
-  max: 5${enforceIssueDependencies ? "\n  enforceIssueDependencies: true" : ""}
+  max: 5${enforceIssueDependencies ? "\n  enforceIssueDependencies: true" : ""}${marketplacesBlock}
 `;
   fs.writeFileSync(path.join(dotRoubo, "roubo.yaml"), yaml, "utf-8");
 }
@@ -236,13 +265,26 @@ function wipePersistedTestState(): void {
   if (!rouboDir.includes(`${path.sep}.roubo-dev${path.sep}`)) {
     throw new Error(`wipePersistedTestState refuses to wipe a non-dev roubo dir: ${rouboDir}`);
   }
-  for (const name of ["projects.json", "state.json"]) {
+  for (const name of ["projects.json", "state.json", "marketplace-sources.json"]) {
     const file = path.join(rouboDir, name);
     try {
       fs.rmSync(file, { force: true });
     } catch {
       // Best-effort: tolerate a missing file or a transient unlink failure.
     }
+  }
+  // #575 (CPHMTP-TC-073): drop the per-source marketplace catalog caches
+  // (`marketplace/sources/<id>/catalog-cache.json`, written by the
+  // third-party client and by the __seed-source-catalog seam). Without an
+  // explicit wipe a source registered + seeded by the declared-source journey
+  // would leak into a later spec (its offer would be absent, its cache would
+  // serve stale entries), breaking 10x determinism (NFR-018). Paired with the
+  // marketplace-sources.json removal above and the in-memory resets in
+  // /__reset, so a later spec starts with no registered third-party sources.
+  try {
+    fs.rmSync(path.join(rouboDir, "marketplace"), { recursive: true, force: true });
+  } catch {
+    // Best-effort: tolerate a missing directory or a transient unlink failure.
   }
   const integrationsDir = path.join(rouboDir, "integrations");
   try {
@@ -411,6 +453,15 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // (POST /test/__set-marketplace-reachable) never leaks an "unreachable"
     // state into a later spec (NFR-018). No-op outside ROUBO_E2E.
     await catalogClient.__setE2EMarketplaceReachable(true);
+    // #575 (CPHMTP-TC-073): drop the in-memory marketplace-sources snapshot and
+    // the per-source third-party client cache. wipePersistedTestState already
+    // removed marketplace-sources.json + the per-source caches on disk, but the
+    // sources-state module memoises the last-loaded state and the marketplace
+    // service memoises one client per source; without clearing both, a source
+    // registered by the declared-source journey would survive the reset in
+    // memory and leak into a later spec (NFR-018).
+    sourcesState.__test.reset();
+    marketplace.__test.resetSourceClients();
     // Reload project-registry before re-initializing plugin-manager so
     // discovery sees the right project set.
     projectRegistry.__test.reset();
@@ -553,6 +604,57 @@ router.post("/__set-marketplace-reachable", async (req: Request, res: Response) 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("/test/__set-marketplace-reachable failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /test/__seed-source-catalog (#575, CPHMTP-TC-073): seed a registered
+// third-party source's per-source catalog CACHE so it deterministically serves
+// the given entries with NO real network. Registering a source is a pure write
+// (CPHMTP-NFR-003) and the declared ACME URL (ghe.acme.internal) is unreachable
+// under the harness, so the source's NETWORK -> CACHE degrade chain would
+// otherwise bottom out empty. This writes the cache the chain degrades to (via
+// catalogClient.seedThirdPartyCacheForE2E, keyed to the same cache dir + shape
+// the third-party client reads) and drops any memoised client for the source so
+// the next listing/resolution rebuilds and reads it. The
+// declared-source-consent-install-journey drift guard uses this to make a
+// registered ACME source serve `google-clasp`, so the missing-plugin bench-start
+// resolution names ACME (registered). /test/__reset clears the sources +
+// per-source caches so nothing leaks into a later spec (NFR-018). Gated by
+// ROUBO_E2E; production builds 404 the URL.
+//
+// Body: { sourceId: string, entries: MarketplaceCatalogEntry[], fetchedAt?: string }.
+router.post("/__seed-source-catalog", async (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as {
+    sourceId?: unknown;
+    entries?: unknown;
+    fetchedAt?: unknown;
+  };
+  if (typeof body.sourceId !== "string" || body.sourceId.length === 0) {
+    return res.status(400).json({ error: "sourceId must be a non-empty string" });
+  }
+  if (!Array.isArray(body.entries)) {
+    return res.status(400).json({ error: "entries must be an array" });
+  }
+  if (body.fetchedAt !== undefined && typeof body.fetchedAt !== "string") {
+    return res.status(400).json({ error: "fetchedAt must be a string when provided" });
+  }
+  try {
+    const cachePath = await catalogClient.seedThirdPartyCacheForE2E(
+      body.sourceId,
+      body.entries as MarketplaceCatalogEntry[],
+      body.fetchedAt,
+    );
+    // Drop any client memoised before the seed so the next fan-out rebuilds and
+    // reads the freshly written per-source cache.
+    marketplace.invalidateSourceClient(body.sourceId);
+    res.status(200).json({ ok: true, path: cachePath });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__seed-source-catalog failed:", message);
     res.status(500).json({ error: message });
   }
 });
@@ -899,6 +1001,16 @@ interface RegisterFixtureBody {
   // e2e drives the blocked -> allowed journey against this, with no reliance on
   // the global setting default.
   enforceIssueDependencies?: unknown;
+  // CPHMTP-TC-073 (#575): optional list of third-party marketplace URLs written
+  // into the fixture roubo.yaml `marketplaces:` block, so the declared-source
+  // registration-offer flow has a declared-but-unregistered source to act on.
+  declaredMarketplaces?: unknown;
+  // CPHMTP-TC-073 (#575): optional binding of an arbitrary named component to an
+  // arbitrary (possibly UNINSTALLED) plugin id, e.g. `apps-script` -> `google-clasp`.
+  // Distinct from `componentPlugin` (which always binds a `deploy` component to a
+  // real, installed component plugin): this drives the missing-plugin bench-start
+  // resolution for a plugin served only by a declared marketplace.
+  componentBinding?: unknown;
 }
 
 interface SeedBenchInput {
@@ -946,6 +1058,12 @@ interface ParsedRegisterFixture {
   // TC-032 (#708): when true, the fixture roubo.yaml sets
   // `benches.enforceIssueDependencies: true`, turning the host start-gate ON.
   enforceIssueDependencies: boolean;
+  // CPHMTP-TC-073 (#575): declared third-party marketplace URLs for the
+  // `marketplaces:` block (empty when the fixture declares none).
+  declaredMarketplaces: string[];
+  // CPHMTP-TC-073 (#575): an extra component bound to an arbitrary plugin id, or
+  // null when the fixture project keeps only the default `app` component.
+  componentBinding: { name: string; pluginId: string } | null;
 }
 
 // TC-001 (#438): slug component of a `.specifications/<slug>/` feature folder.
@@ -1144,6 +1262,37 @@ function parseRegisterFixtureBody(
     }
     enforceIssueDependencies = body.enforceIssueDependencies;
   }
+  // CPHMTP-TC-073 (#575): declared marketplace URLs. Each must be a non-empty
+  // http(s) string; the strict RouboConfig parse re-validates the shape at load,
+  // but rejecting an obviously bad value here keeps the 400 close to the caller.
+  let declaredMarketplaces: string[] = [];
+  if (body?.declaredMarketplaces !== undefined) {
+    if (!Array.isArray(body.declaredMarketplaces)) {
+      return "declaredMarketplaces must be an array of URL strings when provided";
+    }
+    for (const url of body.declaredMarketplaces) {
+      if (typeof url !== "string" || !/^https?:\/\//.test(url)) {
+        return "each declaredMarketplaces entry must be an http(s) URL string";
+      }
+    }
+    declaredMarketplaces = body.declaredMarketplaces as string[];
+  }
+  // CPHMTP-TC-073 (#575): an extra component bound to an arbitrary plugin id.
+  let componentBinding: { name: string; pluginId: string } | null = null;
+  if (body?.componentBinding !== undefined) {
+    const cb = body.componentBinding;
+    if (cb === null || typeof cb !== "object" || Array.isArray(cb)) {
+      return "componentBinding must be an object { name, pluginId } when provided";
+    }
+    const { name, pluginId } = cb as { name?: unknown; pluginId?: unknown };
+    if (typeof name !== "string" || !/^[a-z][a-z0-9-]*$/.test(name)) {
+      return "componentBinding.name must be a kebab-case string matching /^[a-z][a-z0-9-]*$/";
+    }
+    if (typeof pluginId !== "string" || !FIXTURE_PROJECT_ID_RE.test(pluginId)) {
+      return "componentBinding.pluginId must be a kebab-case string matching /^[a-z][a-z0-9-]*$/";
+    }
+    componentBinding = { name, pluginId };
+  }
   return {
     projectId: projectIdRaw,
     plugin,
@@ -1155,6 +1304,8 @@ function parseRegisterFixtureBody(
     gitInit,
     componentPlugin,
     enforceIssueDependencies,
+    declaredMarketplaces,
+    componentBinding,
   };
 }
 
@@ -1226,6 +1377,8 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
     gitInit,
     componentPlugin,
     enforceIssueDependencies,
+    declaredMarketplaces,
+    componentBinding,
   } = parsed;
 
   if (fixtureProjects.has(projectId)) {
@@ -1249,6 +1402,8 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
       portBase,
       componentPlugin,
       enforceIssueDependencies,
+      declaredMarketplaces,
+      componentBinding,
     );
     // TC-001 (#438): seed `.specifications/<slug>/test-cases.json` files BEFORE
     // git init so they ride into the initial commit, making them visible both
