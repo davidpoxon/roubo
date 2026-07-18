@@ -926,6 +926,24 @@ describe("POST /:projectId/benches/:id/components/:name/start", () => {
     const res = await request(app).post("/my-project/benches/1/components/backend/start");
     expect(res.body).not.toHaveProperty("resolution");
   });
+
+  // Issue #617 (AC3): a bound-but-unconsented plugin rides its `consent.pluginId`
+  // along with the COMPONENT_NOT_BOUND body so the bench page can open an actionable
+  // consent prompt (this route is exactly where the resumed start's consent-gate 400
+  // lands). Absent for every other error, so the key is omitted, never null.
+  it("serialises the consent payload for a bound-but-unconsented plugin", async () => {
+    vi.mocked(benchManager.startComponent).mockRejectedValue(
+      new BenchError("has not been consented", "COMPONENT_NOT_BOUND", undefined, {
+        pluginId: "google-clasp",
+      }),
+    );
+
+    const res = await request(app).post("/my-project/benches/1/components/backend/start");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("COMPONENT_NOT_BOUND");
+    expect(res.body.consent).toEqual({ pluginId: "google-clasp" });
+    expect(res.body).not.toHaveProperty("resolution");
+  });
 });
 
 describe("POST /:projectId/benches/:id/components/:name/stop", () => {

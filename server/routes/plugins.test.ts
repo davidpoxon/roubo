@@ -466,6 +466,7 @@ describe("POST /install", () => {
 describe("POST /install/:token/confirm", () => {
   beforeEach(() => {
     vi.mocked(pluginInstaller.commit).mockReset();
+    vi.mocked(pluginConsentState.upsertConsent).mockReset();
   });
 
   it("rejects a token that fails the uuid shape check", async () => {
@@ -482,6 +483,55 @@ describe("POST /install/:token/confirm", () => {
     expect(res.status).toBe(201);
     expect(res.body.plugin.id).toBe("echo");
     expect(res.body.plugin.status).toBe("enabled");
+  });
+
+  // Issue #617 (CPHMTP-FR-008, AC1): confirming an install IS the consent step (the
+  // install PermissionsScreen already displayed the declared categories and the
+  // user acknowledged them by confirming). Persist a ConsentRecord acknowledging
+  // the full declared set so the component-start consent gate passes for the
+  // just-installed plugin.
+  it("records consent for the declared categories on a successful install", async () => {
+    const manifest = {
+      id: "google-clasp",
+      name: "Google Clasp",
+      version: "1.2.3",
+      description: "Apps Script deploys",
+      kind: "component",
+      roubo: "^1.0.0",
+      entry: "./index.js",
+      permissions: {
+        network: { hosts: ["script.google.com"] },
+        credentials: { slots: [] },
+        filesystem: { paths: [] },
+        processes: true,
+      },
+    };
+    vi.mocked(pluginInstaller.commit).mockResolvedValue(
+      record({
+        id: "google-clasp",
+        status: "enabled",
+        source: "user",
+        manifest: manifest as never,
+      }),
+    );
+    const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
+    expect(res.status).toBe(201);
+    expect(res.body.plugin.id).toBe("google-clasp");
+    expect(vi.mocked(pluginConsentState.upsertConsent)).toHaveBeenCalledWith("google-clasp", [
+      "network",
+      "processes",
+    ]);
+  });
+
+  // A committed record that carries no manifest can declare no permissions, so the
+  // consent step is skipped rather than writing an empty acknowledgement.
+  it("does not record consent when the committed record has no manifest", async () => {
+    vi.mocked(pluginInstaller.commit).mockResolvedValue(
+      stubRecord({ id: "echo", status: "enabled", source: "user", manifest: null }),
+    );
+    const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
+    expect(res.status).toBe(201);
+    expect(vi.mocked(pluginConsentState.upsertConsent)).not.toHaveBeenCalled();
   });
 
   it("maps unknown-token to 404", async () => {

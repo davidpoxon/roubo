@@ -694,14 +694,34 @@ async function runComponentsInOrder(
       await launchComponent(bench.projectId, bench.id, name);
     } catch (err) {
       // provisionComponent throws when the component's plugin cannot be
-      // dispatched (unbound / unconsented / plugin not running). Per-component
-      // Start (resilient=false) rethrows so the route surfaces it; bench-level
-      // Start records the error and continues so a sibling whose plugin IS
-      // available (e.g. a translate-less deploy component) still launches (#396).
-      if (!resilient) throw err;
+      // dispatched (unbound / unconsented / plugin not running) or a launch fails.
+      // Record the failure on the provisioning step in every case so the stuck
+      // `running` step never survives (issue #617, AC4).
       const message = (err as Error).message;
-      updateStep(bench.provisioningSteps, `${COMPONENT_STEP_PREFIX}${name}`, "error", message);
       const cs = bench.components[name];
+      updateStep(bench.provisioningSteps, `${COMPONENT_STEP_PREFIX}${name}`, "error", message);
+      if (!resilient) {
+        // Per-component Start rethrows so the route surfaces the 400. Before that,
+        // drop the bench out of the busy `preparing` state startComponent set
+        // (issue #617, AC4): `preparing` disables the bench page's Start controls
+        // and updateBenchStatus early-returns while `preparing`, so it must be
+        // cleared explicitly. The binding/consent gate rejects before the component
+        // goes `starting`, so it stays in its non-busy `stopped` state and the
+        // bench settles to `idle`, keeping Start usable: an expected, recoverable
+        // rejection is deliberately NOT a hard bench `error`. Only a component
+        // stranded mid-flight (`starting`/`stopping`) by a genuine launch failure
+        // is forced to the terminal `error` state so nothing stays busy.
+        if (cs && (cs.status === "starting" || cs.status === "stopping")) {
+          cs.status = "error";
+          cs.error = message;
+        }
+        bench.status = "idle";
+        updateBenchStatus(bench);
+        sseService.broadcastBenchStatus(bench);
+        throw err;
+      }
+      // Bench-level Start records the error and continues so a sibling whose plugin
+      // IS available (e.g. a translate-less deploy component) still launches (#396).
       if (cs) {
         cs.status = "error";
         cs.error = message;
@@ -1888,13 +1908,22 @@ function missingPluginMessage(
  */
 async function notBoundError(componentName: string, nb: NotBound): Promise<BenchError> {
   const fallback = notBoundMessage(componentName, nb);
-  if (nb.reason !== "not-installed") return new BenchError(fallback, "COMPONENT_NOT_BOUND");
-  const resolution = await resolveMissingPlugin(nb.pluginId);
-  return new BenchError(
-    missingPluginMessage(componentName, resolution, fallback),
-    "COMPONENT_NOT_BOUND",
-    resolution,
-  );
+  if (nb.reason === "not-installed") {
+    const resolution = await resolveMissingPlugin(nb.pluginId);
+    return new BenchError(
+      missingPluginMessage(componentName, resolution, fallback),
+      "COMPONENT_NOT_BOUND",
+      resolution,
+    );
+  }
+  // The bound plugin is installed but has no ConsentRecord: carry the plugin id so
+  // the bench page can open an actionable consent prompt instead of stopping
+  // silently (issue #617, AC3). Every other reason keeps its plain message and
+  // carries no affordance.
+  if (nb.reason === "not-consented") {
+    return new BenchError(fallback, "COMPONENT_NOT_BOUND", undefined, { pluginId: nb.pluginId });
+  }
+  return new BenchError(fallback, "COMPONENT_NOT_BOUND");
 }
 
 /**
@@ -3076,6 +3105,14 @@ export class BenchError extends Error {
      * every other error, which carries no install affordance.
      */
     public resolution?: MissingPluginResolution,
+    /**
+     * Set only on a `COMPONENT_NOT_BOUND` error whose bound plugin is installed but
+     * not consented (issue #617): the plugin id whose permissions still need
+     * acknowledging. The route serialises it so the bench page can open an
+     * actionable consent prompt rather than stopping silently. Absent for every
+     * other error, mirroring `resolution`.
+     */
+    public consent?: { pluginId: string },
   ) {
     super(message);
     this.name = "BenchError";

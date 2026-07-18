@@ -122,6 +122,17 @@ router.post("/install/:token/confirm", async (req, res) => {
   }
   try {
     const plugin = await pluginInstaller.commit(token);
+    // Record the consumer's consent for the just-installed plugin (issue #617,
+    // CPHMTP-FR-008). The install flow's PermissionsScreen already displayed every
+    // declared permission category and the user acknowledged them by confirming, so
+    // the confirm IS the consent step: persist a ConsentRecord acknowledging the
+    // full declared set. Without this the component-start consent gate
+    // (component-plugin-registry) refuses the just-installed plugin, so the resumed
+    // bench start dead-ends at `not-consented` (CPHMTP-TC-077 S003-O02). A record
+    // that carries no manifest can declare no permissions, so it is skipped.
+    if (plugin.manifest) {
+      upsertConsent(plugin.id, declaredCategories(plugin.manifest.permissions));
+    }
     res.status(201).json({ plugin });
   } catch (err) {
     sendInstallError(res, err);
