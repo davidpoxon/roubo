@@ -37,7 +37,7 @@ import { useToast } from "../hooks/useToast";
 import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
 import JigRow from "./jig-editor/JigRow";
 import PluginsTab from "./settings/plugins/PluginsTab";
-import MarketplacesTab from "./settings/plugins/MarketplacesTab";
+import MarketplacesTabPanel from "./settings/plugins/MarketplacesTabPanel";
 import Marketplace from "./marketplace/Marketplace";
 import { INPUT } from "./setup/styles";
 
@@ -774,7 +774,7 @@ export default function ProjectSettings() {
         </TabPanel>
 
         <TabPanel id="marketplaces" className="outline-none">
-          <MarketplacesTab />
+          <MarketplacesTabPanel />
         </TabPanel>
 
         <TabPanel id="claude-code" className="outline-none">
