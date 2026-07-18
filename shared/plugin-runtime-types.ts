@@ -6,15 +6,17 @@ export type PluginSource = "bundled" | "user";
 
 /**
  * The default plugins seeded once, offline, on first launch (CPHM-FR-004 /
- * CPHM-US-001). Shared rather than server-local because the client needs it too:
- * a seeded plugin carries no provenance ledger row (the seed install never writes
- * one), so its id is the only thing that distinguishes it from a plugin the user
- * installed from a raw git URL, which likewise has no row. The badge derivation
- * (`recordProvenance`) uses that to read absent provenance as first-party ONLY for
- * these ids and unverified for anything else (CPHMTP-NFR-001, issue #563).
+ * CPHM-US-001). The seed pass stamps each installed seed with a first-party
+ * provenance ledger row (davidpoxon/roubo-development#607), so the client grades a
+ * seed by its row rather than its id and no longer needs this set: it was once
+ * shared so the badge derivation could read absent provenance as first-party for
+ * these ids (CPHMTP-NFR-001, issue #563), but with the durable fix in place absent
+ * provenance simply fails closed and the client stopped importing it.
  *
  * The server's seed pass is the authority on the set; this is its single
- * definition, re-exported from `plugin-manager` for the server's own callers.
+ * definition, re-exported from `plugin-manager` for the server's own callers (the
+ * seed loop and the fresh-launch test route). It stays in `@roubo/shared` as its
+ * single home rather than moving server-local.
  */
 export const SEED_PLUGIN_IDS = ["github-com", "process", "database"] as const;
 
@@ -67,13 +69,12 @@ export interface PluginRecord {
   // marketplace source served it, and every record predating the provenance
   // ledger simply omits these, so no migration is needed.
   //
-  // Absent does NOT mean verified. A first-party seed default carries no ledger
-  // row (the seed install writes none), but neither does a plugin installed from
-  // a raw git URL or local path, so absence alone cannot be trusted: the UI reads
-  // it as first-party only for `SEED_PLUGIN_IDS` above and unverified otherwise
-  // (CPHMTP-NFR-001, issue #563). Stamping a row for the seed and raw-install
-  // paths, so absence can simply fail closed, is the durable fix
-  // (davidpoxon/roubo-development#607).
+  // Absent FAILS CLOSED to unverified. Every install path now stamps a row: a
+  // first-party seed, a marketplace install, and the raw git / local paths all
+  // record one (davidpoxon/roubo-development#607), so the client grades trust by
+  // the ledger row rather than the plugin's self-asserted id. A record with no
+  // provenance fields (in practice one predating the ledger) therefore reads as
+  // unverified, never first-party (CPHMTP-NFR-001, issue #563).
   //
   // Stamped when a record is rebuilt from disk, read from the provenance ledger
   // (~/.roubo/plugins-provenance.json) that the install commit wrote: the record

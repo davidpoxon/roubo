@@ -9,6 +9,7 @@ import { fetch } from "undici";
 import * as tar from "tar";
 import {
   parseManifest,
+  FIRST_PARTY_SOURCE_ID,
   type InstallErrorCode,
   type InstallPreview,
   type InstallSource,
@@ -19,6 +20,7 @@ import {
 import { runCommand } from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginProvenanceState from "./plugin-provenance-state.js";
+import { FIRST_PARTY_URL } from "./marketplace-sources-state.js";
 import { guardedFetch } from "./guarded-fetch.js";
 import { verifyPackageIntegrity } from "./marketplace-integrity.js";
 import { PLUGIN_ID_RE, UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
@@ -49,8 +51,10 @@ let maxTarballEntries = DEFAULT_MAX_TARBALL_ENTRIES;
  *
  * Recorded only at COMMIT: a staged install the consumer never confirmed must
  * leave no provenance behind, exactly as it leaves no plugin behind. Optional on
- * every entry point, so the raw git / local-directory install paths (which have no
- * marketplace source) stay behaviourally unchanged and write nothing.
+ * every entry point: a marketplace install passes the chosen source, while the raw
+ * git / local-directory paths synthesise their own fail-closed row from the git URL
+ * or local path (see `rawInstallProvenance`) so every install path stamps a ledger
+ * row and absent provenance can fail closed (davidpoxon/roubo-development#607).
  */
 export interface InstallProvenance {
   /** The chosen source's id (`first-party`, or a registered source's slug). */
@@ -59,6 +63,19 @@ export interface InstallProvenance {
   sourceUrl: string;
   /** True when the chosen source is unsigned, i.e. any third-party source. */
   unverified: boolean;
+}
+
+/**
+ * Provenance for a raw git / local-directory install (a path with no marketplace
+ * source). It records the git URL or local path as its own source and is always
+ * unverified: a raw clone or copy has no signing chain, so it can never be graded
+ * first-party. Stamping this row rather than leaving the ledger empty is what lets
+ * the client grade an installed plugin by its ledger row instead of its
+ * self-asserted id, so absent provenance fails closed as unverified
+ * (davidpoxon/roubo-development#607).
+ */
+function rawInstallProvenance(sourceRef: string): InstallProvenance {
+  return { sourceId: sourceRef, sourceUrl: sourceRef, unverified: true };
 }
 
 interface StagedInstall {
@@ -71,8 +88,10 @@ interface StagedInstall {
   // The id must equal `manifest.id`; the installer uninstalls the existing
   // copy before moving the staged copy into place.
   replaceId?: string;
-  // The marketplace source this install was resolved from, recorded to the
-  // provenance ledger at commit (issue #558). Absent for non-marketplace installs.
+  // The source this install was resolved from, recorded to the provenance ledger
+  // at commit (issue #558). A marketplace install carries the chosen source; a raw
+  // git / local install carries its own fail-closed row (#607). Absent only for a
+  // staged install whose entry point synthesised none.
   provenance?: InstallProvenance;
 }
 
@@ -855,6 +874,17 @@ export async function installSeedArtifact(
       );
     }
     await rename(stagingDir, target);
+    // Stamp a first-party ledger row so the client grades a seed by its row, not
+    // its id, and absent provenance can fail closed (#607). Only a GENUINE install
+    // stamps: the no-clobber early return above leaves an existing plugin (and its
+    // row) untouched. `sourceUrl` mirrors the first-party marketplace row's URL so
+    // a seeded and a marketplace-installed first-party plugin read identically.
+    pluginProvenanceState.recordProvenance({
+      pluginId: expectedId,
+      sourceId: FIRST_PARTY_SOURCE_ID,
+      sourceUrl: FIRST_PARTY_URL,
+      unverified: false,
+    });
     return { installed: true };
   } catch (err) {
     await rmStaging(stagingDir);
@@ -897,7 +927,16 @@ export async function previewFromGitUrl(
       url: safeUrl,
       ...(directory !== undefined ? { directory } : {}),
     };
-    staged.set(token, { stagingDir, source, manifest, createdAt: Date.now(), provenance });
+    // A marketplace install passes its chosen source; a raw git install (no
+    // `provenance` arg) synthesises a fail-closed row keyed on the git URL, so the
+    // ledger is stamped either way and absence can fail closed in the client (#607).
+    staged.set(token, {
+      stagingDir,
+      source,
+      manifest,
+      createdAt: Date.now(),
+      provenance: provenance ?? rawInstallProvenance(safeUrl),
+    });
     return { stagingToken: token, manifest, source };
   } catch (err) {
     await rmStaging(stagingDir);
@@ -1040,7 +1079,16 @@ export async function previewFromLocalPath(absPath: string): Promise<InstallPrev
     assertCompatible(manifest);
     assertNotDuplicate(manifest.id);
     const source: InstallSource = { type: "local", path: safePath };
-    staged.set(token, { stagingDir, source, manifest, createdAt: Date.now() });
+    // A local-directory install has no marketplace source, so it stamps its own
+    // fail-closed row keyed on the local path: the ledger is stamped on every
+    // install path so absence can fail closed in the client (#607).
+    staged.set(token, {
+      stagingDir,
+      source,
+      manifest,
+      createdAt: Date.now(),
+      provenance: rawInstallProvenance(safePath),
+    });
     return { stagingToken: token, manifest, source };
   } catch (err) {
     await rmStaging(stagingDir);
@@ -1123,9 +1171,12 @@ export async function commit(stagingToken: string): Promise<PluginRecord> {
 }
 
 /**
- * Persist the source a marketplace install was resolved from (issue #558, AC4).
- * A no-op for the raw git / local-directory paths, which carry no marketplace
- * provenance and must leave the ledger untouched.
+ * Persist the source an install was resolved from (issue #558, AC4). Every
+ * reachable install path now stamps a row: a marketplace install records its
+ * chosen source, and the raw git / local-directory paths record their own
+ * fail-closed row keyed on the git URL or local path (#607), so the client can
+ * grade trust by the ledger and fail closed on absence. The guard stays defensive:
+ * a staged install that somehow carries no provenance leaves the ledger untouched.
  */
 function recordInstallProvenance(entry: StagedInstall): void {
   if (entry.provenance === undefined) return;

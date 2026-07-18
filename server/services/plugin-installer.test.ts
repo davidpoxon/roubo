@@ -4,7 +4,9 @@ import { createReadStream } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as tar from "tar";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { PluginRecord } from "@roubo/shared";
+import { FIRST_PARTY_URL } from "./marketplace-sources-state.js";
 
 vi.mock("./exec.js", () => ({
   runCommand: vi.fn(),
@@ -481,16 +483,45 @@ describe("commit records the marketplace provenance (issue #558, AC4)", () => {
     ).toBeLessThan(vi.mocked(pluginManager.registerInstalled).mock.invocationCallOrder[0]);
   });
 
-  it("leaves the ledger untouched on the raw git path (no marketplace source)", async () => {
+  it("stamps a fail-closed row keyed on the git URL for the raw git path (#607)", async () => {
     fakeClone(ECHO_MANIFEST);
-    const preview = await pluginInstaller.previewFromGitUrl("https://github.com/example/echo.git");
+    const gitUrl = "https://github.com/example/echo.git";
+    const preview = await pluginInstaller.previewFromGitUrl(gitUrl);
     vi.mocked(pluginManager.registerInstalled).mockResolvedValue(
       mockRecord({ id: "echo", status: "enabled" }),
     );
 
     await pluginInstaller.commit(preview.stagingToken);
 
-    expect(pluginProvenanceState.recordProvenance).not.toHaveBeenCalled();
+    // No marketplace source, so the raw path records its own unverified row keyed
+    // on the git URL rather than leaving the ledger empty. Stamping every install
+    // path is what lets the client fail closed on absent provenance instead of
+    // reading it as first-party (davidpoxon/roubo-development#607).
+    expect(pluginProvenanceState.recordProvenance).toHaveBeenCalledWith({
+      pluginId: "echo",
+      sourceId: gitUrl,
+      sourceUrl: gitUrl,
+      unverified: true,
+    });
+    expect(pluginProvenanceState.removeProvenance).not.toHaveBeenCalled();
+  });
+
+  it("stamps a fail-closed row keyed on the local path for the local install path (#607)", async () => {
+    const sourceDir = await trackTmp("roubo-installer-localprov-");
+    await writeFile(path.join(sourceDir, "roubo-plugin.yaml"), ECHO_MANIFEST, "utf8");
+    const preview = await pluginInstaller.previewFromLocalPath(sourceDir);
+    vi.mocked(pluginManager.registerInstalled).mockResolvedValue(
+      mockRecord({ id: "echo", status: "enabled" }),
+    );
+
+    await pluginInstaller.commit(preview.stagingToken);
+
+    expect(pluginProvenanceState.recordProvenance).toHaveBeenCalledWith({
+      pluginId: "echo",
+      sourceId: sourceDir,
+      sourceUrl: sourceDir,
+      unverified: true,
+    });
     expect(pluginProvenanceState.removeProvenance).not.toHaveBeenCalled();
   });
 
@@ -1012,6 +1043,13 @@ async function digestOfTarball(tgz: string): Promise<string> {
 }
 
 describe("installSeedArtifact (first-run seed, davidpoxon/roubo-development#310)", () => {
+  beforeEach(() => {
+    // The provenance ledger mock is a module-mock `vi.fn`; `restoreMocks` does not
+    // clear those, so reset call history here (as the commit-records suite does)
+    // before asserting the seed stamp is / is not recorded (#607).
+    vi.mocked(pluginProvenanceState.recordProvenance).mockReset();
+  });
+
   it("verifies the digest and places the built artifact in the user root (no register/spawn)", async () => {
     const tgz = await makeTarball([
       { path: "roubo-plugin.yaml", content: ECHO_MANIFEST },
@@ -1027,6 +1065,14 @@ describe("installSeedArtifact (first-run seed, davidpoxon/roubo-development#310)
     expect((await stat(path.join(target, "dist", "index.js"))).isFile()).toBe(true);
     // The seed path never registers/spawns; the user-root discovery pass owns that.
     expect(pluginManager.registerInstalled).not.toHaveBeenCalled();
+    // A genuine seed install stamps a first-party ledger row so the client grades
+    // the seed by its row, not its id, and absent provenance fails closed (#607).
+    expect(pluginProvenanceState.recordProvenance).toHaveBeenCalledWith({
+      pluginId: "echo",
+      sourceId: FIRST_PARTY_SOURCE_ID,
+      sourceUrl: FIRST_PARTY_URL,
+      unverified: false,
+    });
     expect(await listStaging()).toEqual([]);
   });
 
@@ -1078,6 +1124,10 @@ describe("installSeedArtifact (first-run seed, davidpoxon/roubo-development#310)
     expect(result).toEqual({ installed: false });
     // The existing (e.g. marketplace-updated) copy and its sentinel survive.
     expect((await stat(path.join(target, "UPDATED"))).isFile()).toBe(true);
+    // The no-clobber early return stamps nothing: it must not overwrite the
+    // existing plugin's row with a first-party one, which would re-grade a
+    // possibly-third-party install that took a seed id as verified (#607).
+    expect(pluginProvenanceState.recordProvenance).not.toHaveBeenCalled();
     expect(await listStaging()).toEqual([]);
   });
 
