@@ -40,13 +40,23 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # The marketplace-registration e2e (CPHMTP-TC-002) POSTs a credential that
+      # the server writes to the OS keyring via credential-store (secret-tool on
+      # Linux). Headless ubuntu runners ship no Secret Service, so that write
+      # throws keyring-unavailable and 500s the registration. Install the Secret
+      # Service tools and run the suite under an unlocked gnome-keyring inside a
+      # D-Bus session, per server/services/credential-store.README.md.
+      - name: Install headless keyring (Secret Service) for credential-store
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-tools gnome-keyring dbus-user-session
       - run: npm run build
       - name: Run Playwright suite (timed)
         id: run-playwright
         run: |
           set -e
           start=$(date +%s)
-          npx playwright test
+          dbus-run-session -- sh -c 'printf "\n" | gnome-keyring-daemon --unlock --components=secrets && exec npx playwright test'
           end=$(date +%s)
           duration=$((end - start))
           echo "Playwright suite ran in ${duration}s"
