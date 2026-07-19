@@ -120,7 +120,7 @@ const A11Y_PROVENANCE: PluginProvenance = {
 };
 
 function setCatalogData(
-  source: "network" | "cache" | "seed",
+  source: "network" | "cache",
   fetchedAt: string | null,
   over: {
     listings?: MarketplaceListing[];

@@ -153,7 +153,6 @@ export type {
   SourceSelectionEntry,
 } from "./integration-types.js";
 
-export { SEED_PLUGIN_IDS } from "./plugin-runtime-types.js";
 export type {
   PluginStatus,
   PluginSource,
@@ -240,9 +239,9 @@ export type InstallErrorCode =
   // missing, or unsigned catalog. The marketplace fails closed (zero listings).
   | "catalog-unverified"
   // The hosted marketplace could not be reached / verified, so the catalog is
-  // being served from the on-disk cache or the bundled seed (CPHM-FR-009). A new
-  // install/update is paused with a clear message until the marketplace is
-  // reachable again; seeded and already-installed plugins keep working.
+  // being served from the on-disk cache (CPHM-FR-009). A new install/update is
+  // paused with a clear message until the marketplace is reachable again;
+  // already-installed plugins keep working.
   | "marketplace-unreachable"
   | "internal";
 
@@ -432,8 +431,8 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
  * `label` is a display name derived from the source URL's host (a registered
  * source row carries no display name). `source` / `fetchedAt` are this source's own
  * degrade-chain provenance. `unavailable` is true when the source could serve
- * nothing at all: unreachable with no usable cache (a third-party source has no
- * seed floor, so a cold offline source is empty).
+ * nothing at all: unreachable with no usable cache (a cold offline source is
+ * empty; no channel has a bundled floor).
  */
 export interface MarketplaceSourceStatus {
   id: string;
@@ -447,12 +446,12 @@ export interface MarketplaceSourceStatus {
 /**
  * Where the served catalog came from, surfaced so the Plugins view can render an
  * offline / staleness banner (CPHM-FR-009 / CPHM-NFR-003, issue #372). The
- * catalog-client degrades NETWORK -> CACHE -> SEED fail-closed; `cache` and
- * `seed` both mean the hosted marketplace was unreachable and the last verified
+ * catalog-client degrades NETWORK -> CACHE (bottoming out at an empty listing);
+ * `cache` means the hosted marketplace was unreachable and the last verified
  * catalog is being shown. The server-side `CatalogSource` (catalog-client.ts)
  * aliases this single definition so the value behaviour stays identical.
  */
-export type MarketplaceCatalogSource = "network" | "cache" | "seed";
+export type MarketplaceCatalogSource = "network" | "cache";
 
 /**
  * Response shape for `GET /api/marketplace/plugins`. `listings` is the merged
@@ -462,9 +461,9 @@ export type MarketplaceCatalogSource = "network" | "cache" | "seed";
  * `source` and `fetchedAt` carry the FIRST-PARTY catalog's provenance to the
  * client: when `source !== "network"` the first-party marketplace was unreachable
  * and the Plugins view shows the offline / staleness banner. `fetchedAt` is the ISO
- * timestamp the served envelope was fetched (network / cache), or `null` for the
- * bundled seed (no fetch happened). They stay first-party-scoped so the existing
- * banner keeps meaning exactly what it always meant.
+ * timestamp the served envelope was fetched (network / cache), or `null` when the
+ * chain bottomed out at an empty listing (no fetch happened). They stay
+ * first-party-scoped so the existing banner keeps meaning exactly what it always meant.
  *
  * `sources` carries the per-source status of every source in the fan-out (the
  * first-party row first), so one dead source renders as unavailable while the

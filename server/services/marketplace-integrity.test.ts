@@ -1,11 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { generateKeyPairSync, sign, createPublicKey, type KeyObject } from "node:crypto";
-import { copyFile, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
 import {
   canonicalize,
   computePackageDigest,
@@ -62,48 +59,6 @@ describe("canonicalize", () => {
 
   it("preserves array order", () => {
     expect(canonicalize([3, 1, 2])).toBe("[3,1,2]");
-  });
-});
-
-describe("verifyCatalogSignature", () => {
-  // A signature produced by the bundled public key's matching private key is
-  // not available to the test (the private key is held out of band), so we
-  // exercise the verifier against an independent test keypair via the same
-  // canonicalization the production verifier uses, plus the fail-closed paths.
-  it("rejects a missing or empty signature (fail closed)", () => {
-    expect(verifyCatalogSignature({ entries: [] }, "")).toBe(false);
-    expect(verifyCatalogSignature({ entries: [] }, undefined as unknown as string)).toBe(false);
-  });
-
-  it("rejects a malformed signature without throwing", () => {
-    expect(verifyCatalogSignature({ entries: [] }, "not-base64!!")).toBe(false);
-  });
-
-  it("rejects a signature made with a different key (fail closed)", () => {
-    // Sign with a foreign key; the bundled public key must NOT verify it.
-    const { privateKey } = generateKeyPairSync("ed25519");
-    const payload = { entries: [{ id: "x" }] };
-    const sig = sign(null, Buffer.from(canonicalize(payload), "utf8"), privateKey).toString(
-      "base64",
-    );
-    expect(verifyCatalogSignature(payload, sig)).toBe(false);
-  });
-
-  it("verifies the checked-in catalog against the bundled public key", async () => {
-    // The committed catalog must verify with the bundled key: this is the
-    // load-time gate the marketplace service depends on.
-    const catalog = (await import("./marketplace-catalog.json", { with: { type: "json" } }))
-      .default as { payload: unknown; signature: string };
-    expect(verifyCatalogSignature(catalog.payload, catalog.signature)).toBe(true);
-  });
-
-  it("rejects the catalog when its payload is tampered with", async () => {
-    const catalog = (await import("./marketplace-catalog.json", { with: { type: "json" } }))
-      .default as { payload: { entries: { id: string }[] }; signature: string };
-    const tampered = {
-      entries: [...catalog.payload.entries, { id: "evil-injected" }],
-    };
-    expect(verifyCatalogSignature(tampered, catalog.signature)).toBe(false);
   });
 });
 
@@ -253,6 +208,22 @@ describe("verifyCatalogSignature with an explicit operational key", () => {
     );
     expect(verifyCatalogSignature(payload, sig, spkiPem(other.publicKey))).toBe(false);
   });
+
+  it("rejects a missing or empty signature (fail closed)", () => {
+    const op = generateKeyPairSync("ed25519");
+    const key = spkiPem(op.publicKey);
+    expect(verifyCatalogSignature({ entries: [] }, "", key)).toBe(false);
+    expect(verifyCatalogSignature({ entries: [] }, undefined as unknown as string, key)).toBe(
+      false,
+    );
+  });
+
+  it("rejects a malformed signature without throwing", () => {
+    const op = generateKeyPairSync("ed25519");
+    expect(verifyCatalogSignature({ entries: [] }, "not-base64!!", spkiPem(op.publicKey))).toBe(
+      false,
+    );
+  });
 });
 
 describe("computePackageDigest / verifyPackageIntegrity (over the built artifact)", () => {
@@ -365,8 +336,8 @@ describe("catalog integrity digests bind to the built artifact (reconciles #689 
   // installer verifies, and any drift or placeholder fails closed. We assert that
   // property over a synthetic catalog entry whose digest is computed over an
   // unpacked built-artifact fixture, the same verifyPackageIntegrity path the
-  // installer uses. The committed catalog's ed25519 SIGNATURE is still exercised
-  // unchanged above (verifyCatalogSignature against the bundled public key).
+  // installer uses. The catalog signature path (verifyCatalogSignature with an
+  // explicit operational key) is exercised in its own describe above.
   interface CatalogEntry {
     id: string;
     integrity: string;
@@ -408,116 +379,5 @@ describe("catalog integrity digests bind to the built artifact (reconciles #689 
     // Inject a file into the unpacked artifact after the digest was pinned.
     await writeFile(path.join(dir, "dist", "payload.js"), "console.log('injected');\n");
     expect(await verifyPackageIntegrity(dir, integrity)).toBe(false);
-  });
-});
-
-describe("committed catalog digests match the live plugin subdirs (drift guard, issue #818)", () => {
-  // Regression guard for issue #818. The synthetic-fixture guard above (added by
-  // #765) proves the verifyPackageIntegrity property in the abstract, but it
-  // never recomputes a committed catalog `integrity` over the real plugin source
-  // it claims to digest, so it could not catch a real-world drift: in #818 a
-  // dependency bump (#790, commit 6debe7f) edited package.json in every
-  // installable plugin subdir AFTER the catalog was last signed, leaving every
-  // recorded `integrity` stale and breaking the happy-path install (the catalog
-  // still verified its ed25519 signature, because that drift never altered the
-  // payload). The install path digests the staged `source.directory` subdir
-  // (plugins/<id>) and compares it to the recorded `integrity`, so this guard
-  // recomputes computePackageDigest over each subdir and asserts equality. It
-  // also re-asserts the committed signature, so any plugin-content change that is
-  // not followed by a catalog re-sign fails CI here rather than at install. No
-  // network is used: the subdirs and catalog are read from the working tree.
-  //
-  // SOURCE-ONLY staging (issue #878): computePackageDigest walks whatever
-  // directory it is handed and excludes only `.git`, so any gitignored build
-  // residue in a live subdir (dist/, tsconfig.tsbuildinfo) leaks into the digest.
-  // Because the documented e2e flow (and CI, once `npm run build` runs before the
-  // test job) leaves that residue in the tree, digesting the LIVE subdir made this
-  // guard non-deterministic: it passed on a source-only checkout but failed after
-  // a build with a spurious "catalog integrity is stale" error, even though no
-  // source drifted. To stay deterministic regardless of local/CI build state, this
-  // guard digests a SOURCE-ONLY (git-tracked) staged view of each subdir via
-  // stageSourceOnly() below, reproducing the clean-checkout tree the catalog was
-  // signed over. computePackageDigest itself (the production verification function)
-  // is used unchanged; only the guard's digest INPUT is staged. This does not
-  // weaken the property protected: real source drift (an edited or added tracked
-  // file) still changes the staged digest and fails the guard; only untracked
-  // build output is excluded.
-  //
-  // NOTE on the #765 built-artifact direction: #765 retargets the digest to the
-  // unpacked BUILT artifact (dist/) and notes catalog regeneration is moving to
-  // external roubo-plugins CI. Until that download/unpack install path and the
-  // external catalog generation land, the production install path (and this
-  // catalog's recorded digests) bind to the source subdir, which is what this
-  // guard checks. When the built-artifact install path lands, this guard's digest
-  // target moves with it; the property it protects (a recorded catalog digest must
-  // equal a real digest of the artifact the installer verifies) is unchanged.
-  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-  const execFileAsync = promisify(execFile);
-
-  // Stage a SOURCE-ONLY (git-tracked) copy of a plugin subdir into a fresh temp
-  // dir, preserving the relative layout, so computePackageDigest sees exactly the
-  // clean-checkout file set the catalog was signed over: `git ls-files` lists only
-  // tracked files, so gitignored build output (dist/, tsconfig.tsbuildinfo) is
-  // excluded and the recomputed digest is deterministic regardless of local build
-  // state. Returns the staging dir; the caller removes it.
-  async function stageSourceOnly(subdir: string): Promise<string> {
-    const { stdout } = await execFileAsync("git", ["ls-files", "-z", "--", subdir], {
-      cwd: repoRoot,
-      maxBuffer: 64 * 1024 * 1024,
-    });
-    const tracked = stdout.split("\0").filter((rel) => rel.length > 0);
-    const staging = await mkdtemp(path.join(tmpdir(), "roubo-drift-src-"));
-    for (const rel of tracked) {
-      const srcAbs = path.resolve(repoRoot, rel);
-      const destAbs = path.join(staging, path.relative(subdir, srcAbs));
-      await mkdir(path.dirname(destAbs), { recursive: true });
-      await copyFile(srcAbs, destAbs);
-    }
-    return staging;
-  }
-
-  async function loadCatalog(): Promise<{
-    payload: { entries: CatalogFileEntry[] };
-    signature: string;
-  }> {
-    return (await import("./marketplace-catalog.json", { with: { type: "json" } })).default as {
-      payload: { entries: CatalogFileEntry[] };
-      signature: string;
-    };
-  }
-
-  interface CatalogFileEntry {
-    id: string;
-    integrity: string;
-    revoked?: boolean;
-    source: { directory?: string };
-  }
-
-  it("recomputes each non-revoked entry's digest over a source-only view of its plugins/<id> subdir and matches", async () => {
-    const catalog = await loadCatalog();
-    const installable = catalog.payload.entries.filter(
-      (e) => !e.revoked && typeof e.source.directory === "string",
-    );
-    // Sanity: the catalog still carries the expected installable set.
-    expect(installable.map((e) => e.id).sort()).toEqual(["database", "github-com", "process"]);
-    for (const entry of installable) {
-      const subdir = path.resolve(repoRoot, entry.source.directory as string);
-      const staged = await stageSourceOnly(subdir);
-      try {
-        const digest = await computePackageDigest(staged);
-        expect(
-          digest,
-          `catalog integrity for "${entry.id}" is stale: source-only digest ${digest} != recorded ${entry.integrity}. Recompute the digest and re-sign the catalog (server/scripts/sign-marketplace-catalog.ts).`,
-        ).toBe(entry.integrity);
-        expect(await verifyPackageIntegrity(staged, entry.integrity)).toBe(true);
-      } finally {
-        await rm(staged, { recursive: true, force: true });
-      }
-    }
-  });
-
-  it("the committed catalog signature still verifies against the bundled public key", async () => {
-    const catalog = await loadCatalog();
-    expect(verifyCatalogSignature(catalog.payload, catalog.signature)).toBe(true);
   });
 });

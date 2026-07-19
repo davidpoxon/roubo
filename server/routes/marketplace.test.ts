@@ -42,17 +42,6 @@ vi.mock("../services/plugin-installer.js", () => {
   return { InstallError };
 });
 
-vi.mock("../services/catalog-client.js", () => {
-  class CatalogUnverifiedError extends Error {
-    readonly code = "catalog-unverified" as const;
-    constructor(message = "The plugin catalog could not be verified and was rejected.") {
-      super(message);
-      this.name = "CatalogUnverifiedError";
-    }
-  }
-  return { CatalogUnverifiedError };
-});
-
 vi.mock("../services/marketplace-sources-state.js", () => ({
   listSourceSummaries: vi.fn(),
   addSource: vi.fn(),
@@ -63,7 +52,6 @@ import router from "./marketplace.js";
 import * as marketplace from "../services/marketplace.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
 import * as sourcesState from "../services/marketplace-sources-state.js";
-import { CatalogUnverifiedError } from "../services/catalog-client.js";
 
 const listCatalog = vi.mocked(marketplace.listCatalog);
 const resolveEntry = vi.mocked(marketplace.resolveEntry);
@@ -122,7 +110,7 @@ const FIRST_PARTY_STATUS: MarketplaceSourceStatus = {
 // fan-out (issue #557). GET /plugins forwards all of it.
 function catalogResult(
   listings: MarketplaceListing[],
-  source: "network" | "cache" | "seed" = "network",
+  source: "network" | "cache" = "network",
   fetchedAt: string | null = FETCHED_AT,
   sources: MarketplaceSourceStatus[] = [FIRST_PARTY_STATUS],
 ): Awaited<ReturnType<typeof marketplace.listCatalog>> {
@@ -171,13 +159,13 @@ describe("GET /api/marketplace/plugins", () => {
     expect(res.body.listings).toHaveLength(1);
   });
 
-  // CPHM-FR-009 (issue #372): degraded to the bundled seed: source "seed" with a
-  // null fetchedAt (the seed was never fetched).
-  it("forwards the seed source and a null fetch timestamp when degraded to the seed", async () => {
-    listCatalog.mockResolvedValue(catalogResult([LISTING], "seed", null));
+  // CPHM-FR-009 (issue #372, #621): the empty-listing degrade (no bundled seed
+  // floor) reports source "cache" with a null fetchedAt (nothing was fetched).
+  it("forwards the cache source and a null fetch timestamp on the empty degrade", async () => {
+    listCatalog.mockResolvedValue(catalogResult([], "cache", null));
     const res = await request(makeApp()).get("/api/marketplace/plugins");
     expect(res.status).toBe(200);
-    expect(res.body.source).toBe("seed");
+    expect(res.body.source).toBe("cache");
     expect(res.body.fetchedAt).toBeNull();
   });
 
@@ -232,17 +220,6 @@ describe("GET /api/marketplace/plugins", () => {
     expect(res.body.sources).toEqual([FIRST_PARTY_STATUS, acme]);
     // A dead third-party source never flips the first-party offline banner.
     expect(res.body.source).toBe("network");
-  });
-
-  // CP-TC-118 / CPHM-TC-006: when even the seed fails verification the service
-  // throws CatalogUnverifiedError; the route fails closed with a typed 502 and
-  // no listings.
-  it("returns 502 catalog-unverified with no listings when the catalog is unverified", async () => {
-    listCatalog.mockRejectedValue(new CatalogUnverifiedError());
-    const res = await request(makeApp()).get("/api/marketplace/plugins");
-    expect(res.status).toBe(502);
-    expect(res.body.code).toBe("catalog-unverified");
-    expect(res.body.listings).toBeUndefined();
   });
 
   it("returns 500 on an unexpected error", async () => {
@@ -340,14 +317,6 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
     const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("marketplace-unreachable");
-  });
-
-  it("maps a CatalogUnverifiedError from resolveEntry to 502", async () => {
-    resolveEntry.mockRejectedValue(new CatalogUnverifiedError());
-    const res = await request(makeApp()).post("/api/marketplace/plugins/redis/install");
-    expect(res.status).toBe(502);
-    expect(res.body.code).toBe("catalog-unverified");
-    expect(install).not.toHaveBeenCalled();
   });
 });
 

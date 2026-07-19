@@ -8,8 +8,14 @@
 // injecting `verified: true` (CPHMTP-TC-072 S001).
 
 import { describe, it, expect } from "vitest";
-import { FIRST_PARTY_SOURCE_ID, SEED_PLUGIN_IDS } from "@roubo/shared";
+import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { MarketplaceListing, PluginRecord } from "@roubo/shared";
+
+// Well-known first-party plugin ids (formerly the retired SEED_PLUGIN_IDS set,
+// davidpoxon/roubo-development#621). Declared locally now that the app no longer
+// exports a seed set: the point of these cases is that even a well-known
+// first-party id earns no trust by name, only by a stamped ledger row (#607).
+const FIRST_PARTY_PLUGIN_IDS = ["github-com", "process", "database"] as const;
 import {
   FIRST_PARTY_LABEL,
   UNKNOWN_SOURCE_ID,
@@ -138,12 +144,12 @@ describe("listingProvenance / recordProvenance normalisation", () => {
   });
 
   // The durable fix (#607): every install path now stamps a ledger row, so the
-  // client no longer reads a seed id as first-party on absence. A seed id with no
-  // provenance fields (in practice a record predating the ledger) fails closed to
-  // unverified, exactly like any other unstamped record: the self-asserted id is
-  // not a trust root.
-  it("fails a seed id with no provenance fields closed to unverified, not first-party", () => {
-    for (const id of SEED_PLUGIN_IDS) {
+  // client no longer reads a well-known first-party id as first-party on absence.
+  // Such an id with no provenance fields (in practice a record predating the
+  // ledger) fails closed to unverified, exactly like any other unstamped record:
+  // the self-asserted id is not a trust root.
+  it("fails a first-party id with no provenance fields closed to unverified, not first-party", () => {
+    for (const id of FIRST_PARTY_PLUGIN_IDS) {
       const result = recordProvenance(record({ id, source: "user" }));
       expect(result.sourceId).toBe(UNKNOWN_SOURCE_ID);
       expect(result.sourceLabel).toBe(UNKNOWN_SOURCE_LABEL);
@@ -151,10 +157,10 @@ describe("listingProvenance / recordProvenance normalisation", () => {
     }
   });
 
-  // A seed now carries a STAMPED first-party row (the seed install writes one,
-  // #607), and that row, not the id, is what earns the verified treatment.
-  it("reads a seed carrying a stamped first-party row as verified first-party", () => {
-    for (const id of SEED_PLUGIN_IDS) {
+  // A first-party install carries a STAMPED first-party row (the install writes
+  // one, #607), and that row, not the id, is what earns the verified treatment.
+  it("reads a first-party plugin carrying a stamped first-party row as verified first-party", () => {
+    for (const id of FIRST_PARTY_PLUGIN_IDS) {
       const result = recordProvenance(
         record({
           id,
@@ -178,16 +184,17 @@ describe("listingProvenance / recordProvenance normalisation", () => {
   // fails closed regardless of id: a record with no provenance fields grades
   // unverified, so arbitrary code can never wear the green first-party treatment
   // in the installed-plugins tab by carrying no row (#607).
-  it("reads a NON-seeded plugin with no provenance fields as unverified, not first-party", () => {
+  it("reads an unknown plugin with no provenance fields as unverified, not first-party", () => {
     const result = recordProvenance(record({ id: "totally-evil", source: "user" }));
     expect(result.sourceId).toBe(UNKNOWN_SOURCE_ID);
     expect(result.sourceLabel).toBe(UNKNOWN_SOURCE_LABEL);
     expect(trustTreatmentOf(result)).toBe("unverified");
   });
 
-  // A stamped row is always authoritative, even for a seed id: a plugin that took
-  // a seed's id but carries a third-party row cannot buy first-party by name.
-  it("prefers a stamped third-party source id even for a seed id", () => {
+  // A stamped row is always authoritative, even for a well-known first-party id: a
+  // plugin that took a first-party id but carries a third-party row cannot buy
+  // first-party by name.
+  it("prefers a stamped third-party source id even for a first-party id", () => {
     const result = recordProvenance(
       record({ id: "process", sourceId: ACME_SOURCE_ID, unverified: true }),
     );

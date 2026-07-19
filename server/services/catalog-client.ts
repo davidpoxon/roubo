@@ -20,13 +20,15 @@ import {
   verifyCatalogSignature,
   verifyKeyRing,
 } from "./marketplace-integrity.js";
-import seedCatalog from "./marketplace-catalog.json";
 
 // Marketplace catalog client (CPHM-FR-001 / FR-009 / NFR-003, issue #306).
 //
-// Replaces the embedded-JSON catalog with a network-fetched, signature-verified,
-// disk-cached one that degrades fail-closed: NETWORK -> CACHE -> SEED so the
-// plugin list is never zero, and a new install while the marketplace is
+// Fetches the signed catalog over the network, verifies it fail-closed, and
+// caches the last verified envelope on disk. The degrade chain is
+// NETWORK -> CACHE, bottoming out at an EMPTY listing when neither is available.
+// The first-party SEED channel was retired in davidpoxon/roubo-development#621:
+// the app no longer ships a committed seed catalog, so there is one channel and
+// one source of truth (roubo-plugins). A new install while the marketplace is
 // unreachable is paused with a clear message rather than crashing.
 //
 // Trust chain (mirrors the producer publish gate in roubo-plugins
@@ -39,9 +41,8 @@ import seedCatalog from "./marketplace-catalog.json";
 //      (verifyCatalogSignature with the resolved PEM).
 // Only on all three does the envelope become the served catalog and get written
 // to the on-disk cache. A network failure, a fetched-but-unverifiable catalog,
-// or a tampered cache all degrade to the next source; the bundled seed (the
-// committed marketplace-catalog.json, verified against the bundled first-party
-// key) is the always-available floor.
+// or a tampered cache all degrade to the next source; when nothing verifies the
+// served listing is empty (there is no bundled floor).
 //
 // node:crypto + Node fetch primitives only; adds no crypto/supply-chain
 // dependency (CPHM-NFR-006). SSRF stance (amended for the third-party-source
@@ -66,7 +67,7 @@ export type CatalogSource = MarketplaceCatalogSource;
 export interface VerifiedCatalog {
   entries: MarketplaceCatalogEntry[];
   source: CatalogSource;
-  /** ISO timestamp the served envelope was fetched (network/cache); null for the seed. */
+  /** ISO timestamp the served envelope was fetched (network/cache); null for an empty listing. */
   fetchedAt: string | null;
 }
 
@@ -77,18 +78,6 @@ interface CachedCatalog {
   fetchedAt: string;
 }
 
-/**
- * Even the bundled seed catalog failed signature verification: a build defect.
- * The route maps this to the fail-closed catalog-unverified (502) response.
- */
-export class CatalogUnverifiedError extends Error {
-  readonly code = "catalog-unverified" as const;
-  constructor(message = "The plugin catalog could not be verified and was rejected.") {
-    super(message);
-    this.name = "CatalogUnverifiedError";
-  }
-}
-
 const DEFAULT_CATALOG_URL = "https://davidpoxon.github.io/roubo-plugins/catalog.json";
 const DEFAULT_KEY_RING_URL = "https://davidpoxon.github.io/roubo-plugins/key-ring.json";
 const FETCH_TIMEOUT_MS = 5000;
@@ -96,10 +85,10 @@ const FETCH_TIMEOUT_MS = 5000;
 // The network fetch is bounded to this many bytes, enforced both up front (declared
 // content-length) and as bytes flow (mirroring the release-asset limiter in
 // plugin-installer.ts). An oversized payload, even a validly signed one, is rejected
-// fail-closed so it degrades to cache/seed rather than being buffered and served; it
+// fail-closed so it degrades to cache rather than being buffered and served; it
 // never reaches the verify chain, so no partial/unverified entries are listed. The
-// same cap covers the far smaller key-ring fetch (a safe superset). The seed is
-// verified locally, so this cap applies to the network path only.
+// same cap covers the far smaller key-ring fetch (a safe superset). This cap
+// applies to the network path only.
 const MAX_CATALOG_BYTES = 256 * 1024;
 const CACHE_FILENAME = "catalog-cache.json";
 // In-memory memo TTL: bound network refreshes (and search-as-you-type filtering)
@@ -115,8 +104,6 @@ export interface CatalogClientOptions {
   cacheDir?: string;
   /** Bootstrap root key override (tests only); defaults to the embedded key. */
   rootPublicKeyPem?: string;
-  /** Bundled seed envelope override (tests only); defaults to the committed catalog. */
-  seed?: SignedMarketplaceCatalog;
   /** Fetch implementation (tests inject a fake); defaults to global fetch. */
   fetchImpl?: typeof fetch;
   /** Degrade-event logger; defaults to console.warn. Tests inject a sink. */
@@ -131,7 +118,7 @@ export interface CatalogClientOptions {
   /**
    * Network fetch size budget (bytes) for the catalog / key-ring payload
    * (CPHM-NFR-002). A fetched payload exceeding this is rejected fail-closed and
-   * degrades to cache/seed. Tests inject a small value to exercise the guard.
+   * degrades to cache. Tests inject a small value to exercise the guard.
    * Defaults to MAX_CATALOG_BYTES.
    */
   maxCatalogBytes?: number;
@@ -139,11 +126,11 @@ export interface CatalogClientOptions {
 
 export interface CatalogClient {
   /**
-   * Resolve the verified catalog via the NETWORK -> CACHE -> SEED degrade chain.
-   * `forceRefresh` re-runs the chain (a fresh network fetch); otherwise the last
-   * resolved result is reused in-memory for a short TTL (memoTtlMs) before the
-   * chain re-runs. Throws `CatalogUnverifiedError` only when even the bundled
-   * seed fails verification.
+   * Resolve the verified catalog via the NETWORK -> CACHE degrade chain, bottoming
+   * out at an empty listing (`{ entries: [], source: "cache" }`) when neither
+   * verifies. `forceRefresh` re-runs the chain (a fresh network fetch); otherwise
+   * the last resolved result is reused in-memory for a short TTL (memoTtlMs) before
+   * the chain re-runs. Never throws.
    */
   getVerifiedCatalog(opts?: { forceRefresh?: boolean }): Promise<VerifiedCatalog>;
   /** Launch-time warm fetch: refresh the catalog and warm the cache. Never throws. */
@@ -257,7 +244,6 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
   const cacheDir = options.cacheDir ?? path.join(getRouboDir(), "marketplace");
   const cacheFile = path.join(cacheDir, CACHE_FILENAME);
   const rootPublicKeyPem = options.rootPublicKeyPem;
-  const seed = options.seed ?? (seedCatalog as SignedMarketplaceCatalog);
   // Default to npm undici's fetch (not Node's built-in global fetch) so the
   // guarded transport's connect-pinning dispatcher (issue #590), built from the
   // same undici, is protocol-compatible on this catalog path.
@@ -300,7 +286,7 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
     // origin; this path attaches no credential and requires https (credential and
     // allowHttp are left unset), so the classic SSRF vector stays closed. doFetch
     // is the injected transport so the test / e2e seam is unchanged. A null return
-    // flows through tryNetwork -> tryCache -> trySeed, so an oversized or
+    // flows through tryNetwork -> tryCache -> empty listing, so an oversized or
     // unreachable catalog is never verified or served.
     return fetchGuardedJson<T>(url, { fetchImpl: doFetch, maxBytes: maxCatalogBytes, log });
   }
@@ -340,7 +326,7 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
     try {
       raw = await readFile(cacheFile, "utf8");
     } catch {
-      // No cache on disk: degrade to the seed without logging (expected on a
+      // No cache on disk: serve an empty listing without logging (expected on a
       // never-fetched install).
       return null;
     }
@@ -348,18 +334,18 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
     try {
       parsed = JSON.parse(raw) as CachedCatalog;
     } catch {
-      log("marketplace: catalog cache is unparseable, falling back to the seed");
+      log("marketplace: catalog cache is unparseable, serving an empty listing");
       return null;
     }
     if (parsed === null || typeof parsed !== "object" || !parsed.catalog || !parsed.keyRing) {
-      log("marketplace: catalog cache is incomplete, falling back to the seed");
+      log("marketplace: catalog cache is incomplete, serving an empty listing");
       return null;
     }
     const entries = verifyEnvelopePair(parsed.catalog, parsed.keyRing);
     if (!entries) {
       // A tampered cache stays fail-closed: it is rejected, not trusted
       // (CPHM-TC-046).
-      log("marketplace: cached catalog failed verification, falling back to the seed");
+      log("marketplace: cached catalog failed verification, serving an empty listing");
       return null;
     }
     return {
@@ -367,17 +353,6 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
       source: "cache",
       fetchedAt: typeof parsed.fetchedAt === "string" ? parsed.fetchedAt : null,
     };
-  }
-
-  function trySeed(): VerifiedCatalog {
-    // The bundled seed is the always-available floor (CPHM-FR-009). It is the
-    // committed, first-party catalog, verified against the bundled key (the
-    // default key of verifyCatalogSignature). If even this fails, something is
-    // structurally broken: fail closed.
-    if (!verifyCatalogSignature(seed.payload, seed.signature)) {
-      throw new CatalogUnverifiedError();
-    }
-    return { entries: seed.payload?.entries ?? [], source: "seed", fetchedAt: null };
   }
 
   const client: CatalogClient = {
@@ -397,10 +372,14 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
         lastVerifiedAt = Date.now();
         return fromCache;
       }
-      const fromSeed = trySeed();
-      lastVerified = fromSeed;
+      // No network and no usable cache: bottom out at an empty listing. The
+      // first-party SEED floor was retired (davidpoxon/roubo-development#621),
+      // so there is no bundled catalog to fall back on. This mirrors the
+      // third-party client's empty degrade (createThirdPartyCatalogClient below).
+      const empty: VerifiedCatalog = { entries: [], source: "cache", fetchedAt: null };
+      lastVerified = empty;
       lastVerifiedAt = Date.now();
-      return fromSeed;
+      return empty;
     },
     async prefetch() {
       try {
@@ -626,16 +605,16 @@ function getDefaultClient(): CatalogClient {
     // Under the e2e harness (ROUBO_E2E=1), build the default client over the
     // runtime-togglable offline-journey seam below (injected fetch + a generated
     // test root key), so the marketplace-offline-journey spec can flip the
-    // served `source` between network and cache/seed without real network. A
+    // served `source` between network and cache without real network. A
     // production build never takes this branch.
     defaultClient =
       process.env.ROUBO_E2E === "1"
         ? createCatalogClient({
             fetchImpl: e2eFetch as typeof fetch,
             rootPublicKeyPem: getE2ESeam().rootPublicKeyPem,
-            // The injected fetch always serves the same re-signed seed envelopes,
-            // so degrade-to-cache/seed logging during the offline leg would be
-            // pure noise in the e2e server output; silence it under the gate.
+            // The injected fetch always serves the same signed envelopes, so
+            // degrade-to-cache logging during the offline leg would be pure noise
+            // in the e2e server output; silence it under the gate.
             log: () => {},
           })
         : createCatalogClient();
@@ -655,20 +634,60 @@ export function prefetch(): Promise<void> {
 //
 // The marketplace-offline-journey e2e
 // (e2e/e2e-flow/marketplace-offline-journey.spec.ts) walks the degrade journey
-// end to end: go offline -> the seeded + already-fetched catalog still serve, a
-// new install is paused with the clear `marketplace-unreachable` message,
-// reconnect -> installs resume. To flip the catalog client between "reachable"
-// (network source) and "unreachable" (degrade to cache/seed) at runtime WITHOUT
-// real network, the default client (only when ROUBO_E2E=1) is built over an
-// injected fetch backed by a generated test keypair: a re-signed copy of the
-// bundled seed entries plus a matching key-ring, verifiable against a generated
-// test ROOT key. Toggling `reachable` makes that injected fetch succeed or fail;
-// __setE2EMarketplaceReachable busts the in-memory memo so the served `source`
-// flips on the next read. This mirrors the dependency-injection fixture in
-// catalog-client.test.ts; none of it is reachable in a production build.
+// end to end: fetch online (network), go offline -> the already-fetched catalog
+// still serves from the on-disk cache, a new install is paused with the clear
+// `marketplace-unreachable` message, reconnect -> installs resume. To flip the
+// catalog client between "reachable" (network source) and "unreachable" (degrade
+// to cache) at runtime WITHOUT real network, the default client (only when
+// ROUBO_E2E=1) is built over an injected fetch backed by a generated test
+// keypair: a signed copy of an inline catalog fixture plus a matching key-ring,
+// verifiable against a generated test ROOT key. Toggling `reachable` makes that
+// injected fetch succeed or fail; __setE2EMarketplaceReachable busts the
+// in-memory memo so the served `source` flips on the next read. This mirrors the
+// dependency-injection fixture in catalog-client.test.ts; none of it is reachable
+// in a production build.
+
+// A small, self-contained catalog fixture the offline-journey seam serves when
+// reachable (replacing the retired committed seed catalog it used to re-sign,
+// davidpoxon/roubo-development#621). Two well-formed entries are enough to walk
+// the degrade journey; the digests are placeholders (the offline journey lists
+// and pauses, it never installs).
+const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
+  {
+    id: "github-com",
+    name: "GitHub.com",
+    kind: "integration",
+    version: "0.2.0",
+    summary: "Connect GitHub issues, projects, and code-scanning alerts to your benches.",
+    source: {
+      type: "git",
+      url: "https://github.com/davidpoxon/roubo.git",
+      directory: "plugins/github-com",
+    },
+    provenance: "roubo/plugins@github-com",
+    integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+    verified: true,
+  },
+  {
+    id: "database",
+    name: "Database",
+    kind: "component",
+    version: "0.1.1",
+    summary:
+      "Docker-backed databases via compose, with migrations and connection-string templating.",
+    source: {
+      type: "git",
+      url: "https://github.com/davidpoxon/roubo.git",
+      directory: "plugins/database",
+    },
+    provenance: "roubo/plugins@database",
+    integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+    verified: true,
+  },
+];
 
 interface E2EReachabilitySeam {
-  /** When false, the injected fetch rejects, so the degrade chain falls to cache/seed. */
+  /** When false, the injected fetch rejects, so the degrade chain falls to cache. */
   reachable: boolean;
   /** Generated test ROOT public key the injected key-ring verifies against. */
   rootPublicKeyPem: string;
@@ -706,10 +725,10 @@ function buildE2ESeam(): E2EReachabilitySeam {
     ).toString("base64"),
   };
 
-  // Re-sign the SAME bundled seed entries with the generated operational key, so
-  // the reachable (network) listing matches the offline (seed/cache) listing
-  // exactly: the journey degrades to the last-known catalog, never a different one.
-  const entries = (seedCatalog as SignedMarketplaceCatalog).payload?.entries ?? [];
+  // Sign the inline fixture entries with the generated operational key, so the
+  // reachable (network) listing matches the offline (cache) listing exactly: the
+  // journey degrades to the last-known catalog, never a different one.
+  const entries = E2E_FIXTURE_ENTRIES;
   const catalogPayload = { schemaVersion: 1, generatedAt, keyId, entries };
   const catalog: SignedMarketplaceCatalog = {
     payload: catalogPayload,
@@ -739,7 +758,7 @@ function e2eFetch(input: Parameters<typeof fetch>[0]): Promise<Response> {
   const seam = getE2ESeam();
   if (!seam.reachable) {
     // fetchEnvelope() catches this and returns null, so tryNetwork() degrades to
-    // the on-disk cache and then the bundled seed.
+    // the on-disk cache and then to an empty listing.
     return Promise.reject(new Error("e2e: marketplace unreachable"));
   }
   const url = typeof input === "string" ? input : input.toString();
@@ -751,7 +770,7 @@ function e2eFetch(input: Parameters<typeof fetch>[0]): Promise<Response> {
 
 /**
  * ROUBO_E2E-only: flip the default catalog client between reachable (network
- * source) and unreachable (degrade to cache/seed), then re-run the degrade chain
+ * source) and unreachable (degrade to cache), then re-run the degrade chain
  * so the served `source` flips on the next read rather than after the memo TTL
  * (CPHM-TC-051). Returns the resolved source so the harness route can surface it.
  * A no-op outside the e2e gate (returns null). `POST /test/__set-marketplace-reachable`

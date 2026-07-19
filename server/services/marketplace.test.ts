@@ -129,11 +129,12 @@ const RELEASE_ENTRY: MarketplaceCatalogEntry = {
 function setCatalog(
   source: CatalogSource = "network",
   entries: MarketplaceCatalogEntry[] = ENTRIES,
+  fetchedAt: string | null = "2026-06-28T00:00:00.000Z",
 ) {
   const catalog: VerifiedCatalog = {
     entries,
     source,
-    fetchedAt: source === "seed" ? null : "2026-06-28T00:00:00.000Z",
+    fetchedAt,
   };
   getVerifiedCatalog.mockResolvedValue(catalog);
 }
@@ -301,11 +302,16 @@ describe("listCatalog", () => {
     expect(listings.some((l) => l.id === "worker-queue")).toBe(false);
   });
 
-  // CPHM-FR-009: even on the seed-degraded path the list is non-zero.
-  it("still lists entries when the catalog is served from the seed (never zero)", async () => {
-    setCatalog("seed");
-    const { listings } = await marketplace.listCatalog();
-    expect(listings.length).toBeGreaterThan(0);
+  // #621: the first-party SEED floor was retired, so the offline degrade can now
+  // bottom out at an empty listing (source "cache", no entries) rather than a
+  // non-zero seed floor. The FR-009 "never zero" invariant is intentionally
+  // dropped offline.
+  it("serves an empty listing on the empty cache degrade (no seed floor, #621)", async () => {
+    setCatalog("cache", [], null);
+    const { listings, source, fetchedAt } = await marketplace.listCatalog();
+    expect(listings).toEqual([]);
+    expect(source).toBe("cache");
+    expect(fetchedAt).toBeNull();
   });
 
   // CPHM-FR-009 / CPHM-NFR-003 (issue #372): the served catalog's provenance is
@@ -326,16 +332,6 @@ describe("listCatalog", () => {
     const result = await marketplace.listCatalog();
     expect(result.source).toBe("cache");
     expect(result.fetchedAt).toBe("2026-06-28T00:00:00.000Z");
-    expect(result.listings.length).toBeGreaterThan(0);
-  });
-
-  // CPHM-FR-009: degraded to the bundled seed: source "seed" with a null
-  // fetchedAt (the seed was never fetched), entries still rendered.
-  it("threads through the seed source with a null fetch timestamp (CPHM-FR-009)", async () => {
-    setCatalog("seed");
-    const result = await marketplace.listCatalog();
-    expect(result.source).toBe("seed");
-    expect(result.fetchedAt).toBeNull();
     expect(result.listings.length).toBeGreaterThan(0);
   });
 });
@@ -1026,17 +1022,9 @@ describe("install", () => {
   });
 
   // CPHM-TC-045/050/051: a new install while the marketplace is unreachable
-  // (catalog served from cache/seed) is paused with a clear error, no clone.
+  // (catalog served from cache) is paused with a clear error, no clone.
   it("rejects a new install with marketplace-unreachable when degraded to cache", async () => {
     setCatalog("cache");
-    await expect(marketplace.install("database")).rejects.toMatchObject({
-      code: "marketplace-unreachable",
-    });
-    expect(previewFromGitUrl).not.toHaveBeenCalled();
-  });
-
-  it("rejects a new install with marketplace-unreachable when degraded to seed", async () => {
-    setCatalog("seed");
     await expect(marketplace.install("database")).rejects.toMatchObject({
       code: "marketplace-unreachable",
     });

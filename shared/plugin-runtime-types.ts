@@ -4,22 +4,6 @@ export type PluginStatus = "enabled" | "disabled" | "errored" | "incompatible" |
 
 export type PluginSource = "bundled" | "user";
 
-/**
- * The default plugins seeded once, offline, on first launch (CPHM-FR-004 /
- * CPHM-US-001). The seed pass stamps each installed seed with a first-party
- * provenance ledger row (davidpoxon/roubo-development#607), so the client grades a
- * seed by its row rather than its id and no longer needs this set: it was once
- * shared so the badge derivation could read absent provenance as first-party for
- * these ids (CPHMTP-NFR-001, issue #563), but with the durable fix in place absent
- * provenance simply fails closed and the client stopped importing it.
- *
- * The server's seed pass is the authority on the set; this is its single
- * definition, re-exported from `plugin-manager` for the server's own callers (the
- * seed loop and the fresh-launch test route). It stays in `@roubo/shared` as its
- * single home rather than moving server-local.
- */
-export const SEED_PLUGIN_IDS = ["github-com", "process", "database"] as const;
-
 export interface RestartEvent {
   at: string;
   reason: "unexpected-exit" | "spawn-failed" | "sandbox-fallback";

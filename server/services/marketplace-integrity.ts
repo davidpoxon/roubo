@@ -8,10 +8,11 @@ import path from "node:path";
 // enforced server-side (the server is the authoritative gate; the client cannot
 // be trusted):
 //
-//   1. Signed catalog: the static catalog is wrapped in a detached ed25519
-//      signature over its canonical payload bytes, verified against the bundled
-//      first-party public key below. An invalid or missing signature fails
-//      closed (the caller surfaces zero listings).
+//   1. Signed catalog: the fetched catalog is wrapped in a detached ed25519
+//      signature over its canonical payload bytes, verified against the
+//      operational key resolved from the signed key-ring (see resolveActiveKey /
+//      the trust chain in catalog-client.ts). An invalid or missing signature
+//      fails closed (the caller surfaces zero listings).
 //   2. Per-plugin integrity: each catalog entry carries an expected content
 //      digest (`sha256-<hex>`) whose target is the unpacked built artifact (the
 //      ReleaseAsset file set: dist/index.js + roubo-plugin.yaml + package.json +
@@ -24,18 +25,7 @@ import path from "node:path";
 //
 // Verification uses node:crypto only (no third-party crypto dependency). The
 // private signing key is held out of band by maintainers; only the public key
-// is checked in here. Re-signing the catalog after an edit is a documented
-// maintainer step (see server/scripts/sign-marketplace-catalog.ts).
-
-/**
- * Bundled first-party catalog-signing public key (ed25519, SPKI PEM). The
- * matching private key is held out of band by Roubo maintainers and is never
- * committed. Rotating this key requires re-signing the catalog with the new
- * private key and replacing this constant in the same change.
- */
-export const CATALOG_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAWk7+soWCgnhP6l8MCGBW0poQu7vmmw77eo5QiVieVIk=
------END PUBLIC KEY-----`;
+// is checked in here.
 
 /**
  * Embedded bootstrap ROOT public key (ed25519, SPKI PEM) that anchors the
@@ -51,8 +41,8 @@ MCowBQYDK2VwAyEAWk7+soWCgnhP6l8MCGBW0poQu7vmmw77eo5QiVieVIk=
  * (`MARKETPLACE_ROOT_SIGNING_KEY`) and signs the published key-ring; it is never
  * committed. With the real key embedded, the fetched key-ring verifies and the
  * catalog-client activates hosted network fetch (rather than staying pinned to
- * the on-disk cache / bundled seed). Rotating this key is the one marketplace
- * change that requires a new app release.
+ * the on-disk cache). Rotating this key is the one marketplace change that
+ * requires a new app release.
  */
 export const CATALOG_ROOT_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAa/6jBpbpxY+6fxdDdrz4hOeNpB+3TRwnFLB62yfWsNM=
@@ -83,17 +73,15 @@ export function canonicalPayloadBytes(payload: unknown): Buffer {
 
 /**
  * Verify a detached ed25519 signature (base64) over a JSON payload's canonical
- * bytes. `publicKeyPem` defaults to the bundled first-party key (the seed /
- * legacy single-key path); the hosted catalog passes the operational key
- * resolved from the signed key-ring (see `resolveActiveKey`). Returns true only
- * on a valid signature; any malformed input (bad base64, wrong key, tampered
- * payload, unparseable key) returns false. Never throws: the caller fails closed
- * on a false result.
+ * bytes against `publicKeyPem`, the operational key resolved from the signed
+ * key-ring (see `resolveActiveKey`). Returns true only on a valid signature; any
+ * malformed input (bad base64, wrong key, tampered payload, unparseable key)
+ * returns false. Never throws: the caller fails closed on a false result.
  */
 export function verifyCatalogSignature(
   payload: unknown,
   signatureBase64: string,
-  publicKeyPem: string = CATALOG_PUBLIC_KEY_PEM,
+  publicKeyPem: string,
 ): boolean {
   if (typeof signatureBase64 !== "string" || signatureBase64.length === 0) {
     return false;

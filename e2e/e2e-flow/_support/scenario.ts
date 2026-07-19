@@ -241,56 +241,6 @@ export async function inspectMarketplaceSource(
   };
 }
 
-// #313 (CPHM-TC-041): one installed seed plugin's on-disk shape, as reported by
-// `POST /test/__seed-fresh-launch`. Keep in lock-step with `SeedPluginSnapshot`
-// in server/routes/test.ts.
-export interface SeedPluginSnapshot {
-  id: string;
-  manifestId: string | null;
-  hasEntry: boolean;
-}
-
-// #313 (CPHM-TC-041): the parsed idempotency marker (.seed-version.json). Keep
-// in lock-step with `SeedMarkerSnapshot` in server/routes/test.ts.
-export interface SeedMarkerSnapshot {
-  present: boolean;
-  seedVersion: number | null;
-  seededIds: string[];
-  seededAt: string | null;
-}
-
-// #313 (CPHM-TC-041): the result of one genuine offline first-run seed pass.
-export interface FreshLaunchResult {
-  // The seed set the host targets (pluginManager.SEED_PLUGIN_IDS).
-  seedSet: string[];
-  // True when this pass actually seeded (a genuine first launch); false when the
-  // marker short-circuited it (an idempotent relaunch).
-  seededNow: boolean;
-  installed: SeedPluginSnapshot[];
-  marker: SeedMarkerSnapshot;
-}
-
-/**
- * #313 (CPHM-TC-041): drive a GENUINE offline first-run seed via the
- * ROUBO_E2E-gated `POST /test/__seed-fresh-launch` seam and return the result.
- * The seam synthesises a throwaway seed bundle, runs `seedFromBundled()` into an
- * isolated tmp user root, and reports the installed plugins + idempotency marker
- * without touching the live plugin-manager (NFR-018). Pass `{ relaunch: true }`
- * to re-run the seed against the SAME sandbox from the prior fresh launch, which
- * proves the marker makes a relaunch a no-op. `/test/__reset` tears the sandbox
- * down so it never leaks into a later spec.
- */
-export async function seedFreshLaunch(
-  request: APIRequestContext,
-  opts: { relaunch?: boolean } = {},
-): Promise<FreshLaunchResult> {
-  const res = await request.post("/test/__seed-fresh-launch", {
-    data: opts.relaunch ? { relaunch: true } : {},
-  });
-  expect(res.status(), `seed fresh launch (relaunch=${opts.relaunch ?? false})`).toBe(200);
-  return (await res.json()) as FreshLaunchResult;
-}
-
 /**
  * Register a throwaway project for the duration of one spec, pinned to the
  * requested plugin via an integration override. The fixture is torn down by

@@ -70,7 +70,7 @@ npm run format          # write
 npm run format:check    # CI parity check
 ```
 
-**Running inside a Roubo bench:** terminals opened by a released Roubo app may carry the host's `ROUBO_PRODUCTION`, `ROUBO_SEED_DIR`, and `ROUBO_PORT` (fixed by #877, but the app you are running may predate the fix). With `ROUBO_PRODUCTION` inherited, a dev or e2e server resolves state to the real `~/.roubo` instead of `~/.roubo-dev/<checkout>`. Prefix server and e2e commands with `env -u ROUBO_PRODUCTION -u ROUBO_SEED_DIR -u ROUBO_PORT` when in doubt.
+**Running inside a Roubo bench:** terminals opened by a released Roubo app may carry the host's `ROUBO_PRODUCTION` and `ROUBO_PORT` (fixed by #877, but the app you are running may predate the fix). With `ROUBO_PRODUCTION` inherited, a dev or e2e server resolves state to the real `~/.roubo` instead of `~/.roubo-dev/<checkout>`. Prefix server and e2e commands with `env -u ROUBO_PRODUCTION -u ROUBO_PORT` when in doubt. (The first-party SEED channel and its `ROUBO_SEED_DIR` seam were retired in davidpoxon/roubo-development#621.)
 
 ## Key Directories
 

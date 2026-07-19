@@ -156,7 +156,6 @@ describe("createSession", () => {
     const { createSession } = await loadModule();
 
     vi.stubEnv("ROUBO_PRODUCTION", "1");
-    vi.stubEnv("ROUBO_SEED_DIR", "/Applications/Roubo.app/Contents/Resources/seed");
     vi.stubEnv("ROUBO_PORT", "63923");
     try {
       createSession("project1", 1, "/workspace", "My Project");
@@ -166,7 +165,6 @@ describe("createSession", () => {
       // sessions: with ROUBO_PRODUCTION inherited, a dev/e2e server started
       // inside a bench resolves state to the real ~/.roubo.
       expect(spawnEnv).not.toHaveProperty("ROUBO_PRODUCTION");
-      expect(spawnEnv).not.toHaveProperty("ROUBO_SEED_DIR");
       expect(spawnEnv).not.toHaveProperty("ROUBO_PORT");
       // The rest of the environment still flows through.
       expect(spawnEnv.PATH).toBe(process.env.PATH);

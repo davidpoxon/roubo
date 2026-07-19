@@ -2,14 +2,12 @@ import { Router } from "express";
 import type {
   InstallErrorCode,
   MarketplaceAmbiguousSourceErrorBody,
-  MarketplaceCatalogErrorBody,
   MarketplaceCatalogResponse,
   MarketplaceKind,
 } from "@roubo/shared";
 import * as marketplace from "../services/marketplace.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
 import * as sourcesState from "../services/marketplace-sources-state.js";
-import { CatalogUnverifiedError } from "../services/catalog-client.js";
 
 // Marketplace routes (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621;
 // CP-FR-021 / CP-US-011, issue #622).
@@ -40,11 +38,10 @@ import { CatalogUnverifiedError } from "../services/catalog-client.js";
 //
 // Channel integrity (issue #622) + hosted catalog (issue #306): the catalog is
 // fetched + verified per request via the catalog-client, which degrades
-// NETWORK -> CACHE -> SEED so the listing is never zero. GET /plugins surfaces a
-// typed catalog-unverified error (502) only when even the bundled seed fails
-// verification (CatalogUnverifiedError); otherwise it always serves a verified
-// catalog. Install/update map integrity-failed (422), revoked (410), and the new
-// marketplace-unreachable (503, the catalog is degraded to cache/seed) codes.
+// NETWORK -> CACHE, bottoming out at an empty listing (the first-party SEED
+// channel was retired in davidpoxon/roubo-development#621). Install/update map
+// integrity-failed (422), revoked (410), and marketplace-unreachable (503, the
+// catalog is degraded to cache) codes.
 
 const router = Router();
 
@@ -82,12 +79,12 @@ function installErrorStatus(code: InstallErrorCode): number {
     case "unpack-failed":
     case "missing-integrity":
       return 422;
-    // The marketplace is unreachable (catalog served from cache/seed), so a new
+    // The marketplace is unreachable (catalog served from cache), so a new
     // install/update is paused: 503 Service Unavailable.
     case "marketplace-unreachable":
       return 503;
-    // An unverified catalog should never reach an install/update (those reject
-    // on the empty catalog first), but map it defensively to 502 Bad Gateway.
+    // An unverified catalog should never reach an install/update, but map it
+    // defensively to 502 Bad Gateway.
     case "catalog-unverified":
       return 502;
     case "internal":
@@ -110,26 +107,15 @@ function parseKind(raw: unknown): MarketplaceKind | undefined {
   return raw === "component" || raw === "integration" ? raw : undefined;
 }
 
-function sendCatalogUnverified(res: Parameters<Parameters<typeof router.get>[1]>[1]): void {
-  // Fail closed: even the bundled seed failed verification, so surface a typed
-  // catalog-unverified error (502) with no listings (CP-TC-118, CPHM-TC-006).
-  const body: MarketplaceCatalogErrorBody = {
-    error: "The plugin catalog could not be verified and was rejected.",
-    code: "catalog-unverified",
-  };
-  res.status(502).json(body);
-}
-
 /**
  * The id is served by several sources and the request named none, so the
  * install/update is refused with 409 and the contributing source ids
  * (CPHMTP-FR-005, issue #558). The client renders one explicit
  * install-from-<source> choice per id and re-issues the request with a `sourceId`.
  *
- * Its own sender rather than a `sendInstallError` code, following the
- * `sendCatalogUnverified` precedent above: `sendInstallError` flattens every body
- * to `{ error, code }`, which would drop the `sourceIds` the client needs to offer
- * the choices at all.
+ * Its own sender rather than a `sendInstallError` code: `sendInstallError`
+ * flattens every body to `{ error, code }`, which would drop the `sourceIds` the
+ * client needs to offer the choices at all.
  */
 function sendAmbiguousSource(
   res: Parameters<Parameters<typeof router.post>[1]>[1],
@@ -183,10 +169,6 @@ router.get("/plugins", async (req, res) => {
     };
     res.json(body);
   } catch (err) {
-    if (err instanceof CatalogUnverifiedError) {
-      sendCatalogUnverified(res);
-      return;
-    }
     res.status(500).json({ error: (err as Error).message, code: "internal" });
   }
 });
@@ -205,10 +187,6 @@ router.post("/plugins/:id/install", async (req, res) => {
     const preview = await marketplace.install(id, parseSourceId(req.body));
     res.status(200).json(preview);
   } catch (err) {
-    if (err instanceof CatalogUnverifiedError) {
-      sendCatalogUnverified(res);
-      return;
-    }
     if (err instanceof marketplace.AmbiguousSourceError) {
       sendAmbiguousSource(res, err);
       return;
@@ -231,10 +209,6 @@ router.post("/plugins/:id/update", async (req, res) => {
     const preview = await marketplace.update(id, parseSourceId(req.body));
     res.status(200).json(preview);
   } catch (err) {
-    if (err instanceof CatalogUnverifiedError) {
-      sendCatalogUnverified(res);
-      return;
-    }
     // Enforced at the UPDATE path too, not only install (CPHMTP-FR-005 AC3): an
     // installed plugin whose id a second source starts serving is ambiguous to
     // update, and the installed copy is left untouched until a source is named.

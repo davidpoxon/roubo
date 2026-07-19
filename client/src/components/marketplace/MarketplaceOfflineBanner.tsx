@@ -3,10 +3,9 @@ import type { MarketplaceCatalogSource } from "@roubo/shared";
 
 // Marketplace offline / staleness banner (CPHM-FR-009 / CPHM-NFR-003, issue
 // #372; verifies CPHM-TC-043 S002 and CPHM-TC-051 S003). The catalog-client
-// degrades NETWORK -> CACHE -> SEED fail-closed so the plugin list is never zero,
-// but the route now also surfaces the served catalog's `source` / `fetchedAt`,
-// so the Plugins view can tell the user it is offline and how stale the served
-// catalog is.
+// degrades NETWORK -> CACHE (bottoming out at an empty listing), and the route
+// surfaces the served catalog's `source` / `fetchedAt`, so the Plugins view can
+// tell the user it is offline and how stale the served catalog is.
 //
 // DESIGN.md "Attention banner": amber-50 background, amber-200 border, amber-800
 // message, AlertTriangle marker (matching the testbench StalenessBanner), amber
@@ -16,17 +15,17 @@ import type { MarketplaceCatalogSource } from "@roubo/shared";
 //
 // The banner states three things (the CPHM-TC-043 S002 observations):
 //   (a) the marketplace is unreachable and the last verified catalog is shown,
-//   (b) how stale that catalog is ("fetched 2h ago"); the bundled seed never had
-//       a fetch, so its `fetchedAt` is null and the staleness clause is omitted,
-//   (c) seeded and installed plugins remain available, new installs are paused
-//       until the marketplace is reachable again.
+//   (b) how stale that catalog is ("fetched 2h ago"); a listing with no fetch has
+//       a null `fetchedAt` and the staleness clause is omitted,
+//   (c) installed plugins remain available, new installs are paused until the
+//       marketplace is reachable again.
 // It renders only when `source !== "network"`; on reconnect the source flips back
 // to "network" and the banner clears (CPHM-TC-051 S006).
 
 /**
  * Format an ISO fetch timestamp as a coarse "ago" string ("just now", "5m ago",
- * "2h ago", "3d ago"). Returns null for a missing or unparseable timestamp (the
- * seed has no fetch), so the caller omits the staleness clause.
+ * "2h ago", "3d ago"). Returns null for a missing or unparseable timestamp (a
+ * listing with no fetch), so the caller omits the staleness clause.
  */
 function formatFetchedAgo(fetchedAt: string | null): string | null {
   if (fetchedAt === null) return null;
@@ -44,13 +43,13 @@ function formatFetchedAgo(fetchedAt: string | null): string | null {
 
 const STRINGS = {
   // (a) unreachable + last verified catalog shown. The staleness clause (b) is
-  // appended when a fetch timestamp is known (cache), omitted for the seed.
+  // appended when a fetch timestamp is known (cache), omitted when there was none.
   unreachableWithFetch: (ago: string) =>
     `The marketplace is unreachable. Showing the last verified catalog, fetched ${ago}.`,
   unreachableNoFetch: "The marketplace is unreachable. Showing the last verified catalog.",
-  // (c) seeded / installed stay available, new installs paused until reconnect.
+  // (c) installed plugins stay available, new installs paused until reconnect.
   availability:
-    "Seeded and installed plugins remain available; new installs are paused until you're back online.",
+    "Installed plugins remain available; new installs are paused until you're back online.",
 };
 
 export default function MarketplaceOfflineBanner({

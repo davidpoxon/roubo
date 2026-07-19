@@ -577,10 +577,9 @@ describe("CPHMTP-TC-049: tamper rejection from a hostile source, fail closed wit
     // The next two are unreachability guards, NOT the proof, and the distinction is
     // deliberate: marketplace.install() only ever stages (it returns previewFromRelease),
     // and the only writer of the plugin directory and the only caller of registerInstalled
-    // REACHABLE FROM install() is plugin-installer.commit(). (Other writers exist off this
-    // path: plugin-installer's installSeedArtifact renames straight to the plugins root,
-    // and plugin-manager's bundled-to-user copy calls registerInstalled directly. Neither
-    // is reachable from install().) This journey never calls commit(), so both assertions
+    // REACHABLE FROM install() is plugin-installer.commit(). (Other writers may exist off
+    // this path, but none is reachable from install().) This journey never calls commit(),
+    // so both assertions
     // would hold on a successful preview too and neither can discriminate a rejected
     // artifact on its own. They are kept to pin the reject path against a future change
     // that smuggles a commit into it. The sibling marketplace-install-312-journey makes

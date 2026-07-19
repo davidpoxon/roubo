@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import type { MarketplaceCatalogEntry, MarketplaceSource } from "@roubo/shared";
 
@@ -347,16 +346,12 @@ describe("createThirdPartyCatalogClient per-source namespacing (CPHMTP-TC-043 / 
     expect(await readFile(sourceCachePath("source-b"), "utf8")).toBe(bBytesBefore);
   });
 
-  it("never writes the first-party cache path or the embedded seed (CPHMTP-TC-061)", async () => {
+  it("never writes the first-party cache path (CPHMTP-TC-061)", async () => {
     // Seed the first-party cache path with sentinel bytes; third-party caching
     // must leave it byte-identical.
     await mkdir(path.dirname(firstPartyCachePath()), { recursive: true });
     const firstPartySentinel = '{"catalog":"first-party-untouched"}\n';
     await writeFile(firstPartyCachePath(), firstPartySentinel, "utf8");
-
-    // The committed embedded seed catalog: capture its bytes before and after.
-    const seedPath = fileURLToPath(new URL("./marketplace-catalog.json", import.meta.url));
-    const seedBefore = await readFile(seedPath, "utf8");
 
     const source = makeSource({ id: "third-party" });
     await clientFor(source, { fetchImpl: fetchReturning(sampleEntries()) }).getCatalog({
@@ -367,7 +362,5 @@ describe("createThirdPartyCatalogClient per-source namespacing (CPHMTP-TC-043 / 
     await expect(readFile(sourceCachePath("third-party"), "utf8")).resolves.toContain("acme-tool");
     // The first-party cache path is byte-identical.
     expect(await readFile(firstPartyCachePath(), "utf8")).toBe(firstPartySentinel);
-    // The embedded seed catalog is byte-identical.
-    expect(await readFile(seedPath, "utf8")).toBe(seedBefore);
   });
 });

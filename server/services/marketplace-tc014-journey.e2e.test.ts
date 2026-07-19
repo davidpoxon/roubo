@@ -45,16 +45,14 @@
 // through the REAL marketplace-integrity primitives.
 //
 // KEY-RING NUANCE: CPHM-TC-014 S003 references "the key-ring anchored by the
-// embedded root key," but the host currently verifies the catalog against the single
-// bundled CATALOG_PUBLIC_KEY_PEM (the architecture's app-side key-ring resolution is
-// a documented PRD-delta, owned by #305, not yet realized). The maintainer's
-// operational signing key is held out of band and is NOT the bundled key, so the
-// journey catalog's signature leg drives the same node:crypto ed25519 primitive
-// verifyCatalogSignature wraps, keyed to the journey's operational public key, while
-// the REAL verifyCatalogSignature is exercised against the committed catalog to
-// prove the shipped host gate is node:crypto-only and green (exactly as the TC-070
-// author journey does). No key-ring resolution the app does not yet implement is
-// invented here.
+// embedded root key." The host verifies the catalog against the operational key
+// resolved from the signed key-ring (marketplace-integrity.resolveActiveKey /
+// verifyCatalogSignature). The maintainer's operational signing key is held out
+// of band, so the journey catalog's signature leg drives that same node:crypto
+// ed25519 primitive keyed to the journey's own generated operational public key.
+// The first-party SEED channel (and its committed catalog + bundled key) was
+// retired (davidpoxon/roubo-development#621), so there is no committed catalog to
+// re-verify here.
 //
 // Drift guard: each it() is named after its CPHM-TC-014 step id and the step's
 // expected observation is kept explicit, so a change to the authoritative
@@ -79,7 +77,6 @@ import type { MarketplaceCatalogEntry, SignedMarketplaceCatalog } from "@roubo/s
 import {
   canonicalPayloadBytes,
   computePackageDigest,
-  verifyCatalogSignature,
   verifyPackageIntegrity,
 } from "./marketplace-integrity.js";
 
@@ -283,7 +280,7 @@ async function writeMaintainerPlugin(dir: string): Promise<void> {
  * keyed to the maintainer's operational public key. Mirrors verifyCatalogSignature's
  * fail-closed shape exactly (empty / malformed signature -> false, never throws); the
  * only difference is the key, because the operational key is held out of band and is
- * not the bundled CATALOG_PUBLIC_KEY_PEM.
+ * resolved from the signed key-ring rather than any bundled constant.
  */
 function verifyJourneyCatalog(catalog: SignedMarketplaceCatalog): boolean {
   if (typeof catalog.signature !== "string" || catalog.signature.length === 0) return false;
@@ -461,7 +458,7 @@ describe("CPHM-TC-014: maintainer publishes then revokes a plugin, client reflec
 
   it("S003: client opens the marketplace Browse screen -> the app fetches the catalog and verifies its signature (S003-O01)", async () => {
     // The client verifies the fetched catalog's signature. Per the KEY-RING NUANCE,
-    // the operational key is not the bundled CATALOG_PUBLIC_KEY_PEM, so the journey
+    // the operational key is resolved from the signed key-ring, so the journey
     // drives the same node:crypto ed25519 primitive keyed to the operational key.
     expect(
       verifyJourneyCatalog(publishedCatalog),
@@ -484,16 +481,6 @@ describe("CPHM-TC-014: maintainer publishes then revokes a plugin, client reflec
         hostVerifiedEntries(tampered).map((e) => e.id),
       )}. Owning slice: ${SLICE_CATALOG_REVOKE}.`,
     ).toEqual([]);
-
-    // The shipped host signature gate (verifyCatalogSignature, bundled ed25519 key) is
-    // itself node:crypto-only and green on the committed catalog, so the production
-    // re-verification path the client models is real.
-    const committed = (await import("./marketplace-catalog.json", { with: { type: "json" } }))
-      .default as { payload: unknown; signature: string };
-    expect(
-      verifyCatalogSignature(committed.payload, committed.signature),
-      `CPHM-TC-014 step S003 (S003-O01) diverged: expected the shipped host verifier (verifyCatalogSignature, node:crypto ed25519) to verify the committed marketplace catalog, but it failed closed. Owning slice: ${SLICE_CATALOG_REVOKE}.`,
-    ).toBe(true);
   });
 
   it("S004: client finds the new entry and installs it -> it is listed and installs after digest verification (S004-O01)", async () => {
