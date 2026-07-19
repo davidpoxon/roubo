@@ -499,13 +499,7 @@ describe("committed catalog digests match the live plugin subdirs (drift guard, 
       (e) => !e.revoked && typeof e.source.directory === "string",
     );
     // Sanity: the catalog still carries the expected installable set.
-    expect(installable.map((e) => e.id).sort()).toEqual([
-      "database",
-      "ghe",
-      "github-com",
-      "jira-self-hosted",
-      "process",
-    ]);
+    expect(installable.map((e) => e.id).sort()).toEqual(["database", "github-com", "process"]);
     for (const entry of installable) {
       const subdir = path.resolve(repoRoot, entry.source.directory as string);
       const staged = await stageSourceOnly(subdir);

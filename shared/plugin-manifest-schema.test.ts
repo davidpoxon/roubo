@@ -516,8 +516,6 @@ describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-01
 
   const published: Array<{ id: string; kind: "integration" | "component" }> = [
     { id: "github-com", kind: "integration" },
-    { id: "ghe", kind: "integration" },
-    { id: "jira-self-hosted", kind: "integration" },
     { id: "process", kind: "component" },
     { id: "database", kind: "component" },
   ];
@@ -726,41 +724,6 @@ describe("Bundled plugin manifests ship default excludedStatuses (TC-124, FR-064
       "Waiting on reviewer",
     ]);
   });
-
-  it("GHE plugin ships the same default set as github.com", async () => {
-    const gh = await loadManifest("github-com");
-    const ghe = await loadManifest("ghe");
-    expect(ghe.defaultIntegrationConfig?.excludedStatuses).toEqual(
-      gh.defaultIntegrationConfig?.excludedStatuses,
-    );
-  });
-
-  it("Jira plugin ships status-name fallback defaults using Jira-native state strings", async () => {
-    // Category-first exclusion is the default source of truth; this name list is
-    // the best-effort fallback used only when an instance rejects `statusCategory`
-    // in JQL. For the only-to-do default (FR-012 / issue #558) it names both the
-    // In-Progress-category statuses ("In Progress", "In Review") and the
-    // Done-category statuses, so an unsupported instance excludes the same intent.
-    const manifest = await loadManifest("jira-self-hosted");
-    expect(manifest.defaultIntegrationConfig?.excludedStatuses).toEqual([
-      "In Progress",
-      "In Review",
-      "Closed",
-      "Done",
-      "Resolved",
-    ]);
-  });
-
-  it("Jira plugin seeds the only-to-do excludedStatusCategories default (FR-012, issue #558)", async () => {
-    // Deliberate flip from the prior Done-only default: the cut list defaults to
-    // excluding both In Progress and Done so only ready-to-pick-up To-Do items
-    // show. Surfaced to existing users by the one-time migration banner (FR-018).
-    const manifest = await loadManifest("jira-self-hosted");
-    expect(manifest.defaultIntegrationConfig?.excludedStatusCategories).toEqual([
-      "In Progress",
-      "Done",
-    ]);
-  });
 });
 
 describe("PluginDefaultIntegrationConfigSchema excludedStatusCategories (FR-010, TC-003)", () => {
@@ -780,7 +743,7 @@ describe("PluginDefaultIntegrationConfigSchema excludedStatusCategories (FR-010,
   });
 });
 
-describe("Bundled github.com / GHE plugin manifests declare per-source alert booleans (TC-135, FR-074)", () => {
+describe("Bundled github.com plugin manifest declares per-source alert booleans (TC-135, FR-074)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const pluginsDir = resolve(here, "..", "plugins");
 
@@ -807,7 +770,7 @@ describe("Bundled github.com / GHE plugin manifests declare per-source alert boo
     return (items.required as string[]) ?? [];
   }
 
-  for (const pluginId of ["github-com", "ghe"] as const) {
+  for (const pluginId of ["github-com"] as const) {
     describe(`${pluginId} manifest`, () => {
       it("declares includeCodeQLAlerts as an optional boolean defaulting to false", async () => {
         const manifest = await loadManifest(pluginId);
