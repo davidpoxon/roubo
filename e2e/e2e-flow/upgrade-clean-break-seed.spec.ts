@@ -12,8 +12,10 @@ import {
 // drift guard for the clean-break upgrade journey. Prior bundled installs are
 // dropped, the first-run seed provides the three defaults (github-com + the two
 // component plugins) offline, an existing roubo.yaml binding process + database
-// starts identically with no migration, and a removed non-seeded plugin (ghe)
-// reinstalls from the marketplace.
+// starts identically with no migration. ghe was extracted to the workplace
+// third-party marketplace (davidpoxon/roubo-development#568), so it is no longer a
+// first-party catalog entry; reinstalling it from a registered workplace source is
+// owned by the third-party e2e suite, not this first-party drift guard.
 //
 // This is the integration-level drift guard for the journey: it walks the
 // authoritative e2e_flow case .specifications/component-plugins-hosted-marketplace
@@ -44,8 +46,10 @@ import {
 //      invariant the harness CAN prove is that the defaults flow from the verified
 //      marketplace catalog / seed, not a shipped bundled source tree.
 //      ghe also ships as a bundled overlay here, so its installed state cannot show
-//      "not seeded" directly; the spec asserts ghe's marketplace-only membership
-//      (absent from the seed-default set, present + installable in the catalog).
+//      "not seeded" directly; the spec asserts ghe is absent from the seed-default
+//      set. Since #568 extracted ghe to the workplace third-party marketplace it is
+//      no longer a first-party catalog entry, so its install-from-a-registered-source
+//      is covered by the third-party e2e suite, not here.
 //   3. No resources/seed bundle ships under ROUBO_SEED_DIR in the harness, so
 //      seedFromBundled() is a no-op and the .seed-version.json marker is never
 //      written, and there is no API that surfaces SEED_PLUGIN_IDS or the marker.
@@ -85,9 +89,10 @@ const SEED_DEFAULT_INTEGRATION_ID = "github-com";
 // roubo.yaml bindings (S004) rather than as running records.
 const SEED_DEFAULT_COMPONENT_IDS = ["process", "database"] as const;
 
-// The removed, non-seeded plugin (S005): a marketplace-only integration entry,
-// absent from SEED_DEFAULT_IDS, that the de-bundled build reinstalls from the
-// marketplace.
+// The extracted, non-seeded plugin: absent from SEED_DEFAULT_IDS and, since #568
+// moved it to the workplace third-party marketplace, absent from the first-party
+// catalog too. Its install-from-a-registered-source is owned by the third-party
+// e2e suite (see the removed S005 note below).
 const MARKETPLACE_ONLY_ID = "ghe";
 
 // Fixture project for S004: its roubo.yaml binds the `app` component to `process`
@@ -100,11 +105,6 @@ interface CatalogResponse {
   listings?: MarketplaceListing[];
   source?: MarketplaceCatalogSource;
   fetchedAt?: string | null;
-}
-
-interface InstallErrorBody {
-  error?: string;
-  code?: string;
 }
 
 interface ConfigResponse {
@@ -124,7 +124,7 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("CPHM-TC-061: clean-break upgrade drops bundled installs, seed provides the defaults offline, existing bindings start with no migration, ghe reinstalls from the marketplace", async ({
+test("CPHM-TC-061: clean-break upgrade drops bundled installs, seed provides the defaults offline, existing bindings start with no migration (ghe extracted to the workplace marketplace, #568)", async ({
   request,
   page,
 }) => {
@@ -215,9 +215,12 @@ test("CPHM-TC-061: clean-break upgrade drops bundled installs, seed provides the
     ).toBe(true);
   }
 
-  // S003-O02: ghe is NOT seeded (it is marketplace-only). It is absent from the
-  // seed-default set and present in the catalog as a separate, installable
-  // integration entry (the marketplace-only nature the harness can observe).
+  // S003-O02: ghe is NOT seeded, and since #568 extracted it to the workplace
+  // third-party marketplace it is NOT a first-party catalog entry either. It is
+  // absent from both the seed-default set and the first-party offline listing;
+  // reinstalling it from a registered workplace source is owned by the third-party
+  // e2e suite (declared-source-consent-install-journey, marketplace-registration-
+  // journey), not this first-party drift guard.
   expect(
     SEED_DEFAULT_IDS.includes(MARKETPLACE_ONLY_ID as (typeof SEED_DEFAULT_IDS)[number]),
     `S003-O02 diverged: expected "${MARKETPLACE_ONLY_ID}" to be excluded from the seed-default ` +
@@ -225,9 +228,10 @@ test("CPHM-TC-061: clean-break upgrade drops bundled installs, seed provides the
   ).toBe(false);
   expect(
     offlineIds.includes(MARKETPLACE_ONLY_ID),
-    `S003-O02 diverged: expected the marketplace-only "${MARKETPLACE_ONLY_ID}" to be a catalog ` +
-      `entry (sourced from the marketplace, not the seed) but it was absent from the listing; owning slice ${PACKAGING_SLICE}`,
-  ).toBe(true);
+    `S003-O02 diverged: expected the extracted "${MARKETPLACE_ONLY_ID}" to be absent from the ` +
+      `first-party offline listing (it moved to the workplace third-party marketplace, #568) but it ` +
+      `was present; owning slice ${PACKAGING_SLICE}`,
+  ).toBe(false);
 
   // ---- S004: load the existing unchanged roubo.yaml and start a bench whose
   // components bind process + database. CPHM-NFR-005: the config loads with no
@@ -276,52 +280,15 @@ test("CPHM-TC-061: clean-break upgrade drops bundled installs, seed provides the
       `but a migration record was present: ${JSON.stringify(migration.migration)}; owning slice ${SEED_SLICE}`,
   ).toBeNull();
 
-  // ---- S005: open the marketplace and reinstall ghe (the removed, non-seeded
-  // plugin). While the marketplace is still unreachable (from S003) the reinstall
-  // is paused with a clear message; reconnecting re-opens the gate and the catalog
-  // serves ghe as a verified, installable entry ready to reinstall. The actual
-  // clone/commit of the install is the installer slice's concern (out of scope for
-  // this drift guard, issue #315 "Out of Scope"); the un-pausing of the gate plus
-  // the verified catalog entry is the boundary verified here, mirroring
-  // marketplace-offline-journey S005/S006.
-  const s005Blocked = await request.post(`/api/marketplace/plugins/${MARKETPLACE_ONLY_ID}/install`);
-  const s005BlockedBody = (await s005Blocked.json()) as InstallErrorBody;
-  expect(
-    s005Blocked.status(),
-    `S005 diverged: expected a ghe reinstall while the marketplace is unreachable to be paused ` +
-      `with HTTP 503 but got ${s005Blocked.status()}; owning slice ${PACKAGING_SLICE}`,
-  ).toBe(503);
-  expect(
-    s005BlockedBody.code,
-    `S005 diverged: expected the paused reinstall to carry code "marketplace-unreachable" but got ` +
-      `${JSON.stringify(s005BlockedBody.code)}; owning slice ${PACKAGING_SLICE}`,
-  ).toBe("marketplace-unreachable");
-
-  const onlineSource = await setMarketplaceReachable(request, true);
-  expect(
-    onlineSource,
-    `S005 diverged: expected reconnect to restore the live "network" catalog (re-opening the ` +
-      `reinstall gate) but the source was "${onlineSource}"; owning slice ${PACKAGING_SLICE}`,
-  ).toBe("network");
-
-  const s005 = await request.get("/api/marketplace/plugins");
-  expect(
-    s005.status(),
-    `S005-O01 diverged: expected the reconnected catalog to serve HTTP 200 but got ` +
-      `${s005.status()}; owning slice ${PACKAGING_SLICE}`,
-  ).toBe(200);
-  const s005Body = (await s005.json()) as CatalogResponse;
-  const ghListing = s005Body.listings?.find((l) => l.id === MARKETPLACE_ONLY_ID);
-  expect(
-    ghListing !== undefined,
-    `S005-O01 diverged: expected the reconnected live catalog to list "${MARKETPLACE_ONLY_ID}" ` +
-      `as a reinstallable entry but it was absent; owning slice ${PACKAGING_SLICE}`,
-  ).toBe(true);
-  expect(
-    ghListing?.revoked ?? false,
-    `S005-O01 diverged: expected "${MARKETPLACE_ONLY_ID}" to be a verified, non-revoked catalog ` +
-      `entry ready to reinstall but it was revoked; owning slice ${PACKAGING_SLICE}`,
-  ).toBe(false);
+  // ---- S005 (removed): the original step reinstalled ghe from the FIRST-PARTY
+  // marketplace and asserted the reconnected first-party catalog listed it. #568
+  // extracted ghe to the workplace third-party marketplace, so ghe is no longer a
+  // first-party catalog entry and is not reinstallable via the first-party
+  // /api/marketplace/plugins/:id/install path. Installing it from a registered
+  // workplace source (the real post-#568 behavior) is owned by the third-party e2e
+  // suite (declared-source-consent-install-journey, marketplace-registration-journey).
+  // The seed layer this guard exercises is being retired in
+  // davidpoxon/roubo-development#621, which will rework this journey.
 
   // ---- S006: verify the seeded github-com behaves identically to its
   // previously-bundled self. Per reconciliation #1 the harness github-com is the
