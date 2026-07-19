@@ -436,8 +436,8 @@ describe("Marketplace catalog", () => {
 
   // CPHM-TC-043 (S001/S002) + CPHM-TC-051 (S003), issue #372: the offline /
   // staleness banner. It is absent on a live network catalog and present when the
-  // catalog degraded to the last-known cache or the bundled seed, while the
-  // (cached) entries still render.
+  // catalog degraded to the last-known cache, while the (cached) entries still
+  // render.
   describe("offline / staleness banner (CPHM-TC-043 / CPHM-TC-051)", () => {
     it("does not render the banner when the catalog is live (source network)", () => {
       setCatalog(CATALOG, "network");
@@ -456,24 +456,24 @@ describe("Marketplace catalog", () => {
       expect(banner).toHaveTextContent(/last verified catalog/i);
       // (b) staleness from fetchedAt: "fetched 2h ago" (S002-O02).
       expect(banner).toHaveTextContent(/fetched 2h ago/i);
-      // (c) seeded/installed remain available, new installs paused (S002-O03).
-      expect(banner).toHaveTextContent(/seeded and installed plugins remain available/i);
+      // (c) installed remain available, new installs paused (S002-O03).
+      expect(banner).toHaveTextContent(/installed plugins remain available/i);
       expect(banner).toHaveTextContent(/new installs are paused/i);
       // The cached catalog entries still render (S001-O01/O02): the grid is shown.
       expect(screen.getByTestId("marketplace-grid")).toBeInTheDocument();
       expect(screen.getAllByTestId("marketplace-card")).toHaveLength(3);
     });
 
-    it("renders the seed banner without a fetch timestamp (seed fetchedAt is null)", () => {
-      setCatalog(CATALOG, "seed", null);
+    it("renders the cache banner without a fetch timestamp (fetchedAt is null)", () => {
+      setCatalog(CATALOG, "cache", null);
       render(<Marketplace />);
       const banner = screen.getByTestId("marketplace-offline-banner");
       expect(banner).toHaveTextContent(/marketplace is unreachable/i);
       expect(banner).toHaveTextContent(/last verified catalog/i);
-      // Seed has no fetch timestamp, so no "fetched ... ago" clause.
+      // A timestampless cache has no fetch, so no "fetched ... ago" clause.
       expect(banner).not.toHaveTextContent(/fetched/i);
       expect(banner).toHaveTextContent(/new installs are paused/i);
-      // Seeded entries still render.
+      // Cached entries still render.
       expect(screen.getByTestId("marketplace-grid")).toBeInTheDocument();
     });
   });

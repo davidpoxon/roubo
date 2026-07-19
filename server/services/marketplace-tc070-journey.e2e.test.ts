@@ -56,7 +56,6 @@ import { deflateRawSync, constants as zlibConstants } from "node:zlib";
 import {
   canonicalPayloadBytes,
   computePackageDigest,
-  verifyCatalogSignature,
   verifyPackageIntegrity,
 } from "./marketplace-integrity.js";
 
@@ -550,15 +549,5 @@ describe("CPHM-TC-070: author builds against the published SDK, CI publishes rep
       ),
       `CPHM-TC-070 step S007 (S007-O02) diverged: expected a tampered catalog payload to fail the host node:crypto signature check closed, but it verified. Owning slice: ${SLICE_CI_PUBLISH}.`,
     ).toBe(false);
-
-    // The shipped host signature gate (verifyCatalogSignature, bundled ed25519 public key)
-    // is itself node:crypto-only and green on the committed catalog, so the production
-    // re-verification path the journey models is real.
-    const committed = (await import("./marketplace-catalog.json", { with: { type: "json" } }))
-      .default as { payload: unknown; signature: string };
-    expect(
-      verifyCatalogSignature(committed.payload, committed.signature),
-      `CPHM-TC-070 step S007 (S007-O02) diverged: expected the shipped host verifier (verifyCatalogSignature, node:crypto ed25519) to verify the committed marketplace catalog, but it failed closed. Owning slice: ${SLICE_CI_PUBLISH}.`,
-    ).toBe(true);
   });
 });

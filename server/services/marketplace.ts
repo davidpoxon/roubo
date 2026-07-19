@@ -28,17 +28,18 @@ import * as sourcesState from "./marketplace-sources-state.js";
 // The catalog is no longer an embedded module-load constant: entries come from
 // the `catalog-client`, which fetches the signed catalog + key-ring over HTTPS,
 // verifies them fail-closed against the embedded bootstrap root key, caches the
-// last verified envelope, and degrades NETWORK -> CACHE -> SEED so the listing
-// is never zero. This service reads those verified entries, cross-references the
-// installed plugin set to annotate each entry's install / update state, and
-// supports search + kind filtering. Install and update REUSE the existing
-// plugin-installer staging -> consent -> commit flow; the expected per-entry
-// integrity digest is threaded so the installer can reject a tampered package
-// before commit. Revoked entries are filtered from listings and rejected at
-// install/update (CP-TC-109). When the catalog is being served from the cache
-// or the seed (the marketplace was unreachable), a NEW install/update is paused
-// with a clear `marketplace-unreachable` error (CPHM-TC-045/050/051); seeded and
-// already-installed plugins are unaffected.
+// last verified envelope, and degrades NETWORK -> CACHE, bottoming out at an
+// empty listing (the first-party SEED channel was retired in
+// davidpoxon/roubo-development#621). This service reads those verified entries,
+// cross-references the installed plugin set to annotate each entry's install /
+// update state, and supports search + kind filtering. Install and update REUSE
+// the existing plugin-installer staging -> consent -> commit flow; the expected
+// per-entry integrity digest is threaded so the installer can reject a tampered
+// package before commit. Revoked entries are filtered from listings and rejected
+// at install/update (CP-TC-109). When the catalog is being served from the cache
+// (the marketplace was unreachable), a NEW install/update is paused with a clear
+// `marketplace-unreachable` error (CPHM-TC-045/050/051); already-installed
+// plugins are unaffected.
 
 // Multi-source listing (CPHMTP-FR-004 / NFR-006 / NFR-007, issue #557): listCatalog
 // no longer reads the first-party client alone. It fans out over the first-party
@@ -81,8 +82,8 @@ export interface ListCatalogParams {
  * message, and the client needs `sourceIds` to offer one explicit
  * install-from-<source> choice per source. Widening `InstallErrorCode` for a code
  * that must carry a payload would make the install-error channel dishonest, so
- * this follows the `CatalogUnverifiedError` precedent instead: a dedicated error
- * class with its own typed body and its own sender in the route.
+ * this is a dedicated error class with its own typed body and its own sender in
+ * the route.
  *
  * Thrown BEFORE any artifact is fetched or staged, so a refused install leaves
  * nothing on disk (CPHMTP-TC-034 S002).
@@ -108,7 +109,7 @@ export class AmbiguousSourceError extends Error {
  * the first-party catalog-client's degrade chain, so the route can forward them to
  * the client, which renders the offline / staleness banner when
  * `source !== "network"` (CPHM-FR-009 / CPHM-NFR-003, issue #372). `fetchedAt` is
- * the ISO fetch timestamp (network / cache), or `null` for the bundled seed. They
+ * the ISO fetch timestamp (network / cache), or `null` for an empty listing. They
  * stay first-party-scoped: a third-party source going dark must not flip the
  * first-party banner.
  *
@@ -427,7 +428,8 @@ function buildCollisionIndex(results: SourceResult[]): Map<string, string[]> {
   return byId;
 }
 
-/** Fetch the first-party signed catalog. Propagates CatalogUnverifiedError (502). */
+/** Fetch the first-party signed catalog. Never throws: the degrade chain bottoms
+ * out at an empty listing (the first-party SEED channel was retired, #621). */
 async function fetchFirstParty(): Promise<SourceResult> {
   const { entries, source, fetchedAt } = await catalogClient.getVerifiedCatalog();
   return {
@@ -438,9 +440,10 @@ async function fetchFirstParty(): Promise<SourceResult> {
       label: FIRST_PARTY_LABEL,
       source,
       fetchedAt,
-      // The first-party chain always has the bundled seed to fall back on, so it
-      // is never unavailable: it either serves entries or throws
-      // CatalogUnverifiedError.
+      // The first-party chain never throws: it serves the verified network /
+      // cache entries, or an empty listing when neither is available. It is not
+      // reported unavailable (the offline banner keys off `source`, not this),
+      // so the first-party row keeps rendering.
       unavailable: false,
     },
   };
@@ -463,12 +466,11 @@ async function fetchFirstParty(): Promise<SourceResult> {
  *
  * Each client serves its most recently resolved catalog (refreshing from the
  * network at most once per its short memo TTL: fetch-on-marketplace-open,
- * CPHM-NFR-004), degrading through its own chain: the first-party chain degrades
- * to cache then seed so it is never zero, while a third-party chain degrades to
- * cache then empty (there is no third-party seed). Filtering runs in memory over
- * the merged list, so search-as-you-type does not force a fetch + signature verify
- * per keystroke. Throws `CatalogUnverifiedError` only when even the bundled
- * first-party seed fails verification (the route maps that to 502).
+ * CPHM-NFR-004), degrading through its own chain: both the first-party and the
+ * third-party chains degrade to cache then an empty listing (the first-party SEED
+ * channel was retired, #621, so there is no bundled floor). Filtering runs in
+ * memory over the merged list, so search-as-you-type does not force a fetch +
+ * signature verify per keystroke. Never throws.
  */
 export async function listCatalog(params: ListCatalogParams = {}): Promise<CatalogResult> {
   const results = await fetchAllSources();
@@ -640,14 +642,14 @@ function assertServable(candidate: InstallCandidate, id: string): InstallCandida
     );
   }
   if (candidate.status.source !== "network") {
-    // Degraded to cache / seed: the source is unreachable, so a new install/update
-    // is paused with a clear message rather than attempting (and failing) a fetch
-    // (CPHM-TC-045/050/051). Seeded and already-installed plugins keep working.
-    // Scoped to the CHOSEN source's own degrade state, so one stale source cannot
-    // pause an install from a healthy one.
+    // Degraded to cache: the source is unreachable, so a new install/update is
+    // paused with a clear message rather than attempting (and failing) a fetch
+    // (CPHM-TC-045/050/051). Already-installed plugins keep working. Scoped to the
+    // CHOSEN source's own degrade state, so one stale source cannot pause an
+    // install from a healthy one.
     throw new pluginInstaller.InstallError(
       "marketplace-unreachable",
-      `Can't install "${id}" while the marketplace is unreachable. Seeded and already-installed plugins remain available; new installs resume when the marketplace is reachable again.`,
+      `Can't install "${id}" while the marketplace is unreachable. Already-installed plugins remain available; new installs resume when the marketplace is reachable again.`,
     );
   }
   return candidate;

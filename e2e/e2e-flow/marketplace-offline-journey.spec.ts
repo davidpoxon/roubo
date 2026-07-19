@@ -9,16 +9,23 @@ import {
 
 // CPHM-TC-051 (CPHM-FR-009 / CPHM-NFR-003 / CPHM-US-002, issue #314): end-to-end
 // proof of the offline marketplace journey. The app degrades to the last-known
-// catalog + bundled seed, seeded (bundled) plugins keep running, a NEW install
-// while the marketplace is unreachable is paused with a clear message (not a
-// crash), and reconnecting un-pauses installs.
+// catalog (the on-disk cache), bundled plugins keep running, a NEW install while
+// the marketplace is unreachable is paused with a clear message (not a crash),
+// and reconnecting un-pauses installs.
+//
+// The first-party SEED channel was retired (davidpoxon/roubo-development#621), so
+// there is no bundled catalog floor: the offline degrade shows the LAST-VERIFIED
+// CACHE. This journey therefore warms the cache with a reachable fetch first,
+// then goes offline so the served catalog degrades to that cache. (Cold-start
+// offline, with no warmed cache, bottoms out at an empty listing; that path is
+// covered by catalog-client.test.ts.)
 //
 // This drives the live degrade chain (server/services/catalog-client.ts: the
-// NETWORK -> CACHE -> SEED resolver) and the real marketplace-unreachable gate
+// NETWORK -> CACHE resolver) and the real marketplace-unreachable gate
 // (server/services/marketplace.ts:assertInstallable, surfaced as 503 by
 // server/routes/marketplace.ts). The offline / online flip uses the
 // ROUBO_E2E-gated `setMarketplaceReachable` seam: it forces the injected catalog
-// fetch to fail (unreachable -> degrade to cache/seed) or succeed (reachable ->
+// fetch to fail (unreachable -> degrade to cache) or succeed (reachable ->
 // network source) and busts the catalog memo so the served source flips within
 // the spec, no real network required.
 //
@@ -43,12 +50,11 @@ import {
 //     fetched-Nh-ago, installs paused) is asserted by the React unit + a11y tests
 //     (Marketplace.test.tsx / Marketplace.a11y.test.tsx). This Playwright leg
 //     verifies S003 at the API data-contract boundary the banner renders from:
-//     the GET /plugins response degrades `source` to cache/seed and carries a
+//     the GET /plugins response degrades `source` to cache and carries a
 //     `fetchedAt`, which IS the "last verified catalog (fetched ...) shown" state.
-//   - S005 names "Jira" as the new install. But jira-self-hosted is a SEEDED
-//     (bundled) catalog entry, so it cannot be the non-seeded install subject.
-//     The block applies to ANY non-network install, so this walks it with
-//     `database`: a genuinely non-seeded, not-yet-installed catalog entry.
+//   - S005 names "Jira" as the new install. jira-self-hosted is not a suitable
+//     subject, so this walks the block with `database`: a not-yet-installed
+//     catalog entry (present in the warmed cache, absent from the installed set).
 
 const SCENARIO = "default";
 const NOW = "2026-06-28T10:00:00.000Z";
@@ -58,21 +64,21 @@ const NOW = "2026-06-28T10:00:00.000Z";
 const CATALOG_SLICE =
   "davidpoxon/roubo-development#306 (catalog-client: degrade chain + marketplace-unreachable gate)";
 
-// A genuinely seeded plugin: github-com ships bundled with Roubo (source
-// "bundled") and is one of the seed-catalog entries, so it is the "seeded plugin
-// runs offline" subject for AC1/S004.
+// A bundled plugin: github-com ships bundled with Roubo (source "bundled") in the
+// e2e harness, so it is the "bundled plugin keeps running offline" subject for
+// AC1/S004. It is also served by the warmed catalog cache.
 const SEEDED_PLUGIN_ID = "github-com";
 
-// The new-install subject for AC2/S005: a non-seeded (not bundled), not-yet-
-// installed catalog entry. `database` is a component entry present in the seed
-// catalog but absent from the e2e harness's installed set (it is neither a
-// bundled overlay nor a user-plugin fixture), so installing it is a true NEW
-// install that the unreachable gate must pause.
+// The new-install subject for AC2/S005: a not-yet-installed catalog entry.
+// `database` is a component entry present in the warmed catalog cache but absent
+// from the e2e harness's installed set (it is neither a bundled overlay nor a
+// user-plugin fixture), so installing it is a true NEW install that the
+// unreachable gate must pause.
 const NEW_INSTALL_ID = "database";
 
 // The exact clear message assertInstallable throws (and the 503 body surfaces)
 // when a new install is attempted while the marketplace is unreachable.
-const UNREACHABLE_MESSAGE = `Can't install "${NEW_INSTALL_ID}" while the marketplace is unreachable. Seeded and already-installed plugins remain available; new installs resume when the marketplace is reachable again.`;
+const UNREACHABLE_MESSAGE = `Can't install "${NEW_INSTALL_ID}" while the marketplace is unreachable. Already-installed plugins remain available; new installs resume when the marketplace is reachable again.`;
 
 interface InstallErrorBody {
   error?: string;
@@ -84,7 +90,7 @@ interface CatalogResponse {
   listings?: MarketplaceListing[];
   // The served catalog's provenance, surfaced for the offline / staleness banner
   // (issue #372): `source` degrades off "network" and `fetchedAt` is the cached
-  // fetch timestamp (or null for the seed).
+  // fetch timestamp (or null for an empty listing).
   source?: MarketplaceCatalogSource;
   fetchedAt?: string | null;
 }
@@ -93,13 +99,25 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("CPHM-TC-051: offline marketplace journey: seeded plugins keep running, a new install is paused clearly, reconnect resumes installs", async ({
+test("CPHM-TC-051: offline marketplace journey: bundled plugins keep running, a new install is paused clearly, reconnect resumes installs", async ({
   request,
   page,
 }) => {
+  // ---- S000 (setup): warm the on-disk catalog cache with a reachable fetch, so
+  // the subsequent offline degrade shows the LAST-VERIFIED CACHE. The first-party
+  // SEED floor was retired (#621), so without a warmed cache the offline listing
+  // would bottom out empty and the marketplace-unreachable install gate (which
+  // needs a resolvable entry) would have nothing to pause.
+  const warmSource = await setMarketplaceReachable(request, true);
+  expect(
+    warmSource,
+    `S000 diverged: expected a reachable fetch to warm the cache with the live ` +
+      `"network" catalog but the source was "${warmSource}"; owning slice ${CATALOG_SLICE}`,
+  ).toBe("network");
+
   // ---- S001: disconnect the marketplace.
-  // Expected: the catalog source degrades off "network" (to the last-verified
-  // cache, or the bundled seed) rather than staying live.
+  // Expected: the catalog source degrades off "network" to the last-verified
+  // cache rather than staying live.
   const offlineSource = await setMarketplaceReachable(request, false);
   expect(
     offlineSource,
@@ -132,26 +150,26 @@ test("CPHM-TC-051: offline marketplace journey: seeded plugins keep running, a n
   // GET /api/marketplace/plugins response surfaces the `source` / `fetchedAt`
   // the Plugins view renders the banner from. The rendered copy is asserted by
   // the React unit + a11y tests; here we verify the API data contract that feeds
-  // it: the offline listing degrades to the last-verified cache or the bundled
-  // seed (the "last verified catalog shown" state), and the response carries that
-  // source plus a fetchedAt key (the "fetched 2h ago" staleness the banner shows).
+  // it: the offline listing degrades to the last-verified cache (the "last
+  // verified catalog shown" state), and the response carries that source plus a
+  // fetchedAt key (the "fetched 2h ago" staleness the banner shows).
   expect(
-    ["cache", "seed"],
+    offlineSource,
     `S003 diverged: expected the offline listing to come from the last-verified ` +
-      `cache or the bundled seed but the source was "${offlineSource}"; owning slice ${CATALOG_SLICE}`,
-  ).toContain(offlineSource);
+      `cache but the source was "${offlineSource}"; owning slice ${CATALOG_SLICE}`,
+  ).toBe("cache");
   expect(
-    ["cache", "seed"],
-    `S003 diverged: expected GET /plugins to surface a degraded source (cache/seed) ` +
+    s002Body.source,
+    `S003 diverged: expected GET /plugins to surface the degraded "cache" source ` +
       `for the offline banner but the body source was "${s002Body.source}"; owning slice ${CATALOG_SLICE}`,
-  ).toContain(s002Body.source);
+  ).toBe("cache");
   expect(
     "fetchedAt" in s002Body,
     `S003 diverged: expected GET /plugins to surface a fetchedAt field for the ` +
       `offline banner's staleness but it was absent; owning slice ${CATALOG_SLICE}`,
   ).toBe(true);
 
-  // ---- S004: the seeded plugin is operational offline.
+  // ---- S004: the bundled plugin is operational offline.
   // Expected: GET /api/plugins shows the bundled github-com plugin running
   // (source "bundled", status "enabled") with no live network.
   const seededOffline = await fetchPluginRecord(request, SEEDED_PLUGIN_ID);
@@ -219,9 +237,9 @@ test("CPHM-TC-051: offline marketplace journey: seeded plugins keep running, a n
 });
 
 /**
- * Assert a seeded (bundled) plugin is running: present, source "bundled",
- * status "enabled". The message names the diverging step + expected/actual +
- * owning slice (issue #314 acceptance criterion 3).
+ * Assert a bundled plugin is running: present, source "bundled", status
+ * "enabled". The message names the diverging step + expected/actual + owning
+ * slice (issue #314 acceptance criterion 3).
  */
 function expectSeededRunning(record: PluginRecord | undefined, stepId: string): void {
   expect(

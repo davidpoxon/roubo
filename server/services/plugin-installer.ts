@@ -9,7 +9,6 @@ import { fetch } from "undici";
 import * as tar from "tar";
 import {
   parseManifest,
-  FIRST_PARTY_SOURCE_ID,
   type InstallErrorCode,
   type InstallPreview,
   type InstallSource,
@@ -20,7 +19,6 @@ import {
 import { runCommand } from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginProvenanceState from "./plugin-provenance-state.js";
-import { FIRST_PARTY_URL } from "./marketplace-sources-state.js";
 import { guardedFetch } from "./guarded-fetch.js";
 import { verifyPackageIntegrity } from "./marketplace-integrity.js";
 import { PLUGIN_ID_RE, UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
@@ -787,109 +785,6 @@ export async function previewUpdateFromRelease(
   } catch (err) {
     await rmStaging(stagingDir);
     throw err;
-  }
-}
-
-/**
- * Install a single seed artifact from a LOCAL, already-built tarball (the
- * offline first-run seed path, davidpoxon/roubo-development#310). Unlike
- * `previewFromRelease` this performs no network fetch (the tarball ships under
- * the app's `resources/seed/`) and does NOT register or spawn the plugin: it
- * unpacks the tarball into staging under the same zip-slip / size / entry-count
- * guards, verifies the unpacked built artifact's digest against
- * `expectedIntegrity` (the seed catalog entry) fail-closed (CPHM-NFR-001),
- * confirms the unpacked manifest id matches `expectedId`, then atomically
- * renames staging into `~/.roubo/plugins/<id>`. It deliberately stops at the
- * on-disk placement: the seed runs in `plugin-manager.initialize()` BEFORE
- * user-root discovery, and the existing discovery pass picks the placed
- * directory up and spawns it, so the seed reuses discovery's spawn/supervision
- * verbatim (CPHM-NFR-005).
- *
- * Idempotent / no-clobber at the directory level: if `~/.roubo/plugins/<id>`
- * already exists (a prior seed, or a later marketplace update of a seeded
- * plugin) it is left untouched and `{ installed: false }` is returned, so a
- * seed pass never overwrites an install. On any failure the staging directory
- * is discarded (nothing left outside staging) and an `InstallError` is thrown.
- */
-export async function installSeedArtifact(
-  tarballPath: string,
-  expectedId: string,
-  expectedIntegrity: string,
-): Promise<{ installed: boolean }> {
-  assertSafeIdentifier(expectedId, PLUGIN_ID_RE, "pluginId");
-  const target = resolveWithin(pluginManager.getUserPluginsRoot(), expectedId);
-
-  // No-clobber: an existing install (a prior seed, or a marketplace update) is
-  // authoritative and must never be overwritten by the seed.
-  try {
-    await stat(target);
-    return { installed: false };
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw new InstallError("internal", (err as Error).message);
-    }
-  }
-
-  // `validateLocalPath` normalizes + sanitizes the absolute path; the seed
-  // artifact must additionally be an existing regular file.
-  const safeTarball = validateLocalPath(tarballPath);
-  try {
-    const s = await stat(safeTarball);
-    if (!s.isFile()) {
-      throw new InstallError("invalid-input", `Seed artifact is not a file: ${safeTarball}`);
-    }
-  } catch (err) {
-    if (err instanceof InstallError) throw err;
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new InstallError("invalid-input", `Seed artifact not found: ${safeTarball}`);
-    }
-    throw new InstallError("internal", (err as Error).message);
-  }
-
-  await ensureStagingRoot();
-  const token = randomUUID();
-  assertSafeIdentifier(token, UUID_RE, "stagingToken");
-  const stagingDir = resolveWithin(stagingRoot(), token);
-
-  try {
-    await unpackTarball(safeTarball, stagingDir);
-    const manifest = await readStagingManifest(stagingDir);
-    assertCompatible(manifest);
-    if (manifest.id !== expectedId) {
-      throw new InstallError(
-        "invalid-input",
-        `Seed artifact declares id "${manifest.id}" but the seed catalog entry is "${expectedId}"`,
-      );
-    }
-    // Fail-closed: the seed ALWAYS requires a digest. Verify directly rather
-    // than via `assertPackageIntegrity`, which intentionally SKIPS a null/empty
-    // digest for the raw-git / local-directory paths; for a seed a missing
-    // digest must be rejected, and `verifyPackageIntegrity` returns false for an
-    // empty/null expected value.
-    const ok = await verifyPackageIntegrity(stagingDir, expectedIntegrity);
-    if (!ok) {
-      throw new InstallError(
-        "integrity-failed",
-        "Seed plugin package failed integrity verification: its content digest does not match the seed catalog entry.",
-      );
-    }
-    await rename(stagingDir, target);
-    // Stamp a first-party ledger row so the client grades a seed by its row, not
-    // its id, and absent provenance can fail closed (#607). Only a GENUINE install
-    // stamps: the no-clobber early return above leaves an existing plugin (and its
-    // row) untouched. `sourceUrl` mirrors the first-party marketplace row's URL so
-    // a seeded and a marketplace-installed first-party plugin read identically.
-    pluginProvenanceState.recordProvenance({
-      pluginId: expectedId,
-      sourceId: FIRST_PARTY_SOURCE_ID,
-      sourceUrl: FIRST_PARTY_URL,
-      unverified: false,
-    });
-    return { installed: true };
-  } catch (err) {
-    await rmStaging(stagingDir);
-    if (err instanceof InstallError) throw err;
-    throw new InstallError("internal", (err as Error).message);
   }
 }
 

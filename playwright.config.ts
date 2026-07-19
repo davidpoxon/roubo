@@ -147,7 +147,6 @@ export default defineConfig({
         // override the inherited values (Playwright merges this env over the
         // parent's).
         ROUBO_PRODUCTION: "",
-        ROUBO_SEED_DIR: "",
       },
       url: SERVER_BASE_URL,
       reuseExistingServer: !process.env.CI,

@@ -1,14 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, realpathSync, statSync, type WriteStream } from "node:fs";
-import { cp, mkdir, readdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, rename, rm, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import semver from "semver";
 import treeKill from "tree-kill";
 import {
   parseManifest,
-  SEED_PLUGIN_IDS,
   type ConnectionState,
   type IsolationNotice,
   type LogLine,
@@ -39,7 +37,6 @@ import {
 } from "./plugin-isolation-sandbox.js";
 import { redactSecrets } from "./log-redaction.js";
 import * as projectRegistry from "./project-registry.js";
-import * as pluginInstaller from "./plugin-installer.js";
 import { resolveActivePlugin } from "./active-plugin.js";
 import * as pluginEnableState from "./plugin-enable-state.js";
 import * as pluginConsentState from "./plugin-consent-state.js";
@@ -365,9 +362,9 @@ const e2eConnectionStateLogTap: ConnectionStateLogEntry[] = [];
 function isPluginEnabled(pluginId: string): boolean {
   if (!enableStateCache) return true; // legacy install: preserve existing behaviour
   const value = enableStateCache.plugins[pluginId];
-  // Missing entries also default to "enabled" so a plugin that appears after
-  // the seed (e.g. user-installed via the install pipeline before its first
-  // toggle) is not silently held back.
+  // Missing entries also default to "enabled" so a newly installed plugin (e.g.
+  // installed via the install pipeline before its first toggle) is not silently
+  // held back.
   return value !== "disabled";
 }
 
@@ -375,12 +372,13 @@ function bundledPluginsRoot(): string | null {
   const override = process.env.ROUBO_BUNDLED_PLUGINS_DIR;
   if (override) return override;
   // Clean break (CPHM-FR-008 / NFR-005): the packaged app no longer ships a
-  // bundled plugin source directory, and the host no longer discovers one. The
-  // three former defaults (github-com + the two component plugins) are installed
-  // into the user root by seedFromBundled() on first launch instead. Returning
-  // null makes the bundled-discovery call in initialize() a no-op in
-  // production; only the explicit ROUBO_BUNDLED_PLUGINS_DIR override (used by
-  // tests and diagnostics) re-enables bundled discovery.
+  // bundled plugin source directory, and the host no longer discovers one.
+  // First-party plugins are served from the NETWORK marketplace catalog and
+  // installed into the user root on demand (the first-run SEED channel was
+  // retired, davidpoxon/roubo-development#621). Returning null makes the
+  // bundled-discovery call in initialize() a no-op in production; only the
+  // explicit ROUBO_BUNDLED_PLUGINS_DIR override (used by tests and diagnostics)
+  // re-enables bundled discovery.
   return null;
 }
 
@@ -388,204 +386,6 @@ function userPluginsRoot(): string {
   const override = process.env.ROUBO_USER_PLUGINS_DIR;
   if (override) return override;
   return path.join(homedir(), ".roubo", "plugins");
-}
-
-// CPHM-FR-004 / US-001: the default plugins auto-installed once, offline, on
-// first launch from the app's bundled seed cache (resources/seed/*.tgz). This
-// is deliberately NOT BUNDLED_PLUGIN_IDS (the legacy integration-only bundle:
-// github-com / ghe / jira-self-hosted). The seed set is the common-case app:
-// the github-com integration plus the two component plugins.
-//
-// Defined in @roubo/shared and re-exported here for the server's own callers: the
-// seed loop below (`seedFromBundled`) and the fresh-launch test route. The client
-// no longer needs it: the seed pass now stamps each seed with a first-party
-// provenance ledger row (davidpoxon/roubo-development#607), so the badge grades a
-// seed by its row rather than its id and absent provenance fails closed (#563).
-export { SEED_PLUGIN_IDS };
-
-// The seed-set version applied, recorded in the marker (.seed-version.json) for
-// forward compatibility and diagnostics. The seed gate is existence-only: the
-// marker's presence alone short-circuits a re-seed and the recorded version is
-// not compared, so changing this constant does not by itself re-seed an existing
-// install (a marketplace update of a seeded plugin is therefore never clobbered).
-const SEED_VERSION = 1;
-const SEED_MARKER_FILE = ".seed-version.json";
-
-/**
- * Location of the bundled seed cache (resources/seed/) holding the seed catalog
- * and the three built tarballs. Resolved relative to the compiled server by
- * default (mirrors bundledPluginsRoot's old layout); the packager / Electron
- * main can point it elsewhere via ROUBO_SEED_DIR (the authoritative seam, since
- * app-packaging owns the on-disk location under davidpoxon/roubo-development#309).
- */
-function seedRoot(): string {
-  const override = process.env.ROUBO_SEED_DIR;
-  if (override) return override;
-  // server/services/plugin-manager.ts → server/services → server → repo root
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "..", "..", "resources", "seed");
-}
-
-function seedMarkerPath(): string {
-  return resolveWithin(userPluginsRoot(), SEED_MARKER_FILE);
-}
-
-interface SeedCatalogEntry {
-  id: string;
-  /** Local tarball filename under seedRoot() (ReleaseAsset naming <id>-<version>.tgz). */
-  assetFile: string;
-  /** Expected sha256-<hex> digest over the unpacked built artifact. */
-  integrity: string;
-}
-
-/**
- * Read and parse the shipped seed catalog (resources/seed/catalog.json),
- * returning a map of plugin id to { local tarball filename, expected built-
- * artifact digest }. Returns null when no seed bundle is present (a dev
- * checkout, or before app-packaging ships it under
- * davidpoxon/roubo-development#309), so a later build that does ship the bundle
- * still seeds (the marker is written only once a seed pass actually runs).
- * Offline: a local file read, no network (CPHM-NFR-002). Tolerant of either a
- * signed-catalog envelope ({ payload: { entries } }) or a bare { entries }
- * shape; the producer side is owned by #309.
- */
-async function readSeedCatalog(): Promise<Map<string, SeedCatalogEntry> | null> {
-  const catalogPath = resolveWithin(seedRoot(), "catalog.json");
-  let text: string;
-  try {
-    text = await readFile(catalogPath, "utf8");
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw err;
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    console.warn("plugin seed: catalog.json is not valid JSON; skipping seed");
-    return null;
-  }
-  const root = parsed as { payload?: { entries?: unknown }; entries?: unknown };
-  const entries = Array.isArray(root.payload?.entries)
-    ? (root.payload?.entries as unknown[])
-    : Array.isArray(root.entries)
-      ? (root.entries as unknown[])
-      : null;
-  if (!entries) {
-    console.warn("plugin seed: catalog.json has no entries array; skipping seed");
-    return null;
-  }
-  const map = new Map<string, SeedCatalogEntry>();
-  for (const raw of entries) {
-    if (raw === null || typeof raw !== "object") continue;
-    const e = raw as {
-      id?: unknown;
-      version?: unknown;
-      integrity?: unknown;
-      assetFile?: unknown;
-    };
-    if (typeof e.id !== "string" || typeof e.integrity !== "string") continue;
-    // An explicit assetFile wins; otherwise derive the ReleaseAsset filename
-    // <id>-<version>.tgz, falling back to <id>.tgz when no version is recorded.
-    const assetFile =
-      typeof e.assetFile === "string"
-        ? e.assetFile
-        : typeof e.version === "string"
-          ? `${e.id}-${e.version}.tgz`
-          : `${e.id}.tgz`;
-    map.set(e.id, { id: e.id, assetFile, integrity: e.integrity });
-  }
-  return map;
-}
-
-async function writeSeedMarker(seededIds: string[]): Promise<void> {
-  // `root` derives from userPluginsRoot(), which reads the ROUBO_USER_PLUGINS_DIR
-  // env override. CodeQL models process.env as a user-controlled source for
-  // js/path-injection, so run the same inline path.relative containment barrier
-  // discoverRoot uses before the mkdir sink: a value that isn't a well-formed
-  // absolute path is rejected rather than created.
-  const root = path.resolve(userPluginsRoot());
-  const rel = path.relative(path.parse(root).root, root);
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new Error(
-      `plugin-manager: plugins root "${root}" is not a valid absolute path; rejecting`,
-    );
-  }
-  await mkdir(root, { recursive: true });
-  const marker = {
-    seedVersion: SEED_VERSION,
-    seededAt: nowIso(),
-    seededIds,
-  };
-  await writeFile(seedMarkerPath(), `${JSON.stringify(marker, null, 2)}\n`, "utf8");
-}
-
-/**
- * One-time, offline first-run seed of the default plugins (CPHM-FR-004 /
- * US-001). On first launch (no seed marker under the user plugins root) each
- * shipped resources/seed/<id>-<version>.tgz is installed into ~/.roubo/plugins
- * via the local-artifact install path, verified against its seed-catalog digest
- * fail-closed (CPHM-NFR-001) with no network on the critical path (CPHM-NFR-002).
- *
- * Idempotent: a single marker gates the whole pass, so a re-launch is a no-op
- * and a later marketplace update of a seeded plugin is never re-clobbered (the
- * installer additionally skips any id whose directory already exists, the
- * second no-clobber layer). Runs at initialize() BEFORE user-root discovery, so
- * the existing discovery + spawn picks the seeded plugins up unchanged
- * (CPHM-NFR-005).
- *
- * Never throws: a seed failure degrades (the plugin is simply absent) rather
- * than crashing boot, mirroring discovery's fail-soft behaviour. Idempotency is
- * a single marker gating the whole pass, exported so the boot path can run it.
- */
-export async function seedFromBundled(): Promise<void> {
-  // The marker gates the entire one-time pass: once seeded, never re-seed (so a
-  // marketplace update of a seeded plugin is never clobbered on a later boot).
-  if (existsSync(seedMarkerPath())) return;
-
-  let catalog: Map<string, SeedCatalogEntry> | null;
-  try {
-    catalog = await readSeedCatalog();
-  } catch (err) {
-    console.warn("plugin seed: failed to read seed catalog:", (err as Error).message);
-    return;
-  }
-  // No seed bundle shipped (dev checkout, or before #309 packages it): do NOT
-  // write the marker, so a later build that does ship the bundle still seeds.
-  if (!catalog) return;
-
-  const seeded: string[] = [];
-  for (const id of SEED_PLUGIN_IDS) {
-    const entry = catalog.get(id);
-    if (!entry) {
-      console.warn(`plugin seed: no seed catalog entry for "${id}"; skipping`);
-      continue;
-    }
-    let tarballPath: string;
-    try {
-      tarballPath = resolveWithin(seedRoot(), entry.assetFile);
-    } catch {
-      console.warn(`plugin seed: seed asset path for "${id}" is unsafe; skipping`);
-      continue;
-    }
-    try {
-      const result = await pluginInstaller.installSeedArtifact(tarballPath, id, entry.integrity);
-      if (result.installed) seeded.push(id);
-    } catch (err) {
-      // Fail-closed per artifact (CPHM-NFR-001): an unverified or broken seed
-      // artifact is not installed, but the rest of the pass (and boot) continues.
-      console.warn(`plugin seed: failed to seed "${id}":`, (err as Error).message);
-    }
-  }
-
-  // Write the marker once the pass has run (even if some artifacts failed): the
-  // seed is one-time, and a tampered artifact is a packaging/security event, not
-  // a transient one to retry every boot.
-  try {
-    await writeSeedMarker(seeded);
-  } catch (err) {
-    console.warn("plugin seed: failed to write seed marker:", (err as Error).message);
-  }
 }
 
 /**
@@ -1661,16 +1461,12 @@ export async function initialize(): Promise<void> {
   // behaviour by defaulting everything to enabled.
   enableStateCache = pluginEnableState.loadEnableState();
 
-  // CPHM-FR-004: one-time, offline first-run seed of the default plugins into
-  // the user plugins root, BEFORE discovery, so the existing user-root
-  // discovery + spawn below picks the seeded plugins up unchanged (CPHM-NFR-005).
-  await seedFromBundled();
-
   const discovered = new Map<string, PluginEntry>();
   // Clean break (CPHM-FR-008): bundledPluginsRoot() returns null in production
   // (the app no longer ships or discovers a bundled plugin source dir), so this
   // is a no-op unless a test / diagnostic ROUBO_BUNDLED_PLUGINS_DIR override is
-  // set. The former defaults now live in the user root via the seed above.
+  // set. First-party plugins install from the NETWORK marketplace catalog on
+  // demand (the first-run SEED channel was retired, #621).
   const bundledRoot = bundledPluginsRoot();
   if (bundledRoot !== null) {
     try {
@@ -2656,6 +2452,4 @@ export const __test = {
   unescapeLogText,
   bundledRoot: bundledPluginsRoot,
   userRoot: userPluginsRoot,
-  seedRoot,
-  seedMarkerPath,
 };

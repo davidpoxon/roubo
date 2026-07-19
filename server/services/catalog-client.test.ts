@@ -10,18 +10,16 @@ import type {
   SignedMarketplaceCatalog,
 } from "@roubo/shared";
 import { canonicalize, fingerprintKeyId } from "./marketplace-integrity.js";
-import { CatalogUnverifiedError, createCatalogClient } from "./catalog-client.js";
-import committedSeed from "./marketplace-catalog.json";
+import { createCatalogClient } from "./catalog-client.js";
 
 // Catalog-client degrade-chain tests (CPHM-FR-001 / FR-009 / NFR-003, issue
 // #306). The client is exercised through dependency injection: a generated root
 // + operational keypair (never the embedded bootstrap root, whose private half
-// is held out of band), a fake fetch, a temp cache dir, the committed catalog as
-// the bundled seed, and a no-op log sink so the run is silent.
+// is held out of band), a fake fetch, a temp cache dir, and a no-op log sink so
+// the run is silent. The degrade chain is NETWORK -> CACHE, bottoming out at an
+// empty listing (the first-party SEED channel was retired, #621).
 
 const CACHE_FILENAME = "catalog-cache.json";
-
-const SEED = committedSeed as SignedMarketplaceCatalog;
 
 function spkiPem(publicKey: KeyObject): string {
   return publicKey.export({ type: "spki", format: "pem" }).toString();
@@ -143,7 +141,6 @@ function clientWith(opts: Parameters<typeof createCatalogClient>[0] = {}) {
     catalogUrl: "https://example.invalid/catalog.json",
     keyRingUrl: "https://example.invalid/key-ring.json",
     cacheDir,
-    seed: SEED,
     log: vi.fn(),
     ...opts,
   });
@@ -183,7 +180,6 @@ describe("getVerifiedCatalog network path", () => {
       catalogUrl: "https://pages.example/catalog.json",
       keyRingUrl: "https://pages.example/key-ring.json",
       cacheDir,
-      seed: SEED,
       log: vi.fn(),
       rootPublicKeyPem: spkiPem(keys.rootPub),
       fetchImpl,
@@ -207,7 +203,6 @@ describe("getVerifiedCatalog network path", () => {
     try {
       const client = createCatalogClient({
         cacheDir,
-        seed: SEED,
         log: vi.fn(),
         rootPublicKeyPem: spkiPem(keys.rootPub),
         fetchImpl,
@@ -233,9 +228,10 @@ describe("getVerifiedCatalog network path", () => {
     );
     const client = clientWith({ rootPublicKeyPem: spkiPem(keys.rootPub), fetchImpl });
     const result = await client.getVerifiedCatalog({ forceRefresh: true });
-    // No cache yet, so it falls through to the seed; nothing from the unverifiable
-    // fetch is served.
-    expect(result.source).toBe("seed");
+    // No cache yet, so it bottoms out at an empty listing; nothing from the
+    // unverifiable fetch is served.
+    expect(result.source).toBe("cache");
+    expect(result.entries).toEqual([]);
   });
 
   it("rejects a fetched catalog whose keyId is unknown to the ring (fail closed, degrades)", async () => {
@@ -246,7 +242,8 @@ describe("getVerifiedCatalog network path", () => {
     );
     const client = clientWith({ rootPublicKeyPem: spkiPem(keys.rootPub), fetchImpl });
     const result = await client.getVerifiedCatalog({ forceRefresh: true });
-    expect(result.source).toBe("seed");
+    expect(result.source).toBe("cache");
+    expect(result.entries).toEqual([]);
   });
 
   it("memoizes the resolved catalog in-memory without forceRefresh (one network fetch)", async () => {
@@ -299,8 +296,9 @@ describe("getVerifiedCatalog size budget (CPHM-NFR-002, issue #495)", () => {
     const result = await client.getVerifiedCatalog({ forceRefresh: true });
 
     // Rejected fail-closed before the verify chain: never served as network, and
-    // no cache was warmed, so it degrades to the bundled seed.
-    expect(result.source).toBe("seed");
+    // no cache was warmed, so it bottoms out at an empty listing.
+    expect(result.source).toBe("cache");
+    expect(result.entries).toEqual([]);
     // None of the oversized catalog's entries leaked into the served listing.
     expect(result.entries.some((e) => e.id.startsWith("padded-"))).toBe(false);
     // No cache file was written from the rejected payload.
@@ -322,7 +320,8 @@ describe("getVerifiedCatalog size budget (CPHM-NFR-002, issue #495)", () => {
 
     const result = await client.getVerifiedCatalog({ forceRefresh: true });
 
-    expect(result.source).toBe("seed");
+    expect(result.source).toBe("cache");
+    expect(result.entries).toEqual([]);
     expect(result.entries.some((e) => e.id.startsWith("padded-"))).toBe(false);
     await expect(readCache()).rejects.toThrow();
   });
@@ -391,25 +390,26 @@ describe("getVerifiedCatalog cache degrade", () => {
   });
 });
 
-describe("getVerifiedCatalog seed degrade (never zero plugins, FR-009)", () => {
-  it("serves the seed when there is no cache and the network is down (TC-047)", async () => {
+describe("getVerifiedCatalog empty degrade (bottoms out empty, no seed floor, #621)", () => {
+  it("serves an empty listing when there is no cache and the network is down (TC-047)", async () => {
     const result = await clientWith({ fetchImpl: failingFetch }).getVerifiedCatalog({
       forceRefresh: true,
     });
-    expect(result.source).toBe("seed");
-    expect(result.entries.length).toBeGreaterThan(0);
+    expect(result.source).toBe("cache");
+    expect(result.entries).toEqual([]);
+    expect(result.fetchedAt).toBeNull();
   });
 
-  it("falls through to the seed when the cache is unparseable (TC-048)", async () => {
+  it("serves an empty listing when the cache is unparseable (TC-048)", async () => {
     await writeFile(path.join(cacheDir, CACHE_FILENAME), "{ not valid json", "utf8");
     const result = await clientWith({ fetchImpl: failingFetch }).getVerifiedCatalog({
       forceRefresh: true,
     });
-    expect(result.source).toBe("seed");
-    expect(result.entries.length).toBeGreaterThan(0);
+    expect(result.source).toBe("cache");
+    expect(result.entries).toEqual([]);
   });
 
-  it("rejects a tampered cached envelope and falls through to the seed (TC-046)", async () => {
+  it("rejects a tampered cached envelope and serves an empty listing (TC-046)", async () => {
     const keys = makeKeys();
     const rootPublicKeyPem = spkiPem(keys.rootPub);
     // Write a structurally valid but signature-broken cache: the cached catalog
@@ -430,19 +430,8 @@ describe("getVerifiedCatalog seed degrade (never zero plugins, FR-009)", () => {
       rootPublicKeyPem,
       fetchImpl: failingFetch,
     }).getVerifiedCatalog({ forceRefresh: true });
-    expect(result.source).toBe("seed");
-    expect(result.entries.length).toBeGreaterThan(0);
-  });
-
-  it("throws CatalogUnverifiedError when even the seed fails verification (fail closed)", async () => {
-    const badSeed: SignedMarketplaceCatalog = {
-      payload: { entries: sampleEntries() },
-      signature: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    };
-    const client = clientWith({ seed: badSeed, fetchImpl: failingFetch });
-    await expect(client.getVerifiedCatalog({ forceRefresh: true })).rejects.toBeInstanceOf(
-      CatalogUnverifiedError,
-    );
+    expect(result.source).toBe("cache");
+    expect(result.entries).toEqual([]);
   });
 });
 
@@ -458,18 +447,8 @@ describe("prefetch", () => {
     expect(cached.catalog.payload.entries.map((e) => e.id)).toEqual(["ghe"]);
   });
 
-  it("swallows a degrade to seed and never rejects", async () => {
+  it("swallows a degrade to an empty listing and never rejects", async () => {
     await expect(clientWith({ fetchImpl: failingFetch }).prefetch()).resolves.toBeUndefined();
-  });
-
-  it("swallows even a CatalogUnverifiedError floor and never rejects", async () => {
-    const badSeed: SignedMarketplaceCatalog = {
-      payload: { entries: [] },
-      signature: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    };
-    await expect(
-      clientWith({ seed: badSeed, fetchImpl: failingFetch }).prefetch(),
-    ).resolves.toBeUndefined();
   });
 });
 
@@ -515,10 +494,12 @@ describe("__setE2EMarketplaceReachable (ROUBO_E2E offline-journey seam, #314)", 
     expect(await mod.__setE2EMarketplaceReachable(true)).toBe("network");
   });
 
-  it("degrades to the bundled seed when unreachable with no warmed cache", async () => {
+  it("degrades to an empty listing when unreachable with no warmed cache", async () => {
     process.env.ROUBO_E2E = "1";
     const mod = await import("./catalog-client.js");
-    expect(await mod.__setE2EMarketplaceReachable(false)).toBe("seed");
+    // No warmed cache and no bundled seed floor (#621), so the chain bottoms out
+    // at an empty listing reported as cache.
+    expect(await mod.__setE2EMarketplaceReachable(false)).toBe("cache");
   });
 
   it("degrades off network to the warmed cache, then restores on reconnect", async () => {
@@ -526,7 +507,7 @@ describe("__setE2EMarketplaceReachable (ROUBO_E2E offline-journey seam, #314)", 
     const mod = await import("./catalog-client.js");
     // Reachable first warms the on-disk cache via the injected network fetch.
     expect(await mod.__setE2EMarketplaceReachable(true)).toBe("network");
-    // Unreachable degrades off network to that last-verified cache (not the seed).
+    // Unreachable degrades off network to that last-verified cache.
     expect(await mod.__setE2EMarketplaceReachable(false)).toBe("cache");
     // Reconnecting restores the live network source (the install-pause lifts).
     expect(await mod.__setE2EMarketplaceReachable(true)).toBe("network");

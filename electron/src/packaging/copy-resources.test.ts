@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, writeFile, symlink, readFile, lstat, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -6,10 +6,9 @@ import { copyResources } from "./copy-resources.js";
 
 let tmpDir: string;
 
-// The real seed step downloads over the network at package time; the unit test
-// stays fully offline by injecting a stub. Each test passes `seed: noopSeed`
-// (or a spy) so `copyResources` never touches the network.
-const noopSeed = async () => {};
+// `copyResources` ships built server/client/schema only, with no network step:
+// the app ships no first-party plugin artifacts (the SEED channel was retired,
+// davidpoxon/roubo-development#621), so the packaging step is fully offline.
 
 beforeEach(async () => {
   tmpDir = await mkdtemp(path.join(os.tmpdir(), "copy-resources-test-"));
@@ -35,7 +34,7 @@ describe("copyResources", () => {
     await makeRepoArtifacts(repoRoot);
     await mkdir(electronRoot);
 
-    await copyResources({ repoRoot, electronRoot, seed: noopSeed });
+    await copyResources({ repoRoot, electronRoot });
 
     const serverIndex = await readFile(
       path.join(electronRoot, "resources", "server", "dist", "index.js"),
@@ -62,10 +61,10 @@ describe("copyResources", () => {
     await makeRepoArtifacts(repoRoot);
     await mkdir(electronRoot);
 
-    await copyResources({ repoRoot, electronRoot, seed: noopSeed });
+    await copyResources({ repoRoot, electronRoot });
 
     await writeFile(path.join(repoRoot, "server", "dist", "index.js"), "updated server code");
-    await copyResources({ repoRoot, electronRoot, seed: noopSeed });
+    await copyResources({ repoRoot, electronRoot });
 
     const serverIndex = await readFile(
       path.join(electronRoot, "resources", "server", "dist", "index.js"),
@@ -80,7 +79,7 @@ describe("copyResources", () => {
     await makeRepoArtifacts(repoRoot);
     await mkdir(electronRoot);
 
-    await copyResources({ repoRoot, electronRoot, seed: noopSeed });
+    await copyResources({ repoRoot, electronRoot });
 
     await expect(lstat(path.join(electronRoot, "resources", "plugins"))).rejects.toThrow();
   });
@@ -93,22 +92,22 @@ describe("copyResources", () => {
     await mkdir(stalePlugins, { recursive: true });
     await writeFile(path.join(stalePlugins, "index.ts"), "stale source");
 
-    await copyResources({ repoRoot, electronRoot, seed: noopSeed });
+    await copyResources({ repoRoot, electronRoot });
 
     await expect(lstat(path.join(electronRoot, "resources", "plugins"))).rejects.toThrow();
   });
 
-  it("delegates to the injected seed step with the electron root", async () => {
+  it("removes a stale resources/seed/ left by an earlier build (SEED channel retired, #621)", async () => {
     const repoRoot = path.join(tmpDir, "repo");
     const electronRoot = path.join(tmpDir, "electron");
     await makeRepoArtifacts(repoRoot);
-    await mkdir(electronRoot);
+    const staleSeed = path.join(electronRoot, "resources", "seed");
+    await mkdir(staleSeed, { recursive: true });
+    await writeFile(path.join(staleSeed, "catalog.json"), "{}");
 
-    const seed = vi.fn(async () => {});
-    await copyResources({ repoRoot, electronRoot, seed });
+    await copyResources({ repoRoot, electronRoot });
 
-    expect(seed).toHaveBeenCalledTimes(1);
-    expect(seed).toHaveBeenCalledWith({ electronRoot });
+    await expect(lstat(path.join(electronRoot, "resources", "seed"))).rejects.toThrow();
   });
 
   it("throws when server/dist is missing", async () => {
@@ -118,7 +117,7 @@ describe("copyResources", () => {
     await mkdir(path.join(repoRoot, "schema"), { recursive: true });
     await mkdir(electronRoot);
 
-    await expect(copyResources({ repoRoot, electronRoot, seed: noopSeed })).rejects.toThrow(
+    await expect(copyResources({ repoRoot, electronRoot })).rejects.toThrow(
       "server/dist not found — run `npm run build` from repo root first",
     );
   });
@@ -131,7 +130,7 @@ describe("copyResources", () => {
     await mkdir(path.join(repoRoot, "schema"), { recursive: true });
     await mkdir(electronRoot);
 
-    await expect(copyResources({ repoRoot, electronRoot, seed: noopSeed })).rejects.toThrow(
+    await expect(copyResources({ repoRoot, electronRoot })).rejects.toThrow(
       "client/dist not found — run `npm run build` from repo root first",
     );
   });
@@ -145,7 +144,7 @@ describe("copyResources", () => {
     await writeFile(path.join(repoRoot, "client", "dist", "index.html"), "<html>");
     await mkdir(electronRoot);
 
-    await expect(copyResources({ repoRoot, electronRoot, seed: noopSeed })).rejects.toThrow(
+    await expect(copyResources({ repoRoot, electronRoot })).rejects.toThrow(
       "schema/ not found — expected at repo root",
     );
   });
@@ -161,7 +160,7 @@ describe("copyResources", () => {
     await symlink(realFile, path.join(repoRoot, "server", "dist", "index.js"));
 
     await mkdir(electronRoot);
-    await copyResources({ repoRoot, electronRoot, seed: noopSeed });
+    await copyResources({ repoRoot, electronRoot });
 
     const destPath = path.join(electronRoot, "resources", "server", "dist", "index.js");
     const stat = await lstat(destPath);
