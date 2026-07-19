@@ -80,18 +80,23 @@ function buildCatalog(entries: unknown[], opts: CatalogOpts = {}) {
   };
 }
 
+// Marketplace-only catalog ids that are NOT in the pinned seed set. The hosted
+// catalog carries entries beyond the seed set (integration plugins users install
+// on demand); these stand in for them so a test can prove the seed step writes
+// exactly the pinned set and never a catalog entry outside it.
+const NON_SEED_CATALOG_IDS = ["extra-integration-a", "extra-integration-b"] as const;
+
 /**
- * Build the seeded-set entries (github-com, process, database) plus the
- * marketplace-only ghe and jira-self-hosted entries, so a test can prove the
- * latter two are never seeded.
+ * Build the seeded-set entries (github-com, process, database) plus extra
+ * marketplace-only entries outside the seed set, so a test can prove the seed
+ * step writes exactly the pinned set and skips every non-seed catalog entry.
  */
 function fullCatalogEntries() {
   return [
     releaseEntry("database", "0.1.1"),
     releaseEntry("process", "0.1.0"),
     releaseEntry("github-com", "0.1.0"),
-    releaseEntry("ghe", "0.1.0"),
-    releaseEntry("jira-self-hosted", "0.1.0"),
+    ...NON_SEED_CATALOG_IDS.map((id) => releaseEntry(id, "0.1.0")),
   ];
 }
 
@@ -108,7 +113,7 @@ function makeFetch(catalog: unknown, calls: string[]): FetchLike {
         return new Response(Uint8Array.from(assetBytesFor(pin.id, pin.version)), { status: 200 });
       }
     }
-    for (const id of ["ghe", "jira-self-hosted"]) {
+    for (const id of NON_SEED_CATALOG_IDS) {
       if (url === assetUrlFor(id, "0.1.0")) {
         return new Response(Uint8Array.from(assetBytesFor(id, "0.1.0")), { status: 200 });
       }
@@ -153,17 +158,21 @@ describe("seedBundle", () => {
     expect(Array.isArray(written.payload.entries)).toBe(true);
   });
 
-  it("never seeds ghe or jira-self-hosted (marketplace-only)", async () => {
+  it("seeds exactly the pinned set and skips every non-seed catalog entry (marketplace-only)", async () => {
     const calls: string[] = [];
     await run(buildCatalog(fullCatalogEntries()), calls);
 
-    const files = await readdir(seedDir());
-    expect(files.some((f) => f.startsWith("ghe-"))).toBe(false);
-    expect(files.some((f) => f.startsWith("jira-self-hosted-"))).toBe(false);
-
-    // Their assets are never even fetched.
-    expect(calls).not.toContain(assetUrlFor("ghe", "0.1.0"));
-    expect(calls).not.toContain(assetUrlFor("jira-self-hosted", "0.1.0"));
+    // Only the three pinned seed tarballs are written; a catalog entry outside the
+    // seed set (a marketplace-only plugin users install on demand) is never seeded.
+    const tarballs = (await readdir(seedDir())).filter((f) => f.endsWith(".tgz")).sort();
+    expect(tarballs).toEqual(
+      ["database-0.1.1.tgz", "github-com-0.1.0.tgz", "process-0.1.0.tgz"].sort(),
+    );
+    for (const id of NON_SEED_CATALOG_IDS) {
+      expect(tarballs.some((f) => f.startsWith(`${id}-`))).toBe(false);
+      // The non-seed entry's asset is never even fetched.
+      expect(calls).not.toContain(assetUrlFor(id, "0.1.0"));
+    }
   });
 
   it("accepts a bare-hex asset digest (no sha256- prefix)", async () => {

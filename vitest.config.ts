@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // Plugin tests under `plugins/{github-com,ghe}/src/__tests__/` import
+      // Plugin tests under `plugins/github-com/src/__tests__/` import
       // transitively from `@roubo/shared-github`, which only exists at
       // `plugins/_shared-github/dist/` after a build step. CI runs tests
       // directly off `npm ci` (no build), so we alias the package to its

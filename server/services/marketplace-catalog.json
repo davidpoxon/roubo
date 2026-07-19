@@ -1,5 +1,5 @@
 {
-  "$comment": "First-party curated marketplace catalog (CP-FR-020 issue #621; CP-FR-021 issue #622; per-plugin subdir sources + signing-key rotation, issue #750). The catalog is a SIGNED envelope: `signature` is a base64 detached ed25519 signature over the canonical bytes of `payload` (see server/services/marketplace-integrity.ts), verified at load against the bundled first-party public key. The server fails closed (zero listings) on any signature mismatch. Each entry's `source.directory` names the subdirectory of the cloned repo that holds the plugin package (the monorepo-subdir model, #750): the installer clones `source.url`, stages only that subdirectory, and installs it. Each entry carries an `integrity` content digest (sha256-<hex> over the staged subdirectory), checked after staging and before commit; `revoked: true` removes an entry from listings and blocks install/update. The five installable entries (database, process, github-com, ghe, jira-self-hosted) carry REAL digests of their `plugins/<id>` subdirectory at the signed commit, validated end-to-end through the actual verifyPackageIntegrity path by a no-network CI test (server/services/marketplace-integrity.test.ts, issue #689); `redis` is revoked pending a published source and `worker-queue` is revoked (withdrawn). Because a digest binds to live `plugins/<id>` content, any change to those directories requires recomputing the digest and RE-SIGNING this file (the #689 test fails closed on drift). `verified` is a display-only curation flag. There is no third-party submission path: entries are added by maintainers only. The signing key was rotated in #750 (the prior key was lost); the matching ed25519 private key is held out of band and never committed. After editing this file you MUST re-sign it (pipe the ed25519 private-key PEM in on stdin): npx tsx server/scripts/sign-marketplace-catalog.ts < /path/to/ed25519-priv.pem",
+  "$comment": "First-party curated marketplace catalog (CP-FR-020 issue #621; CP-FR-021 issue #622; per-plugin subdir sources + signing-key rotation, issue #750). The catalog is a SIGNED envelope: `signature` is a base64 detached ed25519 signature over the canonical bytes of `payload` (see server/services/marketplace-integrity.ts), verified at load against the bundled first-party public key. The server fails closed (zero listings) on any signature mismatch. Each entry's `source.directory` names the subdirectory of the cloned repo that holds the plugin package (the monorepo-subdir model, #750): the installer clones `source.url`, stages only that subdirectory, and installs it. Each entry carries an `integrity` content digest (sha256-<hex> over the staged subdirectory), checked after staging and before commit; `revoked: true` removes an entry from listings and blocks install/update. The three installable entries (database, process, github-com) carry REAL digests of their `plugins/<id>` subdirectory at the signed commit, validated end-to-end through the actual verifyPackageIntegrity path by a no-network CI test (server/services/marketplace-integrity.test.ts, issue #689). ghe and jira-self-hosted were extracted to the workplace marketplace and are no longer first-party (davidpoxon/roubo-development#568); the unpublished `redis` placeholder and the withdrawn `worker-queue` placeholder were removed. Because a digest binds to live `plugins/<id>` content, any change to those directories requires recomputing the digest and RE-SIGNING this file (the #689 test fails closed on drift). `verified` is a display-only curation flag. There is no third-party submission path: entries are added by maintainers only. The signing key was rotated in #750 (the prior key was lost); the matching ed25519 private key is held out of band and never committed. After editing this file you MUST re-sign it (pipe the ed25519 private-key PEM in on stdin): npx tsx server/scripts/sign-marketplace-catalog.ts < /path/to/ed25519-priv.pem",
   "payload": {
     "entries": [
       {
@@ -33,21 +33,6 @@
         "verified": true
       },
       {
-        "id": "redis",
-        "name": "Redis",
-        "kind": "component",
-        "version": "1.3.0",
-        "summary": "A Redis cache component: brings up a Redis container and exposes its connection string. Revoked: no published source yet.",
-        "source": {
-          "type": "git",
-          "url": "https://github.com/davidpoxon/roubo.git"
-        },
-        "provenance": "roubo/plugins@redis",
-        "integrity": "sha256-redis-1.3.0-PLACEHOLDER",
-        "revoked": true,
-        "verified": true
-      },
-      {
         "id": "github-com",
         "name": "GitHub.com",
         "kind": "integration",
@@ -61,53 +46,8 @@
         "provenance": "roubo/plugins@github-com",
         "integrity": "sha256-35dd2a2a83c82ff5022dc54e6a87128edf11be43320e06e037631553157f36b1",
         "verified": true
-      },
-      {
-        "id": "ghe",
-        "name": "GitHub Enterprise",
-        "kind": "integration",
-        "version": "0.1.0",
-        "summary": "Integration for self-hosted GitHub Enterprise Server: PAT plus instance URL auth with optional self-signed TLS opt-in.",
-        "source": {
-          "type": "git",
-          "url": "https://github.com/davidpoxon/roubo.git",
-          "directory": "plugins/ghe"
-        },
-        "provenance": "roubo/plugins@ghe",
-        "integrity": "sha256-49a6f33fb74ddec613a545091b3cf040fed4b66e615f67a993a548d46691365f",
-        "verified": true
-      },
-      {
-        "id": "jira-self-hosted",
-        "name": "Self-hosted Jira",
-        "kind": "integration",
-        "version": "0.1.0",
-        "summary": "Integration for self-hosted Atlassian Jira (Data Center 8.14+) with PAT auth and configurable link-type mapping.",
-        "source": {
-          "type": "git",
-          "url": "https://github.com/davidpoxon/roubo.git",
-          "directory": "plugins/jira-self-hosted"
-        },
-        "provenance": "roubo/plugins@jira-self-hosted",
-        "integrity": "sha256-827116ea39f5d6773a59a35fb09ac7a5f67039df70783d861ca7bbb7447d88e8",
-        "verified": true
-      },
-      {
-        "id": "worker-queue",
-        "name": "Worker Queue",
-        "kind": "component",
-        "version": "1.0.0",
-        "summary": "A background worker-queue component. Revoked: withdrawn by Roubo maintainers.",
-        "source": {
-          "type": "git",
-          "url": "https://github.com/davidpoxon/roubo.git"
-        },
-        "provenance": "roubo/plugins@worker-queue",
-        "integrity": "sha256-worker-queue-1.0.0-PLACEHOLDER",
-        "revoked": true,
-        "verified": true
       }
     ]
   },
-  "signature": "oWvZRStJlmJQ/65aavJ9I4ahG6neAMrY2CW0FBPb4auziSL8DuiGo+hU0yRYVw9SN6NRvroWDSe8JL89tOmZDg=="
+  "signature": "JZpNKt8MK3GL5v3Afuouq9R4fvvFcb6Gra+JmlqgyEyDEr/zeZMOM/RjDflSkkWab1YDNieQ/tNoEK8tIiAmDQ=="
 }
