@@ -229,6 +229,12 @@ export type InspectionConfig = z.infer<typeof InspectionConfigSchema>;
 export const BenchesConfigSchema = z
   .object({
     max: z.int().min(1).max(99),
+    /**
+     * Command run once at the workspace root before components start.
+     * Executed through the user's login shell (`$SHELL -lc`), so shell syntax
+     * is supported: `&&` chaining, redirection, and profile-sourced functions
+     * such as `nvm`.
+     */
     setup: z.string().optional(),
     enforceIssueDependencies: z.boolean().optional(),
   })

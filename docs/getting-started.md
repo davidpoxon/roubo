@@ -84,7 +84,7 @@ Roubo will, in order:
 2. Allocate ports for each component: `base + (benchNumber - 1)`.
 3. Create a git worktree at `~/.roubo/workspaces/<projectName>/bench-<N>/`.
 4. Initialise submodules, if the project is a meta-repo.
-5. Run `benches.setup`, if defined (for example, `npm ci`).
+5. Run `benches.setup`, if defined (for example, `npm ci`). It runs through your login shell, so shell syntax works: `cd app && nvm use && npm ci` chains as written, and profile-sourced functions such as `nvm` resolve.
 
 When setup completes, the bench appears with status **idle**.
 

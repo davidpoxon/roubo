@@ -3,6 +3,7 @@ import type { BenchNotification, RouboConfig, ComponentConfig } from "@roubo/sha
 import { COMPONENT_STEP_PREFIX, FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import { makeConfig, makeProject, makePersistedBench } from "../test/fixtures.js";
 import { DEFAULT_BRANCH_RESOLUTION_ERROR } from "./git-helpers.js";
+import { getLoginShell } from "./env.js";
 import { RESOLVE_DEFAULT_BRANCH_PHASE } from "./bench-manager.js";
 import type { ResolvedTemplateContext } from "./config-parser.js";
 
@@ -1095,7 +1096,7 @@ describe("background provisioning", () => {
       const bench = benchManager.getBench("test-project", 1);
       expect(bench?.status).toBe("idle");
       const calls = vi.mocked(execModule.runCommand).mock.calls;
-      expect(calls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
+      expect(calls.some((c) => c[1]?.[0] === "-lc" && c[1]?.[1] === "npm ci")).toBe(true);
     });
 
     const bench = benchManager.getBench("test-project", 1);
@@ -1108,7 +1109,7 @@ describe("background provisioning", () => {
     // component setup ("dotnet restore") stays deferred to the Start path.
     const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
     expect(runCommandCalls.some((c) => c[0] === "dotnet")).toBe(false);
-    expect(runCommandCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
+    expect(runCommandCalls.some((c) => c[1]?.[0] === "-lc" && c[1]?.[1] === "npm ci")).toBe(true);
   });
 
   it("retries without -b flag when branch already exists", async () => {
@@ -1626,14 +1627,16 @@ describe("background provisioning", () => {
         const bench = benchManager.getBench("test-project", 1);
         expect(bench?.status).toBe("idle");
         const benchSetupCalls = vi.mocked(execModule.runCommand).mock.calls;
-        expect(benchSetupCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
+        expect(benchSetupCalls.some((c) => c[1]?.[0] === "-lc" && c[1]?.[1] === "npm ci")).toBe(
+          true,
+        );
       });
 
       const bench = benchManager.getBench("test-project", 1);
       if (!bench) throw new Error("expected bench");
       // Bench setup ran once at init...
       const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
-      expect(runCommandCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
+      expect(runCommandCalls.some((c) => c[1]?.[0] === "-lc" && c[1]?.[1] === "npm ci")).toBe(true);
       expect(
         bench.provisioningSteps.some((s) => s.id === "bench-setup" && s.status === "done"),
       ).toBe(true);
@@ -1678,7 +1681,7 @@ describe("background provisioning", () => {
       if (!bench) throw new Error("expected bench");
       expect(processManager.startProcess).not.toHaveBeenCalled();
       const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
-      expect(runCommandCalls.some((c) => c[0] === "npm")).toBe(false);
+      expect(runCommandCalls.some((c) => c[1]?.[0] === "-lc")).toBe(false);
       expect(bench.provisioningSteps).toHaveLength(1);
       expect(bench.provisioningSteps.some((s) => s.id === "bench-setup")).toBe(false);
     });
@@ -1696,8 +1699,9 @@ describe("background provisioning", () => {
       setupProcessMocks();
       vi.mocked(portAllocator.allocatePorts).mockReturnValue({ backend: 5000 });
       // Worktree provisioning git calls succeed; the bench-setup `npm ci` fails.
-      vi.mocked(execModule.runCommand).mockImplementation(async (cmd: string) => {
-        if (cmd === "npm") {
+      // Bench setup is the only call routed through the login shell (`-lc`).
+      vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+        if (args?.[0] === "-lc") {
           return { code: 1, stdout: "", stderr: "npm ci failed" };
         }
         return { code: 0, stdout: "", stderr: "" };
@@ -1749,7 +1753,9 @@ describe("background provisioning", () => {
         const bench = benchManager.getBench("test-project", 1);
         expect(bench?.status).toBe("active");
         const benchSetupCalls = vi.mocked(execModule.runCommand).mock.calls;
-        expect(benchSetupCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
+        expect(benchSetupCalls.some((c) => c[1]?.[0] === "-lc" && c[1]?.[1] === "npm ci")).toBe(
+          true,
+        );
         const setupCalls = vi.mocked(processManager.runProcess).mock.calls;
         expect(setupCalls.some((c) => c[1] === "npm" && c[2]?.[0] === "install")).toBe(true);
       });
@@ -1759,7 +1765,7 @@ describe("background provisioning", () => {
       expect(bench.components.backend.setupComplete).toBe(true);
       expect(processManager.startProcess).toHaveBeenCalled();
       const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
-      expect(runCommandCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
+      expect(runCommandCalls.some((c) => c[1]?.[0] === "-lc" && c[1]?.[1] === "npm ci")).toBe(true);
       const runProcessCalls = vi.mocked(processManager.runProcess).mock.calls;
       expect(runProcessCalls.some((c) => c[1] === "npm" && c[2]?.[0] === "install")).toBe(true);
       expect(bench.provisioningSteps.length).toBeGreaterThan(1);
@@ -1794,9 +1800,10 @@ describe("background provisioning", () => {
       const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
       // The component-setup ("npm install") and bench-setup ("npm ci") commands
       // must not have run, even though autoStartComponents is on, because
-      // teardown took precedence.
-      expect(runCommandCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "install")).toBe(false);
-      expect(runCommandCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(false);
+      // teardown took precedence. Bench setup goes through the login shell, so
+      // the absence of any `-lc` call is what proves it never ran.
+      expect(runCommandCalls.some((c) => c[1]?.[1] === "npm install")).toBe(false);
+      expect(runCommandCalls.some((c) => c[1]?.[0] === "-lc")).toBe(false);
     });
 
     it("does not run component setup when worktree provisioning fails, even if setting is on", async () => {
@@ -1824,7 +1831,7 @@ describe("background provisioning", () => {
 
       expect(processManager.startProcess).not.toHaveBeenCalled();
       const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
-      expect(runCommandCalls.some((c) => c[0] === "npm")).toBe(false);
+      expect(runCommandCalls.some((c) => c[1]?.[0] === "-lc")).toBe(false);
     });
   });
 });
@@ -6437,12 +6444,54 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     });
 
     expect(execModule.runCommand).toHaveBeenCalledWith(
-      "npm",
-      ["ci"],
+      getLoginShell(),
+      ["-lc", "npm ci"],
       "/home/.roubo/workspaces/test-project/bench-1",
       undefined,
       600_000,
     );
+    const finalBench = benchManager.getBench("test-project", 1);
+    expect(finalBench?.provisioningSteps.find((s) => s.id === "bench-setup")?.status).toBe("done");
+  });
+
+  it("passes a multi-part bench setup command to the login shell as a single script", async () => {
+    // Regression guard for #628. `benches.setup` is a shell command line, not a
+    // bare binary invocation, so a value chaining with `&&` and calling a
+    // profile-sourced shell function must reach runCommand as one `-lc` script
+    // argument. Splitting it into argv turned this into
+    // ["cd", "roubo", "&&", "nvm", "use", "&&", "npm", "i"], where `cd` has no
+    // binary, `&&` is not chaining, and `nvm` does not resolve, so nothing ran.
+    const setup = "cd roubo && nvm use && npm i";
+    const config = makeConfig({
+      benches: { max: 5, setup },
+      components: {
+        backend: { type: "process", command: "npm start" },
+      },
+    });
+    setupBenchWithSetupState(config, { backend: true });
+    setupProcessMocks();
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+
+    benchManager.startAllComponents("test-project", 1);
+
+    await vi.waitFor(() => {
+      const b = benchManager.getBench("test-project", 1);
+      expect(b?.status).toBe("active");
+    });
+
+    expect(execModule.runCommand).toHaveBeenCalledWith(
+      getLoginShell(),
+      ["-lc", setup],
+      "/home/.roubo/workspaces/test-project/bench-1",
+      undefined,
+      600_000,
+    );
+    // The command must survive whole, never split on whitespace into argv.
+    const shellCalls = vi
+      .mocked(execModule.runCommand)
+      .mock.calls.filter((c) => c[1]?.[0] === "-lc");
+    expect(shellCalls).toHaveLength(1);
+    expect(shellCalls[0][1]).toEqual(["-lc", setup]);
     const finalBench = benchManager.getBench("test-project", 1);
     expect(finalBench?.provisioningSteps.find((s) => s.id === "bench-setup")?.status).toBe("done");
   });

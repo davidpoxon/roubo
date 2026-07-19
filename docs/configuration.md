@@ -247,11 +247,11 @@ benches:
   autoClear: true
 ```
 
-| Field       | Required | Type    | Notes                                                                                                             |
-| ----------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
-| `max`       | yes      | integer | 1–99. Hard cap on concurrent benches for this project.                                                            |
-| `setup`     | no       | string  | Command run once after worktree creation, before components start. Typically `npm ci` or workspace bootstrapping. |
-| `autoClear` | no       | boolean | When `true` (default), benches are cleared automatically when the linked GitHub issue moves to Done / is closed.  |
+| Field       | Required | Type    | Notes                                                                                                                                                                                                                                                           |
+| ----------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max`       | yes      | integer | 1–99. Hard cap on concurrent benches for this project.                                                                                                                                                                                                          |
+| `setup`     | no       | string  | Command run once after worktree creation, before components start. Typically `npm ci` or workspace bootstrapping. Runs through your login shell (`$SHELL -lc`), so shell syntax works: `&&` chaining, redirection, and profile-sourced functions such as `nvm`. |
+| `autoClear` | no       | boolean | When `true` (default), benches are cleared automatically when the linked GitHub issue moves to Done / is closed.                                                                                                                                                |
 
 ---
 

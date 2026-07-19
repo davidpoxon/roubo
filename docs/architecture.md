@@ -79,7 +79,7 @@ When you click **Set up bench**, Roubo runs the following in order:
 2. Compute and allocate ports for every component.
 3. Create the git worktree.
 4. Initialise submodules (meta-repos only).
-5. Run `benches.setup` if defined (typically `npm ci` or similar workspace-wide setup).
+5. Run `benches.setup` if defined (typically `npm ci` or similar workspace-wide setup). The command is executed through the user's login shell (`$SHELL -lc`), so `&&` chaining, redirection, and profile-sourced functions such as `nvm` all work.
 
 When you click **Start**, Roubo starts each component in dependency order (declared via `dependsOn`):
 

@@ -43,7 +43,8 @@ import {
   resolveServiceEnv,
   type ResolvedTemplateContext,
 } from "./config-parser.js";
-import { runCommand, parseCommand } from "./exec.js";
+import { runCommand } from "./exec.js";
+import { getLoginShell } from "./env.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
 import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
@@ -646,10 +647,22 @@ async function runComponentsInOrder(
   if (config?.benches.setup && hasStep(bench.provisioningSteps, "bench-setup")) {
     if (!isBenchLive(bench.projectId, bench.id)) return;
     updateStep(bench.provisioningSteps, "bench-setup", "running");
-    const setupParts = parseCommand(config.benches.setup);
+    // Run through the user's login shell instead of spawning parsed argv
+    // directly (#628). `benches.setup` is a shell command line, not a bare
+    // binary invocation: `&&` chaining, redirection, and profile-sourced
+    // shell functions such as `nvm` only work when a shell interprets the
+    // string, and `-l` sources the user's profile so those functions exist.
+    // Splitting it into argv instead made a value like
+    // `cd roubo && nvm use && npm i` silently do nothing.
+    // getLoginShell() validates $SHELL down to an absolute path of safe
+    // characters, the sanitizer CodeQL's js/command-line-injection suite
+    // recognises (alert #106). Passing the setup string as the `-lc` script
+    // does not widen the trust boundary: this field already spawned an
+    // arbitrary user-named binary with user-named arguments, and it comes
+    // from the project's own checked-in roubo.yaml.
     const result = await runCommand(
-      setupParts[0],
-      setupParts.slice(1),
+      getLoginShell(),
+      ["-lc", config.benches.setup],
       bench.workspacePath,
       undefined,
       600_000,
