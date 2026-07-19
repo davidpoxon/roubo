@@ -1066,7 +1066,7 @@ describe("background provisioning", () => {
     expect(sseService.broadcastBenchStatus).not.toHaveBeenCalled();
   });
 
-  it("transitions bench to idle with all components stopped and runs no setup at create time", async () => {
+  it("transitions bench to idle with components stopped and runs only bench setup at create time", async () => {
     const config = makeConfig({
       components: {
         backend: {
@@ -1094,19 +1094,21 @@ describe("background provisioning", () => {
     await vi.waitFor(() => {
       const bench = benchManager.getBench("test-project", 1);
       expect(bench?.status).toBe("idle");
+      const calls = vi.mocked(execModule.runCommand).mock.calls;
+      expect(calls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
     });
 
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
     expect(bench.components.backend.status).toBe("stopped");
-    expect(bench.components.backend.setupComplete).toBe(false); // setup hasn't run yet
+    expect(bench.components.backend.setupComplete).toBe(false); // component setup hasn't run yet
     expect(processManager.startProcess).not.toHaveBeenCalled();
     expect(dockerService.composeUp).not.toHaveBeenCalled();
-    // Neither the component setup ("dotnet restore") nor the bench-level setup
-    // ("npm ci") should have been invoked at create time.
+    // The bench-level setup ("npm ci") runs once at init (#627), but the
+    // component setup ("dotnet restore") stays deferred to the Start path.
     const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
     expect(runCommandCalls.some((c) => c[0] === "dotnet")).toBe(false);
-    expect(runCommandCalls.some((c) => c[0] === "npm")).toBe(false);
+    expect(runCommandCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
   });
 
   it("retries without -b flag when branch already exists", async () => {
@@ -1604,7 +1606,10 @@ describe("background provisioning", () => {
       });
     }
 
-    it("does not run component setup or launch when setting is off (default)", async () => {
+    it("runs bench setup at init but not component setup or launch when setting is off (default)", async () => {
+      // The bench-level setup command (`benches.setup`, e.g. `npm ci`) must run
+      // once when a bench is first initialised even when components do not
+      // auto-start (#627); component setup and launch stay deferred to Start.
       withAutoStart(false);
       setupCreateBenchMocks({
         project: makeProject({
@@ -1620,15 +1625,102 @@ describe("background provisioning", () => {
       await vi.waitFor(() => {
         const bench = benchManager.getBench("test-project", 1);
         expect(bench?.status).toBe("idle");
+        const benchSetupCalls = vi.mocked(execModule.runCommand).mock.calls;
+        expect(benchSetupCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
       });
 
       const bench = benchManager.getBench("test-project", 1);
       if (!bench) throw new Error("expected bench");
+      // Bench setup ran once at init...
+      const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
+      expect(runCommandCalls.some((c) => c[0] === "npm" && c[1]?.[0] === "ci")).toBe(true);
+      expect(
+        bench.provisioningSteps.some((s) => s.id === "bench-setup" && s.status === "done"),
+      ).toBe(true);
+      // ...but component setup and launch did not (deferred to Start).
       expect(bench.components.backend.setupComplete).toBe(false);
+      expect(processManager.startProcess).not.toHaveBeenCalled();
+      const runProcessCalls = vi.mocked(processManager.runProcess).mock.calls;
+      expect(runProcessCalls.some((c) => c[1] === "npm" && c[2]?.[0] === "install")).toBe(false);
+      // workspace + bench-setup only; no component provisioning step.
+      expect(bench.provisioningSteps).toHaveLength(2);
+      expect(bench.provisioningSteps.some((s) => s.id.startsWith("component:"))).toBe(false);
+    });
+
+    it("returns early at init when no setup command and components do not auto-start", async () => {
+      // No `benches.setup` and auto-start off: there is nothing to provision at
+      // init, so the bench settles idle with only the workspace step and no
+      // bench-setup command runs.
+      withAutoStart(false);
+      setupCreateBenchMocks({
+        project: makeProject({
+          config: makeConfig({
+            components: {
+              backend: { type: "process", command: "node server.js", setup: "npm install" },
+            },
+            ports: { backend: { base: 5000 } },
+            benches: { max: 5 },
+          }),
+          settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+        }),
+      });
+      setupProcessMocks();
+      vi.mocked(portAllocator.allocatePorts).mockReturnValue({ backend: 5000 });
+
+      benchManager.createBench("test-project");
+
+      await vi.waitFor(() => {
+        const bench = benchManager.getBench("test-project", 1);
+        expect(bench?.status).toBe("idle");
+      });
+
+      const bench = benchManager.getBench("test-project", 1);
+      if (!bench) throw new Error("expected bench");
       expect(processManager.startProcess).not.toHaveBeenCalled();
       const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
       expect(runCommandCalls.some((c) => c[0] === "npm")).toBe(false);
       expect(bench.provisioningSteps).toHaveLength(1);
+      expect(bench.provisioningSteps.some((s) => s.id === "bench-setup")).toBe(false);
+    });
+
+    it("marks the bench in error and notifies when bench setup fails at init", async () => {
+      // A failing `benches.setup` command at init (components not auto-starting)
+      // must surface as a bench error with the bench-error notification (#627).
+      withAutoStart(false);
+      setupCreateBenchMocks({
+        project: makeProject({
+          config: autoStartConfig(),
+          settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+        }),
+      });
+      setupProcessMocks();
+      vi.mocked(portAllocator.allocatePorts).mockReturnValue({ backend: 5000 });
+      // Worktree provisioning git calls succeed; the bench-setup `npm ci` fails.
+      vi.mocked(execModule.runCommand).mockImplementation(async (cmd: string) => {
+        if (cmd === "npm") {
+          return { code: 1, stdout: "", stderr: "npm ci failed" };
+        }
+        return { code: 0, stdout: "", stderr: "" };
+      });
+
+      benchManager.createBench("test-project");
+
+      await vi.waitFor(() => {
+        const bench = benchManager.getBench("test-project", 1);
+        expect(bench?.status).toBe("error");
+      });
+
+      const bench = benchManager.getBench("test-project", 1);
+      if (!bench) throw new Error("expected bench");
+      expect(bench.error).toContain("Bench setup failed");
+      expect(
+        bench.provisioningSteps.some((s) => s.id === "bench-setup" && s.status === "error"),
+      ).toBe(true);
+      expect(processManager.startProcess).not.toHaveBeenCalled();
+      expect(vi.mocked(notificationService.createNotification)).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 1 }),
+        "bench-error",
+      );
     });
 
     it("runs full provisioning and ends at active when setting is on", async () => {

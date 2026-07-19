@@ -1024,9 +1024,11 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       console.warn(`[bench-manager] Failed to inject permissions for bench ${bench.id}:`, err);
     }
 
-    // Worktree-only create: transition out of "preparing" and let the bench sit
-    // idle. Bench-level setup, component setup, and component launch all run later
-    // via the Start path.
+    // Worktree provisioning is done: transition out of "preparing" and let the
+    // bench sit idle. runCreateBenchBackground resumes from here to run the
+    // bench-level setup command (`benches.setup`) at init (#627), and, when
+    // components auto-start, their setup and launch too. Component setup and
+    // launch for a non-auto-start bench still run later via the Start path.
     bench.status = "idle";
     updateBenchStatus(bench);
     sseService.broadcastBenchStatus(bench);
@@ -1080,24 +1082,36 @@ async function runCreateBenchBackground(bench: Bench, project: RegisteredProject
     return;
   }
 
-  const settings = stateService.loadSettings();
-  if (!(settings.benches?.autoStartComponents ?? false)) return;
-
   const config = project.config;
   if (!config) return;
   if (!isBenchLive(bench.projectId, bench.id)) return;
 
-  let ordered: string[];
-  try {
-    ordered = getComponentOrder(config.components);
-  } catch (err) {
-    // A cyclic dependsOn config cannot be ordered (CP-TC-050). Surface it as a
-    // bench error rather than let it escape this fire-and-forget task as an
-    // unhandled rejection.
-    markBackgroundError(bench, err as Error);
-    notificationService.createNotification(bench, "bench-error");
-    return;
+  const settings = stateService.loadSettings();
+  const autoStart = settings.benches?.autoStartComponents ?? false;
+
+  // Bench-level setup (`benches.setup`, e.g. `npm ci` at the workspace root)
+  // must run once when the bench is first initialised, regardless of whether
+  // components auto-start (#627). Component ordering is only needed when they
+  // do: a setup-only init leaves `ordered` empty, so runComponentsInOrder runs
+  // just the setup block and then settles the bench to idle.
+  let ordered: string[] = [];
+  if (autoStart) {
+    try {
+      ordered = getComponentOrder(config.components);
+    } catch (err) {
+      // A cyclic dependsOn config cannot be ordered (CP-TC-050). Surface it as a
+      // bench error rather than let it escape this fire-and-forget task as an
+      // unhandled rejection.
+      markBackgroundError(bench, err as Error);
+      notificationService.createNotification(bench, "bench-error");
+      return;
+    }
   }
+
+  // Nothing to provision at init when components do not auto-start and there is
+  // no bench-level setup command to run.
+  if (!autoStart && !config.benches.setup) return;
+
   bench.provisioningSteps = [
     ...bench.provisioningSteps,
     ...makeStartProvisioningSteps(config, ordered),
