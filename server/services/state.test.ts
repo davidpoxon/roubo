@@ -1123,6 +1123,29 @@ describe("toPersistedBench", () => {
     expect(written.benches[0].componentSetupState).toEqual({ backend: false, db: true });
   });
 
+  it("carries benchSetupComplete onto the persisted bench (#630)", () => {
+    const makeBench = (benchSetupComplete?: boolean) => ({
+      id: 8,
+      projectId: "p",
+      branch: "b",
+      workspacePath: "/w",
+      status: "idle" as const,
+      ports: {},
+      components: {},
+      createdAt: "2026-01-01T00:00:00.000Z",
+      provisioningSteps: [],
+      teardownSteps: [],
+      notifications: [],
+      benchSetupComplete,
+    });
+    expect(stateModule.toPersistedBench(makeBench(true)).benchSetupComplete).toBe(true);
+    // false must survive as false, not collapse to undefined: a legacy record
+    // (absent flag) migrates to complete, so a bench still awaiting setup has
+    // to persist the difference.
+    expect(stateModule.toPersistedBench(makeBench(false)).benchSetupComplete).toBe(false);
+    expect(stateModule.toPersistedBench(makeBench()).benchSetupComplete).toBeUndefined();
+  });
+
   it("carries variant and focusedSpecPath onto the persisted bench", () => {
     const persisted = stateModule.toPersistedBench({
       id: 4,

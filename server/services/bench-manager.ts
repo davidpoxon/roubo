@@ -217,6 +217,10 @@ export function initialize() {
       injectedJigSource: ps.injectedJigSource,
       variant: ps.variant,
       focusedSpecPath: ps.focusedSpecPath,
+      // Benches persisted before this field existed (pre-#630) were provisioned
+      // under the old flow, which always ran `benches.setup`, so treat a missing
+      // flag as complete rather than re-running setup on their next Start.
+      benchSetupComplete: ps.benchSetupComplete ?? true,
     };
 
     benches.set(benchKey(ps.projectId, ps.id), bench);
@@ -378,12 +382,22 @@ function makeComponentOnlyProvisioningSteps(componentOrder: string[]): Provision
   }));
 }
 
+/**
+ * Steps for a bench-level Start (or the auto-start that follows create).
+ *
+ * The `bench-setup` step is only seeded while the bench's setup command has not
+ * yet run to completion. `benches.setup` is documented as running once, after
+ * worktree creation, so re-seeding it on every Start would re-run a command such
+ * as `npm ci` (which blows away node_modules) on each press of Start, and would
+ * re-apply anything non-idempotent in it (#630).
+ */
 function makeStartProvisioningSteps(
   config: RouboConfig,
   componentOrder: string[],
+  benchSetupComplete: boolean,
 ): ProvisioningStep[] {
   const steps: ProvisioningStep[] = [];
-  if (config.benches.setup) {
+  if (config.benches.setup && !benchSetupComplete) {
     steps.push({ id: "bench-setup", label: "Running bench setup", status: "pending" });
   }
   steps.push(...makeComponentOnlyProvisioningSteps(componentOrder));
@@ -611,6 +625,9 @@ export function createBench(
     notifications: [],
     variant: options.variant,
     focusedSpecPath: resolvedFocusedSpecPath,
+    // Nothing to run when the project defines no `benches.setup`, so such a
+    // bench is complete from the start (#630).
+    benchSetupComplete: !config.benches.setup,
   };
 
   benches.set(benchKey(projectId, benchNumber), bench);
@@ -643,7 +660,8 @@ async function runComponentsInOrder(
 ): Promise<void> {
   // Bench-level setup (e.g. `npm ci` at the monorepo root). Gated on the
   // `bench-setup` step being seeded onto bench.provisioningSteps, which only
-  // happens on bench-level Start. Per-component Start never seeds it.
+  // happens on bench-level Start, and only while the command has not yet run to
+  // completion for this bench. Per-component Start never seeds it.
   if (config?.benches.setup && hasStep(bench.provisioningSteps, "bench-setup")) {
     if (!isBenchLive(bench.projectId, bench.id)) return;
     updateStep(bench.provisioningSteps, "bench-setup", "running");
@@ -683,6 +701,10 @@ async function runComponentsInOrder(
       return;
     }
     updateStep(bench.provisioningSteps, "bench-setup", "done");
+    // Setup succeeded: record it so a later Start skips it (#630). A failure
+    // returns above without setting the flag, so the next Start retries.
+    bench.benchSetupComplete = true;
+    stateService.updateBench(stateService.toPersistedBench(bench));
   }
 
   for (const name of componentOrder) {
@@ -1030,6 +1052,10 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       injectedJigSource: bench.injectedJigSource,
       variant: bench.variant,
       focusedSpecPath: bench.focusedSpecPath,
+      // Written even while false so a crash between here and a successful
+      // `benches.setup` run does not look like a legacy record on reload, which
+      // would migrate to `true` and skip setup forever (#630).
+      benchSetupComplete: bench.benchSetupComplete,
     });
 
     // Inject project-level permissions into the workspace before any sessions start.
@@ -1130,7 +1156,7 @@ async function runCreateBenchBackground(bench: Bench, project: RegisteredProject
 
   bench.provisioningSteps = [
     ...bench.provisioningSteps,
-    ...makeStartProvisioningSteps(config, ordered),
+    ...makeStartProvisioningSteps(config, ordered, bench.benchSetupComplete === true),
   ];
   bench.status = "preparing";
   updateBenchStatus(bench);
@@ -1709,6 +1735,9 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     isMetaRepo,
     project.settings.worktreeSource.branchFromDefault,
   );
+  // The workspace is re-created from scratch, so bench-level setup has to run
+  // again against the new worktree (#630).
+  bench.benchSetupComplete = !config.benches.setup;
   for (const [name, componentConfig] of Object.entries(config.components)) {
     bench.components[name] = {
       name,
@@ -2527,7 +2556,11 @@ export function startAllComponents(projectId: string, benchId: number): Bench {
 
   const ordered = getComponentOrder(project.config.components);
 
-  bench.provisioningSteps = makeStartProvisioningSteps(project.config, ordered);
+  bench.provisioningSteps = makeStartProvisioningSteps(
+    project.config,
+    ordered,
+    bench.benchSetupComplete === true,
+  );
   bench.status = "preparing";
   bench.error = undefined;
 

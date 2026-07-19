@@ -144,7 +144,7 @@
       "additionalProperties": false,
       "properties": {
         "max": { "type": "integer", "minimum": 1, "maximum": 99 },
-        "setup": { "type": "string", "description": "Command to run once at workspace root before components start. Runs through your login shell, so shell syntax works: chaining with &&, redirection, and pipes. On zsh the shell is also interactive so ~/.zshrc loads, which is what makes version managers such as nvm, fnm, and asdf resolve. On bash and other shells only the login profile files load (~/.bash_profile, ~/.profile, not ~/.bashrc), so a version-manager snippet installed into ~/.bashrc must be moved into the profile file to resolve here." },
+        "setup": { "type": "string", "description": "Command to run once per bench at the workspace root, after worktree creation and before components start. It does not re-run on later bench-level Starts once it has succeeded. Runs through your login shell, so shell syntax works: chaining with &&, redirection, and pipes. On zsh the shell is also interactive so ~/.zshrc loads, which is what makes version managers such as nvm, fnm, and asdf resolve. On bash and other shells only the login profile files load (~/.bash_profile, ~/.profile, not ~/.bashrc), so a version-manager snippet installed into ~/.bashrc must be moved into the profile file to resolve here." },
         "autoClear": { "type": "boolean", "description": "Automatically clear benches when their assigned issue moves to Done or is closed. Defaults to true." }
       }
     },
