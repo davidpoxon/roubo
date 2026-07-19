@@ -18,7 +18,7 @@ describe("SectionBenches", () => {
 
   it("renders the setup command input", () => {
     render(<SectionBenches benches={{}} ports={{}} dispatch={vi.fn()} />);
-    expect(screen.getByPlaceholderText(/e\.g\. npm ci/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/e\.g\. cd app && npm ci/i)).toBeInTheDocument();
   });
 
   it("shows port ranges when max > 0", () => {
@@ -43,7 +43,7 @@ describe("SectionBenches", () => {
   it("dispatches UPDATE_BENCHES when setup command changes", async () => {
     const dispatch = vi.fn();
     render(<SectionBenches benches={{ max: 3 }} ports={{}} dispatch={dispatch} />);
-    const input = screen.getByPlaceholderText(/e\.g\. npm ci/i);
+    const input = screen.getByPlaceholderText(/e\.g\. cd app && npm ci/i);
     await userEvent.type(input, "npm ci");
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "UPDATE_BENCHES" }));
   });

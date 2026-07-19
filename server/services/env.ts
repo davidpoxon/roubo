@@ -22,6 +22,24 @@ export function getLoginShell(): string {
   return shell && SAFE_SHELL_PATH_RE.test(shell) ? shell : "/bin/sh";
 }
 
+/**
+ * Builds the argv for running `script` through the user's login shell.
+ *
+ * zsh reads `~/.zshrc` only for INTERACTIVE shells, and that is exactly where
+ * the conventional nvm, fnm, and asdf snippets live, so a plain `-lc` login
+ * shell cannot see them and `nvm use` fails with "command not found" (#628).
+ * Adding `-i` for zsh makes those shell functions resolve.
+ *
+ * Other shells keep `-lc`. The `-i` flag is not a general fix: bash reads
+ * `~/.bashrc` only for interactive NON-login shells, so `-i` would not load it
+ * there either, and it costs a "no job control in this shell" warning on
+ * stderr whenever the spawned shell has no tty.
+ */
+export function loginShellScriptArgs(script: string): [string, string] {
+  const flags = path.basename(getLoginShell()) === "zsh" ? "-ilc" : "-lc";
+  return [flags, script];
+}
+
 function parseEnvFile(): Array<{ key: string; raw: string }> {
   const envFile = path.join(getRouboDir(), ".env");
   if (!fs.existsSync(envFile)) return [];

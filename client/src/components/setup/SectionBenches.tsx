@@ -52,12 +52,12 @@ export default function SectionBenches({ benches, ports, dispatch }: Props) {
       >
         <Label className="block text-xs text-stone-500 mb-1.5">Setup command</Label>
         <Input
-          placeholder="e.g. npm ci"
+          placeholder="e.g. cd app && npm ci"
           className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
         />
         <p className="text-[10px] text-stone-500 mt-1">
-          Runs once at workspace root before components start (e.g.{" "}
-          <span className="font-mono">npm ci</span>)
+          Runs once at workspace root before components start, through your login shell, so shell
+          syntax works (e.g. <span className="font-mono">cd app &amp;&amp; npm ci</span>)
         </p>
       </TextField>
 
