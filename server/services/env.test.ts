@@ -605,3 +605,53 @@ describe("getLoginShell", () => {
     }
   });
 });
+
+describe("loginShellScriptArgs", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("adds -i for zsh so rc-defined tools such as nvm resolve", async () => {
+    // zsh reads ~/.zshrc only for interactive shells, and that is where the
+    // stock nvm/fnm/asdf snippets live, so `-lc` alone cannot see them (#628).
+    process.env.SHELL = "/bin/zsh";
+    const { loginShellScriptArgs } = await import("./env.js");
+    expect(loginShellScriptArgs("nvm use && npm i")).toEqual(["-ilc", "nvm use && npm i"]);
+  });
+
+  it("uses -lc for non-zsh shells", async () => {
+    // bash reads ~/.bashrc only for interactive NON-login shells, so -i would
+    // not load it anyway, and it emits a job-control warning without a tty.
+    for (const shell of ["/bin/bash", "/bin/sh", "/opt/homebrew/bin/fish"]) {
+      process.env.SHELL = shell;
+      const { loginShellScriptArgs } = await import("./env.js");
+      expect(loginShellScriptArgs("npm ci")).toEqual(["-lc", "npm ci"]);
+    }
+  });
+
+  it("uses -lc when $SHELL is unset, matching the /bin/sh fallback", async () => {
+    delete process.env.SHELL;
+    const { loginShellScriptArgs } = await import("./env.js");
+    expect(loginShellScriptArgs("npm ci")).toEqual(["-lc", "npm ci"]);
+  });
+
+  it("passes the script through as a single argument, never split", async () => {
+    process.env.SHELL = "/bin/zsh";
+    const { loginShellScriptArgs } = await import("./env.js");
+    const script = "cd roubo && nvm use && npm i";
+    const [, passed] = loginShellScriptArgs(script);
+    expect(passed).toBe(script);
+  });
+
+  it("detects zsh from any absolute path, not just /bin/zsh", async () => {
+    process.env.SHELL = "/opt/homebrew/bin/zsh";
+    const { loginShellScriptArgs } = await import("./env.js");
+    expect(loginShellScriptArgs("npm ci")[0]).toBe("-ilc");
+  });
+});

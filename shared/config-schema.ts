@@ -231,9 +231,13 @@ export const BenchesConfigSchema = z
     max: z.int().min(1).max(99),
     /**
      * Command run once at the workspace root before components start.
-     * Executed through the user's login shell (`$SHELL -lc`), so shell syntax
-     * is supported: `&&` chaining, redirection, and profile-sourced functions
-     * such as `nvm`.
+     * Executed through the user's login shell, so shell syntax is supported:
+     * `&&` chaining, redirection, and pipes. On zsh the shell is also started
+     * interactively so that `~/.zshrc` loads, which is what makes version
+     * managers such as `nvm`, `fnm`, and `asdf` resolve. On bash and other
+     * shells only the login profile files load (`~/.bash_profile`,
+     * `~/.profile`, not `~/.bashrc`), so a version-manager snippet installed
+     * into `~/.bashrc` must be moved into the profile file to resolve here.
      */
     setup: z.string().optional(),
     enforceIssueDependencies: z.boolean().optional(),
