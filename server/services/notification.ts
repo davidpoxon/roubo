@@ -45,6 +45,11 @@ function persistBench(bench: Bench): void {
     baseCommit: bench.baseCommit,
     injectedJigId: bench.injectedJigId,
     injectedJigSource: bench.injectedJigSource,
+    // updateBench replaces the whole record, so an omitted flag is erased from
+    // state.json and hydrates back as `true` (#630). A bench-error notification
+    // fires on exactly the failed-setup path that has to stay retryable, so
+    // dropping it here would make a failed `benches.setup` look complete.
+    benchSetupComplete: bench.benchSetupComplete,
   });
 }
 

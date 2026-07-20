@@ -783,6 +783,19 @@ describe("createBench", () => {
     expect(bench.provisioningSteps[0].id).toBe("workspace");
   });
 
+  it("seeds benchSetupComplete false even when the project has no benches.setup (#630)", () => {
+    // Recording `true` here would be indistinguishable from a genuine
+    // completion once the bench is hydrated (initialize coerces an absent flag
+    // to `true`), so a `benches.setup` added to roubo.yaml later would never
+    // run on this bench. The flag is inert until a setup command exists.
+    setupCreateBenchMocks();
+    setupProcessMocks();
+
+    const bench = benchManager.createBench("test-project", "feature-branch");
+
+    expect(bench.benchSetupComplete).toBe(false);
+  });
+
   it("includes submodules as a phase of the workspace step for meta-repo", () => {
     const config = makeConfig({
       layout: { type: "meta-repo", submodules: { sub1: "path/to/sub1" } },
@@ -6589,6 +6602,78 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
       expect(benchManager.getBench("test-project", 1)?.status).toBe("active");
     });
     expect(execModule.runCommand).not.toHaveBeenCalled();
+  });
+
+  it("runs a benches.setup added to roubo.yaml after the bench was created (#630)", async () => {
+    // The bench predates the setup command, so it carries benchSetupComplete
+    // false and the newly configured command is seeded and run once. Seeding
+    // `true` for no-setup projects at create would have made this impossible:
+    // hydration cannot tell that `true` apart from a genuine completion.
+    const config = makeConfig({
+      benches: { max: 5, setup: "npm ci" },
+      components: {
+        backend: { type: "process", command: "npm start" },
+      },
+    });
+    setupBenchWithSetupState(config, { backend: true }, { backend: 5001 }, false);
+    setupProcessMocks();
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+
+    const bench = benchManager.startAllComponents("test-project", 1);
+    expect(bench.provisioningSteps.find((s) => s.id === "bench-setup")).toMatchObject({
+      status: "pending",
+    });
+
+    await vi.waitFor(() => {
+      expect(benchManager.getBench("test-project", 1)?.status).toBe("active");
+    });
+    expect(execModule.runCommand).toHaveBeenCalledTimes(1);
+    expect(benchManager.getBench("test-project", 1)?.benchSetupComplete).toBe(true);
+  });
+
+  it("does not persist bench setup completion when the bench was cleared mid-run (#630)", async () => {
+    // `benches.setup` can run for up to ten minutes, so Clear can land while it
+    // is still going. Persisting unguarded would re-add the removed record, and
+    // because updateBench filters then pushes on (projectId, id) it could also
+    // overwrite a new bench that had since reused this id.
+    const config = makeConfig({
+      benches: { max: 5, setup: "npm ci" },
+      components: {
+        backend: { type: "process", command: "npm start" },
+      },
+    });
+    setupBenchWithSetupState(config, { backend: true });
+    setupProcessMocks();
+
+    let finishSetup: (result: { code: number; stdout: string; stderr: string }) => void = () => {};
+    const setupRunning = new Promise<{ code: number; stdout: string; stderr: string }>(
+      (resolve) => {
+        finishSetup = resolve;
+      },
+    );
+    // Only the bench setup command hangs. Teardown drives runCommand too, and
+    // has to be able to complete while setup is still in flight.
+    vi.mocked(execModule.runCommand).mockImplementation((_command, args) =>
+      args.some((a) => a.includes("npm ci"))
+        ? setupRunning
+        : Promise.resolve({ code: 0, stdout: "", stderr: "" }),
+    );
+
+    benchManager.startAllComponents("test-project", 1);
+    await vi.waitFor(() => {
+      expect(execModule.runCommand).toHaveBeenCalled();
+    });
+
+    // Clear while setup is still in flight, then let the command succeed.
+    benchManager.teardownBench("test-project", 1);
+    await vi.waitFor(() => {
+      expect(benchManager.getBench("test-project", 1)).toBeUndefined();
+    });
+    vi.mocked(stateService.updateBench).mockClear();
+    finishSetup({ code: 0, stdout: "", stderr: "" });
+    await setupRunning;
+
+    expect(stateService.updateBench).not.toHaveBeenCalled();
   });
 
   it("passes a multi-part bench setup command to the login shell as a single script", async () => {

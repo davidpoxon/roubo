@@ -420,6 +420,38 @@ describe("assignIssue", () => {
     expect(jigManager.resolveJigContent).toHaveBeenCalled();
   });
 
+  it("preserves benchSetupComplete on every persist (#630)", async () => {
+    // updateBench replaces the whole record, so dropping the flag erases it from
+    // state.json and initialize hydrates an absent flag as `true`. Assigning an
+    // issue to a bench whose `benches.setup` has not yet succeeded would then
+    // record the unfinished setup as complete, and it would never run. Both
+    // persists in this path (the assign tail and the jig-injection follow-up)
+    // have to carry it, so assert across every recorded call.
+    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench, benchSetupComplete: false });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(runCommand).mockResolvedValue({
+      code: 0,
+      stdout: "",
+      stderr: "",
+    });
+    vi.mocked(terminalService.createSession).mockReturnValue({
+      id: "term-1",
+      benchKey: "project1:1",
+      label: "Claude 1",
+      createdAt: "",
+      command: "claude",
+      status: "live",
+    });
+
+    await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
+
+    const calls = vi.mocked(stateService.updateBench).mock.calls;
+    expect(calls.length).toBeGreaterThan(1);
+    for (const [persisted] of calls) {
+      expect(persisted.benchSetupComplete).toBe(false);
+    }
+  });
+
   it("includes comments in Claude Code prompt", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
@@ -1430,6 +1462,38 @@ describe("unassignIssue", () => {
     const result = await unassignIssue("project1", 1);
     expect(result.assignedIssue).toBeUndefined();
     expect(stateService.updateBench).toHaveBeenCalled();
+  });
+
+  it("preserves benchSetupComplete when persisting (#630)", async () => {
+    // updateBench replaces the whole record, so dropping the flag erases it from
+    // state.json and initialize hydrates an absent flag as `true`. Unassigning
+    // on a bench whose `benches.setup` has not yet succeeded would otherwise
+    // record the unfinished setup as complete, and it would never run.
+    const bench = {
+      id: 1,
+      projectId: "project1",
+      branch: "issue-42-fix",
+      workspacePath: "/workspace",
+      ports: { backend: 5000 },
+      createdAt: "2026-01-01",
+      components: {},
+      status: "idle" as const,
+      provisioningSteps: [],
+      benchSetupComplete: false,
+      assignedIssue: {
+        number: 42,
+        integrationId: "github-com",
+        externalId: "42",
+        title: "Fix it",
+      },
+    };
+    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+
+    await unassignIssue("project1", 1);
+
+    expect(stateService.updateBench).toHaveBeenCalledWith(
+      expect.objectContaining({ benchSetupComplete: false }),
+    );
   });
 
   it("throws when no issue assigned", async () => {

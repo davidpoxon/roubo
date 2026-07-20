@@ -625,9 +625,13 @@ export function createBench(
     notifications: [],
     variant: options.variant,
     focusedSpecPath: resolvedFocusedSpecPath,
-    // Nothing to run when the project defines no `benches.setup`, so such a
-    // bench is complete from the start (#630).
-    benchSetupComplete: !config.benches.setup,
+    // Seeded false even when the project defines no `benches.setup`, so that a
+    // setup command added to roubo.yaml later still runs once on this bench
+    // (#630). Recording `true` here would be indistinguishable from a genuine
+    // completion after hydration, and the command would never run. The flag is
+    // inert without a setup command: both the step seeding and the run block
+    // gate on `config.benches.setup` as well.
+    benchSetupComplete: false,
   };
 
   benches.set(benchKey(projectId, benchNumber), bench);
@@ -703,6 +707,13 @@ async function runComponentsInOrder(
     updateStep(bench.provisioningSteps, "bench-setup", "done");
     // Setup succeeded: record it so a later Start skips it (#630). A failure
     // returns above without setting the flag, so the next Start retries.
+    //
+    // Re-check liveness first: the setup command above can run for up to ten
+    // minutes, which is ample time for the operator to press Clear. Persisting
+    // unguarded would re-add the removed record, and because updateBench filters
+    // then pushes on (projectId, id), it would overwrite a new bench that had
+    // since reused this id with the cleared bench's branch, ports and workspace.
+    if (!isBenchLive(bench.projectId, bench.id)) return;
     bench.benchSetupComplete = true;
     stateService.updateBench(stateService.toPersistedBench(bench));
   }
@@ -1736,8 +1747,10 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     project.settings.worktreeSource.branchFromDefault,
   );
   // The workspace is re-created from scratch, so bench-level setup has to run
-  // again against the new worktree (#630).
-  bench.benchSetupComplete = !config.benches.setup;
+  // again against the new worktree (#630). Reset to false unconditionally, for
+  // the same reason createBench does: a setup command added to roubo.yaml after
+  // this point must still run.
+  bench.benchSetupComplete = false;
   for (const [name, componentConfig] of Object.entries(config.components)) {
     bench.components[name] = {
       name,
