@@ -991,6 +991,18 @@ describe("previewFromRelease (issue #370)", () => {
     expect(await listStaging()).toEqual([]);
   });
 
+  it("sends Accept: application/octet-stream on the release-asset download", async () => {
+    // A GitHub/GHE Release-asset API endpoint negotiates content by Accept: the
+    // default `*/*` returns the asset's JSON metadata, not its bytes, so the
+    // download must request the binary explicitly (issue #370 follow-up).
+    fakeDownload(await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]));
+    await pluginInstaller.previewFromRelease(ASSET_URL);
+    const init = vi.mocked(fetch).mock.calls[0]?.[1] as
+      | { headers?: Record<string, string> }
+      | undefined;
+    expect(init?.headers?.accept).toBe("application/octet-stream");
+  });
+
   it("rejects a non-http(s) or empty asset URL without fetching", async () => {
     await expect(
       pluginInstaller.previewFromRelease("ftp://example.com/x.tgz"),

@@ -64,6 +64,16 @@ export interface GuardedFetchOptions {
    */
   credential?: string;
   /**
+   * An optional `Accept` header value, sent on every hop (not origin-scoped: an
+   * Accept value carries no secret, unlike the credential, so there is nothing to
+   * withhold from a redirect target). Some hosts' download endpoints negotiate
+   * content by Accept (e.g. a GitHub/GHE Release-asset API endpoint returns JSON
+   * metadata for the wildcard default and only serves the binary for an exact
+   * "application/octet-stream"), so this lets a caller request the right
+   * representation without the guard needing to know why.
+   */
+  accept?: string;
+  /**
    * Permit http (the consented-intranet opt-in). Default false: https only. An
    * http hop is rejected as http-not-permitted unless this is set.
    */
@@ -415,7 +425,7 @@ async function discardBody(res: Response): Promise<void> {
  * streaming logic. Throws GuardedFetchError on a blocked hop or the hop cap.
  */
 export async function guardedFetch(url: string, options: GuardedFetchOptions): Promise<Response> {
-  const { sourceOrigin, credential } = options;
+  const { sourceOrigin, credential, accept } = options;
   const allowHttp = options.allowHttp ?? false;
   const fetchImpl = options.fetchImpl ?? (undiciFetch as unknown as typeof globalThis.fetch);
   const maxHops = options.maxHops ?? DEFAULT_MAX_HOPS;
@@ -462,6 +472,11 @@ export async function guardedFetch(url: string, options: GuardedFetchOptions): P
     const headers: Record<string, string> = {};
     if (authValue !== null && atSourceOrigin && !leftSourceOrigin) {
       headers.authorization = authValue;
+    }
+    // Accept carries no secret, so unlike the credential it rides every hop,
+    // including past a redirect that has left the source origin.
+    if (accept !== undefined) {
+      headers.accept = accept;
     }
 
     const init: DispatcherInit = { redirect: "manual", headers };

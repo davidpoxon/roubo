@@ -541,6 +541,12 @@ async function downloadAssetToFile(
       allowHttp: thirdParty?.allowHttp ?? false,
       fetchImpl: fetch as unknown as typeof globalThis.fetch,
       timeoutMs: null,
+      // A GitHub/GHE Release-asset API endpoint negotiates content by Accept: the
+      // default `*/*` (or even `application/octet-stream, */*`) returns the asset's
+      // JSON metadata, not its bytes, and only the exact value below gets the
+      // redirect to the binary. Harmless for a static/CDN asset host, which ignores
+      // Accept.
+      accept: "application/octet-stream",
     });
   } catch (err) {
     throw new InstallError(
