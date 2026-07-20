@@ -133,6 +133,12 @@ interface ActiveStaging {
   listing: MarketplaceListing;
   failed: boolean;
   errorCode?: InstallErrorCode;
+  // The server's exact refusal message (e.g. "Rejected tarball: unsupported
+  // entry type ..." or "Could not read the release asset tarball: ..."), shown
+  // alongside the stage's fail-closed reassurance text so a specific cause is
+  // never hidden behind a generic message (the failing stage already narrows
+  // WHAT failed; this says WHY).
+  errorDetail?: string;
   // The source ids the server named when it refused this id as ambiguous
   // (CPHMTP-FR-005, issue #558). Present only for an `ambiguous-source` refusal,
   // and what the pick-a-source banner renders its per-source choices from.
@@ -254,6 +260,7 @@ export default function Marketplace() {
             listing,
             failed: true,
             errorCode: stagingErrorCode(err),
+            errorDetail: errorMessage(err, STRINGS.installFailed),
             ambiguousSourceIds: ambiguousSourceIds(err),
           });
           addToast(errorMessage(err, STRINGS.installFailed));
@@ -278,6 +285,7 @@ export default function Marketplace() {
             listing,
             failed: true,
             errorCode: stagingErrorCode(err),
+            errorDetail: errorMessage(err, STRINGS.installFailed),
             ambiguousSourceIds: ambiguousSourceIds(err),
           });
           addToast(errorMessage(err, STRINGS.installFailed));
@@ -605,6 +613,7 @@ export default function Marketplace() {
                     pluginId={staging.listing.id}
                     artifactLabel={describeArtifact(staging.listing.source, staging.listing)}
                     errorCode={staging.errorCode}
+                    errorDetail={staging.errorDetail}
                   />
                 </div>
               )}
