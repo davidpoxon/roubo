@@ -479,7 +479,14 @@ export function createThirdPartyCatalogClient(
   const cacheDir =
     options.cacheDir ?? path.join(getRouboDir(), "marketplace", "sources", source.id);
   const cacheFile = path.join(cacheDir, CACHE_FILENAME);
-  const doFetch = options.fetchImpl ?? globalThis.fetch;
+  // Must default to npm undici's fetch, not globalThis.fetch: guardedFetch attaches a
+  // DNS-pinned-connect dispatcher (issue #590) built from npm undici, and only npm
+  // undici's fetch honours a foreign init.dispatcher. Node's built-in global fetch
+  // bundles a different undici major that rejects it with UND_ERR_INVALID_ARG, so every
+  // DNS-hostname source (i.e. every real one) silently failed and degraded to "empty" /
+  // "unavailable" before this default was corrected to mirror createCatalogClient's
+  // first-party default (see doFetch above, line ~250).
+  const doFetch = options.fetchImpl ?? (undiciFetch as unknown as typeof fetch);
   const log = options.log ?? ((message: string) => console.warn(message));
   const maxCatalogBytes = options.maxCatalogBytes ?? MAX_CATALOG_BYTES;
   const memoTtlMs = options.memoTtlMs ?? MEMO_TTL_MS;
