@@ -187,6 +187,7 @@ interface SeenRequest {
   origin: "A" | "B";
   path: string;
   authorization: string | undefined;
+  accept: string | undefined;
   cookie: string | undefined;
   referer: string | undefined;
   query: string;
@@ -221,6 +222,7 @@ function makeHandler(origin: "A" | "B") {
         origin,
         path: url.pathname,
         authorization: req.headers.authorization,
+        accept: req.headers.accept,
         cookie: typeof req.headers.cookie === "string" ? req.headers.cookie : undefined,
         referer: typeof req.headers.referer === "string" ? req.headers.referer : undefined,
         query: url.search,
@@ -417,6 +419,59 @@ describe("guardedFetch: credential attach and origin scoping (CPHMTP-NFR-002)", 
     for (const field of [req.query, req.cookie ?? "", req.referer ?? ""]) {
       expect(field.includes(BARE_CREDENTIAL)).toBe(false);
     }
+  });
+});
+
+// A GHE Release-asset API endpoint negotiates content by Accept (returning JSON
+// metadata instead of the asset's bytes unless the request carries the exact
+// value `application/octet-stream`), which is why the artifact download needs to
+// set it explicitly. Unlike the credential, Accept carries no secret, so it is
+// deliberately NOT origin-scoped: it rides every hop, including a cross-origin
+// redirect the credential is stripped from.
+describe("guardedFetch: Accept header (marketplace GHE Release-asset download)", () => {
+  it("sends the given Accept header on hop 0", async () => {
+    const res = await guardedFetch(`${origins.A}/target`, {
+      sourceOrigin: origins.A,
+      allowHttp: true,
+      accept: "application/octet-stream",
+    });
+    await drain(res);
+    expect(at("A", "/target").accept).toBe("application/octet-stream");
+  });
+
+  it("retains the Accept header across a same-origin redirect", async () => {
+    const res = await guardedFetch(`${origins.A}/same-origin-redirect`, {
+      sourceOrigin: origins.A,
+      allowHttp: true,
+      accept: "application/octet-stream",
+    });
+    await drain(res);
+    expect(at("A", "/same-origin-redirect").accept).toBe("application/octet-stream");
+    expect(at("A", "/target").accept).toBe("application/octet-stream");
+  });
+
+  it("retains the Accept header across a guard-permitted cross-origin redirect (no secret to withhold)", async () => {
+    const res = await guardedFetch(`${origins.A}/cross-origin-redirect`, {
+      sourceOrigin: origins.A,
+      allowHttp: true,
+      accept: "application/octet-stream",
+      fetchImpl: routedFetch,
+      lookup: publicLookup,
+    });
+    await drain(res);
+    expect(at("A", "/cross-origin-redirect").accept).toBe("application/octet-stream");
+    expect(at("B", "/target").accept).toBe("application/octet-stream");
+  });
+
+  it("sets no Accept header itself when the option is omitted", async () => {
+    const fetchImpl = vi.fn(async () => new Response("ok", { status: 200 }));
+    await guardedFetch(`${origins.A}/target`, {
+      sourceOrigin: origins.A,
+      allowHttp: true,
+      fetchImpl: fetchImpl as unknown as typeof globalThis.fetch,
+    });
+    const init = fetchImpl.mock.calls[0]?.[1] as { headers?: Record<string, string> } | undefined;
+    expect(init?.headers?.accept).toBeUndefined();
   });
 });
 
