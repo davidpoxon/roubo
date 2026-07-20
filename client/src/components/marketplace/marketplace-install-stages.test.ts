@@ -37,9 +37,16 @@ describe("stageIndexForErrorCode", () => {
     );
   });
 
-  it("maps integrity-failed and unpack-failed to the Verify artifact digest stage", () => {
+  it("maps integrity-failed to the Verify artifact digest stage", () => {
     expect(stageIndexForErrorCode("integrity-failed")).toBe(INSTALL_STAGE_INDEX.artifactDigest);
-    expect(stageIndexForErrorCode("unpack-failed")).toBe(INSTALL_STAGE_INDEX.artifactDigest);
+  });
+
+  it("maps unpack-failed to the Unpack & install stage, not the digest stage", () => {
+    // unpack-failed IS an unpack failure (zip-slip / bad entry type / oversize, or
+    // a non-archive download body); it belongs on the stage literally named for
+    // that operation, not the digest stage it used to share.
+    expect(stageIndexForErrorCode("unpack-failed")).toBe(INSTALL_STAGE_INDEX.unpackInstall);
+    expect(stageIndexForErrorCode("unpack-failed")).not.toBe(INSTALL_STAGE_INDEX.artifactDigest);
   });
 
   it("maps missing-integrity to the Verify artifact digest stage, not the default (issue #559)", () => {
@@ -93,10 +100,15 @@ describe("stageFailMessage", () => {
     expect(stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest)).toMatch(/^Digest mismatch:/);
   });
 
-  it("does NOT call an unpack containment rejection a digest mismatch (issue #374 corr-1)", () => {
-    const message = stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest, "unpack-failed");
+  it("states an unpack containment rejection on the Unpack & install stage, not the digest stage (issue #374 corr-1)", () => {
+    const message = stageFailMessage(INSTALL_STAGE_INDEX.unpackInstall, "unpack-failed");
     expect(message).toMatch(/could not be safely unpacked/i);
     expect(message).not.toMatch(/digest mismatch/i);
+    // The digest stage itself never mentions unpacking for this code, since
+    // unpack-failed no longer routes there.
+    expect(stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest, "unpack-failed")).not.toMatch(
+      /unpacked/i,
+    );
   });
 
   it("states a missing digest makes the plugin uninstallable, not tampered (issue #559)", () => {
@@ -176,6 +188,15 @@ describe("deriveStageStatuses", () => {
     expect(
       deriveStageStatuses(input({ failedPhase: "staging", errorCode: "download-failed" })),
     ).toEqual(["failed", "pending", "pending", "pending"]);
+  });
+
+  it("fails the Unpack & install stage (4) on a staging unpack-failed failure, leaving the digest stage (3) pending", () => {
+    // unpack runs BEFORE the digest check in the real pipeline (issue #370), so
+    // an unpack failure means the digest was never verified: stage 3 must not be
+    // marked "done" just because it sits earlier in the labelled list.
+    expect(
+      deriveStageStatuses(input({ failedPhase: "staging", errorCode: "unpack-failed" })),
+    ).toEqual(["done", "done", "pending", "failed"]);
   });
 
   it("fails the Unpack & install stage (4) on a confirm-phase failure regardless of code", () => {

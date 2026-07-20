@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { cp, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { cp, mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -41,6 +41,14 @@ const DEFAULT_MAX_TARBALL_ENTRIES = 10_000;
 let maxDownloadBytes = DEFAULT_MAX_DOWNLOAD_BYTES;
 let maxUnpackedBytes = DEFAULT_MAX_UNPACKED_BYTES;
 let maxTarballEntries = DEFAULT_MAX_TARBALL_ENTRIES;
+
+// Tar entry types a built plugin artifact may legitimately contain: plain files
+// and directories. "OldFile" (the pre-ustar regular-file type byte) and
+// "ContiguousFile" are, per node-tar's own type table, the same as "File" on
+// extract; they are accepted so a tarball produced by a packer that emits
+// either encoding is not rejected as if it carried a symlink or device. Every
+// other type (symlink, hardlink, char/block device, FIFO) stays rejected.
+const ALLOWED_TAR_TYPES = new Set(["File", "OldFile", "ContiguousFile", "Directory"]);
 
 /**
  * The marketplace source an install was resolved from, carried from the preview
@@ -456,6 +464,50 @@ async function clonePackageInto(
   }
 }
 
+// The byte offset of a POSIX ustar archive's magic ("ustar" + version), and how
+// many leading bytes to read to see it: a plain (uncompressed) tar starts with
+// a 100-byte name field, then mode/uid/gid/size/mtime/checksum fields, landing
+// the magic at offset 257.
+const USTAR_MAGIC_OFFSET = 257;
+const USTAR_MAGIC = "ustar";
+
+// Reads just enough of a downloaded file to tell whether it looks like a tar or
+// gzip archive, without loading the whole (potentially tens-of-MB) file.
+async function readLeadingBytes(file: string, length: number): Promise<Buffer> {
+  const handle = await open(file, "r");
+  try {
+    const buf = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(buf, 0, length, 0);
+    return buf.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
+// Rejects a downloaded release asset that is not actually a tar/gzip archive
+// (issue #370 follow-up): a misconfigured or unreachable release-download hop
+// can return a 200 whose body is an HTML sign-in page, a JSON error, or some
+// other non-archive content. Left unchecked, that body reaches `unpackTarball`
+// and fails with an opaque "could not read the tarball" unpack-failed, which
+// reads to the installer as a corrupt/malicious artifact rather than what it
+// actually is: nothing was ever properly downloaded. Checking the archive magic
+// right after download surfaces the real cause on the download step instead.
+async function assertLooksLikeArchive(file: string): Promise<void> {
+  const head = await readLeadingBytes(file, USTAR_MAGIC_OFFSET + USTAR_MAGIC.length);
+  const isGzip = head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b;
+  const isUstarTar =
+    head.length >= USTAR_MAGIC_OFFSET + USTAR_MAGIC.length &&
+    head
+      .subarray(USTAR_MAGIC_OFFSET, USTAR_MAGIC_OFFSET + USTAR_MAGIC.length)
+      .toString("latin1") === USTAR_MAGIC;
+  if (!isGzip && !isUstarTar) {
+    throw new InstallError(
+      "download-failed",
+      "The release asset response was not a tar/gzip archive; the server may have returned an error or sign-in page.",
+    );
+  }
+}
+
 // Stream a Release asset to `destFile`, failing closed on a non-200 response, a
 // network error, or a body that exceeds the download cap. The size guard runs
 // both up front (declared content-length) and as bytes flow (a server may lie
@@ -541,6 +593,7 @@ async function downloadAssetToFile(
       `Could not download the release asset: ${(err as Error).message}`,
     );
   }
+  await assertLooksLikeArchive(destFile);
 }
 
 // Unpack a downloaded tarball into `destDir` under untrusted-input mitigations
@@ -571,7 +624,7 @@ async function unpackTarball(tarballPath: string, destDir: string): Promise<void
           totalBytes += typeof entry.size === "number" ? entry.size : 0;
           if (violation === null) {
             const entryPath = String(entry.path);
-            if (entry.type !== "File" && entry.type !== "Directory") {
+            if (!ALLOWED_TAR_TYPES.has(String(entry.type))) {
               // Only plain files and directories belong in a built plugin
               // artifact: reject symlinks, hardlinks, devices, and FIFOs.
               violation = `unsupported entry type "${entry.type}" at "${entryPath}"`;
@@ -628,7 +681,7 @@ async function unpackTarball(tarballPath: string, destDir: string): Promise<void
         // In extract mode `entry` is a ReadEntry (it carries `type`); the typed
         // union also admits a create-mode `Stats`, which has no `type`.
         if (!("type" in entry)) return false;
-        if (entry.type !== "File" && entry.type !== "Directory") return false;
+        if (!ALLOWED_TAR_TYPES.has(String(entry.type))) return false;
         if (path.isAbsolute(entryPath) || entryPath.split(/[\\/]/).includes("..")) return false;
         try {
           resolveWithin(destDir, entryPath);

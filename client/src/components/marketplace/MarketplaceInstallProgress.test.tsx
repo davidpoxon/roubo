@@ -12,13 +12,14 @@ import type { InstallErrorCode } from "@roubo/shared";
 import type { StageStatus } from "./marketplace-install-stages";
 import MarketplaceInstallProgress from "./MarketplaceInstallProgress";
 
-function renderWidget(statuses: StageStatus[], errorCode?: InstallErrorCode) {
+function renderWidget(statuses: StageStatus[], errorCode?: InstallErrorCode, errorDetail?: string) {
   return render(
     <MarketplaceInstallProgress
       statuses={statuses}
       pluginId="ghe"
       artifactLabel="ghe-0.2.0.tgz"
       errorCode={errorCode}
+      errorDetail={errorDetail}
     />,
   );
 }
@@ -83,12 +84,35 @@ describe("MarketplaceInstallProgress", () => {
     expect(within(failed).queryByText("3")).not.toBeInTheDocument();
   });
 
-  it("shows a code-accurate failure message: an unpack containment rejection is not a digest mismatch (issue #374 corr-1)", () => {
-    renderWidget(["done", "done", "failed", "pending"], "unpack-failed");
-    const failed = screen.getByTestId("marketplace-install-step-2");
-    const failMessage = within(failed).getByTestId("marketplace-install-step-2-error");
+  it("shows a code-accurate failure message on the Unpack & install stage: an unpack containment rejection is not a digest mismatch (issue #374 corr-1)", () => {
+    // unpack-failed's failing stage is index 3 (Unpack & install); the digest
+    // stage (index 2) is left pending because unpack runs before the digest
+    // check, so it was never reached.
+    renderWidget(["done", "done", "pending", "failed"], "unpack-failed");
+    const failed = screen.getByTestId("marketplace-install-step-3");
+    const failMessage = within(failed).getByTestId("marketplace-install-step-3-error");
     expect(failMessage).toHaveTextContent(/could not be safely unpacked/i);
     expect(failMessage).not.toHaveTextContent(/digest mismatch/i);
+  });
+
+  it("renders the server's exact error detail under the fail-closed message", () => {
+    renderWidget(
+      ["done", "done", "pending", "failed"],
+      "unpack-failed",
+      "Could not read the release asset tarball: unexpected end of file",
+    );
+    const failed = screen.getByTestId("marketplace-install-step-3");
+    expect(within(failed).getByTestId("marketplace-install-step-3-detail")).toHaveTextContent(
+      "Could not read the release asset tarball: unexpected end of file",
+    );
+  });
+
+  it("omits the detail line when no errorDetail is given", () => {
+    renderWidget(["done", "done", "failed", "pending"], "integrity-failed");
+    const failed = screen.getByTestId("marketplace-install-step-2");
+    expect(
+      within(failed).queryByTestId("marketplace-install-step-2-detail"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the digest mismatch wording for an integrity failure on the digest stage", () => {

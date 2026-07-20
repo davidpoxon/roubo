@@ -855,6 +855,49 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
     });
   });
 
+  // An unpack containment rejection (zip-slip / bad entry type / oversize, or a
+  // non-archive download body) marks the Unpack & install stage failed, not the
+  // digest stage: the digest check never ran, so it stays pending rather than
+  // "done". The server's exact reason (the ApiError message) surfaces alongside
+  // the generic fail-closed wording so the cause is never hidden.
+  it("marks the Unpack & install stage failed on a staging unpack-failed error and surfaces the server's exact reason", async () => {
+    const mutate = vi.fn((_id: string, opts: { onError: (e: unknown) => void }) => {
+      opts.onError(
+        new ApiError(
+          'Rejected tarball: unsupported entry type "SymbolicLink" at "link"',
+          422,
+          "unpack-failed",
+        ),
+      );
+    });
+    mockedInstallPreview.mockReturnValue(mutationStub({ mutate }));
+    setCatalog([CATALOG[0]]);
+    const user = userEvent.setup();
+    render(<Marketplace />);
+
+    await user.click(screen.getByTestId("marketplace-card-install"));
+
+    const progressModal = await screen.findByTestId("marketplace-install-progress-modal");
+    const widget = within(progressModal).getByTestId("marketplace-install-progress");
+
+    // The digest stage never ran (unpack failed before it): pending, not done.
+    expect(within(widget).getByTestId("marketplace-install-step-2")).toHaveAttribute(
+      "data-status",
+      "pending",
+    );
+
+    const unpackStep = within(widget).getByTestId("marketplace-install-step-3");
+    expect(unpackStep).toHaveAttribute("data-status", "failed");
+    expect(within(unpackStep).getByTestId("marketplace-install-step-3-error")).toHaveTextContent(
+      /could not be safely unpacked/i,
+    );
+    expect(within(unpackStep).getByTestId("marketplace-install-step-3-detail")).toHaveTextContent(
+      'Rejected tarball: unsupported entry type "SymbolicLink" at "link"',
+    );
+
+    expect(screen.queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();
+  });
+
   // CPHM-TC-019: a bad catalog signature surfaced during install marks the
   // Verify catalog signature stage failed and refuses the install (fail-closed),
   // with no later stage starting.

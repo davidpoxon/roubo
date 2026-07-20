@@ -28,14 +28,17 @@ export const INSTALL_STAGE_INDEX = {
 // Maps an InstallErrorCode to the 0-based index of the stage that fails:
 //   download-failed                          -> stage 1 (Download built artifact)
 //   catalog-unverified, marketplace-unreachable -> stage 2 (Verify catalog signature)
-//   integrity-failed, unpack-failed, missing-integrity -> stage 3 (Verify artifact digest)
-//   anything else (confirm/commit phase)     -> stage 4 (Unpack & install)
+//   integrity-failed, missing-integrity      -> stage 3 (Verify artifact digest)
+//   unpack-failed, anything else (confirm/commit phase) -> stage 4 (Unpack & install)
 // Codes that can only surface during (or are not specific to a stage before) the
 // confirm/commit phase fall through to the final "Unpack & install" stage.
 // missing-integrity (an unsigned entry with no usable digest, #559) is rejected
 // BEFORE the download, so it precedes every stage. It is mapped to the digest
-// stage regardless, because that is the stage whose promise it fails: the default
-// fall-through would misreport a pre-fetch refusal as an unpack failure.
+// stage regardless, because that is the stage whose promise it fails: mapping it
+// to "Unpack & install" would misreport a pre-fetch refusal as an unpack failure.
+// unpack-failed IS an unpack failure (a zip-slip / bad-entry-type / oversize
+// containment rejection, or a non-archive download body), so it belongs on the
+// stage literally named for that operation rather than sharing the digest stage.
 export function stageIndexForErrorCode(code: InstallErrorCode | undefined): number {
   switch (code) {
     case "download-failed":
@@ -44,7 +47,6 @@ export function stageIndexForErrorCode(code: InstallErrorCode | undefined): numb
     case "marketplace-unreachable":
       return INSTALL_STAGE_INDEX.catalogSignature;
     case "integrity-failed":
-    case "unpack-failed":
     case "missing-integrity":
       return INSTALL_STAGE_INDEX.artifactDigest;
     default:
@@ -56,9 +58,9 @@ export function stageIndexForErrorCode(code: InstallErrorCode | undefined): numb
 // a failed stage. More than one error code can route to the same stage with
 // different meanings, so the message keys on the specific code where the stage
 // has multiple causes, and falls back to the stage's default otherwise: an
-// unpack containment rejection (zip-slip / symlink / oversize) is not a digest
-// mismatch, and an unreachable marketplace is not a failed signature, even
-// though both share a stage with the digest / signature failure respectively.
+// unreachable marketplace is not a failed signature even though both share the
+// catalog-signature stage, and a missing digest is not a mismatch even though
+// both share the artifact-digest stage.
 export function stageFailMessage(stageIndex: number, code?: InstallErrorCode): string {
   switch (stageIndex) {
     case INSTALL_STAGE_INDEX.download:
@@ -68,15 +70,17 @@ export function stageFailMessage(stageIndex: number, code?: InstallErrorCode): s
         ? "Marketplace unreachable: install paused, nothing written."
         : "Catalog signature unverified: install refused, nothing written.";
     case INSTALL_STAGE_INDEX.artifactDigest:
-      if (code === "unpack-failed") {
-        return "Artifact could not be safely unpacked: nothing written, nothing executed.";
-      }
       // Not a mismatch: there was no digest to check against, so the artifact was
       // never fetched. Say that plainly rather than implying tampering (#559).
       if (code === "missing-integrity") {
         return "Uninstallable without a per-artifact digest: nothing fetched, nothing written.";
       }
       return "Digest mismatch: nothing written, nothing executed.";
+    case INSTALL_STAGE_INDEX.unpackInstall:
+      if (code === "unpack-failed") {
+        return "Artifact could not be safely unpacked: nothing written, nothing executed.";
+      }
+      return "Install failed: nothing written, nothing executed.";
     default:
       return "Install failed: nothing written, nothing executed.";
   }
@@ -109,11 +113,24 @@ export function deriveStageStatuses(input: StageStatusInput): StageStatus[] {
       input.failedPhase === "confirm"
         ? INSTALL_STAGE_INDEX.unpackInstall
         : stageIndexForErrorCode(input.errorCode);
+    // unpack-failed's UI stage (Unpack & install, index 3) sits after the
+    // artifact-digest stage (index 2) in the labelled list, but the real
+    // pipeline unpacks BEFORE verifying the digest (issue #370): an unpack
+    // failure means the digest check never ran. Don't mark that earlier-indexed
+    // stage "done" just because its UI position precedes the one that failed.
+    const digestNeverReached =
+      input.failedPhase === "staging" && input.errorCode === "unpack-failed";
     const statuses: StageStatus[] = [];
     for (let i = 0; i < INSTALL_STAGE_COUNT; i += 1) {
-      if (i < failed) statuses.push("done");
-      else if (i === failed) statuses.push("failed");
-      else statuses.push("pending");
+      if (digestNeverReached && i === INSTALL_STAGE_INDEX.artifactDigest) {
+        statuses.push("pending");
+      } else if (i < failed) {
+        statuses.push("done");
+      } else if (i === failed) {
+        statuses.push("failed");
+      } else {
+        statuses.push("pending");
+      }
     }
     return statuses;
   }

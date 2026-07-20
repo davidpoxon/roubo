@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { tmpdir } from "node:os";
+import { gzipSync } from "node:zlib";
 import path from "node:path";
 import * as tar from "tar";
 import type { PluginRecord } from "@roubo/shared";
@@ -761,6 +762,54 @@ async function makeSymlinkTarball(): Promise<string> {
   return tgz;
 }
 
+// Hand-builds a single POSIX ustar header block with an explicit typeflag byte.
+// node-tar's own `tar.c()` always writes new-style ('0') File entries, so a raw
+// header is the only way to produce a tarball whose regular files carry a
+// different (but file-equivalent, per node-tar's own type table) type byte, such
+// as "7" (ContiguousFile).
+function ustarHeader(name: string, size: number, typeflag: string): Buffer {
+  const block = Buffer.alloc(512);
+  block.write(name, 0, "utf8");
+  block.write("0000644\0", 100, "utf8"); // mode
+  block.write("0000000\0", 108, "utf8"); // uid
+  block.write("0000000\0", 116, "utf8"); // gid
+  block.write(`${size.toString(8).padStart(11, "0")}\0`, 124, "utf8"); // size
+  const mtime = Math.floor(Date.now() / 1000);
+  block.write(`${mtime.toString(8).padStart(11, "0")}\0`, 136, "utf8"); // mtime
+  block.write("        ", 148, "utf8"); // chksum placeholder: 8 spaces
+  block.write(typeflag, 156, "latin1"); // typeflag
+  block.write("ustar\0", 257, "utf8"); // magic
+  block.write("00", 263, "utf8"); // version
+  let sum = 0;
+  for (let i = 0; i < 512; i += 1) sum += block[i];
+  block.write(`${sum.toString(8).padStart(6, "0")}\0 `, 148, "latin1");
+  return block;
+}
+
+function padTo512(buf: Buffer): Buffer {
+  const rem = buf.length % 512;
+  return rem === 0 ? buf : Buffer.concat([buf, Buffer.alloc(512 - rem)]);
+}
+
+// Builds a raw (hand-crafted) gzipped tarball whose entries carry an explicit
+// typeflag byte, so a type node-tar's own `tar.c()` cannot be made to emit
+// (e.g. ContiguousFile, "7") can be exercised.
+async function makeRawTypedTarball(
+  entries: { path: string; content: string; typeflag: string }[],
+): Promise<string> {
+  const blocks: Buffer[] = [];
+  for (const e of entries) {
+    const content = Buffer.from(e.content, "utf8");
+    blocks.push(ustarHeader(e.path, content.length, e.typeflag));
+    blocks.push(padTo512(content));
+  }
+  blocks.push(Buffer.alloc(1024)); // two zero blocks: end-of-archive marker
+  const out = await trackTmp("roubo-raw-tar-");
+  const tgz = path.join(out, "asset.tgz");
+  await writeFile(tgz, gzipSync(Buffer.concat(blocks)));
+  return tgz;
+}
+
 // Mock undici.fetch to stream the given tarball; a fresh read stream per call so
 // the body can be consumed more than once across re-staging.
 function fakeDownload(tgzPath: string) {
@@ -870,6 +919,20 @@ describe("previewFromRelease (issue #370)", () => {
     expect(await listStaging()).toEqual([]);
   });
 
+  it("accepts a ContiguousFile entry (typeflag '7'): node-tar treats it as a regular file on extract", async () => {
+    // A packer that emits the contiguous-file type byte for a regular file must
+    // not be rejected as if it were a symlink or device: node-tar's own type
+    // table documents ContiguousFile as "same as File".
+    fakeDownload(
+      await makeRawTypedTarball([
+        { path: "roubo-plugin.yaml", content: ECHO_MANIFEST, typeflag: "7" },
+      ]),
+    );
+    const preview = await pluginInstaller.previewFromRelease(ASSET_URL);
+    expect(preview.manifest.id).toBe("echo");
+    expect(await listStaging()).toContain(preview.stagingToken);
+  });
+
   it("rejects an over-entry-count tarball fail-closed", async () => {
     pluginInstaller.__test.setLimits({ maxTarballEntries: 2 });
     fakeDownload(
@@ -909,6 +972,22 @@ describe("previewFromRelease (issue #370)", () => {
       code: "download-failed",
     });
     expect(fetch).toHaveBeenCalled();
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("rejects a downloaded body that is not a tar/gzip archive (a 200 response whose body is an error/sign-in page)", async () => {
+    // A misconfigured or unreachable release-download hop can return 200 with a
+    // non-archive body (HTML sign-in page, JSON error, ...). Left unchecked, that
+    // body would reach unpackTarball and fail there with an opaque "could not
+    // read the tarball" unpack-failed; this check surfaces the real cause
+    // (nothing was actually downloaded) on the download step instead.
+    const out = await trackTmp("roubo-not-archive-");
+    const notArchive = path.join(out, "not-archive.tgz");
+    await writeFile(notArchive, "<html><body>Sign in to continue</body></html>", "utf8");
+    fakeDownload(notArchive);
+    await expect(pluginInstaller.previewFromRelease(ASSET_URL)).rejects.toMatchObject({
+      code: "download-failed",
+    });
     expect(await listStaging()).toEqual([]);
   });
 

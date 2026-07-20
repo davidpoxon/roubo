@@ -59,6 +59,11 @@ interface Props {
   // integrity-failed both surface on the digest stage). Optional: when absent the
   // stage's default fail-closed message is used.
   errorCode?: InstallErrorCode;
+  // The server's exact refusal message, when available (e.g. "Rejected tarball:
+  // unsupported entry type ..." or "Could not read the release asset tarball:
+  // ..."). Rendered under the stage's fail-closed reassurance text so the
+  // specific cause is never hidden behind the generic per-stage wording.
+  errorDetail?: string;
 }
 
 export default function MarketplaceInstallProgress({
@@ -66,6 +71,7 @@ export default function MarketplaceInstallProgress({
   pluginId,
   artifactLabel,
   errorCode,
+  errorDetail,
 }: Props) {
   const metas = [artifactLabel, "ed25519", "sha256", `~/.roubo/plugins/${pluginId}`];
 
@@ -95,13 +101,23 @@ export default function MarketplaceInstallProgress({
             <div className="min-w-0 flex-1">
               <p className={`text-[13px] ${LABEL_CLASS[status]}`}>{label}</p>
               {status === "failed" && (
-                <p
-                  role="alert"
-                  data-testid={`marketplace-install-step-${index}-error`}
-                  className="mt-0.5 text-[12px] text-red-600 dark:text-red-400"
-                >
-                  {stageFailMessage(index, errorCode)}
-                </p>
+                <>
+                  <p
+                    role="alert"
+                    data-testid={`marketplace-install-step-${index}-error`}
+                    className="mt-0.5 text-[12px] text-red-600 dark:text-red-400"
+                  >
+                    {stageFailMessage(index, errorCode)}
+                  </p>
+                  {errorDetail && (
+                    <p
+                      data-testid={`marketplace-install-step-${index}-detail`}
+                      className="mt-0.5 font-mono text-[11px] text-red-500/80 dark:text-red-400/70"
+                    >
+                      {errorDetail}
+                    </p>
+                  )}
+                </>
               )}
             </div>
             {status !== "failed" && (
