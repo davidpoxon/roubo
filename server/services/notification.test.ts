@@ -51,6 +51,20 @@ describe("createNotification", () => {
     });
   });
 
+  it("preserves benchSetupComplete when persisting (#630)", () => {
+    // updateBench replaces the whole record, so omitting the flag would erase it
+    // from state.json, and initialize hydrates an absent flag as `true`. The
+    // bench-error notification fires on the failed-setup path that must stay
+    // retryable, so a dropped `false` would make a failed setup look complete.
+    const bench = makeBench({ benchSetupComplete: false });
+
+    createNotification(bench, "bench-error");
+
+    expect(mockUpdateBench).toHaveBeenCalledWith(
+      expect.objectContaining({ benchSetupComplete: false }),
+    );
+  });
+
   it("assigns action-needed priority for claude-waiting", () => {
     const bench = makeBench();
     const result = createNotification(bench, "claude-waiting", "session-1");

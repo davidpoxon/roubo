@@ -52,6 +52,7 @@ function toPersisted(bench: Bench): PersistedBench {
     baseCommit: bench.baseCommit,
     injectedJigId: bench.injectedJigId,
     injectedJigSource: bench.injectedJigSource,
+    benchSetupComplete: bench.benchSetupComplete,
   };
 }
 
@@ -448,7 +449,9 @@ export async function assignIssue(
     ...(persistRaw ? { raw: issue.raw } : {}),
   };
 
-  // Persist changes
+  // Persist changes. `updateBench` replaces the whole record, so an omitted
+  // `benchSetupComplete` is erased from state.json and hydrates back as `true`
+  // (#630), which would mark an unfinished or failed `benches.setup` complete.
   persistBenchIfLive({
     id: bench.id,
     projectId: bench.projectId,
@@ -459,6 +462,7 @@ export async function assignIssue(
     assignedContainers: bench.assignedContainers,
     assignedIssue: bench.assignedIssue,
     notifications: bench.notifications,
+    benchSetupComplete: bench.benchSetupComplete,
   });
 
   const {
@@ -499,6 +503,7 @@ export async function assignIssue(
       baseCommit: bench.baseCommit,
       injectedJigId: bench.injectedJigId,
       injectedJigSource: bench.injectedJigSource,
+      benchSetupComplete: bench.benchSetupComplete,
     });
   }
 
@@ -530,6 +535,7 @@ export async function unassignIssue(projectId: string, benchId: number): Promise
     baseCommit: bench.baseCommit,
     injectedJigId: bench.injectedJigId,
     injectedJigSource: bench.injectedJigSource,
+    benchSetupComplete: bench.benchSetupComplete,
   });
 
   return bench;

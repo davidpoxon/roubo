@@ -1310,6 +1310,20 @@ export interface Bench {
    * with resolveWithin when loaded (enforcement lives in the testbench store).
    */
   focusedSpecPath?: string;
+  /**
+   * Whether the bench-level setup command (`benches.setup`) has already run to
+   * completion for this bench. `benches.setup` is documented as running once
+   * after worktree creation, so the `bench-setup` provisioning step is only
+   * seeded while this is false, and it flips to `true` after a successful run
+   * (#630). A new bench starts out `false` even when the project defines no
+   * `benches.setup`, so that a setup command added to roubo.yaml later still
+   * runs once; the flag is inert until a command exists, since both the step
+   * seeding and the run block also gate on `benches.setup` being set.
+   * Absent on benches created before this field existed;
+   * load-time migration coerces those to `true` (they were provisioned under
+   * the old flow, which always ran setup).
+   */
+  benchSetupComplete?: boolean;
 }
 
 // ── Git dirty-state types ──
@@ -1477,6 +1491,13 @@ export interface PersistedBench {
    * old full-provisioning flow, so setup already ran).
    */
   componentSetupState?: Record<string, boolean>;
+  /**
+   * Persisted mirror of `Bench.benchSetupComplete`: whether `benches.setup`
+   * has already run to completion for this bench, so a later bench-level Start
+   * skips it (#630). Absent on benches written before this field existed;
+   * load-time migration coerces those to `true`.
+   */
+  benchSetupComplete?: boolean;
 }
 
 /**

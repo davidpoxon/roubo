@@ -223,6 +223,7 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     componentSetupState: Object.fromEntries(
       Object.entries(bench.components).map(([name, c]) => [name, c.setupComplete]),
     ),
+    benchSetupComplete: bench.benchSetupComplete,
   };
 }
 

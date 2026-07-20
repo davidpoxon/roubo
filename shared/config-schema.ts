@@ -230,7 +230,9 @@ export const BenchesConfigSchema = z
   .object({
     max: z.int().min(1).max(99),
     /**
-     * Command run once at the workspace root before components start.
+     * Command run once per bench at the workspace root, after worktree
+     * creation and before components start. It does not re-run on later
+     * bench-level Starts once it has succeeded.
      * Executed through the user's login shell, so shell syntax is supported:
      * `&&` chaining, redirection, and pipes. On zsh the shell is also started
      * interactively so that `~/.zshrc` loads, which is what makes version
