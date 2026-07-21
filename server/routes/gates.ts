@@ -54,7 +54,7 @@ import {
 } from "../lib/safe-path.js";
 import { evaluateGate } from "../lib/gate-evaluator.js";
 import type { GateState, VerifyUnit } from "../lib/gate-evaluator.js";
-import type { Unit } from "@roubo/shared/work-units-contract";
+import type { Tracker, Unit } from "@roubo/shared/work-units-contract";
 import {
   validateGateOverrides,
   type GateOverrideOp,
@@ -64,6 +64,7 @@ import { EmptyNotesError, fileFixIssueAndBlock } from "../services/fix-issue-fil
 import { TrackerActionError, closeGate, reopenGate } from "../services/tracker-action-gateway.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
 import { isDone } from "../services/gate-lifecycle-coordinator.js";
+import { gateTrackerExternalId } from "../services/gate-external-id.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import type { NormalizedIssue } from "@roubo/shared";
 import { RouteError } from "./helpers.js";
@@ -280,8 +281,8 @@ async function withSignedOff(
   response: GateStateResponse,
 ): Promise<SignedOffGateStateResponse> {
   const targets = signOffTargets(loaded);
-  const refs = targets.map((t) => t.tracker?.ref);
-  if (response.status !== "passed" || refs.some((ref) => !ref)) {
+  const trackers = targets.map((t) => t.tracker);
+  if (response.status !== "passed" || trackers.some((tr) => !tr?.ref)) {
     return { ...response, signedOff: false };
   }
   const active = resolveActivePlugin(projectId);
@@ -289,9 +290,15 @@ async function withSignedOff(
     return { ...response, signedOff: false };
   }
   try {
+    // The contract's `tracker.ref` is a BARE issue id; the bundled GitHub plugins
+    // key on a qualified `owner/repo#<n>` externalId (issue #1006). Qualify each
+    // target's tracker before the getIssue RPC. Any qualification/RPC failure is
+    // fail-closed (signedOff = false), never a 500 on a read (NFR-005).
     const issues = await Promise.all(
-      (refs as string[]).map((ref) =>
-        pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", { externalId: ref }),
+      (trackers as Tracker[]).map((tr) =>
+        pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", {
+          externalId: gateTrackerExternalId(tr),
+        }),
       ),
     );
     return { ...response, signedOff: issues.every((issue) => isDone(issue)) };
@@ -726,7 +733,15 @@ router.post(
             : `Gate '${req.params.gateId}' has no tracker issue, so a fix issue cannot be wired to block it.`,
         );
       }
-      const targetRefs = targets.flatMap((t) => (t.tracker?.ref ? [t.tracker.ref] : []));
+      // Translate each target's tracker into the qualified `owner/repo#<n>` plugin
+      // externalId the bundled GitHub plugins key on (issue #1006): a bare
+      // contract-conformant ref (an issue number) is qualified from `tracker.url`.
+      // These refs flow to the plugin's createIssue (repoFullName) and addBlockedBy
+      // (block targets), both of which require the qualified form, so a bare-ref
+      // gate must be qualified here just like the sign-off path.
+      const targetRefs = targets.flatMap((t) =>
+        t.tracker ? [gateTrackerExternalId(t.tracker)] : [],
+      );
       const [gateRef, ...additionalGateRefs] = targetRefs;
       const repoFullName = repoFullNameFromRef(gateRef);
       if (repoFullName === null) {

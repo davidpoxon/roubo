@@ -102,9 +102,11 @@ describe("onGatePassed: closes a passed gate via the plugin transition (FR-007, 
 
     await onGatePassed("proj-1", makeGate("451"), "github-com", deps);
 
-    // Routed through applyTransition with the done transition from allowedTransitions (AC2).
-    expect(applyTransitionCalls).toEqual([{ externalId: "451", transitionName: "close" }]);
-    expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "451" });
+    // Routed through applyTransition with the done transition from allowedTransitions
+    // (AC2). The bare contract ref "451" is qualified to "o/r#451" for the plugin
+    // (issue #1006), while the audit entry keeps the bare ref.
+    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#451", transitionName: "close" }]);
+    expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "o/r#451" });
 
     // Audit-logged with the gate, plugin, tracker ref and transition (NFR-001).
     const entries = audit.query();
@@ -119,6 +121,82 @@ describe("onGatePassed: closes a passed gate via the plugin transition (FR-007, 
         outcome: "closed",
       },
     ]);
+  });
+});
+
+// ── Regression (issue #1006): a contract-conformant BARE tracker.ref (an issue
+// number, per shared/work-units-contract.ts TrackerSchema) must be qualified to
+// the bundled GitHub plugin's `owner/repo#<n>` externalId before it reaches
+// getIssue / applyTransition, not passed verbatim (which the plugin rejects with
+// `missing "#"`). ──
+
+describe("onGatePassed / onGateReopened: qualify a bare tracker.ref (issue #1006)", () => {
+  // A deps.invoke that faithfully rejects a bare (unqualified) externalId the way
+  // the bundled GitHub plugin's parseGithubExternalId does, so a verbatim bare ref
+  // would reproduce the issue's `missing "#"` crash here.
+  function makePluginFaithfulDeps() {
+    const audit = new GateAuditLog();
+    const applyTransitionCalls: Array<{ externalId: string; transitionName: string }> = [];
+    const invoke = vi.fn(async (_pluginId: string, method: string, params: unknown) => {
+      const { externalId } = params as { externalId: string };
+      if (!externalId.includes("#")) {
+        throw new Error(`[shared-github] externalId "${externalId}" missing "#".`);
+      }
+      if (method === "getIssue") return makeIssue({ externalId }) as never;
+      if (method === "applyTransition") {
+        applyTransitionCalls.push(params as { externalId: string; transitionName: string });
+        return makeIssue({ currentState: "closed", allowedTransitions: ["reopen"] }) as never;
+      }
+      throw new Error(`unexpected method ${method}`);
+    });
+    const deps: GateLifecycleDeps = {
+      invoke: invoke as unknown as GateLifecycleDeps["invoke"],
+      recordAudit: (entry) => audit.record(entry),
+      now: () => "2026-06-22T00:00:00.000Z",
+    };
+    return { deps, audit, invoke, applyTransitionCalls };
+  }
+
+  it("onGatePassed qualifies the bare ref, keeping the audit ref bare", async () => {
+    const { deps, audit, invoke, applyTransitionCalls } = makePluginFaithfulDeps();
+
+    // makeGate("1033") carries url https://github.com/o/r/issues/1033.
+    await expect(
+      onGatePassed("proj-1", makeGate("1033"), "github-com", deps),
+    ).resolves.toBeUndefined();
+
+    expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "o/r#1033" });
+    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#1033", transitionName: "close" }]);
+    // The audit entry keeps the BARE contract ref, not the qualified externalId.
+    expect(audit.query()[0]).toMatchObject({ trackerRef: "1033", outcome: "closed" });
+  });
+
+  it("onGateReopened qualifies the bare ref, keeping the audit ref bare", async () => {
+    const { deps, audit, invoke, applyTransitionCalls } = makePluginFaithfulDeps();
+    // A closed issue so reopen has a reopen-bound transition to apply.
+    invoke.mockImplementation(async (_pluginId, method, params) => {
+      const { externalId } = params as { externalId: string };
+      if (!externalId.includes("#")) {
+        throw new Error(`[shared-github] externalId "${externalId}" missing "#".`);
+      }
+      if (method === "getIssue") {
+        return makeIssue({
+          externalId,
+          currentState: "closed",
+          allowedTransitions: ["reopen"],
+        }) as never;
+      }
+      applyTransitionCalls.push(params as { externalId: string; transitionName: string });
+      return makeIssue({ currentState: "open", allowedTransitions: ["close"] }) as never;
+    });
+
+    await expect(
+      onGateReopened("proj-1", makeGate("1033"), "github-com", deps),
+    ).resolves.toBeUndefined();
+
+    expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "o/r#1033" });
+    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#1033", transitionName: "reopen" }]);
+    expect(audit.query()[0]).toMatchObject({ trackerRef: "1033", outcome: "reopened" });
   });
 });
 
@@ -167,7 +245,7 @@ describe("onGatePassed: a rejected close surfaces an error and leaves the issue 
 
     // The transition was attempted (so it is a genuine close attempt)...
     expect(invoke).toHaveBeenCalledWith("github-com", "applyTransition", {
-      externalId: "451",
+      externalId: "o/r#451",
       transitionName: "close",
     });
     // ...but no audit entry was recorded for the failed call: the gate is not
@@ -220,9 +298,11 @@ describe("onGateReopened: reopens a signed-off gate via the plugin transition (#
 
     await onGateReopened("proj-1", makeGate("451"), "github-com", deps);
 
-    // Routed through applyTransition with the reopen transition from allowedTransitions.
-    expect(applyTransitionCalls).toEqual([{ externalId: "451", transitionName: "reopen" }]);
-    expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "451" });
+    // Routed through applyTransition with the reopen transition from
+    // allowedTransitions. The bare contract ref "451" is qualified to "o/r#451" for
+    // the plugin (issue #1006), while the audit entry keeps the bare ref.
+    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#451", transitionName: "reopen" }]);
+    expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "o/r#451" });
 
     const entries = audit.query();
     expect(entries).toEqual<GateAuditEntry[]>([

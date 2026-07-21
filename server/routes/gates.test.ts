@@ -677,6 +677,38 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     );
   });
 
+  it("qualifies a contract-conformant bare tracker.ref into owner/repo#<n> before filing (issue #1006)", async () => {
+    // A gate whose tracker is contract-conformant: a BARE `ref` (issue number)
+    // with owner/repo carried in `url`. repoFullName and the block target ref must
+    // both be derived as the qualified form, not the bare "1033".
+    const tracker: Tracker = {
+      system: "github",
+      ref: "1033",
+      url: "https://github.com/o/r/issues/1033",
+      blocked_by_refs: [],
+    };
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", { ...gate("WU-040", ["TC-024"]), tracker }),
+    ]);
+    vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockResolvedValue({
+      fixIssueRef: "o/r#500",
+      gateRef: "o/r#1033",
+      failedCaseId: "TC-024",
+      linkStatus: "complete",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const res = await request(app)
+      .post("/p1/gates/WU-040/fix-issues")
+      .send({ failedCaseId: "TC-024", notes: "Login button is inert." });
+
+    expect(res.status).toBe(201);
+    expect(fixIssueFiler.fileFixIssueAndBlock).toHaveBeenCalledWith(
+      "p1",
+      expect.objectContaining({ repoFullName: "o/r", gateRef: "o/r#1033", failedCaseId: "TC-024" }),
+    );
+  });
+
   it("207 with link_pending when the link step failed after create (TC-052)", async () => {
     vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockResolvedValue({
       fixIssueRef: "o/r#452",
