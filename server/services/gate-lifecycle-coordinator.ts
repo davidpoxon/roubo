@@ -20,6 +20,7 @@
 
 import { DONE_STATUSES, type GateAuditEntry, type NormalizedIssue } from "@roubo/shared";
 import type { VerifyUnit } from "../lib/gate-evaluator.js";
+import { gateTrackerExternalId } from "./gate-external-id.js";
 import * as pluginManager from "./plugin-manager.js";
 
 /**
@@ -179,13 +180,19 @@ export async function onGatePassed(
   pluginId: string,
   deps: GateLifecycleDeps = defaultDeps(),
 ): Promise<void> {
-  const trackerRef = gate.tracker?.ref;
+  const tracker = gate.tracker;
   // A gate with no filed tracker issue has nothing to close (the tracker block
   // is absent before the unit is filed, work-units-contract.ts:89).
-  if (!trackerRef) return;
+  if (!tracker?.ref) return;
+  const trackerRef = tracker.ref;
+  // The contract's `tracker.ref` is a BARE issue id, but the bundled GitHub
+  // plugins key on a qualified `owner/repo#<n>` externalId and reject a bare id
+  // (issue #1006). Qualify it (from `tracker.url`) for the plugin RPCs; the audit
+  // entries below keep the bare contract ref.
+  const externalId = gateTrackerExternalId(tracker);
 
   const issue = await deps.invoke<NormalizedIssue>(pluginId, "getIssue", {
-    externalId: trackerRef,
+    externalId,
   });
 
   // Idempotent no-op: an already-done gate issue is left untouched (AC-3). The
@@ -213,7 +220,7 @@ export async function onGatePassed(
   // Apply the transition. A plugin rejection propagates: nothing below runs, so
   // no audit entry is recorded and the issue stays open (AC-4).
   await deps.invoke<NormalizedIssue>(pluginId, "applyTransition", {
-    externalId: trackerRef,
+    externalId,
     transitionName,
   });
 
@@ -256,12 +263,17 @@ export async function onGateReopened(
   pluginId: string,
   deps: GateLifecycleDeps = defaultDeps(),
 ): Promise<void> {
-  const trackerRef = gate.tracker?.ref;
+  const tracker = gate.tracker;
   // A gate with no filed tracker issue has nothing to reopen.
-  if (!trackerRef) return;
+  if (!tracker?.ref) return;
+  const trackerRef = tracker.ref;
+  // The contract's `tracker.ref` is a BARE issue id; the bundled GitHub plugins
+  // key on a qualified `owner/repo#<n>` externalId (issue #1006). Qualify it for
+  // the plugin RPCs; the audit entries below keep the bare contract ref.
+  const externalId = gateTrackerExternalId(tracker);
 
   const issue = await deps.invoke<NormalizedIssue>(pluginId, "getIssue", {
-    externalId: trackerRef,
+    externalId,
   });
 
   // Idempotent no-op: an already-open gate issue is left untouched. The skip is
@@ -289,7 +301,7 @@ export async function onGateReopened(
   // Apply the transition. A plugin rejection propagates: nothing below runs, so
   // no audit entry is recorded and the issue stays closed.
   await deps.invoke<NormalizedIssue>(pluginId, "applyTransition", {
-    externalId: trackerRef,
+    externalId,
     transitionName,
   });
 

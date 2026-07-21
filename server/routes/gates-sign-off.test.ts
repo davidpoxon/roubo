@@ -467,6 +467,48 @@ describe("GET /:projectId/gates/:gateId derives signedOff from the tracker issue
   });
 });
 
+describe("GET signedOff qualifies a contract-conformant bare tracker.ref (issue #1006)", () => {
+  // A passed gate whose tracker is contract-conformant: a BARE `ref` (issue
+  // number) with the full owner/repo carried in `url`. Before the fix the route
+  // passed "1033" verbatim to getIssue and the bundled GitHub plugin rejected it
+  // with `missing "#"`; now it must qualify to "o/r#1033" first.
+  function passedBareRefGate() {
+    const tracker: Tracker = {
+      system: "github",
+      ref: "1033",
+      url: "https://github.com/o/r/issues/1033",
+      blocked_by_refs: [],
+    };
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", { ...gate("WU-040", ["TC-024"]), tracker }),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-024", 1)], { "TC-024": caseResult("passed") }) as never,
+    );
+  }
+
+  beforeEach(() => {
+    passedBareRefGate();
+    vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
+  });
+
+  it("calls getIssue with the QUALIFIED owner/repo#<n> externalId, not the bare ref", async () => {
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "closed" } as never);
+
+    const res = await request(app).get("/p1/gates/WU-040");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "passed", signedOff: true });
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "o/r#1033",
+    });
+    // The bare ref must never reach the plugin (it would crash with `missing "#"`).
+    expect(pluginManager.invoke).not.toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "1033",
+    });
+  });
+});
+
 describe("merged gate sign-off / reopen / signedOff (issue #435)", () => {
   it("signs off a passed merged gate by closing EVERY source gate's tracker issue", async () => {
     passedMergedGate();
