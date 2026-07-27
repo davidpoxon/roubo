@@ -17,7 +17,7 @@ nvm use
 npm install
 ```
 
-`npm install` resolves the npm workspaces (`shared`, `server`, `client`, `electron`) in a single pass.
+`npm install` resolves every npm workspace in a single pass: `shared`, `plugin-sdk`, `server`, `client`, `electron`, the first-party plugins under `plugins/`, and the e2e fixtures. The authoritative list is the `workspaces` array in the root [`package.json`](../package.json).
 
 ## Running the dev stack
 
@@ -62,6 +62,8 @@ npm run format:check
 npm run typecheck
 ```
 
+> **Note.** `npm run typecheck` covers the SDK, client, server, project build, plugin, and e2e fixture workspaces. The CI `typecheck` job only runs `client` and `server`, so the local command is the stricter gate: a green CI run does not mean the plugin and fixture workspaces type-check.
+
 ## Testing
 
 Roubo uses [Vitest](https://vitest.dev) with a single root config. Server tests run in Node; client tests run in jsdom, both auto-matched by file path. Test files live next to the code they test (`foo.ts` → `foo.test.ts`).
@@ -72,9 +74,14 @@ npx vitest                  # watch mode
 npx vitest server/          # server tests only
 npx vitest client/          # client tests only
 npm run coverage            # CI-parity run with v8 coverage
+npx vitest run --disableConsoleIntercept   # verify a suite is genuinely silent
 ```
 
-CI enforces **80% coverage** on lines, functions, branches, and statements via the `pr-check` workflow. Code changes not covered by existing tests must come with new tests. Tests must also produce **zero stderr output**. Suppress or eliminate `console.warn`/`console.error` noise and React `act()` warnings rather than ignoring them. Where the source legitimately calls `console.warn`/`console.error`, mock it with `vi.spyOn` and assert on the arguments.
+CI enforces **80% coverage** on lines, functions, branches, and statements via the `pr-check` workflow. Code changes not covered by existing tests must come with new tests.
+
+Tests must also produce **zero stdout and zero stderr output**, beyond the Vitest reporter's own summary. That covers `console.log`, `console.info`, `console.warn`, and `console.error` noise, React `act()` warnings, and library warnings such as React Aria's `PressResponder`. Vitest hides captured console output during passing runs by default, so a clean-looking run proves nothing; verify with `npx vitest run --disableConsoleIntercept`.
+
+Where the source legitimately calls `console.*` as part of expected behaviour (a fallback path, for instance), mock it with `vi.spyOn(console, "<level>").mockImplementation(() => {})` and assert it was called with the expected message. That silences the output and verifies the behaviour at once. In every other case, fix the root cause rather than suppressing the symptom.
 
 ## Project structure
 
@@ -91,8 +98,13 @@ roubo/
 │       ├── hooks/           # React Query data fetching
 │       └── lib/             # API client
 ├── electron/                # Electron wrapper (forge config, main process)
-├── schema/                  # JSON Schema for roubo.yaml validation
-├── .github/workflows/       # CI: pr-check, dco, release
+├── plugin-sdk/              # @roubo/plugin-sdk, published independently
+├── plugins/                 # First-party bundled plugins (github-com, process, database)
+├── schema/                  # JSON Schema for roubo.yaml and plugin manifests
+├── scripts/                 # Lint guards, schema generation, git hooks, release tooling
+├── e2e/                     # Playwright specs and their fixture workspaces
+├── docs/                    # This documentation set
+├── .github/workflows/       # CI: pr-check, dco, no-ai-coauthorship, e2e, release
 └── eslint.config.js         # ESLint 9 flat config
 ```
 
@@ -119,6 +131,9 @@ Dependencies are pinned (no `^` ranges) and updated by Renovate. Never widen a r
 - **Express 5 wildcard syntax** is `/{*path}`, not `*`.
 - **Never disable an ESLint rule**. Fix the code.
 - All user-facing text must use the Roubo vocabulary (bench, project, component, …). See [brand.md](./brand.md).
+- **No em dashes** in any prose we ship or commit, including code comments, commit messages, and PR descriptions. See [brand.md](./brand.md#punctuation); partially enforced by `npm run lint:em-dash`.
+
+The CI gates that are not visible from the code, and the repo-specific gotchas worth knowing before you run anything, are in [CLAUDE.md](../CLAUDE.md).
 
 ## Building the desktop app
 

@@ -48,6 +48,8 @@ All user-facing text uses the Roubo vocabulary. Internal code should also use th
 | **Jig**        | A set of instructions for an AI coding agent working on a bench. A jig is a detailed drawing that guides the build.                      |
 | **Workspace**  | The git worktree directory on disk for a specific bench.                                                                                 |
 
+**Retired terms.** Never reintroduce the vocabulary these replaced: slot (now bench), application (project), service (component), launcher (tool), testing (inspection), prompt (jig), worktree (workspace).
+
 ### Status Labels
 
 | Status      | When                                                                               |
@@ -267,5 +269,6 @@ Roubo speaks like a skilled colleague: competent, direct, and economical with wo
 | File                                                                       | Purpose                                                                         |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | [`client/src/assets/roubo-logo.svg`](../client/src/assets/roubo-logo.svg)  | The canonical logomark SVG. Uses `currentColor`.                                |
-| [`../CLAUDE.md`](../CLAUDE.md)                                             | Contributor instructions. Cross-references this document for brand compliance.  |
+| [`../docs/development.md`](./development.md)                               | Working conventions enforced in review. Defers to this document for vocabulary. |
+| [`../CLAUDE.md`](../CLAUDE.md)                                             | Agent-facing gotchas and CI gates. Points here for brand and vocabulary.        |
 | [`../schema/roubo-config.schema.json`](../schema/roubo-config.schema.json) | JSON Schema for `roubo.yaml` validation. Field names follow Roubo's vocabulary. |
