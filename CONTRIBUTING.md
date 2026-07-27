@@ -36,8 +36,10 @@ prior issue. Just open the PR.
 
 See [docs/development.md](docs/development.md) for setup, build, and
 dev-server instructions. See [docs/architecture.md](docs/architecture.md)
-for how Roubo is put together, and [CLAUDE.md](CLAUDE.md) for the working
-conventions enforced in review. Before opening a PR:
+for how Roubo is put together. [docs/development.md](docs/development.md)
+also carries the working conventions enforced in review; [CLAUDE.md](CLAUDE.md)
+holds the CI gates and repo gotchas that are not visible from the code.
+Before opening a PR:
 
 ```bash
 npm run lint

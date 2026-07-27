@@ -73,8 +73,8 @@
  * 'test/ports-only' string in-process for S002/S003/S006.
  *
  * NOTE on the route shape. There is no GET .../components/:name route; a
- * component's status is embedded in the bench / plugin record (see CLAUDE.md API
- * surface). S005 therefore polls the sibling's plugin record status rather than
+ * component's status is embedded in the bench / plugin record (see the routes
+ * under server/routes/). S005 therefore polls the sibling's plugin record status rather than
  * an HTTP endpoint, consistent with how the system actually exposes component
  * status.
  */

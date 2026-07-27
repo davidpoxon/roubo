@@ -6,7 +6,7 @@
 
 **Mood.** Warm, precise, minimalist craft. Named after André-Jacob Roubo (1739–1791), the master carpenter whose workbench is the gold standard of precision. Minimalist means fewer elements, not lesser elements: every element that exists must be perfect.
 
-**References.** The roubo brand guide (`CLAUDE.md`, `docs/brand.md`), the Roubo workbench, and a warm stone foundation carrying a single amber accent.
+**References.** The roubo brand guide (`docs/brand.md`), the Roubo workbench, and a warm stone foundation carrying a single amber accent.
 
 **Chosen dimensions.**
 
@@ -16,7 +16,7 @@
 - **Motion.** Delicate and purposeful, 150–300ms smooth easing, no bounce or overshoot.
 - **Elevation.** Whitespace-first; shadows are deliberately avoided.
 
-**Forbidden defaults.** The canonical deny-list is enforced, with one recorded exception: `Inter` was removed from this project's `forbidden_defaults` because Inter is roubo's deliberate, documented UI typeface (`CLAUDE.md`), not a lazy default. Every other canonical entry (`Roboto`, `Arial`, `Helvetica`, `system-ui default sans`, `Space Grotesk`, the cliché gradients and layouts, `drop-shadow on everything`, `emoji as iconography`) remains enforced.
+**Forbidden defaults.** The canonical deny-list is enforced, with one recorded exception: `Inter` was removed from this project's `forbidden_defaults` because Inter is roubo's deliberate, documented UI typeface (`docs/brand.md`, Typography), not a lazy default. Every other canonical entry (`Roboto`, `Arial`, `Helvetica`, `system-ui default sans`, `Space Grotesk`, the cliché gradients and layouts, `drop-shadow on everything`, `emoji as iconography`) remains enforced.
 
 ## Colour
 
@@ -463,7 +463,7 @@ One token layer drives both platforms; there is no per-platform token fork.
   "aesthetic": {
     "mood": "Warm, precise, minimalist craft. The Roubo workbench: every element perfect, nothing decorative.",
     "references": [
-      "roubo CLAUDE.md brand guide",
+      "roubo brand guide",
       "docs/brand.md",
       "Andre-Jacob Roubo workbench (1739-1791)",
       "warm stone foundation with a single amber accent"
@@ -496,7 +496,7 @@ One token layer drives both platforms; there is no per-platform token fork.
       "key": "type.family",
       "filled_by": "question",
       "asked": "UI/body font (only JetBrains Mono was extracted)?",
-      "note": "Inter confirmed as deliberate brand standard per CLAUDE.md; 'Inter' removed from this project's forbidden_defaults with recorded rationale. JetBrains Mono extracted from @theme --font-mono is the technical/mono face."
+      "note": "Inter confirmed as deliberate brand standard per docs/brand.md (Typography); 'Inter' removed from this project's forbidden_defaults with recorded rationale. JetBrains Mono extracted from @theme --font-mono is the technical/mono face."
     },
     {
       "key": "type.scale",

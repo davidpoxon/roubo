@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Repo-wide guard against em dashes (issue #371). CLAUDE.md forbids the em dash
+// Repo-wide guard against em dashes (issue #371). docs/brand.md forbids the em dash
 // (U+2014) and its HTML entity (&mdash;) in code comments, commit messages, PR
 // descriptions, README, docs, in-app strings, and any other prose we ship or
 // commit. This script scans the source globs and fails if it finds one outside
@@ -23,7 +23,7 @@ const ALLOWLIST = new Set([
   // The dialog must never render an em dash; this assertion checks its absence.
   "client/src/components/ClearBenchDirtyDialog.test.tsx:88",
   // The brand guide states the rule and shows the forbidden glyph as an example.
-  "docs/brand.md:228",
+  "docs/brand.md:230",
   // The plugin SDK doc states the same rule and shows the glyph as an example.
   "docs/plugin-sdk.md:595",
 ]);
@@ -63,7 +63,7 @@ for (const file of listFiles()) {
 
 if (violations.length > 0) {
   console.error(
-    `Found ${violations.length} em dash (U+2014 or &mdash;) occurrence(s). CLAUDE.md forbids them.\n` +
+    `Found ${violations.length} em dash (U+2014 or &mdash;) occurrence(s). docs/brand.md forbids them.\n` +
       "Replace each with the punctuation that fits the case: period for a sentence break, comma for an aside, " +
       "colon for a label or definition, parentheses for a parenthetical, semicolon for two linked clauses.\n" +
       "En dashes (U+2013) are fine for numeric ranges.\n",
