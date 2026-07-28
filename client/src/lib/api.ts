@@ -40,6 +40,8 @@ import type {
   GlobalPluginIntegrationState,
   AgentConfigResponse,
   AgentPluginsResponse,
+  ProjectAgentConfigResponse,
+  ProjectAgentsResponse,
   IntegrationConfigUpdate,
   IntegrationFields,
   IntegrationFieldsUpdate,
@@ -1243,6 +1245,27 @@ export function saveAgentConfig(
   config: Record<string, unknown>,
 ): Promise<AgentConfigResponse> {
   return request(`/agents/${pluginId}/config`, {
+    method: "PUT",
+    body: JSON.stringify({ config }),
+  });
+}
+
+// Project-level agent overrides (Project settings > Agent overrides, issue #509)
+export function fetchProjectAgents(projectId: string): Promise<ProjectAgentsResponse> {
+  return request(`/projects/${projectId}/agents`);
+}
+
+/**
+ * Saves the fields this project overrides for one agent plugin. `config` is the
+ * override SUBSET, not a whole config: a key present overrides that field, an
+ * absent key inherits the app default, and `{}` clears every override.
+ */
+export function saveProjectAgentOverride(
+  projectId: string,
+  pluginId: string,
+  config: Record<string, unknown>,
+): Promise<ProjectAgentConfigResponse> {
+  return request(`/projects/${projectId}/agents/${pluginId}/config`, {
     method: "PUT",
     body: JSON.stringify({ config }),
   });

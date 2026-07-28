@@ -116,7 +116,16 @@ Every installed `agent`-kind plugin gets its own card, and every card renders a 
 - Saved defaults persist across navigation and restarts, and apply to every project.
 - With no agent plugins installed the screen shows an empty state. Install one from the **Marketplace** tab and it appears here.
 
-Per-project overrides of these defaults are not available yet; today the AI Agents screen is the single place agent configuration lives.
+### Overriding agent configuration per project
+
+**Project > Settings > Agent overrides** is where one project departs from those application-level defaults. Every installed agent plugin gets a card, and every field the plugin declares gets a row with its own override toggle and the current app default shown beside it.
+
+- A field is either **overridden** or **inherits**. Leave a field inheriting and it keeps tracking the app default, so changing the default on the AI Agents screen changes what this project launches with, without touching the project.
+- Turning an override on seeds the field with the app default when one is set, and otherwise with the field's own schema default or its first allowed value, so the seeded value is always visible in the row before you save. Turning it off again drops the override and the field goes straight back to inheriting.
+- The **Effective** line under each card previews what the two layers resolve to: the app defaults with only the overridden fields replaced. It covers those two layers only; anything resolved at launch time is applied later.
+- Overrides are stored per project and per plugin, at `~/.roubo/agents/<projectId>/<pluginId>.yaml`, and hold only the fields you overrode. Overriding one field in one project never touches another field, another plugin, or another project.
+- Values are validated against the same plugin schema as an app-level save, so an out-of-range override is refused with the field and its allowed values named.
+- If a project has an override for an agent plugin that is no longer installed, the section says so and ignores it. Nothing resolves a configuration for a plugin that is not installed.
 
 ## Next steps
 

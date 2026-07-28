@@ -2,7 +2,7 @@
 
 # Route inventory
 
-Every HTTP route the Roubo server registers: 155 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
+Every HTTP route the Roubo server registers: 157 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
 
 This file is generated. Run `npm run generate:routes` after adding, removing, or renaming a route; the `route-inventory-drift` job in `pr-check` fails when the committed inventory does not match the source.
 
@@ -55,6 +55,8 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/api/projects`                                                                            | `server/routes/projects.ts`             |
 | POST   | `/api/projects`                                                                            | `server/routes/projects.ts`             |
 | DELETE | `/api/projects/:projectId`                                                                 | `server/routes/projects.ts`             |
+| GET    | `/api/projects/:projectId/agents`                                                          | `server/routes/project-agents.ts`       |
+| PUT    | `/api/projects/:projectId/agents/:pluginId/config`                                         | `server/routes/project-agents.ts`       |
 | GET    | `/api/projects/:projectId/benches`                                                         | `server/routes/benches.ts`              |
 | POST   | `/api/projects/:projectId/benches`                                                         | `server/routes/benches.ts`              |
 | POST   | `/api/projects/:projectId/benches/:benchId/inject-jig`                                     | `server/routes/jigs.ts`                 |
