@@ -129,6 +129,11 @@ function ProjectAgentOverrideCard({
 }) {
   const [saved, setSaved] = useState<Record<string, unknown>>(agent.overrides);
   const [draft, setDraft] = useState<Record<string, unknown>>(agent.overrides);
+  // Keys whose input the user has emptied but whose override is still on. The
+  // draft keeps a real value for them (see `setFieldValue`); this only records
+  // that the BOX should render empty, so clearing and retyping a number stays
+  // an ordinary edit instead of typing on top of a re-injected value (#637).
+  const [clearedInputs, setClearedInputs] = useState<Record<string, true>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
@@ -137,6 +142,11 @@ function ProjectAgentOverrideCard({
   const fields = schemaFields(agent.configSchema);
   const effective = { ...agent.appDefaults, ...draft };
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  // An emptied box is not a draft change (the draft still holds the fallback),
+  // so Reset needs its own reason to stay live: without it, clearing a field
+  // whose saved value already equals the fallback would leave the box empty
+  // with no way to put the number back (#637).
+  const hasClearedInput = Object.keys(clearedInputs).length > 0;
   const anyOverridden = Object.keys(draft).length > 0;
 
   function clearFeedback() {
@@ -147,6 +157,13 @@ function ProjectAgentOverrideCard({
 
   function toggleField(key: string, def: FieldDef, on: boolean) {
     clearFeedback();
+    // Either direction re-seeds the row from scratch, so an emptied box from an
+    // earlier edit must not survive the toggle.
+    setClearedInputs((prev) =>
+      Object.prototype.hasOwnProperty.call(prev, key)
+        ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key))
+        : prev,
+    );
     setDraft((prev) => {
       if (on) return { ...prev, [key]: initialOverrideValue(def, agent.appDefaults[key]) };
       // Toggling an override off drops the key entirely rather than storing a
@@ -163,9 +180,19 @@ function ProjectAgentOverrideCard({
     // the key present but undefined: the row would still read as overridden
     // while the preview said "not set", the wire payload dropped the key, and
     // the draft compared equal to the saved state, disabling both Save and
-    // Reset. Clearing therefore reverts to the value the override started at,
-    // exactly as `toggleField` seeds a newly-toggled row; the way to stop
-    // overriding is to untoggle the row (#637).
+    // Reset. So a cleared input falls back to the value a newly-toggled row is
+    // seeded with, and the way to stop overriding is to untoggle the row (#637).
+    //
+    // The emptied BOX is tracked separately rather than mirrored into the
+    // draft. Feeding the fallback straight back into a controlled input would
+    // make an overridden numeric field impossible to clear as an editing step:
+    // the value reappears on the keystroke that emptied it, so clearing and
+    // retyping would append to the old value instead of replacing it.
+    setClearedInputs((prev) => {
+      if (value === undefined) return { ...prev, [key]: true };
+      if (!Object.prototype.hasOwnProperty.call(prev, key)) return prev;
+      return Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key));
+    });
     setDraft((prev) => ({
       ...prev,
       [key]: value === undefined ? initialOverrideValue(def, agent.appDefaults[key]) : value,
@@ -174,6 +201,7 @@ function ProjectAgentOverrideCard({
 
   function handleReset() {
     clearFeedback();
+    setClearedInputs({});
     setDraft(saved);
   }
 
@@ -184,6 +212,7 @@ function ProjectAgentOverrideCard({
       onSuccess: (result) => {
         setSaved(result.overrides);
         setDraft(result.overrides);
+        setClearedInputs({});
         setJustSaved(true);
       },
       onError: (err: unknown) => {
@@ -283,7 +312,14 @@ function ProjectAgentOverrideCard({
                 {overridden ? (
                   <ConfigSchemaForm
                     schema={{ type: "object", properties: { [key]: def } }}
-                    values={{ [key]: draft[key] }}
+                    // An emptied box renders empty even though the draft holds
+                    // the fallback the row would save (#637). `hasOwnProperty`
+                    // for the same reason as the toggle above.
+                    values={{
+                      [key]: Object.prototype.hasOwnProperty.call(clearedInputs, key)
+                        ? ""
+                        : draft[key],
+                    }}
                     onChange={(next) => setFieldValue(key, def, next[key])}
                     errors={errors}
                   />
@@ -340,7 +376,7 @@ function ProjectAgentOverrideCard({
         </Button>
         <Button
           onPress={handleReset}
-          isDisabled={save.isPending || !dirty}
+          isDisabled={save.isPending || (!dirty && !hasClearedInput)}
           data-testid={`project-agent-reset-${agent.id}`}
           className={SECONDARY_BUTTON_CLASS}
         >
