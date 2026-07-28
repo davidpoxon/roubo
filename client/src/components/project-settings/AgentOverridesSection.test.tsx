@@ -35,6 +35,24 @@ const CLAUDE: ProjectAgentState = {
   unavailable: null,
 };
 
+/**
+ * #637: an integer-typed field, the shape whose input emits `undefined` when
+ * cleared. Kept separate from CLAUDE so the effective-preview assertions above
+ * keep reading exactly `model=..., effort=..., mode=...`.
+ */
+const GEMINI: ProjectAgentState = {
+  id: "gemini-cli",
+  name: "Gemini CLI",
+  configSchema: {
+    type: "object",
+    properties: { maxTurns: { type: "integer", title: "Max turns" } },
+  },
+  appDefaults: { maxTurns: 12 },
+  overrides: {},
+  effective: { maxTurns: 12 },
+  unavailable: null,
+};
+
 function listResult(agents: ProjectAgentState[], orphanedOverrides: unknown[] = []) {
   return {
     data: { agents, orphanedOverrides },
@@ -235,6 +253,29 @@ describe("AgentOverridesSection", () => {
     expect(screen.getByTestId("project-agent-effective-claude-code")).toHaveTextContent(
       "model=sonnet, effort=low, mode=plan",
     );
+  });
+
+  it("keeps a cleared numeric override defined and escapable (#637)", async () => {
+    const user = userEvent.setup();
+    mockedList.mockReturnValue(listResult([GEMINI]));
+    render(<AgentOverridesSection projectId="roubo-development" />);
+
+    await user.click(screen.getByRole("checkbox", { name: "Override Max turns" }));
+    await user.clear(screen.getByRole("spinbutton", { name: "Max turns" }));
+
+    // Clearing a number input emits `undefined`. Storing that would leave the
+    // row claiming an override with no value: the preview would read "not set"
+    // while the wire payload dropped the key, and with the draft matching the
+    // saved state both Save and Reset would disable, stranding the user.
+    expect(
+      screen.queryByTestId("project-agent-inherits-gemini-cli-maxTurns"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Max turns" })).toHaveValue(12);
+    expect(screen.getByTestId("project-agent-effective-gemini-cli")).toHaveTextContent(
+      "maxTurns=12",
+    );
+    expect(screen.getByTestId("project-agent-save-gemini-cli")).not.toBeDisabled();
+    expect(screen.getByTestId("project-agent-reset-gemini-cli")).not.toBeDisabled();
   });
 
   it("names an orphaned override without rendering a card for it (AP-TC-008)", () => {

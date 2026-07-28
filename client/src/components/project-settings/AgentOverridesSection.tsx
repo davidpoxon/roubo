@@ -156,9 +156,20 @@ function ProjectAgentOverrideCard({
     });
   }
 
-  function setFieldValue(key: string, value: unknown) {
+  function setFieldValue(key: string, def: FieldDef, value: unknown) {
     clearFeedback();
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    // An overridden field ALWAYS carries a value. `ConfigSchemaForm` emits
+    // `undefined` when a number input is cleared, and storing that would leave
+    // the key present but undefined: the row would still read as overridden
+    // while the preview said "not set", the wire payload dropped the key, and
+    // the draft compared equal to the saved state, disabling both Save and
+    // Reset. Clearing therefore reverts to the value the override started at,
+    // exactly as `toggleField` seeds a newly-toggled row; the way to stop
+    // overriding is to untoggle the row (#637).
+    setDraft((prev) => ({
+      ...prev,
+      [key]: value === undefined ? initialOverrideValue(def, agent.appDefaults[key]) : value,
+    }));
   }
 
   function handleReset() {
@@ -273,7 +284,7 @@ function ProjectAgentOverrideCard({
                   <ConfigSchemaForm
                     schema={{ type: "object", properties: { [key]: def } }}
                     values={{ [key]: draft[key] }}
-                    onChange={(next) => setFieldValue(key, next[key])}
+                    onChange={(next) => setFieldValue(key, def, next[key])}
                     errors={errors}
                   />
                 ) : (
