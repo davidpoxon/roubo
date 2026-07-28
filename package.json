@@ -105,6 +105,7 @@
     "tmp": "0.2.7",
     "@electron/rebuild": "4.0.4",
     "protobufjs": "7.6.5",
-    "esbuild": "0.28.1"
+    "esbuild": "0.28.1",
+    "postcss": "8.5.18"
   }
 }
