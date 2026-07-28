@@ -80,8 +80,12 @@ export function defineAgentPlugin(
   // component plugins, so the component broker surface
   // (`host.process.start`/`run`/`stop`/`status`/`logs`, `host.docker.*`,
   // `host.ports.*`) is absent and no `host` client is bound. An agent plugin
-  // gets no more than the same v1 host surface an integration plugin already
-  // has, including `host.process.spawn` capped by its declared executables.
+  // gets strictly less than an integration plugin: the same v1 host surface
+  // (`host.fs.*` confined to its own directory, `host.credentials.*`,
+  // `host.fetch`) and no `host.process.spawn` at all, because an agent
+  // manifest must declare `processes: false` (issue #632). A spawned child
+  // would not inherit the filesystem broker allowlist, so it could sidestep
+  // the declarative launch descriptor.
   connection.listen();
 
   return Object.freeze({

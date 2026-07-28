@@ -5,6 +5,24 @@
   "type": "object",
   "required": ["id", "name", "version", "description", "kind", "roubo", "entry", "permissions"],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "description": "An agent plugin may not declare a processes permission: a spawned child process does not inherit the filesystem broker allowlist, so it would sidestep the declarative launch descriptor that core validates and executes. Kept in lockstep with the kind gate on PluginManifestSchema in shared/plugin-manifest-schema.ts.",
+      "if": {
+        "properties": { "kind": { "const": "agent" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "properties": {
+          "permissions": {
+            "properties": {
+              "processes": { "const": false }
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "id": {
       "type": "string",
