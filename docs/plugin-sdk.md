@@ -154,6 +154,8 @@ defineAgentPlugin({
 
 `defineAgentPlugin` validates synchronously, at definition time, never at launch time: an incompatible `contractVersion` (it must equal the SDK's `SUPPORTED_AGENT_CONTRACT_VERSION`) and a contract missing `translateLaunch` both throw before the process ever answers a request. The agent contract is versioned separately from the component contract's `SUPPORTED_CONTRACT_VERSION`, so the two can move independently.
 
+The `config` your `translateLaunch` receives is whatever the user saved for your plugin, and your manifest `configSchema` is the only thing that decides what that form looks like. Roubo renders the schema's top-level properties on the **Settings > AI Agents** screen: a `string` becomes a text field, a `boolean` a checkbox, a `number` or `integer` a number field, and a property with an `enum` (or a `oneOf` of `const` branches, each of which may carry its own `title`) becomes a select of exactly those values. Give each property a `title` and a `description` and they become the control's label and help text. The host validates every save against the same schema and refuses an out-of-range value, so `translateLaunch` can trust that its `config` conforms. Each agent plugin's saved defaults live in their own file, `~/.roubo/agents/_global/<pluginId>.yaml`, so nothing you declare can collide with another agent plugin's configuration.
+
 ### `translateLaunch({ config, context }): Promise<AgentLaunchDescriptor>`
 
 `context` is an `AgentLaunchContext`:

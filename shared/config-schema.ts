@@ -358,6 +358,29 @@ export const IntegrationOverrideSchema = z
   .strict();
 export type IntegrationOverride = z.infer<typeof IntegrationOverrideSchema>;
 
+// Application-level defaults for one `agent`-kind plugin (AP-FR-002, issue
+// #508). Opaque to roubo-core exactly like the integration `advanced` block:
+// the only contract the record answers to is the plugin's own manifest
+// `configSchema`, which `validateAgentConfig` enforces host-side.
+export const AgentConfigSchema = z.record(z.string(), z.unknown());
+export type AgentConfig = z.infer<typeof AgentConfigSchema>;
+
+// Per-plugin app-level override file at `~/.roubo/agents/_global/<pluginId>.yaml`.
+// Deliberately NOT the `IntegrationOverride` envelope: that shape carries
+// integration-only fields (sources, instance, advanced, capturedUserId) none of
+// which mean anything to an agent. Keying the file by plugin id is what makes
+// config isolation structural (AP-TC-003, AP-TC-009, AP-TC-015): two agent
+// plugins can never resolve to the same file, so one plugin's save can never
+// bleed into another's. The `schemaVersion` literal makes a future shape change
+// fail loudly rather than silently mis-merge.
+export const AgentOverrideSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    config: AgentConfigSchema,
+  })
+  .strict();
+export type AgentOverride = z.infer<typeof AgentOverrideSchema>;
+
 // Third-party marketplace declaration (CPHMTP-FR-007, issue #556). A project may
 // declare one or more plugin marketplaces in roubo.yaml so the project-open flow
 // can offer to register them. Each entry carries a URL ONLY: it is a source

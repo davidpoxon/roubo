@@ -105,6 +105,19 @@ To run another stream of work in parallel, set up a second bench from a differen
 - **Stop** halts the components but keeps the worktree on disk, so you can come back to it.
 - **Clear bench** stops the components and removes the worktree and any associated resources. Use this when you are done with a stream of work and want the bench number back in the pool.
 
+## Configuring AI agents
+
+**Settings > AI Agents** is where you set the application-level defaults for each AI coding agent you have installed.
+
+Every installed `agent`-kind plugin gets its own card, and every card renders a form built from that plugin's declared config schema. Two agent plugins therefore show two different forms: one may offer a model and a permission mode, another a reasoning effort and a sandbox setting. Roubo does not interpret those fields; it renders what the plugin declares and validates what you save against the same schema, so a value outside a field's allowed set is refused with the field and its allowed values named.
+
+- **Save defaults** writes the form to disk. **Reset** discards unsaved edits and restores the last saved values.
+- Defaults are stored one file per plugin, at `~/.roubo/agents/_global/<pluginId>.yaml`. Because each plugin has its own file, configuring one agent never disturbs another.
+- Saved defaults persist across navigation and restarts, and apply to every project.
+- With no agent plugins installed the screen shows an empty state. Install one from the **Marketplace** tab and it appears here.
+
+Per-project overrides of these defaults are not available yet; today the AI Agents screen is the single place agent configuration lives.
+
 ## Next steps
 
 - Read the [Configuration Reference](./configuration.md) to learn what each `roubo.yaml` section does.
