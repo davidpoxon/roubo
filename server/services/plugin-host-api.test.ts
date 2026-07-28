@@ -1085,6 +1085,26 @@ describe("plugin-host-api", () => {
       expect(spawn).not.toHaveBeenCalled();
     });
 
+    it("denies a bench-workspace executable that satisfies the basename allowlist", async () => {
+      const manifest = makeManifest([], { processes: { executables: ["node"] } });
+      const connection = makeConnection();
+      const spawn: SpawnLike = vi.fn();
+      await registerHostHandlers(connection, makeRecord(manifest, "/fake"), log, {
+        spawn,
+        workspacesRoot: fakeWorkspaces,
+      });
+      const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
+      try {
+        await handler({ executable: `${fakeWorkspaces}/roubo/bench-1/node` });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ category: string; reason: string }>;
+        expect(responseErr.data?.category).toBe("processes");
+        expect(responseErr.data?.reason).toBe("workspace-path-denied");
+      }
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
     it("denies a bench-workspace path passed as an argument", async () => {
       const manifest = makeManifest([], { processes: { executables: ["git"] } });
       const connection = makeConnection();

@@ -247,18 +247,20 @@ export const PluginManifestSchema = z
   .strict()
   // An agent plugin may not declare a `processes` permission (issue #632,
   // AP-NFR-001 "0 plugin-initiated writes outside broker allowlists"). A child
-  // process started through `host.process.spawn` is gated only by the declared
-  // executables and does not inherit the filesystem broker allowlist, so an
-  // agent plugin with spawn access could write into a bench workspace and
-  // sidestep the declarative WorkspaceWriteSpec path that core validates and
-  // executes. Rejecting the permission for this kind leaves the descriptor as
-  // the only write route.
+  // process started through `host.process.spawn` does not inherit the
+  // filesystem broker allowlist, so an agent plugin with spawn access could
+  // write into a bench workspace and sidestep the declarative
+  // WorkspaceWriteSpec path that core validates and executes. Rejecting the
+  // permission for this kind leaves the descriptor as the only write route.
   //
-  // This is deliberately the narrow, kind-gated half of the fix. Confining
-  // every spawned child for every kind is the stronger guarantee and is
-  // tracked separately in #633; it would change behaviour for component and
-  // integration plugins that legitimately spawn today, so it needs its own
-  // compatibility review. Rejecting rather than warning-and-ignoring: the
+  // This is the narrow, kind-gated half of the fix. The broader confinement,
+  // pinning every spawned child's working directory to the plugin directory and
+  // denying bench-workspace paths as cwd, executable, or argument, landed for
+  // every kind in #633. The kind gate still stands on top of it: that argument
+  // scanning is a second barrier rather than a guarantee (it cannot see a path
+  // composed inside a string the child itself interprets), so an agent plugin
+  // keeps the descriptor as its only write route. Rejecting rather than
+  // warning-and-ignoring: the
   // schema layer has no warning channel, and a silently-ignored permission is
   // exactly the ambiguity that would let a future agent plugin ship believing
   // it has spawn access.

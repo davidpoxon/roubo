@@ -104,6 +104,8 @@ The manifest schema lives in [`shared/plugin-manifest-schema.ts`](../shared/plug
 
 The plugin's own install directory is always part of the filesystem allowlist; everything else must be listed explicitly. Relative entries in `filesystem.paths` resolve against the plugin directory.
 
+A child process is confined more tightly than `host.fs.*`. `host.process.spawn` pins the child's working directory to the plugin's own install directory, so a path declared in `permissions.filesystem.paths` stays readable through `host.fs.*` but is not a legal `cwd` (denied with `cwd-not-in-plugin-dir`). A bench workspace is rejected outright, as `cwd`, as the executable, or as an argument (`workspace-path-denied`). Argument scanning is a second barrier rather than a guarantee: it inspects discrete arguments and cannot see a workspace path composed inside a string the child itself interprets.
+
 ### Denial shape
 
 A denied request returns a JSON-RPC error with `code: -32001` and a structured `data` payload. The shape is consistent across categories:

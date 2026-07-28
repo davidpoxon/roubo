@@ -103,7 +103,8 @@ export async function assertSpawnCwdConfined(
       category: "processes",
       executable,
       reason: "invalid-params",
-      path: String(rawCwd ?? ""),
+      // No `path`: the offending cwd is empty or not a string, so there is no
+      // path worth naming and the message falls back to the executable.
     });
   }
   // Symlink-aware on both sides so a symlinked plugin dir (macOS
@@ -123,6 +124,25 @@ export async function assertSpawnCwdConfined(
   }
   await assertNotInWorkspaces(pluginId, methodName, executable, resolved, workspacesRoot, log);
   return resolved;
+}
+
+// The executable is the third path the caller controls, alongside cwd and the
+// arguments. `isExecutableAllowed` matches a bare-name declaration such as
+// `node` by basename, so an absolute path would otherwise satisfy the allowlist
+// while naming a binary that lives in a bench workspace. Deny that outright, the
+// same way a workspace cwd or argument is denied. A bare name resolves against
+// the pinned cwd and so lands in the plugin directory, which is never a
+// workspace; the real executable resolution stays with spawn and PATH.
+export async function assertExecutableNotInWorkspace(
+  pluginId: string,
+  methodName: string,
+  executable: string,
+  cwd: string,
+  workspacesRoot: string,
+  log: HostLogger,
+): Promise<void> {
+  const resolved = await resolveRealPath(path.resolve(cwd, executable));
+  await assertNotInWorkspaces(pluginId, methodName, executable, resolved, workspacesRoot, log);
 }
 
 // Second barrier: a bench-workspace path handed to the child as an argument is
@@ -148,18 +168,23 @@ export async function assertNoWorkspacePathArgs(
   }
 }
 
-// The path-shaped parts of a single argument: the argument itself, plus the
-// value half of a `--flag=<value>` pair. An argument with no path separator
-// (`status`, `-rf`) is not a path and is left alone.
+// Every part of a single argument that could name a path: the argument itself,
+// plus each `=`-separated segment, so a workspace path hidden in a
+// `--flag=<value>` (or a `--flag=<key>=<value>`) pair is seen too.
+//
+// A bare token carrying no separator is deliberately included rather than
+// skipped. `cwd` is pinned to the plugin directory, so a non-path token such as
+// `status` resolves to a plugin-directory sibling that is not inside
+// `workspacesRoot` and passes harmlessly, whereas a bare symlink name sitting in
+// the plugin directory (`bench-link`) resolves through to whatever it points at.
+// Requiring a separator would let exactly that name slip past the barrier.
 function pathShapedParts(arg: string): string[] {
-  const parts: string[] = [];
-  const consider = (value: string): void => {
-    if (value.length === 0) return;
-    if (path.isAbsolute(value) || value.includes("/") || value.includes("\\")) parts.push(value);
-  };
-  consider(arg);
-  const eq = arg.indexOf("=");
-  if (eq >= 0) consider(arg.slice(eq + 1));
+  const parts: string[] = [arg];
+  if (arg.includes("=")) {
+    for (const segment of arg.split("=")) {
+      if (segment.length > 0) parts.push(segment);
+    }
+  }
   return parts;
 }
 

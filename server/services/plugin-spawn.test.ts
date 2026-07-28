@@ -5,6 +5,7 @@ import path from "node:path";
 import { ResponseError } from "vscode-jsonrpc/node";
 import type { PluginManifest } from "@roubo/shared";
 import {
+  assertExecutableNotInWorkspace,
   assertNoWorkspacePathArgs,
   assertSpawnAllowed,
   assertSpawnCwdConfined,
@@ -423,6 +424,96 @@ describe("plugin-spawn", () => {
         );
         expect(data.reason).toBe("workspace-path-denied");
         expect(data.path).toBe(benchDir);
+      });
+
+      it("denies a bare symlink name carrying no path separator", async () => {
+        reset();
+        // The child's cwd is the plugin directory, so a bare name resolves
+        // against it: `bench-link` reaches the workspace without ever looking
+        // like a path.
+        const data = await denialFor(() =>
+          assertNoWorkspacePathArgs(
+            "jira-plugin",
+            "host.process.spawn",
+            "git",
+            ["bench-link"],
+            pluginDir,
+            workspacesRoot,
+            log,
+          ),
+        );
+        expect(data.reason).toBe("workspace-path-denied");
+        expect(data.path).toBe(benchDir);
+      });
+
+      it("denies a workspace path in the tail of a multi-`=` argument", async () => {
+        reset();
+        const data = await denialFor(() =>
+          assertNoWorkspacePathArgs(
+            "jira-plugin",
+            "host.process.spawn",
+            "git",
+            [`-c=include.path=${benchDir}`],
+            pluginDir,
+            workspacesRoot,
+            log,
+          ),
+        );
+        expect(data.reason).toBe("workspace-path-denied");
+        expect(data.path).toBe(benchDir);
+      });
+    });
+
+    describe("assertExecutableNotInWorkspace", () => {
+      it("allows a bare executable name", async () => {
+        reset();
+        await expect(
+          assertExecutableNotInWorkspace(
+            "jira-plugin",
+            "host.process.spawn",
+            "git",
+            pluginDir,
+            workspacesRoot,
+            log,
+          ),
+        ).resolves.toBeUndefined();
+        expect(logCalls).toEqual([]);
+      });
+
+      it("denies a workspace-resident executable that passes the basename allowlist", async () => {
+        reset();
+        // `isExecutableAllowed` matches a bare-name declaration by basename, so
+        // an absolute path to a workspace binary would otherwise satisfy a
+        // declaration of just `node`.
+        const data = await denialFor(() =>
+          assertExecutableNotInWorkspace(
+            "jira-plugin",
+            "host.process.spawn",
+            path.join(benchDir, "node"),
+            pluginDir,
+            workspacesRoot,
+            log,
+          ),
+        );
+        expect(data.category).toBe("processes");
+        expect(data.reason).toBe("workspace-path-denied");
+        expect(data.path).toBe(path.join(benchDir, "node"));
+      });
+
+      it("denies an executable reached through a symlink in the plugin directory", async () => {
+        reset();
+        const data = await denialFor(() =>
+          assertExecutableNotInWorkspace(
+            "jira-plugin",
+            "host.process.spawn",
+            "bench-link/node",
+            pluginDir,
+            workspacesRoot,
+            log,
+          ),
+        );
+        expect(data.reason).toBe("workspace-path-denied");
+        expect(data.path).toBe(path.join(benchDir, "node"));
       });
     });
   });

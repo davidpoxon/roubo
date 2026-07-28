@@ -14,6 +14,7 @@ import {
 import type { JsonRpcConnection } from "./plugin-rpc.js";
 import { assertPathAllowed, resolveAllowedRoots } from "./plugin-fs.js";
 import {
+  assertExecutableNotInWorkspace,
   assertNoWorkspacePathArgs,
   assertSpawnAllowed,
   assertSpawnCwdConfined,
@@ -387,7 +388,8 @@ export async function registerHostHandlers(
     // The child is confined to the plugin's own directory, which is narrower
     // than the filesystem allowlist `host.fs.*` uses: a declared external path
     // is readable through the broker but is not a legal working directory.
-    // A bench workspace is denied outright, as cwd and as an argument (#633).
+    // A bench workspace is denied outright on all three caller-controlled
+    // paths: the cwd, the executable, and every argument (#633).
     const cwd = await assertSpawnCwdConfined(
       pluginId,
       method,
@@ -397,6 +399,7 @@ export async function registerHostHandlers(
       workspacesRoot,
       log,
     );
+    await assertExecutableNotInWorkspace(pluginId, method, executable, cwd, workspacesRoot, log);
     await assertNoWorkspacePathArgs(pluginId, method, executable, args, cwd, workspacesRoot, log);
     try {
       return await runSpawn(spawn, executable, args, cwd, params?.stdin);
