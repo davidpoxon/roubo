@@ -12,7 +12,6 @@ Request and response shapes are not derivable from the route registrations, so t
 
 | Method | Path                                                                                       | Source                                  |
 | ------ | ------------------------------------------------------------------------------------------ | --------------------------------------- |
-| GET    | `/{*path}`                                                                                 | `server/index.ts`                       |
 | GET    | `/api/benches`                                                                             | `server/index.ts`                       |
 | GET    | `/api/containers`                                                                          | `server/routes/containers.ts`           |
 | GET    | `/api/filesystem/browse`                                                                   | `server/routes/filesystem.ts`           |
@@ -164,3 +163,4 @@ Request and response shapes are not derivable from the route registrations, so t
 | POST   | `/test/__seed-spec-results`                                                                | `server/routes/test.ts`                 |
 | POST   | `/test/__set-cut-list-disk-cache`                                                          | `server/routes/test.ts`                 |
 | POST   | `/test/__set-marketplace-reachable`                                                        | `server/routes/test.ts`                 |
+| GET    | `/{*path}`                                                                                 | `server/index.ts`                       |

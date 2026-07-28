@@ -7,6 +7,7 @@ import {
   collectHandlers,
   collectIndexRegistrations,
   collectRoutes,
+  compareCodeUnits,
   generate,
   joinRoutePath,
   listRouteModules,
@@ -149,6 +150,33 @@ describe("assembleRoutes", () => {
         { source: "server/routes/orphan.ts", handlers: [{ method: "GET", handlerPath: "/x" }] },
       ]),
     ).toThrow(/server\/routes\/orphan\.ts declares 1 route handler\(s\) but is never mounted/);
+  });
+
+  it("orders by code unit, not by the runtime's locale collation", () => {
+    // The drift gate only works if the generator is a pure function of the
+    // source. localeCompare is not: under cs_CZ, Czech collation treats "ch"
+    // as a single element sorting after "h", which puts check-config AFTER
+    // github-projects and makes a Czech contributor's regeneration differ from
+    // everyone else's. Both real paths, both really mounted at /api/projects.
+    const routes = assembleRoutes({ mounts: registrations.mounts, inlineRoutes: [] }, [
+      {
+        source: "server/routes/a.ts",
+        handlers: [
+          { method: "GET", handlerPath: "/github-projects" },
+          { method: "POST", handlerPath: "/check-config" },
+        ],
+      },
+    ]);
+    const projectPaths = routes
+      .filter((route) => route.path.startsWith("/api/projects/"))
+      .map((route) => route.path);
+    expect(projectPaths).toEqual(["/api/projects/check-config", "/api/projects/github-projects"]);
+    // Guard the helper itself, so a future edit cannot quietly reintroduce
+    // locale sensitivity behind an unchanged-looking sort call.
+    expect(compareCodeUnits("/api/projects/check-config", "/api/projects/github-projects")).toBe(
+      -1,
+    );
+    expect(compareCodeUnits("/{*path}", "/api/benches")).toBe(1);
   });
 });
 

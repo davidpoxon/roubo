@@ -115,6 +115,17 @@ function verbOf(node: ts.Node, receiver: string): string | undefined {
   return HTTP_METHOD_SET.has(verb) ? verb : undefined;
 }
 
+/**
+ * Compare two strings by UTF-16 code unit, independent of locale.
+ *
+ * Exported so the ordering rule the artifact depends on is directly testable.
+ */
+export function compareCodeUnits(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
 /** Join a mount prefix and a handler path into the path a client calls. */
 export function joinRoutePath(mountPath: string, handlerPath: string): string {
   if (mountPath === "") return handlerPath;
@@ -224,6 +235,16 @@ export interface RouterModule {
  *
  * Sorted by path then method so the artifact is stable under handler
  * reordering inside a file.
+ *
+ * The comparison is deliberately code-unit, not localeCompare: localeCompare
+ * uses ICU collation under the runtime's default locale, so a contributor
+ * whose environment sets a non-English locale would regenerate a differently
+ * ordered file and trip the route-inventory-drift gate with no way to
+ * reconcile. Under cs_CZ, for example, Czech treats "ch" as a single element
+ * sorting after "h", which moves /api/projects/check-config after
+ * /api/projects/github-projects. The gate's whole value rests on this
+ * generator being a pure function of the source, so the ordering must not
+ * depend on the environment.
  */
 export function assembleRoutes(
   { mounts, inlineRoutes }: IndexRegistrations,
@@ -247,7 +268,9 @@ export function assembleRoutes(
     }
   }
 
-  return routes.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
+  return routes.sort(
+    (a, b) => compareCodeUnits(a.path, b.path) || compareCodeUnits(a.method, b.method),
+  );
 }
 
 /** The full inventory, read from the working tree. */
