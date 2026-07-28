@@ -230,8 +230,8 @@ afterEach(async () => {
 });
 
 describe("host-API version", () => {
-  it("reports host-API 1.3.0 (component kind landed: issue #602)", () => {
-    expect(pluginManager.HOST_API_VERSION).toBe("1.3.0");
+  it("reports host-API 1.4.0 (agent kind landed: issue #507)", () => {
+    expect(pluginManager.HOST_API_VERSION).toBe("1.4.0");
   });
 });
 
@@ -534,6 +534,91 @@ describe("component plugins (issue #608)", () => {
     const component = findRecord(mgr.listInstalled(), "component-echo");
     expect(component.status).toBe("enabled");
   }, 30_000);
+});
+
+// Issue #507 (AP-FR-001, AP-NFR-001): an agent-kind plugin rides the SAME
+// kind-agnostic discovery / spawn / supervision machinery as an integration
+// plugin, answers the declarative `translateLaunch` contract method, and is
+// granted NO broker surface. That last absence is the "no new privileges"
+// guarantee, so it is asserted here rather than assumed.
+describe("agent plugins (issue #507)", () => {
+  it("discovers, validates, and spawns an agent plugin like an integration plugin", async () => {
+    sandbox = await makeSandbox({ bundled: ["agent-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const rec = findRecord(mgr.listInstalled(), "agent-echo");
+    expect(rec.manifest?.kind).toBe("agent");
+    expect(rec.status).toBe("enabled");
+    expect(typeof rec.pid).toBe("number");
+    const pid = need(rec.pid, "pid");
+    expect(() => process.kill(pid, 0)).not.toThrow();
+  });
+
+  it("answers the translateLaunch RPC with a launch descriptor", async () => {
+    sandbox = await makeSandbox({ bundled: ["agent-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const descriptor = await mgr.invoke<{
+      schemaVersion: number;
+      kind: string;
+      command: string;
+      args: string[];
+      cwd?: string;
+    }>("agent-echo", "translateLaunch", {
+      config: { model: "haiku" },
+      context: {
+        projectId: "proj",
+        benchId: 1,
+        workspacePath: "/tmp/ws",
+        sessionId: "s-1",
+        effectiveConfig: {},
+      },
+    });
+    expect(descriptor.schemaVersion).toBe(1);
+    expect(descriptor.kind).toBe("agent-launch");
+    expect(descriptor.command).toBe("echo-agent");
+    expect(descriptor.cwd).toBe("/tmp/ws");
+  });
+
+  it("getAgentManifests returns only agent-kind manifests", async () => {
+    sandbox = await makeSandbox({ bundled: ["agent-echo", "component-echo", "echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    const manifests = mgr.getAgentManifests();
+    expect(manifests.map((m) => m.id)).toEqual(["agent-echo"]);
+    expect(manifests.every((m) => m.kind === "agent")).toBe(true);
+    // Neither the component nor the integration sibling leaks into the agent
+    // registry's inventory.
+    expect(mgr.getComponentManifests().map((m) => m.id)).toEqual(["component-echo"]);
+  });
+
+  it("registers no broker handlers, so a privileged host.* call is MethodNotFound (AP-NFR-001)", async () => {
+    sandbox = await makeSandbox({ bundled: ["agent-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    for (const method of ["host.process.start", "host.docker.composeUp", "host.ports.get"]) {
+      const probe = await mgr.invoke<{ reached: boolean; code?: number }>(
+        "agent-echo",
+        "probeBroker",
+        { method },
+      );
+      expect(probe.reached).toBe(false);
+      expect(probe.code).toBe(-32601);
+    }
+  });
+
+  it("exposes the live connection for a running agent plugin via getConnection", async () => {
+    sandbox = await makeSandbox({ bundled: ["agent-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const connection = mgr.getConnection("agent-echo");
+    expect(connection).not.toBeNull();
+    expect(mgr.getConnection("agent-echo")).toBe(connection);
+    await mgr.disable("agent-echo");
+    expect(mgr.getConnection("agent-echo")).toBeNull();
+  });
 });
 
 describe("per-bench BrokerContext registry (#677)", () => {

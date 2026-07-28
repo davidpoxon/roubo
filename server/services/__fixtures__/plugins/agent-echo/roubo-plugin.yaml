@@ -1,0 +1,16 @@
+id: agent-echo
+name: Agent Echo Fixture
+version: 0.0.0
+description: An agent-kind test fixture that answers translateLaunch over JSON-RPC
+kind: agent
+roubo: ^1.4.0
+entry: ./index.cjs
+contractVersion: 1
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

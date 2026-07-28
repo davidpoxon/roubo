@@ -53,7 +53,15 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // `permissions` is `.passthrough()` and the version fields are optional), so an
 // existing integration plugin built against 1.0.0 through 1.2.0 keeps working
 // unchanged. No existing contract method changed shape.
-export const HOST_API_VERSION = "1.3.0";
+// 1.4.0 (issue #507): the `agent` plugin kind lands, alongside the
+// `translateLaunch` contract and the AgentLaunchDescriptor's declared
+// capabilities. The bump is the same additive class as the component bump: the
+// new kind and the new contract method are additive (an agent plugin answers
+// `translateLaunch`; nothing else registers it), so an existing integration or
+// component plugin built against 1.0.0 through 1.3.0 keeps working unchanged.
+// No existing contract method changed shape and no new privilege was added to
+// the runtime sandbox (AP-NFR-001).
+export const HOST_API_VERSION = "1.4.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
 export const SHUTDOWN_GRACE_MS = 5000;
@@ -152,6 +160,10 @@ export function registerComponentPluginHooks(hooks: ComponentPluginHooks | null)
 
 function isComponentPlugin(entry: PluginEntry): boolean {
   return entry.record.manifest?.kind === "component";
+}
+
+function isAgentPlugin(entry: PluginEntry): boolean {
+  return entry.record.manifest?.kind === "agent";
 }
 
 // HostComponentBroker runtime wiring (F2.1, #677; precise routing #685).
@@ -850,8 +862,9 @@ function attachStdioLogging(entry: PluginEntry, proc: ChildProcess): void {
 
 // #496: the missing-entry / not-built failure has a kind-aware recovery hint.
 // A component plugin is installed from the marketplace, so its actionable
-// recovery is to reinstall it from there (there is no local build to fix);
-// every other kind (integration, and any future kind) keeps the build-output
+// recovery is to reinstall it from there (there is no local build to fix); an
+// agent plugin is distributed the same way (#507), so it shares that guidance.
+// Every other kind (integration, and any future kind) keeps the build-output
 // guidance. The banner renders this message verbatim (ErroredBanner), so the
 // marketplace-recovery guidance TC-082 requires has to live in the host-produced
 // message here.
@@ -861,7 +874,7 @@ function missingEntryMessage(
   kind: PluginManifest["kind"] | undefined,
 ): string {
   const base = `Plugin entry file not found: ${entryRel} (in ${resolvedDir}). The plugin may not be built;`;
-  return kind === "component"
+  return kind === "component" || kind === "agent"
     ? `${base} reinstall it from the marketplace.`
     : `${base} check its build output exists.`;
 }
@@ -1170,6 +1183,17 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
         },
       );
     }
+    // Agent plugins (#507) deliberately register NOTHING here. An agent plugin
+    // is spawned-and-RPC like an integration plugin: it answers
+    // `translateLaunch` and returns a declarative AgentLaunchDescriptor the host
+    // validates and executes. The absence of any agent-specific broker handler
+    // at this seam IS the AP-NFR-001 guarantee that enabling an agent plugin
+    // grants no privilege beyond the existing runtime sandbox. In particular the
+    // plugin never gains a filesystem handle onto a bench workspace, so the
+    // workspace writes it declares are executed core-side by the agent launch
+    // executor (agent-launch-executor.ts), never by the plugin (AP-TC-014
+    // S003-O02). Do not add a broker registration for `agent` here without
+    // re-deriving that guarantee.
   } catch (err) {
     entry.record.status = "errored";
     entry.record.lastError = {
@@ -1544,6 +1568,25 @@ export function getComponentManifests(): PluginManifest[] {
   const manifests: PluginManifest[] = [];
   for (const entry of plugins.values()) {
     if (isComponentPlugin(entry) && entry.record.manifest) {
+      manifests.push(entry.record.manifest);
+    }
+  }
+  return manifests;
+}
+
+/**
+ * The parsed manifests of every installed `agent`-kind plugin (issue #507,
+ * AP-FR-001). This is the agent registry's inventory: the settings UI and the
+ * launch path read it to enumerate the agents a user can pick, and
+ * `agent-plugin-registry.resolveAgent` gates any actual use of one behind the
+ * install / compatibility / consent / availability chain. Entries without a
+ * parsed manifest (a malformed install) are skipped, mirroring
+ * `getComponentManifests`.
+ */
+export function getAgentManifests(): PluginManifest[] {
+  const manifests: PluginManifest[] = [];
+  for (const entry of plugins.values()) {
+    if (isAgentPlugin(entry) && entry.record.manifest) {
       manifests.push(entry.record.manifest);
     }
   }

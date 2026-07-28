@@ -178,6 +178,25 @@ function componentRecord(over: Partial<PluginRecord> = {}): PluginRecord {
   return record({ id: "database", source: "bundled", manifest: componentManifest(), ...over });
 }
 
+function agentManifest(over: Partial<PluginManifest> = {}): PluginManifest {
+  return manifest({
+    id: "claude-code",
+    name: "Claude Code",
+    kind: "agent",
+    permissions: {
+      network: { hosts: [] },
+      credentials: { slots: [] },
+      filesystem: { paths: [] },
+      processes: false,
+    },
+    ...over,
+  });
+}
+
+function agentRecord(over: Partial<PluginRecord> = {}): PluginRecord {
+  return record({ id: "claude-code", source: "bundled", manifest: agentManifest(), ...over });
+}
+
 describe("PluginCard: header content (TC-001, TC-013, FR-057)", () => {
   it("renders name, version, source label, and description", () => {
     render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
@@ -640,6 +659,54 @@ describe("PluginCard: consent affordance for component plugins (issue #490)", ()
     });
     // Success closes the dialog (consentOpen -> false unmounts it).
     expect(screen.queryByTestId("consent-review-dialog")).toBeNull();
+  });
+});
+
+// Issue #507 (AP-TC-014 S001/S002): an agent plugin is consent-gated on exactly
+// the same terms as a component plugin, so enabling one presents the existing
+// consent flow and declining leaves it inert (no config surface is activated).
+describe("PluginCard: consent affordance for agent plugins (issue #507)", () => {
+  const declared = agentManifest().permissions;
+
+  function consentStatus(consentedAt?: string) {
+    return {
+      data: { declared, firstParty: true, ...(consentedAt ? { consentedAt } : {}) },
+    } as unknown as ReturnType<typeof _useConsentStatus>;
+  }
+
+  it("fetches consent for agent cards and shows Review permissions when unconsented", () => {
+    mockedConsentStatus.mockReturnValue(consentStatus());
+    render(<PluginCard plugin={agentRecord()} hostApiVersion="1.4.0" />);
+    expect(mockedConsentStatus).toHaveBeenCalledWith("claude-code", true);
+    expect(screen.getByRole("button", { name: "Review permissions" })).toBeTruthy();
+  });
+
+  it("hides Review permissions once the agent plugin is consented", () => {
+    mockedConsentStatus.mockReturnValue(consentStatus("2026-07-01T00:00:00.000Z"));
+    render(<PluginCard plugin={agentRecord()} hostApiVersion="1.4.0" />);
+    expect(screen.queryByRole("button", { name: "Review permissions" })).toBeNull();
+  });
+
+  it("keeps the affordance visible when the consent dialog is dismissed without granting", async () => {
+    const user = userEvent.setup();
+    const mutate = vi.fn();
+    mockedConsentStatus.mockReturnValue(consentStatus());
+    mockedGrantConsent.mockReturnValue({
+      mutate,
+      isPending: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof _useGrantConsent>);
+    render(<PluginCard plugin={agentRecord()} hostApiVersion="1.4.0" />);
+
+    await user.click(screen.getByRole("button", { name: "Review permissions" }));
+    expect(screen.getByTestId("consent-review-dialog")).toBeTruthy();
+    await user.keyboard("{Escape}");
+
+    // Declining grants nothing: the plugin stays unconsented, so the server-side
+    // registry gate keeps it inert.
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Review permissions" })).toBeTruthy();
   });
 });
 

@@ -855,3 +855,210 @@ export interface ComponentPluginHandle {
   /** Tear down the RPC connection. Tests use this; production plugins do not. */
   dispose(): void;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent plugins (AP-FR-001, AP-US-001)
+//
+// An agent plugin translates a launch request into the argv, environment, and
+// declared capabilities the host needs to start an AI coding agent in a bench
+// workspace. It runs over the same vscode-jsonrpc/stdio transport as an
+// integration or component plugin, registered via `defineAgentPlugin()`.
+//
+// The contract is DECLARATIVE ONLY: there is deliberately no imperative escape
+// hatch. The host owns the PTY spawn, every workspace write, hook receipt, and
+// quiescence detection, so an agent plugin holds no privilege the runtime
+// sandbox does not already grant an integration plugin (AP-NFR-001). In
+// particular a plugin can never write a bench workspace itself; it declares
+// `capabilities.workspaceWrites` and the host executes them.
+//
+// See:
+//   .specifications/agent-plugins/prd.md (AP-FR-001, AP-NFR-001, AP-US-001)
+//   .specifications/agent-plugins/spikes/spike-502-agent-contract-shape.md
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The SDK-level contract version an agent plugin declares, versioned explicitly
+ * and separately from `SUPPORTED_CONTRACT_VERSION` so the component and agent
+ * contracts can move independently. The host gates compatibility at validation
+ * time (a mismatch is rejected before `translateLaunch` is ever called).
+ */
+export const SUPPORTED_AGENT_CONTRACT_VERSION = 1 as const;
+
+/**
+ * Minimal structural copy of `@roubo/shared`'s `AgentLaunchDescriptor` shapes.
+ *
+ * `@roubo/plugin-sdk` is a published, dependency-light package (`private:
+ * false`, only `vscode-jsonrpc`) whereas `@roubo/shared` is a `private: true`
+ * workspace package that ships raw TypeScript. Taking a workspace dependency on
+ * it would break both `npm publish` (an unpublished dependency) and the SDK's
+ * own `tsc` build (`rootDir: ./src` cannot import a `.ts` file outside `src`).
+ * So the descriptor shape is restated here. It MUST stay structurally in sync
+ * with `shared/agent-launch-descriptor-schema.ts` (the Zod schema is the
+ * authority; the host validates every descriptor against it).
+ */
+export type WriteOp =
+  | { op: "unionArray"; path: string; values: string[] }
+  | { op: "set"; path: string; value: unknown }
+  | { op: "delete"; path: string };
+
+/**
+ * A workspace file mutation the plugin DECLARES and the host executes, resolved
+ * with `resolveWithin` against the bench workspace (escapes rejected). Ops are
+ * applied in order against the parsed existing file, so unknown keys survive.
+ */
+export interface WorkspaceWriteSpec {
+  relPath: string;
+  format: "json" | "text";
+  ops: WriteOp[];
+}
+
+/**
+ * How the agent signals the host. `http-hook` covers an agent that POSTs to the
+ * host itself (the hook registration rides a workspace write); `spawned-notifier`
+ * covers an agent that spawns a notifier program per event (the registration
+ * rides argv). Carrier strings may embed `{{sessionId}}` / `{{port}}` /
+ * `{{workspace}}`, which the host resolves: a plugin declares shape and never
+ * learns a real port or mints a session id.
+ */
+export type NotificationWiring =
+  | {
+      kind: "http-hook";
+      event: "waiting";
+      carrier: { workspaceWrite: WorkspaceWriteSpec };
+      correlation: { field: "session_id"; source: "agent-native" };
+    }
+  | {
+      kind: "spawned-notifier";
+      event: "turn-complete";
+      carrier: { args: string[] };
+      payload: "json-arg";
+      correlation: { source: "template"; template: string };
+    };
+
+/** Pre-launch agent-CLI version probe: args, semver extraction, floor, ceiling. */
+export interface VersionProbeSpec {
+  args: string[];
+  parse: "semver";
+  minVersion?: string;
+  testedCeiling?: string;
+}
+
+/** How the host decides the agent is waiting on the user. */
+export type WaitingDetectionSpec =
+  | { kind: "hook-driven"; quiescenceFallbackMs?: number }
+  | { kind: "quiescence-only"; debounceMs: number };
+
+/** The universal permission axis every agent plugin maps to its native mechanism. */
+export type AgentPosture = "read-only" | "guarded" | "auto-edit" | "full-auto";
+
+/**
+ * The user-facing permissions model (AP-FR-016, as narrowed by spike #502): a
+ * universal posture plus optional fine-grained rules. Rule strings are opaque to
+ * the host; only the declaring plugin interprets them.
+ */
+export interface AgentPermissionsModel {
+  posture: AgentPosture;
+  rules?: { allow: string[]; ask: string[]; deny: string[] };
+}
+
+/** How this agent realises each posture, and whether it honours rules at all. */
+export interface PermissionsCapability {
+  postures: Partial<
+    Record<AgentPosture, { args?: string[]; workspaceWrites?: WorkspaceWriteSpec[] }>
+  >;
+  /** Absent means the fine-grained rules editor is hidden for this agent. */
+  rules?: { carrier: "workspace-write"; resync: boolean };
+}
+
+/**
+ * Optional declared capabilities. Absence is first-class: no `workspaceWrites`
+ * means the host writes nothing, no `notification` means nothing is wired, no
+ * `versionProbe` means no gate, no `waitingDetection` means the generic
+ * quiescence debounce, no `permissions` means the host injects nothing. An agent
+ * declaring none launches as a plain terminal session.
+ */
+export interface AgentCapabilities {
+  workspaceWrites?: WorkspaceWriteSpec[];
+  notification?: NotificationWiring;
+  versionProbe?: VersionProbeSpec;
+  waitingDetection?: WaitingDetectionSpec;
+  permissions?: PermissionsCapability;
+}
+
+/**
+ * What `translateLaunch` returns. `command` + `args` are the entire mandatory
+ * surface; `args` is an argv array that is NEVER shell-interpreted.
+ */
+export interface AgentLaunchDescriptor {
+  schemaVersion: 1;
+  kind: "agent-launch";
+  command: string;
+  args: string[];
+  /** Additive over the host env AFTER the host strips its internal keys. */
+  env?: Record<string, string>;
+  /** Defaults to the bench workspace path. */
+  cwd?: string;
+  initialPrompt?: { mode: "argv-positional"; maxLength?: number };
+  capabilities?: AgentCapabilities;
+}
+
+/**
+ * Per-launch context the host resolves before `translateLaunch` runs. The
+ * `sessionId` is minted by the host (a plugin never mints one) and
+ * `effectiveConfig` is the already-merged app defaults, project overrides,
+ * preset, and per-launch values (AP-FR-011).
+ */
+export interface AgentLaunchContext {
+  projectId: string;
+  benchId: number;
+  workspacePath: string;
+  sessionId: string;
+  effectiveConfig: Record<string, unknown>;
+  initialPrompt?: string;
+}
+
+/**
+ * The contract an agent plugin implements: one pure function mapping the
+ * plugin's `config` plus the `AgentLaunchContext` to an `AgentLaunchDescriptor`
+ * the host validates and executes. There is exactly one method by design; every
+ * privileged action is expressed as declarative data on the descriptor.
+ */
+export interface DeclarativeAgentContract {
+  translateLaunch: (params: {
+    config: Record<string, unknown>;
+    context: AgentLaunchContext;
+  }) => Promise<AgentLaunchDescriptor> | AgentLaunchDescriptor;
+}
+
+export type AgentContract = DeclarativeAgentContract;
+
+export type AgentContractMethodName = "translateLaunch";
+
+/** Options for `defineAgentPlugin`. */
+export interface DefineAgentPluginOptions {
+  /**
+   * The agent contract version the plugin declares. Must equal
+   * `SUPPORTED_AGENT_CONTRACT_VERSION`; a mismatch is rejected synchronously at
+   * definition (validation) time, never deferred to a launch.
+   * Defaults to `SUPPORTED_AGENT_CONTRACT_VERSION` when omitted.
+   */
+  contractVersion?: number;
+  /**
+   * Replace the default stdio streams. Test harnesses inject paired streams;
+   * production plugin code never sets this.
+   */
+  streams?: {
+    input: NodeJS.ReadableStream;
+    output: NodeJS.WritableStream;
+  };
+}
+
+/**
+ * The handle `defineAgentPlugin` returns. There is deliberately no `host`
+ * client: an agent plugin is granted no broker surface, which is the mechanism
+ * by which AP-NFR-001 (no new privileges) holds.
+ */
+export interface AgentPluginHandle {
+  /** Tear down the RPC connection. Tests use this; production plugins do not. */
+  dispose(): void;
+}

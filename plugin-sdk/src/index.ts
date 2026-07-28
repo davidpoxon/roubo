@@ -1,9 +1,26 @@
 export { definePlugin } from "./define-plugin.js";
 export { defineComponentPlugin } from "./define-component-plugin.js";
+export { defineAgentPlugin } from "./define-agent-plugin.js";
 export { host } from "./host-client.js";
 export { host as componentHost } from "./component-host-client.js";
-export { SUPPORTED_CONTRACT_VERSION } from "./types.js";
+export { SUPPORTED_CONTRACT_VERSION, SUPPORTED_AGENT_CONTRACT_VERSION } from "./types.js";
 export type {
+  AgentCapabilities,
+  AgentContract,
+  AgentContractMethodName,
+  AgentLaunchContext,
+  AgentLaunchDescriptor,
+  AgentPermissionsModel,
+  AgentPluginHandle,
+  AgentPosture,
+  DeclarativeAgentContract,
+  DefineAgentPluginOptions,
+  NotificationWiring,
+  PermissionsCapability,
+  VersionProbeSpec,
+  WaitingDetectionSpec,
+  WorkspaceWriteSpec,
+  WriteOp,
   BenchContext,
   CapabilityQueryResult,
   ComponentContract,
