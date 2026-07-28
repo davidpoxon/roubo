@@ -83,7 +83,7 @@
     "@vitejs/plugin-react": "6.0.3",
     "@vitest/coverage-v8": "4.1.9",
     "axe-core": "4.12.1",
-    "concurrently": "10.0.3",
+    "concurrently": "10.0.4",
     "cross-env": "10.1.0",
     "eslint": "10.6.0",
     "eslint-config-prettier": "10.1.8",
