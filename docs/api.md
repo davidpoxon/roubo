@@ -489,4 +489,4 @@ The same flow expressed as SSE-driven instead of polling: open `GET /api/notific
 
 ## Reading the source
 
-This document covers the integration surface. The full set of routes, including admin-only and UI-helper endpoints, is enumerated by the router mount table in [`server/index.ts`](../server/index.ts) and implemented under [`server/routes/`](../server/routes/). Generating that inventory and gating it in CI is tracked in #1018. When in doubt about a request body or response shape, the route handler is the authoritative source; the TypeScript request interfaces in [`shared/types.ts`](../shared/types.ts) are the contract.
+This document covers the integration surface. The full set of routes, including admin-only and UI-helper endpoints, is listed in [docs/routes.md](./routes.md), generated from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/) and gated against drift in CI. When in doubt about a request body or response shape, the route handler is the authoritative source; the TypeScript request interfaces in [`shared/types.ts`](../shared/types.ts) are the contract.
