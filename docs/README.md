@@ -19,6 +19,7 @@ Documentation for [Roubo](../README.md), a workbench for running multiple parall
 
 ## Reference
 
+- **[Route Inventory](./routes.md)**: every HTTP route the server registers, generated from `server/routes/` and gated against drift in CI.
 - **[Brand Guide](./brand.md)**: vocabulary, design philosophy, and tone.
 - **[Contributing](../CONTRIBUTING.md)**: issue reporting, PR process, DCO sign-off.
 - **[Trademark Policy](../TRADEMARK.md)**: guidance on use of the Roubo name and mark.

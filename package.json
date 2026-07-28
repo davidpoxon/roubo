@@ -50,6 +50,7 @@
     "lint:component-guard": "node scripts/component-type-knowledge-guard.mjs",
     "lint:no-ai-coauthor": "node scripts/check-ai-coauthorship.mjs",
     "generate:schema": "tsx scripts/generate-schema.ts",
+    "generate:routes": "tsx scripts/generate-route-inventory.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit && tsc --build tsconfig.build.json && npx -w plugins/process tsc --noEmit && npx -w plugins/database tsc --noEmit && npx -w e2e/fixtures/stubbed-plugin tsc --noEmit && npx -w e2e/fixtures/clasp-deploy-stub tsc --noEmit"
@@ -93,6 +94,7 @@
     "prettier": "3.8.5",
     "supertest": "7.2.2",
     "tsx": "4.22.4",
+    "typescript": "6.0.3",
     "typescript-eslint": "8.62.0",
     "vite": "8.1.0",
     "vitest": "4.1.9",

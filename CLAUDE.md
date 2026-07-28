@@ -4,16 +4,16 @@ Local development environment manager for parallel worktree-based development. N
 
 The docs below are the source of truth. This file holds only what reading the repo will not tell you.
 
-| For                                                       | Read                                                                                                          |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Concepts, `~/.roubo` state layout, bench lifecycle        | [docs/architecture.md](docs/architecture.md)                                                                  |
-| Setup, commands, project structure, conventions, pre-push | [docs/development.md](docs/development.md)                                                                    |
-| API                                                       | [docs/api.md](docs/api.md), then the mount table in [`server/index.ts`](server/index.ts) and `server/routes/` |
-| `roubo.yaml` reference                                    | [docs/configuration.md](docs/configuration.md)                                                                |
-| Vocabulary, voice, colour, typography, do/don't           | [docs/brand.md](docs/brand.md)                                                                                |
-| Design tokens and component specs (machine-checkable)     | [DESIGN.md](DESIGN.md)                                                                                        |
-| Plugin authoring                                          | [docs/plugin-sdk.md](docs/plugin-sdk.md)                                                                      |
-| PR process, DCO sign-off                                  | [CONTRIBUTING.md](CONTRIBUTING.md)                                                                            |
+| For                                                       | Read                                                                                                    |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Concepts, `~/.roubo` state layout, bench lifecycle        | [docs/architecture.md](docs/architecture.md)                                                            |
+| Setup, commands, project structure, conventions, pre-push | [docs/development.md](docs/development.md)                                                              |
+| API                                                       | [docs/api.md](docs/api.md), then the generated [docs/routes.md](docs/routes.md) for the full route list |
+| `roubo.yaml` reference                                    | [docs/configuration.md](docs/configuration.md)                                                          |
+| Vocabulary, voice, colour, typography, do/don't           | [docs/brand.md](docs/brand.md)                                                                          |
+| Design tokens and component specs (machine-checkable)     | [DESIGN.md](DESIGN.md)                                                                                  |
+| Plugin authoring                                          | [docs/plugin-sdk.md](docs/plugin-sdk.md)                                                                |
+| PR process, DCO sign-off                                  | [CONTRIBUTING.md](CONTRIBUTING.md)                                                                      |
 
 ## Positioning
 
@@ -27,6 +27,7 @@ Roubo is tool-agnostic across AI coding agents (Claude Code, Codex, Gemini CLI, 
 
 - **`no-ai-coauthorship`** fails a PR when a `Co-Authored-By:` trailer on any commit in the range, or the PR body, credits an AI coding agent, or when either carries a "Generated with ..." attribution footer. Roubo commits credit the human author only. Denylist: `scripts/check-ai-coauthorship.mjs`.
 - **`schema-drift`** re-runs `npm run generate:schema` and fails on any diff under `schema/`. Change a zod source, regenerate, and commit the output. The hand-authored `schema/roubo-*.json` files are exempt.
+- **`route-inventory-drift`** re-runs `npm run generate:routes` and fails on any diff in `docs/routes.md`. Add, remove, or rename a route, regenerate, and commit the output.
 - **`lint:component-guard`** (CP-NFR-006) fails if a component-type literal or a docker/compose field branch reappears in `server/` or `shared/`.
 - **`lint:em-dash`** enforces the no-em-dash rule from [docs/brand.md](docs/brand.md#punctuation), but only over tracked files under `server/ client/ shared/ schema/ docs/`. The rule itself also covers commit messages, PR bodies, `plugins/`, `electron/`, `e2e/`, and root markdown, where nothing checks it.
 - The `commit-msg` hook installed by `npm install` requires a DCO `Signed-off-by` line matching `git config user.email`.

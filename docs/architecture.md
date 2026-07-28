@@ -118,7 +118,7 @@ Roubo's UI is a React frontend that calls the same REST API any external tool ca
 
 The API is JSON, mounted under `/api/*`, binds to `127.0.0.1` only (port 3333 in the Electron app, 3335 in `npm run dev`), and has no authentication on bench, project, component, tool, or inspection routes. Real-time bench and notification events stream over Server-Sent Events at `GET /api/notifications/stream`; terminal sessions use a WebSocket at `WS /ws/terminal/:sessionId`.
 
-The full endpoint reference, with request and response shapes, error codes, status code matrix, and a worked end-to-end curl example, lives in [docs/api.md](./api.md). For the complete route list, including admin-only and UI-helper endpoints, read the router mount table in [`server/index.ts`](../server/index.ts); the handlers themselves live in [`server/routes/`](../server/routes/), and [`client/src/lib/api.ts`](../client/src/lib/api.ts) is the typed client for the surface the UI actually uses.
+The full endpoint reference, with request and response shapes, error codes, status code matrix, and a worked end-to-end curl example, lives in [docs/api.md](./api.md). The complete route list, including admin-only and UI-helper endpoints, is generated from the source into [docs/routes.md](./routes.md); the handlers themselves live in [`server/routes/`](../server/routes/), and [`client/src/lib/api.ts`](../client/src/lib/api.ts) is the typed client for the surface the UI actually uses.
 
 ## Process model
 

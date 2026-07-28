@@ -85,6 +85,29 @@ jobs:
         # files are never touched by the generator, so they never trip this.
         run: git diff --exit-code -- schema/
 
+  # #1018: prove docs/routes.md cannot drift from the handlers it documents.
+  # The generator statically parses the mount table in server/index.ts and every
+  # router under server/routes/, so adding, removing, or renaming a route
+  # without re-running `npm run generate:routes` fails here. The hand-maintained
+  # route list this replaced had drifted to roughly a third of the real surface.
+  route-inventory-drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run generate:routes
+      - name: Fail if the route inventory drifted from server/routes/
+        # The generator writes only docs/routes.md, so a clean tree over that
+        # one path means no drift.
+        run: git diff --exit-code -- docs/routes.md
+
   build:
     runs-on: ubuntu-latest
     permissions:
