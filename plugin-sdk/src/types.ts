@@ -1055,8 +1055,10 @@ export interface DefineAgentPluginOptions {
 
 /**
  * The handle `defineAgentPlugin` returns. There is deliberately no `host`
- * client: an agent plugin is granted no broker surface, which is the mechanism
- * by which AP-NFR-001 (no new privileges) holds.
+ * client: an agent plugin is granted no component broker surface
+ * (`host.process.start`/`run`/`stop`/`status`/`logs`, `host.docker.*`,
+ * `host.ports.*`), only the same v1 host surface an integration plugin gets,
+ * which is the mechanism by which AP-NFR-001 (no new privileges) holds.
  */
 export interface AgentPluginHandle {
   /** Tear down the RPC connection. Tests use this; production plugins do not. */

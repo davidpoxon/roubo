@@ -200,7 +200,7 @@ The permissions model has two axes: a universal `posture` (`read-only`, `guarded
 
 ### Workspace writes are declarative, always
 
-A plugin can never write a bench workspace itself. The filesystem broker's allowlist grants a plugin only its own directory plus the paths its manifest declares, and an agent plugin is granted no broker surface at all. So the only route from a plugin to a workspace file is a `WorkspaceWriteSpec` the host resolves under the bench workspace root and executes:
+A plugin can never write a bench workspace through the filesystem broker. The broker's allowlist grants a plugin only its own directory plus the paths its manifest declares, and no allowlist entry ever covers a bench workspace. An agent plugin is granted no more than an integration plugin: the same v1 host surface (`host.fs.*` confined to its own directory, `host.credentials.*`, `host.fetch`, and `host.process.spawn` capped by the executables its manifest declares) and none of the component broker (`host.process.start` / `run` / `stop` / `status` / `logs`, `host.docker.*`, `host.ports.*`). So the only route from the agent contract to a workspace file is a `WorkspaceWriteSpec` the host resolves under the bench workspace root and executes:
 
 ```ts
 interface WorkspaceWriteSpec {

@@ -539,8 +539,10 @@ describe("component plugins (issue #608)", () => {
 // Issue #507 (AP-FR-001, AP-NFR-001): an agent-kind plugin rides the SAME
 // kind-agnostic discovery / spawn / supervision machinery as an integration
 // plugin, answers the declarative `translateLaunch` contract method, and is
-// granted NO broker surface. That last absence is the "no new privileges"
-// guarantee, so it is asserted here rather than assumed.
+// granted NO component broker surface (`host.process.start`/`run`/`stop`/
+// `status`/`logs`, `host.docker.*`, `host.ports.*`), only the same v1 host
+// surface an integration plugin already gets. That absence is the "no new
+// privileges" guarantee, so it is asserted here rather than assumed.
 describe("agent plugins (issue #507)", () => {
   it("discovers, validates, and spawns an agent plugin like an integration plugin", async () => {
     sandbox = await makeSandbox({ bundled: ["agent-echo"] });
@@ -593,7 +595,7 @@ describe("agent plugins (issue #507)", () => {
     expect(mgr.getComponentManifests().map((m) => m.id)).toEqual(["component-echo"]);
   });
 
-  it("registers no broker handlers, so a privileged host.* call is MethodNotFound (AP-NFR-001)", async () => {
+  it("registers no component broker handlers, so host.process.start / host.docker.* / host.ports.* are MethodNotFound (AP-NFR-001)", async () => {
     sandbox = await makeSandbox({ bundled: ["agent-echo"] });
     mgr = await loadManager();
     await mgr.initialize();

@@ -77,7 +77,11 @@ export function defineAgentPlugin(
 
   // No broker handlers and no host client are bound here. Agent plugins are
   // spawned-and-RPC like integration plugins, never bench-supervised like
-  // component plugins, so the privileged host.* surface is simply absent.
+  // component plugins, so the component broker surface
+  // (`host.process.start`/`run`/`stop`/`status`/`logs`, `host.docker.*`,
+  // `host.ports.*`) is absent and no `host` client is bound. An agent plugin
+  // gets no more than the same v1 host surface an integration plugin already
+  // has, including `host.process.spawn` capped by its declared executables.
   connection.listen();
 
   return Object.freeze({

@@ -210,7 +210,7 @@ describe("defineAgentPlugin dispatch", () => {
     ).rejects.toThrow(/unsupported model/);
   });
 
-  it("registers no broker methods, so a privileged host.* call is MethodNotFound (AP-NFR-001)", async () => {
+  it("binds no host client and registers only translateLaunch, so every other contract method is MethodNotFound (AP-NFR-001)", async () => {
     const { pluginStreams, hostConnection, dispose } = pairedConnection();
     disposes.push(dispose);
 
@@ -228,12 +228,17 @@ describe("defineAgentPlugin dispatch", () => {
       ),
     );
 
-    // The agent handle deliberately exposes no `host` client, and no broker
-    // method is registered on the connection.
+    // The agent handle deliberately exposes no `host` client, so a plugin has
+    // nothing to call the host with beyond what the runtime already grants an
+    // integration plugin (the component broker is withheld host-side, at the
+    // spawn seam, not here).
     const handle = handles[handles.length - 1] as AgentPluginHandle & { host?: unknown };
     expect(handle.host).toBeUndefined();
 
-    for (const method of ["process/start", "docker/composeUp", "fs/writeFile"]) {
+    // Only `translateLaunch` is registered inbound. These are real contract
+    // methods of the OTHER plugin kinds, so a widened registration surface
+    // would answer one of them instead of MethodNotFound.
+    for (const method of ["listIssues", "getIssue", "translate", "start", "health"]) {
       await expect(hostConnection.sendRequest(method, {})).rejects.toMatchObject({ code: -32601 });
     }
   });

@@ -53,6 +53,6 @@ defineAgentPlugin({
 });
 ```
 
-The agent contract is declarative only: there is no imperative escape hatch and no host client. The host owns the process spawn, every workspace write, the notification wiring, and the version probe, so an agent plugin holds no privilege beyond what an integration plugin already has. Every capability under `capabilities` is optional, and absence is first-class: an agent that declares none launches as a plain terminal session.
+The agent contract is declarative only: there is no imperative escape hatch and no SDK-bound host client. The host owns the process spawn, every workspace write, the notification wiring, and the version probe, so an agent plugin holds no privilege beyond what an integration plugin already has. Every capability under `capabilities` is optional, and absence is first-class: an agent that declares none launches as a plain terminal session.
 
 Full author docs, including the manifest format, every contract method, the agent contract, pagination, error shapes, host helpers, and the trust model, live at [`docs/plugin-sdk.md`](../docs/plugin-sdk.md) in the Roubo repo.

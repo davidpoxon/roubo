@@ -8,7 +8,7 @@ import {
   type WorkspaceWriteSpec,
   type WriteOp,
 } from "@roubo/shared/agent-launch-descriptor-schema";
-import { resolveWithin, UnsafePathError } from "../lib/safe-path.js";
+import { assertRealpathWithin, resolveWithin, UnsafePathError } from "../lib/safe-path.js";
 import { atomicWrite } from "./state.js";
 
 // AgentLaunchExecutor (issue #507, AP-FR-001, AP-NFR-001).
@@ -22,10 +22,16 @@ import { atomicWrite } from "./state.js";
 // file writes are only expressible as declarative descriptors that core
 // validates and executes" criterion. A plugin cannot reach a bench workspace
 // itself: the plugin-fs broker allowlist grants only its own plugin dir plus
-// statically declared manifest paths, and an agent plugin is granted no broker
-// surface at all (see the spawn seam in plugin-manager.ts). So the only route
+// statically declared manifest paths, never a bench workspace, and an agent
+// plugin is granted no component broker surface at all (see the spawn seam in
+// plugin-manager.ts, which withholds host.process.start/run/stop/status/logs,
+// host.docker.* and host.ports.* for every non-component kind; the v1
+// host.process.spawn every kind gets is a separate handler, capped by the
+// executables the manifest declares). So the only route
 // from a plugin to a workspace file is a WorkspaceWriteSpec resolved here under
-// `resolveWithin(workspacePath, relPath)`, which rejects every escape.
+// the two containment barriers every synchronous write sink in this repo pairs:
+// the lexical `resolveWithin(workspacePath, relPath)` plus the on-disk
+// `assertRealpathWithin`, which together reject every escape.
 //
 // Modelled on lifecycle-engine.runDescriptor: validate FIRST, before any
 // filesystem call, and surface a legible message on rejection.
@@ -136,7 +142,17 @@ function resolveTarget(workspacePath: string, relPath: string): string {
     );
   }
   try {
-    return resolveWithin(workspacePath, relPath);
+    // Two barriers, the pairing every synchronous fs write sink in this repo
+    // uses. resolveWithin is lexical (path.resolve + path.relative) and cannot
+    // see an on-disk symlink; a symlinked DIRECTORY component under the
+    // workspace (`<workspace>/link` -> somewhere else) would otherwise pass it,
+    // and the later recursive mkdirSync + write would follow the link straight
+    // out of the workspace. assertRealpathWithin resolves symlinks on the
+    // deepest existing ancestor and closes that hole, which is what makes
+    // AP-NFR-001's "confined to the bench workspace" actually hold.
+    const resolved = resolveWithin(workspacePath, relPath);
+    assertRealpathWithin(workspacePath, resolved, "workspace write path");
+    return resolved;
   } catch (err) {
     if (err instanceof UnsafePathError) {
       throw new AgentDescriptorError(

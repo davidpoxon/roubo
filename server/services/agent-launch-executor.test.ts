@@ -222,6 +222,29 @@ describe("executeWorkspaceWrites", () => {
     expect(fs.existsSync(path.join(workspace, "ok.json"))).toBe(false);
   });
 
+  it("rejects a relPath traversing a symlinked directory out of the workspace", () => {
+    // The lexical resolveWithin check cannot see an on-disk symlink, so a
+    // symlinked directory component under the workspace would otherwise let a
+    // descriptor write anywhere the link points (AP-NFR-001: writes stay
+    // confined to the bench workspace).
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "agent-outside-"));
+    try {
+      fs.symlinkSync(outside, path.join(workspace, "link"), "dir");
+      expect(() =>
+        executeWorkspaceWrites(workspace, [
+          {
+            relPath: "link/settings.json",
+            format: "json",
+            ops: [{ op: "set", path: "a", value: 1 }],
+          },
+        ]),
+      ).toThrow(/escapes the bench workspace/);
+      expect(fs.readdirSync(outside)).toEqual([]);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
   it("rejects an absolute relPath", () => {
     expect(() =>
       executeWorkspaceWrites(workspace, [

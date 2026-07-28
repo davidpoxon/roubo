@@ -2,8 +2,8 @@
 
 // Minimal agent-kind plugin fixture (issue #507). The host spawns and supervises
 // it over the same vscode-jsonrpc/stdio transport as an integration plugin, and
-// registers NO broker handlers for it, so this fixture can only answer the
-// declarative `translateLaunch` contract method (AP-NFR-001).
+// registers NO component broker handlers for it, so this fixture can only answer
+// the declarative `translateLaunch` contract method (AP-NFR-001).
 const rpc = require("vscode-jsonrpc/node");
 
 const reader = new rpc.StreamMessageReader(process.stdin);
@@ -27,8 +27,8 @@ connection.onRequest("translateLaunch", (params) => ({
   },
 }));
 
-// Proof the plugin holds no privileged broker surface: it can ASK the host for
-// one, but the host registered no such handler for an agent plugin, so the call
+// Proof the plugin holds no component broker surface: it can ASK the host for
+// one, but the host registers no such handler for an agent plugin, so the call
 // comes back as JSON-RPC MethodNotFound (-32601).
 connection.onRequest("probeBroker", async (params) => {
   const method = (params && params.method) || "host.process.start";
