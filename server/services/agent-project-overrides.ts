@@ -16,9 +16,12 @@ import { getEffectiveAgentConfig } from "./agent-overrides.js";
 //
 // One layer below `agent-overrides.ts`. App-level defaults live in
 // `~/.roubo/agents/_global/<pluginId>.yaml`; a project's overrides of those
-// defaults live in `~/.roubo/agents/<projectId>/<pluginId>.yaml`. The leading
-// underscore on `_global` is what keeps the two namespaces from colliding: no
-// projectId the SAFE_PROJECT_ID allowlist accepts can start with one.
+// defaults live in `~/.roubo/agents/<projectId>/<pluginId>.yaml`. What keeps
+// the two namespaces from colliding is NOT the SAFE_PROJECT_ID allowlist below,
+// which does accept a leading underscore: it is that a projectId is a
+// registered project's `config.project.name`, which `ProjectConfigSchema.name`
+// constrains to `/^[a-z0-9-]+$/`, and that both routes 404 on an unregistered
+// id. So `_global` cannot arrive here as a projectId.
 //
 // Keeping the per-plugin file key at the project layer preserves the structural
 // isolation the app layer already has (AP-TC-003, AP-TC-009, AP-TC-015): two

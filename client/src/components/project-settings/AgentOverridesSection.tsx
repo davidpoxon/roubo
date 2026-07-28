@@ -73,13 +73,40 @@ function initialOverrideValue(def: FieldDef, appDefault: unknown): unknown {
   return "";
 }
 
-function fieldErrorsFrom(err: unknown): Record<string, string> {
-  const out: Record<string, string> = {};
+interface PartitionedErrors {
+  /** Errors that address an overridden field, so a control exists to carry them. */
+  fields: Record<string, string>;
+  /** Errors with no rendered control to attach to, for the form-level banner. */
+  unattached: string[];
+}
+
+/**
+ * Splits the server's field errors by whether this card renders a control the
+ * error can hang off. Only an OVERRIDDEN field gets a `ConfigSchemaForm`, and
+ * the server validates the MERGED config rather than the override subset, so a
+ * rejection can name a field this project inherits (a `required` violation, or
+ * an `additionalProperties` violation naming a stale app-default key). Routing
+ * those to the banner rather than dropping them is what keeps every rejection
+ * visible, mirroring `partitionFieldErrors` in the app-level
+ * `settings/agents/AgentConfigForm.tsx` (#634).
+ */
+function partitionFieldErrors(
+  err: unknown,
+  overriddenKeys: Record<string, unknown>,
+): PartitionedErrors {
+  const out: PartitionedErrors = { fields: {}, unattached: [] };
   if (!(err instanceof ApiError)) return out;
   const details = err.details as { fieldErrors?: ConfigFieldError[] } | undefined;
   for (const fieldError of details?.fieldErrors ?? []) {
+    // Only the first segment addresses a rendered control; a nested path still
+    // surfaces on its top-level field rather than vanishing.
     const key = fieldError.path.split(".")[0];
-    if (key && !(key in out)) out[key] = fieldError.message;
+    if (key && Object.prototype.hasOwnProperty.call(overriddenKeys, key)) {
+      if (!Object.prototype.hasOwnProperty.call(out.fields, key))
+        out.fields[key] = fieldError.message;
+    } else {
+      out.unattached.push(fieldError.message);
+    }
   }
   return out;
 }
@@ -149,9 +176,13 @@ function ProjectAgentOverrideCard({
         setJustSaved(true);
       },
       onError: (err: unknown) => {
-        const fields = fieldErrorsFrom(err);
-        setErrors(fields);
-        if (Object.keys(fields).length === 0) {
+        const { fields: fieldErrors, unattached } = partitionFieldErrors(err, draft);
+        setErrors(fieldErrors);
+        if (unattached.length > 0) {
+          // No control to render these against, so the banner carries them
+          // rather than the save failing with no visible feedback at all.
+          setFormError(unattached.join(", "));
+        } else if (Object.keys(fieldErrors).length === 0) {
           setFormError(err instanceof Error ? err.message : String(err));
         }
       },
@@ -194,7 +225,11 @@ function ProjectAgentOverrideCard({
       ) : (
         <div className="space-y-4">
           {fields.map(([key, def]) => {
-            const overridden = key in draft;
+            // `hasOwnProperty.call`, not `in`: a plugin's configSchema is
+            // opaque third-party data, so a property named `toString` or
+            // `constructor` would otherwise read as permanently overridden and
+            // could never be toggled back to inheriting.
+            const overridden = Object.prototype.hasOwnProperty.call(draft, key);
             const label = def.title ?? titleCase(key);
             return (
               <div

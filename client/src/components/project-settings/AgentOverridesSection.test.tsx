@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ProjectAgentState } from "@roubo/shared";
+import { ApiError } from "../../lib/api";
 
 vi.mock("../../hooks/useProjectAgents");
 
@@ -126,6 +127,53 @@ describe("AgentOverridesSection", () => {
     // Toggling a field on seeds it with the app default it replaces, and no
     // other field joins the payload.
     expect(mutate.mock.calls[0][0]).toEqual({ model: "opus" });
+  });
+
+  it("banners a save rejection that names a field this project inherits", async () => {
+    const user = userEvent.setup();
+    mockedList.mockReturnValue(listResult([CLAUDE]));
+    render(<AgentOverridesSection projectId="roubo-development" />);
+
+    await user.click(screen.getByRole("checkbox", { name: "Override Model" }));
+    await user.click(screen.getByTestId("project-agent-save-claude-code"));
+
+    // The server validates the MERGED config, so a rejection can name a field
+    // the project does not override. That field renders no control, so the
+    // error has nowhere to hang and must reach the form-level banner rather
+    // than being silently dropped.
+    await act(async () => {
+      mutate.mock.calls[0][1].onError(
+        new ApiError("Invalid agent configuration", 400, undefined, {
+          fieldErrors: [{ path: "effort", message: "must be one of: low, high" }],
+        }),
+      );
+    });
+
+    expect(screen.getByTestId("project-agent-error-claude-code")).toHaveTextContent(
+      "must be one of: low, high",
+    );
+  });
+
+  it("attaches a save rejection to the overridden field it names", async () => {
+    const user = userEvent.setup();
+    mockedList.mockReturnValue(listResult([CLAUDE]));
+    render(<AgentOverridesSection projectId="roubo-development" />);
+
+    await user.click(screen.getByRole("checkbox", { name: "Override Model" }));
+    await user.click(screen.getByTestId("project-agent-save-claude-code"));
+
+    await act(async () => {
+      mutate.mock.calls[0][1].onError(
+        new ApiError("Invalid agent configuration", 400, undefined, {
+          fieldErrors: [{ path: "model", message: "must be one of: sonnet, opus, haiku" }],
+        }),
+      );
+    });
+
+    // The overridden field renders a control, so the error hangs off it and
+    // the form-level banner stays out of the way.
+    expect(screen.queryByTestId("project-agent-error-claude-code")).not.toBeInTheDocument();
+    expect(screen.getByText("must be one of: sonnet, opus, haiku")).toBeInTheDocument();
   });
 
   it("previews the fully-overridden and fully-inherited boundaries exactly (AP-TC-010)", () => {

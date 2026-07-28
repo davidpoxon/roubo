@@ -87,9 +87,10 @@ describe("resolveProjectAgentPath", () => {
 
   it("never collides with the app-level _global namespace", () => {
     // `_global` starts with an underscore, which SAFE_PROJECT_ID accepts, so
-    // the guard alone does not separate the namespaces. What does is that the
-    // app layer writes `_global/<id>.yaml` and would only be reachable here by
-    // a project literally named `_global`, which cannot be registered.
+    // the guard alone does not separate the namespaces. What does is that a
+    // projectId is a registered project's name, which ProjectConfigSchema
+    // constrains to /^[a-z0-9-]+$/, so a project literally named `_global`
+    // cannot be registered and can never reach this path.
     expect(mod.resolveProjectAgentPath("roubo-development", "claude-code")).not.toContain(
       GLOBAL_DIR,
     );
@@ -178,6 +179,40 @@ describe("loadProjectAgentOverride", () => {
     } catch (err) {
       expect((err as InstanceType<typeof mod.AgentProjectOverrideError>).code).toBe("SCHEMA");
     }
+  });
+});
+
+describe("getProjectAgentOverrides", () => {
+  it("returns an empty record when the project overrides nothing for that plugin", () => {
+    expect(mod.getProjectAgentOverrides("roubo-development", "claude-code")).toEqual({});
+  });
+
+  it("returns just the stored override subset", () => {
+    withFiles({ [`${PROJECT_DIR}/claude-code.yaml`]: { model: "sonnet" } });
+    expect(mod.getProjectAgentOverrides("roubo-development", "claude-code")).toEqual({
+      model: "sonnet",
+    });
+  });
+
+  it("degrades a malformed file to inheriting everything rather than throwing", () => {
+    fsMocks.existsSync.mockReturnValue(true);
+    fsMocks.readFileSync.mockReturnValue(":\n  - bad\n  unbalanced");
+    expect(mod.getProjectAgentOverrides("roubo-development", "claude-code")).toEqual({});
+  });
+
+  it("degrades a schema-invalid envelope the same way", () => {
+    fsMocks.existsSync.mockReturnValue(true);
+    fsMocks.readFileSync.mockReturnValue("schemaVersion: 1\nintegration:\n  plugin: github-com\n");
+    expect(mod.getProjectAgentOverrides("roubo-development", "claude-code")).toEqual({});
+  });
+
+  it("still throws on a rejected id, which is an input error, not a recoverable state", () => {
+    expect(() => mod.getProjectAgentOverrides("../escape", "claude-code")).toThrow(
+      mod.AgentProjectOverrideError,
+    );
+    expect(() => mod.getProjectAgentOverrides("roubo-development", "../escape")).toThrow(
+      mod.AgentProjectOverrideError,
+    );
   });
 });
 
