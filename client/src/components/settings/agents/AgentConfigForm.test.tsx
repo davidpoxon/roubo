@@ -147,6 +147,31 @@ describe("AgentConfigForm", () => {
     expect(form.getByRole("alert")).toHaveTextContent("Must be one of: sonnet, opus");
   });
 
+  it("surfaces a field error naming a property the form renders no control for (#634)", async () => {
+    const user = userEvent.setup();
+    mockedSave.mockImplementation(
+      () =>
+        ({
+          mutate: (_config: Record<string, unknown>, opts?: MutateOptions) => {
+            opts?.onError?.(
+              new ApiError("Invalid agent configuration", 400, undefined, {
+                fieldErrors: [{ path: "nonsense", message: "Unexpected property 'nonsense'" }],
+              }),
+            );
+          },
+          isPending: false,
+        }) as unknown as ReturnType<typeof _useSaveAgentConfig>,
+    );
+    render(<AgentConfigForm agent={agent({ config: { model: "sonnet" } })} />);
+
+    await pickModel(user, "opus");
+    await user.click(screen.getByTestId("agent-config-save-claude-code"));
+
+    expect(screen.getByTestId("agent-config-error-claude-code")).toHaveTextContent(
+      "Unexpected property 'nonsense'",
+    );
+  });
+
   it("keeps two mounted plugins' drafts and saves independent (AP-TC-003, AP-TC-009)", async () => {
     const user = userEvent.setup();
     const saves: Record<string, Record<string, unknown>[]> = {};

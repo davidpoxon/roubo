@@ -20,15 +20,37 @@ const PRIMARY_BUTTON_CLASS =
 const SECONDARY_BUTTON_CLASS =
   "px-2.5 py-1 text-xs font-medium rounded text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
-function fieldErrorMap(err: unknown): Record<string, string> {
-  if (!(err instanceof ApiError)) return {};
+interface PartitionedErrors {
+  /** Errors that address a control the form renders, keyed by that control. */
+  fields: Record<string, string>;
+  /** Errors with no control to attach to, for the form-level banner. */
+  unattached: string[];
+}
+
+/**
+ * Splits the server's field errors by whether the form renders a control the
+ * error can hang off. `ConfigSchemaForm` renders one control per declared
+ * property, so an error whose top-level key is not a declared property (an
+ * unexpected-property rejection, say, or a stale key from an earlier plugin
+ * version) would otherwise be dropped and replaced by a generic message (#634).
+ */
+function partitionFieldErrors(
+  err: unknown,
+  schema: Record<string, unknown> | undefined,
+): PartitionedErrors {
+  const out: PartitionedErrors = { fields: {}, unattached: [] };
+  if (!(err instanceof ApiError)) return out;
   const details = err.details as { fieldErrors?: ConfigFieldError[] } | undefined;
-  const out: Record<string, string> = {};
+  const properties = (schema as { properties?: Record<string, unknown> } | undefined)?.properties;
   for (const fieldError of details?.fieldErrors ?? []) {
     // Only the first segment addresses a rendered control; a nested path still
     // surfaces on its top-level field rather than vanishing.
     const key = fieldError.path.split(".")[0];
-    if (key && !(key in out)) out[key] = fieldError.message;
+    if (key && properties && Object.prototype.hasOwnProperty.call(properties, key)) {
+      if (!(key in out.fields)) out.fields[key] = fieldError.message;
+    } else {
+      out.unattached.push(fieldError.message);
+    }
   }
   return out;
 }
@@ -76,9 +98,13 @@ export default function AgentConfigForm({ agent }: { agent: AgentPluginState }) 
         setJustSaved(true);
       },
       onError: (err: unknown) => {
-        const map = fieldErrorMap(err);
-        setErrors(map);
-        if (Object.keys(map).length === 0) {
+        const { fields, unattached } = partitionFieldErrors(err, agent.configSchema);
+        setErrors(fields);
+        if (unattached.length > 0) {
+          // No control to render these against, so the banner carries them
+          // rather than the generic "Invalid agent configuration".
+          setFormError(unattached.join(", "));
+        } else if (Object.keys(fields).length === 0) {
           setFormError(err instanceof Error ? err.message : String(err));
         }
       },
