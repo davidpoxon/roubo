@@ -13,8 +13,15 @@ import {
 } from "./plugin-http.js";
 import type { JsonRpcConnection } from "./plugin-rpc.js";
 import { assertPathAllowed, resolveAllowedRoots } from "./plugin-fs.js";
-import { assertSpawnAllowed, resolveAllowedExecutables } from "./plugin-spawn.js";
+import {
+  assertExecutableNotInWorkspace,
+  assertNoWorkspacePathArgs,
+  assertSpawnAllowed,
+  assertSpawnCwdConfined,
+  resolveAllowedExecutables,
+} from "./plugin-spawn.js";
 import { getInstanceHost } from "./plugin-instance-registry.js";
+import { getWorkspacesDir } from "./state.js";
 
 // JSON-RPC server-error range; we use app-level codes and surface the
 // specific reason via the structured `data` payload.
@@ -83,6 +90,9 @@ interface RegisterOptions {
   fs?: FsLike;
   spawn?: SpawnLike;
   fetcher?: PluginFetcher;
+  // Root of the bench workspaces tree. Injected so tests can point the
+  // spawn confinement at a scratch directory; defaults to the real one.
+  workspacesRoot?: string;
 }
 
 const defaultFs: FsLike = {
@@ -157,6 +167,7 @@ export async function registerHostHandlers(
   const fs: FsLike = options.fs ?? defaultFs;
   const spawn: SpawnLike = options.spawn ?? nodeSpawn;
   const fsRoots = await resolveAllowedRoots(record);
+  const workspacesRoot = options.workspacesRoot ?? getWorkspacesDir();
   const allowedExecutables = resolveAllowedExecutables(manifest);
   // Two fetchers per plugin process keep undici's connection pools warm without
   // forcing every host.fetch call to allocate a new Agent. The lax variant is
@@ -374,10 +385,22 @@ export async function registerHostHandlers(
     assertSpawnAllowed(pluginId, method, executable, allowedExecutables, log);
     const rawArgs = params?.args;
     const args = Array.isArray(rawArgs) ? (rawArgs as string[]) : [];
-    // cwd, if supplied, must also be inside the filesystem allowlist.
-    const cwd = params?.cwd
-      ? await assertPathAllowed(pluginId, method, params.cwd, fsRoots, log)
-      : record.pluginDir;
+    // The child is confined to the plugin's own directory, which is narrower
+    // than the filesystem allowlist `host.fs.*` uses: a declared external path
+    // is readable through the broker but is not a legal working directory.
+    // A bench workspace is denied outright on all three caller-controlled
+    // paths: the cwd, the executable, and every argument (#633).
+    const cwd = await assertSpawnCwdConfined(
+      pluginId,
+      method,
+      executable,
+      params?.cwd,
+      record.pluginDir,
+      workspacesRoot,
+      log,
+    );
+    await assertExecutableNotInWorkspace(pluginId, method, executable, cwd, workspacesRoot, log);
+    await assertNoWorkspacePathArgs(pluginId, method, executable, args, cwd, workspacesRoot, log);
     try {
       return await runSpawn(spawn, executable, args, cwd, params?.stdin);
     } catch (err) {

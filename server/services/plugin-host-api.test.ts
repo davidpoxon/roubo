@@ -1007,6 +1007,9 @@ describe("plugin-host-api", () => {
       await registerHostHandlers(connection, makeRecord(manifest), log, { spawn });
       const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
       const promise = handler({ executable: "git", args: ["status"] });
+      // The cwd confinement check (#633) is async, so spawn is reached on a
+      // later tick than the handler call.
+      await vi.waitFor(() => expect(spawn).toHaveBeenCalled());
       finish({ code: 0, stdout: "clean\n" });
       const result = await promise;
       expect(spawn).toHaveBeenCalledWith(
@@ -1017,6 +1020,112 @@ describe("plugin-host-api", () => {
       expect(result).toEqual(
         expect.objectContaining({ exitCode: 0, stdout: "clean\n", stderr: "", truncated: false }),
       );
+    });
+
+    // Issue #633: the child is confined to the plugin directory, which is
+    // narrower than the filesystem allowlist, and a bench workspace is denied.
+    const fakeWorkspaces = "/fake-workspaces";
+
+    it("defaults the working directory to the plugin directory when no cwd is given", async () => {
+      const manifest = makeManifest([], { processes: { executables: ["git"] } });
+      const connection = makeConnection();
+      const { child, finish } = makeFakeChild();
+      const spawn = vi.fn(() => child) as unknown as SpawnLike;
+      await registerHostHandlers(connection, makeRecord(manifest, "/fake"), log, {
+        spawn,
+        workspacesRoot: fakeWorkspaces,
+      });
+      const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
+      const promise = handler({ executable: "git", args: ["status"] });
+      await vi.waitFor(() => expect(spawn).toHaveBeenCalled());
+      finish({ code: 0 });
+      await promise;
+      expect(spawn).toHaveBeenCalledWith(
+        "git",
+        ["status"],
+        expect.objectContaining({ cwd: "/fake" }),
+      );
+    });
+
+    it("denies a cwd outside the plugin directory even when the manifest declares that path", async () => {
+      const manifest = makeManifest([], {
+        filesystemPaths: ["/opt/data"],
+        processes: { executables: ["git"] },
+      });
+      const connection = makeConnection();
+      const spawn: SpawnLike = vi.fn();
+      await registerHostHandlers(connection, makeRecord(manifest, "/fake"), log, {
+        spawn,
+        workspacesRoot: fakeWorkspaces,
+      });
+      const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
+      try {
+        await handler({ executable: "git", args: ["status"], cwd: "/opt/data" });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ category: string; reason: string }>;
+        expect(responseErr.data?.category).toBe("processes");
+        expect(responseErr.data?.reason).toBe("cwd-not-in-plugin-dir");
+      }
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it("denies a bench-workspace cwd", async () => {
+      const manifest = makeManifest([], { processes: { executables: ["git"] } });
+      const connection = makeConnection();
+      const spawn: SpawnLike = vi.fn();
+      await registerHostHandlers(connection, makeRecord(manifest, "/fake"), log, {
+        spawn,
+        workspacesRoot: fakeWorkspaces,
+      });
+      const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
+      await expect(
+        handler({ executable: "git", cwd: `${fakeWorkspaces}/roubo/bench-1` }),
+      ).rejects.toBeInstanceOf(ResponseError);
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it("denies a bench-workspace executable that satisfies the basename allowlist", async () => {
+      const manifest = makeManifest([], { processes: { executables: ["node"] } });
+      const connection = makeConnection();
+      const spawn: SpawnLike = vi.fn();
+      await registerHostHandlers(connection, makeRecord(manifest, "/fake"), log, {
+        spawn,
+        workspacesRoot: fakeWorkspaces,
+      });
+      const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
+      try {
+        await handler({ executable: `${fakeWorkspaces}/roubo/bench-1/node` });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ category: string; reason: string }>;
+        expect(responseErr.data?.category).toBe("processes");
+        expect(responseErr.data?.reason).toBe("workspace-path-denied");
+      }
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it("denies a bench-workspace path passed as an argument", async () => {
+      const manifest = makeManifest([], { processes: { executables: ["git"] } });
+      const connection = makeConnection();
+      const spawn: SpawnLike = vi.fn();
+      await registerHostHandlers(connection, makeRecord(manifest, "/fake"), log, {
+        spawn,
+        workspacesRoot: fakeWorkspaces,
+      });
+      const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
+      try {
+        await handler({
+          executable: "git",
+          args: ["status", `${fakeWorkspaces}/roubo/bench-1/CLAUDE.md`],
+        });
+        throw new Error("expected throw");
+      } catch (err) {
+        const responseErr = err as ResponseError<{ category: string; reason: string }>;
+        expect(responseErr.data?.category).toBe("processes");
+        expect(responseErr.data?.reason).toBe("workspace-path-denied");
+      }
+      expect(spawn).not.toHaveBeenCalled();
     });
   });
 
