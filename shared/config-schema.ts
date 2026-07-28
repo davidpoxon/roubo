@@ -381,6 +381,25 @@ export const AgentOverrideSchema = z
   .strict();
 export type AgentOverride = z.infer<typeof AgentOverrideSchema>;
 
+// Per-project override file for one agent plugin, at
+// `~/.roubo/agents/<projectId>/<pluginId>.yaml` (AP-FR-004, issue #509). The
+// envelope is deliberately identical to the app-level one: a project override
+// is the same opaque config record, one layer down, so the two layers can be
+// overlaid without translating between shapes.
+//
+// What differs is the meaning of the record: it stores ONLY the fields the
+// project overrides. A key present means "overridden", a key absent means
+// "inherits the app default". That is what makes per-field inherit a property
+// of the stored file rather than a flag alongside it, so an inherited field
+// tracks later app-default changes with no write at all (AP-TC-010 S003).
+export const AgentProjectOverrideSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    config: AgentConfigSchema,
+  })
+  .strict();
+export type AgentProjectOverride = z.infer<typeof AgentProjectOverrideSchema>;
+
 // Third-party marketplace declaration (CPHMTP-FR-007, issue #556). A project may
 // declare one or more plugin marketplaces in roubo.yaml so the project-open flow
 // can offer to register them. Each entry carries a URL ONLY: it is a source

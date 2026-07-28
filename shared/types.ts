@@ -32,6 +32,7 @@ export type {
   IntegrationOverride,
   AgentConfig,
   AgentOverride,
+  AgentProjectOverride,
   CapturedUserId,
   ConfigFieldError,
   JigSettings,
@@ -55,6 +56,7 @@ export {
   IntegrationOverrideSchema,
   AgentConfigSchema,
   AgentOverrideSchema,
+  AgentProjectOverrideSchema,
   CapturedUserIdSchema,
   SourceEntrySchema,
   MarketplaceDeclarationSchema,
@@ -677,6 +679,58 @@ export interface AgentPluginsResponse {
 export interface AgentConfigResponse {
   pluginId: string;
   config: Record<string, unknown>;
+}
+
+/**
+ * One installed agent plugin as a project's Agent overrides section sees it
+ * (AP-FR-004, issue #509).
+ *
+ * The three config records are the whole two-layer story. `appDefaults` is what
+ * the AI Agents screen saved, `overrides` holds ONLY the fields this project
+ * overrides (a key absent means that field inherits), and `effective` is the
+ * per-field overlay of the two. Sending all three lets the UI render each row's
+ * inherit/override state, the app default beside it, and the effective preview
+ * without re-deriving anything the host already resolved.
+ */
+export interface ProjectAgentState {
+  id: string;
+  name: string;
+  version?: string;
+  description?: string;
+  configSchema?: Record<string, unknown>;
+  appDefaults: Record<string, unknown>;
+  overrides: Record<string, unknown>;
+  effective: Record<string, unknown>;
+  unavailable: { reason: string; message: string } | null;
+}
+
+/**
+ * A stored project override whose plugin id matches no installed agent plugin
+ * (AP-TC-008). Carried alongside the resolvable agents rather than dropped, so
+ * the project screen can say which plugin is missing. No effective config is
+ * ever synthesised for one: resolution must not fabricate defaults for a plugin
+ * that is not installed.
+ */
+export interface OrphanedAgentOverride {
+  pluginId: string;
+  reason: "not-installed";
+}
+
+/**
+ * Result of GET /api/projects/:projectId/agents. `agents` is empty (not an
+ * error) when no agent plugin is installed, mirroring GET /api/agents.
+ */
+export interface ProjectAgentsResponse {
+  agents: ProjectAgentState[];
+  orphanedOverrides: OrphanedAgentOverride[];
+}
+
+/** Result of PUT /api/projects/:projectId/agents/:pluginId/config. */
+export interface ProjectAgentConfigResponse {
+  projectId: string;
+  pluginId: string;
+  overrides: Record<string, unknown>;
+  effective: Record<string, unknown>;
 }
 
 /**

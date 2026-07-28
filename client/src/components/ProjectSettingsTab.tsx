@@ -19,6 +19,7 @@ import { WorkspaceSourceTile } from "./project-settings/WorkspaceSourceTile";
 import { EnforceIssueDependenciesOverrideTile } from "./project-settings/EnforceIssueDependenciesOverrideTile";
 import { SettingsSaveBar } from "./project-settings/SettingsSaveBar";
 import { IssueTypeMappingsSection } from "./project-settings/IssueTypeMappingsSection";
+import { AgentOverridesSection } from "./project-settings/AgentOverridesSection";
 import { useSettingsOverviewDraft } from "./project-settings/useSettingsOverviewDraft";
 import UnsavedChangesDialog from "./jig-editor/UnsavedChangesDialog";
 import JigRow from "./jig-editor/JigRow";
@@ -314,6 +315,21 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
             </div>
           </div>
           <ProjectPermissionsInlineSection projectId={project.id} />
+        </section>
+        <section>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+                Agent overrides
+              </h2>
+            </div>
+            <span className="text-[10px] text-stone-400 dark:text-stone-600">
+              App defaults from <span className="font-mono">Settings &gt; AI Agents</span>, overlaid
+              per field
+            </span>
+          </div>
+          <AgentOverridesSection projectId={project.id} />
         </section>
         <section>
           <div className="flex items-center gap-2 mb-4">
