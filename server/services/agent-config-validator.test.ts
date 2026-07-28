@@ -65,6 +65,7 @@ describe("validateAgentConfig", () => {
   it("names an unexpected property rather than reporting a bare failure", () => {
     const m = manifest({ configSchema: CLAUDE_SCHEMA });
     const errors = validateAgentConfig(m, { nonsense: true });
+    expect(errors[0].path).toBe("nonsense");
     expect(errors[0].message).toBe("Unexpected property 'nonsense'");
   });
 

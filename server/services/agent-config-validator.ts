@@ -85,11 +85,10 @@ export function validateAgentConfig(
  * required property reports at the parent object, so the property name from
  * `params` is appended for a precise path.
  *
- * An `additionalProperties` violation also reports at the parent, so its path is
- * empty and the form falls back to a generic message rather than naming the
- * offending key. Fixing that needs a matching client change (an unexpected
- * property is never in `schema.properties`, so the form renders no control to
- * attach the error to), tracked in #634.
+ * An `additionalProperties` violation also reports at the parent, so its offending
+ * key comes from `params` the same way. That key is never in `schema.properties`,
+ * so the form renders no control to attach the error to; `AgentConfigForm` routes
+ * such an error to its form-level banner instead of dropping it.
  */
 function errorPath(issue: ErrorObject): string {
   const segments = issue.instancePath
@@ -99,6 +98,13 @@ function errorPath(issue: ErrorObject): string {
 
   if (issue.keyword === "required" && typeof issue.params?.missingProperty === "string") {
     segments.push(issue.params.missingProperty);
+  }
+
+  if (
+    issue.keyword === "additionalProperties" &&
+    typeof issue.params?.additionalProperty === "string"
+  ) {
+    segments.push(issue.params.additionalProperty);
   }
 
   return segments.join(".");
