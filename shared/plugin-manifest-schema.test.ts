@@ -913,6 +913,26 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     expect(properties.kind.enum).toEqual(["integration", "component", "agent"]);
   });
 
+  // This artifact is hand-authored and exempt from the schema-drift gate, so
+  // this suite is the only thing keeping the agent processes gate in lockstep
+  // with the superRefine on PluginManifestSchema (#632).
+  it("declares the agent processes gate (lockstep with zod, #632)", () => {
+    const allOf = jsonSchema.allOf as Array<Record<string, Record<string, unknown>>>;
+    expect(Array.isArray(allOf)).toBe(true);
+    const gate = allOf.find(
+      (entry) =>
+        (entry.if?.properties as Record<string, { const?: string }> | undefined)?.kind?.const ===
+        "agent",
+    );
+    expect(gate).toBeDefined();
+    expect(gate?.if.required).toContain("kind");
+    const thenPermissions = (gate?.then.properties as Record<string, Record<string, unknown>>)
+      .permissions;
+    expect((thenPermissions.properties as Record<string, unknown>).processes).toEqual({
+      const: false,
+    });
+  });
+
   it("declares an optional agentCompatibility object with minVersion and testedCeiling (lockstep with zod)", () => {
     const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
     const agentCompatibility = properties.agentCompatibility as Record<string, unknown>;
