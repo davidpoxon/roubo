@@ -502,6 +502,79 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
   });
 });
 
+describe("PluginManifestSchema: agent kind may not declare processes (#632, AP-NFR-001)", () => {
+  it("accepts an agent manifest declaring processes: false", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        kind: "agent",
+        permissions: { ...makeManifest().permissions, processes: false },
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an agent manifest declaring spawnable executables", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        kind: "agent",
+        permissions: { ...makeManifest().permissions, processes: { executables: ["claude"] } },
+      }),
+    );
+    expectFieldError(result, "permissions.processes");
+  });
+
+  it("rejects an agent manifest declaring an empty executables list (a declared block is still a block)", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        kind: "agent",
+        permissions: { ...makeManifest().permissions, processes: { executables: [] } },
+      }),
+    );
+    expectFieldError(result, "permissions.processes");
+  });
+
+  // AP-NFR-004 regression guard: the gate is kind-scoped, so the kinds that
+  // legitimately spawn today keep validating unchanged (issue #633 covers
+  // confining those children).
+  for (const kind of ["integration", "component"] as const) {
+    it(`still accepts a ${kind} manifest declaring spawnable executables`, () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({
+          kind,
+          permissions: { ...makeManifest().permissions, processes: { executables: ["git"] } },
+        }),
+      );
+      expect(result.success).toBe(true);
+    });
+  }
+
+  it("surfaces the rejection through parseManifest at permissions.processes", async () => {
+    const { parseManifest } = await import("./plugin-manifest.js");
+    const yaml = [
+      "id: claude-code",
+      "name: Claude Code",
+      "version: 1.0.0",
+      "description: Claude Code agent plugin",
+      "kind: agent",
+      "roubo: ^1.0.0",
+      "entry: ./dist/index.js",
+      "permissions:",
+      "  network: { hosts: [] }",
+      "  credentials: { slots: [] }",
+      "  filesystem: { paths: [] }",
+      "  processes: { executables: [claude] }",
+      "",
+    ].join("\n");
+    const result = parseManifest(yaml, "/fake/roubo-plugin.yaml");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("schema");
+      expect(result.error.path).toBe("permissions.processes");
+      expect(result.error.message).toContain("must declare `processes: false`");
+    }
+  });
+});
+
 describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-013, AP-NFR-004)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const pluginsDir = resolve(here, "..", "plugins");

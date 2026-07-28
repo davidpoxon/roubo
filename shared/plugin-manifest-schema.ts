@@ -244,5 +244,37 @@ export const PluginManifestSchema = z
     // (AP-NFR-004).
     agentCompatibility: AgentCompatibilitySchema.optional(),
   })
-  .strict();
+  .strict()
+  // An agent plugin may not declare a `processes` permission (issue #632,
+  // AP-NFR-001 "0 plugin-initiated writes outside broker allowlists"). A child
+  // process started through `host.process.spawn` is gated only by the declared
+  // executables and does not inherit the filesystem broker allowlist, so an
+  // agent plugin with spawn access could write into a bench workspace and
+  // sidestep the declarative WorkspaceWriteSpec path that core validates and
+  // executes. Rejecting the permission for this kind leaves the descriptor as
+  // the only write route.
+  //
+  // This is deliberately the narrow, kind-gated half of the fix. Confining
+  // every spawned child for every kind is the stronger guarantee and is
+  // tracked separately in #633; it would change behaviour for component and
+  // integration plugins that legitimately spawn today, so it needs its own
+  // compatibility review. Rejecting rather than warning-and-ignoring: the
+  // schema layer has no warning channel, and a silently-ignored permission is
+  // exactly the ambiguity that would let a future agent plugin ship believing
+  // it has spawn access.
+  //
+  // The rule lives on the root schema rather than on ProcessesPermissionSchema
+  // (which has no view of `kind`) so every consumer goes through it;
+  // `parseManifest` surfaces it as a normal schema error at
+  // `permissions.processes`.
+  .superRefine((manifest, ctx) => {
+    if (manifest.kind !== "agent") return;
+    if (manifest.permissions.processes === false) return;
+    ctx.addIssue({
+      code: "custom",
+      path: ["permissions", "processes"],
+      message:
+        "An agent plugin must declare `processes: false`. Agent plugins write through the declarative launch descriptor, which the host validates and executes inside the broker allowlist; a spawned child process would bypass it.",
+    });
+  });
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
