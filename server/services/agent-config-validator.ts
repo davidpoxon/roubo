@@ -18,10 +18,18 @@ import type { ConfigFieldError, PluginManifest } from "@roubo/shared";
  * plugin manager's concern, not this validator's.
  */
 
-// One Ajv instance and one validator cache for the whole process. The cache is
-// keyed by manifest id AND version so a plugin update recompiles rather than
-// validating new config against the previous release's schema.
-const ajv = new Ajv2020({ allErrors: true, strict: false });
+// One validator cache for the whole process, keyed by manifest id AND version
+// so a plugin update recompiles rather than validating new config against the
+// previous release's schema.
+//
+// Each compile gets its OWN Ajv instance rather than sharing a process-wide one.
+// Ajv registers a schema's `$id` on the instance and throws `schema with key or
+// id "..." already exists` on a second compile of that `$id`, which the catch
+// below would swallow into "accept anything", silently disabling the AP-TC-011
+// rejection gate for that plugin. Recompiling the same `$id` is reachable in
+// production: the marketplace update path rebuilds the manifest with a bumped
+// version, changing the cache key. `component-binding-validator.ts` avoids the
+// same trap by constructing a fresh instance per validation pass.
 const validatorCache = new Map<string, ValidateFunction | null>();
 
 function cacheKey(manifest: PluginManifest): string {
@@ -41,7 +49,7 @@ function compileConfigSchema(manifest: PluginManifest): ValidateFunction | null 
 
   let validate: ValidateFunction | null;
   try {
-    validate = ajv.compile(schema);
+    validate = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
   } catch {
     validate = null;
   }
@@ -76,6 +84,12 @@ export function validateAgentConfig(
  * Pointer relative to the validated config record (e.g. `/model`). A missing
  * required property reports at the parent object, so the property name from
  * `params` is appended for a precise path.
+ *
+ * An `additionalProperties` violation also reports at the parent, so its path is
+ * empty and the form falls back to a generic message rather than naming the
+ * offending key. Fixing that needs a matching client change (an unexpected
+ * property is never in `schema.properties`, so the form renders no control to
+ * attach the error to), tracked in #634.
  */
 function errorPath(issue: ErrorObject): string {
   const segments = issue.instancePath

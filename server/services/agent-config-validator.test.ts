@@ -87,6 +87,21 @@ describe("validateAgentConfig", () => {
     expect(validateAgentConfig(after, { reasoningEffort: "high" })).toEqual([]);
   });
 
+  it("still rejects out-of-enum values after a version bump when the schema carries a $id", () => {
+    // A shared, process-wide Ajv instance registers a schema's `$id` on first
+    // compile and throws on the second, which the compile guard would swallow
+    // into "accept anything", silently disabling this rejection gate. Each
+    // compile therefore gets its own instance.
+    const withId = { $id: "https://roubo.dev/schemas/claude-code.json", ...CLAUDE_SCHEMA };
+
+    const before = manifest({ version: "1.0.0", configSchema: withId });
+    expect(validateAgentConfig(before, { model: "gpt-5" })).not.toEqual([]);
+
+    const after = manifest({ version: "1.1.0", configSchema: { ...withId } });
+    const errors = validateAgentConfig(after, { model: "gpt-5" });
+    expect(errors).toEqual([{ path: "model", message: "Must be one of: sonnet, opus, haiku" }]);
+  });
+
   it("accepts anything when the configSchema is malformed and cannot compile", () => {
     const m = manifest({ configSchema: { type: "not-a-json-schema-type" } });
     expect(validateAgentConfig(m, { whatever: true })).toEqual([]);
