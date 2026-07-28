@@ -37,6 +37,7 @@ import { useToast } from "../hooks/useToast";
 import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
 import JigRow from "./jig-editor/JigRow";
 import PluginsTab from "./settings/plugins/PluginsTab";
+import AgentsTab from "./settings/agents/AgentsTab";
 import MarketplacesTabPanel from "./settings/plugins/MarketplacesTabPanel";
 import Marketplace from "./marketplace/Marketplace";
 import { INPUT } from "./setup/styles";
@@ -681,6 +682,7 @@ function AppearanceTab() {
 // registry section. Near-identical ids, deliberately distinct sections.
 const TAB_LABELS: Record<string, string> = {
   "claude-code": "Claude Code",
+  "ai-agents": "AI Agents",
   benches: "Benches",
   testbench: "TestBench",
   marketplaces: "Marketplaces",
@@ -692,6 +694,7 @@ const HASH_TAB_IDS = new Set([
   "appearance",
   "jigs",
   "plugins",
+  "ai-agents",
   "marketplace",
   "marketplaces",
   "claude-code",
@@ -724,6 +727,7 @@ export default function ProjectSettings() {
               "appearance",
               "jigs",
               "plugins",
+              "ai-agents",
               "marketplace",
               "marketplaces",
               "claude-code",
@@ -767,6 +771,10 @@ export default function ProjectSettings() {
 
         <TabPanel id="plugins" className="outline-none">
           <PluginsTab />
+        </TabPanel>
+
+        <TabPanel id="ai-agents" className="outline-none">
+          <AgentsTab />
         </TabPanel>
 
         <TabPanel id="marketplace" className="outline-none">

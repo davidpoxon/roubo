@@ -14,6 +14,13 @@ function inputIn(testId: string): HTMLInputElement {
   return input as HTMLInputElement;
 }
 
+function triggerIn(testId: string): HTMLButtonElement {
+  const wrapper = screen.getByTestId(testId);
+  const button = wrapper.querySelector("button");
+  if (!button) throw new Error(`No <button> inside ${testId}`);
+  return button as HTMLButtonElement;
+}
+
 const permissions: PluginPermissions = {
   network: { hosts: [] },
   credentials: {
@@ -124,6 +131,68 @@ describe("ConfigSchemaForm", () => {
       screen.getByText(/managed per project and configured automatically/),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("config-field-weird")).not.toBeInTheDocument();
+  });
+
+  it("renders an enum property as a select of its allowed values", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ConfigSchemaForm
+        schema={{
+          properties: { model: { type: "string", title: "Model", enum: ["sonnet", "opus"] } },
+        }}
+        values={{ model: "sonnet" }}
+        onChange={onChange}
+      />,
+    );
+
+    expect(screen.getByTestId("config-field-model")).toHaveTextContent("sonnet");
+    await user.click(triggerIn("config-field-model"));
+    expect((await screen.findAllByRole("option")).map((o) => o.textContent)).toEqual([
+      "sonnet",
+      "opus",
+    ]);
+
+    await user.click(screen.getByRole("option", { name: "opus" }));
+    expect(onChange).toHaveBeenLastCalledWith({ model: "opus" });
+  });
+
+  it("renders a oneOf of consts as a select and preserves each const's own type", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ConfigSchemaForm
+        schema={{
+          properties: {
+            retries: {
+              title: "Retries",
+              oneOf: [
+                { const: 1, title: "Once" },
+                { const: 3, title: "Three times" },
+              ],
+            },
+          },
+        }}
+        values={{}}
+        onChange={onChange}
+      />,
+    );
+
+    await user.click(triggerIn("config-field-retries"));
+    await user.click(await screen.findByRole("option", { name: "Three times" }));
+    expect(onChange).toHaveBeenLastCalledWith({ retries: 3 });
+  });
+
+  it("renders a per-field error message when one is supplied", () => {
+    render(
+      <ConfigSchemaForm
+        schema={{ properties: { model: { type: "string", title: "Model", enum: ["sonnet"] } } }}
+        values={{ model: "sonnet" }}
+        onChange={() => {}}
+        errors={{ model: "Must be one of: sonnet" }}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Must be one of: sonnet");
   });
 
   it("emits an empty list for passwordFieldKeys when the schema is missing", () => {

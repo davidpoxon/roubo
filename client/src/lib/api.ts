@@ -38,6 +38,8 @@ import type {
   ProjectIssueTypeMappingsResponse,
   ProjectIntegrationState,
   GlobalPluginIntegrationState,
+  AgentConfigResponse,
+  AgentPluginsResponse,
   IntegrationConfigUpdate,
   IntegrationFields,
   IntegrationFieldsUpdate,
@@ -1224,6 +1226,25 @@ export function saveGlobalPluginIntegration(
   return request(`/plugins/${pluginId}/integration/config`, {
     method: "PUT",
     body: JSON.stringify(update),
+  });
+}
+
+// App-level agent configuration (Settings > AI Agents, issue #508)
+export function fetchAgentPlugins(): Promise<AgentPluginsResponse> {
+  return request("/agents");
+}
+
+export function fetchAgentConfig(pluginId: string): Promise<AgentConfigResponse> {
+  return request(`/agents/${pluginId}/config`);
+}
+
+export function saveAgentConfig(
+  pluginId: string,
+  config: Record<string, unknown>,
+): Promise<AgentConfigResponse> {
+  return request(`/agents/${pluginId}/config`, {
+    method: "PUT",
+    body: JSON.stringify({ config }),
   });
 }
 

@@ -35,6 +35,7 @@ import hooksRouter from "./routes/hooks.js";
 import notificationsRouter from "./routes/notifications.js";
 import integrationRouter from "./routes/integration.js";
 import pluginsRouter from "./routes/plugins.js";
+import agentsRouter from "./routes/agents.js";
 import marketplaceRouter from "./routes/marketplace.js";
 import migrationRouter from "./routes/migration.js";
 import testRouter from "./routes/test.js";
@@ -109,6 +110,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/projects", benchesSettingsRouter);
   app.use("/api/projects", integrationRouter);
   app.use("/api/plugins", pluginsRouter);
+  app.use("/api/agents", agentsRouter);
   app.use("/api/marketplace", marketplaceRouter);
   app.use("/api/migration", migrationRouter);
   app.use("/api/jigs", appJigsRouter);

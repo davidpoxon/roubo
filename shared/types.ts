@@ -30,6 +30,8 @@ export type {
   IntegrationConfig,
   IntegrationAdvanced,
   IntegrationOverride,
+  AgentConfig,
+  AgentOverride,
   CapturedUserId,
   ConfigFieldError,
   JigSettings,
@@ -51,6 +53,8 @@ export {
   IntegrationConfigSchema,
   IntegrationAdvancedSchema,
   IntegrationOverrideSchema,
+  AgentConfigSchema,
+  AgentOverrideSchema,
   CapturedUserIdSchema,
   SourceEntrySchema,
   MarketplaceDeclarationSchema,
@@ -636,6 +640,43 @@ export interface ProjectIntegrationState {
 export interface GlobalPluginIntegrationState {
   effective: IntegrationConfig;
   plugin: NonNullable<ProjectIntegrationState["plugin"]>;
+}
+
+/**
+ * One installed `agent`-kind plugin as the AI Agents settings screen sees it
+ * (AP-FR-002, AP-FR-003, issue #508).
+ *
+ * `configSchema` is the plugin's own manifest schema, rendered verbatim by the
+ * schema-driven form, which is what makes two agent plugins produce two
+ * different forms (AP-TC-004). `config` is that plugin's saved app-level
+ * defaults, empty when nothing has been saved yet. `unavailable` mirrors the
+ * `AgentNotAvailable` chain from the agent plugin registry: `null` means the
+ * agent resolves to a live connection, anything else names the blocker so an
+ * incompatible or unconsented agent stays visible rather than vanishing.
+ */
+export interface AgentPluginState {
+  id: string;
+  name: string;
+  version?: string;
+  description?: string;
+  configSchema?: Record<string, unknown>;
+  config: Record<string, unknown>;
+  unavailable: { reason: string; message: string } | null;
+}
+
+/**
+ * Result of GET /api/agents. `agents` is empty (not an error) when no agent
+ * plugin is installed, which is what lets every agent surface render a usable
+ * empty state and config resolution return cleanly (AP-TC-012).
+ */
+export interface AgentPluginsResponse {
+  agents: AgentPluginState[];
+}
+
+/** Result of GET /api/agents/:id/config and PUT /api/agents/:id/config. */
+export interface AgentConfigResponse {
+  pluginId: string;
+  config: Record<string, unknown>;
 }
 
 /**
