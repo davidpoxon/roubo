@@ -9,8 +9,8 @@
  * internals (out of scope per the issue).
  *
  * Steps are keyed to CP-TC-029's S001-S004:
- *   S001  github-com manifest discovers + validates against HOST_API_VERSION
- *         1.3.0 and its spawn path is invoked.
+ *   S001  github-com manifest discovers + validates against the live
+ *         HOST_API_VERSION and its spawn path is invoked.
  *   S002  POST /api/projects/:projectId/issues/:externalId/assign drives the
  *         integration plugin's standard RPC flow with no component-kind error.
  *   S003  POST /api/plugins/github-com/oauth/{authorize,exchange} respond
@@ -163,7 +163,7 @@ describe("CP-TC-029: the component kind coexists with integration plugins (issue
   });
 
   // --- S001 ----------------------------------------------------------------
-  it("S001: github-com manifest discovers + validates against HOST_API_VERSION 1.3.0 and its spawn path is invoked", async () => {
+  it("S001: github-com manifest discovers + validates against the live HOST_API_VERSION and its spawn path is invoked", async () => {
     // The plugin-manager module reads ROUBO_*_PLUGINS_DIR at discovery time, so
     // mount the sandbox before importing it.
     sandbox = await makeSandbox(["github-com-e2e"]);
@@ -171,9 +171,10 @@ describe("CP-TC-029: the component kind coexists with integration plugins (issue
     pluginManager.__test.reset();
 
     // (a) Validate the *real bundled* github-com manifest against the live
-    // HOST_API_VERSION. This is the regression heart of the step: the 1.3.0
-    // bump (component kind + ports/docker categories + version fields) must
-    // remain backward-compatible with the unchanged integration manifest.
+    // HOST_API_VERSION. This is the regression heart of the step: every host
+    // API bump (1.3.0 for the component kind and its ports/docker categories,
+    // 1.4.0 for the agent kind) must remain backward-compatible with the
+    // unchanged integration manifest.
     const manifestText = await readFile(BUNDLED_GITHUB_MANIFEST, "utf8");
     const parsed = parseManifest(manifestText, BUNDLED_GITHUB_MANIFEST);
 
@@ -198,9 +199,13 @@ describe("CP-TC-029: the component kind coexists with integration plugins (issue
 
     expectStep(
       "S001",
-      "the github-com manifest's roubo range is satisfied by HOST_API_VERSION 1.3.0",
+      "the github-com manifest's roubo range is satisfied by the live HOST_API_VERSION",
       () => {
-        expect(pluginManager.HOST_API_VERSION).toBe("1.3.0");
+        // Deliberately asserted against the LIVE constant rather than a pinned
+        // literal: the invariant CP-TC-029 guards is that the unchanged
+        // integration manifest keeps validating as the host API grows (1.3.0
+        // for the component kind, 1.4.0 for the agent kind: #507). The exact
+        // value is pinned once, in plugin-manager.test.ts.
         expect(
           semver.satisfies(pluginManager.HOST_API_VERSION, parsed.manifest.roubo, {
             includePrerelease: false,
@@ -208,7 +213,7 @@ describe("CP-TC-029: the component kind coexists with integration plugins (issue
         ).toBe(true);
       },
       {
-        expected: `${"1.3.0"} satisfies ${parsed.manifest.roubo}`,
+        expected: `${pluginManager.HOST_API_VERSION} satisfies ${parsed.manifest.roubo}`,
         actual: `${pluginManager.HOST_API_VERSION} vs ${parsed.manifest.roubo}`,
       },
     );

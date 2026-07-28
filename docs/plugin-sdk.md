@@ -132,6 +132,91 @@ agentCompatibility:
 
 Both keys are optional and each must be an exact semver version (`major.minor.patch`, not a range). The whole block is optional, so integration and component manifests, and agent manifests that omit it, validate unchanged. The pre-launch version probe and its floor/ceiling gate are host-side runtime behaviour; the manifest only declares the window.
 
+## Agent contract
+
+An `agent`-kind plugin registers with `defineAgentPlugin` instead of `definePlugin`, and implements exactly one method, `translateLaunch`. It is a pure function: given the plugin's config and the host-resolved launch context, it returns an `AgentLaunchDescriptor` describing how to start the AI coding agent. The host validates that descriptor and executes it.
+
+```ts
+import { defineAgentPlugin } from "@roubo/plugin-sdk";
+
+defineAgentPlugin({
+  translateLaunch({ config, context }) {
+    return {
+      schemaVersion: 1,
+      kind: "agent-launch",
+      command: "my-agent",
+      args: ["--model", config.model as string, "--session-id", "{{sessionId}}"],
+      cwd: context.workspacePath,
+    };
+  },
+});
+```
+
+`defineAgentPlugin` validates synchronously, at definition time, never at launch time: an incompatible `contractVersion` (it must equal the SDK's `SUPPORTED_AGENT_CONTRACT_VERSION`) and a contract missing `translateLaunch` both throw before the process ever answers a request. The agent contract is versioned separately from the component contract's `SUPPORTED_CONTRACT_VERSION`, so the two can move independently.
+
+### `translateLaunch({ config, context }): Promise<AgentLaunchDescriptor>`
+
+`context` is an `AgentLaunchContext`:
+
+| Field             | Meaning                                                                         |
+| ----------------- | ------------------------------------------------------------------------------- |
+| `projectId`       | The project the bench belongs to.                                               |
+| `benchId`         | The bench being launched into.                                                  |
+| `workspacePath`   | The bench workspace root. The default `cwd` for the launch.                     |
+| `sessionId`       | A session id the HOST minted. A plugin never mints one.                         |
+| `effectiveConfig` | App defaults, project overrides, preset, and per-launch values, already merged. |
+| `initialPrompt`   | The resolved jig content, when the launch carries one.                          |
+
+### The descriptor
+
+`command` and `args` are the entire mandatory surface. `args` is an argv array and is **never** shell-interpreted. String elements may embed `{{sessionId}}`, `{{port}}`, and `{{workspace}}`; the host resolves them, so a plugin declares shape and never learns a real port or mints a session id.
+
+```ts
+interface AgentLaunchDescriptor {
+  schemaVersion: 1;
+  kind: "agent-launch";
+  command: string;
+  args: string[];
+  env?: Record<string, string>; // additive, after the host strips its internal keys
+  cwd?: string; // defaults to the bench workspace
+  initialPrompt?: { mode: "argv-positional"; maxLength?: number };
+  capabilities?: AgentCapabilities;
+}
+```
+
+### Declared capabilities
+
+Everything else the launch needs is an optional declared capability, and **absence is first-class**. An agent that declares none launches as a plain terminal session; nothing in the host requires any capability to exist.
+
+| Capability         | Declares                                                                      | If absent                                            |
+| ------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `workspaceWrites`  | Files to write in the bench workspace, as ordered ops.                        | No workspace file is touched.                        |
+| `notification`     | How the agent signals the host (`http-hook` or `spawned-notifier`).           | Nothing is wired; quiescence detection only.         |
+| `versionProbe`     | The probe args, the semver floor, and the tested ceiling.                     | No version gate; the launch proceeds.                |
+| `waitingDetection` | `hook-driven` (with a quiescence fallback) or `quiescence-only`.              | The generic quiescence debounce every terminal gets. |
+| `permissions`      | How the agent realises each permission posture, and whether it honours rules. | No permission controls render; nothing is injected.  |
+
+The permissions model has two axes: a universal `posture` (`read-only`, `guarded`, `auto-edit`, `full-auto`) every agent plugin maps to its native mechanism, and optional fine-grained `allow` / `ask` / `deny` rules honoured only by plugins that declare the `rules` capability. Rule strings are opaque to the host: it stores, unions, and injects them, and never parses them.
+
+### Workspace writes are declarative, always
+
+A plugin can never write a bench workspace through the filesystem broker. The broker's allowlist grants a plugin only its own directory plus the paths its manifest declares, and no allowlist entry ever covers a bench workspace. An agent plugin is granted no more than an integration plugin: the same v1 host surface (`host.fs.*` confined to its own directory, `host.credentials.*`, `host.fetch`, and `host.process.spawn` capped by the executables its manifest declares) and none of the component broker (`host.process.start` / `run` / `stop` / `status` / `logs`, `host.docker.*`, `host.ports.*`). So the only route from the agent contract to a workspace file is a `WorkspaceWriteSpec` the host resolves under the bench workspace root and executes:
+
+```ts
+interface WorkspaceWriteSpec {
+  relPath: string; // resolved within the workspace; escapes are rejected
+  format: "json" | "text";
+  ops: WriteOp[]; // applied in order against the existing file
+}
+
+type WriteOp =
+  | { op: "unionArray"; path: string; values: string[] }
+  | { op: "set"; path: string; value: unknown }
+  | { op: "delete"; path: string };
+```
+
+Ops mutate the parsed existing file rather than replacing it, so unknown keys the user (or another tool) put there survive. A `relPath` that escapes the workspace, or an absolute one, aborts the whole batch before anything is written.
+
 ## Contract methods
 
 All contract methods are optional. If the host calls a method you did not register, the SDK responds with JSON-RPC `MethodNotFound` (-32601). Implement the methods relevant to your integration.

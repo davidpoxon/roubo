@@ -72,14 +72,16 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
   // from `PluginsTab` / `PluginConfigureDialog` populate the same query key.
   const connectionQuery = useConnectionStatus(plugin.id, isEnabled);
 
-  // Issue #490: only component plugins are consent-gated (the server refuses to
-  // start a bench-bound component whose plugin has no ConsentRecord). Integration
-  // plugins are never gated, so fetch consent (and offer the affordance) for
-  // component cards only. `consentedAt` absent means the plugin is unconsented.
-  const isComponent = plugin.manifest?.kind === "component";
-  const consentQuery = useConsentStatus(plugin.id, isComponent);
+  // Issue #490, widened by #507: component AND agent plugins are consent-gated
+  // (the server refuses to start a bench-bound component, or to resolve an agent
+  // for launch, whose plugin has no ConsentRecord). Integration plugins are never
+  // gated, so fetch consent (and offer the affordance) for those two kinds only.
+  // `consentedAt` absent means the plugin is unconsented.
+  const kind = plugin.manifest?.kind;
+  const isConsentGated = kind === "component" || kind === "agent";
+  const consentQuery = useConsentStatus(plugin.id, isConsentGated);
   const consentStatus = consentQuery.data;
-  const needsConsent = isComponent && consentStatus !== undefined && !consentStatus.consentedAt;
+  const needsConsent = isConsentGated && consentStatus !== undefined && !consentStatus.consentedAt;
 
   const provenance = recordProvenance(plugin);
   const displayName = plugin.manifest?.name ?? plugin.id;
