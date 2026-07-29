@@ -13,8 +13,6 @@ import type {
 import type {
   AgentPosture,
   WaitingDetectionSpec,
-  WorkspaceWriteSpec,
-  WriteOp,
 } from "@roubo/shared/agent-launch-descriptor-schema";
 import { AgentPostureSchema } from "@roubo/shared/agent-launch-descriptor-schema";
 import { atomicWrite, getRouboDir } from "./state.js";
@@ -23,8 +21,16 @@ import { writeClaudeSettingsLocal } from "./claude-settings-local.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
 import { resolveTemplate, type ResolvedTemplateContext } from "./config-parser.js";
-import { collectWorkspaceWrites, executeWorkspaceWrites } from "./agent-launch-executor.js";
-import { prepareAgentLaunch, type AgentConfigLayers } from "./agent-launch-pipeline.js";
+import {
+  collectWorkspaceWrites,
+  executeWorkspaceWrites,
+  resolveWriteTemplates,
+} from "./agent-launch-executor.js";
+import {
+  prepareAgentLaunch,
+  type AgentConfigLayers,
+  type LaunchPermissions,
+} from "./agent-launch-pipeline.js";
 import { UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const MAX_BUFFER_CHUNKS = 5000;
@@ -495,6 +501,13 @@ export interface CreateAgentSessionOptions {
   agentPluginId: string;
   /** The two launch-time config layers above the stored app and project ones. */
   layers?: AgentConfigLayers;
+  /**
+   * The project's permissions model (AP-FR-016). Handed to the plugin so its
+   * descriptor can carry the posture and, for a plugin declaring the rules
+   * capability, the allow/ask/deny rules into the bench workspace at session
+   * start (AP-TC-078, AP-TC-097).
+   */
+  permissions?: LaunchPermissions;
   initialInput?: string;
   onAgentExit?: (sessionId: string) => void;
 }
@@ -551,6 +564,7 @@ export async function createAgentSession(
     sessionId: id,
     ...(opts.initialInput !== undefined && { initialPrompt: opts.initialInput }),
     ...(opts.layers !== undefined && { layers: opts.layers }),
+    ...(opts.permissions !== undefined && { permissions: opts.permissions }),
   });
 
   const { descriptor } = prepared;
@@ -675,45 +689,6 @@ export async function createAgentSession(
 function readPosture(effectiveConfig: Record<string, unknown>): AgentPosture | undefined {
   const parsed = AgentPostureSchema.safeParse(effectiveConfig.posture);
   return parsed.success ? parsed.data : undefined;
-}
-
-/**
- * Resolve `{{sessionId}}` / `{{port}}` / `{{workspace}}` through a descriptor's
- * workspace writes. Both the target path and every string reachable from a write
- * op's value are resolved, because an http-hook carrier write embeds the session
- * id and port inside the JSON value it sets, not in the path.
- */
-function resolveWriteTemplates(
-  writes: WorkspaceWriteSpec[],
-  ctx: ResolvedTemplateContext,
-): WorkspaceWriteSpec[] {
-  return writes.map((write) => ({
-    ...write,
-    relPath: resolveTemplate(write.relPath, ctx),
-    ops: write.ops.map((op): WriteOp => {
-      if (op.op === "set") return { ...op, value: resolveJsonTemplates(op.value, ctx) };
-      if (op.op === "unionArray") {
-        return { ...op, values: op.values.map((v) => resolveTemplate(v, ctx)) };
-      }
-      return op;
-    }),
-  }));
-}
-
-type WriteOpJsonValue = Extract<WriteOp, { op: "set" }>["value"];
-
-function resolveJsonTemplates(
-  value: WriteOpJsonValue,
-  ctx: ResolvedTemplateContext,
-): WriteOpJsonValue {
-  if (typeof value === "string") return resolveTemplate(value, ctx);
-  if (Array.isArray(value)) return value.map((entry) => resolveJsonTemplates(entry, ctx));
-  if (value !== null && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, resolveJsonTemplates(entry, ctx)]),
-    );
-  }
-  return value;
 }
 
 export function getSession(sessionId: string): TerminalSession | undefined {

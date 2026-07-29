@@ -320,7 +320,14 @@ export function getProjectPermissions(projectId: string): ProjectPermissions {
   }
   try {
     const data: Partial<ProjectPermissions> = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    return { allow: data.allow ?? [], deny: data.deny ?? [], ask: data.ask ?? [] };
+    return {
+      allow: data.allow ?? [],
+      deny: data.deny ?? [],
+      ask: data.ask ?? [],
+      // A file written before the posture axis existed simply carries none, and
+      // no posture means the agent keeps whatever mode its own config selected.
+      ...(data.posture !== undefined && { posture: data.posture }),
+    };
   } catch {
     return { allow: [], deny: [], ask: [] };
   }

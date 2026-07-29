@@ -1485,6 +1485,29 @@ describe("background provisioning", () => {
       );
     });
 
+    // AP-TC-081: a state file written before the guard existed, or edited by
+    // hand, must not seed an escaping rule into a newly created bench.
+    it("filters a path-escaping stored rule before injecting into a new bench", async () => {
+      setupCreateBenchMocks();
+      setupProcessMocks();
+      vi.mocked(stateService.getProjectPermissions).mockReturnValue({
+        allow: ["Bash(*)", "Read(../../../../etc/**)"],
+        deny: [],
+        ask: ["Edit(/var/log/**)"],
+      });
+
+      benchManager.createBench("test-project", "my-branch");
+
+      await vi.waitFor(() => {
+        expect(stateService.addBench).toHaveBeenCalled();
+      });
+
+      expect(vi.mocked(claudeSettingsLocal.injectPermissions)).toHaveBeenCalledWith(
+        "/home/.roubo/workspaces/test-project/bench-1",
+        { allow: ["Bash(*)"], deny: [], ask: [] },
+      );
+    });
+
     it("calls injectPermissions with empty allow/deny when project has no permissions", async () => {
       setupCreateBenchMocks();
       setupProcessMocks();
@@ -3184,6 +3207,55 @@ describe("extractWorkspacePermissions via teardown", () => {
       deny: [],
       ask: [],
     });
+  });
+
+  // The harvest rebuilds the stored record, and setProjectPermissions writes it
+  // verbatim with no read-merge, so any key it fails to carry forward is erased.
+  it("preserves the project posture across the harvest", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(fs.default.readFileSync).mockReturnValue(
+      JSON.stringify({ permissions: { allow: ["Bash(npm:*)"] } }),
+    );
+    vi.mocked(stateService.getProjectPermissions).mockReturnValue({
+      allow: ["Read"],
+      deny: [],
+      ask: [],
+      posture: "guarded",
+    });
+
+    benchManager.teardownBench("test-project", 1);
+    await flushBackground();
+
+    expect(stateService.setProjectPermissions).toHaveBeenCalledWith(
+      "test-project",
+      expect.objectContaining({ posture: "guarded" }),
+    );
+  });
+
+  // AP-TC-081: these rules come out of the bench's own settings file, so they
+  // never passed the API boundary's guard.
+  it("drops a path-escaping rule the agent persisted mid-session", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(fs.default.readFileSync).mockReturnValue(
+      JSON.stringify({
+        permissions: { allow: ["Bash(npm:*)", "Read(/etc/shadow)", "Read(../../other/**)"] },
+      }),
+    );
+    vi.mocked(stateService.getProjectPermissions).mockReturnValue({
+      allow: [],
+      deny: [],
+      ask: [],
+    });
+
+    benchManager.teardownBench("test-project", 1);
+    await flushBackground();
+
+    expect(stateService.setProjectPermissions).toHaveBeenCalledWith(
+      "test-project",
+      expect.objectContaining({ allow: ["Bash(npm:*)"] }),
+    );
   });
 
   it("does not call setProjectPermissions when file is missing", async () => {

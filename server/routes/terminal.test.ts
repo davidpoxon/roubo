@@ -634,6 +634,11 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
       workspacePath: "/workspace",
       projectName: "My Project",
       agentPluginId: "acme-agent",
+      // AP-FR-016: the project's permissions model travels with every agent
+      // launch so the plugin's descriptor can carry it into the workspace.
+      permissions: {
+        rules: { allow: ["Bash(npm test:*)", "Bash(npx vitest:*)"], ask: [], deny: [] },
+      },
       layers: { preset: { posture: "auto-edit" }, perLaunch: { model: "opus" } },
       onAgentExit: expect.any(Function),
     });

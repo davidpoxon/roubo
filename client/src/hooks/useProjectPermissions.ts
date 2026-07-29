@@ -41,6 +41,17 @@ export function useProjectPermissions(projectId: string) {
     mutationFn: () => api.resyncProjectPermissions(projectId),
   });
 
+  // What the project's agent honours (AP-FR-016). Separate from the permissions
+  // read so a slow or failing capability probe never blocks the stored rules
+  // from rendering; while it is in flight the editor falls back to showing the
+  // rules axis, which is what every pre-agent-plugin project already had. The
+  // posture axis stays hidden until the probe reports postures to offer.
+  const capabilities = useQuery({
+    queryKey: ["project-permissions-capabilities", projectId],
+    queryFn: () => api.fetchAgentPermissionsCapabilities(projectId),
+    enabled: !!projectId,
+  });
+
   return {
     permissions: query.data,
     isLoading: query.isLoading,
@@ -49,5 +60,6 @@ export function useProjectPermissions(projectId: string) {
     error: mutation.error ?? query.error,
     resyncBenches: resyncMutation.mutate,
     isResyncing: resyncMutation.isPending,
+    capabilities: capabilities.data,
   };
 }

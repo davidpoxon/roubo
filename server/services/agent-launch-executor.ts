@@ -10,6 +10,7 @@ import {
 } from "@roubo/shared/agent-launch-descriptor-schema";
 import { assertRealpathWithin, resolveWithin, UnsafePathError } from "../lib/safe-path.js";
 import { atomicWrite } from "./state.js";
+import { resolveTemplate, type ResolvedTemplateContext } from "./config-parser.js";
 
 // AgentLaunchExecutor (issue #507, AP-FR-001, AP-NFR-001).
 //
@@ -131,6 +132,45 @@ export function runLaunchDescriptor(
   const descriptor = validateDescriptor(raw);
   const written = executeWorkspaceWrites(workspacePath, collectWorkspaceWrites(descriptor, opts));
   return { descriptor, written };
+}
+
+/**
+ * Resolve `{{sessionId}}` / `{{port}}` / `{{workspace}}` through a descriptor's
+ * workspace writes. Both the target path and every string reachable from a write
+ * op's value are resolved, because an http-hook carrier write embeds the session
+ * id and port inside the JSON value it sets, not in the path.
+ */
+export function resolveWriteTemplates(
+  writes: WorkspaceWriteSpec[],
+  ctx: ResolvedTemplateContext,
+): WorkspaceWriteSpec[] {
+  return writes.map((write) => ({
+    ...write,
+    relPath: resolveTemplate(write.relPath, ctx),
+    ops: write.ops.map((op): WriteOp => {
+      if (op.op === "set") return { ...op, value: resolveJsonTemplates(op.value, ctx) };
+      if (op.op === "unionArray") {
+        return { ...op, values: op.values.map((v) => resolveTemplate(v, ctx)) };
+      }
+      return op;
+    }),
+  }));
+}
+
+type WriteOpJsonValue = Extract<WriteOp, { op: "set" }>["value"];
+
+function resolveJsonTemplates(
+  value: WriteOpJsonValue,
+  ctx: ResolvedTemplateContext,
+): WriteOpJsonValue {
+  if (typeof value === "string") return resolveTemplate(value, ctx);
+  if (Array.isArray(value)) return value.map((entry) => resolveJsonTemplates(entry, ctx));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, resolveJsonTemplates(entry, ctx)]),
+    );
+  }
+  return value;
 }
 
 // --- internals --------------------------------------------------------------

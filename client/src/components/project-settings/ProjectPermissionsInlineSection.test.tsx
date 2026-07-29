@@ -21,6 +21,7 @@ function makeDefaultHook(overrides = {}) {
     error: null,
     resyncBenches: vi.fn(),
     isResyncing: false,
+    capabilities: undefined,
     ...overrides,
   };
 }

@@ -38,7 +38,7 @@ export function ProjectPermissionsInlineSection({
           <PermissionsRulesTable
             rules={hasRules ? flattenPermissions({ allow, deny, ask }) : []}
             editable={false}
-            emptyMessage="No permissions saved. Rules granted in Claude Code sessions appear here automatically."
+            emptyMessage="No permissions saved. Rules granted in agent sessions appear here automatically."
           />
           {hasRules && (
             <p className="mt-2 text-[11px] text-stone-500 dark:text-stone-500">

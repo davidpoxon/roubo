@@ -49,6 +49,7 @@ import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
 import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
 import { injectPermissions } from "./claude-settings-local.js";
+import { filterSafeRules } from "./permission-rule-guard.js";
 import {
   resolveDefaultBranch,
   resolveHeadBranch,
@@ -463,11 +464,24 @@ function extractWorkspacePermissions(projectId: string, workspacePath: string): 
       return;
 
     const existing = stateService.getProjectPermissions(projectId);
-    stateService.setProjectPermissions(projectId, {
-      allow: [...new Set([...existing.allow, ...extractedAllow])],
-      deny: [...new Set([...existing.deny, ...extractedDeny])],
-      ask: [...new Set([...(existing.ask ?? []), ...extractedAsk])],
-    });
+    // Spread `existing` first: `setProjectPermissions` writes the object
+    // verbatim with no read-merge, so any key not restated here (the project's
+    // `posture`, for one) would be erased by the harvest.
+    //
+    // Filter afterwards (AP-TC-081, AP-NFR-001). These rules come out of the
+    // bench's own settings file, so they include anything the agent persisted
+    // when the user approved it mid-session, and they have never passed the
+    // API boundary's guard. Guarding here keeps a path-escaping grant from
+    // entering project state and being injected into every later bench.
+    stateService.setProjectPermissions(
+      projectId,
+      filterSafeRules({
+        ...existing,
+        allow: [...new Set([...existing.allow, ...extractedAllow])],
+        deny: [...new Set([...existing.deny, ...extractedDeny])],
+        ask: [...new Set([...(existing.ask ?? []), ...extractedAsk])],
+      }),
+    );
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code !== "ENOENT" && !(err instanceof SyntaxError)) {
@@ -1071,8 +1085,13 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
 
     // Inject project-level permissions into the workspace before any sessions start.
     // Failure is non-fatal: the bench can still run without pre-seeded permissions.
+    // Filtered on the way out (AP-TC-081): a state file written before the guard
+    // existed, or edited by hand, must not seed an escaping rule into a new bench.
     try {
-      injectPermissions(bench.workspacePath, stateService.getProjectPermissions(bench.projectId));
+      injectPermissions(
+        bench.workspacePath,
+        filterSafeRules(stateService.getProjectPermissions(bench.projectId)),
+      );
     } catch (err) {
       console.warn(`[bench-manager] Failed to inject permissions for bench ${bench.id}:`, err);
     }

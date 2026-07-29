@@ -249,6 +249,13 @@ import terminalRouter from "./routes/terminal.js";
 import hooksRouter from "./routes/hooks.js";
 import permissionsRouter from "./routes/permissions.js";
 import settingsRouter from "./routes/settings.js";
+import {
+  collectWorkspaceWrites,
+  executeWorkspaceWrites,
+  resolveWriteTemplates,
+  validateDescriptor,
+} from "./services/agent-launch-executor.js";
+import { writeClaudeSettingsLocal } from "./services/claude-settings-local.js";
 
 // The app under test mounts the REAL routers exactly as server/index.ts does.
 const app = express();
@@ -1462,5 +1469,173 @@ describe("agent CLI discovery (#645)", () => {
       else process.env.ROUBO_CLAUDE_BINARY = original.binary;
       rmSync(shim, { force: true });
     }
+  });
+});
+
+// ── Plugin-descriptor parity (CC-PERM-08, AP-TC-097, AP-TC-098, AP-TC-101) ──
+//
+// The rows above pin the BUILT-IN writer. This block pins the other half of the
+// swap: that the descriptor the claude-code agent plugin emits, executed through
+// the core AgentLaunchExecutor, produces the same settings file for the same
+// inputs. The fixture below is a verbatim copy of what
+// roubo-plugins/plugins/claude-code/src/translate-launch.ts returns; it is
+// duplicated here on purpose, because the whole point of a parity suite is that
+// core can prove the equivalence without depending on the plugin's build.
+
+function claudeCodePluginDescriptor(rules: {
+  allow: string[];
+  ask: string[];
+  deny: string[];
+}): unknown {
+  const ops: unknown[] = [];
+  if (rules.allow.length > 0) {
+    ops.push({ op: "unionArray", path: "permissions.allow", values: rules.allow });
+  }
+  if (rules.deny.length > 0) {
+    ops.push({ op: "unionArray", path: "permissions.deny", values: rules.deny });
+  }
+  if (rules.ask.length > 0) {
+    ops.push({ op: "unionArray", path: "permissions.ask", values: rules.ask });
+  }
+  return {
+    schemaVersion: 1,
+    kind: "agent-launch",
+    command: "claude",
+    args: ["--session-id", "{{sessionId}}"],
+    initialPrompt: { mode: "argv-positional", maxLength: 100_000 },
+    capabilities: {
+      ...(ops.length > 0 && {
+        workspaceWrites: [{ relPath: ".claude/settings.local.json", format: "json", ops }],
+      }),
+      notification: {
+        kind: "http-hook",
+        event: "waiting",
+        carrier: {
+          workspaceWrite: {
+            relPath: ".claude/settings.local.json",
+            format: "json",
+            ops: [
+              {
+                op: "set",
+                path: "hooks.Notification",
+                value: [
+                  {
+                    hooks: [
+                      {
+                        type: "http",
+                        url: "http://localhost:{{port}}/api/hooks/claude-notification",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        correlation: { field: "session_id", source: "agent-native" },
+      },
+      permissions: {
+        postures: {
+          "read-only": { args: ["--permission-mode", "plan"] },
+          guarded: { args: ["--permission-mode", "manual"] },
+          "auto-edit": { args: ["--permission-mode", "acceptEdits"] },
+          "full-auto": { args: ["--permission-mode", "auto"] },
+        },
+        rules: { carrier: "workspace-write", resync: true },
+      },
+    },
+  };
+}
+
+function runPluginWrites(
+  workspacePath: string,
+  rules: { allow: string[]; ask: string[]; deny: string[] },
+): void {
+  const descriptor = validateDescriptor(claudeCodePluginDescriptor(rules));
+  executeWorkspaceWrites(
+    workspacePath,
+    resolveWriteTemplates(collectWorkspaceWrites(descriptor), {
+      ports: {},
+      portHttps: {},
+      workspace: workspacePath,
+      components: {},
+      sessionId: "00000000-0000-4000-8000-000000000000",
+      port: process.env.ROUBO_PORT || "3335",
+    }),
+  );
+}
+
+describe("plugin-descriptor parity for the settings write (CC-PERM-08)", () => {
+  const rules = {
+    allow: ["Bash(npm run *)", "Read(**)"],
+    ask: ["WebFetch"],
+    deny: ["Bash(rm -rf *)"],
+  };
+
+  it("CC-PERM-08: the plugin descriptor's writes are byte-identical to the built-in writer (AP-TC-097)", () => {
+    const builtIn = mkdtempSync(join(realOs.tmpdir(), "cc-parity-builtin-"));
+    const plugin = mkdtempSync(join(realOs.tmpdir(), "cc-parity-plugin-"));
+    tmpWorkspaces.push(builtIn, plugin);
+
+    writeClaudeSettingsLocal(builtIn, undefined, {
+      allow: rules.allow,
+      deny: rules.deny,
+      ask: rules.ask,
+    });
+    runPluginWrites(plugin, rules);
+
+    expect(readFileSync(workspaceSettingsPath(plugin), "utf-8")).toBe(
+      readFileSync(workspaceSettingsPath(builtIn), "utf-8"),
+    );
+  });
+
+  it("CC-PERM-08: allow, ask, and deny land in their own arrays with the hook wired (AP-TC-078)", () => {
+    const ws = mkdtempSync(join(realOs.tmpdir(), "cc-parity-plugin-"));
+    tmpWorkspaces.push(ws);
+
+    runPluginWrites(ws, rules);
+
+    const settings = readWorkspaceSettings(ws);
+    expect(settings.permissions).toEqual({
+      allow: rules.allow,
+      deny: rules.deny,
+      ask: rules.ask,
+    });
+    expect(settings.hooks).toEqual({ Notification: FORCED_NOTIFICATION_HOOK(HOOK_URL_DEFAULT) });
+  });
+
+  it("CC-PERM-08: user-authored keys survive the merge untouched (AP-TC-098)", () => {
+    const ws = mkdtempSync(join(realOs.tmpdir(), "cc-parity-plugin-"));
+    tmpWorkspaces.push(ws);
+    mkdirSync(join(ws, ".claude"), { recursive: true });
+    writeFileSync(
+      workspaceSettingsPath(ws),
+      JSON.stringify({
+        env: { MY_VAR: "1" },
+        editorSettings: { theme: "solarized" },
+        permissions: { allow: ["Read(mine/**)"], defaultMode: "auto" },
+      }),
+    );
+
+    runPluginWrites(ws, rules);
+
+    const settings = readWorkspaceSettings(ws);
+    expect(settings.env).toEqual({ MY_VAR: "1" });
+    expect(settings.editorSettings).toEqual({ theme: "solarized" });
+    const perms = settings.permissions as Record<string, unknown>;
+    expect(perms.defaultMode).toBe("auto");
+    // Union, existing first: the user's own rule is never dropped or reordered.
+    expect(perms.allow).toEqual(["Read(mine/**)", ...rules.allow]);
+  });
+
+  it("CC-PERM-08: an empty rule set writes only the hook wiring, never an empty permissions key", () => {
+    const ws = mkdtempSync(join(realOs.tmpdir(), "cc-parity-plugin-"));
+    tmpWorkspaces.push(ws);
+
+    runPluginWrites(ws, { allow: [], ask: [], deny: [] });
+
+    const settings = readWorkspaceSettings(ws);
+    expect(settings.permissions).toBeUndefined();
+    expect(settings.hooks).toEqual({ Notification: FORCED_NOTIFICATION_HOOK(HOOK_URL_DEFAULT) });
   });
 });

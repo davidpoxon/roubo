@@ -8,6 +8,9 @@ import type {
   ToolConfig,
   JigSettings,
 } from "./config-schema.js";
+import type { AgentPosture } from "./agent-launch-descriptor-schema.js";
+
+export type { AgentPosture };
 
 export type {
   RouboConfig,
@@ -1763,11 +1766,44 @@ export interface PersistedProjects {
   projects: PersistedProjectEntry[];
 }
 
+/**
+ * The one per-project agent permissions model (AP-FR-016). Two axes: a universal
+ * `posture` every agent plugin maps to its own native mechanism, and the
+ * fine-grained allow/ask/deny rule strings only plugins declaring the rules
+ * capability honour. Core stores and unions the rule strings; it never parses
+ * their vocabulary, so no agent-specific wire type reaches these shared types.
+ */
 export interface ProjectPermissions {
   allow: string[];
   deny: string[];
   // optional for legacy state files written before ask support was added
   ask?: string[];
+  // optional for legacy state files written before the posture axis was added
+  posture?: AgentPosture;
+}
+
+/** The outcome of re-injecting a project's permissions across its benches. */
+export interface PermissionsResyncResult {
+  resynced: number;
+  skipped: number;
+  errors: { benchId: number; message: string }[];
+}
+
+/**
+ * What the agent behind a project actually honours, so the permissions screen
+ * can hide the axes that agent ignores (a plugin declaring no rules capability
+ * gets no rules editor and no re-sync control).
+ */
+export interface AgentPermissionsCapabilities {
+  /** `null` when no agent plugin resolves and the built-in carrier is in use. */
+  agentPluginId: string | null;
+  agentName: string | null;
+  /** The postures the agent binds. Empty means the posture control is hidden. */
+  postures: AgentPosture[];
+  /** Whether fine-grained allow/ask/deny rules reach this agent at all. */
+  rules: boolean;
+  /** Whether those rules can be re-injected into already-created benches. */
+  resync: boolean;
 }
 
 // ── Filesystem browsing types ──

@@ -1,5 +1,8 @@
 import type { PluginManifest } from "@roubo/shared";
-import type { AgentLaunchDescriptor } from "@roubo/shared/agent-launch-descriptor-schema";
+import type {
+  AgentLaunchDescriptor,
+  AgentPosture,
+} from "@roubo/shared/agent-launch-descriptor-schema";
 import { getEffectiveAgentConfig } from "./agent-overrides.js";
 import { getProjectAgentOverrides, mergeAgentConfig } from "./agent-project-overrides.js";
 import {
@@ -113,6 +116,23 @@ export function resolveLaunchAgentId({
   return available.length === 1 ? available[0].id : undefined;
 }
 
+/**
+ * The project's permissions model as a plugin sees it (AP-FR-016). Both axes
+ * travel together so a plugin maps whichever it declares support for: the
+ * universal `posture` (absent when the project has never chosen one, so the
+ * agent keeps its own configured mode) and the fine-grained rule strings, which
+ * only a plugin declaring the rules capability carries anywhere.
+ *
+ * It reaches the plugin as `config.permissions`, layered on top of the resolved
+ * four-layer configuration rather than merged into it: project permissions are
+ * managed on their own screen and are not an agent config field a preset or a
+ * per-launch override may quietly outrank.
+ */
+export interface LaunchPermissions {
+  posture?: AgentPosture;
+  rules: { allow: string[]; ask: string[]; deny: string[] };
+}
+
 export interface PrepareAgentLaunchParams {
   pluginId: string;
   projectId: string;
@@ -122,6 +142,7 @@ export interface PrepareAgentLaunchParams {
   sessionId: string;
   initialPrompt?: string;
   layers?: AgentConfigLayers;
+  permissions?: LaunchPermissions;
   timeoutMs?: number;
 }
 
@@ -149,11 +170,23 @@ export async function prepareAgentLaunch(
   const resolved = resolveAgent(params.pluginId);
   if (isAgentNotAvailable(resolved)) throw new AgentUnavailableError(resolved);
 
-  const effectiveConfig = resolveEffectiveAgentConfig(
+  const resolvedConfig = resolveEffectiveAgentConfig(
     params.projectId,
     params.pluginId,
     params.layers,
   );
+
+  // The permissions model sits ABOVE all four config layers. `posture` is also
+  // surfaced flat because that is the key the executor reads when it picks a
+  // descriptor's posture binding, and a project that has chosen no posture must
+  // leave whatever the agent's own config selected untouched.
+  const effectiveConfig: Record<string, unknown> = params.permissions
+    ? {
+        ...resolvedConfig,
+        permissions: params.permissions,
+        ...(params.permissions.posture !== undefined && { posture: params.permissions.posture }),
+      }
+    : resolvedConfig;
 
   const raw = await requestLaunchDescriptor(
     params.pluginId,

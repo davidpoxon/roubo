@@ -16,6 +16,8 @@ import { buildAlertIssueContext } from "../services/alert-formatting.js";
 import { loadSettings, getProjectPermissions } from "../services/state.js";
 import { AgentUnavailableError, resolveLaunchAgentId } from "../services/agent-launch-pipeline.js";
 import { AgentDescriptorError } from "../services/agent-launch-executor.js";
+import { toLaunchPermissions } from "../services/agent-permissions.js";
+import { filterSafeRules } from "../services/permission-rule-guard.js";
 import type { AgentNotAvailable } from "../services/agent-plugin-registry.js";
 import { parseIntParam, VALID_JIG_ID } from "./helpers.js";
 import type { TerminalCreateRequest } from "@roubo/shared";
@@ -198,6 +200,11 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         onAgentExit: (sessionId: string) => {
           notificationService.createNotification(bench, "agent-exited", sessionId);
         },
+        // AP-FR-016 (issue #514): the project's permissions model reaches the
+        // plugin so its descriptor carries the posture and, where the plugin
+        // declares the rules capability, writes the allow/ask/deny rules into
+        // the bench workspace before the agent is spawned (AP-TC-078).
+        permissions: toLaunchPermissions(getProjectPermissions(projectId)),
         layers: {
           ...(presetOverrides !== undefined && { preset: presetOverrides }),
           ...(perLaunchOverrides !== undefined && { perLaunch: perLaunchOverrides }),
@@ -261,7 +268,10 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         }
       : undefined;
 
-  const projectPermissions = command === "claude" ? getProjectPermissions(projectId) : undefined;
+  // Filtered like the agent-plugin path above (AP-TC-081): the built-in carrier
+  // writes the same settings file, so it must not seed an escaping rule either.
+  const projectPermissions =
+    command === "claude" ? filterSafeRules(getProjectPermissions(projectId)) : undefined;
 
   let session;
   try {

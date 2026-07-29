@@ -23,17 +23,50 @@ interface ProjectPermissionsEditorPageProps {
 
 const TEMPLATES = ["Bash(*)", "Read(./**)", "Edit(**/*.ts)", "WebFetch(domain:*)", "mcp__*"];
 
-function unflattenPermissions(rules: PermissionRule[]): ProjectPermissions {
+/**
+ * The universal posture axis (AP-FR-016). One vocabulary for every agent; each
+ * agent plugin maps it to its own native mechanism, so nothing here names a
+ * product or a product's flag.
+ */
+const POSTURE_ITEMS = [
+  { value: "", label: "Agent default" },
+  { value: "read-only", label: "Read only" },
+  { value: "guarded", label: "Ask before acting" },
+  { value: "auto-edit", label: "Edit without asking" },
+  { value: "full-auto", label: "Fully autonomous" },
+];
+
+const POSTURE_HINTS: Record<string, string> = {
+  "": "Leave the agent on whatever its own configuration selects.",
+  "read-only": "The agent may read and plan, but never edit or run commands.",
+  guarded: "The agent asks before each edit or command.",
+  "auto-edit": "The agent edits files without asking, but still asks to run commands.",
+  "full-auto": "The agent edits and runs commands without asking.",
+};
+
+function unflattenPermissions(
+  rules: PermissionRule[],
+  posture: ProjectPermissions["posture"],
+): ProjectPermissions {
   return {
     allow: rules.filter((r) => r.type === "allow").map((r) => r.pattern),
     deny: rules.filter((r) => r.type === "deny").map((r) => r.pattern),
     ask: rules.filter((r) => r.type === "ask").map((r) => r.pattern),
+    ...(posture !== undefined && { posture }),
   };
 }
 
 export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEditorPageProps) {
-  const { permissions, isLoading, updatePermissions, isError, resyncBenches, isResyncing } =
-    useProjectPermissions(projectId);
+  const {
+    permissions,
+    isLoading,
+    updatePermissions,
+    isError,
+    error,
+    resyncBenches,
+    isResyncing,
+    capabilities,
+  } = useProjectPermissions(projectId);
   const { data: projects } = useProjects();
   const { addToast } = useToast();
 
@@ -45,6 +78,19 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
   const currentPermissions: ProjectPermissions = permissions ?? { allow: [], deny: [], ask: [] };
   const rules = flattenPermissions(currentPermissions);
   const project = projects?.find((p) => p.id === projectId);
+
+  // The two axes fail in opposite directions, deliberately. Rules fail OPEN:
+  // absent capabilities (the probe has not answered yet, or it failed) keep the
+  // rules editor visible, because hiding a control every pre-agent-plugin
+  // project already had is worse than briefly showing one their agent ignores.
+  // Posture fails CLOSED: it is a control this release introduces, and an empty
+  // `postures` list is the server's own designed answer for an agent that
+  // declares none (including the built-in carrier), so it stays hidden until
+  // the probe positively reports postures to offer.
+  const showRules = capabilities?.rules !== false;
+  const showResync = showRules && capabilities?.resync !== false;
+  const showPosture = (capabilities?.postures.length ?? 0) > 0;
+  const agentLabel = capabilities?.agentName ?? "your AI coding agent";
 
   const isDuplicateRule = (type: RuleType, pattern: string) =>
     (currentPermissions[type] ?? []).includes(pattern);
@@ -71,13 +117,20 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
 
   const handleRemove = (index: number) => {
     const updated = rules.filter((_, i) => i !== index);
-    updatePermissions(unflattenPermissions(updated));
+    updatePermissions(unflattenPermissions(updated, currentPermissions.posture));
   };
 
   const handleEdit = (index: number, next: PermissionRule) => {
     const updated = [...rules];
     updated[index] = next;
-    updatePermissions(unflattenPermissions(updated));
+    updatePermissions(unflattenPermissions(updated, currentPermissions.posture));
+  };
+
+  const handlePostureChange = (value: string) => {
+    const next = value === "" ? undefined : (value as ProjectPermissions["posture"]);
+    // Rebuilt rather than spread-and-override: clearing the posture has to drop
+    // the key, and PUT replaces the whole set, so a leftover key would persist.
+    updatePermissions(unflattenPermissions(rules, next));
   };
 
   const handleImport = (newRules: PermissionRule[]) => {
@@ -99,7 +152,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
     const a = document.createElement("a");
     const name = project?.repoPath.split("/").filter(Boolean).pop() ?? projectId;
     a.href = url;
-    a.download = `${name}-claude-permissions.json`;
+    a.download = `${name}-agent-permissions.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -134,34 +187,36 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             Settings
           </Link>
           <span className="text-stone-400 dark:text-stone-600">/</span>
-          <span className="text-stone-700 dark:text-stone-300">Claude Code permissions</span>
+          <span className="text-stone-700 dark:text-stone-300">Agent permissions</span>
         </div>
 
         <div className="flex items-start justify-between mb-1">
           <div>
             <h2 className="text-[18px] font-semibold text-stone-900 dark:text-stone-100">
-              Claude Code permissions
+              Agent permissions
             </h2>
             <p className="text-[12px] text-stone-400 dark:text-stone-500 mt-1 max-w-2xl leading-relaxed">
-              Rules merged into each bench's{" "}
-              <span className="font-mono">.claude/settings.local.json</span> when it's created.
-              Changes apply to new benches immediately; existing benches can be re-synced.
+              How much {agentLabel} may do on its own in this project, and the fine-grained rules it
+              works within. Roubo maps both onto whatever mechanism the agent uses. Changes apply to
+              new benches immediately; existing benches can be re-synced.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0 ml-4">
-            <Button
-              onPress={() => setShowImport(true)}
-              className="text-[12px] px-3 py-1.5 rounded-md border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors"
-            >
-              Import from project
-            </Button>
-            <Button
-              onPress={handleExportJson}
-              className="text-[12px] px-3 py-1.5 rounded-md border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors"
-            >
-              Export JSON
-            </Button>
-          </div>
+          {showRules && (
+            <div className="flex items-center gap-2 shrink-0 ml-4">
+              <Button
+                onPress={() => setShowImport(true)}
+                className="text-[12px] px-3 py-1.5 rounded-md border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors"
+              >
+                Import from project
+              </Button>
+              <Button
+                onPress={handleExportJson}
+                className="text-[12px] px-3 py-1.5 rounded-md border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors"
+              >
+                Export JSON
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -172,7 +227,32 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
         </div>
       )}
 
-      {!isLoading && (
+      {!isLoading && showPosture && (
+        <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900/40 p-4">
+          <div className="text-[11px] text-stone-500 mb-2 font-medium">Posture</div>
+          <div className="grid grid-cols-12 gap-2 items-center">
+            <div className="col-span-4">
+              <Select
+                ariaLabel="Permission posture"
+                items={POSTURE_ITEMS.filter(
+                  (item) =>
+                    item.value === "" ||
+                    capabilities?.postures.includes(
+                      item.value as NonNullable<ProjectPermissions["posture"]>,
+                    ),
+                )}
+                value={currentPermissions.posture ?? ""}
+                onChange={handlePostureChange}
+              />
+            </div>
+            <p className="col-span-8 text-[11px] text-stone-500 dark:text-stone-500 leading-relaxed">
+              {POSTURE_HINTS[currentPermissions.posture ?? ""]}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && showRules && (
         <>
           {/* Add rule container */}
           <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900/40 p-4">
@@ -254,19 +334,23 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                   ? `${rules.length} rule${rules.length !== 1 ? "s" : ""} · ${currentPermissions.allow.length} allow · ${currentPermissions.deny.length} deny · ${(currentPermissions.ask ?? []).length} ask`
                   : "No rules"}
               </div>
-              <Button
-                onPress={handleResync}
-                isDisabled={isResyncing}
-                className="text-[11px] font-medium px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-stone-950 outline-none transition-colors"
-              >
-                {isResyncing ? "Resyncing…" : "Re-sync benches"}
-              </Button>
+              {showResync && (
+                <Button
+                  onPress={handleResync}
+                  isDisabled={isResyncing}
+                  className="text-[11px] font-medium px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-stone-950 outline-none transition-colors"
+                >
+                  {isResyncing ? "Resyncing…" : "Re-sync benches"}
+                </Button>
+              )}
             </div>
           </div>
 
           {isError && (
             <p className="text-sm text-red-500 dark:text-red-400">
-              Failed to load or save permissions. Please try again.
+              {error instanceof Error && /rejected because/.test(error.message)
+                ? error.message
+                : "Failed to load or save permissions. Please try again."}
             </p>
           )}
 
@@ -275,6 +359,17 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             bench is cleared.
           </p>
         </>
+      )}
+
+      {/* An agent that declares no permissions capability at all reports both
+          `postures: []` and `rules: false`, so there is no posture control above
+          to point the reader at. Name only the axes actually on screen. */}
+      {!isLoading && !showRules && (
+        <p className="text-[12px] text-stone-500 dark:text-stone-500 leading-relaxed">
+          {showPosture
+            ? `${agentLabel} does not support fine-grained permission rules, so only the posture above applies to this project.`
+            : `${agentLabel} does not expose any permission settings Roubo can manage for this project.`}
+        </p>
       )}
 
       <ImportPermissionsModal

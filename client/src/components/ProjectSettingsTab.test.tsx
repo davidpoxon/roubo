@@ -318,9 +318,9 @@ describe("ProjectSettingsTab", () => {
     expect(screen.getByText("override", { selector: "span" })).toBeInTheDocument();
   });
 
-  it("renders the Claude Code permissions section heading", () => {
+  it("renders the agent permissions section heading", () => {
     renderTab();
-    expect(screen.getByText("Claude Code permissions")).toBeInTheDocument();
+    expect(screen.getByText("Agent permissions")).toBeInTheDocument();
   });
 
   it("renders the permissions inline section component", () => {
@@ -434,11 +434,12 @@ describe("ProjectSettingsTab", () => {
     expect(screen.getByText("Discard changes?")).toBeInTheDocument();
   });
 
-  it("renders 'Merged into .claude/settings.local.json on bench setup' helper in the permissions section", () => {
+  it("describes the permissions section agent-generically, naming no product", () => {
     renderTab();
-    expect(screen.getByText(".claude/settings.local.json")).toBeInTheDocument();
-    expect(document.body.textContent).toContain("Merged into");
-    expect(document.body.textContent).toContain("on bench setup");
+    expect(document.body.textContent).toContain(
+      "Mapped onto the agent's own permission mechanism on bench setup",
+    );
+    expect(document.body.textContent).not.toContain(".claude/settings.local.json");
   });
 
   it("renders 'Edit permissions' button in the permissions section header", () => {

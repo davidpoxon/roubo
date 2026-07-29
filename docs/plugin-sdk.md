@@ -203,6 +203,24 @@ Everything else the launch needs is an optional declared capability, and **absen
 
 The permissions model has two axes: a universal `posture` (`read-only`, `guarded`, `auto-edit`, `full-auto`) every agent plugin maps to its native mechanism, and optional fine-grained `allow` / `ask` / `deny` rules honoured only by plugins that declare the `rules` capability. Rule strings are opaque to the host: it stores, unions, and injects them, and never parses them.
 
+The host layers the project's stored model onto the effective config as `config.permissions`, above all four configuration layers, so `translateLaunch` reads it like any other config field:
+
+```ts
+// config.permissions, as the host supplies it
+{ posture?: AgentPosture; rules: { allow: string[]; ask: string[]; deny: string[] } }
+```
+
+A plugin that carries rules turns them into `WorkspaceWriteSpec` ops (`unionArray` rather than `set`, so entries the user or the agent itself put in the file survive) and declares:
+
+```ts
+permissions: {
+  postures: { "read-only": { args: [...] }, /* ... */ },
+  rules: { carrier: "workspace-write", resync: true },
+}
+```
+
+`resync: true` is the plugin's statement that those writes are safe to re-apply to an already-created bench workspace, which is what `POST /api/projects/:projectId/permissions/resync` dispatches through. A plugin that declares no `rules` key gets no rules editor in the UI and is skipped by re-sync; declaring `rules` with `resync: false` keeps the editor but not the re-sync control. Path-escaping patterns in the access-granting groups never reach a plugin: the host rejects an `allow` or `ask` entry naming a path outside the bench workspace when it is stored, and filters any survivors before the model is handed over. `deny` entries are subtractive, so they are passed through as written and a plugin must not assume every rule string it receives is workspace-relative.
+
 ### Workspace writes are declarative, always
 
 A plugin can never write a bench workspace through the filesystem broker. The broker's allowlist grants a plugin only its own directory plus the paths its manifest declares, and no allowlist entry ever covers a bench workspace. An agent plugin is granted strictly less than an integration plugin: the same v1 host surface (`host.fs.*` confined to its own directory, `host.credentials.*`, `host.fetch`), none of the component broker (`host.process.start` / `run` / `stop` / `status` / `logs`, `host.docker.*`, `host.ports.*`), and no `host.process.spawn` at all. A spawned child process runs under its own confinement rather than inheriting the broker allowlist: `host.process.spawn` pins the child's working directory to the plugin's own directory and rejects a bench-workspace path given as `cwd`, as the executable, or as an argument. Argument scanning is a second barrier, not a guarantee, since it cannot see a path composed inside a string the child itself interprets, so an agent manifest must still declare `processes: false`; anything else is rejected at manifest validation. That leaves a `WorkspaceWriteSpec`, which the host resolves under the bench workspace root and executes, as the only route from the agent contract to a workspace file:
