@@ -447,7 +447,7 @@ export interface CreateAgentSessionOptions {
  * AP-FR-018).
  *
  * `mode` echoes the descriptor's declared injection capability, and is `"none"`
- * when the descriptor declares one. Core injects nothing then, so a caller that
+ * when the descriptor declares none. Core injects nothing then, so a caller that
  * meant to deliver jig content must neither claim it was injected nor fall back
  * to writing it into the PTY afterwards: an agent that declares no injection
  * capability launches with nothing injected, by design.
