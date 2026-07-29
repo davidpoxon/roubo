@@ -158,9 +158,27 @@ export function wellKnownPathsFor(command: string): string[] {
   }
 }
 
-/** The first well-known install location for `command` that exists on disk. */
+/**
+ * True when `p` is a regular file the current process may execute (#651).
+ *
+ * Bare existence is not enough: a directory, or a real-but-unchmodded file, at a
+ * well-known install location would otherwise be handed to pty.spawn and surface
+ * as an opaque EISDIR/EACCES. Gating on executability also stops a broken
+ * ~/.local/bin/claude shadowing a working /opt/homebrew/bin/claude.
+ */
+function isExecutableFile(p: string): boolean {
+  try {
+    if (!fs.statSync(p).isFile()) return false;
+    fs.accessSync(p, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The first well-known install location for `command` that is an executable file. */
 function findWellKnownPath(command: string): string | undefined {
-  return wellKnownPathsFor(command).find((p) => fs.existsSync(p));
+  return wellKnownPathsFor(command).find(isExecutableFile);
 }
 
 /** Thrown by resolveAgentCommand when an agent CLI is found nowhere. */
@@ -183,12 +201,12 @@ export class AgentCommandNotFoundError extends Error {
  * Resolves an agent CLI command to something spawnable, in this order (#645):
  *
  * 1. A command containing a path separator is an explicit path: returned as-is.
- * 2. A command found on `searchPath` is returned unchanged, so the exec call
- *    resolves it exactly as it does today. Returning the bare name (rather than
- *    the first matching directory entry) keeps this step a probe, not a
- *    reimplementation of execvp's own search.
- * 3. Otherwise the first well-known install location that exists on disk. This
- *    is the same list the built-in Claude Code path uses, so a session launched
+ * 2. A command found as an executable file on `searchPath` is returned unchanged,
+ *    so the exec call resolves it exactly as it does today. Returning the bare
+ *    name (rather than the first matching directory entry) keeps this step a
+ *    probe, not a reimplementation of execvp's own search.
+ * 3. Otherwise the first well-known install location holding an executable file.
+ *    This is the same list the built-in Claude Code path uses, so a session launched
  *    from an agent plugin finds the CLI on every install the built-in path does
  *    (notably the ~/.claude/local/claude shim, and fish or GUI launches whose
  *    PATH the server process never inherits).
@@ -209,7 +227,7 @@ export function resolveAgentCommand(
     if (!dir) continue;
     const candidate = path.join(dir, command);
     tried.push(candidate);
-    if (fs.existsSync(candidate)) return command;
+    if (isExecutableFile(candidate)) return command;
   }
 
   const wellKnown = findWellKnownPath(command);

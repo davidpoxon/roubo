@@ -1440,7 +1440,9 @@ describe("agent CLI discovery (#645)", () => {
     expect(candidates).toContain(shim);
 
     mkdirSync(join(isolation.tmpHome, ".claude", "local"), { recursive: true });
-    writeFileSync(shim, "#!/bin/sh\nexec true\n");
+    // 0o755 is load-bearing: resolution gates on an executable regular file
+    // (#651), so a default-0644 shim would be skipped like a broken install.
+    writeFileSync(shim, "#!/bin/sh\nexec true\n", { mode: 0o755 });
 
     const original = {
       PATH: process.env.PATH,
