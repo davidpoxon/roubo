@@ -483,8 +483,22 @@ export async function createAgentSession(
     port: process.env.ROUBO_PORT || DEFAULT_ROUBO_PORT,
   };
 
+  // A posture binding has two carriers, argv and workspace writes, and a
+  // descriptor may use either. Both are applied here so the posture the
+  // effective config selected is never half-applied: dropping the argv half
+  // while honouring the file half would launch a session whose real permissions
+  // disagree with the resolved config.
+  const posture = readPosture(prepared.effectiveConfig);
+  const postureBinding = posture
+    ? descriptor.capabilities?.permissions?.postures[posture]
+    : undefined;
+
   const command = resolveTemplate(descriptor.command, ctx);
   const args = descriptor.args.map((arg) => resolveTemplate(arg, ctx));
+  for (const arg of postureBinding?.args ?? []) {
+    args.push(resolveTemplate(arg, ctx));
+  }
+  // The initial prompt is positional, so it stays last, after every flag.
   if (descriptor.initialPrompt?.mode === "argv-positional" && opts.initialInput) {
     const limit = Math.min(descriptor.initialPrompt.maxLength ?? Infinity, MAX_CLI_PROMPT_LENGTH);
     args.push(opts.initialInput.slice(0, limit));
@@ -494,7 +508,6 @@ export async function createAgentSession(
   // Workspace writes run BEFORE the spawn: a descriptor whose relPath escapes
   // the bench workspace aborts the whole batch (and this launch) with nothing
   // written anywhere (AP-NFR-001, AP-TC-082).
-  const posture = readPosture(prepared.effectiveConfig);
   executeWorkspaceWrites(
     opts.workspacePath,
     resolveWriteTemplates(collectWorkspaceWrites(descriptor, posture ? { posture } : {}), ctx),
@@ -506,8 +519,14 @@ export async function createAgentSession(
     ),
   );
   // Descriptor env is additive, layered on AFTER the host-internal strip so a
-  // plugin can neither reinstate nor observe the keys core withholds.
+  // plugin can neither reinstate nor observe the keys core withholds. The strip
+  // above only filters `process.env`, so the layering re-checks each descriptor
+  // key against the same set: `env` is an unrestricted record in the descriptor
+  // schema, and without this a descriptor declaring ROUBO_PRODUCTION would hand
+  // the child the very key #877 removed, pointing a bench-started dev server at
+  // the real ~/.roubo state (AP-NFR-001).
   for (const [key, value] of Object.entries(descriptor.env ?? {})) {
+    if (HOST_INTERNAL_ENV_KEYS.has(key)) continue;
     env[key] = resolveTemplate(value, ctx);
   }
 

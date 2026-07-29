@@ -149,21 +149,26 @@ describe("AP-TC-048: resolution stays cheap by construction", () => {
     }
   });
 
-  it("costs O(fields), not O(fields squared): a wide config resolves in one pass", () => {
+  // Structural sibling of the gated budget assertion: it pins that a wide config
+  // is carried through the overlay chain whole, with the later layers winning
+  // per field. Deliberately no wall-clock assertion here. The 50ms budget is the
+  // gated harness's job, and a single timed resolution could not distinguish
+  // linear from quadratic at this width anyway (500 fields squared is still far
+  // inside 50ms), so it would read as a complexity guarantee it cannot give.
+  it("carries a wide config through the overlay chain, later layers winning per field", () => {
     const wide: Record<string, unknown> = {};
     for (let i = 0; i < 500; i++) wide[`field${i}`] = i;
     saveAgentConfig(PLUGIN_ID, wide);
 
-    const started = performance.now();
     const effective = resolveEffectiveAgentConfig(PROJECT_ID, PLUGIN_ID, {
       preset: { field0: "preset" },
       perLaunch: { field1: "per-launch" },
     });
-    const elapsed = performance.now() - started;
 
     expect(Object.keys(effective)).toHaveLength(500);
     expect(effective.field0).toBe("preset");
     expect(effective.field1).toBe("per-launch");
-    expect(elapsed).toBeLessThan(RESOLUTION_BUDGET_MS);
+    // A field no later layer mentions still falls through from app defaults.
+    expect(effective.field2).toBe(2);
   });
 });

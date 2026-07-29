@@ -221,11 +221,24 @@ describe("createAgentSession env handling", () => {
 
   it("does not let a descriptor reinstate a host-internal key", async () => {
     vi.stubEnv("ROUBO_PRODUCTION", "1");
-    prepare({ args: [] });
+    vi.stubEnv("ROUBO_PORT", "51234");
+    // The descriptor itself declares the keys core withholds. `env` is an
+    // unrestricted record in the schema, so this is a shape a plugin can really
+    // emit; the additive layering has to re-check it rather than trusting that
+    // the host-env strip alone kept them out.
+    prepare({
+      args: [],
+      env: { ROUBO_PRODUCTION: "1", ROUBO_PORT: "9999", ACME_MODE: "batch" },
+    });
 
     await launch();
 
-    expect(spawnCall().opts.env).not.toHaveProperty("ROUBO_PRODUCTION");
+    const env = spawnCall().opts.env as Record<string, string>;
+    expect(env).not.toHaveProperty("ROUBO_PRODUCTION");
+    expect(env).not.toHaveProperty("ROUBO_PORT");
+    // The rest of the descriptor's additive env still lands, so the guard is a
+    // targeted skip and not a blanket drop of the descriptor's env.
+    expect(env.ACME_MODE).toBe("batch");
   });
 });
 
@@ -331,7 +344,11 @@ describe("AP-TC-082: workspace writes are path-validated core-side", () => {
     });
 
     await expect(launch()).rejects.toThrow(/escapes the bench workspace/);
-    expect(fs.existsSync(path.join(workspace, "ok.json"))).toBe(false);
+    // The write sink is `atomicWrite`, which this file mocks, so assert against
+    // it rather than the filesystem: an `fs.existsSync` check would hold even if
+    // the in-workspace write had been applied before the escaping one threw,
+    // which is exactly the regression AP-TC-082 is here to catch.
+    expect(stateMocks.atomicWrite).not.toHaveBeenCalled();
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
@@ -365,6 +382,98 @@ describe("AP-TC-082: workspace writes are path-validated core-side", () => {
     const targets = stateMocks.atomicWrite.mock.calls.map(([t]) => path.basename(String(t)));
     expect(targets).toContain("base.json");
     expect(targets).toContain("posture.json");
+  });
+
+  it("applies the selected posture's argv binding as well as its writes", async () => {
+    prepare(
+      {
+        args: ["--print"],
+        capabilities: {
+          permissions: {
+            postures: {
+              "read-only": {
+                args: ["--permission-mode", "plan", "--session", "{{sessionId}}"],
+                workspaceWrites: [
+                  {
+                    relPath: "posture.json",
+                    format: "json",
+                    ops: [{ op: "set", path: "mode", value: "read-only" }],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      { posture: "read-only" },
+    );
+
+    const session = await launch();
+
+    // Both carriers of the binding land: the argv half after the descriptor's
+    // own args, and the file half through the write batch.
+    expect(spawnCall().args).toEqual([
+      "--print",
+      "--permission-mode",
+      "plan",
+      "--session",
+      session.id,
+    ]);
+    expect(stateMocks.atomicWrite.mock.calls.map(([t]) => path.basename(String(t)))).toContain(
+      "posture.json",
+    );
+  });
+
+  it("keeps the initial prompt positional after the posture's argv binding", async () => {
+    prepare(
+      {
+        args: ["--print"],
+        initialPrompt: { mode: "argv-positional" },
+        capabilities: {
+          permissions: {
+            postures: { guarded: { args: ["--permission-mode", "acceptEdits"] } },
+          },
+        },
+      },
+      { posture: "guarded" },
+    );
+
+    await launch({ initialInput: "do the thing" });
+
+    expect(spawnCall().args).toEqual([
+      "--print",
+      "--permission-mode",
+      "acceptEdits",
+      "do the thing",
+    ]);
+  });
+
+  it("adds no argv when the selected posture declares only writes", async () => {
+    prepare(
+      {
+        args: ["--print"],
+        capabilities: {
+          permissions: {
+            postures: {
+              "read-only": {
+                workspaceWrites: [
+                  {
+                    relPath: "posture.json",
+                    format: "json",
+                    ops: [{ op: "set", path: "m", value: 1 }],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      { posture: "read-only" },
+    );
+
+    await launch();
+
+    expect(spawnCall().args).toEqual(["--print"]);
   });
 
   it("ignores a posture value the descriptor schema does not recognise", async () => {
