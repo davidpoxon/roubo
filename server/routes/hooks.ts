@@ -15,12 +15,24 @@ router.post("/claude-notification", (req, res) => {
 
   const session = terminalService.getSession(session_id);
   if (!session) {
+    // `session_id` is request-controlled, so it is passed as a console argument
+    // rather than interpolated into the format string (js/tainted-format-string).
+    console.warn("[hooks] rejected notification for unknown session %s", session_id);
     res.status(404).json({ error: "Session not found" });
     return;
   }
 
-  if (session.command !== "claude") {
-    res.status(400).json({ error: "Session is not a Claude session" });
+  // Agent-generic correlation (AP-FR-013): eligibility is the session's own
+  // live-and-hook-wired state, not the name of the command it runs. This is
+  // what rejects a forged or expired token: an exited session, or one restored
+  // from disk after a restart, is still addressable by id but is no longer live
+  // (AP-TC-084).
+  if (!terminalService.isHookNotificationEligible(session_id)) {
+    console.warn(
+      "[hooks] rejected notification for session %s: not a live hook-wired agent session",
+      session_id,
+    );
+    res.status(400).json({ error: "Session is not a live hook-wired agent session" });
     return;
   }
 

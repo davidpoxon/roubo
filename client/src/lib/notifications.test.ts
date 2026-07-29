@@ -127,6 +127,17 @@ describe("formatNotification", () => {
     });
   }
 
+  it("names no specific AI coding tool in agent-session copy", () => {
+    // `claude-waiting` keeps a legacy type name, but any agent plugin's session
+    // raises it, so its copy must stay product-neutral (docs/brand.md).
+    // `claude-exited` is excluded deliberately: only the legacy built-in path
+    // raises it, and a plugin agent raises `agent-exited` instead.
+    for (const type of ["claude-waiting", "agent-exited"] as NotificationType[]) {
+      const { title, body } = formatNotification(makeNotification("action-needed", type));
+      expect(`${title} ${body}`).not.toMatch(/claude|codex|gemini|copilot/i);
+    }
+  });
+
   it("returns fallback for unknown notification type", () => {
     const n = {
       ...makeNotification("info"),

@@ -5,6 +5,7 @@ import request from "supertest";
 vi.mock("../services/terminal.js", () => ({
   getSession: vi.fn(),
   parseBenchKey: vi.fn(),
+  isHookNotificationEligible: vi.fn(),
 }));
 
 vi.mock("../services/notification.js", () => ({
@@ -28,6 +29,8 @@ const mockBench = { id: 1, projectId: "project1", notifications: [] };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: a live, hook-wired session. The rejection rows below opt out.
+  vi.mocked(terminalService.isHookNotificationEligible).mockReturnValue(true);
 });
 
 describe("POST /claude-notification", () => {
@@ -81,8 +84,9 @@ describe("POST /claude-notification", () => {
     expect(notificationService.createNotification).not.toHaveBeenCalled();
   });
 
-  it("returns 404 when session is not found", async () => {
+  it("returns 404 and logs when session is not found (AP-TC-069)", async () => {
     vi.mocked(terminalService.getSession).mockReturnValue(undefined);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const res = await request(app)
       .post("/claude-notification")
@@ -91,22 +95,78 @@ describe("POST /claude-notification", () => {
     expect(res.status).toBe(404);
     expect(res.body.error).toBeDefined();
     expect(notificationService.createNotification).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("unknown session"),
+      "550e8400-e29b-41d4-a716-446655440000",
+    );
+    warnSpy.mockRestore();
   });
 
-  it("returns 400 when session is not a Claude session", async () => {
+  it("returns 400 and logs when the session declares no hook wiring (AP-TC-069)", async () => {
     const sessionId = "550e8400-e29b-41d4-a716-446655440000";
     vi.mocked(terminalService.getSession).mockReturnValue({
       id: sessionId,
       benchKey: "project1:1",
-      command: undefined,
+      command: "acme",
       status: "live",
+      agentPluginId: "acme-agent",
     } as any);
+    vi.mocked(terminalService.isHookNotificationEligible).mockReturnValue(false);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const res = await request(app).post("/claude-notification").send({ session_id: sessionId });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toContain("Claude");
+    expect(res.body.error).toMatch(/hook-wired/);
+    expect(res.body.error).not.toMatch(/claude/i);
     expect(notificationService.createNotification).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("hook-wired"), sessionId);
+    warnSpy.mockRestore();
+  });
+
+  it("returns 400 for an expired correlation token from an already-exited session (AP-TC-084)", async () => {
+    const sessionId = "550e8400-e29b-41d4-a716-446655440000";
+    // An exited session is still addressable by id (its scrollback survives),
+    // so the live check, not the lookup, is what rejects the stale token.
+    vi.mocked(terminalService.getSession).mockReturnValue({
+      id: sessionId,
+      benchKey: "project1:1",
+      command: "claude",
+      status: "ended",
+      exitCode: 0,
+    } as any);
+    vi.mocked(terminalService.isHookNotificationEligible).mockReturnValue(false);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await request(app).post("/claude-notification").send({ session_id: sessionId });
+
+    expect(res.status).toBe(400);
+    expect(terminalService.isHookNotificationEligible).toHaveBeenCalledWith(sessionId);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("accepts a hook-wired agent session that is not the built-in claude command", async () => {
+    const sessionId = "550e8400-e29b-41d4-a716-446655440000";
+    vi.mocked(terminalService.getSession).mockReturnValue({
+      id: sessionId,
+      benchKey: "project1:1",
+      command: "acme",
+      status: "live",
+      agentPluginId: "acme-agent",
+    } as any);
+    vi.mocked(terminalService.parseBenchKey).mockReturnValue({ projectId: "project1", benchId: 1 });
+    vi.mocked(benchManager.getBench).mockReturnValue(mockBench as any);
+
+    const res = await request(app).post("/claude-notification").send({ session_id: sessionId });
+
+    expect(res.status).toBe(200);
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      mockBench,
+      "claude-waiting",
+      sessionId,
+    );
   });
 
   it("returns 500 when bench key cannot be parsed", async () => {

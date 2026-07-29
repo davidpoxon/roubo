@@ -862,6 +862,33 @@ describe("ghost sessions", () => {
     const session = getSession("term-123");
     expect(session?.status).toBe("ended");
   });
+
+  it("spends the correlation token of a restored session (AP-TC-084)", async () => {
+    // A restart leaves the record addressable so its scrollback survives, but
+    // there is no live agent behind it, so a hook POST quoting its id must be
+    // rejected rather than raise a waiting notification.
+    mockReaddirSync.mockReturnValue(["term-restored.json"]);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        session: {
+          id: "term-restored",
+          benchKey: "project1:1",
+          label: "Claude 1",
+          createdAt: "2026-01-01",
+          command: "claude",
+          status: "live",
+        },
+        buffer: ["data"],
+        persistedAt: "2026-01-01",
+      }),
+    );
+
+    const { loadPersistedSessions, getSession, isHookNotificationEligible } = await loadModule();
+    loadPersistedSessions();
+
+    expect(getSession("term-restored")).toBeDefined();
+    expect(isHookNotificationEligible("term-restored")).toBe(false);
+  });
 });
 
 describe("PTY exit", () => {

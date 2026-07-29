@@ -639,7 +639,7 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
     });
   });
 
-  it("onAgentExit callback calls createNotification with the bench and agent-exited type (#646)", async () => {
+  it("onAgentExit callback calls createNotification with the bench and agent-exited type (#646, AP-TC-066)", async () => {
     await request(app).post("/project1/benches/1/terminals").send({ agentPluginId: "acme-agent" });
 
     const onAgentExit = vi.mocked(terminalService.createAgentSession).mock.calls[0][0]

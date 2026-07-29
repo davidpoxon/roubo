@@ -47,7 +47,14 @@ vi.mock("./agent-launch-pipeline.js", async (importOriginal) => {
   return { ...actual, prepareAgentLaunch: pipelineMocks.prepareAgentLaunch };
 });
 
-import { createAgentSession, destroyAllSessions, getSession } from "./terminal.js";
+import {
+  createAgentSession,
+  destroyAllSessions,
+  getSession,
+  isHookNotificationEligible,
+} from "./terminal.js";
+import * as notificationService from "./notification.js";
+import * as benchManager from "./bench-manager.js";
 
 function createMockPty() {
   const emitter = new EventEmitter();
@@ -103,10 +110,16 @@ beforeEach(() => {
   spawnMock.mockReset().mockImplementation(() => createMockPty());
   stateMocks.atomicWrite.mockReset();
   pipelineMocks.prepareAgentLaunch.mockReset();
+  vi.mocked(notificationService.createNotification).mockReset();
+  vi.mocked(notificationService.dismissWaitingForSession).mockReset().mockReturnValue(false);
+  vi.mocked(benchManager.getBench)
+    .mockReset()
+    .mockReturnValue({ id: 2, projectId: "roubo", notifications: [] } as never);
 });
 
 afterEach(() => {
   destroyAllSessions();
+  vi.useRealTimers();
   fs.rmSync(workspace, { recursive: true, force: true });
   vi.unstubAllEnvs();
 });
@@ -628,5 +641,188 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     await expect(launch()).rejects.toThrow(
       /Failed to spawn agent session \(command: missing-agent/,
     );
+  });
+});
+
+// ── Notifications: hook eligibility, per-agent debounce, exit (AP-FR-013) ──
+
+const HTTP_HOOK_NOTIFICATION = {
+  kind: "http-hook",
+  event: "waiting",
+  carrier: {
+    workspaceWrite: {
+      relPath: ".acme/settings.json",
+      format: "json",
+      ops: [
+        {
+          op: "set",
+          path: "hooks.Notification",
+          value: [{ hooks: [{ type: "http", url: "http://localhost:{{port}}/api/hooks/x" }] }],
+        },
+      ],
+    },
+  },
+  correlation: { field: "session_id", source: "agent-native" },
+} as const;
+
+/** The PTY the last spawn handed back, so a test can drive its data/exit events. */
+function lastPty(): ReturnType<typeof createMockPty> {
+  const results = spawnMock.mock.results;
+  return results[results.length - 1].value as ReturnType<typeof createMockPty>;
+}
+
+describe("hook notification eligibility (AP-TC-069, AP-TC-084)", () => {
+  it("makes a session whose descriptor declares an http-hook eligible", async () => {
+    prepare({ capabilities: { notification: HTTP_HOOK_NOTIFICATION } });
+
+    const session = await launch();
+
+    expect(isHookNotificationEligible(session.id)).toBe(true);
+  });
+
+  it("leaves a session declaring no notification wiring ineligible, whatever its command is", async () => {
+    prepare({ command: "claude" });
+
+    const session = await launch();
+
+    expect(isHookNotificationEligible(session.id)).toBe(false);
+  });
+
+  it("leaves a spawned-notifier agent ineligible for the http hook endpoint", async () => {
+    prepare({
+      capabilities: {
+        notification: {
+          kind: "spawned-notifier",
+          event: "turn-complete",
+          carrier: { args: ["--notify", "roubo-notify"] },
+          payload: "json-arg",
+          correlation: { source: "template", template: "{{sessionId}}" },
+        },
+      },
+    });
+
+    const session = await launch();
+
+    expect(isHookNotificationEligible(session.id)).toBe(false);
+  });
+
+  it("expires the correlation token once the agent exits", async () => {
+    prepare({ capabilities: { notification: HTTP_HOOK_NOTIFICATION } });
+
+    const session = await launch();
+    expect(isHookNotificationEligible(session.id)).toBe(true);
+
+    lastPty()._emit("exit", { exitCode: 0 });
+
+    // The record survives so the scrollback is still readable, but the token
+    // it carried is spent.
+    expect(getSession(session.id)?.status).toBe("ended");
+    expect(isHookNotificationEligible(session.id)).toBe(false);
+  });
+
+  it("reports an unknown session id as ineligible", () => {
+    expect(isHookNotificationEligible("00000000-0000-4000-8000-000000000000")).toBe(false);
+  });
+});
+
+describe("per-agent quiescence debounce (AP-TC-065)", () => {
+  it("honours a quiescence-only agent's declared debounce", async () => {
+    prepare({ capabilities: { waitingDetection: { kind: "quiescence-only", debounceMs: 3500 } } });
+
+    const session = await launch();
+    vi.useFakeTimers();
+    lastPty()._emit("data", "waiting for you");
+
+    vi.advanceTimersByTime(3499);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "roubo" }),
+      "claude-waiting",
+      session.id,
+      { label: session.label },
+    );
+  });
+
+  it("honours a hook-driven agent's declared quiescence fallback", async () => {
+    prepare({
+      capabilities: {
+        notification: HTTP_HOOK_NOTIFICATION,
+        waitingDetection: { kind: "hook-driven", quiescenceFallbackMs: 12_000 },
+      },
+    });
+
+    const session = await launch();
+    vi.useFakeTimers();
+    lastPty()._emit("data", "thinking");
+
+    // The default 8000ms fallback must not fire for an agent that declared its own.
+    vi.advanceTimersByTime(11_999);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      "claude-waiting",
+      session.id,
+      { label: session.label },
+    );
+  });
+
+  it("falls back to 8000ms for a hook-driven agent that declares no fallback", async () => {
+    prepare({
+      capabilities: {
+        notification: HTTP_HOOK_NOTIFICATION,
+        waitingDetection: { kind: "hook-driven" },
+      },
+    });
+
+    await launch();
+    vi.useFakeTimers();
+    lastPty()._emit("data", "thinking");
+
+    vi.advanceTimersByTime(7999);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(notificationService.createNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the generic 2000ms terminal debounce when no capability is declared", async () => {
+    prepare({ command: "acme" });
+
+    const session = await launch();
+    vi.useFakeTimers();
+    lastPty()._emit("data", "$ ");
+
+    vi.advanceTimersByTime(2000);
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      "terminal-waiting",
+      session.id,
+      { label: session.label },
+    );
+  });
+});
+
+describe("agent exit notification (AP-TC-066)", () => {
+  it("invokes onAgentExit with the session id when the agent process exits", async () => {
+    prepare({ capabilities: { notification: HTTP_HOOK_NOTIFICATION } });
+    const onAgentExit = vi.fn();
+
+    const session = await launch({ onAgentExit });
+    lastPty()._emit("exit", { exitCode: 137 });
+
+    expect(onAgentExit).toHaveBeenCalledWith(session.id);
+    expect(getSession(session.id)?.exitCode).toBe(137);
+  });
+
+  it("does not throw when no exit callback was supplied", async () => {
+    prepare({ command: "acme" });
+
+    const session = await launch();
+    expect(() => lastPty()._emit("exit", { exitCode: 0 })).not.toThrow();
+    expect(getSession(session.id)?.status).toBe("ended");
   });
 });

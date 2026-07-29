@@ -617,6 +617,54 @@ describe("TerminalTabs: notification indicators", () => {
     expect(session2Tab?.querySelector('[role="img"]')).not.toBeNull();
   });
 
+  it("shows the waiting indicator on an agent-plugin session tab (AP-TC-065)", () => {
+    // The tab indicator keys off sourceSessionId alone, with no command or
+    // agent gate, so a plugin-launched agent surfaces exactly like the built-in.
+    vi.mocked(useTerminalSessions).mockReturnValue({
+      data: [
+        {
+          id: "session-1",
+          benchKey: "p:1",
+          label: "Terminal 1",
+          createdAt: "2024-01-01",
+          command: "bash",
+          status: "live",
+        },
+        {
+          id: "agent-session",
+          benchKey: "p:1",
+          label: "Acme Agent 1",
+          createdAt: "2024-01-01",
+          command: "acme",
+          status: "live",
+          agentPluginId: "acme-agent",
+        },
+      ],
+    } as unknown as ReturnType<typeof useTerminalSessions>);
+
+    const notifications = [
+      {
+        id: "n1",
+        type: "claude-waiting" as const,
+        priority: "action-needed" as const,
+        sourceSessionId: "agent-session",
+        createdAt: "2024-01-01T00:00:00Z",
+      },
+    ];
+    renderWithProviders(
+      <TerminalTabs
+        projectId="proj"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+        notifications={notifications}
+      />,
+    );
+
+    const agentTab = screen.getByText("Acme Agent 1").closest("div");
+    expect(agentTab?.querySelector('[role="img"]')).not.toBeNull();
+  });
+
   it("does not show notification indicator on the active tab", () => {
     vi.mocked(useTerminalSessions).mockReturnValue({
       data: [

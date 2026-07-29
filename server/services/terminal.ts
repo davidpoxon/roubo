@@ -12,6 +12,7 @@ import type {
 } from "@roubo/shared";
 import type {
   AgentPosture,
+  WaitingDetectionSpec,
   WorkspaceWriteSpec,
   WriteOp,
 } from "@roubo/shared/agent-launch-descriptor-schema";
@@ -29,11 +30,12 @@ import { UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.j
 const MAX_BUFFER_CHUNKS = 5000;
 const FLUSH_DEBOUNCE_MS = 500;
 const QUIESCENCE_DEBOUNCE_MS = 2000;
-// Claude's TUI redraws continuously while it's working, so a short debounce
+// An agent TUI redraws continuously while it's working, so a short debounce
 // would fire false positives between streamed chunks. The longer window is
-// purely a fallback for cases Claude Code's Notification hooks don't cover
-// (e.g. AskUserQuestion prompts in plan mode).
-const CLAUDE_QUIESCENCE_DEBOUNCE_MS = 8000;
+// purely a fallback for the waiting states a hook doesn't cover (e.g. Claude
+// Code's AskUserQuestion prompts in plan mode). A hook-driven agent plugin can
+// override it with `capabilities.waitingDetection.quiescenceFallbackMs`.
+const HOOK_QUIESCENCE_FALLBACK_MS = 8000;
 // Host-internal env vars that must not leak into bench sessions (issue #877).
 // The packaged app sets ROUBO_PRODUCTION on its own process and publishes its
 // bound ROUBO_PORT back into process.env; with ROUBO_PRODUCTION inherited, a dev
@@ -108,6 +110,18 @@ interface InternalSession {
   // notify again.
   lastOutputAt: number | null;
   lastNotifiedAt: number | null;
+  // Notification wiring resolved once at launch from the agent's declared
+  // capabilities (AP-FR-013). Core reads these instead of sniffing the command
+  // name, so a hook POST correlates on live session identity and the quiescence
+  // debounce is the agent's declared one.
+  //
+  // `hookNotification` is true when the agent POSTs waiting events to core's
+  // hook endpoint (`capabilities.notification.kind === "http-hook"`), and on the
+  // legacy built-in `command === "claude"` path until AP-WU-020 (#521) removes
+  // it. `waitingDetection` is the agent's declared detection spec, absent when
+  // the agent declares none.
+  hookNotification: boolean;
+  waitingDetection?: WaitingDetectionSpec;
 }
 
 const sessions = new Map<string, InternalSession>();
@@ -239,14 +253,41 @@ function dismissWaitingNotificationsForSession(internal: InternalSession): void 
   }
 }
 
+/**
+ * The idle window after which a session is treated as waiting on the user.
+ *
+ * Descriptor-driven first (AP-FR-013): a `quiescence-only` agent gets exactly
+ * the debounce it declared, and a `hook-driven` one gets its declared fallback
+ * (quiescence is only a safety net behind its hook). An agent declaring no
+ * waiting detection falls back on its wiring: a hook-wired one gets the same
+ * 8000ms fallback window (a plugin declaring `notification.kind === "http-hook"`,
+ * or the legacy built-in Claude path until AP-WU-020 (#521) removes it), and
+ * anything else gets the generic terminal debounce.
+ */
+function resolveQuiescenceDebounce(internal: InternalSession): number {
+  const spec = internal.waitingDetection;
+  if (spec?.kind === "quiescence-only") return spec.debounceMs;
+  if (spec?.kind === "hook-driven") return spec.quiescenceFallbackMs ?? HOOK_QUIESCENCE_FALLBACK_MS;
+  return internal.hookNotification ? HOOK_QUIESCENCE_FALLBACK_MS : QUIESCENCE_DEBOUNCE_MS;
+}
+
+/**
+ * Whether a quiescent session is an agent (`claude-waiting`) rather than a plain
+ * terminal (`terminal-waiting`). An agent that declares neither notification
+ * wiring nor waiting detection launches as a plain terminal session, which is
+ * exactly what the descriptor schema says absence means.
+ */
+function isAgentWaitingSession(internal: InternalSession): boolean {
+  return internal.hookNotification || internal.waitingDetection !== undefined;
+}
+
 function scheduleQuiescenceCheck(id: string): void {
   const internal = sessions.get(id);
   if (!internal) return;
 
   if (internal.quiescenceTimer) clearTimeout(internal.quiescenceTimer);
 
-  const isClaude = internal.session.command === "claude";
-  const debounce = isClaude ? CLAUDE_QUIESCENCE_DEBOUNCE_MS : QUIESCENCE_DEBOUNCE_MS;
+  const debounce = resolveQuiescenceDebounce(internal);
 
   internal.quiescenceTimer = setTimeout(() => {
     internal.quiescenceTimer = null;
@@ -268,7 +309,7 @@ function scheduleQuiescenceCheck(id: string): void {
     try {
       const bench = benchManager.getBench(parsed.projectId, parsed.benchId);
       if (bench) {
-        const type = isClaude ? "claude-waiting" : "terminal-waiting";
+        const type = isAgentWaitingSession(internal) ? "claude-waiting" : "terminal-waiting";
         notificationService.createNotification(bench, type, internal.session.id, {
           label: internal.session.label,
         });
@@ -362,7 +403,13 @@ export function createSession(
     ...(claudeCodeMode !== undefined && { claudeCodeMode }),
   };
 
-  registerSession(session, ptyProcess, command === "claude" ? onClaudeExit : undefined);
+  registerSession(session, ptyProcess, {
+    // The built-in Claude path is hook-wired by claude-settings-local.ts rather
+    // than by a descriptor, so its eligibility is asserted here (AP-WU-020,
+    // #521, removes this alongside the rest of the built-in).
+    hookNotification: command === "claude",
+    ...(command === "claude" && onClaudeExit !== undefined && { onExit: onClaudeExit }),
+  });
 
   return session;
 }
@@ -373,10 +420,18 @@ export function createSession(
  * tracking. Shared by the built-in `createSession` and the descriptor-driven
  * `createAgentSession` so both get identical session semantics.
  */
+interface RegisterSessionOptions {
+  onExit?: (sessionId: string) => void;
+  /** The agent POSTs waiting events to core's hook endpoint. */
+  hookNotification?: boolean;
+  /** The agent's declared waiting-detection spec, when it declares one. */
+  waitingDetection?: WaitingDetectionSpec;
+}
+
 function registerSession(
   session: TerminalSession,
   ptyProcess: pty.IPty,
-  onExit?: (sessionId: string) => void,
+  opts: RegisterSessionOptions = {},
 ): void {
   const id = session.id;
   const internal: InternalSession = {
@@ -390,7 +445,10 @@ function registerSession(
     quiescenceTimer: null,
     lastOutputAt: null,
     lastNotifiedAt: null,
+    hookNotification: opts.hookNotification === true,
+    ...(opts.waitingDetection !== undefined && { waitingDetection: opts.waitingDetection }),
   };
+  const onExit = opts.onExit;
 
   sessions.set(id, internal);
 
@@ -586,7 +644,17 @@ export async function createAgentSession(
     agentPluginId: opts.agentPluginId,
   };
 
-  registerSession(session, ptyProcess, opts.onAgentExit);
+  // Notification wiring comes straight off the descriptor: an http-hook agent
+  // is the only kind whose hook POSTs core will honour, and whichever waiting
+  // detection it declared drives the quiescence debounce (AP-FR-013).
+  const capabilities = descriptor.capabilities;
+  registerSession(session, ptyProcess, {
+    hookNotification: capabilities?.notification?.kind === "http-hook",
+    ...(capabilities?.waitingDetection !== undefined && {
+      waitingDetection: capabilities.waitingDetection,
+    }),
+    ...(opts.onAgentExit !== undefined && { onExit: opts.onAgentExit }),
+  });
 
   return { session, promptInjection };
 }
@@ -654,6 +722,27 @@ export function getSessions(projectId: string, benchId: number): TerminalSession
 export function isLiveSession(sessionId: string): boolean {
   const internal = sessions.get(sessionId);
   return internal !== undefined && internal.pty !== null;
+}
+
+/**
+ * Whether a hook POST quoting this session id may raise a waiting notification
+ * (AP-FR-013, AP-FR-018).
+ *
+ * Two conditions, both required. The session must still be live, which is what
+ * expires a correlation token: an exited session and one restored from disk
+ * after a server restart both keep their record so their scrollback survives,
+ * and a POST quoting either is a forged or stale token rather than a live agent
+ * asking for attention (AP-TC-084). And its agent must actually be hook-wired:
+ * for a plugin agent that is a property of the launch descriptor rather than of
+ * the command name, so no plugin is privileged by what its binary happens to be
+ * called. The legacy built-in Claude path has no descriptor, so `createSession`
+ * asserts its eligibility directly; that is the last command-name gate, and it
+ * goes with the rest of the built-in in AP-WU-020 (#521).
+ */
+export function isHookNotificationEligible(sessionId: string): boolean {
+  const internal = sessions.get(sessionId);
+  if (!internal) return false;
+  return internal.pty !== null && internal.exitCode === null && internal.hookNotification;
 }
 
 export function destroySession(sessionId: string): boolean {
@@ -766,6 +855,11 @@ export function loadPersistedSessions(): void {
         quiescenceTimer: null,
         lastOutputAt: null,
         lastNotifiedAt: null,
+        // A restored session has no PTY and no live agent behind it, so its
+        // correlation token is spent: a hook POST quoting it is rejected
+        // (AP-TC-084). Nothing is re-derived from the descriptor here because
+        // there is nothing left to notify about.
+        hookNotification: false,
       };
 
       sessions.set(persisted.session.id, internal);
@@ -812,10 +906,12 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
     return;
   }
 
-  // Arm (or re-arm on reconnect) the quiescence timer for non-claude sessions.
-  // clearTimers above cancelled any pending timer. On reconnect, if the shell is
-  // already idle at a prompt no new PTY output will arrive so the onData handler
-  // won't reschedule: we do it here to ensure a waiting terminal still notifies.
+  // Arm (or re-arm on reconnect) the quiescence timer for sessions whose
+  // waiting state is not hook-driven. clearTimers above cancelled any pending
+  // timer. On reconnect, if the shell is already idle at a prompt no new PTY
+  // output will arrive so the onData handler won't reschedule: we do it here to
+  // ensure a waiting terminal still notifies. A hook-wired agent is skipped
+  // because its hook, not the reconnect, is what says it is waiting.
   //
   // Skip the rearm when we have already notified for the current idle window
   // (no fresh output since lastNotifiedAt). Without this, a reconnect after a
@@ -823,7 +919,7 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
   // unchanged idle state. scheduleQuiescenceCheck applies the same guard
   // inside the timer callback as a second line of defence.
   if (
-    internal.session.command !== "claude" &&
+    !internal.hookNotification &&
     (internal.lastNotifiedAt === null || (internal.lastOutputAt ?? 0) > internal.lastNotifiedAt)
   ) {
     scheduleQuiescenceCheck(sessionId);

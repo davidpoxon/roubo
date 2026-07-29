@@ -22,10 +22,15 @@ export function collectActionNeeded(benches: Bench[]): BenchNotification[] {
   return benches.flatMap((b) => b.notifications.filter((n) => n.priority === "action-needed"));
 }
 
+// `claude-waiting` keeps a legacy type name (removed with the built-in in
+// #521), but any agent plugin's session raises it, so its user-facing copy
+// names no specific product (see docs/brand.md). `claude-exited` is genuinely
+// Claude-specific: only the legacy built-in path raises it, and a plugin agent
+// session raises `agent-exited` instead.
 const notificationMessages: Record<NotificationType, { title: string; body: string }> = {
   "claude-waiting": {
-    title: "Claude needs input",
-    body: "Claude Code is waiting for your response",
+    title: "Agent needs input",
+    body: "An AI coding agent session is waiting for your response",
   },
   "terminal-waiting": {
     title: "Terminal needs attention",
