@@ -37,6 +37,7 @@ import {
   AgentUnavailableError,
   prepareAgentLaunch,
   resolveEffectiveAgentConfig,
+  resolveLaunchAgentId,
 } from "./agent-launch-pipeline.js";
 import { AgentDescriptorError } from "./agent-launch-executor.js";
 
@@ -141,6 +142,77 @@ describe("resolveEffectiveAgentConfig (AP-FR-011 four-layer order)", () => {
         perLaunch: { model: null, verbose: false },
       }),
     ).toEqual({ model: null, verbose: false });
+  });
+});
+
+describe("resolveLaunchAgentId (AP-FR-006 launch resolution order)", () => {
+  /** Only `installed` resolves; every other id is an uninstalled plugin. */
+  function onlyInstalled(...installed: string[]) {
+    pluginManagerMocks.getRecord.mockImplementation((id: string) =>
+      installed.includes(id) ? makeRecord({ id, manifest: makeManifest({ id }) }) : undefined,
+    );
+  }
+
+  it("returns the jig's binding when the jig has one (AP-TC-021 S001)", () => {
+    onlyInstalled("claude-code", "codex-cli");
+
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "claude-code",
+        defaultAgentPluginId: "codex-cli",
+      }),
+    ).toBe("claude-code");
+  });
+
+  it("falls back to the current default when the jig has no binding (AP-TC-021 S002)", () => {
+    onlyInstalled("claude-code", "codex-cli");
+
+    expect(resolveLaunchAgentId({ defaultAgentPluginId: "codex-cli" })).toBe("codex-cli");
+  });
+
+  it("leaves an explicit binding untouched by a default change (AP-TC-021 S003)", () => {
+    onlyInstalled("claude-code", "codex-cli");
+
+    // The default moved to codex-cli; the bound jig still resolves to its own agent.
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "claude-code",
+        defaultAgentPluginId: "codex-cli",
+      }),
+    ).toBe("claude-code");
+  });
+
+  it("falls back to the default when the bound agent is no longer installed (AP-TC-035 S002)", () => {
+    onlyInstalled("claude-code");
+
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "codex-cli",
+        defaultAgentPluginId: "claude-code",
+      }),
+    ).toBe("claude-code");
+  });
+
+  it("falls back to the default when the bound agent is installed but unconsented", () => {
+    onlyInstalled("claude-code", "codex-cli");
+    consentMocks.hasConsent.mockImplementation((id: string) => id !== "codex-cli");
+
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "codex-cli",
+        defaultAgentPluginId: "claude-code",
+      }),
+    ).toBe("claude-code");
+  });
+
+  it("returns undefined when neither layer names an agent", () => {
+    expect(resolveLaunchAgentId({})).toBeUndefined();
+  });
+
+  it("returns undefined when the only binding is unresolvable and no default is set", () => {
+    onlyInstalled();
+
+    expect(resolveLaunchAgentId({ jigAgentPluginId: "codex-cli" })).toBeUndefined();
   });
 });
 

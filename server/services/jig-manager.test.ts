@@ -1121,6 +1121,102 @@ describe("updateAppJig", () => {
   });
 });
 
+describe("jig agent binding (AP-FR-006)", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "jig-crud-"));
+    vi.mocked(state.getRouboDir).mockReturnValue(tmpDir);
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([]);
+    invalidateCache();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  const jigPath = (id: string) => path.join(tmpDir, "jigs", `${id}.md`);
+
+  it("persists the binding to frontmatter on create and reads it back", () => {
+    const created = createAppJig({
+      name: "Refactor pass",
+      description: "d",
+      content: "c",
+      agentPluginId: "codex-cli",
+    });
+    expect(created.agentPluginId).toBe("codex-cli");
+    expect(fs.readFileSync(jigPath("refactor-pass"), "utf-8")).toContain(
+      "agentPluginId: codex-cli",
+    );
+    expect(getAppJig("refactor-pass")?.agentPluginId).toBe("codex-cli");
+  });
+
+  it("omits the frontmatter key entirely when no binding is set", () => {
+    createAppJig({ name: "Issue triage", description: "d", content: "c" });
+    expect(fs.readFileSync(jigPath("issue-triage"), "utf-8")).not.toContain("agentPluginId");
+    expect(getAppJig("issue-triage")?.agentPluginId).toBeUndefined();
+  });
+
+  it("binds an existing jig on update", () => {
+    createAppJig({ name: "Refactor pass", description: "d", content: "c" });
+    const updated = updateAppJig("refactor-pass", { agentPluginId: "codex-cli" });
+    expect(updated.agentPluginId).toBe("codex-cli");
+    expect(getAppJig("refactor-pass")?.agentPluginId).toBe("codex-cli");
+  });
+
+  it("keeps the binding through an unrelated edit", () => {
+    createAppJig({
+      name: "Refactor pass",
+      description: "d",
+      content: "c",
+      agentPluginId: "codex-cli",
+    });
+    const renamed = updateAppJig("refactor-pass", { name: "Refactor sweep", content: "new" });
+    expect(renamed.agentPluginId).toBe("codex-cli");
+    expect(getAppJig("refactor-pass")?.agentPluginId).toBe("codex-cli");
+  });
+
+  it("clears the binding when the update sends null", () => {
+    createAppJig({
+      name: "Refactor pass",
+      description: "d",
+      content: "c",
+      agentPluginId: "codex-cli",
+    });
+    const cleared = updateAppJig("refactor-pass", { agentPluginId: null });
+    expect(cleared.agentPluginId).toBeUndefined();
+    expect(fs.readFileSync(jigPath("refactor-pass"), "utf-8")).not.toContain("agentPluginId");
+  });
+
+  it("throws INVALID_AGENT_PLUGIN_ID for a value that is not a plugin id", () => {
+    createAppJig({ name: "Refactor pass", description: "d", content: "c" });
+    expect(() => updateAppJig("refactor-pass", { agentPluginId: "../evil" })).toThrow(
+      expect.objectContaining({ code: "INVALID_AGENT_PLUGIN_ID" }),
+    );
+    expect(() =>
+      createAppJig({
+        name: "Bad binding",
+        description: "d",
+        content: "c",
+        agentPluginId: "Codex CLI",
+      }),
+    ).toThrow(expect.objectContaining({ code: "INVALID_AGENT_PLUGIN_ID" }));
+  });
+
+  it("ignores a non-string binding in hand-edited frontmatter", () => {
+    const dir = path.join(tmpDir, "jigs");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "hand-edited.md"),
+      "---\nname: Hand edited\ndescription: d\nicon: file-text\nagentPluginId: 42\n---\nContent.\n",
+    );
+    expect(getAppJig("hand-edited")?.agentPluginId).toBeUndefined();
+  });
+});
+
 describe("deleteAppJig", () => {
   let tmpDir: string;
 

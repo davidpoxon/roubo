@@ -69,6 +69,32 @@ export function resolveEffectiveAgentConfig(
   return mergeAgentConfig(withPreset, layers.perLaunch ?? {});
 }
 
+/**
+ * Which agent a jig-driven launch runs (AP-FR-006, issue #515).
+ *
+ * The order is the whole contract: a jig's own binding wins, and the app-level
+ * default agent is the fallback for every jig that carries none. A binding is
+ * only honoured while it still resolves, so a jig left pointing at an agent
+ * that was since uninstalled falls back to the default rather than failing the
+ * launch (AP-TC-035 S002). The binding itself is never rewritten, so
+ * re-installing the plugin makes it take effect again.
+ *
+ * Returns `undefined` when neither layer names an agent, which is the signal to
+ * stay on the built-in command path.
+ */
+export function resolveLaunchAgentId({
+  jigAgentPluginId,
+  defaultAgentPluginId,
+}: {
+  jigAgentPluginId?: string;
+  defaultAgentPluginId?: string;
+}): string | undefined {
+  if (jigAgentPluginId && !isAgentNotAvailable(resolveAgent(jigAgentPluginId))) {
+    return jigAgentPluginId;
+  }
+  return defaultAgentPluginId;
+}
+
 export interface PrepareAgentLaunchParams {
   pluginId: string;
   projectId: string;

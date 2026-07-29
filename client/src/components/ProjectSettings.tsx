@@ -14,7 +14,13 @@ import {
 } from "react-aria-components";
 import { RefreshCw, Sun, Moon, Monitor, Plus } from "lucide-react";
 import { useSettings, useRecheckClaudeCode } from "../hooks/useSettings";
-import { useGlobalJigs, useDeleteGlobalJig, useDuplicateGlobalJig } from "../hooks/useJigs";
+import {
+  useGlobalJigs,
+  useDeleteGlobalJig,
+  useDuplicateGlobalJig,
+  useUpdateGlobalJig,
+} from "../hooks/useJigs";
+import { useAgentPlugins } from "../hooks/useAgentPlugins";
 import { JigPickerOption, INHERIT_JIG_ID } from "./ProjectDefaultJigTile";
 import FirstNSessionsBanner from "./FirstNSessionsBanner";
 import {
@@ -38,6 +44,7 @@ import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
 import JigRow from "./jig-editor/JigRow";
 import PluginsTab from "./settings/plugins/PluginsTab";
 import AgentsTab from "./settings/agents/AgentsTab";
+import DefaultAgentTile from "./settings/agents/DefaultAgentTile";
 import MarketplacesTabPanel from "./settings/plugins/MarketplacesTabPanel";
 import Marketplace from "./marketplace/Marketplace";
 import { INPUT } from "./setup/styles";
@@ -330,6 +337,19 @@ function JigsTab() {
   const navigate = useNavigate();
   const remove = useDeleteGlobalJig();
   const duplicate = useDuplicateGlobalJig();
+  const updateJig = useUpdateGlobalJig();
+  const { data: agentData } = useAgentPlugins();
+  // Installed-and-configured, as the agent registry reports it: an agent is
+  // selectable exactly when it resolves to a live, consented connection
+  // (`unavailable === null`), so an uninstalled plugin never appears and an
+  // unconsented or incompatible one is not offered as a default (AP-TC-019).
+  const availableAgents = (agentData?.agents ?? []).filter((agent) => agent.unavailable === null);
+  // With exactly one configured agent there is nothing to choose between, so it
+  // renders as the selected default even before anything is persisted
+  // (AP-TC-041 S001).
+  const selectedAgentId =
+    jigSettings.defaultAgentPluginId ??
+    (availableAgents.length === 1 ? availableAgents[0].id : null);
 
   const [deletingJig, setDeletingJig] = useState<JigMeta | null>(null);
   const [deleteReferences, setDeleteReferences] = useState<JigReference[] | undefined>();
@@ -343,6 +363,19 @@ function JigsTab() {
   };
 
   const selectedAppId = jigSettings.defaultJigId ?? INHERIT_JIG_ID;
+
+  const handleDefaultAgentChange = (pluginId: string) => {
+    update({ defaultAgentPluginId: pluginId });
+    const agent = availableAgents.find((a) => a.id === pluginId);
+    addToast(`Default agent set to ${agent?.name ?? pluginId}`);
+  };
+
+  const handleJigAgentChange = (jig: JigMeta, agentPluginId: string | null) => {
+    void updateJig.mutateAsync({ id: jig.id, body: { agentPluginId } }).catch((err: unknown) => {
+      if (err instanceof ApiError) addToast(err.message);
+      else addToast("Failed to update the jig's agent.");
+    });
+  };
 
   const handleDeleteConfirm = async () => {
     if (!deletingJig) return;
@@ -399,6 +432,36 @@ function JigsTab() {
             />
           </div>
         </div>
+      </section>
+
+      <section>
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 mb-4">
+          Default agent
+        </h3>
+        <p className="text-xs text-stone-400 dark:text-stone-600 mb-4 leading-relaxed">
+          The AI coding agent a jig launches with when the jig names none of its own. Only installed
+          and configured agents are listed.
+        </p>
+
+        {availableAgents.length === 0 ? (
+          <p
+            data-testid="default-agent-empty-state"
+            className="rounded-lg border border-dashed border-stone-200 dark:border-stone-800 px-4 py-3 text-xs text-stone-400 dark:text-stone-600"
+          >
+            No configured agents yet. Install and configure one under Settings, AI Agents.
+          </p>
+        ) : (
+          <RadioGroup
+            value={selectedAgentId}
+            onChange={handleDefaultAgentChange}
+            aria-label="Default agent"
+            className="flex flex-col gap-2"
+          >
+            {availableAgents.map((agent) => (
+              <DefaultAgentTile key={agent.id} agent={agent} />
+            ))}
+          </RadioGroup>
+        )}
       </section>
 
       <section>
@@ -463,6 +526,8 @@ function JigsTab() {
                 }}
                 onDuplicate={handleDuplicate}
                 isDuplicating={duplicate.isPending}
+                agents={availableAgents}
+                onAgentChange={handleJigAgentChange}
               />
             ))}
         </div>

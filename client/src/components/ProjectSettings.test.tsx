@@ -27,6 +27,11 @@ vi.mock("../hooks/useJigs", () => ({
   useGlobalJigs: vi.fn(),
   useDeleteGlobalJig: vi.fn(),
   useDuplicateGlobalJig: vi.fn(),
+  useUpdateGlobalJig: vi.fn(),
+}));
+
+vi.mock("../hooks/useAgentPlugins", () => ({
+  useAgentPlugins: vi.fn(),
 }));
 
 vi.mock("../hooks/useToast", () => ({
@@ -66,7 +71,13 @@ vi.mock("./DirectoryPicker", () => ({
 
 import { useNavigate, useLocation } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
-import { useGlobalJigs, useDeleteGlobalJig, useDuplicateGlobalJig } from "../hooks/useJigs";
+import {
+  useGlobalJigs,
+  useDeleteGlobalJig,
+  useDuplicateGlobalJig,
+  useUpdateGlobalJig,
+} from "../hooks/useJigs";
+import { useAgentPlugins } from "../hooks/useAgentPlugins";
 import { useToast } from "../hooks/useToast";
 import { useMarketplaceSources, useRemoveMarketplaceSource } from "../hooks/useMarketplaceSources";
 import { usePlugins } from "../hooks/usePlugins";
@@ -78,6 +89,8 @@ const mockedUseSettings = vi.mocked(useSettings);
 const mockedUseGlobalJigs = vi.mocked(useGlobalJigs);
 const mockedUseDeleteGlobalJig = vi.mocked(useDeleteGlobalJig);
 const mockedUseDuplicateGlobalJig = vi.mocked(useDuplicateGlobalJig);
+const mockedUseUpdateGlobalJig = vi.mocked(useUpdateGlobalJig);
+const mockedUseAgentPlugins = vi.mocked(useAgentPlugins);
 const mockedUseToast = vi.mocked(useToast);
 const mockedUseMarketplaceSources = vi.mocked(useMarketplaceSources);
 const mockedUseRemoveMarketplaceSource = vi.mocked(useRemoveMarketplaceSource);
@@ -118,6 +131,12 @@ function setupDefaultMocks() {
   mockedUseDuplicateGlobalJig.mockReturnValue(
     noopMutation as unknown as ReturnType<typeof useDuplicateGlobalJig>,
   );
+  mockedUseUpdateGlobalJig.mockReturnValue(
+    noopMutation as unknown as ReturnType<typeof useUpdateGlobalJig>,
+  );
+  mockedUseAgentPlugins.mockReturnValue({
+    data: { agents: [] },
+  } as unknown as ReturnType<typeof useAgentPlugins>);
   mockedUseMarketplaceSources.mockReturnValue({
     data: { sources: [] },
     isLoading: false,
@@ -1131,6 +1150,181 @@ describe("ProjectSettings", () => {
       for (const btn of buttons) {
         expect(btn).toBeDisabled();
       }
+    });
+  });
+
+  describe("Jigs tab: Default agent (AP-FR-005, AP-FR-006)", () => {
+    const CLAUDE = {
+      id: "claude-code",
+      name: "Claude Code",
+      config: { model: "opus", effort: "high", posture: "plan" },
+      unavailable: null,
+    };
+    const CODEX = {
+      id: "codex-cli",
+      name: "Codex CLI",
+      config: { model: "gpt-5" },
+      unavailable: null,
+    };
+    const GEMINI = {
+      id: "gemini-cli",
+      name: "Gemini CLI",
+      config: {},
+      unavailable: { reason: "not-installed", message: "Gemini CLI is not installed" },
+    };
+
+    const jigs: JigMeta[] = [
+      {
+        id: "refactor-pass",
+        name: "Refactor pass",
+        description: "Refactor",
+        icon: "code",
+        source: "app",
+      },
+    ];
+
+    function setAgents(agents: unknown[]) {
+      mockedUseAgentPlugins.mockReturnValue({
+        data: { agents },
+      } as unknown as ReturnType<typeof useAgentPlugins>);
+    }
+
+    async function openJigsTab() {
+      const user = userEvent.setup();
+      render();
+      await user.click(screen.getByRole("tab", { name: "Jigs" }));
+      return user;
+    }
+
+    /** The Select trigger is a react-aria button with no queryable role name. */
+    function agentSelectTrigger(jigId: string): HTMLButtonElement {
+      const button = screen.getByTestId(`jig-agent-select-${jigId}`).querySelector("button");
+      if (!button) throw new Error(`No agent select trigger for ${jigId}`);
+      return button;
+    }
+
+    beforeEach(() => {
+      mockedUseGlobalJigs.mockReturnValue({
+        data: jigs,
+      } as ReturnType<typeof useGlobalJigs>);
+      setAgents([CLAUDE, CODEX]);
+    });
+
+    it("lists only installed-and-configured agents, with their effective params (AP-TC-019)", async () => {
+      setAgents([CLAUDE, CODEX, GEMINI]);
+      await openJigsTab();
+
+      const group = screen.getByRole("radiogroup", { name: "Default agent" });
+      expect(within(group).getByRole("radio", { name: /Claude Code/ })).toBeInTheDocument();
+      expect(within(group).getByRole("radio", { name: /Codex CLI/ })).toBeInTheDocument();
+      expect(within(group).queryByRole("radio", { name: /Gemini CLI/ })).toBeNull();
+      expect(within(group).getByText("opus · high · plan")).toBeInTheDocument();
+    });
+
+    it("persists the selection and confirms it with a toast (AP-TC-018)", async () => {
+      const updateSettings = vi.fn();
+      const addToast = vi.fn();
+      mockedUseSettings.mockReturnValue({
+        settings: defaultSettings,
+        isLoading: false,
+        updateSettings,
+      });
+      mockedUseToast.mockReturnValue({ addToast, removeToast: vi.fn() });
+
+      const user = await openJigsTab();
+      await user.click(screen.getByRole("radio", { name: /Codex CLI/ }));
+
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jigs: expect.objectContaining({ defaultAgentPluginId: "codex-cli" }),
+        }),
+      );
+      expect(addToast).toHaveBeenCalledWith("Default agent set to Codex CLI");
+    });
+
+    it("keeps exactly one tile selected", async () => {
+      mockedUseSettings.mockReturnValue({
+        settings: {
+          ...defaultSettings,
+          jigs: { ...DEFAULT_JIG_SETTINGS, defaultAgentPluginId: "codex-cli" },
+        },
+        isLoading: false,
+        updateSettings: vi.fn(),
+      });
+
+      await openJigsTab();
+
+      const group = screen.getByRole("radiogroup", { name: "Default agent" });
+      const selected = within(group)
+        .getAllByRole("radio")
+        .filter((radio) => (radio as HTMLInputElement).checked);
+      expect(selected).toHaveLength(1);
+      expect(within(group).getByRole("radio", { name: /Codex CLI/ })).toBeChecked();
+    });
+
+    it("forces the single configured agent as the default (AP-TC-041 S001)", async () => {
+      setAgents([CLAUDE]);
+      await openJigsTab();
+
+      const group = screen.getByRole("radiogroup", { name: "Default agent" });
+      expect(within(group).getAllByRole("radio")).toHaveLength(1);
+      expect(within(group).getByRole("radio", { name: /Claude Code/ })).toBeChecked();
+    });
+
+    it("points at the AI Agents screen when nothing is configured", async () => {
+      setAgents([]);
+      await openJigsTab();
+
+      expect(screen.getByTestId("default-agent-empty-state")).toBeInTheDocument();
+      expect(screen.queryByRole("radiogroup", { name: "Default agent" })).toBeNull();
+    });
+
+    it("binds a jig to an agent through its per-jig select", async () => {
+      const mutateAsync = vi.fn().mockResolvedValue({});
+      mockedUseUpdateGlobalJig.mockReturnValue({
+        ...noopMutation,
+        mutateAsync,
+      } as unknown as ReturnType<typeof useUpdateGlobalJig>);
+
+      const user = await openJigsTab();
+      await user.click(agentSelectTrigger("refactor-pass"));
+      await user.click(screen.getByRole("option", { name: "Codex CLI" }));
+
+      expect(mutateAsync).toHaveBeenCalledWith({
+        id: "refactor-pass",
+        body: { agentPluginId: "codex-cli" },
+      });
+    });
+
+    it("clears the binding when Default agent is chosen", async () => {
+      const mutateAsync = vi.fn().mockResolvedValue({});
+      mockedUseUpdateGlobalJig.mockReturnValue({
+        ...noopMutation,
+        mutateAsync,
+      } as unknown as ReturnType<typeof useUpdateGlobalJig>);
+      mockedUseGlobalJigs.mockReturnValue({
+        data: [{ ...jigs[0], agentPluginId: "codex-cli" }],
+      } as ReturnType<typeof useGlobalJigs>);
+
+      const user = await openJigsTab();
+      await user.click(agentSelectTrigger("refactor-pass"));
+      await user.click(screen.getByRole("option", { name: "Default agent" }));
+
+      expect(mutateAsync).toHaveBeenCalledWith({
+        id: "refactor-pass",
+        body: { agentPluginId: null },
+      });
+    });
+
+    it("surfaces a binding whose agent is no longer available (AP-TC-035 S001)", async () => {
+      mockedUseGlobalJigs.mockReturnValue({
+        data: [{ ...jigs[0], agentPluginId: "gemini-cli" }],
+      } as ReturnType<typeof useGlobalJigs>);
+
+      await openJigsTab();
+
+      expect(agentSelectTrigger("refactor-pass")).toHaveTextContent("gemini-cli (unavailable)");
+      expect(screen.getByText(/Agent unavailable/)).toBeInTheDocument();
     });
   });
 });

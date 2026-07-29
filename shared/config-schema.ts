@@ -7,6 +7,13 @@ export const JigSettingsSchema = z.object({
   autoExecute: z.boolean(),
   defaultJigId: z.string().optional(),
   issueTypeMappings: z.record(z.string(), z.string()).optional(),
+  /**
+   * The `agent`-kind plugin a launch falls back to when the jig driving it
+   * carries no binding of its own (AP-FR-005, AP-FR-006, issue #515). Absent
+   * means no default has been chosen yet, in which case a jig-driven launch
+   * with no binding stays on the built-in command path.
+   */
+  defaultAgentPluginId: z.string().optional(),
 });
 export type JigSettings = z.infer<typeof JigSettingsSchema>;
 

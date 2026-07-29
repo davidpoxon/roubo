@@ -11,6 +11,9 @@ import { THEME_MODES } from "@roubo/shared";
 import type { UserPreferences } from "@roubo/shared";
 import { VALID_JIG_ID } from "./helpers.js";
 
+/** Plugin-id shape, identical to the one the agent routes enforce. */
+const VALID_PLUGIN_ID = /^[a-z][a-z0-9-]*$/;
+
 const router = Router();
 
 router.get("/", async (_req, res) => {
@@ -48,6 +51,18 @@ router.put("/", (req, res) => {
       res.status(400).json({
         error:
           "Invalid jig settings: autoInject and autoExecute must be booleans, defaultJigId must be a string or absent",
+      });
+      return;
+    }
+    // The default agent (AP-FR-005). Absent means no default has been chosen,
+    // which is why only a non-null value is shape-checked.
+    if (
+      p.defaultAgentPluginId != null &&
+      (typeof p.defaultAgentPluginId !== "string" || !VALID_PLUGIN_ID.test(p.defaultAgentPluginId))
+    ) {
+      res.status(400).json({
+        error:
+          "Invalid jig settings: defaultAgentPluginId must be a plugin id matching /^[a-z][a-z0-9-]*$/ or absent",
       });
       return;
     }
@@ -123,8 +138,14 @@ router.put("/", (req, res) => {
     const current = loadSettings();
     let jigs = body.jigs ?? current.jigs;
     if (jigs) {
-      const { defaultJigId, ...rest } = jigs;
-      jigs = defaultJigId != null ? { ...rest, defaultJigId } : rest;
+      // Never persist an explicit null/undefined for either default: absence is
+      // the "no default chosen" signal for both the jig and the agent.
+      const { defaultJigId, defaultAgentPluginId, ...rest } = jigs;
+      jigs = {
+        ...rest,
+        ...(defaultJigId != null && { defaultJigId }),
+        ...(defaultAgentPluginId != null && { defaultAgentPluginId }),
+      };
     }
     let benches = body.benches ?? current.benches;
     if (benches) {

@@ -22,6 +22,8 @@ interface SelectProps {
   placeholder?: string;
   className?: string;
   allowClear?: boolean;
+  /** Accessible name, for the cases where the placeholder is not a unique one. */
+  ariaLabel?: string;
 }
 
 export default function Select({
@@ -31,6 +33,7 @@ export default function Select({
   placeholder,
   className,
   allowClear,
+  ariaLabel,
 }: SelectProps) {
   const normalized = items.map((item) =>
     typeof item === "string" ? { value: item, label: item } : item,
@@ -44,7 +47,7 @@ export default function Select({
         selectedKey={hasMatch ? value : null}
         onSelectionChange={(key) => onChange(key as string)}
         placeholder={placeholder}
-        aria-label={placeholder ?? "Select"}
+        aria-label={ariaLabel ?? placeholder ?? "Select"}
       >
         <Button className="w-full flex items-center justify-between rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 data-[pressed]:bg-stone-200 dark:data-[pressed]:bg-stone-800">
           <SelectValue className="truncate data-[placeholder]:text-stone-400 dark:data-[placeholder]:text-stone-500">
