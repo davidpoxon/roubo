@@ -60,10 +60,19 @@ function projectPresetId(name: string): string {
 export function resolveAgentPreset(
   preset: AgentToolPreset,
   source: AgentPresetSource,
-  // Omitted means "read the stored default", which is the same value
-  // `listAgentPresets` hoists out of its loop so a batch resolves off one read.
-  defaultAgentPluginId: string | undefined = loadSettings().jigs?.defaultAgentPluginId,
+  // Omitting `defaults` means "read the stored default here". A caller
+  // resolving a batch passes the object instead, having read the default once
+  // itself, so the batch costs one settings read rather than one per preset
+  // (issue #649). The object wrapper is what makes that work: `loadSettings` is
+  // uncached, and a bare optional parameter could not tell "no default is set"
+  // (an explicit `undefined`) apart from "not supplied", so every no-default
+  // preset would re-read the file.
+  defaults?: { defaultAgentPluginId: string | undefined },
 ): ResolvedAgentPreset {
+  const defaultAgentPluginId =
+    defaults === undefined
+      ? loadSettings().jigs?.defaultAgentPluginId
+      : defaults.defaultAgentPluginId;
   const bindsDefaultAgent = preset.agent === AGENT_TOOL_DEFAULT_AGENT;
   const base: ResolvedAgentPreset = {
     id: preset.id,
@@ -205,6 +214,6 @@ export function listAgentPresets(projectId?: string): ResolvedAgentPreset[] {
       : []),
   ];
   return entries.map(({ preset, source }) =>
-    resolveAgentPreset(preset, source, defaultAgentPluginId),
+    resolveAgentPreset(preset, source, { defaultAgentPluginId }),
   );
 }

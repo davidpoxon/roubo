@@ -161,7 +161,7 @@ describe("preset resolution", () => {
     const resolved = resolveAgentPreset(
       { id: "p1", name: "Quick fix", agent: "codex-cli" },
       "app",
-      "claude-code",
+      { defaultAgentPluginId: "claude-code" },
     );
     expect(resolved.bindsDefaultAgent).toBe(false);
     expect(resolved.agentPluginId).toBe("codex-cli");
@@ -176,7 +176,7 @@ describe("preset resolution", () => {
     const resolved = resolveAgentPreset(
       { id: "p1", name: "Quick fix", agent: "codex-cli" },
       "app",
-      "claude-code",
+      { defaultAgentPluginId: "claude-code" },
     );
     expect(resolved.unresolved?.reason).toBe("agent-unavailable");
     expect(resolved.unresolved?.message).toContain("Quick fix");
@@ -189,7 +189,7 @@ describe("preset resolution", () => {
     const resolved = resolveAgentPreset(
       { id: "p1", name: "Quick fix", agent: "codex-cli" },
       "app",
-      "claude-code",
+      { defaultAgentPluginId: "claude-code" },
     );
     expect(resolved.unresolved?.reason).toBe("agent-unavailable");
   });
@@ -199,7 +199,7 @@ describe("preset resolution", () => {
     const resolved = resolveAgentPreset(
       { id: "p1", name: "Turbo", agent: "claude-code", params: { mode: "turbo" } },
       "project",
-      "claude-code",
+      { defaultAgentPluginId: "claude-code" },
     );
     expect(resolved.unresolved?.reason).toBe("invalid-params");
     expect(resolved.unresolved?.message).toContain("Turbo");
@@ -216,7 +216,7 @@ describe("preset resolution", () => {
         params: { mode: "plan", model: "opus" },
       },
       "app",
-      "claude-code",
+      { defaultAgentPluginId: "claude-code" },
     );
     expect(resolved.unresolved).toBeUndefined();
     expect(resolved.params).toEqual({ mode: "plan", model: "opus" });
@@ -252,7 +252,7 @@ describe("preset resolution", () => {
     const bad = resolveAgentPreset(
       { id: "p1", name: "Turbo", agent: "picky-agent", params: { mode: "turbo" } },
       "app",
-      "picky-agent",
+      { defaultAgentPluginId: "picky-agent" },
     );
     expect(bad.unresolved?.reason).toBe("invalid-params");
     expect(bad.unresolved?.message).toContain("mode");
@@ -263,7 +263,7 @@ describe("preset resolution", () => {
     const resolved = resolveAgentPreset(
       { id: "p1", name: "Deep work", agent: "claude-code", params: { mode: "plan" } },
       "app",
-      "claude-code",
+      { defaultAgentPluginId: "claude-code" },
     );
     expect(resolved.unresolved).toBeUndefined();
     // The overlay is a validation input only; the preset still records exactly
@@ -275,7 +275,7 @@ describe("preset resolution", () => {
     const resolved = resolveAgentPreset(
       { id: "p1", name: "Triage", agent: "claude-code", jig: "__none__" },
       "app",
-      "claude-code",
+      { defaultAgentPluginId: "claude-code" },
     );
     expect(resolved.jig).toBe("__none__");
   });
@@ -321,5 +321,31 @@ describe("listAgentPresets", () => {
       },
     } as unknown as RegisteredProject);
     expect(listAgentPresets("proj-1").every((p) => p.source === "builtin")).toBe(true);
+  });
+
+  // Issue #649: `loadSettings` is uncached, so the batch must resolve off the
+  // two reads it makes itself (the hoisted default, and the app presets) rather
+  // than one per preset. No default agent set is the case that used to defeat
+  // the hoist, because passing an explicit `undefined` re-triggered a
+  // default-parameter read for every preset.
+  it("reads settings a fixed number of times per batch when no default agent is set", () => {
+    installAgents([CODEX]);
+    stateMocks.loadSettings.mockReturnValue({
+      theme: "dark",
+      jigs: { autoInject: true, autoExecute: true },
+      agentTools: [
+        { id: "at-1", name: "Deep work", agent: "default" },
+        { id: "at-2", name: "Triage", agent: "default" },
+      ],
+    });
+    projectRegistryMocks.getProject.mockReturnValue({
+      config: { tools: [{ type: "agent", name: "Repo triage", agent: "default" }] },
+    } as unknown as RegisteredProject);
+
+    const presets = listAgentPresets("proj-1");
+    expect(presets).toHaveLength(6);
+    expect(presets.every((p) => p.agentPluginId === "codex-cli")).toBe(true);
+    // Two reads: the hoisted default and `listAppAgentPresets`. Never per preset.
+    expect(stateMocks.loadSettings).toHaveBeenCalledTimes(2);
   });
 });
