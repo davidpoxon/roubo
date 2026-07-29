@@ -89,6 +89,12 @@ describe("createNotification", () => {
     expect(result.priority).toBe("action-needed");
   });
 
+  it("assigns action-needed priority for agent-exited", () => {
+    const bench = makeBench();
+    const result = createNotification(bench, "agent-exited", "session-1");
+    expect(result.priority).toBe("action-needed");
+  });
+
   it("assigns info priority for bench-ready", () => {
     const bench = makeBench();
     const result = createNotification(bench, "bench-ready");
