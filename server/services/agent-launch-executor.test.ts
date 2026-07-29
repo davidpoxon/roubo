@@ -222,6 +222,23 @@ describe("executeWorkspaceWrites", () => {
     expect(fs.existsSync(path.join(workspace, "ok.json"))).toBe(false);
   });
 
+  it("rejects the AP-TC-082 traversal target, writing nothing outside the workspace", () => {
+    // The test case names ../../.ssh/config specifically: a multi-segment
+    // traversal reaching a real, sensitive file outside the bench workspace.
+    const outside = path.resolve(workspace, "../../.ssh/config");
+    const existedBefore = fs.existsSync(outside);
+    expect(() =>
+      executeWorkspaceWrites(workspace, [
+        {
+          relPath: "../../.ssh/config",
+          format: "text",
+          ops: [{ op: "set", path: ".", value: "Host evil\n  User root\n" }],
+        },
+      ]),
+    ).toThrow(/escapes the bench workspace/);
+    expect(fs.existsSync(outside)).toBe(existedBefore);
+  });
+
   it("rejects a relPath traversing a symlinked directory out of the workspace", () => {
     // The lexical resolveWithin check cannot see an on-disk symlink, so a
     // symlinked directory component under the workspace would otherwise let a

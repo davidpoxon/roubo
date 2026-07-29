@@ -51,6 +51,29 @@ describe("resolveTemplate", () => {
     expect(resolveTemplate("{{unknown}}", ctx)).toBe("{{unknown}}");
   });
 
+  // Agent-launch variables (AP-FR-011): present only when core is resolving a
+  // launch descriptor, so a roubo.yaml that happens to write them is unaffected.
+  it("substitutes the host-minted session id when the context carries one", () => {
+    const launchCtx: ResolvedTemplateContext = { ...ctx, sessionId: "abc-123" };
+    expect(resolveTemplate("--session-id={{sessionId}}", launchCtx)).toBe("--session-id=abc-123");
+  });
+
+  it("substitutes the server port when the context carries one", () => {
+    const launchCtx: ResolvedTemplateContext = { ...ctx, port: "51234" };
+    expect(resolveTemplate("http://localhost:{{port}}/api/hooks", launchCtx)).toBe(
+      "http://localhost:51234/api/hooks",
+    );
+  });
+
+  it("leaves {{sessionId}} and {{port}} verbatim outside a launch context", () => {
+    expect(resolveTemplate("{{sessionId}} {{port}}", ctx)).toBe("{{sessionId}} {{port}}");
+  });
+
+  it("does not let {{port}} shadow a named {{ports.*}} entry", () => {
+    const launchCtx: ResolvedTemplateContext = { ...ctx, port: "51234" };
+    expect(resolveTemplate("{{ports.backend}}|{{port}}", launchCtx)).toBe("5000|51234");
+  });
+
   it("leaves unknown port names verbatim", () => {
     expect(resolveTemplate("{{ports.nonexistent}}", ctx)).toBe("{{ports.nonexistent}}");
   });

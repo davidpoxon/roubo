@@ -112,6 +112,18 @@ export interface ResolvedTemplateContext {
   workspace: string;
   components: Record<string, { connection?: string }>;
   user?: Record<string, string>;
+  /**
+   * The host-minted terminal session id, supplied only when resolving an agent
+   * launch descriptor (AP-FR-011). A plugin never mints one, so it declares
+   * `{{sessionId}}` and core substitutes the real id.
+   */
+  sessionId?: string;
+  /**
+   * The port the Roubo server is actually listening on, supplied only when
+   * resolving an agent launch descriptor. A plugin declares `{{port}}` for hook
+   * wiring and never learns a real port.
+   */
+  port?: string;
 }
 
 export function resolveTemplate(template: string, ctx: ResolvedTemplateContext): string {
@@ -134,6 +146,12 @@ export function resolveTemplate(template: string, ctx: ResolvedTemplateContext):
     }
 
     if (key === "workspace") return ctx.workspace;
+
+    // Agent-launch variables. Absent from every non-launch context, so a
+    // roubo.yaml that happens to write {{sessionId}} still falls through to the
+    // leave-unresolved default rather than picking up an empty string.
+    if (key === "sessionId" && ctx.sessionId !== undefined) return ctx.sessionId;
+    if (key === "port" && ctx.port !== undefined) return ctx.port;
 
     if (key.startsWith("user.")) {
       const propName = key.slice("user.".length);

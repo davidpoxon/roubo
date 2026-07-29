@@ -219,6 +219,22 @@ type WriteOp =
 
 Ops mutate the parsed existing file rather than replacing it, so unknown keys the user (or another tool) put there survive. A `relPath` that escapes the workspace, or an absolute one, aborts the whole batch before anything is written.
 
+### The launch pipeline
+
+`POST /api/projects/:projectId/benches/:id/terminals` with an `agentPluginId` opens a PTY session from your descriptor. Two server modules own it: `server/services/agent-launch-pipeline.ts` resolves the configuration and asks your plugin for a descriptor, and `server/services/terminal.ts` (`createAgentSession`) does everything privileged. What happens, in order:
+
+1. **Availability gate.** `resolveAgent` checks installed, then agent-kind, then compatible, then consented, then running. Each blocker is its own status on the route (404 / 400 / 409 / 403 / 503), so a declined consent leaves your plugin inert no matter what its process is doing.
+2. **Session id.** The host mints the session id **before** anything else, because you receive it in `context.sessionId`, the descriptor's argv embeds it as `{{sessionId}}`, and an `http-hook` notification carrier writes it into a workspace file. One mint keeps all three pointing at the same real session.
+3. **Effective config.** Four shallow overlays, in this order, later layers winning per field: application defaults (`~/.roubo/agents/_global/<pluginId>.yaml`), project overrides (`~/.roubo/agents/<projectId>/<pluginId>.yaml`), the preset, then per-launch overrides. A field a layer does not mention falls through, so it keeps tracking the layer beneath it. The result arrives as both `config` and `context.effectiveConfig`.
+4. **`translateLaunch`.** One round trip. Your plugin returns a descriptor; the host validates it against the Zod schema before touching anything.
+5. **Template resolution.** `{{sessionId}}`, `{{port}}`, and `{{workspace}}` are resolved through `command`, every element of `args`, every `env` value, `cwd`, and both the `relPath` and the values of every workspace write. `{{port}}` is the port the host is actually listening on. An unrecognised `{{...}}` is left verbatim rather than blanked.
+6. **Workspace writes.** Executed core-side, path-validated, and **before** the spawn, so a descriptor that tries to escape the bench workspace aborts the launch with nothing written anywhere rather than leaving a half-configured agent running.
+7. **Spawn.** `args` reaches the PTY as an **array**. Nothing joins it into a shell string, so shell metacharacters anywhere in the effective config, including a free-form extra-arguments field, arrive at your agent as literal argv elements. There is no shell, so there is nothing to expand.
+
+The environment the agent inherits is the host environment minus the host-internal keys (`ROUBO_PRODUCTION`, `ROUBO_PORT`), with your descriptor's `env` layered on top. The strip happens first, so a descriptor can neither reinstate nor observe what the host withholds: if you need the port, template `{{port}}`.
+
+The session is labelled from your manifest's `name`, and records the `agentPluginId` that launched it. Nothing in the label path is specific to any one agent.
+
 ## Contract methods
 
 All contract methods are optional. If the host calls a method you did not register, the SDK responds with JSON-RPC `MethodNotFound` (-32601). Implement the methods relevant to your integration.

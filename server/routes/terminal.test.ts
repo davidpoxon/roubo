@@ -4,6 +4,7 @@ import request from "supertest";
 
 vi.mock("../services/terminal.js", () => ({
   createSession: vi.fn(),
+  createAgentSession: vi.fn(),
   getSessions: vi.fn(),
   destroySession: vi.fn(),
   writeToSession: vi.fn(),
@@ -53,6 +54,8 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as jigManager from "../services/jig-manager.js";
 import * as state from "../services/state.js";
 import * as issueFormatting from "../services/issue-formatting.js";
+import { AgentUnavailableError } from "../services/agent-launch-pipeline.js";
+import { AgentDescriptorError } from "../services/agent-launch-executor.js";
 
 const app = express();
 app.use(express.json());
@@ -550,6 +553,137 @@ describe("GET /:projectId/benches/:id/terminals", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual(sessions);
     expect(terminalService.getSessions).toHaveBeenCalledWith("project1", 1);
+  });
+});
+
+describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)", () => {
+  const AGENT_SESSION = {
+    id: "agent-1",
+    benchKey: "project1:1",
+    label: "Acme Agent 1 - My Project #1",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    status: "live" as const,
+    command: "acme",
+    agentPluginId: "acme-agent",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(benchManager.getBench).mockReturnValue(
+      MOCK_BENCH as unknown as ReturnType<typeof benchManager.getBench>,
+    );
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      MOCK_PROJECT as unknown as ReturnType<typeof projectRegistry.getProject>,
+    );
+    vi.mocked(terminalService.createAgentSession).mockResolvedValue(AGENT_SESSION);
+  });
+
+  it("routes to the agent pipeline, passing the preset and per-launch layers through", async () => {
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({
+        agentPluginId: "acme-agent",
+        presetOverrides: { posture: "auto-edit" },
+        perLaunchOverrides: { model: "opus" },
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({
+      sessionId: "agent-1",
+      label: "Acme Agent 1 - My Project #1",
+      wsUrl: "/ws/terminal/agent-1",
+    });
+    expect(terminalService.createSession).not.toHaveBeenCalled();
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith({
+      projectId: "project1",
+      benchId: 1,
+      workspacePath: "/workspace",
+      projectName: "My Project",
+      agentPluginId: "acme-agent",
+      layers: { preset: { posture: "auto-edit" }, perLaunch: { model: "opus" } },
+    });
+  });
+
+  it("omits an unsupplied layer rather than passing an empty object for it", async () => {
+    await request(app).post("/project1/benches/1/terminals").send({ agentPluginId: "acme-agent" });
+
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({ layers: {} }),
+    );
+  });
+
+  it("leaves the built-in command path alone when no agentPluginId is supplied", async () => {
+    await request(app).post("/project1/benches/1/terminals").send({ command: "claude" });
+
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
+    expect(terminalService.createSession).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["not-installed", 404],
+    ["not-consented", 403],
+    ["incompatible", 409],
+    ["not-an-agent", 400],
+    ["plugin-unavailable", 503],
+  ])("maps a %s agent to %i", async (reason, status) => {
+    vi.mocked(terminalService.createAgentSession).mockRejectedValue(
+      new AgentUnavailableError({
+        reason,
+        pluginId: "acme-agent",
+        kind: "integration",
+        requiredRange: "^9.0.0",
+        hostVersion: "1.4.0",
+      } as never),
+    );
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ agentPluginId: "acme-agent" });
+
+    expect(res.status).toBe(status);
+    expect(res.body.error).toBeTruthy();
+  });
+
+  it("returns 502 for a descriptor core refuses (bad shape or an escaping write path)", async () => {
+    vi.mocked(terminalService.createAgentSession).mockRejectedValue(
+      new AgentDescriptorError(
+        'Workspace write path "../../.ssh/config" escapes the bench workspace',
+      ),
+    );
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ agentPluginId: "acme-agent" });
+
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/escapes the bench workspace/);
+  });
+
+  it("returns 500 when the PTY spawn itself fails", async () => {
+    vi.mocked(terminalService.createAgentSession).mockRejectedValue(
+      new Error("Failed to spawn agent session (command: acme, cwd: /workspace): ENOENT"),
+    );
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ agentPluginId: "acme-agent" });
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/Agent session could not be started/);
+  });
+
+  it("refuses a non-operable bench before reaching the agent pipeline", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue({
+      ...MOCK_BENCH,
+      workspacePath: "",
+    } as unknown as ReturnType<typeof benchManager.getBench>);
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ agentPluginId: "acme-agent" });
+
+    expect(res.status).toBe(400);
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
   });
 });
 

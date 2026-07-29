@@ -1797,6 +1797,12 @@ export interface TerminalSession {
   status: "live" | "ended";
   exitCode?: number;
   claudeCodeMode?: ClaudeCodeMode;
+  /**
+   * The `agent`-kind plugin whose launch descriptor opened this session
+   * (AP-FR-011). Absent for the built-in shell and Claude paths, so an agent
+   * session is identifiable without an agent-specific field per agent.
+   */
+  agentPluginId?: string;
 }
 
 export interface PersistedTerminalSession {
@@ -1808,6 +1814,18 @@ export interface PersistedTerminalSession {
 export interface TerminalCreateRequest {
   command?: string;
   jigId?: string;
+  /**
+   * Launch through the agent plugin pipeline rather than the built-in command
+   * path: the named `agent`-kind plugin supplies the launch descriptor.
+   */
+  agentPluginId?: string;
+  /**
+   * The third and fourth effective-config layers (AP-FR-011), above the stored
+   * application defaults and project overrides. Both are optional inputs; their
+   * producers are the preset and per-launch surfaces (#516, #518).
+   */
+  presetOverrides?: Record<string, unknown>;
+  perLaunchOverrides?: Record<string, unknown>;
 }
 
 export interface TerminalCreateResponse {
