@@ -95,7 +95,7 @@ describe("useTerminalConnection", () => {
       mockInstances[0].simulateMessage({ type: "replay", lines: ["hello\n", "world\n"] });
     });
 
-    expect(onReplay).toHaveBeenCalledWith(["hello\n", "world\n"], undefined);
+    expect(onReplay).toHaveBeenCalledWith(["hello\n", "world\n"], undefined, undefined);
   });
 
   it("calls onReplay with exitCode for ended sessions", async () => {
@@ -108,7 +108,31 @@ describe("useTerminalConnection", () => {
       mockInstances[0].simulateMessage({ type: "replay", lines: ["data"], exitCode: 0 });
     });
 
-    expect(onReplay).toHaveBeenCalledWith(["data"], 0);
+    expect(onReplay).toHaveBeenCalledWith(["data"], 0, undefined);
+  });
+
+  it("forwards a replayed launch failure so a reconnect still sees it (#519)", async () => {
+    const { onReplay } = renderConnectionHook();
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+
+    const launchFailure = {
+      class: "launch-failure",
+      message: "Acme Agent failed to launch: exited in 0.4s.",
+      capturedOutput: "error: unexpected argument '--yolo-mode' found",
+      actions: ["open-plugin-settings", "retry"],
+    };
+    act(() => {
+      mockInstances[0].simulateMessage({
+        type: "replay",
+        lines: ["data"],
+        exitCode: 2,
+        launchFailure,
+      });
+    });
+
+    expect(onReplay).toHaveBeenCalledWith(["data"], 2, launchFailure);
   });
 
   it("calls onMessage for output messages", async () => {

@@ -39,6 +39,17 @@ const envMocks = vi.hoisted(() => ({
   resolveAgentCommand: vi.fn((command: string) => command),
 }));
 vi.mock("./env.js", () => ({
+  // terminal.ts branches on this class to word the missing-binary failure, so a
+  // mocked env module must still carry it.
+  AgentCommandNotFoundError: class AgentCommandNotFoundError extends Error {
+    constructor(
+      public readonly command: string,
+      public readonly tried: string[],
+    ) {
+      super(`Agent CLI "${command}" was not found. Tried: ${tried.join(", ")}`);
+      this.name = "AgentCommandNotFoundError";
+    }
+  },
   getClaudeBinary: () => "claude",
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
@@ -58,10 +69,13 @@ import {
   createAgentSession,
   destroyAllSessions,
   getSession,
+  handleWebSocket,
   isHookNotificationEligible,
 } from "./terminal.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
+import { AgentCommandNotFoundError } from "./env.js";
+import { AgentLaunchFailureError } from "./agent-launch-failure.js";
 
 function createMockPty() {
   const emitter = new EventEmitter();
@@ -86,6 +100,7 @@ const manifest = { id: "acme-agent", name: "Acme Agent", kind: "agent" } as Plug
 function prepare(
   descriptor: Partial<AgentLaunchDescriptor>,
   effectiveConfig: Record<string, unknown> = {},
+  compatibility?: Record<string, unknown>,
 ): void {
   pipelineMocks.prepareAgentLaunch.mockResolvedValue({
     pluginId: "acme-agent",
@@ -98,6 +113,7 @@ function prepare(
       args: [],
       ...descriptor,
     } as AgentLaunchDescriptor,
+    ...(compatibility !== undefined && { compatibility }),
   });
 }
 
@@ -640,15 +656,18 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     expect(persisted.session.label).toBe("Acme Agent 1 - My Project #2");
   });
 
-  it("reports a spawn failure with the command and cwd that failed", async () => {
+  it("attributes a spawn throw to a broken host install, with the command and cwd (#519)", async () => {
     prepare({ command: "missing-agent" });
     spawnMock.mockImplementation(() => {
-      throw new Error("ENOENT");
+      throw new Error("posix_spawnp failed.");
     });
 
-    await expect(launch()).rejects.toThrow(
-      /Failed to spawn agent session \(command: missing-agent/,
-    );
+    const err = (await launch().catch((e: unknown) => e)) as AgentLaunchFailureError;
+    expect(err).toBeInstanceOf(AgentLaunchFailureError);
+    // Spike #504: a spawn throw means node-pty's own helper is unusable, so
+    // every spawn fails. That is Roubo's problem, not the agent plugin's.
+    expect(err.failure.class).toBe("host-install-broken");
+    expect(err.failure.guidance).toMatch(/Failed to spawn agent session \(command: missing-agent/);
   });
 
   it("spawns what the shared resolver returns, not the descriptor's bare command (#645)", async () => {
@@ -662,15 +681,20 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     expect(spawnCall().command).toBe("/home/dev/.claude/local/claude");
   });
 
-  it("surfaces the resolver's own error instead of an opaque spawn failure (#645)", async () => {
+  it("turns an unresolvable command into an actionable missing-binary failure (#645, AP-TC-058)", async () => {
     prepare({ command: "claude" });
     envMocks.resolveAgentCommand.mockImplementation(() => {
-      throw new Error('Agent CLI "claude" was not found. Tried: /usr/bin/claude');
+      throw new AgentCommandNotFoundError("claude", ["/usr/bin/claude"]);
     });
 
-    const err = (await launch().catch((e: unknown) => e)) as Error;
-    expect(err.message).toContain('Agent CLI "claude" was not found');
-    expect(err.message).not.toContain("Failed to spawn agent session");
+    const err = (await launch().catch((e: unknown) => e)) as AgentLaunchFailureError;
+    expect(err).toBeInstanceOf(AgentLaunchFailureError);
+    expect(err.failure.class).toBe("missing-binary");
+    // The resolver's own list of locations tried survives into the guidance,
+    // and nothing was spawned, so there is no dead terminal to leave behind.
+    expect(err.failure.guidance).toContain("/usr/bin/claude");
+    expect(err.failure.actions).toContain("open-plugin-settings");
+    expect(err.failure.message).not.toContain("Failed to spawn agent session");
     expect(spawnMock).not.toHaveBeenCalled();
   });
 });
@@ -855,5 +879,148 @@ describe("agent exit notification (AP-TC-066)", () => {
     const session = await launch();
     expect(() => lastPty()._emit("exit", { exitCode: 0 })).not.toThrow();
     expect(getSession(session.id)?.status).toBe("ended");
+  });
+});
+
+// -- Launch-failure detection after spawn (AP-FR-015, issue #519) --
+
+/** A minimal WebSocket stand-in that records every frame the server sends. */
+function fakeSocket() {
+  const frames: Record<string, unknown>[] = [];
+  const handlers = new Map<string, (arg: unknown) => void>();
+  return {
+    frames,
+    ws: {
+      OPEN: 1,
+      readyState: 1,
+      send: (raw: string) => frames.push(JSON.parse(raw) as Record<string, unknown>),
+      close: () => {},
+      on: (event: string, fn: (arg: unknown) => void) => handlers.set(event, fn),
+    },
+  };
+}
+
+function replayFor(sessionId: string): Record<string, unknown> {
+  const socket = fakeSocket();
+  handleWebSocket(sessionId, socket.ws as never);
+  return socket.frames.find((f) => f.type === "replay") ?? {};
+}
+
+describe("post-spawn launch-failure detection (AP-FR-015)", () => {
+  it("classifies an immediate nonzero exit with output as a launch failure and captures it (AP-TC-075, AP-TC-077)", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+
+    lastPty()._emit("data", "\u001b[31merror: unexpected argument '--yolo-mode' found\u001b[0m");
+    lastPty()._emit("exit", { exitCode: 2 });
+
+    const failure = replayFor(session.id).launchFailure as Record<string, unknown>;
+    expect(failure.class).toBe("launch-failure");
+    expect(failure.capturedOutput).toBe("error: unexpected argument '--yolo-mode' found");
+    expect(failure.agentName).toBe("Acme Agent");
+    expect(failure.actions).toEqual(["open-plugin-settings", "retry"]);
+  });
+
+  it("sends the failure on the live exit frame as well as the replay", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+
+    const socket = fakeSocket();
+    handleWebSocket(session.id, socket.ws as never);
+    lastPty()._emit("data", "error: unknown option '--nope'");
+    lastPty()._emit("exit", { exitCode: 1 });
+
+    const exitFrame = socket.frames.find((f) => f.type === "exit");
+    expect((exitFrame?.launchFailure as Record<string, unknown>).class).toBe("launch-failure");
+  });
+
+  it("classifies a silent immediate nonzero exit as a missing binary (AP-TC-058)", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+
+    lastPty()._emit("exit", { exitCode: 1 });
+
+    const failure = replayFor(session.id).launchFailure as Record<string, unknown>;
+    expect(failure.class).toBe("missing-binary");
+  });
+
+  it("does not flag a clean exit as a failure, however fast it was", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+
+    lastPty()._emit("data", "2.1.207 (Claude Code)");
+    lastPty()._emit("exit", { exitCode: 0 });
+
+    expect(replayFor(session.id).launchFailure).toBeUndefined();
+  });
+
+  it("does not flag a session that outlives the early window as a launch failure", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+
+    // Time is advanced by moving Date.now, not the timer queue: the classifier
+    // reads elapsed wall time rather than waiting on a timer.
+    const realNow = Date.now;
+    vi.spyOn(Date, "now").mockImplementation(() => realNow() + 6000);
+    lastPty()._emit("exit", { exitCode: 3 });
+    vi.mocked(Date.now).mockRestore();
+
+    expect(replayFor(session.id).launchFailure).toBeUndefined();
+  });
+});
+
+describe("compatibility notice in the session scrollback (AP-FR-014)", () => {
+  it("prepends an above-ceiling warning without blocking the launch (AP-TC-072, AP-TC-100 S002)", async () => {
+    prepare(
+      { command: "acme" },
+      {},
+      { status: "above-tested-ceiling", detectedVersion: "2.1.207", testedCeiling: "2.1.205" },
+    );
+
+    const result = await launchWith();
+
+    expect(result.session.status).toBe("live");
+    expect(spawnMock).toHaveBeenCalled();
+    expect(result.compatibility).toMatchObject({ status: "above-tested-ceiling" });
+    const lines = (replayFor(result.session.id).lines as string[]).join("");
+    expect(lines).toContain("2.1.207");
+    expect(lines).toContain("2.1.205");
+  });
+
+  it("says nothing for an in-range launch (AP-TC-070, AP-TC-100 S003)", async () => {
+    prepare({ command: "acme" }, {}, { status: "within-tested-range", detectedVersion: "2.1.180" });
+
+    const session = await launch();
+
+    expect((replayFor(session.id).lines as string[]).length).toBe(0);
+  });
+
+  it("says the version check did not run when the probe failed (AP-TC-074)", async () => {
+    prepare(
+      { command: "acme" },
+      {},
+      { status: "probe-failed", reason: "no recognisable version number" },
+    );
+
+    const session = await launch();
+
+    const lines = (replayFor(session.id).lines as string[]).join("");
+    expect(lines).toContain("could not be determined");
+  });
+
+  it("attributes a launch failure above the ceiling to a stale argument map", async () => {
+    prepare(
+      { command: "acme" },
+      {},
+      { status: "above-tested-ceiling", detectedVersion: "2.1.207", testedCeiling: "2.1.205" },
+    );
+    const session = await launch();
+
+    lastPty()._emit("data", "error: unknown option '--effort'");
+    lastPty()._emit("exit", { exitCode: 1 });
+
+    const failure = replayFor(session.id).launchFailure as Record<string, unknown>;
+    expect(failure.guidance).toContain("stale");
+    expect(failure.detectedVersion).toBe("2.1.207");
   });
 });

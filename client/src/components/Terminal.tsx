@@ -1,12 +1,31 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
+import type { AgentLaunchFailure } from "@roubo/shared";
 import { useTerminalConnection } from "../hooks/useTerminalConnection";
 import ReconnectBanner from "./ReconnectBanner";
+import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
 
-export default function Terminal({ sessionId, active }: { sessionId: string; active: boolean }) {
+export default function Terminal({
+  sessionId,
+  active,
+  launchFailure: initialLaunchFailure,
+  onRetry,
+}: {
+  sessionId: string;
+  active: boolean;
+  /**
+   * A failure that happened before any session existed (a blocked below-floor
+   * launch, a missing binary), so there is no socket to learn it from. A failure
+   * detected after spawn arrives over the socket instead.
+   */
+  launchFailure?: AgentLaunchFailure;
+  onRetry?: () => void;
+}) {
+  const [socketFailure, setSocketFailure] = useState<AgentLaunchFailure | null>(null);
+  const launchFailure = socketFailure ?? initialLaunchFailure;
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -100,26 +119,36 @@ export default function Terminal({ sessionId, active }: { sessionId: string; act
     }
   }, [active]);
 
-  const onReplay = useCallback((lines: string[], exitCode?: number) => {
-    const term = termRef.current;
-    if (!term) return;
-    for (const line of lines) {
-      term.write(line);
-    }
-    if (exitCode !== undefined) {
-      term.write(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`);
-    }
-  }, []);
+  // The failure is replayed, not just pushed live, so reattaching to an already
+  // dead session still shows the panel rather than a bare exit code.
+  const onReplay = useCallback(
+    (lines: string[], exitCode?: number, failure?: AgentLaunchFailure) => {
+      const term = termRef.current;
+      if (!term) return;
+      for (const line of lines) {
+        term.write(line);
+      }
+      if (exitCode !== undefined) {
+        term.write(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`);
+      }
+      if (failure) setSocketFailure(failure);
+    },
+    [],
+  );
 
-  const onMessage = useCallback((msg: { type: string; data?: string; code?: number }) => {
-    const term = termRef.current;
-    if (!term) return;
-    if (msg.type === "output" && msg.data) {
-      term.write(msg.data);
-    } else if (msg.type === "exit") {
-      term.write(`\r\n\x1b[90m[Process exited with code ${msg.code}]\x1b[0m\r\n`);
-    }
-  }, []);
+  const onMessage = useCallback(
+    (msg: { type: string; data?: string; code?: number; launchFailure?: AgentLaunchFailure }) => {
+      const term = termRef.current;
+      if (!term) return;
+      if (msg.type === "output" && msg.data) {
+        term.write(msg.data);
+      } else if (msg.type === "exit") {
+        term.write(`\r\n\x1b[90m[Process exited with code ${msg.code}]\x1b[0m\r\n`);
+        if (msg.launchFailure) setSocketFailure(msg.launchFailure);
+      }
+    },
+    [],
+  );
 
   const { wsRef, state, attempt, retry } = useTerminalConnection({
     sessionId,
@@ -178,6 +207,12 @@ export default function Terminal({ sessionId, active }: { sessionId: string; act
         className={`h-full w-full ${showBanner ? "pt-8" : ""}`}
         style={{ padding: showBanner ? undefined : "4px" }}
       />
+      {launchFailure && (
+        <AgentLaunchFailurePanel
+          failure={launchFailure}
+          {...(onRetry !== undefined && { onRetry })}
+        />
+      )}
     </div>
   );
 }

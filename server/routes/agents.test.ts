@@ -26,6 +26,7 @@ vi.mock("../services/agent-overrides.js", async () => {
 import router from "./agents.js";
 import * as registry from "../services/agent-plugin-registry.js";
 import * as overrides from "../services/agent-overrides.js";
+import { probeAgentVersion, resetAgentVersionProbeCache } from "../services/agent-version-probe.js";
 
 function app() {
   const a = express();
@@ -65,6 +66,7 @@ beforeEach(() => {
     schemaVersion: 1,
     config,
   }));
+  resetAgentVersionProbeCache();
 });
 
 describe("GET /api/agents", () => {
@@ -212,5 +214,58 @@ describe("PUT /api/agents/:id/config", () => {
   it("404s on an id that is not an installed agent plugin", async () => {
     const res = await request(app()).put("/api/agents/nope/config").send({ config: {} });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /api/agents compatibility block (AP-TC-113, AP-TC-114)", () => {
+  const PROBE = {
+    args: ["--version"],
+    parse: "semver" as const,
+    minVersion: "2.1.111",
+    testedCeiling: "2.1.205",
+  };
+
+  function withCompatibility(min?: string, ceiling?: string): PluginManifest {
+    return {
+      ...CLAUDE,
+      agentCompatibility: {
+        ...(min !== undefined && { minVersion: min }),
+        ...(ceiling !== undefined && { testedCeiling: ceiling }),
+      },
+    } as PluginManifest;
+  }
+
+  it("renders the declared window with status unknown before any launch has probed", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([withCompatibility("2.1.111", "2.1.205")]);
+
+    const res = await request(app()).get("/api/agents");
+
+    expect(res.body.agents[0].compatibility).toEqual({
+      minVersion: "2.1.111",
+      testedCeiling: "2.1.205",
+      status: "unknown",
+    });
+  });
+
+  it("adds the detected version and its verdict once a probe has run, without re-probing", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([withCompatibility("2.1.111", "2.1.205")]);
+    // A launch probed the CLI at some earlier point; the route reads the cache.
+    await probeAgentVersion("claude-code", "/bin/echo", { ...PROBE, args: ["2.1.207"] });
+
+    const res = await request(app()).get("/api/agents");
+
+    expect(res.body.agents[0].compatibility).toMatchObject({
+      detectedVersion: "2.1.207",
+      testedCeiling: "2.1.205",
+      status: "above-tested-ceiling",
+    });
+  });
+
+  it("omits the block entirely for an agent that declares nothing and was never probed", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([CODEX]);
+
+    const res = await request(app()).get("/api/agents");
+
+    expect(res.body.agents[0].compatibility).toBeUndefined();
   });
 });

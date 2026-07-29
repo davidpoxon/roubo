@@ -13,6 +13,7 @@ import {
   saveAgentConfig,
 } from "../services/agent-overrides.js";
 import { validateAgentConfig } from "../services/agent-config-validator.js";
+import { buildCompatibilityState } from "../services/agent-version-probe.js";
 
 // App-level agent configuration API (AP-FR-002, AP-FR-003, issue #508).
 //
@@ -41,6 +42,10 @@ function findAgentManifest(pluginId: string): PluginManifest | undefined {
 
 function toState(manifest: PluginManifest): AgentPluginState {
   const resolved = resolveAgent(manifest.id);
+  // Manifest-declared window plus the cached probe. Cache-only by design: this
+  // route is polled, and probing per request would spawn an agent CLI every time
+  // the AI Agents screen refreshed (AP-TC-113, AP-TC-114).
+  const compatibility = buildCompatibilityState(manifest.id, manifest.agentCompatibility);
   return {
     id: manifest.id,
     name: manifest.name,
@@ -53,6 +58,7 @@ function toState(manifest: PluginManifest): AgentPluginState {
     unavailable: isAgentNotAvailable(resolved)
       ? { reason: resolved.reason, message: describeAgentNotAvailable(resolved) }
       : null,
+    ...(compatibility !== undefined && { compatibility }),
   };
 }
 

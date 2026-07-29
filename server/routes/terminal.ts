@@ -16,6 +16,8 @@ import { buildAlertIssueContext } from "../services/alert-formatting.js";
 import { loadSettings, getProjectPermissions } from "../services/state.js";
 import { AgentUnavailableError, resolveLaunchAgentId } from "../services/agent-launch-pipeline.js";
 import { AgentDescriptorError } from "../services/agent-launch-executor.js";
+import { AgentLaunchFailureError } from "../services/agent-launch-failure.js";
+import type { AgentLaunchFailureClass } from "@roubo/shared";
 import { toLaunchPermissions } from "../services/agent-permissions.js";
 import { filterSafeRules } from "../services/permission-rule-guard.js";
 import type { AgentNotAvailable } from "../services/agent-plugin-registry.js";
@@ -41,6 +43,26 @@ function statusForAgentNotAvailable(notAvailable: AgentNotAvailable): number {
       return 403;
     case "plugin-unavailable":
       return 503;
+  }
+}
+
+/**
+ * A launch that never produced a session (AP-FR-015). Each class is a different
+ * problem with a different owner: a below-floor CLI and a missing binary are
+ * conflicts with the host's current state (409), a broken node-pty install is a
+ * Roubo fault (500). The body carries the whole structured failure alongside the
+ * plain `error` string, so an older client still renders a message and a current
+ * one renders the panel with captured output and recovery actions.
+ */
+function statusForLaunchFailure(failureClass: AgentLaunchFailureClass): number {
+  switch (failureClass) {
+    case "host-install-broken":
+      return 500;
+    case "missing-binary":
+    case "below-floor-version":
+    case "version-probe-failed":
+    case "launch-failure":
+      return 409;
   }
 }
 
@@ -225,6 +247,15 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         res.status(502).json({ error: err.message });
         return;
       }
+      // Version gate, missing binary, or a broken host install: a structured
+      // failure the terminal pane renders as an actionable panel instead of a
+      // dead tab (AP-TC-058, AP-TC-071, AP-TC-076).
+      if (err instanceof AgentLaunchFailureError) {
+        res
+          .status(statusForLaunchFailure(err.failure.class))
+          .json({ error: err.failure.message, launchFailure: err.failure });
+        return;
+      }
       const message = (err as Error).message ?? String(err);
       // `launchAgentPluginId` is request-controlled, so it is passed as an
       // argument rather than interpolated into the format string: console.error
@@ -241,7 +272,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
       return;
     }
 
-    const { session: agentSession, promptInjection } = launch;
+    const { session: agentSession, promptInjection, compatibility } = launch;
 
     // AP-FR-018: the agent's DECLARED injection capability decides what happens
     // to the jig, so the response reports the outcome rather than the intent.
@@ -261,6 +292,10 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
       ...(jigInjected && { jigInjected: true }),
       ...(jigScheduled && { jigScheduled: true }),
       ...(sizeWarning && { sizeWarning: true }),
+      // Only when there is something to say: an in-range launch stays silent
+      // (AP-TC-070, AP-TC-100 S003).
+      ...(compatibility !== undefined &&
+        compatibility.status !== "within-tested-range" && { compatibility }),
     });
     return;
   }
