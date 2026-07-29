@@ -10,11 +10,20 @@ import type {
   ClaudeCodeSettings,
   ProjectPermissions,
 } from "@roubo/shared";
+import type {
+  AgentPosture,
+  WorkspaceWriteSpec,
+  WriteOp,
+} from "@roubo/shared/agent-launch-descriptor-schema";
+import { AgentPostureSchema } from "@roubo/shared/agent-launch-descriptor-schema";
 import { atomicWrite, getRouboDir } from "./state.js";
 import { getClaudeBinary, getLoginShell } from "./env.js";
 import { writeClaudeSettingsLocal } from "./claude-settings-local.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
+import { resolveTemplate, type ResolvedTemplateContext } from "./config-parser.js";
+import { collectWorkspaceWrites, executeWorkspaceWrites } from "./agent-launch-executor.js";
+import { prepareAgentLaunch, type AgentConfigLayers } from "./agent-launch-pipeline.js";
 import { UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const MAX_BUFFER_CHUNKS = 5000;
@@ -32,6 +41,11 @@ const CLAUDE_QUIESCENCE_DEBOUNCE_MS = 8000;
 // mutates it at boot while the app is running. Both are consumed server-side
 // only, so bench terminals never need them.
 const HOST_INTERNAL_ENV_KEYS = new Set(["ROUBO_PRODUCTION", "ROUBO_PORT"]);
+// The port `{{port}}` resolves to when the server has not published its bound
+// port yet. Matches the fallback claude-settings-local.ts uses for the same hook
+// URL, and is exactly why ROUBO_PORT is stripped from every child env above:
+// core tells the agent the port, the agent never inherits it.
+const DEFAULT_ROUBO_PORT = "3335";
 
 class CircularBuffer<T> {
   private items: (T | undefined)[];
@@ -123,11 +137,25 @@ export function parseBenchKey(key: string): { projectId: string; benchId: number
   return { projectId: key.slice(0, colonIdx), benchId };
 }
 
-function generateLabel(projectName: string, benchId: number, command?: string): string {
+/**
+ * `displayName` is the agent's own name, taken from its plugin manifest. When it
+ * is supplied the label is generic: nothing here knows which agent it is
+ * labelling (AP-FR-011). The `command === "claude"` branch below is the legacy
+ * built-in path only, removed with the rest of it in AP-WU-020 (#521).
+ */
+function generateLabel(
+  projectName: string,
+  benchId: number,
+  command?: string,
+  displayName?: string,
+): string {
   const benchSessions = Array.from(sessions.values()).filter(
     (s) => s.session.benchKey.endsWith(`:${benchId}`) && s.session.command === command,
   );
   const index = benchSessions.length + 1;
+  if (displayName) {
+    return `${displayName} ${index} - ${projectName} #${benchId}`;
+  }
   if (command === "claude") {
     return `Claude ${index} - ${projectName} #${benchId}`;
   }
@@ -334,6 +362,23 @@ export function createSession(
     ...(claudeCodeMode !== undefined && { claudeCodeMode }),
   };
 
+  registerSession(session, ptyProcess, command === "claude" ? onClaudeExit : undefined);
+
+  return session;
+}
+
+/**
+ * Put a freshly spawned PTY under session management: buffering, debounced
+ * persistence, waiting-notification dismissal, quiescence scheduling, and exit
+ * tracking. Shared by the built-in `createSession` and the descriptor-driven
+ * `createAgentSession` so both get identical session semantics.
+ */
+function registerSession(
+  session: TerminalSession,
+  ptyProcess: pty.IPty,
+  onExit?: (sessionId: string) => void,
+): void {
+  const id = session.id;
   const internal: InternalSession = {
     session,
     pty: ptyProcess,
@@ -373,18 +418,196 @@ export function createSession(
     internal.session.exitCode = exitCode;
     cancelQuiescenceCheck(internal);
     persistSession(id);
-    if (internal.session.command === "claude") {
-      try {
-        onClaudeExit?.(id);
-      } catch {
-        /* best-effort */
-      }
+    try {
+      onExit?.(id);
+    } catch {
+      /* best-effort */
     }
   });
 
   persistSession(id);
+}
+
+export interface CreateAgentSessionOptions {
+  projectId: string;
+  benchId: number;
+  workspacePath: string;
+  projectName: string;
+  /** The `agent`-kind plugin whose descriptor drives this launch. */
+  agentPluginId: string;
+  /** The two launch-time config layers above the stored app and project ones. */
+  layers?: AgentConfigLayers;
+  initialInput?: string;
+  onAgentExit?: (sessionId: string) => void;
+}
+
+/**
+ * Open a PTY session from a plugin-supplied `AgentLaunchDescriptor` (AP-FR-011).
+ *
+ * The ordering is the whole design. The session id is minted FIRST, before the
+ * plugin is asked for anything, because the plugin receives it in its launch
+ * context, the descriptor's argv embeds it as `{{sessionId}}`, and an http-hook
+ * notification carrier writes it into a workspace settings file. One mint keeps
+ * all three pointing at the same real session. Then, in order: resolve the
+ * descriptor's templates, execute its workspace writes (path-validated,
+ * core-side, and before the spawn so an escaping path aborts the launch rather
+ * than leaving a half-configured agent running), then spawn.
+ *
+ * argv reaches `pty.spawn` as an array and is never joined into a shell string,
+ * so shell metacharacters anywhere in the four-layer config, including a
+ * free-form extra-arguments field, arrive at the agent as literal argv elements
+ * (AP-NFR-001, AP-TC-083).
+ */
+export async function createAgentSession(
+  opts: CreateAgentSessionOptions,
+): Promise<TerminalSession> {
+  const id = randomUUID();
+
+  const prepared = await prepareAgentLaunch({
+    pluginId: opts.agentPluginId,
+    projectId: opts.projectId,
+    benchId: opts.benchId,
+    workspacePath: opts.workspacePath,
+    sessionId: id,
+    ...(opts.initialInput !== undefined && { initialPrompt: opts.initialInput }),
+    ...(opts.layers !== undefined && { layers: opts.layers }),
+  });
+
+  const { descriptor } = prepared;
+  const ctx: ResolvedTemplateContext = {
+    ports: {},
+    portHttps: {},
+    workspace: opts.workspacePath,
+    components: {},
+    sessionId: id,
+    port: process.env.ROUBO_PORT || DEFAULT_ROUBO_PORT,
+  };
+
+  // A posture binding has two carriers, argv and workspace writes, and a
+  // descriptor may use either. Both are applied here so the posture the
+  // effective config selected is never half-applied: dropping the argv half
+  // while honouring the file half would launch a session whose real permissions
+  // disagree with the resolved config.
+  const posture = readPosture(prepared.effectiveConfig);
+  const postureBinding = posture
+    ? descriptor.capabilities?.permissions?.postures[posture]
+    : undefined;
+
+  const command = resolveTemplate(descriptor.command, ctx);
+  const args = descriptor.args.map((arg) => resolveTemplate(arg, ctx));
+  for (const arg of postureBinding?.args ?? []) {
+    args.push(resolveTemplate(arg, ctx));
+  }
+  // The initial prompt is positional, so it stays last, after every flag.
+  if (descriptor.initialPrompt?.mode === "argv-positional" && opts.initialInput) {
+    const limit = Math.min(descriptor.initialPrompt.maxLength ?? Infinity, MAX_CLI_PROMPT_LENGTH);
+    args.push(opts.initialInput.slice(0, limit));
+  }
+  const cwd = descriptor.cwd ? resolveTemplate(descriptor.cwd, ctx) : opts.workspacePath;
+
+  // Workspace writes run BEFORE the spawn: a descriptor whose relPath escapes
+  // the bench workspace aborts the whole batch (and this launch) with nothing
+  // written anywhere (AP-NFR-001, AP-TC-082).
+  executeWorkspaceWrites(
+    opts.workspacePath,
+    resolveWriteTemplates(collectWorkspaceWrites(descriptor, posture ? { posture } : {}), ctx),
+  );
+
+  const env: Record<string, string> = Object.fromEntries(
+    Object.entries(process.env).filter(
+      (e): e is [string, string] => e[1] !== undefined && !HOST_INTERNAL_ENV_KEYS.has(e[0]),
+    ),
+  );
+  // Descriptor env is additive, layered on AFTER the host-internal strip so a
+  // plugin can neither reinstate nor observe the keys core withholds. The strip
+  // above only filters `process.env`, so the layering re-checks each descriptor
+  // key against the same set: `env` is an unrestricted record in the descriptor
+  // schema, and without this a descriptor declaring ROUBO_PRODUCTION would hand
+  // the child the very key #877 removed, pointing a bench-started dev server at
+  // the real ~/.roubo state (AP-NFR-001).
+  for (const [key, value] of Object.entries(descriptor.env ?? {})) {
+    if (HOST_INTERNAL_ENV_KEYS.has(key)) continue;
+    env[key] = resolveTemplate(value, ctx);
+  }
+
+  let ptyProcess;
+  try {
+    ptyProcess = pty.spawn(command, args, {
+      name: "xterm-256color",
+      cols: 80,
+      rows: 24,
+      cwd,
+      env,
+    });
+  } catch (err) {
+    throw new Error(
+      `Failed to spawn agent session (command: ${command}, cwd: ${cwd}): ${(err as Error).message}`,
+      { cause: err },
+    );
+  }
+
+  const session: TerminalSession = {
+    id,
+    benchKey: benchKey(opts.projectId, opts.benchId),
+    label: generateLabel(opts.projectName, opts.benchId, command, prepared.manifest.name),
+    createdAt: new Date().toISOString(),
+    command,
+    status: "live",
+    agentPluginId: opts.agentPluginId,
+  };
+
+  registerSession(session, ptyProcess, opts.onAgentExit);
 
   return session;
+}
+
+/**
+ * The permission posture the effective config selects, when it selects a valid
+ * one. Core never interprets it beyond picking the descriptor's matching posture
+ * binding; the posture vocabulary is the descriptor schema's, not core's.
+ */
+function readPosture(effectiveConfig: Record<string, unknown>): AgentPosture | undefined {
+  const parsed = AgentPostureSchema.safeParse(effectiveConfig.posture);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * Resolve `{{sessionId}}` / `{{port}}` / `{{workspace}}` through a descriptor's
+ * workspace writes. Both the target path and every string reachable from a write
+ * op's value are resolved, because an http-hook carrier write embeds the session
+ * id and port inside the JSON value it sets, not in the path.
+ */
+function resolveWriteTemplates(
+  writes: WorkspaceWriteSpec[],
+  ctx: ResolvedTemplateContext,
+): WorkspaceWriteSpec[] {
+  return writes.map((write) => ({
+    ...write,
+    relPath: resolveTemplate(write.relPath, ctx),
+    ops: write.ops.map((op): WriteOp => {
+      if (op.op === "set") return { ...op, value: resolveJsonTemplates(op.value, ctx) };
+      if (op.op === "unionArray") {
+        return { ...op, values: op.values.map((v) => resolveTemplate(v, ctx)) };
+      }
+      return op;
+    }),
+  }));
+}
+
+type WriteOpJsonValue = Extract<WriteOp, { op: "set" }>["value"];
+
+function resolveJsonTemplates(
+  value: WriteOpJsonValue,
+  ctx: ResolvedTemplateContext,
+): WriteOpJsonValue {
+  if (typeof value === "string") return resolveTemplate(value, ctx);
+  if (Array.isArray(value)) return value.map((entry) => resolveJsonTemplates(entry, ctx));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, resolveJsonTemplates(entry, ctx)]),
+    );
+  }
+  return value;
 }
 
 export function getSession(sessionId: string): TerminalSession | undefined {

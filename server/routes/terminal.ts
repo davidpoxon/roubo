@@ -14,9 +14,33 @@ import {
 import { isAlertExternalId } from "../services/alert-external-id.js";
 import { buildAlertIssueContext } from "../services/alert-formatting.js";
 import { loadSettings, getProjectPermissions } from "../services/state.js";
+import { AgentUnavailableError } from "../services/agent-launch-pipeline.js";
+import { AgentDescriptorError } from "../services/agent-launch-executor.js";
+import type { AgentNotAvailable } from "../services/agent-plugin-registry.js";
 import { parseIntParam, VALID_JIG_ID } from "./helpers.js";
 import type { TerminalCreateRequest } from "@roubo/shared";
 import { CLAUDE_STARTUP_DELAY_MS, GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
+
+/**
+ * Each `AgentNotAvailable` reason is a different caller problem, so each gets
+ * its own status rather than a blanket 400: an uninstalled plugin is a 404, an
+ * unconsented one a 403, a version mismatch a 409, and a plugin that is simply
+ * not running right now a 503 the client may retry.
+ */
+function statusForAgentNotAvailable(notAvailable: AgentNotAvailable): number {
+  switch (notAvailable.reason) {
+    case "not-installed":
+      return 404;
+    case "not-an-agent":
+      return 400;
+    case "incompatible":
+      return 409;
+    case "not-consented":
+      return 403;
+    case "plugin-unavailable":
+      return 503;
+  }
+}
 
 const router = Router();
 
@@ -29,7 +53,8 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     res.status(400).json({ error: "Invalid bench id" });
     return;
   }
-  const { command } = req.body as TerminalCreateRequest;
+  const { command, agentPluginId, presetOverrides, perLaunchOverrides } =
+    req.body as TerminalCreateRequest;
   let { jigId } = req.body as TerminalCreateRequest;
 
   if (jigId !== undefined && !VALID_JIG_ID.test(jigId)) {
@@ -58,6 +83,57 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
 
   const project = projectRegistry.getProject(projectId);
   const projectName = project?.config?.project?.displayName ?? projectId;
+
+  // Agent-plugin launch (AP-FR-011): the plugin supplies a declarative
+  // descriptor and core assembles argv, executes the workspace writes, and
+  // spawns. The built-in `command` path below is untouched by this branch.
+  if (agentPluginId !== undefined) {
+    let agentSession;
+    try {
+      agentSession = await terminalService.createAgentSession({
+        projectId,
+        benchId,
+        workspacePath: bench.workspacePath,
+        projectName,
+        agentPluginId,
+        layers: {
+          ...(presetOverrides !== undefined && { preset: presetOverrides }),
+          ...(perLaunchOverrides !== undefined && { perLaunch: perLaunchOverrides }),
+        },
+      });
+    } catch (err) {
+      if (err instanceof AgentUnavailableError) {
+        res.status(statusForAgentNotAvailable(err.notAvailable)).json({ error: err.message });
+        return;
+      }
+      // A descriptor the schema rejects, or a write path that escapes the bench
+      // workspace, is the plugin's fault rather than the caller's: 502.
+      if (err instanceof AgentDescriptorError) {
+        res.status(502).json({ error: err.message });
+        return;
+      }
+      const message = (err as Error).message ?? String(err);
+      // `agentPluginId` is request-controlled, so it is passed as an argument
+      // rather than interpolated into the format string: console.error runs
+      // util.format, where a `%s` in the value would consume the `err` argument
+      // and drop the real failure from the log (js/tainted-format-string).
+      console.error(
+        "[terminal] createAgentSession failed for bench %d (agent: %s):",
+        benchId,
+        agentPluginId,
+        err,
+      );
+      res.status(500).json({ error: `Agent session could not be started: ${message}` });
+      return;
+    }
+
+    res.status(201).json({
+      sessionId: agentSession.id,
+      label: agentSession.label,
+      wsUrl: `/ws/terminal/${agentSession.id}`,
+    });
+    return;
+  }
 
   const settings = loadSettings();
   let initialInput: string | undefined;
