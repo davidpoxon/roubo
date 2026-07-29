@@ -219,7 +219,7 @@ permissions: {
 }
 ```
 
-`resync: true` is the plugin's statement that those writes are safe to re-apply to an already-created bench workspace, which is what `POST /api/projects/:projectId/permissions/resync` dispatches through. A plugin that declares no `rules` key gets no rules editor in the UI and is skipped by re-sync; declaring `rules` with `resync: false` keeps the editor but not the re-sync control. Path-escaping rule patterns never reach a plugin: the host rejects them when they are stored and filters any survivors before the model is handed over.
+`resync: true` is the plugin's statement that those writes are safe to re-apply to an already-created bench workspace, which is what `POST /api/projects/:projectId/permissions/resync` dispatches through. A plugin that declares no `rules` key gets no rules editor in the UI and is skipped by re-sync; declaring `rules` with `resync: false` keeps the editor but not the re-sync control. Path-escaping patterns in the access-granting groups never reach a plugin: the host rejects an `allow` or `ask` entry naming a path outside the bench workspace when it is stored, and filters any survivors before the model is handed over. `deny` entries are subtractive, so they are passed through as written and a plugin must not assume every rule string it receives is workspace-relative.
 
 ### Workspace writes are declarative, always
 

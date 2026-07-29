@@ -375,17 +375,26 @@ describe("permissions posture and rule guard (AP-FR-016, AP-TC-081)", () => {
     expect(state.setProjectPermissions).not.toHaveBeenCalled();
   });
 
-  it("rejects an absolute-path rule in any of the three groups (AP-TC-081)", async () => {
-    for (const body of [
-      { allow: ["Read(/etc/**)"] },
-      { deny: ["Read(~/.ssh/**)"] },
-      { ask: ["Edit(/var/log/**)"] },
-    ]) {
+  it("rejects an absolute-path rule in either access-granting group (AP-TC-081)", async () => {
+    for (const body of [{ allow: ["Read(/etc/**)"] }, { ask: ["Edit(/var/log/**)"] }]) {
       const res = await request(app).put("/test-project/permissions").send(body);
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/absolute or home-rooted path/i);
     }
     expect(state.setProjectPermissions).not.toHaveBeenCalled();
+  });
+
+  // A deny rule cannot grant reach outside the workspace, only remove it, so
+  // guarding it would take away the user's only way to forbid an outside path.
+  it("stores an outside-path deny rule rather than rejecting it", async () => {
+    const res = await request(app)
+      .put("/test-project/permissions")
+      .send({ deny: ["Read(~/.ssh/**)", "Read(../../etc/**)"] });
+    expect(res.status).toBe(200);
+    expect(state.setProjectPermissions).toHaveBeenCalledWith(
+      "test-project",
+      expect.objectContaining({ deny: ["Read(~/.ssh/**)", "Read(../../etc/**)"] }),
+    );
   });
 
   it("still accepts ordinary workspace-scoped patterns", async () => {

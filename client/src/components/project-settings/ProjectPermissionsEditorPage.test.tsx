@@ -299,6 +299,32 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
     expect(screen.getByText(/does not support fine-grained permission rules/i)).toBeInTheDocument();
   });
 
+  // An agent whose descriptor declares no permissions capability at all reports
+  // both axes off, so the copy must not point at a posture control that is not
+  // on screen.
+  it("names neither axis for an agent that declares no permissions capability", () => {
+    mockedUseProjectPermissions.mockReturnValue(
+      makeDefaultHook({
+        capabilities: {
+          agentPluginId: "plain-agent",
+          agentName: "Plain Agent",
+          postures: [],
+          rules: false,
+          resync: false,
+        },
+      }),
+    );
+    renderEditor();
+    expect(screen.queryByText("Posture")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add rule")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/does not support fine-grained permission rules/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/does not expose any permission settings Roubo can manage/i),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the rules editor when an agent carries rules but cannot re-sync", () => {
     mockedUseProjectPermissions.mockReturnValue(
       makeDefaultHook({ capabilities: { ...FULL_CAPABILITIES, resync: false } }),

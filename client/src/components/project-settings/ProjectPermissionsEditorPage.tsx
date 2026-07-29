@@ -79,9 +79,14 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
   const rules = flattenPermissions(currentPermissions);
   const project = projects?.find((p) => p.id === projectId);
 
-  // Absent capabilities means the probe has not answered yet (or the built-in
-  // carrier is in use), and both axes stay visible: hiding a control the user
-  // already had is worse than briefly showing one their agent ignores.
+  // The two axes fail in opposite directions, deliberately. Rules fail OPEN:
+  // absent capabilities (the probe has not answered yet, or it failed) keep the
+  // rules editor visible, because hiding a control every pre-agent-plugin
+  // project already had is worse than briefly showing one their agent ignores.
+  // Posture fails CLOSED: it is a control this release introduces, and an empty
+  // `postures` list is the server's own designed answer for an agent that
+  // declares none (including the built-in carrier), so it stays hidden until
+  // the probe positively reports postures to offer.
   const showRules = capabilities?.rules !== false;
   const showResync = showRules && capabilities?.resync !== false;
   const showPosture = (capabilities?.postures.length ?? 0) > 0;
@@ -228,7 +233,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
           <div className="grid grid-cols-12 gap-2 items-center">
             <div className="col-span-4">
               <Select
-                aria-label="Permission posture"
+                ariaLabel="Permission posture"
                 items={POSTURE_ITEMS.filter(
                   (item) =>
                     item.value === "" ||
@@ -356,10 +361,14 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
         </>
       )}
 
+      {/* An agent that declares no permissions capability at all reports both
+          `postures: []` and `rules: false`, so there is no posture control above
+          to point the reader at. Name only the axes actually on screen. */}
       {!isLoading && !showRules && (
         <p className="text-[12px] text-stone-500 dark:text-stone-500 leading-relaxed">
-          {agentLabel} does not support fine-grained permission rules, so only the posture above
-          applies to this project.
+          {showPosture
+            ? `${agentLabel} does not support fine-grained permission rules, so only the posture above applies to this project.`
+            : `${agentLabel} does not expose any permission settings Roubo can manage for this project.`}
         </p>
       )}
 

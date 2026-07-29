@@ -452,7 +452,7 @@ Replaces the whole set (there is no PATCH). Omitted arrays default to `[]`; an o
 
 - `400` when `allow`, `deny`, or `ask` is not an array of strings, exceeds 100 entries, or contains an entry longer than 512 characters
 - `400` when `posture` is not one of the four values
-- `400` when a rule names a path outside the bench workspace. The check is deliberately vocabulary-free: a rule is rejected when it contains a `..` path segment or an absolute / home-rooted path root, whatever agent syntax surrounds it. The response body carries the offending pattern:
+- `400` when an `allow` or `ask` rule names a path outside the bench workspace. The check is deliberately vocabulary-free: a rule is rejected when it contains a `..` path segment or an absolute / home-rooted path root, whatever agent syntax surrounds it. It covers the access-granting groups only, since a `deny` rule naming an outside path forbids reach rather than granting it, so `deny` is stored as written. The response body carries the offending pattern:
 
   ```json
   {
@@ -491,7 +491,7 @@ POST /api/projects/:projectId/permissions/resync
 { "resynced": 2, "skipped": 1, "errors": [{ "benchId": 4, "message": "..." }] }
 ```
 
-Re-injects the project's rules into every live bench workspace by dispatching through the agent plugin's declared carrier. A bench with no workspace path, one mid-teardown (`clearing`), or one whose agent declares no rules capability is counted in `skipped` rather than raising an error. A per-bench failure lands in `errors` and never fails the request.
+Re-injects the project's rules into every live bench workspace by dispatching through the agent plugin's declared carrier. A bench with no workspace path, one mid-teardown (`clearing`), or one whose agent declares no rules capability (or declares rules that opt out of re-sync with `resync: false`) is counted in `skipped` rather than raising an error. A per-bench failure lands in `errors` and never fails the request.
 
 - `404` when the project is not registered
 

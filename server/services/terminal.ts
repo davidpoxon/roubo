@@ -13,8 +13,6 @@ import type {
 import type {
   AgentPosture,
   WaitingDetectionSpec,
-  WorkspaceWriteSpec,
-  WriteOp,
 } from "@roubo/shared/agent-launch-descriptor-schema";
 import { AgentPostureSchema } from "@roubo/shared/agent-launch-descriptor-schema";
 import { atomicWrite, getRouboDir } from "./state.js";

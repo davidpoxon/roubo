@@ -98,8 +98,11 @@ router.put("/:projectId/permissions", (req, res) => {
 
   // AP-TC-081: a pattern that names a path outside the bench workspace is
   // rejected at the point it is added, not quietly stored and injected later.
+  // Only the access-granting groups are checked: a `deny` rule naming an
+  // outside path forbids reach rather than granting it, so guarding it would
+  // remove the user's only way to write that guardrail down.
   try {
-    assertSafeRules({ allow: body?.allow, deny: body?.deny, ask: body?.ask });
+    assertSafeRules({ allow: body?.allow, ask: body?.ask });
   } catch (err) {
     if (err instanceof PermissionRuleError) {
       res.status(400).json({ error: err.message, rule: err.rule });

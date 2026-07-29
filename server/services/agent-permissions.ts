@@ -48,8 +48,9 @@ export interface ApplyPermissionsResult {
 }
 
 /**
- * The stored model as a plugin sees it, with every path-escaping rule already
- * dropped (AP-TC-081 S002). The guard runs on the way in at the API boundary
+ * The stored model as a plugin sees it, with every path-escaping rule dropped
+ * from the access-granting groups (AP-TC-081 S002); `deny` is subtractive and
+ * passes through as written. The guard runs on the way in at the API boundary
  * too; running it again here is what keeps a state file written before the
  * guard existed, or edited by hand, from reaching a bench workspace.
  */
@@ -63,9 +64,17 @@ export function toLaunchPermissions(permissions: ProjectPermissions): LaunchPerm
 
 /**
  * The agent plugin a project's launches resolve to, or `undefined` when none
- * does. Deliberately the same resolution `routes/terminal.ts` uses for a
- * jig-driven launch, so the permissions screen describes the agent a bench will
- * actually start rather than a differently-resolved one.
+ * does. This is deliberately the PROJECT-level resolution, the app default plus
+ * the lone-available-agent fallback, and it does not consult a jig's own
+ * `agentPluginId` binding the way `routes/terminal.ts` does at launch. The
+ * permissions model is per project (AP-FR-016) and neither the capabilities
+ * probe nor the resync fan-out carries jig or session context: a bench can host
+ * sessions started from several jigs, so there is no single launch agent to
+ * find. The consequence is narrow but real: for a bench whose jig binds a
+ * non-default agent, the editor describes the default agent's capabilities, and
+ * a resync writes through the default agent's descriptor while still counting
+ * that bench in `resynced`. Launch-time permissions are unaffected, since
+ * `routes/terminal.ts` resolves the jig binding itself.
  */
 export function resolveProjectAgentPluginId(): string | undefined {
   const settings = loadSettings();

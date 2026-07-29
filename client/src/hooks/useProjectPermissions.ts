@@ -43,8 +43,9 @@ export function useProjectPermissions(projectId: string) {
 
   // What the project's agent honours (AP-FR-016). Separate from the permissions
   // read so a slow or failing capability probe never blocks the stored rules
-  // from rendering; while it is in flight the editor falls back to showing both
-  // axes, which is what every pre-agent-plugin project already had.
+  // from rendering; while it is in flight the editor falls back to showing the
+  // rules axis, which is what every pre-agent-plugin project already had. The
+  // posture axis stays hidden until the probe reports postures to offer.
   const capabilities = useQuery({
     queryKey: ["project-permissions-capabilities", projectId],
     queryFn: () => api.fetchAgentPermissionsCapabilities(projectId),

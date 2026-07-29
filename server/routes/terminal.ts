@@ -17,6 +17,7 @@ import { loadSettings, getProjectPermissions } from "../services/state.js";
 import { AgentUnavailableError, resolveLaunchAgentId } from "../services/agent-launch-pipeline.js";
 import { AgentDescriptorError } from "../services/agent-launch-executor.js";
 import { toLaunchPermissions } from "../services/agent-permissions.js";
+import { filterSafeRules } from "../services/permission-rule-guard.js";
 import type { AgentNotAvailable } from "../services/agent-plugin-registry.js";
 import { parseIntParam, VALID_JIG_ID } from "./helpers.js";
 import type { TerminalCreateRequest } from "@roubo/shared";
@@ -267,7 +268,10 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         }
       : undefined;
 
-  const projectPermissions = command === "claude" ? getProjectPermissions(projectId) : undefined;
+  // Filtered like the agent-plugin path above (AP-TC-081): the built-in carrier
+  // writes the same settings file, so it must not seed an escaping rule either.
+  const projectPermissions =
+    command === "claude" ? filterSafeRules(getProjectPermissions(projectId)) : undefined;
 
   let session;
   try {

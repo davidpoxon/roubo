@@ -18,6 +18,13 @@
 // path segment, or an absolute/home-rooted path root, anywhere in the string.
 // Everything else passes through untouched.
 //
+// The guard covers the ACCESS-GRANTING groups only, `allow` and `ask`. A `deny`
+// rule is subtractive: naming `~/.ssh/**` in it forbids reach rather than
+// granting it, so guarding `deny` would not close any hole and would instead
+// take away the user's only way to write that guardrail down. `deny` therefore
+// passes through unchecked, in both the boundary assert and the write-path
+// filter.
+//
 // This is the *rule* half of AP-NFR-001's confinement. The *file* half (the
 // settings file a rule is written into never escaping the workspace) is already
 // guaranteed by resolveWithin + assertRealpathWithin in agent-launch-executor.
@@ -33,15 +40,24 @@ export class PermissionRuleError extends Error {
   }
 }
 
+// The delimiters a path token can start after: whitespace, the punctuation that
+// separates arguments, and the glob grouping characters `[`, `{` and `|`. The
+// grouping characters matter because a brace alternation hides a root from a
+// naive scan: `Read({/etc/**,x})` reaches `/etc` just as plainly as
+// `Read(/etc/**)` does, and `Read({..,x}/etc)` reaches `../etc`.
+const TOKEN_START = `\\s(,;"'=\\[{|`;
+
 // A `..` used as a path segment: preceded by a path separator, a delimiter, or
 // the start of the string, and followed by a separator, a delimiter, or the end.
 // `Read(../../etc/**)`, `Bash(cd ..)` and `foo/../bar` all match; `a..b`,
 // `WebFetch(domain:example..com)` and an ordinary ellipsis do not.
-const TRAVERSAL_SEGMENT = /(?:^|[/\\\s(,:;"'=])\.\.(?:[/\\\s),;"']|$)/;
+const TRAVERSAL_SEGMENT = new RegExp(
+  `(?:^|[/\\\\:${TOKEN_START}])\\.\\.(?:[/\\\\\\s),;"'\\]}|]|$)`,
+);
 
 // A filesystem root: a leading `/` or `\`, a `~` home reference, or a Windows
 // drive letter, at the start of the string or of any token inside it.
-const ABSOLUTE_ROOT = /(?:^|[\s(,;"'=])(?:[/\\]|~[/\\]?|[A-Za-z]:[/\\])/;
+const ABSOLUTE_ROOT = new RegExp(`(?:^|[${TOKEN_START}])(?:[/\\\\]|~[/\\\\]?|[A-Za-z]:[/\\\\])`);
 
 /**
  * Why this rule cannot be stored, or `undefined` when it is safe. Returning the
@@ -64,9 +80,10 @@ export function isSafeRule(rule: string): boolean {
 }
 
 /**
- * Throw on the first path-escaping rule in any of the three arrays. Used at the
- * API boundary so an escaping pattern is rejected at the point the user adds it
- * (AP-TC-081 S001) rather than silently stored.
+ * Throw on the first path-escaping rule in any of the access-granting arrays.
+ * Used at the API boundary so an escaping pattern is rejected at the point the
+ * user adds it (AP-TC-081 S001) rather than silently stored. Callers pass only
+ * the granting groups; `deny` is subtractive and is never checked.
  */
 export function assertSafeRules(groups: Record<string, string[] | undefined>): void {
   for (const [group, rules] of Object.entries(groups)) {
@@ -83,10 +100,11 @@ export function assertSafeRules(groups: Record<string, string[] | undefined>): v
 }
 
 /**
- * Drop every path-escaping rule from a stored set. Belt and braces for the write
- * path: a rules file persisted before this guard existed (or edited by hand)
- * must still not put an escaping pattern into a bench workspace on resync
- * (AP-TC-081 S002).
+ * Drop every path-escaping rule from the access-granting groups of a stored set.
+ * Belt and braces for the write path: a rules file persisted before this guard
+ * existed (or edited by hand) must still not put an escaping pattern into a
+ * bench workspace on resync (AP-TC-081 S002). `deny` is left intact: filtering
+ * it would strip the user's guardrails rather than enforce them.
  */
 export function filterSafeRules<T extends { allow: string[]; deny: string[]; ask?: string[] }>(
   permissions: T,
@@ -94,7 +112,6 @@ export function filterSafeRules<T extends { allow: string[]; deny: string[]; ask
   return {
     ...permissions,
     allow: permissions.allow.filter(isSafeRule),
-    deny: permissions.deny.filter(isSafeRule),
     ...(permissions.ask !== undefined && { ask: permissions.ask.filter(isSafeRule) }),
   };
 }
