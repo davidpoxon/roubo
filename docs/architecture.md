@@ -112,6 +112,26 @@ Tools are quick-open actions defined in `roubo.yaml`. Two kinds exist:
 
 Tools only appear in the UI when their dependencies are running. A browser tool that `requires: client` is greyed out until the `client` component is healthy.
 
+## Session notifications
+
+A bench terminal session is either working, waiting on you, or gone. Roubo turns the last two into bench notifications so a tab you are not looking at can still ask for attention: a **waiting** notification while a session sits idle at a prompt, and an **exited** notification when its process ends. Both are session-scoped: they carry the session id, and the terminal tab strip renders an indicator on any inactive tab with a matching notification.
+
+### Two waiting-detection mechanisms
+
+**Hook-driven.** The agent tells Roubo it is waiting. Roubo exposes a local endpoint, `POST /api/hooks/claude-notification`, and the agent is configured at launch to call it with its own session id. This is immediate and precise: it fires on a permission prompt or a finished turn rather than on a guess about idleness. An AI coding agent launched from a plugin declares this wiring in its launch descriptor (`capabilities.notification`, `kind: "http-hook"`); Roubo executes the declared workspace write that registers the hook, substituting the real session id and port so the plugin never learns either.
+
+**Quiescence.** No hook, so Roubo infers waiting from silence: if a session's PTY produces no output for a debounce window, it is treated as waiting. A plugin tunes its own window with `capabilities.waitingDetection`, either `quiescence-only` with a `debounceMs`, or `hook-driven` with a `quiescenceFallbackMs` used as a safety net behind its hook (an agent TUI redraws while it works, so the fallback window is deliberately long, defaulting to 8000ms). A session declaring nothing gets the generic 2000ms terminal window and a plain `terminal-waiting` notification.
+
+The two compose: a hook-driven agent still arms the quiescence timer, because a hook covers the states the agent knows to report and quiescence covers the rest.
+
+### Correlation
+
+The session id is minted by Roubo before the agent is asked for anything, so the id in the agent's argv, the id written into its hook configuration, and the id on the session record are all the same value. A hook POST is honoured only when that id names a session that is **still live** and whose agent **declared hook wiring**. Both halves matter: eligibility is a property of the launch descriptor rather than of the command name, so no agent is privileged by what its binary is called, and the live check is what expires a correlation token. An exited session, or one restored from disk after a restart, keeps its record so its scrollback survives, but a POST quoting it is rejected and logged rather than raising a notification.
+
+### Dismissal
+
+Waiting notifications are transient by design and clear themselves as soon as the premise stops holding: fresh PTY output dismisses them (the session resumed work), as does typing into the session (you engaged with it). Exited notifications are sticky and stay until dismissed, because a process does not un-exit.
+
 ## API
 
 Roubo's UI is a React frontend that calls the same REST API any external tool can use. This is intentional: AI coding agents (see [Supported AI coding tools](../README.md#supported-ai-coding-tools)) can self-serve benches by hitting the API directly.

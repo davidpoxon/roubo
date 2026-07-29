@@ -192,7 +192,9 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         ...(initialInput !== undefined && { initialInput }),
         // #646: without this the agent branch registers no exit callback, so a
         // jig-driven launch that resolves an agent stops producing the bench
-        // exit notification the built-in path emits.
+        // exit notification the built-in path emits. The descriptor schema has
+        // no `exited` hook event, so PTY exit is the only real mechanism for it
+        // (AP-FR-013).
         onAgentExit: (sessionId: string) => {
           notificationService.createNotification(bench, "agent-exited", sessionId);
         },

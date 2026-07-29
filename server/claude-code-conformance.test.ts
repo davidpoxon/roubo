@@ -189,7 +189,7 @@ vi.mock("./services/jig-manager.js", () => ({
 // Partial: only the two bench-context providers are fixtured. `resolveTemplate`
 // stays REAL because the agent-plugin launch path resolves a descriptor's
 // {{sessionId}} / {{port}} / {{workspace}} through it, and faking that would
-// hide the very seam the AP-TC-096 rows assert.
+// hide the very seam the AP-TC-096 and CC-NOTIFY-PARITY rows assert.
 vi.mock("./services/config-parser.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./services/config-parser.js")>()),
   buildTemplateContext: () => ({ ports: {}, portHttps: {}, workspace: "/ws", components: {} }),
@@ -209,8 +209,10 @@ vi.mock("./services/issue-formatting.js", () => ({
 // stubbed: the availability gate, the four-layer effective-config resolution,
 // descriptor validation, template resolution and the spawn are all real, which
 // is what lets the plugin rows assert the same observable seams as the built-in
-// ones. `installed` defaults to false so every built-in row above resolves no
-// agent at all and keeps its current behavior.
+// ones. The CC-NOTIFY-PARITY rows ride the same fixture, declaring notification
+// and waiting-detection capabilities on the descriptor instead of an
+// `initialPrompt`. `installed` defaults to false so every built-in row above
+// resolves no agent at all and keeps its current behavior.
 const agentFixture = vi.hoisted(() => ({
   pluginId: "acme-agent",
   installed: false,
@@ -360,6 +362,52 @@ async function createTerminal(
     createdSessions.push({ projectId, benchId, sessionId: res.body.sessionId as string });
   }
   return res;
+}
+
+// A descriptor-declared http-hook carrier, structurally what the future Claude
+// Code plugin emits: core writes the hook file and correlates on session_id.
+const HTTP_HOOK_WIRING = {
+  kind: "http-hook",
+  event: "waiting",
+  carrier: {
+    workspaceWrite: {
+      relPath: ".claude/settings.local.json",
+      format: "json",
+      ops: [
+        {
+          op: "set",
+          path: "hooks.Notification",
+          value: FORCED_NOTIFICATION_HOOK(
+            "http://localhost:{{port}}/api/hooks/claude-notification",
+          ),
+        },
+      ],
+    },
+  },
+  correlation: { field: "session_id", source: "agent-native" },
+} as const;
+
+/**
+ * Launch a descriptor-driven agent session through the real terminal route,
+ * with `capabilities` supplied by the test. Only the plugin process is a
+ * fixture; everything downstream (the availability gate, descriptor validation,
+ * template resolution, workspace writes, spawn, session registration,
+ * notifications) is the real host path.
+ */
+async function createAgentTerminal(
+  benchId: number,
+  capabilities: Record<string, unknown>,
+  projectId = PROJECT_ID,
+): Promise<request.Response> {
+  agentFixture.installed = true;
+  agentFixture.descriptor = {
+    schemaVersion: 1,
+    kind: "agent-launch",
+    command: "acme",
+    args: ["--session-id", "{{sessionId}}"],
+    capabilities,
+  };
+  return createTerminal(benchId, { agentPluginId: agentFixture.pluginId }, projectId);
 }
 
 function lastSpawn(): SpawnRecord {
@@ -884,18 +932,45 @@ describe("hook endpoint correlation (CC-HOOK)", () => {
     expect(res.status).toBe(404);
   });
 
-  it("CC-HOOK-04: a non-claude session returns 400 and records nothing", async () => {
+  it("CC-HOOK-04: a session with no hook wiring returns 400 and records nothing", async () => {
     const { bench, benchId } = seedBench();
     const created = await createTerminal(benchId, {});
     expect(created.status).toBe(201);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await request(app)
+      .post("/api/hooks/claude-notification")
+      .send({ session_id: created.body.sessionId });
+
+    // The gate is the session's declared wiring, not its command name, so the
+    // reason is agent-generic (AP-FR-013).
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/hook-wired/);
+    expect(res.body.error).not.toMatch(/claude/i);
+    expect(bench.notifications).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("CC-HOOK-07: a hook POST quoting an already-exited session is rejected and records nothing", async () => {
+    const { bench, benchId } = seedBench();
+    const created = await createTerminal(benchId, { command: "claude" });
+    expect(created.status).toBe(201);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    lastSpawn().pty.emitExit(0);
+    // Exit records claude-exited; the point of this row is that no *waiting*
+    // record follows the stale token.
+    bench.notifications.length = 0;
 
     const res = await request(app)
       .post("/api/hooks/claude-notification")
       .send({ session_id: created.body.sessionId });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/claude/i);
     expect(bench.notifications).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   it("CC-HOOK-05: a session whose bench no longer exists returns 404", async () => {
@@ -1019,6 +1094,25 @@ describe("quiescence and lifecycle notifications (CC-QUI)", () => {
     expect(notificationsOfType(bench, "claude-exited")).toHaveLength(0);
   });
 
+  // Exit parity, not type parity: the built-in path raises `claude-exited` and
+  // the plugin path raises the product-neutral `agent-exited` (#646). What this
+  // row pins is that a hook-wired agent session raises an exited notification at
+  // all, which it did not before AP-FR-013 wired `onAgentExit`.
+  it("CC-QUI-07: a hook-wired agent session's exit records agent-exited too", async () => {
+    const { bench, benchId } = seedBench();
+    const created = await createAgentTerminal(benchId, {
+      notification: HTTP_HOOK_WIRING,
+      waitingDetection: { kind: "hook-driven" },
+    });
+    const spawn = lastSpawn();
+
+    spawn.pty.emitExit(0);
+
+    const exited = notificationsOfType(bench, "agent-exited");
+    expect(exited).toHaveLength(1);
+    expect(exited[0].sourceSessionId).toBe(created.body.sessionId);
+  });
+
   it("CC-QUI-06: continued silence after a claude-waiting fires does not create duplicates", async () => {
     vi.useFakeTimers();
     const { bench, benchId } = seedBench();
@@ -1031,6 +1125,82 @@ describe("quiescence and lifecycle notifications (CC-QUI)", () => {
 
     vi.advanceTimersByTime(16_000);
     expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(1);
+  });
+});
+
+// ── Area 4b: notification parity for a descriptor-driven session (AP-TC-099) ──
+//
+// The parity claim the built-in rows above pin, restated for a session launched
+// from a plugin descriptor: the same hook endpoint, the same notification
+// records, the same dismissal. What changes is only where eligibility and the
+// debounce come from (the descriptor, not the command name).
+
+describe("descriptor-driven notification parity (CC-NOTIFY-PARITY)", () => {
+  it("CC-NOTIFY-PARITY-01: a descriptor-declared http-hook correlates a POST to a claude-waiting record", async () => {
+    const { bench, benchId } = seedBench();
+    const created = await createAgentTerminal(benchId, { notification: HTTP_HOOK_WIRING });
+    expect(created.status).toBe(201);
+    const sessionId = created.body.sessionId as string;
+    expect(sessionIdArg(lastSpawn())).toBe(sessionId);
+
+    const res = await request(app)
+      .post("/api/hooks/claude-notification")
+      .send({ session_id: sessionId, notification_type: "permission_prompt" });
+
+    expect(res.status).toBe(200);
+    const waiting = notificationsOfType(bench, "claude-waiting");
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0].sourceSessionId).toBe(sessionId);
+  });
+
+  it("CC-NOTIFY-PARITY-02: an agent declaring no notification wiring is rejected by the hook endpoint", async () => {
+    const { bench, benchId } = seedBench();
+    const created = await createAgentTerminal(benchId, {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await request(app)
+      .post("/api/hooks/claude-notification")
+      .send({ session_id: created.body.sessionId });
+
+    expect(res.status).toBe(400);
+    expect(bench.notifications).toHaveLength(0);
+    warnSpy.mockRestore();
+  });
+
+  it("CC-NOTIFY-PARITY-03: the declared quiescence debounce replaces the built-in windows", async () => {
+    vi.useFakeTimers();
+    const { bench, benchId } = seedBench();
+    const created = await createAgentTerminal(benchId, {
+      waitingDetection: { kind: "quiescence-only", debounceMs: 4000 },
+    });
+    const spawn = lastSpawn();
+
+    spawn.pty.emitData("working");
+    // Neither the 2000ms terminal window nor the 8000ms hook fallback applies.
+    vi.advanceTimersByTime(3999);
+    expect(bench.notifications).toHaveLength(0);
+
+    vi.advanceTimersByTime(1);
+    const waiting = notificationsOfType(bench, "claude-waiting");
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0].sourceSessionId).toBe(created.body.sessionId);
+    expect(waiting[0].metadata).toEqual({ label: created.body.label });
+  });
+
+  it("CC-NOTIFY-PARITY-04: fresh output dismisses a descriptor-driven waiting record", async () => {
+    vi.useFakeTimers();
+    const { bench, benchId } = seedBench();
+    await createAgentTerminal(benchId, {
+      waitingDetection: { kind: "quiescence-only", debounceMs: 1000 },
+    });
+    const spawn = lastSpawn();
+
+    spawn.pty.emitData("idle now");
+    vi.advanceTimersByTime(1000);
+    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(1);
+
+    spawn.pty.emitData("working again");
+    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(0);
   });
 });
 
