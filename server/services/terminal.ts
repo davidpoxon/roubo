@@ -18,7 +18,7 @@ import type {
 } from "@roubo/shared/agent-launch-descriptor-schema";
 import { AgentPostureSchema } from "@roubo/shared/agent-launch-descriptor-schema";
 import { atomicWrite, getRouboDir } from "./state.js";
-import { getClaudeBinary, getLoginShell } from "./env.js";
+import { getClaudeBinary, getLoginShell, resolveAgentCommand } from "./env.js";
 import { writeClaudeSettingsLocal } from "./claude-settings-local.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
@@ -618,9 +618,17 @@ export async function createAgentSession(
     env[key] = resolveTemplate(value, ctx);
   }
 
+  // A descriptor's command is a bare name far more often than a path, so it is
+  // resolved through the same well-known-binary fallback the built-in Claude Code
+  // path uses before it reaches the PTY (#645). This runs OUTSIDE the try below
+  // so an unresolvable command surfaces its own error, which names every location
+  // tried, instead of being rewrapped as an opaque spawn failure. The child's own
+  // PATH is used for the probe, since descriptor env may have changed it.
+  const binary = resolveAgentCommand(command, env.PATH);
+
   let ptyProcess;
   try {
-    ptyProcess = pty.spawn(command, args, {
+    ptyProcess = pty.spawn(binary, args, {
       name: "xterm-256color",
       cols: 80,
       rows: 24,
@@ -629,7 +637,7 @@ export async function createAgentSession(
     });
   } catch (err) {
     throw new Error(
-      `Failed to spawn agent session (command: ${command}, cwd: ${cwd}): ${(err as Error).message}`,
+      `Failed to spawn agent session (command: ${binary}, cwd: ${cwd}): ${(err as Error).message}`,
       { cause: err },
     );
   }

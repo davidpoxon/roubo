@@ -157,6 +157,7 @@ vi.mock("./services/env.js", () => ({
   loadEnvFile: () => {},
   resolveShellPath: () => {},
   resolveClaudeBinary: () => {},
+  resolveAgentCommand: (command: string) => command,
 }));
 
 const benchFixtures = vi.hoisted(() => ({ benches: new Map<string, unknown>() }));
@@ -1408,5 +1409,58 @@ describe("permissions CRUD and resync (CC-PERM)", () => {
     // The bench still counts as resynced, but no file is created.
     expect(res.body).toEqual({ resynced: 1, skipped: 0, errors: [] });
     expect(existsSync(workspaceSettingsPath(workspacePath))).toBe(false);
+  });
+});
+
+// ── Binary discovery (#645) ──
+//
+// Not a parity-matrix row: this pins the one parity gap the matrix left open,
+// namely that the matrix's argv and correlation rows say nothing about how the
+// CLI itself is found. The built-in path resolves `claude` through a well-known
+// install list; a plugin's launch descriptor names a bare command. Both must land
+// on the same binary, or a plugin-launched session fails to spawn on installs the
+// built-in path works on. The real env module is used here (the fixture mock at
+// the top of this file is what every other row wants) so the agreement is pinned
+// against the shipping resolver, not a stub.
+
+describe("agent CLI discovery (#645)", () => {
+  it("the built-in path and a descriptor command resolve through one shared resolver", async () => {
+    const env = await vi.importActual<typeof import("./services/env.js")>("./services/env.js");
+    const candidates = env.wellKnownPathsFor("claude");
+    // Guard: the homedir-rooted candidates must sit inside the isolated home, or
+    // this test would probe (and could match) the developer's real install.
+    const shim = join(isolation.tmpHome, ".claude", "local", "claude");
+    expect(candidates).toContain(shim);
+
+    mkdirSync(join(isolation.tmpHome, ".claude", "local"), { recursive: true });
+    writeFileSync(shim, "#!/bin/sh\nexec true\n");
+
+    const original = {
+      PATH: process.env.PATH,
+      SHELL: process.env.SHELL,
+      binary: process.env.ROUBO_CLAUDE_BINARY,
+    };
+    // An empty PATH plus a fish login shell (whose PATH the server never resolves)
+    // is the install shape from the issue: neither path can find `claude` by
+    // searching, so the shared well-known list is the only thing left.
+    process.env.PATH = "";
+    process.env.SHELL = "/usr/local/bin/fish";
+    delete process.env.ROUBO_CLAUDE_BINARY;
+    try {
+      env.resolveClaudeBinary();
+      expect(env.getClaudeBinary()).toBe(shim);
+      expect(env.resolveAgentCommand("claude")).toBe(shim);
+
+      // An explicit path in a descriptor is spawned exactly as given.
+      expect(env.resolveAgentCommand("/opt/acme/bin/acme")).toBe("/opt/acme/bin/acme");
+      // An unresolvable command names what it tried rather than surfacing ENOENT.
+      expect(() => env.resolveAgentCommand("acme")).toThrow(/was not found/);
+    } finally {
+      process.env.PATH = original.PATH;
+      process.env.SHELL = original.SHELL;
+      if (original.binary === undefined) delete process.env.ROUBO_CLAUDE_BINARY;
+      else process.env.ROUBO_CLAUDE_BINARY = original.binary;
+      rmSync(shim, { force: true });
+    }
   });
 });

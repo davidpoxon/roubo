@@ -56,6 +56,8 @@ vi.mock("./env.js", () => ({
   getClaudeBinary: () => "claude",
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
+  // Identity: binary resolution (#645) is env.ts's job and is pinned in env.test.ts.
+  resolveAgentCommand: (command: string) => command,
 }));
 
 const mockSpawn = vi.fn();

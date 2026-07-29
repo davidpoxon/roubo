@@ -562,6 +562,124 @@ describe("resolveClaudeBinary / getClaudeBinary", () => {
   });
 });
 
+describe("resolveAgentCommand (#645)", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv, PATH: "/usr/bin:/bin" };
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("returns an absolute command unchanged without probing the filesystem", async () => {
+    const { resolveAgentCommand } = await import("./env.js");
+    expect(resolveAgentCommand("/opt/acme/bin/acme")).toBe("/opt/acme/bin/acme");
+    expect(fs.existsSync).not.toHaveBeenCalled();
+  });
+
+  it("returns a relative command containing a separator unchanged", async () => {
+    const { resolveAgentCommand } = await import("./env.js");
+    expect(resolveAgentCommand("./bin/acme")).toBe("./bin/acme");
+    expect(fs.existsSync).not.toHaveBeenCalled();
+  });
+
+  it("returns the bare name when the command is found on PATH", async () => {
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === "/usr/bin/acme");
+    const { resolveAgentCommand } = await import("./env.js");
+    // The bare name is deliberate: PATH resolution stays the exec call's job.
+    expect(resolveAgentCommand("acme")).toBe("acme");
+  });
+
+  it("searches the supplied PATH rather than the server's when one is given", async () => {
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === "/child/bin/acme");
+    const { resolveAgentCommand } = await import("./env.js");
+    expect(resolveAgentCommand("acme", "/child/bin")).toBe("acme");
+  });
+
+  it.each([
+    ["~/.local/bin/claude", () => `${process.env.HOME}/.local/bin/claude`],
+    ["~/.claude/local/claude", () => `${process.env.HOME}/.claude/local/claude`],
+    ["/opt/homebrew/bin/claude", () => "/opt/homebrew/bin/claude"],
+    ["/usr/local/bin/claude", () => "/usr/local/bin/claude"],
+  ])("falls back to %s when claude is not on PATH", async (_label, expected) => {
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === expected());
+    const { resolveAgentCommand } = await import("./env.js");
+    expect(resolveAgentCommand("claude")).toBe(expected());
+  });
+
+  it("throws an error naming every location tried when nothing resolves", async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    const { resolveAgentCommand, AgentCommandNotFoundError } = await import("./env.js");
+    let thrown: unknown;
+    try {
+      resolveAgentCommand("claude");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(AgentCommandNotFoundError);
+    const err = thrown as InstanceType<typeof AgentCommandNotFoundError>;
+    expect(err.command).toBe("claude");
+    expect(err.tried).toEqual([
+      "/usr/bin/claude",
+      "/bin/claude",
+      `${process.env.HOME}/.local/bin/claude`,
+      `${process.env.HOME}/.claude/local/claude`,
+      "/opt/homebrew/bin/claude",
+      "/usr/local/bin/claude",
+    ]);
+    for (const location of err.tried) expect(err.message).toContain(location);
+    expect(err.message).toContain('"claude"');
+  });
+
+  it("reports only the PATH candidates for an agent with no well-known locations", async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    const { resolveAgentCommand, AgentCommandNotFoundError } = await import("./env.js");
+    expect(() => resolveAgentCommand("acme")).toThrow(AgentCommandNotFoundError);
+    try {
+      resolveAgentCommand("acme");
+    } catch (err) {
+      expect((err as InstanceType<typeof AgentCommandNotFoundError>).tried).toEqual([
+        "/usr/bin/acme",
+        "/bin/acme",
+      ]);
+    }
+  });
+});
+
+describe("resolveClaudeBinary and resolveAgentCommand agree (#645)", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    // fish skips the login-shell probe, so both paths reduce to the shared
+    // well-known-location list: exactly the agreement under test.
+    process.env = { ...originalEnv, SHELL: "/usr/local/bin/fish", PATH: "/usr/bin:/bin" };
+    delete process.env.ROUBO_CLAUDE_BINARY;
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("resolves claude to the same binary from every well-known location", async () => {
+    const { wellKnownPathsFor, resolveAgentCommand, resolveClaudeBinary, getClaudeBinary } =
+      await import("./env.js");
+    const candidates = wellKnownPathsFor("claude");
+    expect(candidates.length).toBeGreaterThan(0);
+
+    for (const installed of candidates) {
+      delete process.env.ROUBO_CLAUDE_BINARY;
+      vi.mocked(fs.existsSync).mockImplementation((p) => p === installed);
+      resolveClaudeBinary();
+      expect(getClaudeBinary()).toBe(installed);
+      expect(resolveAgentCommand("claude")).toBe(getClaudeBinary());
+    }
+  });
+});
+
 describe("getLoginShell", () => {
   const originalEnv = { ...process.env };
 
