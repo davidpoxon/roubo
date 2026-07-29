@@ -104,6 +104,29 @@ const MOCK_JIG = {
   sizeWarning: false,
 };
 
+type AgentSession = Awaited<ReturnType<typeof terminalService.createAgentSession>>["session"];
+
+/**
+ * Prime `createAgentSession` the way a real launch behaves: an agent that
+ * declares `argv-positional` injection reports the prompt as injected exactly
+ * when the launch carried one. `mode: "none"` models an agent that declares no
+ * injection capability at all (AP-TC-063).
+ */
+function mockAgentLaunch(
+  session: AgentSession,
+  mode: "argv-positional" | "none" = "argv-positional",
+) {
+  vi.mocked(terminalService.createAgentSession).mockImplementation((opts) =>
+    Promise.resolve({
+      session,
+      promptInjection: {
+        mode,
+        injected: mode !== "none" && opts.initialInput !== undefined,
+      },
+    }),
+  );
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -586,7 +609,7 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       MOCK_PROJECT as unknown as ReturnType<typeof projectRegistry.getProject>,
     );
-    vi.mocked(terminalService.createAgentSession).mockResolvedValue(AGENT_SESSION);
+    mockAgentLaunch(AGENT_SESSION);
   });
 
   it("routes to the agent pipeline, passing the preset and per-launch layers through", async () => {
@@ -734,7 +757,7 @@ describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       MOCK_PROJECT as unknown as ReturnType<typeof projectRegistry.getProject>,
     );
-    vi.mocked(terminalService.createAgentSession).mockResolvedValue(AGENT_SESSION);
+    mockAgentLaunch(AGENT_SESSION);
     vi.mocked(terminalService.createSession).mockReturnValue({
       id: "term-1",
       benchKey: "project1:1",
@@ -856,6 +879,89 @@ describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
       "Push feature/test to GitHub",
     );
     vi.useRealTimers();
+  });
+});
+
+// AP-TC-063: injection is the agent's declared capability, so an agent that
+// declares none is not injected into by any route: not positionally (core
+// already skipped it) and not through the post-startup PTY write either.
+describe("an agent that declares no injection capability (AP-FR-018, AP-TC-063)", () => {
+  const AGENT_SESSION = {
+    id: "agent-3",
+    benchKey: "project1:1",
+    label: "Mute Agent 1 - My Project #1",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    status: "live" as const,
+    command: "mute",
+    agentPluginId: "mute-agent",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(benchManager.getBench).mockReturnValue(
+      MOCK_BENCH as unknown as ReturnType<typeof benchManager.getBench>,
+    );
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      MOCK_PROJECT as unknown as ReturnType<typeof projectRegistry.getProject>,
+    );
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Push feature/test to GitHub");
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue("mute-agent");
+    mockAgentLaunch(AGENT_SESSION, "none");
+  });
+
+  it("launches normally with nothing injected and reports neither flag (autoExecute on)", async () => {
+    vi.useFakeTimers();
+    vi.mocked(state.loadSettings).mockReturnValue({
+      jigs: { autoInject: true, autoExecute: true },
+    });
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", jigId: "push" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.sessionId).toBe("agent-3");
+    expect(res.body.jigInjected).toBeUndefined();
+    expect(res.body.jigScheduled).toBeUndefined();
+    vi.runAllTimers();
+    expect(terminalService.writeToSession).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("skips the scheduled PTY write entirely when autoExecute is off", async () => {
+    vi.useFakeTimers();
+    vi.mocked(state.loadSettings).mockReturnValue({
+      jigs: { autoInject: true, autoExecute: false },
+    });
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", jigId: "push" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.jigScheduled).toBeUndefined();
+    expect(res.body.jigInjected).toBeUndefined();
+    vi.runAllTimers();
+    expect(terminalService.writeToSession).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("still reports a jig's sizeWarning, which is about the jig and not the agent", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue({
+      ...MOCK_JIG,
+      sizeWarning: true,
+    } as unknown as ReturnType<typeof jigManager.getJig>);
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", jigId: "push" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.sizeWarning).toBe(true);
+    expect(res.body.jigInjected).toBeUndefined();
   });
 });
 

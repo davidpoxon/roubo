@@ -181,9 +181,9 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   // descriptor and core assembles argv, executes the workspace writes, and
   // spawns. The built-in `command` path below is untouched by this branch.
   if (launchAgentPluginId !== undefined) {
-    let agentSession;
+    let launch;
     try {
-      agentSession = await terminalService.createAgentSession({
+      launch = await terminalService.createAgentSession({
         projectId,
         benchId,
         workspacePath: bench.workspacePath,
@@ -228,7 +228,18 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
       return;
     }
 
-    scheduleWrite?.(agentSession.id);
+    const { session: agentSession, promptInjection } = launch;
+
+    // AP-FR-018: the agent's DECLARED injection capability decides what happens
+    // to the jig, so the response reports the outcome rather than the intent.
+    // An agent declaring no injection gets neither the positional prompt (core
+    // already skipped it) nor the scheduled PTY write, and is reported as
+    // neither injected nor scheduled: it launches normally with nothing
+    // injected and no error (AP-TC-063).
+    const canInject = promptInjection.mode !== "none";
+    jigInjected = promptInjection.injected;
+    jigScheduled = jigScheduled && canInject;
+    if (canInject) scheduleWrite?.(agentSession.id);
 
     res.status(201).json({
       sessionId: agentSession.id,

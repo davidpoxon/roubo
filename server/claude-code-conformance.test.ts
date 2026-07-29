@@ -186,7 +186,12 @@ vi.mock("./services/jig-manager.js", () => ({
   resolveJigContent: (content: string) => content,
 }));
 
-vi.mock("./services/config-parser.js", () => ({
+// Partial: only the two bench-context providers are fixtured. `resolveTemplate`
+// stays REAL because the agent-plugin launch path resolves a descriptor's
+// {{sessionId}} / {{port}} / {{workspace}} through it, and faking that would
+// hide the very seam the AP-TC-096 rows assert.
+vi.mock("./services/config-parser.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./services/config-parser.js")>()),
   buildTemplateContext: () => ({ ports: {}, portHttps: {}, workspace: "/ws", components: {} }),
   applyContainerOverrides: () => {},
 }));
@@ -195,6 +200,47 @@ vi.mock("./services/issue-formatting.js", () => ({
   fetchIssueContext: () => Promise.resolve({}),
   buildPluginIssueContext: () => ({}),
 }));
+
+// ── S3 (agent-plugin variant): the plugin process boundary (AP-TC-096) ──
+//
+// An agent plugin's process is external in exactly the way the agent binary
+// behind node-pty is, so it is replaced with a fixture that answers
+// `translateLaunch` with a descriptor. Nothing else on the plugin path is
+// stubbed: the availability gate, the four-layer effective-config resolution,
+// descriptor validation, template resolution and the spawn are all real, which
+// is what lets the plugin rows assert the same observable seams as the built-in
+// ones. `installed` defaults to false so every built-in row above resolves no
+// agent at all and keeps its current behavior.
+const agentFixture = vi.hoisted(() => ({
+  pluginId: "acme-agent",
+  installed: false,
+  descriptor: undefined as unknown,
+}));
+
+vi.mock("./services/plugin-manager.js", () => ({
+  HOST_API_VERSION: "1.4.0",
+  getConnection: () => ({}),
+  getRecord: (id: string) =>
+    agentFixture.installed && id === agentFixture.pluginId
+      ? {
+          id,
+          manifest: { id, name: "Acme Agent", kind: "agent", roubo: "^1.4.0" },
+          manifestPath: "/tmp/acme/roubo-plugin.yaml",
+          pluginDir: "/tmp/acme",
+          source: "bundled",
+          status: "enabled",
+          lastError: null,
+          restartHistory: [],
+          pid: null,
+        }
+      : undefined,
+  getAgentManifests: () =>
+    agentFixture.installed
+      ? [{ id: agentFixture.pluginId, name: "Acme Agent", kind: "agent", roubo: "^1.4.0" }]
+      : [],
+  invoke: () => Promise.resolve(agentFixture.descriptor),
+}));
+vi.mock("./services/plugin-consent-state.js", () => ({ hasConsent: () => true }));
 
 import terminalRouter from "./routes/terminal.js";
 import hooksRouter from "./routes/hooks.js";
@@ -347,6 +393,8 @@ beforeEach(() => {
   benchFixtures.benches.clear();
   projectFixtures.projects.clear();
   jigFixtures.jigs.clear();
+  agentFixture.installed = false;
+  agentFixture.descriptor = undefined;
   seedProject(PROJECT_ID);
   // Reset the app settings file to defaults (autoExecute true, auto mode off).
   writeUserSettings({});
@@ -515,6 +563,152 @@ describe("jig injection (CC-JIG)", () => {
 
     expect(res.status).toBe(201);
     expect(lastSpawn().settingsFileExistedAtSpawn).toBe(true);
+  });
+});
+
+// ── Area 1b: jig injection through an agent plugin (AP-TC-096) ──
+//
+// The same CC-JIG rows, re-run against the agent-plugin launch path with a
+// fixture plugin that DECLARES the injection capability the built-in path
+// hardcodes. Every assertion targets the same observable seams as its built-in
+// twin (S1 the route response, S3 argv and PTY writes, S5 the 1500ms clock), so
+// a divergence between the two paths fails here rather than in production.
+
+describe("jig injection through the agent plugin (AP-TC-096)", () => {
+  /** What a Claude-parity agent plugin answers `translateLaunch` with. */
+  function installAgent(initialPrompt?: { mode: "argv-positional"; maxLength?: number }): void {
+    agentFixture.installed = true;
+    agentFixture.descriptor = {
+      schemaVersion: 1,
+      kind: "agent-launch",
+      command: "claude",
+      args: ["--session-id", "{{sessionId}}"],
+      ...(initialPrompt !== undefined && { initialPrompt }),
+    };
+  }
+
+  const CLAUDE_PARITY = { mode: "argv-positional", maxLength: 100_000 } as const;
+
+  function launchWithJig(benchId: number, jigId: string): Promise<request.Response> {
+    return createTerminal(benchId, {
+      command: "claude",
+      jigId,
+      agentPluginId: agentFixture.pluginId,
+    });
+  }
+
+  it("CC-JIG-01 (plugin): autoExecute on passes the resolved jig as the final positional argument and reports jigInjected", async () => {
+    installAgent(CLAUDE_PARITY);
+    const { benchId, workspacePath } = seedBench();
+    seedJig("push", "Push my branch to GitHub");
+    writeUserSettings({ jigs: { autoInject: true, autoExecute: true } });
+
+    const res = await launchWithJig(benchId, "push");
+
+    expect(res.status).toBe(201);
+    expect(res.body.jigInjected).toBe(true);
+    expect(res.body.jigScheduled).toBeUndefined();
+    const spawn = lastSpawn();
+    expect(spawn.file).toBe("claude");
+    expect(spawn.cwd).toBe(workspacePath);
+    expect(spawn.args[spawn.args.length - 1]).toBe("Push my branch to GitHub");
+    expect(sessionIdArg(spawn)).toBe(res.body.sessionId);
+  });
+
+  it("CC-JIG-02 (plugin): autoExecute off omits the positional argument and writes the jig to the PTY 1500ms after creation", async () => {
+    vi.useFakeTimers();
+    installAgent(CLAUDE_PARITY);
+    const { benchId } = seedBench();
+    seedJig("push", "Push my branch to GitHub");
+    writeUserSettings({ jigs: { autoInject: true, autoExecute: false } });
+
+    const res = await launchWithJig(benchId, "push");
+
+    expect(res.status).toBe(201);
+    expect(res.body.jigScheduled).toBe(true);
+    expect(res.body.jigInjected).toBeUndefined();
+    const spawn = lastSpawn();
+    // No positional prompt: argv ends at the session id.
+    expect(spawn.args).toEqual(["--session-id", res.body.sessionId]);
+
+    vi.advanceTimersByTime(1499);
+    expect(spawn.pty.writes).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(spawn.pty.writes).toEqual(["Push my branch to GitHub"]);
+  });
+
+  it("CC-JIG-03 (plugin): the positional prompt argument is truncated to the declared 100,000 characters", async () => {
+    installAgent(CLAUDE_PARITY);
+    const { benchId } = seedBench();
+    seedJig("huge", "x".repeat(150_000));
+
+    const res = await launchWithJig(benchId, "huge");
+
+    expect(res.status).toBe(201);
+    expect(res.body.jigInjected).toBe(true);
+    expect(lastSpawn().args[lastSpawn().args.length - 1]).toHaveLength(100_000);
+  });
+
+  it("CC-JIG-03 (plugin): the scheduled PTY write path delivers the full content untruncated", async () => {
+    vi.useFakeTimers();
+    installAgent(CLAUDE_PARITY);
+    const { benchId } = seedBench();
+    seedJig("huge", "x".repeat(150_000));
+    writeUserSettings({ jigs: { autoInject: true, autoExecute: false } });
+
+    const res = await launchWithJig(benchId, "huge");
+
+    expect(res.status).toBe(201);
+    const spawn = lastSpawn();
+    vi.advanceTimersByTime(1500);
+    expect(spawn.pty.writes[0]).toHaveLength(150_000);
+  });
+
+  it("CC-JIG-07 (plugin): a jig flagged sizeWarning propagates sizeWarning: true in the response", async () => {
+    installAgent(CLAUDE_PARITY);
+    const { benchId } = seedBench();
+    seedJig("big", "large content", true);
+
+    const res = await launchWithJig(benchId, "big");
+
+    expect(res.status).toBe(201);
+    expect(res.body.jigInjected).toBe(true);
+    expect(res.body.sizeWarning).toBe(true);
+  });
+
+  it("AP-TC-063: an agent that declares no injection capability launches with nothing injected and no error", async () => {
+    vi.useFakeTimers();
+    installAgent(); // no `initialPrompt` in the descriptor
+    const { benchId } = seedBench();
+    seedJig("push", "Push my branch to GitHub");
+
+    const res = await launchWithJig(benchId, "push");
+
+    expect(res.status).toBe(201);
+    expect(res.body.jigInjected).toBeUndefined();
+    expect(res.body.jigScheduled).toBeUndefined();
+    const spawn = lastSpawn();
+    expect(spawn.args).toEqual(["--session-id", res.body.sessionId]);
+
+    vi.advanceTimersByTime(10_000);
+    expect(spawn.pty.writes).toEqual([]);
+  });
+
+  it("AP-TC-063: the same agent with autoExecute off gets no scheduled PTY write either", async () => {
+    vi.useFakeTimers();
+    installAgent();
+    const { benchId } = seedBench();
+    seedJig("push", "Push my branch to GitHub");
+    writeUserSettings({ jigs: { autoInject: true, autoExecute: false } });
+
+    const res = await launchWithJig(benchId, "push");
+
+    expect(res.status).toBe(201);
+    expect(res.body.jigScheduled).toBeUndefined();
+    const spawn = lastSpawn();
+
+    vi.advanceTimersByTime(10_000);
+    expect(spawn.pty.writes).toEqual([]);
   });
 });
 
