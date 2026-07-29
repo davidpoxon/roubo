@@ -8,6 +8,7 @@ vi.mock("./services/env.js", () => ({
   getClaudeBinary: vi.fn(() => "claude"),
   getEnvFileKeys: vi.fn(() => []),
   getContextWindow: vi.fn(() => 200000),
+  resolveAgentCommand: vi.fn((command: string) => command),
 }));
 vi.mock("./services/project-registry.js", () => ({
   initialize: vi.fn(),
@@ -215,6 +216,7 @@ describe.sequential("startServer", () => {
         getClaudeBinary: vi.fn(() => "claude"),
         getEnvFileKeys: vi.fn(() => []),
         getContextWindow: vi.fn(() => 200000),
+        resolveAgentCommand: vi.fn((command: string) => command),
       }));
       vi.doMock("./services/project-registry.js", () => ({
         initialize: vi.fn(),

@@ -133,17 +133,97 @@ export function resolveShellPath(): void {
   }
 }
 
-const WELL_KNOWN_CLAUDE_PATHS = [
-  path.join(os.homedir(), ".local", "bin", "claude"),
-  path.join(os.homedir(), ".claude", "local", "claude"),
-  "/opt/homebrew/bin/claude",
-  "/usr/local/bin/claude",
-];
+/**
+ * Well-known install locations for an agent CLI, keyed by the command's base name.
+ *
+ * The list is host-side rather than descriptor-side on purpose: an agent plugin
+ * returns a declarative, host-agnostic launch descriptor and has no business
+ * hardcoding absolute install paths for the machine it happens to run on. Making
+ * the candidate list per-agent data (carried on the descriptor or the plugin
+ * manifest) is deferred to #645's follow-up discussion; until then an agent whose
+ * basename is not known here resolves through PATH only, which is exactly the
+ * behaviour it had before, plus an actionable error on a miss.
+ */
+export function wellKnownPathsFor(command: string): string[] {
+  switch (path.basename(command)) {
+    case "claude":
+      return [
+        path.join(os.homedir(), ".local", "bin", "claude"),
+        path.join(os.homedir(), ".claude", "local", "claude"),
+        "/opt/homebrew/bin/claude",
+        "/usr/local/bin/claude",
+      ];
+    default:
+      return [];
+  }
+}
+
+/** The first well-known install location for `command` that exists on disk. */
+function findWellKnownPath(command: string): string | undefined {
+  return wellKnownPathsFor(command).find((p) => fs.existsSync(p));
+}
+
+/** Thrown by resolveAgentCommand when an agent CLI is found nowhere. */
+export class AgentCommandNotFoundError extends Error {
+  readonly command: string;
+  readonly tried: string[];
+
+  constructor(command: string, tried: string[]) {
+    super(
+      `Agent CLI "${command}" was not found on PATH or in any well-known install location. ` +
+        `Tried: ${tried.length > 0 ? tried.join(", ") : "(nothing: PATH is empty)"}`,
+    );
+    this.name = "AgentCommandNotFoundError";
+    this.command = command;
+    this.tried = tried;
+  }
+}
+
+/**
+ * Resolves an agent CLI command to something spawnable, in this order (#645):
+ *
+ * 1. A command containing a path separator is an explicit path: returned as-is.
+ * 2. A command found on `searchPath` is returned unchanged, so the exec call
+ *    resolves it exactly as it does today. Returning the bare name (rather than
+ *    the first matching directory entry) keeps this step a probe, not a
+ *    reimplementation of execvp's own search.
+ * 3. Otherwise the first well-known install location that exists on disk. This
+ *    is the same list the built-in Claude Code path uses, so a session launched
+ *    from an agent plugin finds the CLI on every install the built-in path does
+ *    (notably the ~/.claude/local/claude shim, and fish or GUI launches whose
+ *    PATH the server process never inherits).
+ * 4. On a total miss, throws AgentCommandNotFoundError naming every location
+ *    tried, rather than leaving an opaque ENOENT to surface from the PTY.
+ *
+ * `searchPath` defaults to the server's own PATH; callers spawning with a
+ * modified PATH should pass the child's.
+ */
+export function resolveAgentCommand(
+  command: string,
+  searchPath: string | undefined = process.env.PATH,
+): string {
+  if (command.includes(path.sep) || command.includes("/")) return command;
+
+  const tried: string[] = [];
+  for (const dir of (searchPath ?? "").split(path.delimiter)) {
+    if (!dir) continue;
+    const candidate = path.join(dir, command);
+    tried.push(candidate);
+    if (fs.existsSync(candidate)) return command;
+  }
+
+  const wellKnown = findWellKnownPath(command);
+  if (wellKnown) return wellKnown;
+  tried.push(...wellKnownPathsFor(command));
+
+  throw new AgentCommandNotFoundError(command, tried);
+}
 
 /**
  * Resolves the absolute path to the Claude CLI and stores it in process.env.ROUBO_CLAUDE_BINARY.
- * Resolution order: login-shell `command -v claude`, then well-known install locations, then
- * bare 'claude' (relies on PATH; spawn will throw a descriptive error if not found).
+ * Resolution order: login-shell `command -v claude`, then the well-known install locations shared
+ * with resolveAgentCommand, then bare 'claude' (relies on PATH; spawn will throw a descriptive
+ * error if not found).
  * Silently no-ops on failure: the bare-name fallback ensures backwards-compatible behaviour.
  */
 export function resolveClaudeBinary(): void {
@@ -164,12 +244,8 @@ export function resolveClaudeBinary(): void {
     }
   }
 
-  for (const p of WELL_KNOWN_CLAUDE_PATHS) {
-    if (fs.existsSync(p)) {
-      process.env.ROUBO_CLAUDE_BINARY = p;
-      return;
-    }
-  }
+  const wellKnown = findWellKnownPath("claude");
+  if (wellKnown) process.env.ROUBO_CLAUDE_BINARY = wellKnown;
   // No path found: leave ROUBO_CLAUDE_BINARY unset; getClaudeBinary() returns 'claude'.
 }
 

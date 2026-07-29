@@ -32,10 +32,17 @@ vi.mock("./notification.js", () => ({
   WAITING_NOTIFICATION_TYPES: new Set(["terminal-waiting", "claude-waiting"]),
 }));
 vi.mock("./bench-manager.js", () => ({ getBench: vi.fn() }));
+// Binary resolution itself is env.ts's job and is pinned in env.test.ts; here the
+// resolver is a recorder so the wiring (#645) can be asserted: what the descriptor
+// asked for goes in, what comes out is what reaches the PTY.
+const envMocks = vi.hoisted(() => ({
+  resolveAgentCommand: vi.fn((command: string) => command),
+}));
 vi.mock("./env.js", () => ({
   getClaudeBinary: () => "claude",
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
+  resolveAgentCommand: envMocks.resolveAgentCommand,
 }));
 
 const spawnMock = vi.hoisted(() => vi.fn());
@@ -101,6 +108,7 @@ let workspace: string;
 beforeEach(() => {
   workspace = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-agent-ws-"));
   spawnMock.mockReset().mockImplementation(() => createMockPty());
+  envMocks.resolveAgentCommand.mockReset().mockImplementation((command: string) => command);
   stateMocks.atomicWrite.mockReset();
   pipelineMocks.prepareAgentLaunch.mockReset();
 });
@@ -628,5 +636,28 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     await expect(launch()).rejects.toThrow(
       /Failed to spawn agent session \(command: missing-agent/,
     );
+  });
+
+  it("spawns what the shared resolver returns, not the descriptor's bare command (#645)", async () => {
+    prepare({ command: "claude", env: { PATH: "/child/bin" } });
+    envMocks.resolveAgentCommand.mockReturnValue("/home/dev/.claude/local/claude");
+
+    await launch();
+
+    // Resolution runs on the templated command, against the child's own PATH.
+    expect(envMocks.resolveAgentCommand).toHaveBeenCalledWith("claude", "/child/bin");
+    expect(spawnCall().command).toBe("/home/dev/.claude/local/claude");
+  });
+
+  it("surfaces the resolver's own error instead of an opaque spawn failure (#645)", async () => {
+    prepare({ command: "claude" });
+    envMocks.resolveAgentCommand.mockImplementation(() => {
+      throw new Error('Agent CLI "claude" was not found. Tried: /usr/bin/claude');
+    });
+
+    const err = (await launch().catch((e: unknown) => e)) as Error;
+    expect(err.message).toContain('Agent CLI "claude" was not found');
+    expect(err.message).not.toContain("Failed to spawn agent session");
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 });
