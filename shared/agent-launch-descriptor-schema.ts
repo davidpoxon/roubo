@@ -131,8 +131,9 @@ export type VersionProbeSpec = z.infer<typeof VersionProbeSpecSchema>;
 
 // ── Waiting detection ──
 //
-// Absent, an agent gets the generic quiescence debounce every non-Claude
-// terminal already receives; nothing in core requires this capability to exist.
+// Absent, core picks the debounce from the notification wiring: an `http-hook`
+// agent gets the 8000ms hook fallback, anything else the generic terminal
+// debounce. Nothing in core requires this capability to exist.
 
 export const WaitingDetectionSpecSchema = z.discriminatedUnion("kind", [
   z
@@ -213,9 +214,11 @@ export type PermissionsCapability = z.infer<typeof PermissionsCapabilitySchema>;
 //
 // Every capability is optional and absence is first-class: no `workspaceWrites`
 // means core writes nothing into the workspace, no `notification` means nothing
-// is wired, no `versionProbe` means no gate, no `waitingDetection` means the
-// generic quiescence debounce, no `permissions` means core injects nothing. An
-// agent declaring zero capabilities launches as a plain terminal session.
+// is wired, no `versionProbe` means no gate, no `permissions` means core
+// injects nothing. No `waitingDetection` means core picks the debounce from the
+// notification wiring: an `http-hook` agent gets the 8000ms hook fallback, and
+// anything else the generic terminal debounce. An agent declaring zero
+// capabilities launches as a plain terminal session.
 
 export const AgentCapabilitiesSchema = z
   .object({

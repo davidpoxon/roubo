@@ -447,7 +447,7 @@ Content-Type: application/json
 
 The endpoint an AI coding agent calls to say it is waiting on the user, raising a waiting notification on the bench that owns the session. It is meant to be called by the agent process, not by an integrator: Roubo configures the agent to call it at launch, substituting the real session id and its own bound port. Extra fields (`notification_type`, `message`, `title`) are accepted and ignored.
 
-`session_id` is the correlation key and must be the id Roubo minted for the session. It is honoured only when that session is still live and its agent declared hook wiring in its launch descriptor. Everything else is rejected and logged, raising no notification: an id for a session that never existed, one whose session has since exited or was restored after a server restart (its token is spent), and one for a session with no hook wiring.
+`session_id` is the correlation key and must be the id Roubo minted for the session. It is honoured only when that session is still live and its agent is hook-wired: for a plugin agent that means it declared the wiring in its launch descriptor, and for the legacy built-in Claude Code path (which has no descriptor) it means core wired the hook itself at launch. Everything else is rejected and logged, raising no notification: an id for a session that never existed, one whose session has since exited or was restored after a server restart (its token is spent), and one for a session with no hook wiring.
 
 Returns `{ "status": "ok" }`. Repeat calls for one session are safe: they collapse into a single waiting notification.
 

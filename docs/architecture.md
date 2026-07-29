@@ -126,7 +126,9 @@ The two compose: a hook-driven agent still arms the quiescence timer, because a 
 
 ### Correlation
 
-The session id is minted by Roubo before the agent is asked for anything, so the id in the agent's argv, the id written into its hook configuration, and the id on the session record are all the same value. A hook POST is honoured only when that id names a session that is **still live** and whose agent **declared hook wiring**. Both halves matter: eligibility is a property of the launch descriptor rather than of the command name, so no agent is privileged by what its binary is called, and the live check is what expires a correlation token. An exited session, or one restored from disk after a restart, keeps its record so its scrollback survives, but a POST quoting it is rejected and logged rather than raising a notification.
+The session id is minted by Roubo before the agent is asked for anything, so the id in the agent's argv, the id written into its hook configuration, and the id on the session record are all the same value. A hook POST is honoured only when that id names a session that is **still live** and whose agent **declared hook wiring**. Both halves matter: for a plugin agent, eligibility is a property of the launch descriptor rather than of the command name, so no plugin is privileged by what its binary is called, and the live check is what expires a correlation token. An exited session, or one restored from disk after a restart, keeps its record so its scrollback survives, but a POST quoting it is rejected and logged rather than raising a notification.
+
+One exception is deliberate and temporary: the legacy built-in Claude Code path has no launch descriptor, so core hook-wires it directly (`writeClaudeSettingsLocal`) and marks it eligible on that basis. It is the last place a command name still confers eligibility, and it goes away with the rest of the built-in (#521).
 
 ### Dismissal
 

@@ -259,9 +259,10 @@ function dismissWaitingNotificationsForSession(internal: InternalSession): void 
  * Descriptor-driven first (AP-FR-013): a `quiescence-only` agent gets exactly
  * the debounce it declared, and a `hook-driven` one gets its declared fallback
  * (quiescence is only a safety net behind its hook). An agent declaring no
- * waiting detection falls back to the generic terminal debounce, except on the
- * legacy built-in Claude path, whose 8000ms window is preserved by its
- * `hookNotification` flag until AP-WU-020 (#521) removes that path.
+ * waiting detection falls back on its wiring: a hook-wired one gets the same
+ * 8000ms fallback window (a plugin declaring `notification.kind === "http-hook"`,
+ * or the legacy built-in Claude path until AP-WU-020 (#521) removes it), and
+ * anything else gets the generic terminal debounce.
  */
 function resolveQuiescenceDebounce(internal: InternalSession): number {
   const spec = internal.waitingDetection;
@@ -731,9 +732,12 @@ export function isLiveSession(sessionId: string): boolean {
  * expires a correlation token: an exited session and one restored from disk
  * after a server restart both keep their record so their scrollback survives,
  * and a POST quoting either is a forged or stale token rather than a live agent
- * asking for attention (AP-TC-084). And its agent must actually be hook-wired,
- * which is a property of the launch descriptor rather than of the command name,
- * so no agent is privileged by what its binary happens to be called.
+ * asking for attention (AP-TC-084). And its agent must actually be hook-wired:
+ * for a plugin agent that is a property of the launch descriptor rather than of
+ * the command name, so no plugin is privileged by what its binary happens to be
+ * called. The legacy built-in Claude path has no descriptor, so `createSession`
+ * asserts its eligibility directly; that is the last command-name gate, and it
+ * goes with the rest of the built-in in AP-WU-020 (#521).
  */
 export function isHookNotificationEligible(sessionId: string): boolean {
   const internal = sessions.get(sessionId);
