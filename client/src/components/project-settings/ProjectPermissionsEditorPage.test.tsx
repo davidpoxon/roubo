@@ -32,9 +32,19 @@ function makeDefaultHook(overrides = {}) {
     error: null,
     resyncBenches: vi.fn(),
     isResyncing: false,
+    capabilities: undefined,
     ...overrides,
   };
 }
+
+/** A resolved agent that honours both axes, the Claude Code shape. */
+const FULL_CAPABILITIES = {
+  agentPluginId: "claude-code",
+  agentName: "Claude Code",
+  postures: ["read-only", "guarded", "auto-edit", "full-auto"] as const,
+  rules: true,
+  resync: true,
+};
 
 function LocationCapture({ onChange }: { onChange: (path: string) => void }) {
   const location = useLocation();
@@ -75,7 +85,7 @@ beforeEach(() => {
 describe("ProjectPermissionsEditorPage", () => {
   it("renders the page heading", () => {
     renderEditor();
-    expect(screen.getByRole("heading", { name: "Claude Code permissions" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Agent permissions" })).toBeInTheDocument();
   });
 
   it("renders the Add rule container", () => {
@@ -250,5 +260,86 @@ describe("ProjectPermissionsEditorPage", () => {
     await user.click(screen.getByRole("button", { name: /re-sync benches/i }));
 
     expect(addToast).toHaveBeenCalledWith("Connection refused", { duration: 8000 });
+  });
+});
+
+describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", () => {
+  it("shows the posture control for an agent that binds postures", () => {
+    mockedUseProjectPermissions.mockReturnValue(
+      makeDefaultHook({ capabilities: FULL_CAPABILITIES }),
+    );
+    renderEditor();
+    expect(screen.getByText("Posture")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /agent default/i })).toBeInTheDocument();
+  });
+
+  it("hides the posture control for an agent that binds none", () => {
+    mockedUseProjectPermissions.mockReturnValue(
+      makeDefaultHook({ capabilities: { ...FULL_CAPABILITIES, postures: [] } }),
+    );
+    renderEditor();
+    expect(screen.queryByText("Posture")).not.toBeInTheDocument();
+  });
+
+  it("hides the rules editor and re-sync for an agent that declares no rules capability", () => {
+    mockedUseProjectPermissions.mockReturnValue(
+      makeDefaultHook({
+        capabilities: {
+          agentPluginId: "codex",
+          agentName: "Codex",
+          postures: ["guarded"],
+          rules: false,
+          resync: false,
+        },
+      }),
+    );
+    renderEditor();
+    expect(screen.queryByText("Add rule")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /re-sync benches/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/does not support fine-grained permission rules/i)).toBeInTheDocument();
+  });
+
+  it("keeps the rules editor when an agent carries rules but cannot re-sync", () => {
+    mockedUseProjectPermissions.mockReturnValue(
+      makeDefaultHook({ capabilities: { ...FULL_CAPABILITIES, resync: false } }),
+    );
+    renderEditor();
+    expect(screen.getByText("Add rule")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /re-sync benches/i })).not.toBeInTheDocument();
+  });
+
+  it("surfaces a rejected path-escaping rule verbatim (AP-TC-081)", () => {
+    mockedUseProjectPermissions.mockReturnValue(
+      makeDefaultHook({
+        isError: true,
+        error: new Error(
+          'Permission rule "Read(../../../../etc/**)" in "allow" was rejected because it contains a ".." path segment, which can reach outside the bench workspace.',
+        ),
+      }),
+    );
+    renderEditor();
+    expect(screen.getByText(/was rejected because/)).toBeInTheDocument();
+  });
+
+  it("preserves the stored posture when a rule is added", async () => {
+    const updatePermissions = vi.fn();
+    mockedUseProjectPermissions.mockReturnValue(
+      makeDefaultHook({
+        permissions: { allow: [], deny: [], ask: [], posture: "auto-edit" },
+        capabilities: FULL_CAPABILITIES,
+        updatePermissions,
+      }),
+    );
+    const user = userEvent.setup();
+    renderEditor();
+    await user.type(screen.getByPlaceholderText("Bash(pytest:*)"), "Read(src/**)");
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+
+    expect(updatePermissions).toHaveBeenCalledWith({
+      allow: ["Read(src/**)"],
+      deny: [],
+      ask: [],
+      posture: "auto-edit",
+    });
   });
 });

@@ -32,6 +32,8 @@ import type {
   SettingsResponse,
   BenchNotification,
   ProjectPermissions,
+  PermissionsResyncResult,
+  AgentPermissionsCapabilities,
   ProjectSettings,
   ProjectSettingsResponse,
   ProjectDefaultJigResponse,
@@ -1058,16 +1060,24 @@ export function updateProjectPermissions(
   });
 }
 
-export interface ResyncResult {
-  resynced: number;
-  skipped: number;
-  errors: { benchId: number; message: string }[];
-}
+/** Re-exported so the editor and its tests share one shape with the server. */
+export type ResyncResult = PermissionsResyncResult;
 
-export function resyncProjectPermissions(projectId: string): Promise<ResyncResult> {
+export function resyncProjectPermissions(projectId: string): Promise<PermissionsResyncResult> {
   return request(`/projects/${projectId}/permissions/resync`, {
     method: "POST",
   });
+}
+
+/**
+ * What the project's agent actually honours, so the editor can hide the axes it
+ * ignores: an agent that declares no rules capability gets no rules editor and
+ * no re-sync control (AP-FR-016).
+ */
+export function fetchAgentPermissionsCapabilities(
+  projectId: string,
+): Promise<AgentPermissionsCapabilities> {
+  return request(`/projects/${projectId}/permissions/capabilities`);
 }
 
 // Project settings

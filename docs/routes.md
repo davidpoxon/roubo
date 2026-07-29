@@ -137,6 +137,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/api/projects/:projectId/labels`                                                          | `server/routes/issues.ts`               |
 | GET    | `/api/projects/:projectId/permissions`                                                     | `server/routes/permissions.ts`          |
 | PUT    | `/api/projects/:projectId/permissions`                                                     | `server/routes/permissions.ts`          |
+| GET    | `/api/projects/:projectId/permissions/capabilities`                                        | `server/routes/permissions.ts`          |
 | POST   | `/api/projects/:projectId/permissions/resync`                                              | `server/routes/permissions.ts`          |
 | GET    | `/api/projects/:projectId/projects`                                                        | `server/routes/projects.ts`             |
 | POST   | `/api/projects/:projectId/reload-config`                                                   | `server/routes/projects.ts`             |

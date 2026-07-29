@@ -413,6 +413,90 @@ Resolves template variables (`{{ports.*}}`, `{{workspace}}`, etc.) against the b
 
 ---
 
+## Agent permissions
+
+One per-project permissions model, shared by every AI coding agent. It has two axes:
+
+- **Posture**: how much the agent may do on its own. One universal vocabulary (`read-only`, `guarded`, `auto-edit`, `full-auto`) that each agent plugin maps to its own native mechanism.
+- **Rules**: fine-grained `allow` / `ask` / `deny` pattern strings. Roubo stores, unions, and injects them, and never parses their vocabulary; only an agent that declares the rules capability carries them anywhere.
+
+Both are per project, not per bench, and are applied to a bench workspace when a session starts. Rule injection is **additive**: a rule removed from the project is never removed from an existing bench, and only stops applying when that bench is cleared.
+
+### Read the stored permissions
+
+```
+GET /api/projects/:projectId/permissions
+```
+
+```json
+{
+  "allow": ["Bash(npm run *)", "Read(**)"],
+  "ask": ["WebFetch"],
+  "deny": ["Bash(rm -rf *)"],
+  "posture": "auto-edit"
+}
+```
+
+`posture` is optional and absent means the agent keeps whatever its own configuration selected. `ask` is optional for state files written before ask support existed.
+
+### Replace the stored permissions
+
+```
+PUT /api/projects/:projectId/permissions
+Content-Type: application/json
+
+{ "allow": ["Bash(npm run *)"], "ask": [], "deny": [], "posture": "guarded" }
+```
+
+Replaces the whole set (there is no PATCH). Omitted arrays default to `[]`; an omitted `posture` clears it.
+
+- `400` when `allow`, `deny`, or `ask` is not an array of strings, exceeds 100 entries, or contains an entry longer than 512 characters
+- `400` when `posture` is not one of the four values
+- `400` when a rule names a path outside the bench workspace. The check is deliberately vocabulary-free: a rule is rejected when it contains a `..` path segment or an absolute / home-rooted path root, whatever agent syntax surrounds it. The response body carries the offending pattern:
+
+  ```json
+  {
+    "error": "Permission rule \"Read(../../etc/**)\" in \"allow\" was rejected because it contains a \"..\" path segment, which can reach outside the bench workspace.",
+    "rule": "Read(../../etc/**)"
+  }
+  ```
+
+- `404` when the project is not registered
+
+### Ask what the project's agent honours
+
+```
+GET /api/projects/:projectId/permissions/capabilities
+```
+
+```json
+{
+  "agentPluginId": "claude-code",
+  "agentName": "Claude Code",
+  "postures": ["read-only", "guarded", "auto-edit", "full-auto"],
+  "rules": true,
+  "resync": true
+}
+```
+
+Resolves the project's agent plugin and reads the `capabilities.permissions` its launch descriptor declares, so a client can hide the axes that agent ignores (an agent declaring no `rules` capability gets no rules editor and no re-sync control). Nothing is written. When no agent plugin resolves, or the probe fails, the response describes the built-in carrier: `agentPluginId: null`, no postures, rules and resync both `true`.
+
+### Re-sync existing benches
+
+```
+POST /api/projects/:projectId/permissions/resync
+```
+
+```json
+{ "resynced": 2, "skipped": 1, "errors": [{ "benchId": 4, "message": "..." }] }
+```
+
+Re-injects the project's rules into every live bench workspace by dispatching through the agent plugin's declared carrier. A bench with no workspace path, one mid-teardown (`clearing`), or one whose agent declares no rules capability is counted in `skipped` rather than raising an error. A per-bench failure lands in `errors` and never fails the request.
+
+- `404` when the project is not registered
+
+---
+
 ## Notifications
 
 ### Subscribe to real-time bench events (SSE)

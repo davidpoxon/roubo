@@ -298,13 +298,12 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
               <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
-                Claude Code permissions
+                Agent permissions
               </h2>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-[10px] text-stone-400 dark:text-stone-600">
-                Merged into <span className="font-mono">.claude/settings.local.json</span> on bench
-                setup
+                Mapped onto the agent's own permission mechanism on bench setup
               </span>
               <Button
                 onPress={() => navigate(`/projects/${project.id}/settings/permissions`)}

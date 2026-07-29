@@ -7,15 +7,16 @@ vi.mock("../services/project-registry.js");
 vi.mock("../services/bench-manager.js", () => ({
   getBenches: vi.fn(),
 }));
-vi.mock("../services/claude-settings-local.js", () => ({
-  injectPermissions: vi.fn(),
+vi.mock("../services/agent-permissions.js", () => ({
+  applyProjectPermissions: vi.fn(),
+  describeAgentPermissions: vi.fn(),
 }));
 
 import router from "./permissions.js";
 import * as state from "../services/state.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
-import * as claudeSettingsLocal from "../services/claude-settings-local.js";
+import * as agentPermissions from "../services/agent-permissions.js";
 
 const app = express();
 app.use(express.json());
@@ -251,12 +252,15 @@ describe("POST /:projectId/permissions/resync", () => {
     expect(res.status).toBe(404);
   });
 
-  it("calls injectPermissions for each active bench and reports counts", async () => {
+  it("dispatches through the agent seam for each active bench and reports counts", async () => {
     vi.mocked(benchManager.getBenches).mockReturnValue([
       { id: 1, workspacePath: "/ws/bench-1", status: "active" } as never,
       { id: 2, workspacePath: "/ws/bench-2", status: "idle" } as never,
     ]);
-    vi.mocked(claudeSettingsLocal.injectPermissions).mockReturnValue(undefined);
+    vi.mocked(agentPermissions.applyProjectPermissions).mockResolvedValue({
+      carrier: "agent-plugin",
+      written: [],
+    });
 
     const res = await request(app).post("/test-project/permissions/resync");
     const expectedPermissions = { allow: ["Bash(npm test:*)"], deny: [], ask: [] };
@@ -264,18 +268,22 @@ describe("POST /:projectId/permissions/resync", () => {
     expect(res.body.resynced).toBe(2);
     expect(res.body.skipped).toBe(0);
     expect(res.body.errors).toEqual([]);
-    expect(claudeSettingsLocal.injectPermissions).toHaveBeenCalledTimes(2);
-    expect(claudeSettingsLocal.injectPermissions).toHaveBeenCalledWith(
-      "/ws/bench-1",
-      expectedPermissions,
-    );
-    expect(claudeSettingsLocal.injectPermissions).toHaveBeenCalledWith(
-      "/ws/bench-2",
-      expectedPermissions,
-    );
+    expect(agentPermissions.applyProjectPermissions).toHaveBeenCalledTimes(2);
+    expect(agentPermissions.applyProjectPermissions).toHaveBeenCalledWith({
+      projectId: "test-project",
+      benchId: 1,
+      workspacePath: "/ws/bench-1",
+      permissions: expectedPermissions,
+    });
+    expect(agentPermissions.applyProjectPermissions).toHaveBeenCalledWith({
+      projectId: "test-project",
+      benchId: 2,
+      workspacePath: "/ws/bench-2",
+      permissions: expectedPermissions,
+    });
   });
 
-  it("skips benches that are clearing", async () => {
+  it("skips benches that are clearing (AP-TC-080)", async () => {
     vi.mocked(benchManager.getBenches).mockReturnValue([
       { id: 1, workspacePath: "/ws/bench-1", status: "clearing" } as never,
     ]);
@@ -284,7 +292,23 @@ describe("POST /:projectId/permissions/resync", () => {
     expect(res.status).toBe(200);
     expect(res.body.resynced).toBe(0);
     expect(res.body.skipped).toBe(1);
-    expect(claudeSettingsLocal.injectPermissions).not.toHaveBeenCalled();
+    expect(res.body.errors).toEqual([]);
+    expect(agentPermissions.applyProjectPermissions).not.toHaveBeenCalled();
+  });
+
+  it("counts an agent that carries no rules as skipped, not resynced", async () => {
+    vi.mocked(benchManager.getBenches).mockReturnValue([
+      { id: 1, workspacePath: "/ws/bench-1", status: "active" } as never,
+    ]);
+    vi.mocked(agentPermissions.applyProjectPermissions).mockResolvedValue({
+      carrier: "none",
+      written: [],
+    });
+
+    const res = await request(app).post("/test-project/permissions/resync");
+    expect(res.status).toBe(200);
+    expect(res.body.resynced).toBe(0);
+    expect(res.body.skipped).toBe(1);
   });
 
   it("records per-bench errors without failing the request", async () => {
@@ -292,11 +316,9 @@ describe("POST /:projectId/permissions/resync", () => {
       { id: 1, workspacePath: "/ws/bench-1", status: "active" } as never,
       { id: 2, workspacePath: "/ws/bench-2", status: "active" } as never,
     ]);
-    vi.mocked(claudeSettingsLocal.injectPermissions)
-      .mockImplementationOnce(() => undefined)
-      .mockImplementationOnce(() => {
-        throw new Error("No space left");
-      });
+    vi.mocked(agentPermissions.applyProjectPermissions)
+      .mockResolvedValueOnce({ carrier: "built-in", written: [] })
+      .mockRejectedValueOnce(new Error("No space left"));
 
     const res = await request(app).post("/test-project/permissions/resync");
     expect(res.status).toBe(200);
@@ -304,5 +326,115 @@ describe("POST /:projectId/permissions/resync", () => {
     expect(res.body.errors).toHaveLength(1);
     expect(res.body.errors[0].benchId).toBe(2);
     expect(res.body.errors[0].message).toBe("No space left");
+  });
+});
+
+describe("permissions posture and rule guard (AP-FR-016, AP-TC-081)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(projectRegistry.getProject).mockReturnValue(mockProject as never);
+    vi.mocked(state.setProjectPermissions).mockReturnValue(undefined);
+  });
+
+  it("stores and returns the universal posture", async () => {
+    const res = await request(app)
+      .put("/test-project/permissions")
+      .send({ allow: [], deny: [], ask: [], posture: "auto-edit" });
+    expect(res.status).toBe(200);
+    expect(res.body.posture).toBe("auto-edit");
+    expect(state.setProjectPermissions).toHaveBeenCalledWith("test-project", {
+      allow: [],
+      deny: [],
+      ask: [],
+      posture: "auto-edit",
+    });
+  });
+
+  it("leaves the posture absent when none is supplied", async () => {
+    const res = await request(app).put("/test-project/permissions").send({ allow: [] });
+    expect(res.status).toBe(200);
+    expect(res.body.posture).toBeUndefined();
+  });
+
+  it("returns 400 for an unknown posture", async () => {
+    const res = await request(app)
+      .put("/test-project/permissions")
+      .send({ allow: [], posture: "yolo" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/posture must be one of/i);
+    expect(state.setProjectPermissions).not.toHaveBeenCalled();
+  });
+
+  it("rejects a rule with a traversal segment (AP-TC-081)", async () => {
+    const res = await request(app)
+      .put("/test-project/permissions")
+      .send({ allow: ["Read(../../../../etc/**)"] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/path segment/i);
+    expect(res.body.rule).toBe("Read(../../../../etc/**)");
+    expect(state.setProjectPermissions).not.toHaveBeenCalled();
+  });
+
+  it("rejects an absolute-path rule in any of the three groups (AP-TC-081)", async () => {
+    for (const body of [
+      { allow: ["Read(/etc/**)"] },
+      { deny: ["Read(~/.ssh/**)"] },
+      { ask: ["Edit(/var/log/**)"] },
+    ]) {
+      const res = await request(app).put("/test-project/permissions").send(body);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/absolute or home-rooted path/i);
+    }
+    expect(state.setProjectPermissions).not.toHaveBeenCalled();
+  });
+
+  it("still accepts ordinary workspace-scoped patterns", async () => {
+    const res = await request(app)
+      .put("/test-project/permissions")
+      .send({ allow: ["Bash(npm run *)", "Read(./**)", "Edit(**/*.ts)", "mcp__*"] });
+    expect(res.status).toBe(200);
+    expect(state.setProjectPermissions).toHaveBeenCalled();
+  });
+});
+
+describe("GET /:projectId/permissions/capabilities", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(projectRegistry.getProject).mockReturnValue(mockProject as never);
+  });
+
+  it("reports what the resolved agent honours", async () => {
+    vi.mocked(agentPermissions.describeAgentPermissions).mockResolvedValue({
+      agentPluginId: "claude-code",
+      agentName: "Claude Code",
+      postures: ["read-only", "guarded", "auto-edit", "full-auto"],
+      rules: true,
+      resync: true,
+    });
+
+    const res = await request(app).get("/test-project/permissions/capabilities");
+    expect(res.status).toBe(200);
+    expect(res.body.agentPluginId).toBe("claude-code");
+    expect(res.body.rules).toBe(true);
+  });
+
+  it("degrades to the built-in carrier when the probe fails", async () => {
+    vi.mocked(agentPermissions.describeAgentPermissions).mockRejectedValue(new Error("no rpc"));
+
+    const res = await request(app).get("/test-project/permissions/capabilities");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      agentPluginId: null,
+      agentName: null,
+      postures: [],
+      rules: true,
+      resync: true,
+    });
+  });
+
+  it("returns 404 for unknown project", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+    const res = await request(app).get("/unknown/permissions/capabilities");
+    expect(res.status).toBe(404);
   });
 });
