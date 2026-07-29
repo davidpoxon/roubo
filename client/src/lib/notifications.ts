@@ -43,6 +43,10 @@ const notificationMessages: Record<NotificationType, { title: string; body: stri
     title: "Claude exited",
     body: "A Claude Code session has ended",
   },
+  "agent-exited": {
+    title: "Agent exited",
+    body: "An agent session has ended",
+  },
   "bench-ready": { title: "Bench ready", body: "A bench is ready to use" },
   "inspection-complete": {
     title: "Inspection complete",

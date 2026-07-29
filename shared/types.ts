@@ -1452,6 +1452,7 @@ export interface DirtyState {
 
 export type NotificationType =
   | "claude-exited"
+  | "agent-exited"
   | "claude-waiting"
   | "terminal-waiting"
   | "bench-ready"

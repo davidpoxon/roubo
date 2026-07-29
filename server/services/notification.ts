@@ -9,8 +9,8 @@ import * as stateService from "./state.js";
 import * as sseService from "./sse.js";
 
 // Notification types that represent "session is idle, waiting for user input".
-// Cleared on fresh PTY output; sticky session-scoped types (claude-exited)
-// deliberately not in this set.
+// Cleared on fresh PTY output; sticky session-scoped types (claude-exited,
+// agent-exited) deliberately not in this set.
 export const WAITING_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
   "terminal-waiting",
   "claude-waiting",
@@ -23,6 +23,7 @@ function derivePriority(type: NotificationType): NotificationPriority {
     case "bench-error":
     case "component-error":
     case "claude-exited":
+    case "agent-exited":
       return "action-needed";
     case "bench-ready":
     case "inspection-complete":

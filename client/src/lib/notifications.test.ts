@@ -112,6 +112,7 @@ describe("formatNotification", () => {
     "bench-error",
     "component-error",
     "claude-exited",
+    "agent-exited",
   ];
   const infoTypes: NotificationType[] = ["bench-ready", "inspection-complete"];
 

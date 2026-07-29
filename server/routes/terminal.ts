@@ -190,6 +190,12 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         projectName,
         agentPluginId: launchAgentPluginId,
         ...(initialInput !== undefined && { initialInput }),
+        // #646: without this the agent branch registers no exit callback, so a
+        // jig-driven launch that resolves an agent stops producing the bench
+        // exit notification the built-in path emits.
+        onAgentExit: (sessionId: string) => {
+          notificationService.createNotification(bench, "agent-exited", sessionId);
+        },
         layers: {
           ...(presetOverrides !== undefined && { preset: presetOverrides }),
           ...(perLaunchOverrides !== undefined && { perLaunch: perLaunchOverrides }),
