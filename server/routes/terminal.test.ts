@@ -885,6 +885,43 @@ describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
     );
     vi.useRealTimers();
   });
+
+  // The launch surfaces send `agentPluginId` with no `command` at all (issue
+  // #517), so jig resolution can no longer hang off the legacy `claude`
+  // command. Without this the jig is silently dropped from every such launch:
+  // the request still succeeds and the agent still starts, just with no jig,
+  // which is exactly the kind of failure no other assertion here would catch.
+  it("resolves the jig on a command-less agent launch (AP-FR-007, issue #517)", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ agentPluginId: "acme-agent", jigId: "push" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.jigInjected).toBe(true);
+    expect(jigManager.getJig).toHaveBeenCalledWith("project1", "push");
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentPluginId: "acme-agent",
+        initialInput: "Push feature/test to GitHub",
+      }),
+    );
+  });
+
+  it("404s an unknown jig on a command-less agent launch rather than launching without it", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(null);
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ agentPluginId: "acme-agent", jigId: "ghost" });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("Jig not found");
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
+  });
 });
 
 // AP-TC-063: injection is the agent's declared capability, so an agent that

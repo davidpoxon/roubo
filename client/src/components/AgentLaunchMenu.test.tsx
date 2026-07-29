@@ -5,6 +5,7 @@ import { Button, MenuTrigger } from "react-aria-components";
 import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import { renderWithProviders } from "../test/renderWithProviders";
 import AgentLaunchMenu from "./AgentLaunchMenu";
+import { resolveLaunchTarget } from "./settings/agents/agent-launchability";
 
 const BUILTIN_AGENT: ResolvedAgentPreset = {
   id: "__builtin_agent__",
@@ -77,6 +78,13 @@ const CODEX_CONFIGURED: ProjectAgentState = {
   misconfigured: null,
 };
 
+/** The agent the built-in presets bind, installed but not yet configured. */
+const CLAUDE_UNCONFIGURED: ProjectAgentState = {
+  ...CLAUDE,
+  effective: {},
+  misconfigured: { message: "apiKey: must have required property 'apiKey'" },
+};
+
 const onLaunchPreset = vi.fn();
 const onLaunchAgent = vi.fn();
 
@@ -90,6 +98,9 @@ function open({
       <AgentLaunchMenu
         presets={presets}
         agents={agents}
+        // The real owner threads the launch's jig through here; these cases
+        // exercise the menu itself, so no jig binds an agent.
+        resolveTarget={(preset) => resolveLaunchTarget(preset, agents, undefined)}
         onLaunchPreset={onLaunchPreset}
         onLaunchAgent={onLaunchAgent}
       />
@@ -176,6 +187,28 @@ describe("AgentLaunchMenu", () => {
     // The configured agent beside it is still offered (AP-TC-038 S001-O01).
     expect(
       screen.getByRole("menuitem", { name: /^Claude Code:/ }).getAttribute("aria-disabled"),
+    ).not.toBe("true");
+  });
+
+  // A built-in preset overrides no params, and preset resolution only validates
+  // the keys a preset actually sets, so nothing upstream marks it unresolved
+  // when the agent behind it is unconfigured. The menu has to gate on the agent
+  // itself or AP-TC-038 holds for the All-agents row and leaks via the preset.
+  it("disables a preset whose agent is installed but unconfigured (AP-TC-038)", () => {
+    open({ agents: [CLAUDE_UNCONFIGURED, CODEX_CONFIGURED] });
+
+    const builtin = screen.getByRole("menuitem", { name: /^Agent:/ });
+    expect(builtin.getAttribute("aria-disabled")).toBe("true");
+    expect(builtin.textContent).toContain("configure first");
+
+    act(() => {
+      fireEvent.click(builtin);
+    });
+    expect(onLaunchPreset).not.toHaveBeenCalled();
+
+    // A preset bound to a configured agent is untouched by its neighbour.
+    expect(
+      screen.getByRole("menuitem", { name: /^Fast Codex:/ }).getAttribute("aria-disabled"),
     ).not.toBe("true");
   });
 

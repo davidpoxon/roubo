@@ -3,6 +3,7 @@ import { AlertTriangle, SlidersHorizontal } from "lucide-react";
 import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import { agentDotClass } from "./settings/agents/agent-color";
 import { describeEffectiveParams, NO_PARAMS_LABEL } from "./settings/agents/agent-params";
+import { agentLaunchBlocker, type LaunchTarget } from "./settings/agents/agent-launchability";
 
 // The bench Terminal tab's grouped launch menu (AP-FR-007, AP-FR-009, issue
 // #517).
@@ -34,15 +35,21 @@ const ITEM_CLASS = (isFocused: boolean, isDisabled: boolean) =>
     .filter(Boolean)
     .join(" ");
 
-/** The right-aligned summary line: what this entry will actually launch with. */
-function presetSummary(preset: ResolvedAgentPreset): string {
+/**
+ * The right-aligned summary line: what this entry will actually launch with.
+ * The agent named is the RESOLVED target, not the preset's own binding, so a
+ * row redirected by a jig binding says which agent it will really start.
+ */
+function presetSummary(preset: ResolvedAgentPreset, target: LaunchTarget): string {
   const params = describeEffectiveParams(preset.params);
   if (params !== NO_PARAMS_LABEL) return params;
-  return preset.resolvedAgentName ? `→ ${preset.resolvedAgentName}` : "";
+  return target.agentPluginId ? `→ ${target.agentName}` : "";
 }
 
-function PresetItem({ preset }: { preset: ResolvedAgentPreset }) {
-  const blocked = preset.unresolved;
+function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: LaunchTarget }) {
+  // The row reads the same resolved target the split-button does, so a preset
+  // can never render disabled here while the button beside it launches it.
+  const blocked = target.blocked;
   return (
     <MenuItem
       id={`${PRESET_KEY_PREFIX}${preset.id}`}
@@ -50,12 +57,12 @@ function PresetItem({ preset }: { preset: ResolvedAgentPreset }) {
       // The label carries the summary, or the blocker when there is one, so a
       // screen reader hears why an entry is disabled rather than just that it
       // is.
-      aria-label={`${preset.name}: ${blocked ? blocked.message : presetSummary(preset)}`}
-      isDisabled={blocked !== undefined}
+      aria-label={`${preset.name}: ${blocked ? blocked.message : presetSummary(preset, target)}`}
+      isDisabled={blocked !== null}
       className={({ isFocused, isDisabled }) => ITEM_CLASS(isFocused, isDisabled)}
     >
       <span
-        className={`w-1.5 h-1.5 rounded-full shrink-0 ${agentDotClass(preset.agentPluginId)}`}
+        className={`w-1.5 h-1.5 rounded-full shrink-0 ${agentDotClass(target.agentPluginId)}`}
       />
       <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate">
         {preset.name}
@@ -66,11 +73,11 @@ function PresetItem({ preset }: { preset: ResolvedAgentPreset }) {
           className="ml-auto flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-500 shrink-0"
         >
           <AlertTriangle size={10} />
-          unavailable
+          {blocked.label}
         </span>
       ) : (
         <span className="ml-auto text-[10px] font-mono text-stone-400 dark:text-stone-600 truncate">
-          {presetSummary(preset)}
+          {presetSummary(preset, target)}
         </span>
       )}
     </MenuItem>
@@ -78,9 +85,7 @@ function PresetItem({ preset }: { preset: ResolvedAgentPreset }) {
 }
 
 function AgentItem({ agent }: { agent: ProjectAgentState }) {
-  // Two different blockers, one launchability answer: the registry says the
-  // plugin cannot connect, the validator says its config does not hold up.
-  const blocked = agent.unavailable ?? agent.misconfigured;
+  const blocked = agentLaunchBlocker(agent);
   return (
     <MenuItem
       id={`${AGENT_KEY_PREFIX}${agent.id}`}
@@ -100,7 +105,7 @@ function AgentItem({ agent }: { agent: ProjectAgentState }) {
           className="ml-auto flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-500 shrink-0"
         >
           <AlertTriangle size={10} />
-          {agent.misconfigured && !agent.unavailable ? "configure first" : "unavailable"}
+          {blocked.label}
         </span>
       ) : (
         <span className="ml-auto text-[10px] font-mono text-stone-400 dark:text-stone-600 truncate">
@@ -114,11 +119,18 @@ function AgentItem({ agent }: { agent: ProjectAgentState }) {
 export default function AgentLaunchMenu({
   presets,
   agents,
+  resolveTarget,
   onLaunchPreset,
   onLaunchAgent,
 }: {
   presets: ResolvedAgentPreset[];
   agents: ProjectAgentState[];
+  /**
+   * What a preset would actually launch. Supplied by the owner rather than
+   * recomputed here, because it depends on the jig the launch would carry,
+   * which only the Terminal tab resolves.
+   */
+  resolveTarget: (preset: ResolvedAgentPreset) => LaunchTarget;
   onLaunchPreset: (preset: ResolvedAgentPreset) => void;
   onLaunchAgent: (agent: ProjectAgentState) => void;
 }) {
@@ -149,14 +161,14 @@ export default function AgentLaunchMenu({
         <MenuSection>
           <Header className={SECTION_HEADER_CLASS}>Built-in &middot; default agent</Header>
           {builtins.map((preset) => (
-            <PresetItem key={preset.id} preset={preset} />
+            <PresetItem key={preset.id} preset={preset} target={resolveTarget(preset)} />
           ))}
         </MenuSection>
 
         <MenuSection>
           <Header className={SECTION_HEADER_CLASS}>Agent tools</Header>
           {agentTools.map((preset) => (
-            <PresetItem key={preset.id} preset={preset} />
+            <PresetItem key={preset.id} preset={preset} target={resolveTarget(preset)} />
           ))}
         </MenuSection>
 

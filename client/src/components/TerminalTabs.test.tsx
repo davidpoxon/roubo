@@ -11,9 +11,10 @@ vi.mock("../hooks/useBenches");
 vi.mock("../hooks/useToast");
 vi.mock("../hooks/useAgentTools");
 vi.mock("../hooks/useProjectAgents");
+vi.mock("../hooks/useProjectDefaultJig");
 vi.mock("./Terminal", () => ({ default: () => null }));
 
-import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
+import type { JigMeta, ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import { useTerminalSessions, useCreateTerminal, useDestroyTerminal } from "../hooks/useTerminal";
 import { useJigs, useInjectJig } from "../hooks/useJigs";
 import { useSettings } from "../hooks/useSettings";
@@ -21,15 +22,17 @@ import { useDismissNotification } from "../hooks/useBenches";
 import { useToast } from "../hooks/useToast";
 import { useAgentPresets } from "../hooks/useAgentTools";
 import { useProjectAgents } from "../hooks/useProjectAgents";
+import { useProjectDefaultJig } from "../hooks/useProjectDefaultJig";
 
 const mockInjectMutate = vi.fn();
 const mockCreateMutate = vi.fn();
 
-const JIGS = [
+const JIGS: JigMeta[] = [
   {
     id: "feature-dev",
     name: "Feature Dev",
     description: "",
+    icon: "file-text",
     source: "app" as const,
   },
 ];
@@ -65,9 +68,27 @@ const CLAUDE_AGENT: ProjectAgentState = {
   misconfigured: null,
 };
 
+/** An agent installed and resolvable, but whose effective config does not validate. */
+const UNCONFIGURED_CLAUDE: ProjectAgentState = {
+  ...CLAUDE_AGENT,
+  effective: {},
+  misconfigured: { message: "apiKey: must have required property 'apiKey'" },
+};
+
+const CODEX_AGENT: ProjectAgentState = {
+  id: "codex-cli",
+  name: "Codex CLI",
+  appDefaults: {},
+  overrides: {},
+  effective: { reasoningEffort: "medium" },
+  unavailable: null,
+  misconfigured: null,
+};
+
 function setupAgentMocks(
   presets: ResolvedAgentPreset[] = [DEFAULT_PRESET, PLAN_PRESET],
   agents: ProjectAgentState[] = [CLAUDE_AGENT],
+  defaultJigId: string | undefined = "feature-dev",
 ) {
   vi.mocked(useAgentPresets).mockReturnValue({ data: { presets } } as unknown as ReturnType<
     typeof useAgentPresets
@@ -75,6 +96,9 @@ function setupAgentMocks(
   vi.mocked(useProjectAgents).mockReturnValue({
     data: { agents, orphanedOverrides: [] },
   } as unknown as ReturnType<typeof useProjectAgents>);
+  vi.mocked(useProjectDefaultJig).mockReturnValue({
+    data: defaultJigId === undefined ? undefined : { jigId: defaultJigId, source: "app" },
+  } as unknown as ReturnType<typeof useProjectDefaultJig>);
 }
 
 // Every describe below renders TerminalTabs, and the split-button reads both
@@ -335,6 +359,248 @@ describe("TerminalTabs: agent launch and jig resolution", () => {
       expect.objectContaining({ agentPluginId: "claude-code", jigId: "feature-dev" }),
       expect.anything(),
     );
+  });
+
+  // AP-FR-006: a jig's own agent binding beats the DEFAULT agent. The host
+  // applies that order only when the request names no agent, and every launch
+  // from this surface names one, so the surface has to apply it. Without this
+  // an auto-injected jig bound to another agent silently launches the default.
+  it("lets the auto-injected jig's own agent binding beat the default agent", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useJigs).mockReturnValue({
+      data: [{ ...JIGS[0], agentPluginId: "codex-cli" }],
+    } as unknown as ReturnType<typeof useJigs>);
+    setupAgentMocks(undefined, [CLAUDE_AGENT, CODEX_AGENT]);
+    const addToast = vi.fn();
+    vi.mocked(useToast).mockReturnValue({ addToast, removeToast: vi.fn() });
+
+    renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Launch Codex CLI" }));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ agentPluginId: "codex-cli", jigId: "feature-dev" }),
+      expect.anything(),
+    );
+    expect(addToast).toHaveBeenCalledWith("Codex CLI session started");
+  });
+
+  // The sentinel is the only reason `useProjectDefaultJig` is read at all: the
+  // baseline jig id can be `__global_default__`, which only the host expands,
+  // so without expanding it here the jig's binding is invisible and the launch
+  // silently reverts to the default agent.
+  it("expands the GLOBAL_DEFAULT_JIG_ID sentinel to read that jig's agent binding", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useSettings).mockReturnValue({
+      settings: { theme: "dark", jigs: { autoInject: true, autoExecute: false } },
+      isLoading: false,
+      updateSettings: vi.fn(),
+    } as unknown as ReturnType<typeof useSettings>);
+    vi.mocked(useJigs).mockReturnValue({
+      data: [{ ...JIGS[0], agentPluginId: "codex-cli" }],
+    } as unknown as ReturnType<typeof useJigs>);
+    setupAgentMocks(undefined, [CLAUDE_AGENT, CODEX_AGENT], "feature-dev");
+
+    renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Launch Codex CLI" }));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ agentPluginId: "codex-cli", jigId: "__global_default__" }),
+      expect.anything(),
+    );
+  });
+
+  // A preset's params are validated host-side against the agent the preset
+  // resolves to, and nothing re-validates them at launch, so redirecting a
+  // param-bearing preset would ship `mode` to an agent whose schema never saw
+  // it. Only the bare, override-free preset follows the jig.
+  it("keeps a preset that overrides params on the agent those params were validated against", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useJigs).mockReturnValue({
+      data: [{ ...JIGS[0], agentPluginId: "codex-cli" }],
+    } as unknown as ReturnType<typeof useJigs>);
+    setupAgentMocks(
+      [DEFAULT_PRESET, { ...PLAN_PRESET, jig: undefined }],
+      [CLAUDE_AGENT, CODEX_AGENT],
+    );
+
+    renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Choose launch option" })[0]);
+    });
+    act(() => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /^Agent \(Plan\):/ }));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentPluginId: "claude-code",
+        presetOverrides: { mode: "plan" },
+      }),
+      expect.anything(),
+    );
+  });
+
+  // A `roubo.yaml` agent tool may name an explicit plugin and no params at all
+  // (config-schema requires `agent`, leaves `params` optional), so the redirect
+  // has to gate on the binding as well as on the params. That author picked an
+  // agent on purpose and a jig does not get to overrule it.
+  it("keeps a preset pinned to a specific agent on that agent, jig binding notwithstanding", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useJigs).mockReturnValue({
+      data: [{ ...JIGS[0], agentPluginId: "codex-cli" }],
+    } as unknown as ReturnType<typeof useJigs>);
+    setupAgentMocks(
+      [
+        DEFAULT_PRESET,
+        {
+          ...DEFAULT_PRESET,
+          id: "at-pinned",
+          name: "Pinned Claude",
+          source: "app",
+          agent: "claude-code",
+          bindsDefaultAgent: false,
+        },
+      ],
+      [CLAUDE_AGENT, CODEX_AGENT],
+    );
+
+    renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Choose launch option" })[0]);
+    });
+    act(() => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /^Pinned Claude:/ }));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ agentPluginId: "claude-code" }),
+      expect.anything(),
+    );
+  });
+
+  // The menu row and the split-button must never disagree: the row reads the
+  // same resolved target the button does, so a jig-redirected preset renders
+  // enabled here exactly when the button beside it is enabled.
+  it("shows the redirected agent on the preset row, matching the split-button", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useJigs).mockReturnValue({
+      data: [{ ...JIGS[0], agentPluginId: "codex-cli" }],
+    } as unknown as ReturnType<typeof useJigs>);
+    setupAgentMocks(undefined, [UNCONFIGURED_CLAUDE, CODEX_AGENT]);
+
+    renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+
+    // The default agent is unconfigured, but the jig redirects to a healthy
+    // one, so both surfaces are live rather than the row saying otherwise.
+    expect(screen.getByRole("button", { name: "Launch Codex CLI" })).not.toBeDisabled();
+
+    act(() => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Choose launch option" })[0]);
+    });
+
+    const row = screen.getByRole("menuitem", { name: /^Agent:/ });
+    expect(row.getAttribute("aria-disabled")).not.toBe("true");
+    expect(row.textContent).toContain("Codex CLI");
+  });
+
+  it("falls back to the default agent when the jig binds an agent that is not installed", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useJigs).mockReturnValue({
+      data: [{ ...JIGS[0], agentPluginId: "ghost-agent" }],
+    } as unknown as ReturnType<typeof useJigs>);
+
+    renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Launch Claude Code" }));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ agentPluginId: "claude-code" }),
+      expect.anything(),
+    );
+  });
+
+  // The binding is availability-gated, not merely presence-checked: a jig
+  // pointing at an agent that IS installed but does not validate must fall back
+  // to the default rather than redirecting into a session that cannot start.
+  it("falls back to the default agent when the jig binds an installed but unconfigured agent", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useJigs).mockReturnValue({
+      data: [{ ...JIGS[0], agentPluginId: "codex-cli" }],
+    } as unknown as ReturnType<typeof useJigs>);
+    setupAgentMocks(undefined, [
+      CLAUDE_AGENT,
+      {
+        ...CODEX_AGENT,
+        effective: {},
+        misconfigured: { message: "apiKey: must have required property 'apiKey'" },
+      },
+    ]);
+
+    renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+
+    const primary = screen.getByRole("button", { name: "Launch Claude Code" });
+    expect(primary).not.toBeDisabled();
+
+    act(() => {
+      fireEvent.click(primary);
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ agentPluginId: "claude-code" }),
+      expect.anything(),
+    );
+  });
+
+  // AP-TC-038 reaches further than the All-agents rows: a preset resolves fine
+  // while the agent behind it is unconfigured, because preset resolution only
+  // validates the keys the preset itself sets, and every built-in sets none.
+  it("refuses to launch when the default agent is installed but unconfigured (AP-TC-038)", () => {
+    setupMocks({ autoInject: false });
+    setupAgentMocks(undefined, [UNCONFIGURED_CLAUDE]);
+    const addToast = vi.fn();
+    vi.mocked(useToast).mockReturnValue({ addToast, removeToast: vi.fn() });
+
+    renderWithProviders(
+      <TerminalTabs
+        projectId="project1"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+      />,
+    );
+
+    const primary = screen.getByRole("button", { name: "Launch Claude Code" });
+    expect(primary).toBeDisabled();
+
+    act(() => {
+      fireEvent.click(primary);
+    });
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+    expect(addToast).not.toHaveBeenCalledWith(expect.stringContaining("session started"));
   });
 
   it("refuses to launch when the default-agent preset is unresolved", () => {

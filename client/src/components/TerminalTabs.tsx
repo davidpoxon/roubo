@@ -15,9 +15,11 @@ import { useSettings } from "../hooks/useSettings";
 import { useDismissNotification } from "../hooks/useBenches";
 import { useAgentPresets } from "../hooks/useAgentTools";
 import { useProjectAgents } from "../hooks/useProjectAgents";
+import { useProjectDefaultJig } from "../hooks/useProjectDefaultJig";
 import Terminal from "./Terminal";
 import NotificationIndicator from "./NotificationIndicator";
 import AgentLaunchMenu from "./AgentLaunchMenu";
+import { agentLaunchBlocker, resolveLaunchTarget } from "./settings/agents/agent-launchability";
 import { agentTextClass } from "./settings/agents/agent-color";
 import {
   AGENT_TOOL_JIG_INHERIT,
@@ -140,6 +142,13 @@ export default function TerminalTabs({
   const { addToast } = useToast();
   const { data: presetsResponse } = useAgentPresets(projectId);
   const { data: projectAgents } = useProjectAgents(projectId);
+  // The project's effective default jig, so a launch carrying the
+  // `GLOBAL_DEFAULT_JIG_ID` sentinel can still read that jig's agent binding.
+  const { data: defaultJig } = useProjectDefaultJig(projectId);
+
+  const availableJigs = useMemo(() => jigs ?? [], [jigs]);
+  const presets = useMemo(() => presetsResponse?.presets ?? [], [presetsResponse]);
+  const agents = useMemo(() => projectAgents?.agents ?? [], [projectAgents]);
 
   const { activeTerminalSessionId, setActiveTerminalSessionId } = useBenchViewState(
     projectId,
@@ -272,28 +281,64 @@ export default function TerminalTabs({
     [projectId, benchId, createTerminal, addToast],
   );
 
+  /**
+   * The jig a launch will actually run, for the purpose of reading its agent
+   * binding. `resolveLaunchJigId` may yield the `GLOBAL_DEFAULT_JIG_ID`
+   * sentinel, which only the host expands, so the project's resolved default
+   * stands in for it here.
+   */
+  const jigForLaunch = useCallback(
+    (jigId: string | undefined): JigMeta | undefined => {
+      if (!jigId) return undefined;
+      const id = jigId === GLOBAL_DEFAULT_JIG_ID ? defaultJig?.jigId : jigId;
+      return id === undefined ? undefined : availableJigs.find((jig) => jig.id === id);
+    },
+    [availableJigs, defaultJig],
+  );
+
+  /**
+   * What a preset would actually launch, resolved through the jig it would
+   * carry (AP-FR-006, AP-TC-038). One function behind the menu row, the
+   * split-button and the launch handler, so all three always agree about the
+   * agent, the summary and the disabled state.
+   */
+  const targetFor = useCallback(
+    (preset: ResolvedAgentPreset) => {
+      const boundId = jigForLaunch(resolveLaunchJigId(preset.jig))?.agentPluginId;
+      return resolveLaunchTarget(
+        preset,
+        agents,
+        boundId ? agents.find((agent) => agent.id === boundId) : undefined,
+      );
+    },
+    [agents, jigForLaunch, resolveLaunchJigId],
+  );
+
   const handleLaunchPreset = useCallback(
     (preset: ResolvedAgentPreset) => {
-      // An unresolved preset never launches (AP-TC-032, AP-TC-033). The menu
-      // already disables it; this is the guard for the primary segment, whose
-      // preset can go unresolved between renders.
-      if (preset.unresolved || !preset.agentPluginId) {
-        addToast(preset.unresolved?.message ?? `${preset.name} cannot launch right now.`);
+      const jigId = resolveLaunchJigId(preset.jig);
+      const target = targetFor(preset);
+      // An unresolved preset, or one bound to an agent that cannot launch, never
+      // starts a session (AP-TC-032, AP-TC-033, AP-TC-038). The menu already
+      // disables it; this is the guard for the primary segment, whose preset can
+      // go unresolved between renders.
+      if (target.blocked || !target.agentPluginId) {
+        addToast(target.blocked?.message ?? `${preset.name} cannot launch right now.`);
         return;
       }
       launchAgent({
-        agentPluginId: preset.agentPluginId,
-        agentName: preset.resolvedAgentName ?? preset.name,
-        jigId: resolveLaunchJigId(preset.jig),
+        agentPluginId: target.agentPluginId,
+        agentName: target.agentName,
+        jigId,
         ...(Object.keys(preset.params).length > 0 && { presetOverrides: preset.params }),
       });
     },
-    [launchAgent, resolveLaunchJigId, addToast],
+    [launchAgent, resolveLaunchJigId, targetFor, addToast],
   );
 
   const handleLaunchAgentPlugin = useCallback(
     (agent: ProjectAgentState) => {
-      const blocked = agent.unavailable ?? agent.misconfigured;
+      const blocked = agentLaunchBlocker(agent);
       if (blocked) {
         addToast(blocked.message);
         return;
@@ -338,25 +383,25 @@ export default function TerminalTabs({
 
   void projectName; // Used by server to generate labels
 
-  const availableJigs = jigs ?? [];
-
-  const presets = useMemo(() => presetsResponse?.presets ?? [], [presetsResponse]);
-  const agents = useMemo(() => projectAgents?.agents ?? [], [projectAgents]);
   // The primary segment fires the built-in default-agent preset rather than
   // resolving the default itself: the server already resolves that preset to an
   // agent plugin id and a display name, so there is one resolution path, not
-  // two that can disagree (AP-TC-017).
+  // two that can disagree (AP-TC-017). The target is resolved through the same
+  // path the press takes, so the label, the tooltip and the disabled state all
+  // describe the agent that would actually start.
   const defaultPreset = presets.find((preset) => preset.id === BUILTIN_DEFAULT_AGENT_PRESET_ID);
-  const primaryLabel = defaultPreset?.resolvedAgentName ?? "Agent";
-  const primaryDisabled = defaultPreset === undefined || defaultPreset.unresolved !== undefined;
-  const primaryTooltip = defaultPreset?.unresolved
-    ? defaultPreset.unresolved.message
+  const primaryTarget = defaultPreset ? targetFor(defaultPreset) : undefined;
+  const primaryLabel = primaryTarget?.agentName ?? "Agent";
+  const primaryDisabled = primaryTarget === undefined || primaryTarget.blocked !== null;
+  const primaryTooltip = primaryTarget?.blocked
+    ? primaryTarget.blocked.message
     : `Launch ${primaryLabel}`;
 
   const launchMenu = (
     <AgentLaunchMenu
       presets={presets}
       agents={agents}
+      resolveTarget={targetFor}
       onLaunchPreset={handleLaunchPreset}
       onLaunchAgent={handleLaunchAgentPlugin}
     />
