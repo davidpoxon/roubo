@@ -83,6 +83,11 @@ export default function AgentToolEditorModal({
   // rather than a generic free-text box.
   const boundAgent =
     agent === AGENT_TOOL_DEFAULT_AGENT ? defaultAgent : agents.find((a) => a.id === agent);
+  // A binding whose plugin is no longer installed keeps an option of its own so
+  // the select stays on it and names it, rather than falling back to the first
+  // option and silently rewriting the pinned binding to "Default agent" on save
+  // (AP-TC-032, issue #650).
+  const boundAgentMissing = agent !== AGENT_TOOL_DEFAULT_AGENT && boundAgent === undefined;
 
   const handleSave = () => {
     const trimmed = name.trim();
@@ -161,6 +166,7 @@ export default function AgentToolEditorModal({
                 onChange={(e) => setAgent(e.target.value)}
               >
                 <option value={AGENT_TOOL_DEFAULT_AGENT}>Default agent</option>
+                {boundAgentMissing && <option value={agent}>{`${agent} (not installed)`}</option>}
                 {agents.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
