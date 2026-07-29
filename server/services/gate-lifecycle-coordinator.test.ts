@@ -69,7 +69,7 @@ function makeDeps(opts: {
   applyTransitionError?: Error;
 }) {
   const audit = new GateAuditLog();
-  const applyTransitionCalls: Array<{ externalId: string; transitionName: string }> = [];
+  const applyTransitionCalls: Array<{ externalId: string; transition: string }> = [];
 
   const invoke = vi.fn(async (_pluginId: string, method: string, params: unknown) => {
     if (method === "getIssue") {
@@ -78,7 +78,7 @@ function makeDeps(opts: {
     }
     if (method === "applyTransition") {
       if (opts.applyTransitionError) throw opts.applyTransitionError;
-      applyTransitionCalls.push(params as { externalId: string; transitionName: string });
+      applyTransitionCalls.push(params as { externalId: string; transition: string });
       return makeIssue({ currentState: "closed", allowedTransitions: ["reopen"] }) as never;
     }
     throw new Error(`unexpected method ${method}`);
@@ -105,7 +105,7 @@ describe("onGatePassed: closes a passed gate via the plugin transition (FR-007, 
     // Routed through applyTransition with the done transition from allowedTransitions
     // (AC2). The bare contract ref "451" is qualified to "o/r#451" for the plugin
     // (issue #1006), while the audit entry keeps the bare ref.
-    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#451", transitionName: "close" }]);
+    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#451", transition: "close" }]);
     expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "o/r#451" });
 
     // Audit-logged with the gate, plugin, tracker ref and transition (NFR-001).
@@ -130,13 +130,35 @@ describe("onGatePassed: closes a passed gate via the plugin transition (FR-007, 
 // getIssue / applyTransition, not passed verbatim (which the plugin rejects with
 // `missing "#"`). ──
 
+// Mirrors the bundled GitHub plugin's TRANSITION_TO_STATE guard
+// (plugins/github-com/src/methods/apply-transition.ts). The plugin reads
+// `params.transition` and throws this exact message when the lookup misses, which
+// is what a host passing the param under any other name produces (issue #642).
+const PLUGIN_TRANSITION_TO_STATE: Record<string, "closed" | "open"> = {
+  close: "closed",
+  reopen: "open",
+};
+
+function assertPluginTransition(params: unknown): { externalId: string; transition: string } {
+  const { externalId, transition } = params as { externalId: string; transition?: unknown };
+  if (typeof transition !== "string" || !PLUGIN_TRANSITION_TO_STATE[transition]) {
+    throw new Error(
+      `[github-com] Unknown transition "${String(transition)}". Expected "close" or "reopen".`,
+    );
+  }
+  return { externalId, transition };
+}
+
 describe("onGatePassed / onGateReopened: qualify a bare tracker.ref (issue #1006)", () => {
   // A deps.invoke that faithfully rejects a bare (unqualified) externalId the way
   // the bundled GitHub plugin's parseGithubExternalId does, so a verbatim bare ref
-  // would reproduce the issue's `missing "#"` crash here.
+  // would reproduce the issue's `missing "#"` crash here. It is equally faithful
+  // about the transition param (issue #642): the plugin reads `params.transition`,
+  // so a host sending any other key makes the lookup miss and throws the plugin's
+  // exact error here, exactly as it does in production.
   function makePluginFaithfulDeps() {
     const audit = new GateAuditLog();
-    const applyTransitionCalls: Array<{ externalId: string; transitionName: string }> = [];
+    const applyTransitionCalls: Array<{ externalId: string; transition: string }> = [];
     const invoke = vi.fn(async (_pluginId: string, method: string, params: unknown) => {
       const { externalId } = params as { externalId: string };
       if (!externalId.includes("#")) {
@@ -144,7 +166,7 @@ describe("onGatePassed / onGateReopened: qualify a bare tracker.ref (issue #1006
       }
       if (method === "getIssue") return makeIssue({ externalId }) as never;
       if (method === "applyTransition") {
-        applyTransitionCalls.push(params as { externalId: string; transitionName: string });
+        applyTransitionCalls.push(assertPluginTransition(params));
         return makeIssue({ currentState: "closed", allowedTransitions: ["reopen"] }) as never;
       }
       throw new Error(`unexpected method ${method}`);
@@ -166,7 +188,7 @@ describe("onGatePassed / onGateReopened: qualify a bare tracker.ref (issue #1006
     ).resolves.toBeUndefined();
 
     expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "o/r#1033" });
-    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#1033", transitionName: "close" }]);
+    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#1033", transition: "close" }]);
     // The audit entry keeps the BARE contract ref, not the qualified externalId.
     expect(audit.query()[0]).toMatchObject({ trackerRef: "1033", outcome: "closed" });
   });
@@ -186,7 +208,7 @@ describe("onGatePassed / onGateReopened: qualify a bare tracker.ref (issue #1006
           allowedTransitions: ["reopen"],
         }) as never;
       }
-      applyTransitionCalls.push(params as { externalId: string; transitionName: string });
+      applyTransitionCalls.push(assertPluginTransition(params));
       return makeIssue({ currentState: "open", allowedTransitions: ["close"] }) as never;
     });
 
@@ -195,7 +217,7 @@ describe("onGatePassed / onGateReopened: qualify a bare tracker.ref (issue #1006
     ).resolves.toBeUndefined();
 
     expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "o/r#1033" });
-    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#1033", transitionName: "reopen" }]);
+    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#1033", transition: "reopen" }]);
     expect(audit.query()[0]).toMatchObject({ trackerRef: "1033", outcome: "reopened" });
   });
 });
@@ -246,7 +268,7 @@ describe("onGatePassed: a rejected close surfaces an error and leaves the issue 
     // The transition was attempted (so it is a genuine close attempt)...
     expect(invoke).toHaveBeenCalledWith("github-com", "applyTransition", {
       externalId: "o/r#451",
-      transitionName: "close",
+      transition: "close",
     });
     // ...but no audit entry was recorded for the failed call: the gate is not
     // recorded as closed, so it is never half-closed (AC4).
@@ -301,7 +323,7 @@ describe("onGateReopened: reopens a signed-off gate via the plugin transition (#
     // Routed through applyTransition with the reopen transition from
     // allowedTransitions. The bare contract ref "451" is qualified to "o/r#451" for
     // the plugin (issue #1006), while the audit entry keeps the bare ref.
-    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#451", transitionName: "reopen" }]);
+    expect(applyTransitionCalls).toEqual([{ externalId: "o/r#451", transition: "reopen" }]);
     expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "o/r#451" });
 
     const entries = audit.query();

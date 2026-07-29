@@ -197,10 +197,13 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     transition?: string;
     transitionName?: string;
   }): void => {
-    // The host's bench-view route (`POST /projects/:id/issues/:externalId/
-    // transitions`) sends `transitionName`; the SDK type exposes `transition`.
-    // Accept both for forward-compatibility, matching the real
-    // jira-self-hosted plugin (plugins/jira-self-hosted/src/plugin.ts:265-274).
+    // The host sends `transition` on every call site (the bench-view route
+    // `POST /projects/:id/issues/:externalId/transitions` and the gate lifecycle
+    // coordinator's close / reopen paths), matching the SDK type. It sent
+    // `transitionName` until issue #642, where the mismatch surfaced as
+    // `Unknown transition "undefined"` at runtime. The `transitionName` fallback
+    // below is kept only for third-party plugins predating that fix, not because
+    // the host emits it.
     const name = params.transition ?? params.transitionName;
     const issue = findIssue(scenario, params.externalId);
     if (typeof name !== "string" || !issue.allowedTransitions.includes(name)) {

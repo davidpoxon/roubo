@@ -682,20 +682,31 @@ describe("POST /:projectId/issues/:externalId/transitions", () => {
     expect(res.status).toBe(400);
   });
 
-  it("invokes applyTransition with externalId + transitionName and returns the refreshed issue (TC-054)", async () => {
+  it("invokes applyTransition with externalId + transition and returns the refreshed issue (TC-054)", async () => {
     const refreshed = makeIssue({
       externalId: "ROUBO-42",
       currentState: "In Review",
       allowedTransitions: ["Done"],
     });
-    vi.mocked(pluginManager.invoke).mockResolvedValue(refreshed);
+    // Faithful to the plugin's declared contract (issue #642): applyTransition
+    // reads `params.transition`, so a host that puts the value on any other key
+    // is rejected here instead of being waved through by a permissive mock.
+    vi.mocked(pluginManager.invoke).mockImplementation(async (_pluginId, method, params) => {
+      const { transition } = (params ?? {}) as { transition?: unknown };
+      if (method === "applyTransition" && typeof transition !== "string") {
+        throw new Error(
+          `[github-com] Unknown transition "${String(transition)}". Expected "close" or "reopen".`,
+        );
+      }
+      return refreshed as never;
+    });
     const res = await request(app)
       .post("/p1/issues/ROUBO-42/transitions")
       .send({ transitionName: "In Review" });
     expect(res.status).toBe(200);
     expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "applyTransition", {
       externalId: "ROUBO-42",
-      transitionName: "In Review",
+      transition: "In Review",
     });
     expect(res.body).toEqual(refreshed);
   });

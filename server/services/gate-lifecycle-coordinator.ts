@@ -221,7 +221,7 @@ export async function onGatePassed(
   // no audit entry is recorded and the issue stays open (AC-4).
   await deps.invoke<NormalizedIssue>(pluginId, "applyTransition", {
     externalId,
-    transitionName,
+    transition: transitionName,
   });
 
   deps.recordAudit({
@@ -302,7 +302,7 @@ export async function onGateReopened(
   // no audit entry is recorded and the issue stays closed.
   await deps.invoke<NormalizedIssue>(pluginId, "applyTransition", {
     externalId,
-    transitionName,
+    transition: transitionName,
   });
 
   deps.recordAudit({
