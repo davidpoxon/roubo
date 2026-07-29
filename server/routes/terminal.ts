@@ -113,8 +113,14 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         return;
       }
       const message = (err as Error).message ?? String(err);
+      // `agentPluginId` is request-controlled, so it is passed as an argument
+      // rather than interpolated into the format string: console.error runs
+      // util.format, where a `%s` in the value would consume the `err` argument
+      // and drop the real failure from the log (js/tainted-format-string).
       console.error(
-        `[terminal] createAgentSession failed for bench ${benchId} (agent: ${agentPluginId}):`,
+        "[terminal] createAgentSession failed for bench %d (agent: %s):",
+        benchId,
+        agentPluginId,
         err,
       );
       res.status(500).json({ error: `Agent session could not be started: ${message}` });
