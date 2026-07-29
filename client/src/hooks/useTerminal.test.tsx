@@ -36,7 +36,7 @@ describe("useCreateTerminal", () => {
     const { result } = renderHookWithProviders(() => useCreateTerminal(), { queryClient });
     result.current.mutate({ projectId: "p1", benchId: 1 });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.createTerminal).toHaveBeenCalledWith("p1", 1, undefined, undefined);
+    expect(mockedApi.createTerminal).toHaveBeenCalledWith("p1", 1, undefined, undefined, {});
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["terminals", "p1", 1] });
   });
 
@@ -45,7 +45,7 @@ describe("useCreateTerminal", () => {
     const { result } = renderHookWithProviders(() => useCreateTerminal());
     result.current.mutate({ projectId: "p2", benchId: 3, command: "npm run dev" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.createTerminal).toHaveBeenCalledWith("p2", 3, "npm run dev", undefined);
+    expect(mockedApi.createTerminal).toHaveBeenCalledWith("p2", 3, "npm run dev", undefined, {});
   });
 
   it("passes jigId to createTerminal", async () => {
@@ -53,7 +53,24 @@ describe("useCreateTerminal", () => {
     const { result } = renderHookWithProviders(() => useCreateTerminal());
     result.current.mutate({ projectId: "p3", benchId: 2, command: "claude", jigId: "push" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.createTerminal).toHaveBeenCalledWith("p3", 2, "claude", "push");
+    expect(mockedApi.createTerminal).toHaveBeenCalledWith("p3", 2, "claude", "push", {});
+  });
+
+  it("forwards agentPluginId and presetOverrides to the agent launch path", async () => {
+    mockedApi.createTerminal.mockResolvedValue({ id: "sess-4" } as never);
+    const { result } = renderHookWithProviders(() => useCreateTerminal());
+    result.current.mutate({
+      projectId: "p4",
+      benchId: 5,
+      jigId: "feature-dev",
+      agentPluginId: "claude-code",
+      presetOverrides: { mode: "plan" },
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.createTerminal).toHaveBeenCalledWith("p4", 5, undefined, "feature-dev", {
+      agentPluginId: "claude-code",
+      presetOverrides: { mode: "plan" },
+    });
   });
 });
 

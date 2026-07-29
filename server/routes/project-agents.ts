@@ -67,6 +67,14 @@ router.get("/:projectId/agents", (req, res) => {
   const agents: ProjectAgentState[] = manifests.map((manifest) => {
     const entry = byId.get(manifest.id);
     const resolved = resolveAgent(manifest.id);
+    const effective = entry?.effective ?? {};
+    // AP-TC-038: the launch surfaces need "installed AND configured", and only
+    // the host can answer the second half (validation is Ajv against the
+    // manifest). Deriving it here gives every surface one answer instead of
+    // each re-implementing the check, and keeps Ajv out of the client bundle.
+    // A plugin declaring no `configSchema` accepts anything, so it always reads
+    // as configured, matching `agent-config-validator.ts`.
+    const configErrors = validateAgentConfig(manifest, effective);
     return {
       id: manifest.id,
       name: manifest.name,
@@ -75,10 +83,18 @@ router.get("/:projectId/agents", (req, res) => {
       configSchema: manifest.configSchema,
       appDefaults: entry?.appDefaults ?? {},
       overrides: entry?.overrides ?? {},
-      effective: entry?.effective ?? {},
+      effective,
       unavailable: isAgentNotAvailable(resolved)
         ? { reason: resolved.reason, message: describeAgentNotAvailable(resolved) }
         : null,
+      misconfigured:
+        configErrors.length > 0
+          ? {
+              message: configErrors
+                .map((err) => `${err.path || "config"}: ${err.message}`)
+                .join("; "),
+            }
+          : null,
     };
   });
 

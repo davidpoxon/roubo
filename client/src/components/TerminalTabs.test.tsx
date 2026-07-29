@@ -9,13 +9,18 @@ vi.mock("../hooks/useJigs");
 vi.mock("../hooks/useSettings");
 vi.mock("../hooks/useBenches");
 vi.mock("../hooks/useToast");
+vi.mock("../hooks/useAgentTools");
+vi.mock("../hooks/useProjectAgents");
 vi.mock("./Terminal", () => ({ default: () => null }));
 
+import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import { useTerminalSessions, useCreateTerminal, useDestroyTerminal } from "../hooks/useTerminal";
 import { useJigs, useInjectJig } from "../hooks/useJigs";
 import { useSettings } from "../hooks/useSettings";
 import { useDismissNotification } from "../hooks/useBenches";
 import { useToast } from "../hooks/useToast";
+import { useAgentPresets } from "../hooks/useAgentTools";
+import { useProjectAgents } from "../hooks/useProjectAgents";
 
 const mockInjectMutate = vi.fn();
 const mockCreateMutate = vi.fn();
@@ -28,6 +33,55 @@ const JIGS = [
     source: "app" as const,
   },
 ];
+
+const DEFAULT_PRESET: ResolvedAgentPreset = {
+  id: "__builtin_agent__",
+  name: "Agent",
+  icon: "bot",
+  source: "builtin",
+  agent: "default",
+  bindsDefaultAgent: true,
+  agentPluginId: "claude-code",
+  resolvedAgentName: "Claude Code",
+  params: {},
+};
+
+/** A preset that both overrides a param and pins "no jig" (AGENT_TOOL_JIG_NONE). */
+const PLAN_PRESET: ResolvedAgentPreset = {
+  ...DEFAULT_PRESET,
+  id: "__builtin_agent_plan__",
+  name: "Agent (Plan)",
+  params: { mode: "plan" },
+  jig: "__none__",
+};
+
+const CLAUDE_AGENT: ProjectAgentState = {
+  id: "claude-code",
+  name: "Claude Code",
+  appDefaults: {},
+  overrides: {},
+  effective: { model: "opus" },
+  unavailable: null,
+  misconfigured: null,
+};
+
+function setupAgentMocks(
+  presets: ResolvedAgentPreset[] = [DEFAULT_PRESET, PLAN_PRESET],
+  agents: ProjectAgentState[] = [CLAUDE_AGENT],
+) {
+  vi.mocked(useAgentPresets).mockReturnValue({ data: { presets } } as unknown as ReturnType<
+    typeof useAgentPresets
+  >);
+  vi.mocked(useProjectAgents).mockReturnValue({
+    data: { agents, orphanedOverrides: [] },
+  } as unknown as ReturnType<typeof useProjectAgents>);
+}
+
+// Every describe below renders TerminalTabs, and the split-button reads both
+// agent queries on every render, so they are seeded once for the whole file.
+beforeEach(() => {
+  setupAgentMocks();
+});
 
 function setupMocks({
   autoInject,
@@ -74,7 +128,7 @@ function setupMocks({
   });
 }
 
-describe("TerminalTabs: autoInject behaviour", () => {
+describe("TerminalTabs: agent launch and jig resolution", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
@@ -91,7 +145,48 @@ describe("TerminalTabs: autoInject behaviour", () => {
     vi.useRealTimers();
   });
 
-  it("does not pass jigId when autoInject is false and no explicit jigId", () => {
+  const SESSION = [
+    {
+      id: "existing-session",
+      benchKey: "project1:1",
+      label: "Claude 1",
+      createdAt: "2024-01-01",
+      command: "claude",
+      status: "live",
+    },
+  ];
+
+  it("launches the default-agent preset with the auto-injected jig and a toast (AP-TC-017)", () => {
+    setupMocks({ autoInject: true });
+    const addToast = vi.fn();
+    vi.mocked(useToast).mockReturnValue({ addToast, removeToast: vi.fn() });
+
+    renderWithProviders(
+      <TerminalTabs
+        projectId="project1"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={true}
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentPluginId: "claude-code",
+        jigId: "feature-dev",
+      }),
+      expect.anything(),
+    );
+    // The launch no longer rides the built-in `claude` command path.
+    expect(mockCreateMutate.mock.calls[0][0]).not.toHaveProperty("command");
+    expect(addToast).toHaveBeenCalledWith("Claude Code session started");
+  });
+
+  it("does not pass a jig when autoInject is false", () => {
     setupMocks({ autoInject: false });
     renderWithProviders(
       <TerminalTabs
@@ -102,54 +197,25 @@ describe("TerminalTabs: autoInject behaviour", () => {
       />,
     );
 
-    // Empty-state "Claude Code" button calls handleCreate('claude') with no jigId
-    const claudeButton = screen.getByRole("button", { name: "Claude Code" });
     act(() => {
-      fireEvent.click(claudeButton);
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ jigId: undefined }),
+      expect.objectContaining({ agentPluginId: "claude-code", jigId: undefined }),
       expect.anything(),
     );
     expect(mockInjectMutate).not.toHaveBeenCalled();
   });
 
-  it("passes jigId to createTerminal when autoInject is true and bench has an assigned issue", () => {
+  it("passes the GLOBAL_DEFAULT_JIG_ID sentinel when no defaultJigId is configured", () => {
     setupMocks({ autoInject: true });
-    renderWithProviders(
-      <TerminalTabs
-        projectId="project1"
-        benchId={1}
-        projectName="Project"
-        hasAssignedIssue={true}
-      />,
-    );
-
-    const claudeButton = screen.getByRole("button", { name: "Claude Code" });
-    act(() => {
-      fireEvent.click(claudeButton);
-    });
-
-    expect(mockCreateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        command: "claude",
-        jigId: "feature-dev",
-      }),
-      expect.anything(),
-    );
-    expect(mockInjectMutate).not.toHaveBeenCalled();
-  });
-
-  it("passes GLOBAL_DEFAULT_JIG_ID sentinel when autoInject is true but no defaultJigId is configured", () => {
     vi.mocked(useSettings).mockReturnValue({
-      settings: {
-        theme: "dark",
-        jigs: { autoInject: true, autoExecute: false },
-      },
+      settings: { theme: "dark", jigs: { autoInject: true, autoExecute: false } },
       isLoading: false,
       updateSettings: vi.fn(),
     } as unknown as ReturnType<typeof useSettings>);
+
     renderWithProviders(
       <TerminalTabs
         projectId="project1"
@@ -159,21 +225,20 @@ describe("TerminalTabs: autoInject behaviour", () => {
       />,
     );
 
-    const claudeButton = screen.getByRole("button", { name: "Claude Code" });
     act(() => {
-      fireEvent.click(claudeButton);
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        command: "claude",
+        agentPluginId: "claude-code",
         jigId: "__global_default__",
       }),
       expect.anything(),
     );
   });
 
-  it("does not pass jigId when autoInject is true but bench has no assigned issue", () => {
+  it("does not pass a jig when the bench has no assigned issue", () => {
     setupMocks({ autoInject: true });
     renderWithProviders(
       <TerminalTabs
@@ -184,122 +249,73 @@ describe("TerminalTabs: autoInject behaviour", () => {
       />,
     );
 
-    const claudeButton = screen.getByRole("button", { name: "Claude Code" });
     act(() => {
-      fireEvent.click(claudeButton);
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({ jigId: undefined }),
       expect.anything(),
     );
-    expect(mockInjectMutate).not.toHaveBeenCalled();
   });
 
-  it("passes explicit jigId to createTerminal when autoInject is false", () => {
-    setupMocks({ autoInject: false });
-    // Override sessions so the tab bar renders (and with it the split-button dropdown)
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "existing-session",
-          benchKey: "project1:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
+  it("carries a preset's params as presetOverrides and lets its jig override auto-inject", () => {
+    setupMocks({ autoInject: true });
     renderWithProviders(
       <TerminalTabs
         projectId="project1"
         benchId={1}
         projectName="Project"
-        hasAssignedIssue={false}
+        hasAssignedIssue={true}
       />,
     );
 
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
+      fireEvent.click(screen.getAllByRole("button", { name: "Choose launch option" })[0]);
     });
-
-    // Select the "Feature Dev" menu item: calls handleCreate('claude', 'feature-dev')
-    const menuItem = screen.getByRole("menuitem", { name: "Feature Dev" });
     act(() => {
-      fireEvent.click(menuItem);
+      fireEvent.click(screen.getByRole("menuitem", { name: /^Agent \(Plan\):/ }));
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        command: "claude",
-        jigId: "feature-dev",
+        agentPluginId: "claude-code",
+        presetOverrides: { mode: "plan" },
+        // `__none__` beats the auto-inject baseline.
+        jigId: undefined,
       }),
       expect.anything(),
     );
-    expect(mockInjectMutate).not.toHaveBeenCalled();
   });
 
-  it('passes jigId: undefined when "Launch without jig" is selected with autoInject on and assigned issue', () => {
-    setupMocks({ autoInject: true });
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "existing-session",
-          benchKey: "project1:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
+  it("launches an All-agents entry directly", () => {
+    setupMocks({ autoInject: false });
     renderWithProviders(
       <TerminalTabs
         projectId="project1"
         benchId={1}
         projectName="Project"
-        hasAssignedIssue={true}
+        hasAssignedIssue={false}
       />,
     );
 
-    // Open the chevron dropdown via its accessible label
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
-    });
-
-    const freshItem = screen.getByRole("menuitem", {
-      name: /Launch without jig/,
+      fireEvent.click(screen.getAllByRole("button", { name: "Choose launch option" })[0]);
     });
     act(() => {
-      fireEvent.click(freshItem);
+      fireEvent.click(screen.getAllByTestId("launch-agent-item")[0]);
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ command: "claude", jigId: undefined }),
+      expect.objectContaining({ agentPluginId: "claude-code" }),
       expect.anything(),
     );
-    expect(mockInjectMutate).not.toHaveBeenCalled();
   });
 
-  it("shows the fresh-launch option in dropdown even when no jigs are configured if autoInject would fire", () => {
+  it("launches from the tab-bar split-button when sessions exist", () => {
     setupMocks({ autoInject: true });
-    vi.mocked(useJigs).mockReturnValue({
-      data: [],
-    } as unknown as ReturnType<typeof useJigs>);
     vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "existing-session",
-          benchKey: "project1:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-        },
-      ],
+      data: SESSION,
     } as unknown as ReturnType<typeof useTerminalSessions>);
 
     renderWithProviders(
@@ -312,67 +328,47 @@ describe("TerminalTabs: autoInject behaviour", () => {
     );
 
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
-    });
-
-    const freshItem = screen.getByRole("menuitem", {
-      name: /Launch without jig/,
-    });
-    act(() => {
-      fireEvent.click(freshItem);
+      fireEvent.click(screen.getByRole("button", { name: "Launch Claude Code" }));
     });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ command: "claude", jigId: undefined }),
+      expect.objectContaining({ agentPluginId: "claude-code", jigId: "feature-dev" }),
       expect.anything(),
     );
   });
 
-  it('does not show "Launch without jig" in dropdown when autoInject is false', () => {
+  it("refuses to launch when the default-agent preset is unresolved", () => {
+    setupMocks({ autoInject: false });
+    setupAgentMocks([
+      {
+        ...DEFAULT_PRESET,
+        agentPluginId: undefined,
+        resolvedAgentName: undefined,
+        unresolved: { reason: "no-default-agent", message: "No default agent is available." },
+      },
+    ]);
+
+    renderWithProviders(
+      <TerminalTabs
+        projectId="project1"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+      />,
+    );
+
+    const primary = screen.getByRole("button", { name: "Agent" });
+    act(() => {
+      fireEvent.click(primary);
+    });
+
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+  });
+
+  it("still injects a jig into a live session from the jig picker", () => {
     setupMocks({ autoInject: false });
     vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "existing-session",
-          benchKey: "project1:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
-    renderWithProviders(
-      <TerminalTabs
-        projectId="project1"
-        benchId={1}
-        projectName="Project"
-        hasAssignedIssue={true}
-      />,
-    );
-
-    act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
-    });
-
-    expect(screen.queryByRole("menuitem", { name: /Launch without jig/ })).toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Feature Dev" })).toBeInTheDocument();
-  });
-
-  it('does not show "Launch without jig" in dropdown when bench has no assigned issue', () => {
-    setupMocks({ autoInject: true });
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "existing-session",
-          benchKey: "project1:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-        },
-      ],
+      data: SESSION,
     } as unknown as ReturnType<typeof useTerminalSessions>);
 
     renderWithProviders(
@@ -385,79 +381,19 @@ describe("TerminalTabs: autoInject behaviour", () => {
     );
 
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
+      fireEvent.click(screen.getByRole("button", { name: "Inject jig" }));
     });
-
-    expect(screen.queryByRole("menuitem", { name: /Launch without jig/ })).toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Feature Dev" })).toBeInTheDocument();
-  });
-
-  it('does not show "Launch without jig" while settings are loading', () => {
-    setupMocks({ autoInject: true, isLoading: true });
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "existing-session",
-          benchKey: "project1:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
-    renderWithProviders(
-      <TerminalTabs
-        projectId="project1"
-        benchId={1}
-        projectName="Project"
-        hasAssignedIssue={true}
-      />,
-    );
-
-    // When jigs are available the dropdown still shows, but fresh item should be absent
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Feature Dev" }));
     });
 
-    expect(screen.queryByRole("menuitem", { name: /Launch without jig/ })).toBeNull();
-  });
-
-  it('shows both "Launch without jig" and jig items when autoInject is true and jigs are available', () => {
-    setupMocks({ autoInject: true });
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "existing-session",
-          benchKey: "project1:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
-    renderWithProviders(
-      <TerminalTabs
-        projectId="project1"
-        benchId={1}
-        projectName="Project"
-        hasAssignedIssue={true}
-      />,
+    expect(mockInjectMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ jigId: "feature-dev" }),
     );
-
-    act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Choose launch option" }));
-    });
-
-    expect(screen.getByRole("menuitem", { name: /Launch without jig/ })).toBeInTheDocument();
-    expect(screen.getByRole("separator")).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Feature Dev" })).toBeInTheDocument();
+    expect(mockCreateMutate).not.toHaveBeenCalled();
   });
 
-  it("calls addToast with the error message when terminal creation fails", () => {
+  it("calls addToast with the error message when the launch fails", () => {
     setupMocks({ autoInject: false });
     const mockAddToast = vi.fn();
     vi.mocked(useToast).mockReturnValue({
@@ -479,58 +415,11 @@ describe("TerminalTabs: autoInject behaviour", () => {
       />,
     );
 
-    const claudeButton = screen.getByRole("button", { name: "Claude Code" });
     act(() => {
-      fireEvent.click(claudeButton);
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
     });
 
     expect(mockAddToast).toHaveBeenCalledWith("spawn failed: claude not found");
-  });
-
-  it("main split-button click still applies auto-inject (regression guard)", () => {
-    setupMocks({ autoInject: true });
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "existing-session",
-          benchKey: "project1:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
-    renderWithProviders(
-      <TerminalTabs
-        projectId="project1"
-        benchId={1}
-        projectName="Project"
-        hasAssignedIssue={true}
-      />,
-    );
-
-    // Find the left-half Claude button (has Bot icon, no ChevronDown sibling inside)
-    const claudeMainButton = screen
-      .getAllByRole("button")
-      .find(
-        (b) =>
-          b.querySelector("svg.lucide-bot") !== null &&
-          b.querySelector("svg.lucide-chevron-down") === null,
-      );
-    if (!claudeMainButton) throw new Error("Claude main button not found");
-    act(() => {
-      fireEvent.click(claudeMainButton);
-    });
-
-    expect(mockCreateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        command: "claude",
-        jigId: "feature-dev",
-      }),
-      expect.anything(),
-    );
   });
 });
 
@@ -895,6 +784,89 @@ describe("TerminalTabs: mode badge", () => {
 
     expect(screen.queryByText("auto")).toBeNull();
     expect(screen.queryByText("plan")).toBeNull();
+  });
+});
+
+describe("TerminalTabs: agent-generic session tabs", () => {
+  function setup(sessions: unknown[]) {
+    vi.mocked(useDestroyTerminal).mockReturnValue({
+      mutate: vi.fn(),
+    } as unknown as ReturnType<typeof useDestroyTerminal>);
+    vi.mocked(useCreateTerminal).mockReturnValue({
+      mutate: vi.fn(),
+    } as unknown as ReturnType<typeof useCreateTerminal>);
+    vi.mocked(useJigs).mockReturnValue({ data: [] } as unknown as ReturnType<typeof useJigs>);
+    vi.mocked(useInjectJig).mockReturnValue({
+      mutate: vi.fn(),
+    } as unknown as ReturnType<typeof useInjectJig>);
+    vi.mocked(useSettings).mockReturnValue({
+      settings: { theme: "dark", jigs: { autoInject: false, autoExecute: false } },
+      isLoading: false,
+      updateSettings: vi.fn(),
+    } as unknown as ReturnType<typeof useSettings>);
+    vi.mocked(useDismissNotification).mockReturnValue({
+      mutate: vi.fn(),
+    } as unknown as ReturnType<typeof useDismissNotification>);
+    vi.mocked(useToast).mockReturnValue({ addToast: vi.fn(), removeToast: vi.fn() });
+    vi.mocked(useTerminalSessions).mockReturnValue({
+      data: sessions,
+    } as unknown as ReturnType<typeof useTerminalSessions>);
+
+    renderWithProviders(
+      <TerminalTabs projectId="proj" benchId={1} projectName="Project" hasAssignedIssue={false} />,
+    );
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("marks a plugin-launched session with its agent's colour, not a Claude-specific one", () => {
+    setup([
+      {
+        id: "agent-session",
+        benchKey: "p:1",
+        label: "Acme Agent 1",
+        createdAt: "2024-01-01",
+        status: "live",
+        agentPluginId: "codex-cli",
+      },
+    ]);
+
+    const icon = screen.getByTestId("session-agent-icon");
+    expect(icon.getAttribute("class")).toContain("text-cyan-400");
+  });
+
+  it("keeps the identity glyph on a legacy built-in Claude session (#521 owns its removal)", () => {
+    setup([
+      {
+        id: "claude-session",
+        benchKey: "p:1",
+        label: "Claude 1",
+        createdAt: "2024-01-01",
+        command: "claude",
+        status: "live",
+      },
+    ]);
+
+    expect(screen.getByTestId("session-agent-icon").getAttribute("class")).toContain(
+      "text-violet-400",
+    );
+  });
+
+  it("shows no agent glyph on a plain shell session", () => {
+    setup([
+      {
+        id: "shell-session",
+        benchKey: "p:1",
+        label: "Terminal 1",
+        createdAt: "2024-01-01",
+        command: "bash",
+        status: "live",
+      },
+    ]);
+
+    expect(screen.queryByTestId("session-agent-icon")).toBeNull();
   });
 });
 

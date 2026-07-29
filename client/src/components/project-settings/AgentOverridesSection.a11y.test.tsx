@@ -41,6 +41,7 @@ const AGENTS: ProjectAgentState[] = [
     overrides: { model: "sonnet", verbose: true },
     effective: { model: "sonnet", maxTurns: 20, verbose: true, note: "" },
     unavailable: null,
+    misconfigured: null,
   },
   {
     id: "codex-cli",
@@ -54,6 +55,7 @@ const AGENTS: ProjectAgentState[] = [
     overrides: {},
     effective: {},
     unavailable: { reason: "not-consented", message: "Acknowledge its permissions first." },
+    misconfigured: null,
   },
 ];
 

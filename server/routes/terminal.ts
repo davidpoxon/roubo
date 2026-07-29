@@ -97,7 +97,11 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   // (AP-FR-006).
   let launchJigAgentPluginId: string | undefined;
 
-  if (jigId && command === "claude" && project?.config) {
+  // An explicit `agentPluginId` is the agent-generic carrier the launch
+  // surfaces now use (AP-FR-007, issue #517). Gating jig resolution on the
+  // legacy `claude` command alone would silently drop the jig from every such
+  // launch, so both carriers resolve it.
+  if (jigId && (command === "claude" || agentPluginId !== undefined) && project?.config) {
     const jig = jigManager.getJig(projectId, jigId);
     if (!jig) {
       res.status(404).json({ error: "Jig not found" });

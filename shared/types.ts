@@ -708,6 +708,18 @@ export interface ProjectAgentState {
   overrides: Record<string, unknown>;
   effective: Record<string, unknown>;
   unavailable: { reason: string; message: string } | null;
+  /**
+   * The configured-ness gate every launch surface reads (AP-FR-007, AP-TC-038):
+   * `null` when the effective config validates against the plugin's
+   * `configSchema`, otherwise a message naming the offending field.
+   *
+   * Deliberately distinct from `unavailable`, which is a registry blocker (not
+   * installed, not consented, incompatible) rather than a configuration one. An
+   * installed-but-unconfigured agent resolves fine in the registry and would
+   * otherwise look launchable, so the check is derived host-side: config
+   * validation is Ajv against the plugin manifest, and the client has neither.
+   */
+  misconfigured: { message: string } | null;
 }
 
 /**
@@ -1567,8 +1579,22 @@ export interface AgentPresetsResponse {
  * differ only in the `mode` they override, so they follow whichever agent is
  * the current default rather than pinning one. Never written to settings.
  */
+/**
+ * The built-in preset a launch surface's primary action fires (AP-TC-017). It
+ * binds the default agent and overrides nothing, so resolving it server-side is
+ * also how a surface learns which agent "the default" currently is, with no
+ * second resolution path to keep in step.
+ */
+export const BUILTIN_DEFAULT_AGENT_PRESET_ID = "__builtin_agent__";
+
 export const BUILTIN_AGENT_PRESETS: readonly AgentToolPreset[] = [
-  { id: "__builtin_agent__", name: "Agent", icon: "bot", agent: "default", params: {} },
+  {
+    id: BUILTIN_DEFAULT_AGENT_PRESET_ID,
+    name: "Agent",
+    icon: "bot",
+    agent: "default",
+    params: {},
+  },
   {
     id: "__builtin_agent_plan__",
     name: "Agent (Plan)",
