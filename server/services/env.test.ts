@@ -6,6 +6,33 @@ import { execFileSync } from "node:child_process";
 vi.mock("node:fs");
 vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
 
+/**
+ * Points the automocked fs at a synthetic tree for the executability gate (#651).
+ * `files` are regular files, `dirs` are directories, and `executable` names the
+ * subset carrying the execute bit (defaulting to every file). Anything unnamed
+ * does not exist. Resolution tests drive statSync/accessSync through this rather
+ * than existsSync, because that is what the resolvers now probe with.
+ */
+function mockFs(tree: { files?: string[]; dirs?: string[]; executable?: string[] }): void {
+  const files = new Set(tree.files ?? []);
+  const dirs = new Set(tree.dirs ?? []);
+  const executable = new Set(tree.executable ?? tree.files ?? []);
+  const enoent = (p: string) => Object.assign(new Error(`ENOENT: ${p}`), { code: "ENOENT" });
+  vi.mocked(fs.statSync).mockImplementation(((p: fs.PathLike) => {
+    const target = String(p);
+    if (files.has(target)) return { isFile: () => true } as fs.Stats;
+    if (dirs.has(target)) return { isFile: () => false } as fs.Stats;
+    throw enoent(target);
+  }) as typeof fs.statSync);
+  vi.mocked(fs.accessSync).mockImplementation(((p: fs.PathLike) => {
+    const target = String(p);
+    if (!files.has(target) && !dirs.has(target)) throw enoent(target);
+    if (!executable.has(target)) {
+      throw Object.assign(new Error(`EACCES: ${target}`), { code: "EACCES" });
+    }
+  }) as typeof fs.accessSync);
+}
+
 describe("cleanEnv", () => {
   const originalEnv = process.env;
 
@@ -508,9 +535,7 @@ describe("resolveClaudeBinary / getClaudeBinary", () => {
     vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error("not found");
     });
-    vi.mocked(fs.existsSync).mockImplementation(
-      (p) => p === `${process.env.HOME}/.local/bin/claude`,
-    );
+    mockFs({ files: [`${process.env.HOME}/.local/bin/claude`] });
     const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
     resolveClaudeBinary();
     expect(process.env.ROUBO_CLAUDE_BINARY).toBe(`${process.env.HOME}/.local/bin/claude`);
@@ -521,9 +546,7 @@ describe("resolveClaudeBinary / getClaudeBinary", () => {
     vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error("not found");
     });
-    vi.mocked(fs.existsSync).mockImplementation(
-      (p) => p === `${process.env.HOME}/.claude/local/claude`,
-    );
+    mockFs({ files: [`${process.env.HOME}/.claude/local/claude`] });
     const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
     resolveClaudeBinary();
     expect(process.env.ROUBO_CLAUDE_BINARY).toBe(`${process.env.HOME}/.claude/local/claude`);
@@ -534,7 +557,7 @@ describe("resolveClaudeBinary / getClaudeBinary", () => {
     vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error("not found");
     });
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === "/opt/homebrew/bin/claude");
+    mockFs({ files: ["/opt/homebrew/bin/claude"] });
     const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
     resolveClaudeBinary();
     expect(process.env.ROUBO_CLAUDE_BINARY).toBe("/opt/homebrew/bin/claude");
@@ -545,7 +568,7 @@ describe("resolveClaudeBinary / getClaudeBinary", () => {
     vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error("not found");
     });
-    vi.mocked(fs.existsSync).mockReturnValue(false);
+    mockFs({});
     const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
     resolveClaudeBinary();
     expect(process.env.ROUBO_CLAUDE_BINARY).toBeUndefined();
@@ -554,11 +577,37 @@ describe("resolveClaudeBinary / getClaudeBinary", () => {
 
   it("skips login shell for fish and goes straight to well-known paths", async () => {
     process.env.SHELL = "/usr/local/bin/fish";
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === "/usr/local/bin/claude");
+    mockFs({ files: ["/usr/local/bin/claude"] });
     const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
     resolveClaudeBinary();
     expect(execFileSync).not.toHaveBeenCalled();
     expect(getClaudeBinary()).toBe("/usr/local/bin/claude");
+  });
+
+  it("skips a well-known path that is a directory, not a file (#651)", async () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error("not found");
+    });
+    mockFs({
+      dirs: [`${process.env.HOME}/.local/bin/claude`],
+      files: ["/opt/homebrew/bin/claude"],
+    });
+    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
+    resolveClaudeBinary();
+    expect(getClaudeBinary()).toBe("/opt/homebrew/bin/claude");
+  });
+
+  it("skips a well-known path that is a file without the execute bit (#651)", async () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error("not found");
+    });
+    mockFs({
+      files: [`${process.env.HOME}/.local/bin/claude`, "/opt/homebrew/bin/claude"],
+      executable: ["/opt/homebrew/bin/claude"],
+    });
+    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
+    resolveClaudeBinary();
+    expect(getClaudeBinary()).toBe("/opt/homebrew/bin/claude");
   });
 });
 
@@ -577,26 +626,38 @@ describe("resolveAgentCommand (#645)", () => {
   it("returns an absolute command unchanged without probing the filesystem", async () => {
     const { resolveAgentCommand } = await import("./env.js");
     expect(resolveAgentCommand("/opt/acme/bin/acme")).toBe("/opt/acme/bin/acme");
-    expect(fs.existsSync).not.toHaveBeenCalled();
+    expect(fs.statSync).not.toHaveBeenCalled();
   });
 
   it("returns a relative command containing a separator unchanged", async () => {
     const { resolveAgentCommand } = await import("./env.js");
     expect(resolveAgentCommand("./bin/acme")).toBe("./bin/acme");
-    expect(fs.existsSync).not.toHaveBeenCalled();
+    expect(fs.statSync).not.toHaveBeenCalled();
   });
 
   it("returns the bare name when the command is found on PATH", async () => {
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === "/usr/bin/acme");
+    mockFs({ files: ["/usr/bin/acme"] });
     const { resolveAgentCommand } = await import("./env.js");
     // The bare name is deliberate: PATH resolution stays the exec call's job.
     expect(resolveAgentCommand("acme")).toBe("acme");
   });
 
   it("searches the supplied PATH rather than the server's when one is given", async () => {
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === "/child/bin/acme");
+    mockFs({ files: ["/child/bin/acme"] });
     const { resolveAgentCommand } = await import("./env.js");
     expect(resolveAgentCommand("acme", "/child/bin")).toBe("acme");
+  });
+
+  it("skips a PATH entry that is not an executable file (#651)", async () => {
+    // /usr/bin/claude is a directory and /bin/claude lacks the execute bit, so
+    // neither may be spawned: resolution must fall through to the well-known list.
+    mockFs({
+      dirs: ["/usr/bin/claude"],
+      files: ["/bin/claude", "/opt/homebrew/bin/claude"],
+      executable: ["/opt/homebrew/bin/claude"],
+    });
+    const { resolveAgentCommand } = await import("./env.js");
+    expect(resolveAgentCommand("claude")).toBe("/opt/homebrew/bin/claude");
   });
 
   it.each([
@@ -605,13 +666,49 @@ describe("resolveAgentCommand (#645)", () => {
     ["/opt/homebrew/bin/claude", () => "/opt/homebrew/bin/claude"],
     ["/usr/local/bin/claude", () => "/usr/local/bin/claude"],
   ])("falls back to %s when claude is not on PATH", async (_label, expected) => {
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === expected());
+    mockFs({ files: [expected()] });
     const { resolveAgentCommand } = await import("./env.js");
     expect(resolveAgentCommand("claude")).toBe(expected());
   });
 
+  it("skips a well-known candidate that exists but is not executable (#651)", async () => {
+    // The shadowing case from #651: a broken ~/.local/bin/claude must not win
+    // over a working /opt/homebrew/bin/claude further down the list.
+    mockFs({
+      files: [
+        `${process.env.HOME}/.local/bin/claude`,
+        `${process.env.HOME}/.claude/local/claude`,
+        "/opt/homebrew/bin/claude",
+      ],
+      executable: ["/opt/homebrew/bin/claude"],
+    });
+    const { resolveAgentCommand } = await import("./env.js");
+    expect(resolveAgentCommand("claude")).toBe("/opt/homebrew/bin/claude");
+  });
+
+  it("throws when every candidate exists but none is executable (#651)", async () => {
+    const candidates = [
+      "/usr/bin/claude",
+      "/bin/claude",
+      `${process.env.HOME}/.local/bin/claude`,
+      `${process.env.HOME}/.claude/local/claude`,
+      "/opt/homebrew/bin/claude",
+      "/usr/local/bin/claude",
+    ];
+    mockFs({ files: candidates, executable: [] });
+    const { resolveAgentCommand, AgentCommandNotFoundError } = await import("./env.js");
+    let thrown: unknown;
+    try {
+      resolveAgentCommand("claude");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(AgentCommandNotFoundError);
+    expect((thrown as InstanceType<typeof AgentCommandNotFoundError>).tried).toEqual(candidates);
+  });
+
   it("throws an error naming every location tried when nothing resolves", async () => {
-    vi.mocked(fs.existsSync).mockReturnValue(false);
+    mockFs({});
     const { resolveAgentCommand, AgentCommandNotFoundError } = await import("./env.js");
     let thrown: unknown;
     try {
@@ -635,7 +732,7 @@ describe("resolveAgentCommand (#645)", () => {
   });
 
   it("reports only the PATH candidates for an agent with no well-known locations", async () => {
-    vi.mocked(fs.existsSync).mockReturnValue(false);
+    mockFs({});
     const { resolveAgentCommand, AgentCommandNotFoundError } = await import("./env.js");
     expect(() => resolveAgentCommand("acme")).toThrow(AgentCommandNotFoundError);
     try {
@@ -672,9 +769,29 @@ describe("resolveClaudeBinary and resolveAgentCommand agree (#645)", () => {
 
     for (const installed of candidates) {
       delete process.env.ROUBO_CLAUDE_BINARY;
-      vi.mocked(fs.existsSync).mockImplementation((p) => p === installed);
+      mockFs({ files: [installed] });
       resolveClaudeBinary();
       expect(getClaudeBinary()).toBe(installed);
+      expect(resolveAgentCommand("claude")).toBe(getClaudeBinary());
+    }
+  });
+
+  it("both fall through past a non-executable candidate to the same next one (#651)", async () => {
+    const { wellKnownPathsFor, resolveAgentCommand, resolveClaudeBinary, getClaudeBinary } =
+      await import("./env.js");
+    const candidates = wellKnownPathsFor("claude");
+    expect(candidates.length).toBeGreaterThan(1);
+
+    // Walk the list making candidate i present-but-unexecutable and i+1 working:
+    // both resolvers must skip i and land on i+1, or the two would drift.
+    for (let i = 0; i < candidates.length - 1; i++) {
+      delete process.env.ROUBO_CLAUDE_BINARY;
+      mockFs({
+        files: [candidates[i], candidates[i + 1]],
+        executable: [candidates[i + 1]],
+      });
+      resolveClaudeBinary();
+      expect(getClaudeBinary()).toBe(candidates[i + 1]);
       expect(resolveAgentCommand("claude")).toBe(getClaudeBinary());
     }
   });
