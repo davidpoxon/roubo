@@ -2214,6 +2214,12 @@ export interface JigMeta {
   createdAt?: string; // ISO-8601; absent for the embedded global default
   updatedAt?: string; // ISO-8601
   approxTokens?: number; // chars/4 estimate, lets UIs render a context-usage signal
+  /**
+   * The `agent`-kind plugin this jig launches with (AP-FR-006, issue #515).
+   * Absent means "use the default agent". Stored in the jig's own frontmatter,
+   * so an app-level jig and a repo-level jig both carry their binding with them.
+   */
+  agentPluginId?: string;
 }
 
 export interface JigDetail extends JigMeta {
@@ -2260,6 +2266,7 @@ export interface JigCreateRequest {
   description: string; // 1–300 chars after trim
   icon?: string; // optional; defaults to 'file-text'
   content: string; // non-empty; max 200 KB utf-8
+  agentPluginId?: string; // optional agent binding (AP-FR-006)
 }
 
 export interface JigUpdateRequest {
@@ -2267,6 +2274,12 @@ export interface JigUpdateRequest {
   description?: string;
   icon?: string;
   content?: string;
+  /**
+   * The agent binding (AP-FR-006). Absent leaves the stored binding alone;
+   * `null` clears it, which is how the picker's "Default agent" option unbinds
+   * a jig without needing a separate endpoint.
+   */
+  agentPluginId?: string | null;
 }
 
 export type JigReference =

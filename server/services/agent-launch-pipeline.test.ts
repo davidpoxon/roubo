@@ -37,6 +37,7 @@ import {
   AgentUnavailableError,
   prepareAgentLaunch,
   resolveEffectiveAgentConfig,
+  resolveLaunchAgentId,
 } from "./agent-launch-pipeline.js";
 import { AgentDescriptorError } from "./agent-launch-executor.js";
 
@@ -141,6 +142,120 @@ describe("resolveEffectiveAgentConfig (AP-FR-011 four-layer order)", () => {
         perLaunch: { model: null, verbose: false },
       }),
     ).toEqual({ model: null, verbose: false });
+  });
+});
+
+describe("resolveLaunchAgentId (AP-FR-006 launch resolution order)", () => {
+  /** Only `installed` resolves; every other id is an uninstalled plugin. */
+  function onlyInstalled(...installed: string[]) {
+    pluginManagerMocks.getRecord.mockImplementation((id: string) =>
+      installed.includes(id) ? makeRecord({ id, manifest: makeManifest({ id }) }) : undefined,
+    );
+  }
+
+  it("returns the jig's binding when the jig has one (AP-TC-021 S001)", () => {
+    onlyInstalled("claude-code", "codex-cli");
+
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "claude-code",
+        defaultAgentPluginId: "codex-cli",
+      }),
+    ).toBe("claude-code");
+  });
+
+  it("falls back to the current default when the jig has no binding (AP-TC-021 S002)", () => {
+    onlyInstalled("claude-code", "codex-cli");
+
+    expect(resolveLaunchAgentId({ defaultAgentPluginId: "codex-cli" })).toBe("codex-cli");
+  });
+
+  it("leaves an explicit binding untouched by a default change (AP-TC-021 S003)", () => {
+    onlyInstalled("claude-code", "codex-cli");
+
+    // The default moved to codex-cli; the bound jig still resolves to its own agent.
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "claude-code",
+        defaultAgentPluginId: "codex-cli",
+      }),
+    ).toBe("claude-code");
+  });
+
+  it("falls back to the default when the bound agent is no longer installed (AP-TC-035 S002)", () => {
+    onlyInstalled("claude-code");
+
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "codex-cli",
+        defaultAgentPluginId: "claude-code",
+      }),
+    ).toBe("claude-code");
+  });
+
+  it("falls back to the default when the bound agent is installed but unconsented", () => {
+    onlyInstalled("claude-code", "codex-cli");
+    consentMocks.hasConsent.mockImplementation((id: string) => id !== "codex-cli");
+
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "codex-cli",
+        defaultAgentPluginId: "claude-code",
+      }),
+    ).toBe("claude-code");
+  });
+
+  it("returns undefined when neither layer names an agent", () => {
+    expect(resolveLaunchAgentId({})).toBeUndefined();
+  });
+
+  it("returns undefined when the only binding is unresolvable and no default is set", () => {
+    onlyInstalled();
+
+    expect(resolveLaunchAgentId({ jigAgentPluginId: "codex-cli" })).toBeUndefined();
+  });
+
+  it("falls through rather than failing the launch when the default is no longer installed", () => {
+    // Two agents were installed when the default was chosen; both are gone now,
+    // so there is nothing to degrade to and the launch stays on the built-in
+    // command path instead of throwing AgentUnavailableError downstream.
+    onlyInstalled();
+    pluginManagerMocks.getAgentManifests.mockReturnValue([]);
+
+    expect(resolveLaunchAgentId({ defaultAgentPluginId: "codex-cli" })).toBeUndefined();
+  });
+
+  it("does not pick a survivor when the stale default leaves more than one agent available", () => {
+    onlyInstalled("claude-code", "codex-cli");
+    pluginManagerMocks.getAgentManifests.mockReturnValue([
+      makeManifest({ id: "claude-code" }),
+      makeManifest({ id: "codex-cli", name: "Codex CLI" }),
+    ]);
+
+    // `gemini-cli` was uninstalled after being made the default; with two agents
+    // still available there is no unambiguous stand-in, so resolution declines.
+    expect(resolveLaunchAgentId({ defaultAgentPluginId: "gemini-cli" })).toBeUndefined();
+  });
+
+  it("treats a single configured agent as the default with nothing persisted (AP-TC-041 S001)", () => {
+    onlyInstalled("claude-code");
+    pluginManagerMocks.getAgentManifests.mockReturnValue([makeManifest({ id: "claude-code" })]);
+
+    expect(resolveLaunchAgentId({})).toBe("claude-code");
+  });
+
+  it("degrades a stale default to the one agent that is actually available", () => {
+    onlyInstalled("claude-code");
+    pluginManagerMocks.getAgentManifests.mockReturnValue([makeManifest({ id: "claude-code" })]);
+
+    expect(resolveLaunchAgentId({ defaultAgentPluginId: "codex-cli" })).toBe("claude-code");
+  });
+
+  it("still prefers a resolvable jig binding over the single-agent fallback", () => {
+    onlyInstalled("claude-code", "codex-cli");
+    pluginManagerMocks.getAgentManifests.mockReturnValue([makeManifest({ id: "claude-code" })]);
+
+    expect(resolveLaunchAgentId({ jigAgentPluginId: "codex-cli" })).toBe("codex-cli");
   });
 });
 

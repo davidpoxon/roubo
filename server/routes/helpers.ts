@@ -31,6 +31,7 @@ export function handleJigError(res: Response, err: unknown): void {
       INVALID_DESCRIPTION: 400,
       INVALID_ICON: 400,
       INVALID_CONTENT: 400,
+      INVALID_AGENT_PLUGIN_ID: 400,
       DUPLICATE_ID: 409,
       DUPLICATE_NAME: 409,
     };

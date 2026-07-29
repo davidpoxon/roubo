@@ -14,7 +14,7 @@ import {
 import { isAlertExternalId } from "../services/alert-external-id.js";
 import { buildAlertIssueContext } from "../services/alert-formatting.js";
 import { loadSettings, getProjectPermissions } from "../services/state.js";
-import { AgentUnavailableError } from "../services/agent-launch-pipeline.js";
+import { AgentUnavailableError, resolveLaunchAgentId } from "../services/agent-launch-pipeline.js";
 import { AgentDescriptorError } from "../services/agent-launch-executor.js";
 import type { AgentNotAvailable } from "../services/agent-plugin-registry.js";
 import { parseIntParam, VALID_JIG_ID } from "./helpers.js";
@@ -84,63 +84,16 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   const project = projectRegistry.getProject(projectId);
   const projectName = project?.config?.project?.displayName ?? projectId;
 
-  // Agent-plugin launch (AP-FR-011): the plugin supplies a declarative
-  // descriptor and core assembles argv, executes the workspace writes, and
-  // spawns. The built-in `command` path below is untouched by this branch.
-  if (agentPluginId !== undefined) {
-    let agentSession;
-    try {
-      agentSession = await terminalService.createAgentSession({
-        projectId,
-        benchId,
-        workspacePath: bench.workspacePath,
-        projectName,
-        agentPluginId,
-        layers: {
-          ...(presetOverrides !== undefined && { preset: presetOverrides }),
-          ...(perLaunchOverrides !== undefined && { perLaunch: perLaunchOverrides }),
-        },
-      });
-    } catch (err) {
-      if (err instanceof AgentUnavailableError) {
-        res.status(statusForAgentNotAvailable(err.notAvailable)).json({ error: err.message });
-        return;
-      }
-      // A descriptor the schema rejects, or a write path that escapes the bench
-      // workspace, is the plugin's fault rather than the caller's: 502.
-      if (err instanceof AgentDescriptorError) {
-        res.status(502).json({ error: err.message });
-        return;
-      }
-      const message = (err as Error).message ?? String(err);
-      // `agentPluginId` is request-controlled, so it is passed as an argument
-      // rather than interpolated into the format string: console.error runs
-      // util.format, where a `%s` in the value would consume the `err` argument
-      // and drop the real failure from the log (js/tainted-format-string).
-      console.error(
-        "[terminal] createAgentSession failed for bench %d (agent: %s):",
-        benchId,
-        agentPluginId,
-        err,
-      );
-      res.status(500).json({ error: `Agent session could not be started: ${message}` });
-      return;
-    }
-
-    res.status(201).json({
-      sessionId: agentSession.id,
-      label: agentSession.label,
-      wsUrl: `/ws/terminal/${agentSession.id}`,
-    });
-    return;
-  }
-
   const settings = loadSettings();
   let initialInput: string | undefined;
   let jigInjected = false;
   let jigScheduled = false;
   let sizeWarning = false;
   let scheduleWrite: ((sessionId: string) => void) | undefined;
+  // The jig driving this launch, when one does. It is resolved before the
+  // agent-launch branch because it carries the agent binding that branch reads
+  // (AP-FR-006).
+  let launchJigAgentPluginId: string | undefined;
 
   if (jigId && command === "claude" && project?.config) {
     const jig = jigManager.getJig(projectId, jigId);
@@ -148,6 +101,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
       res.status(404).json({ error: "Jig not found" });
       return;
     }
+    launchJigAgentPluginId = jig.agentPluginId;
 
     sizeWarning = jig.sizeWarning ?? false;
 
@@ -203,6 +157,82 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
       };
       jigScheduled = true;
     }
+  }
+
+  // AP-FR-006 (issue #515): an explicit `agentPluginId` on the request wins,
+  // because the caller named the agent. Otherwise a jig-driven launch resolves
+  // the jig's own binding first and the app-level default agent second, so a
+  // jig with no binding follows whatever default is current and a bound jig
+  // keeps its agent across default changes.
+  const launchAgentPluginId =
+    agentPluginId ??
+    (jigId && command === "claude"
+      ? resolveLaunchAgentId({
+          ...(launchJigAgentPluginId !== undefined && {
+            jigAgentPluginId: launchJigAgentPluginId,
+          }),
+          ...(settings.jigs?.defaultAgentPluginId !== undefined && {
+            defaultAgentPluginId: settings.jigs.defaultAgentPluginId,
+          }),
+        })
+      : undefined);
+
+  // Agent-plugin launch (AP-FR-011): the plugin supplies a declarative
+  // descriptor and core assembles argv, executes the workspace writes, and
+  // spawns. The built-in `command` path below is untouched by this branch.
+  if (launchAgentPluginId !== undefined) {
+    let agentSession;
+    try {
+      agentSession = await terminalService.createAgentSession({
+        projectId,
+        benchId,
+        workspacePath: bench.workspacePath,
+        projectName,
+        agentPluginId: launchAgentPluginId,
+        ...(initialInput !== undefined && { initialInput }),
+        layers: {
+          ...(presetOverrides !== undefined && { preset: presetOverrides }),
+          ...(perLaunchOverrides !== undefined && { perLaunch: perLaunchOverrides }),
+        },
+      });
+    } catch (err) {
+      if (err instanceof AgentUnavailableError) {
+        res.status(statusForAgentNotAvailable(err.notAvailable)).json({ error: err.message });
+        return;
+      }
+      // A descriptor the schema rejects, or a write path that escapes the bench
+      // workspace, is the plugin's fault rather than the caller's: 502.
+      if (err instanceof AgentDescriptorError) {
+        res.status(502).json({ error: err.message });
+        return;
+      }
+      const message = (err as Error).message ?? String(err);
+      // `launchAgentPluginId` is request-controlled, so it is passed as an
+      // argument rather than interpolated into the format string: console.error
+      // runs util.format, where a `%s` in the value would consume the `err`
+      // argument and drop the real failure from the log
+      // (js/tainted-format-string).
+      console.error(
+        "[terminal] createAgentSession failed for bench %d (agent: %s):",
+        benchId,
+        launchAgentPluginId,
+        err,
+      );
+      res.status(500).json({ error: `Agent session could not be started: ${message}` });
+      return;
+    }
+
+    scheduleWrite?.(agentSession.id);
+
+    res.status(201).json({
+      sessionId: agentSession.id,
+      label: agentSession.label,
+      wsUrl: `/ws/terminal/${agentSession.id}`,
+      ...(jigInjected && { jigInjected: true }),
+      ...(jigScheduled && { jigScheduled: true }),
+      ...(sizeWarning && { sizeWarning: true }),
+    });
+    return;
   }
 
   const onClaudeExit =

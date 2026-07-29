@@ -42,6 +42,17 @@ vi.mock("../services/state.js", () => ({
 vi.mock("../services/issue-formatting.js", () => ({
   fetchIssueContext: vi.fn(),
 }));
+// Partial mock: the error classes stay real (the route matches on them with
+// `instanceof`), only the launch-agent resolution is stubbed. Its own order
+// semantics are covered in agent-launch-pipeline.test.ts; what matters here is
+// the wiring, so the default is "no agent resolved" (the built-in path).
+const pipelineMocks = vi.hoisted(() => ({
+  resolveLaunchAgentId: vi.fn<() => string | undefined>(() => undefined),
+}));
+vi.mock("../services/agent-launch-pipeline.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/agent-launch-pipeline.js")>();
+  return { ...actual, resolveLaunchAgentId: pipelineMocks.resolveLaunchAgentId };
+});
 vi.mock("../services/notification.js", () => ({
   createNotification: vi.fn(),
 }));
@@ -684,6 +695,152 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
 
     expect(res.status).toBe(400);
     expect(terminalService.createAgentSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
+  const AGENT_SESSION = {
+    id: "agent-2",
+    benchKey: "project1:1",
+    label: "Codex CLI 1 - My Project #1",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    status: "live" as const,
+    command: "codex",
+    agentPluginId: "codex-cli",
+  };
+
+  const BOUND_JIG = { ...MOCK_JIG, agentPluginId: "codex-cli" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(benchManager.getBench).mockReturnValue(
+      MOCK_BENCH as unknown as ReturnType<typeof benchManager.getBench>,
+    );
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      MOCK_PROJECT as unknown as ReturnType<typeof projectRegistry.getProject>,
+    );
+    vi.mocked(terminalService.createAgentSession).mockResolvedValue(AGENT_SESSION);
+    vi.mocked(terminalService.createSession).mockReturnValue({
+      id: "term-1",
+      benchKey: "project1:1",
+      label: "Terminal 1 - My Project #1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      status: "live",
+    });
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Push feature/test to GitHub");
+    vi.mocked(state.loadSettings).mockReturnValue({
+      jigs: { autoInject: true, autoExecute: true, defaultAgentPluginId: "claude-code" },
+    });
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue(undefined);
+  });
+
+  it("resolves with the jig's binding and the stored default agent", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      BOUND_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+
+    await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", jigId: "push" });
+
+    expect(pipelineMocks.resolveLaunchAgentId).toHaveBeenCalledWith({
+      jigAgentPluginId: "codex-cli",
+      defaultAgentPluginId: "claude-code",
+    });
+  });
+
+  it("launches the resolved agent with the resolved jig as the initial prompt (AP-TC-037)", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      BOUND_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue("codex-cli");
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", jigId: "push" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.sessionId).toBe("agent-2");
+    expect(res.body.jigInjected).toBe(true);
+    expect(terminalService.createSession).not.toHaveBeenCalled();
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentPluginId: "codex-cli",
+        initialInput: "Push feature/test to GitHub",
+      }),
+    );
+  });
+
+  it("omits the jig binding from the resolver call when the jig has none", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+
+    await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", jigId: "push" });
+
+    expect(pipelineMocks.resolveLaunchAgentId).toHaveBeenCalledWith({
+      defaultAgentPluginId: "claude-code",
+    });
+  });
+
+  it("stays on the built-in command path when nothing resolves an agent", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", jigId: "push" });
+
+    expect(res.status).toBe(201);
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
+    expect(terminalService.createSession).toHaveBeenCalled();
+  });
+
+  it("lets an explicit agentPluginId win over the jig-driven resolution", async () => {
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      BOUND_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+    // `command: "claude"` keeps the jig-driven branch live, and the resolver is
+    // primed with a DIFFERENT agent, so the assertions below fail if the
+    // precedence is ever inverted rather than passing because the branch was
+    // never reached.
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue("codex-cli");
+
+    await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", agentPluginId: "acme-agent", jigId: "push" });
+
+    expect(pipelineMocks.resolveLaunchAgentId).not.toHaveBeenCalled();
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({ agentPluginId: "acme-agent" }),
+    );
+  });
+
+  it("writes the jig after startup on an agent launch when autoExecute is off", async () => {
+    vi.useFakeTimers();
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      BOUND_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+    vi.mocked(state.loadSettings).mockReturnValue({
+      jigs: { autoInject: true, autoExecute: false, defaultAgentPluginId: "claude-code" },
+    });
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue("codex-cli");
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude", jigId: "push" });
+
+    expect(res.body.jigScheduled).toBe(true);
+    expect(terminalService.writeToSession).not.toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(terminalService.writeToSession).toHaveBeenCalledWith(
+      "agent-2",
+      "Push feature/test to GitHub",
+    );
+    vi.useRealTimers();
   });
 });
 

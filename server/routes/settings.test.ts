@@ -252,6 +252,38 @@ describe("PUT /", () => {
     expect(res.body.jigs.defaultJigId).toBeUndefined();
   });
 
+  it("persists defaultAgentPluginId (AP-TC-018)", async () => {
+    const jigs = { autoInject: true, autoExecute: true, defaultAgentPluginId: "codex-cli" };
+    const res = await request(app).put("/").send({ theme: "dark", jigs });
+    expect(res.status).toBe(200);
+    expect(res.body.jigs.defaultAgentPluginId).toBe("codex-cli");
+    expect(state.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ jigs }));
+  });
+
+  it("accepts jigs with a null defaultAgentPluginId to clear the default agent", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({
+        theme: "dark",
+        jigs: { autoInject: true, autoExecute: true, defaultAgentPluginId: null },
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.jigs.defaultAgentPluginId).toBeUndefined();
+  });
+
+  it("returns 400 when defaultAgentPluginId is not a plugin id", async () => {
+    for (const defaultAgentPluginId of [42, "Codex CLI", "../evil"]) {
+      const res = await request(app)
+        .put("/")
+        .send({
+          theme: "dark",
+          jigs: { autoInject: true, autoExecute: true, defaultAgentPluginId },
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/invalid jig/i);
+    }
+  });
+
   it("saves valid bench settings alongside theme", async () => {
     const benches = {
       enforceIssueDependencies: true,

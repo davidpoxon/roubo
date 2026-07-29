@@ -86,6 +86,7 @@ interface ParsedFrontmatter {
   icon?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
+  agentPluginId?: unknown;
 }
 
 export function loadJigFile(filePath: string): JigDetail | null {
@@ -143,6 +144,10 @@ export function loadJigFile(filePath: string): JigDetail | null {
   const id = path.basename(filePath, ".md");
   const createdAt = typeof frontmatter.createdAt === "string" ? frontmatter.createdAt : undefined;
   const updatedAt = typeof frontmatter.updatedAt === "string" ? frontmatter.updatedAt : undefined;
+  const agentPluginId =
+    typeof frontmatter.agentPluginId === "string" && frontmatter.agentPluginId.trim().length > 0
+      ? frontmatter.agentPluginId
+      : undefined;
 
   if (sizeBytes > SOFT_SIZE_LIMIT) {
     console.warn(`[jig-manager] Jig file is large (${sizeBytes} bytes): ${filePath}`);
@@ -161,6 +166,7 @@ export function loadJigFile(filePath: string): JigDetail | null {
     approxTokens: Math.ceil(Buffer.byteLength(content, "utf-8") / 4),
     ...(createdAt !== undefined && { createdAt }),
     ...(updatedAt !== undefined && { updatedAt }),
+    ...(agentPluginId !== undefined && { agentPluginId }),
   };
 }
 
@@ -463,6 +469,9 @@ export function stopAllWatchers(): void {
 
 // ── Jig CRUD: shared types and helpers ──
 
+/** Plugin-id shape, identical to the one the agent routes enforce. */
+const JIG_AGENT_PLUGIN_ID_RE = /^[a-z][a-z0-9-]*$/;
+
 type JigErrorCode =
   | "NOT_FOUND"
   | "RESERVED_ID"
@@ -472,6 +481,7 @@ type JigErrorCode =
   | "INVALID_DESCRIPTION"
   | "INVALID_ICON"
   | "INVALID_CONTENT"
+  | "INVALID_AGENT_PLUGIN_ID"
   | "REFERENCED";
 
 export class JigError extends Error {
@@ -505,14 +515,32 @@ function writeJigFile(
     icon,
     createdAt,
     updatedAt,
-  }: { name: string; description: string; icon: string; createdAt: string; updatedAt: string },
+    agentPluginId,
+  }: {
+    name: string;
+    description: string;
+    icon: string;
+    createdAt: string;
+    updatedAt: string;
+    agentPluginId?: string;
+  },
   content: string,
 ): number {
   assertSafeIdentifier(id, JIG_ID_RE, "jigId");
   const resolvedDir = path.resolve(dir);
   fs.mkdirSync(resolvedDir, { recursive: true });
+  // The frontmatter is rebuilt from this explicit field list on every write, so
+  // an unset `agentPluginId` is simply omitted rather than written as null: the
+  // key's absence IS "use the default agent" (AP-FR-006).
   const frontmatter = YAML.stringify(
-    { name, description, icon, createdAt, updatedAt },
+    {
+      name,
+      description,
+      icon,
+      createdAt,
+      updatedAt,
+      ...(agentPluginId !== undefined && { agentPluginId }),
+    },
     { lineWidth: 0 },
   );
   const body = `---\n${frontmatter}---\n${content.endsWith("\n") ? content : content + "\n"}`;
@@ -522,7 +550,13 @@ function writeJigFile(
 }
 
 function validateJigFields(
-  fields: { name?: string; description?: string; icon?: string; content?: string },
+  fields: {
+    name?: string;
+    description?: string;
+    icon?: string;
+    content?: string;
+    agentPluginId?: string | null;
+  },
   context: "create" | "update",
 ): void {
   if (context === "create" || fields.name !== undefined) {
@@ -544,6 +578,19 @@ function validateJigFields(
   if (fields.icon !== undefined) {
     if (typeof fields.icon !== "string" || fields.icon.trim().length === 0) {
       throw new JigError("icon must be a non-empty string", "INVALID_ICON");
+    }
+  }
+  // `null` is the explicit "clear the binding" signal, so only a non-null value
+  // is shape-checked against the plugin-id pattern (AP-FR-006).
+  if (fields.agentPluginId !== undefined && fields.agentPluginId !== null) {
+    if (
+      typeof fields.agentPluginId !== "string" ||
+      !JIG_AGENT_PLUGIN_ID_RE.test(fields.agentPluginId)
+    ) {
+      throw new JigError(
+        "agentPluginId must be a plugin id matching /^[a-z][a-z0-9-]*$/",
+        "INVALID_AGENT_PLUGIN_ID",
+      );
     }
   }
   if (context === "create" || fields.content !== undefined) {
@@ -589,11 +636,19 @@ function _createJigInDir(dir: string, source: JigSource, req: JigCreateRequest):
   const name = req.name.trim();
   const description = req.description.trim();
   const { content } = req;
+  const agentPluginId = req.agentPluginId?.trim() || undefined;
   const now = new Date().toISOString();
   const sizeBytes = writeJigFile(
     dir,
     id,
-    { name, description, icon, createdAt: now, updatedAt: now },
+    {
+      name,
+      description,
+      icon,
+      createdAt: now,
+      updatedAt: now,
+      ...(agentPluginId !== undefined && { agentPluginId }),
+    },
     content,
   );
 
@@ -609,6 +664,7 @@ function _createJigInDir(dir: string, source: JigSource, req: JigCreateRequest):
     approxTokens: Math.ceil(Buffer.byteLength(content, "utf-8") / 4),
     createdAt: now,
     updatedAt: now,
+    ...(agentPluginId !== undefined && { agentPluginId }),
   };
 }
 
@@ -646,10 +702,26 @@ function _updateJigInDir(
   const icon = req.icon !== undefined ? req.icon.trim() : existing.icon;
   const content = req.content !== undefined ? req.content : existing.content;
   const createdAt = existing.createdAt ?? now;
+  // The write rebuilds the whole frontmatter, so the stored binding has to be
+  // carried through explicitly or an unrelated edit (a rename, a content save)
+  // would silently drop it. `null` is the clear-the-binding signal.
+  const agentPluginId =
+    req.agentPluginId === undefined
+      ? existing.agentPluginId
+      : req.agentPluginId === null
+        ? undefined
+        : req.agentPluginId.trim() || undefined;
   const sizeBytes = writeJigFile(
     dir,
     id,
-    { name, description, icon, createdAt, updatedAt: now },
+    {
+      name,
+      description,
+      icon,
+      createdAt,
+      updatedAt: now,
+      ...(agentPluginId !== undefined && { agentPluginId }),
+    },
     content,
   );
 
@@ -665,6 +737,7 @@ function _updateJigInDir(
     approxTokens: Math.ceil(Buffer.byteLength(content, "utf-8") / 4),
     createdAt,
     updatedAt: now,
+    ...(agentPluginId !== undefined && { agentPluginId }),
   };
 }
 

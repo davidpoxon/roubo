@@ -116,6 +116,16 @@ Every installed `agent`-kind plugin gets its own card, and every card renders a 
 - Saved defaults persist across navigation and restarts, and apply to every project.
 - With no agent plugins installed the screen shows an empty state. Install one from the **Marketplace** tab and it appears here.
 
+### Choosing which agent a jig launches
+
+**Settings > Jigs** is where you pick the agent a jig runs with.
+
+- **Default agent** is a radio group over the agents that are installed and configured, one tile each, with that agent's current effective params under its name. Exactly one is the default at a time, and picking one saves immediately and confirms with a toast. An agent that is not installed, not consented, or otherwise unavailable is not listed, so the default can only ever be an agent that can actually launch. With a single configured agent, that agent is the default.
+- **Per-jig agent** is the select beside each custom jig under **Custom Jigs**. Leave it on **Default agent** and the jig follows whatever the default is, including later changes to it. Point it at a specific agent and the jig keeps that agent regardless of what the default becomes.
+- At launch the two resolve in that order: the jig's own binding first, then the default agent, and finally the single configured agent when there is exactly one. With no agent configured at all, or with several configured and no default chosen, a jig with no binding launches on the built-in command path, exactly as before.
+- If a jig is bound to an agent that is later uninstalled, the select says so rather than reading as "Default agent", and the launch falls back to the default agent so the session still starts. A default agent that is itself uninstalled falls through the same way rather than failing the launch. Neither the binding nor the default is rewritten, so re-installing the plugin makes it take effect again.
+- The binding lives in the jig's own frontmatter (`agentPluginId`), so it travels with the jig: a repo-level jig carries its agent to everyone who checks out the repo.
+
 ### Overriding agent configuration per project
 
 **Project > Settings > Agent overrides** is where one project departs from those application-level defaults. Every installed agent plugin gets a card, and every field the plugin declares gets a row with its own override toggle and the current app default shown beside it.
