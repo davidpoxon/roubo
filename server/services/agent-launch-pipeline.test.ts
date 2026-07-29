@@ -33,8 +33,19 @@ vi.mock("./agent-project-overrides.js", async (importOriginal) => {
   return { ...actual, getProjectAgentOverrides: projectLayerMocks.getProjectAgentOverrides };
 });
 
+// The probe's own semantics are covered in agent-version-probe.test.ts; what is
+// under test here is the GATE, so the probe result is supplied directly.
+const probeMocks = vi.hoisted(() => ({
+  probeAgentVersion: vi.fn(),
+}));
+vi.mock("./agent-version-probe.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./agent-version-probe.js")>();
+  return { ...actual, probeAgentVersion: probeMocks.probeAgentVersion };
+});
+
 import {
   AgentUnavailableError,
+  AgentVersionGateError,
   prepareAgentLaunch,
   resolveEffectiveAgentConfig,
   resolveLaunchAgentId,
@@ -94,6 +105,7 @@ beforeEach(() => {
   consentMocks.hasConsent.mockReset().mockReturnValue(true);
   appLayerMocks.getEffectiveAgentConfig.mockReset().mockReturnValue({});
   projectLayerMocks.getProjectAgentOverrides.mockReset().mockReturnValue({});
+  probeMocks.probeAgentVersion.mockReset();
 });
 
 describe("resolveEffectiveAgentConfig (AP-FR-011 four-layer order)", () => {
@@ -380,5 +392,101 @@ describe("AP-TC-083: config values reach argv literally", () => {
     ]);
     // The value is a single argv element: nothing split it on `;` or `$(`.
     expect(prepared.descriptor.args[2]).toBe(hostile);
+  });
+});
+
+describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
+  const VERSION_PROBE = {
+    args: ["--version"],
+    parse: "semver" as const,
+    minVersion: "2.1.111",
+    testedCeiling: "2.1.205",
+  };
+
+  function descriptorWithProbe() {
+    pluginManagerMocks.invoke.mockResolvedValue(
+      makeDescriptor({ capabilities: { versionProbe: VERSION_PROBE } }),
+    );
+  }
+
+  it("does not probe at all when the descriptor declares no versionProbe", async () => {
+    const prepared = await prepareAgentLaunch(launchParams);
+    expect(probeMocks.probeAgentVersion).not.toHaveBeenCalled();
+    expect(prepared.compatibility).toBeUndefined();
+  });
+
+  it("probes before the launch and stays silent in range (AP-TC-070, AP-TC-100 S003)", async () => {
+    descriptorWithProbe();
+    probeMocks.probeAgentVersion.mockResolvedValue({
+      status: "within-tested-range",
+      detectedVersion: "2.1.180",
+      minVersion: "2.1.111",
+      testedCeiling: "2.1.205",
+    });
+
+    const prepared = await prepareAgentLaunch(launchParams);
+
+    expect(probeMocks.probeAgentVersion).toHaveBeenCalledWith(
+      "claude-code",
+      "claude",
+      VERSION_PROBE,
+    );
+    expect(prepared.compatibility?.status).toBe("within-tested-range");
+  });
+
+  it("blocks a below-floor launch with an actionable failure (AP-TC-071, AP-TC-100 S001)", async () => {
+    descriptorWithProbe();
+    probeMocks.probeAgentVersion.mockResolvedValue({
+      status: "below-floor",
+      detectedVersion: "2.1.100",
+      minVersion: "2.1.111",
+      testedCeiling: "2.1.205",
+    });
+
+    const err = await prepareAgentLaunch(launchParams).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(AgentVersionGateError);
+    const failure = (err as AgentVersionGateError).failure;
+    expect(failure.class).toBe("below-floor-version");
+    expect(failure.detectedVersion).toBe("2.1.100");
+    expect(failure.minVersion).toBe("2.1.111");
+    expect(failure.guidance).toContain("Update");
+    expect(failure.actions).toContain("retry");
+  });
+
+  it("allows a launch at exactly the floor (AP-TC-073)", async () => {
+    descriptorWithProbe();
+    probeMocks.probeAgentVersion.mockResolvedValue({
+      status: "within-tested-range",
+      detectedVersion: "2.1.111",
+      minVersion: "2.1.111",
+    });
+
+    await expect(prepareAgentLaunch(launchParams)).resolves.toMatchObject({
+      compatibility: { detectedVersion: "2.1.111" },
+    });
+  });
+
+  it("carries an above-ceiling verdict through without blocking (AP-TC-072, AP-TC-100 S002)", async () => {
+    descriptorWithProbe();
+    probeMocks.probeAgentVersion.mockResolvedValue({
+      status: "above-tested-ceiling",
+      detectedVersion: "2.1.207",
+      testedCeiling: "2.1.205",
+    });
+
+    const prepared = await prepareAgentLaunch(launchParams);
+    expect(prepared.compatibility?.status).toBe("above-tested-ceiling");
+  });
+
+  it("carries a probe-failed verdict through without blocking (AP-TC-074)", async () => {
+    descriptorWithProbe();
+    probeMocks.probeAgentVersion.mockResolvedValue({
+      status: "probe-failed",
+      reason: "no recognisable version number",
+    });
+
+    const prepared = await prepareAgentLaunch(launchParams);
+    expect(prepared.compatibility?.status).toBe("probe-failed");
   });
 });

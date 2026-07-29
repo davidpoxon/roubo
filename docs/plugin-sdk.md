@@ -91,7 +91,7 @@ The manifest is validated by [`schema/roubo-plugin.schema.json`](../schema/roubo
 | `configSchema`                  | JSON Schema object                      | Optional, describes user-facing config fields                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `capabilities`                  | object                                  | Optional capability flags                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `defaultIntegrationConfig`      | object                                  | Optional. Plugin-global defaults seeded into the three-layer effective-config merge (per-project and per-source layers override these). See [Default integration config](#default-integration-config)                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `agentCompatibility`            | object                                  | Optional (agent plugins). Agent-CLI compatibility window `{ minVersion?, testedCeiling? }`, each an exact semver version. The host blocks a launch below `minVersion` and warns above `testedCeiling`. See [Agent compatibility](#agent-compatibility)                                                                                                                                                                                                                                                                                                                                                                                           |
+| `agentCompatibility`            | object                                  | Optional (agent plugins). Agent-CLI compatibility window `{ minVersion?, testedCeiling?, probe? }`; the two versions are exact semver. The host blocks a launch below `minVersion`, warns above `testedCeiling`, and uses `probe` to detect the installed version without launching. See [Agent compatibility](#agent-compatibility)                                                                                                                                                                                                                                                                                                             |
 
 `host.fetch` to a host outside `network.hosts` is rejected with a structured error before any DNS lookup. `host.credentials.get/set` to a slot not declared in `permissions.credentials.slots` is rejected before the keyring is touched.
 
@@ -128,9 +128,23 @@ agentCompatibility:
   # Highest CLI version the plugin was verified against. A launch above it
   # proceeds, with a staleness warning.
   testedCeiling: 2.1.207
+  # How the host reads the installed version WITHOUT launching a session, so the
+  # AI Agents card can show a detected version and a verdict on a bench that was
+  # never started. Optional; omit it and the card shows the declared window only.
+  probe:
+    command: claude
+    args:
+      - --version
+    parse: semver
 ```
 
-Both keys are optional and each must be an exact semver version (`major.minor.patch`, not a range). The whole block is optional, so integration and component manifests, and agent manifests that omit it, validate unchanged. The pre-launch version probe and its floor/ceiling gate are host-side runtime behaviour; the manifest only declares the window.
+`minVersion` and `testedCeiling` are optional and each must be an exact semver version (`major.minor.patch`, not a range). The whole block is optional, so integration and component manifests, and agent manifests that omit it, validate unchanged.
+
+`probe` carries the three fields the host needs to run the CLI itself: `command` (a bare name or an absolute path, resolved the same way a launch resolves it), `args` (spawned as argv, never through a shell), and `parse`, which is always `semver` and scans for the first `major.minor.patch` anywhere in the merged stdout and stderr. All three are required when `probe` is present.
+
+The window is declared in two places, deliberately, and they must agree. The **manifest** block above is what the **Settings > AI Agents** card renders, so a user sees the supported window, and the detected version, without ever launching. The **descriptor**'s `capabilities.versionProbe` (below) is what the launch gate actually enforces, because the descriptor is resolved per launch and can vary its command with the effective config. Declare both. A manifest that declares the window but no `probe` still renders its floor and ceiling; the card reports the version as not yet detected until a launch has probed it.
+
+The host probes at most once per resolved binary and caches the result, so opening the AI Agents screen never spawns a CLI per request. It warms that cache in the background at startup and re-probes at most once a minute on launch, which is what makes "update the CLI, then launch again" work after a below-floor refusal.
 
 ## Agent contract
 
@@ -221,6 +235,49 @@ permissions: {
 
 `resync: true` is the plugin's statement that those writes are safe to re-apply to an already-created bench workspace, which is what `POST /api/projects/:projectId/permissions/resync` dispatches through. A plugin that declares no `rules` key gets no rules editor in the UI and is skipped by re-sync; declaring `rules` with `resync: false` keeps the editor but not the re-sync control. Path-escaping patterns in the access-granting groups never reach a plugin: the host rejects an `allow` or `ask` entry naming a path outside the bench workspace when it is stored, and filters any survivors before the model is handed over. `deny` entries are subtractive, so they are passed through as written and a plugin must not assume every rule string it receives is workspace-relative.
 
+### The version probe and its gate
+
+`capabilities.versionProbe` is how a plugin gets the host to check the installed CLI **before** it spawns anything. The plugin declares; the host spawns, parses, and decides. Plugin code never runs a process.
+
+```ts
+capabilities: {
+  versionProbe: {
+    args: ["--version"], // spawned as command + args, never through a shell
+    parse: "semver", // the first X.Y.Z anywhere in the merged output
+    minVersion: "2.1.111", // inclusive floor; below it the launch is blocked
+    testedCeiling: "2.1.207", // inclusive; above it the launch warns, never blocks
+  },
+}
+```
+
+The host resolves the same binary the launch will spawn (step 9 below), runs the probe with a 5s timeout, and scans the merged stdout and stderr for the first `X.Y.Z`. The lenient scan is why one probe shape works across agents whose `--version` output looks nothing alike. The result is cached per resolved binary, so repeated launches and the AI Agents screen reuse one spawn.
+
+There are four verdicts:
+
+| Verdict                | When                                          | What the host does                                                                                                 |
+| ---------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `within-tested-range`  | `minVersion <= v <= testedCeiling`            | Launches, silently. No warning is the observable outcome.                                                          |
+| `above-tested-ceiling` | `v > testedCeiling`                           | Launches, with a non-blocking notice in the session and an amber chip on the plugin card.                          |
+| `below-floor`          | `v < minVersion`                              | **Refuses**, before anything is spawned and before any workspace write, naming the detected version and the floor. |
+| `probe-failed`         | Binary unresolvable, or output has no version | Launches, with a notice saying the check did not run. A probe that cannot decide never blocks.                     |
+
+Both bounds are inclusive and both are optional: a probe with no `minVersion` can never block, and one with no `testedCeiling` can never warn. The ceiling is deliberately non-blocking, because agent CLIs ship weekly and refusing to run on an unrecognised newer version would age far worse than a warning does. It still earns its keep: when a launch above the ceiling fails, the host attributes the failure to a probably-stale argument map rather than leaving the user guessing.
+
+### When a launch fails
+
+Every way a launch can fail ends in an actionable in-terminal error with the agent's own captured output, never a dead terminal. A PTY has no separate stderr, so the host buffers the merged stream from byte zero and treats the buffer as the error text when the process exits inside the first five seconds.
+
+| Class                 | Detected by                                                                                        | What the user sees                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `missing-binary`      | The command resolves nowhere, or the child exits nonzero inside 5s with no output, or it exits 127 | "CLI was not found", with every location tried and an install next step.                        |
+| `below-floor-version` | The pre-launch probe reads a version below the floor                                               | The detected version, the required floor, and the update action. Nothing was spawned.           |
+| `launch-failure`      | Exit inside 5s, nonzero code, and non-empty output, all three                                      | The captured output verbatim, ANSI-stripped, as the error body.                                 |
+| `host-install-broken` | `pty.spawn` itself throws                                                                          | A Roubo install error. Every spawn fails in this state, so it is not attributed to your plugin. |
+
+All three signals are required for `launch-failure`, which is what keeps the classifier honest: timing alone would flag a fast clean `--version` exit, an exit code alone would flag a session that dies at six seconds, and nonzero-with-no-output is the exec failure of an unrunnable binary, where the right message is about the binary and not about your flags. A clean exit is never a failure, however fast it was, and a session that outlives the five-second window is a session that ended rather than one that never started.
+
+Each failure offers the recovery actions it declares: **Open plugin settings** (which lands on your plugin's card) and **Retry** (which re-runs the same launch). A plugin needs to do nothing to get any of this; declaring an accurate `versionProbe` is what makes the version classes precise rather than generic.
+
 ### Workspace writes are declarative, always
 
 A plugin can never write a bench workspace through the filesystem broker. The broker's allowlist grants a plugin only its own directory plus the paths its manifest declares, and no allowlist entry ever covers a bench workspace. An agent plugin is granted strictly less than an integration plugin: the same v1 host surface (`host.fs.*` confined to its own directory, `host.credentials.*`, `host.fetch`), none of the component broker (`host.process.start` / `run` / `stop` / `status` / `logs`, `host.docker.*`, `host.ports.*`), and no `host.process.spawn` at all. A spawned child process runs under its own confinement rather than inheriting the broker allowlist: `host.process.spawn` pins the child's working directory to the plugin's own directory and rejects a bench-workspace path given as `cwd`, as the executable, or as an argument. Argument scanning is a second barrier, not a guarantee, since it cannot see a path composed inside a string the child itself interprets, so an agent manifest must still declare `processes: false`; anything else is rejected at manifest validation. That leaves a `WorkspaceWriteSpec`, which the host resolves under the bench workspace root and executes, as the only route from the agent contract to a workspace file:
@@ -248,11 +305,12 @@ Ops mutate the parsed existing file rather than replacing it, so unknown keys th
 2. **Session id.** The host mints the session id **before** anything else, because you receive it in `context.sessionId`, the descriptor's argv embeds it as `{{sessionId}}`, and an `http-hook` notification carrier writes it into a workspace file. One mint keeps all three pointing at the same real session.
 3. **Effective config.** Four shallow overlays, in this order, later layers winning per field: application defaults (`~/.roubo/agents/_global/<pluginId>.yaml`), project overrides (`~/.roubo/agents/<projectId>/<pluginId>.yaml`), the preset, then per-launch overrides. A field a layer does not mention falls through, so it keeps tracking the layer beneath it. The result arrives as both `config` and `context.effectiveConfig`.
 4. **`translateLaunch`.** One round trip. Your plugin returns a descriptor; the host validates it against the Zod schema before touching anything.
-5. **Template resolution.** `{{sessionId}}`, `{{port}}`, and `{{workspace}}` are resolved through `command`, every element of `args`, every `env` value, `cwd`, and both the `relPath` and the values of every workspace write. `{{port}}` is the port the host is actually listening on. An unrecognised `{{...}}` is left verbatim rather than blanked.
-6. **Workspace writes.** Executed core-side, path-validated, and **before** the spawn, so a descriptor that tries to escape the bench workspace aborts the launch with nothing written anywhere rather than leaving a half-configured agent running.
-7. **Posture bindings.** When the effective config selects a `posture` your descriptor declares a binding for, **both** carriers of that binding are applied: its `args` are appended to argv (after your descriptor's own `args`, before any positional initial prompt), and its `workspaceWrites` join the write batch in step 6. Declare whichever carrier your agent uses; a binding is never half-applied.
-8. **Command resolution.** A `command` containing a path separator is an explicit path and is spawned exactly as given. A bare name is looked for on the child's `PATH` first, then in the host's well-known install locations for that CLI, the same list the built-in Claude Code path uses, so a bare `claude` resolves on the installs that path works on (the `~/.claude/local/claude` shim, or a fish or Dock launch whose `PATH` the server never inherits). A candidate counts only when it is a regular file the host may execute, so a directory or an unchmodded file at one of those locations is skipped rather than spawned and does not shadow a working install further down the list. A command found nowhere fails the launch with an error naming every location tried, before the PTY is opened. The well-known list is host-side and keyed by the command's base name: keep declaring a bare command, and never hardcode an absolute install path in a descriptor.
-9. **Spawn.** `args` reaches the PTY as an **array**. Nothing joins it into a shell string, so shell metacharacters anywhere in the effective config, including a free-form extra-arguments field, arrive at your agent as literal argv elements. There is no shell, so there is nothing to expand.
+5. **Version gate.** When the descriptor declares a `versionProbe`, the host probes the CLI here, in the spawn-free half of the launch. Below the floor the launch is refused outright with a structured error; above the ceiling, or on a probe that could not decide, the verdict is carried forward as a non-blocking notice. This step is why "no PTY is spawned for a below-floor launch" is structural rather than incidental.
+6. **Template resolution.** `{{sessionId}}`, `{{port}}`, and `{{workspace}}` are resolved through `command`, every element of `args`, every `env` value, `cwd`, and both the `relPath` and the values of every workspace write. `{{port}}` is the port the host is actually listening on. An unrecognised `{{...}}` is left verbatim rather than blanked.
+7. **Workspace writes.** Executed core-side, path-validated, and **before** the spawn, so a descriptor that tries to escape the bench workspace aborts the launch with nothing written anywhere rather than leaving a half-configured agent running.
+8. **Posture bindings.** When the effective config selects a `posture` your descriptor declares a binding for, **both** carriers of that binding are applied: its `args` are appended to argv (after your descriptor's own `args`, before any positional initial prompt), and its `workspaceWrites` join the write batch in step 7. Declare whichever carrier your agent uses; a binding is never half-applied.
+9. **Command resolution.** A `command` containing a path separator is an explicit path and is spawned exactly as given. A bare name is looked for on the child's `PATH` first, then in the host's well-known install locations for that CLI, the same list the built-in Claude Code path uses, so a bare `claude` resolves on the installs that path works on (the `~/.claude/local/claude` shim, or a fish or Dock launch whose `PATH` the server never inherits). A candidate counts only when it is a regular file the host may execute, so a directory or an unchmodded file at one of those locations is skipped rather than spawned and does not shadow a working install further down the list. A command found nowhere fails the launch with an error naming every location tried, before the PTY is opened. The well-known list is host-side and keyed by the command's base name: keep declaring a bare command, and never hardcode an absolute install path in a descriptor.
+10. **Spawn.** `args` reaches the PTY as an **array**. Nothing joins it into a shell string, so shell metacharacters anywhere in the effective config, including a free-form extra-arguments field, arrive at your agent as literal argv elements. There is no shell, so there is nothing to expand.
 
 The environment the agent inherits is the host environment minus the host-internal keys (`ROUBO_PRODUCTION`, `ROUBO_PORT`), with your descriptor's `env` layered on top. The layering skips those same keys, so a descriptor can neither reinstate nor observe what the host withholds: declaring one is silently dropped rather than honoured. If you need the port, template `{{port}}`.
 

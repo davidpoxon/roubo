@@ -19,6 +19,7 @@ import { useProjectDefaultJig } from "../hooks/useProjectDefaultJig";
 import Terminal from "./Terminal";
 import NotificationIndicator from "./NotificationIndicator";
 import AgentLaunchMenu from "./AgentLaunchMenu";
+import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
 import { agentLaunchBlocker, resolveLaunchTarget } from "./settings/agents/agent-launchability";
 import { agentTextClass } from "./settings/agents/agent-color";
 import {
@@ -28,6 +29,7 @@ import {
   GLOBAL_DEFAULT_JIG_ID,
 } from "@roubo/shared";
 import type {
+  AgentLaunchFailure,
   JigMeta,
   BenchNotification,
   ClaudeCodeMode,
@@ -35,6 +37,7 @@ import type {
   ResolvedAgentPreset,
   TerminalSession,
 } from "@roubo/shared";
+import { ApiError } from "../lib/api";
 import { useBenchViewState } from "../hooks/useBenchViewState";
 import { useToast } from "../hooks/useToast";
 
@@ -159,6 +162,11 @@ export default function TerminalTabs({
     () => activeTerminalSessionId ?? null,
   );
   const [justCreated, setJustCreated] = useState<string | null>(null);
+  // A launch refused BEFORE any session existed (below-floor CLI, missing
+  // binary): there is no terminal to render the error inside, so the panel takes
+  // the terminal pane itself. Without this the only surface would be a toast,
+  // which is exactly the silent-failure shape AP-NFR-003 rules out.
+  const [blockedLaunch, setBlockedLaunch] = useState<AgentLaunchFailure | null>(null);
   const currentSessions = useMemo(() => sessions ?? [], [sessions]);
 
   // Derive activeTab: prefer user selection if valid, fall back to first session
@@ -202,16 +210,46 @@ export default function TerminalTabs({
     }
   }, [activeTab, projectId, benchId, dismissNotification, notifications]);
 
+  /** The structured failure a refused launch carries, when it carries one. */
+  const readLaunchFailure = (err: unknown): AgentLaunchFailure | null => {
+    if (!(err instanceof ApiError) || !err.details || typeof err.details !== "object") return null;
+    const failure = (err.details as { launchFailure?: AgentLaunchFailure }).launchFailure;
+    return failure && typeof failure.message === "string" ? failure : null;
+  };
+
+  // The most recent launch attempt, so the failure panel's Retry re-runs the same
+  // launch rather than a generic one (AP-TC-075). Discriminated because the two
+  // launch paths are genuinely different calls: a bare command goes through
+  // `handleCreate`, an agent through `launchAgent`.
+  const lastLaunchRef = useRef<
+    | { kind: "command"; command?: string; jigId?: string }
+    | {
+        kind: "agent";
+        agentPluginId: string;
+        agentName: string;
+        jigId?: string;
+        presetOverrides?: Record<string, unknown>;
+      }
+    | null
+  >(null);
+
   const handleCreate = useCallback(
     (command?: string, jigId?: string) => {
+      lastLaunchRef.current = { kind: "command", command, jigId };
       createTerminal.mutate(
         { projectId, benchId, command, jigId },
         {
           onSuccess: (response) => {
+            setBlockedLaunch(null);
             setJustCreated(response.sessionId);
             setUserSelectedTab(response.sessionId);
           },
           onError: (err) => {
+            const failure = readLaunchFailure(err);
+            if (failure) {
+              setBlockedLaunch(failure);
+              return;
+            }
             const message = err instanceof Error ? err.message : "Terminal could not be started";
             addToast(message);
           },
@@ -253,6 +291,13 @@ export default function TerminalTabs({
       jigId?: string;
       presetOverrides?: Record<string, unknown>;
     }) => {
+      lastLaunchRef.current = {
+        kind: "agent",
+        agentPluginId,
+        agentName,
+        jigId,
+        ...(presetOverrides !== undefined && { presetOverrides }),
+      };
       createTerminal.mutate(
         {
           projectId,
@@ -263,6 +308,7 @@ export default function TerminalTabs({
         },
         {
           onSuccess: (response) => {
+            setBlockedLaunch(null);
             setJustCreated(response.sessionId);
             setUserSelectedTab(response.sessionId);
             // AP-TC-017 S001-O03: the toast names the agent that actually
@@ -271,6 +317,15 @@ export default function TerminalTabs({
             addToast(`${agentName} session started`);
           },
           onError: (err) => {
+            // A refused agent launch is where the structured failure classes
+            // arrive (below-floor CLI, missing binary), and this is the path the
+            // agent buttons take, so the panel has to be raised from here too
+            // (AP-TC-058, AP-TC-071). Anything unstructured stays a toast.
+            const failure = readLaunchFailure(err);
+            if (failure) {
+              setBlockedLaunch(failure);
+              return;
+            }
             const message =
               err instanceof Error ? err.message : "Agent session could not be started";
             addToast(message);
@@ -361,6 +416,39 @@ export default function TerminalTabs({
       }
     },
     [projectId, benchId, destroyTerminal, userSelectedTab, currentSessions],
+  );
+
+  /** Re-run the launch that failed, down the same path it took the first time. */
+  const handleRetryLastLaunch = useCallback(() => {
+    const last = lastLaunchRef.current;
+    if (!last) return;
+    if (last.kind === "agent") {
+      launchAgent(last);
+      return;
+    }
+    handleCreate(last.command, last.jigId);
+  }, [handleCreate, launchAgent]);
+
+  /**
+   * Retry a session that spawned and then died: the dead tab goes away and the
+   * same launch re-runs, so Retry never leaves the failed session behind. An
+   * agent session relaunches through the agent pipeline, since that is the only
+   * path that re-runs the version gate and the descriptor resolution.
+   */
+  const handleRetrySession = useCallback(
+    (session: { id: string; command?: string; agentPluginId?: string }) => {
+      handleDestroy(session.id);
+      if (session.agentPluginId) {
+        const agent = agents.find((candidate) => candidate.id === session.agentPluginId);
+        launchAgent({
+          agentPluginId: session.agentPluginId,
+          agentName: agent?.name ?? session.agentPluginId,
+        });
+        return;
+      }
+      handleCreate(session.command);
+    },
+    [agents, handleDestroy, handleCreate, launchAgent],
   );
 
   const handleInjectJig = useCallback(
@@ -514,7 +602,10 @@ export default function TerminalTabs({
       </div>
 
       {/* Terminal content */}
-      <div className="flex-1 bg-[#09090b] rounded-b-lg overflow-hidden">
+      <div className="relative flex-1 bg-[#09090b] rounded-b-lg overflow-hidden">
+        {blockedLaunch && (
+          <AgentLaunchFailurePanel failure={blockedLaunch} onRetry={handleRetryLastLaunch} />
+        )}
         {currentSessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4">
             <p className="text-sm text-stone-600">No terminal sessions</p>
@@ -551,7 +642,11 @@ export default function TerminalTabs({
         ) : (
           currentSessions.map((session) => (
             <div key={session.id} className={`h-full ${activeTab === session.id ? "" : "hidden"}`}>
-              <Terminal sessionId={session.id} active={activeTab === session.id} />
+              <Terminal
+                sessionId={session.id}
+                active={activeTab === session.id}
+                onRetry={() => handleRetrySession(session)}
+              />
             </div>
           ))
         )}

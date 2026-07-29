@@ -1,6 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("./services/env.js", () => ({
+  // terminal.ts branches on this class to word the missing-binary failure, so a
+  // mocked env module must still carry it.
+  AgentCommandNotFoundError: class AgentCommandNotFoundError extends Error {
+    constructor(
+      public readonly command: string,
+      public readonly tried: string[],
+    ) {
+      super(`Agent CLI "${command}" was not found. Tried: ${tried.join(", ")}`);
+      this.name = "AgentCommandNotFoundError";
+    }
+  },
   loadEnvFile: vi.fn(),
   resolveShellPath: vi.fn(),
   resolveClaudeBinary: vi.fn(),
@@ -59,6 +70,9 @@ vi.mock("./services/plugin-manager.js", () => ({
   shutdown: vi.fn(() => Promise.resolve()),
   listInstalled: vi.fn(() => []),
   registerComponentPluginHooks: vi.fn(),
+  // Read at boot to warm each agent plugin's declared version probe. No agents
+  // installed here, so the warm loop is a no-op.
+  getAgentManifests: vi.fn(() => []),
 }));
 vi.mock("./services/catalog-client.js", () => ({
   prefetch: vi.fn(() => Promise.resolve()),
@@ -259,6 +273,7 @@ describe.sequential("startServer", () => {
         shutdown: vi.fn(() => Promise.resolve()),
         listInstalled: vi.fn(() => []),
         registerComponentPluginHooks: vi.fn(),
+        getAgentManifests: vi.fn(() => []),
       }));
       vi.doMock("./services/catalog-client.js", () => ({
         prefetch: vi.fn(() => Promise.resolve()),

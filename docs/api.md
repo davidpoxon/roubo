@@ -397,6 +397,8 @@ At launch, `POST /api/projects/:projectId/benches/:id/terminals` resolves the ag
 
 How the jig then reaches that agent is the agent's own declared capability (`initialPrompt` on its launch descriptor), not something the host assumes. With `jigs.autoExecute` on, the resolved jig is passed as the agent's initial prompt so it submits on start and the response carries `jigInjected: true`; with it off the jig is written into the session 1500ms after launch without submitting, and the response carries `jigScheduled: true`. An agent that declares no injection capability gets neither: it launches normally, nothing is injected, no post-startup write is scheduled, and the response reports neither flag. `sizeWarning` is about the jig rather than the agent, so it is still reported either way.
 
+The 201 also carries `compatibility` when the pre-launch version probe had something to say: the detected CLI version, the declared window, and a `status` of `above-tested-ceiling` or `probe-failed`. An in-range launch is silent, so the field is absent in the normal case. A launch below the declared floor never reaches a 201 at all: it is refused with a `409` whose body carries a `launchFailure` describing the detected version, the required floor, and the recovery actions.
+
 ### Inject a jig into a bench's workspace
 
 ```

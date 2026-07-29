@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { AgentLaunchFailure } from "@roubo/shared";
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "ended";
 
@@ -8,10 +9,22 @@ const MAX_DELAY_MS = 30_000;
 const JITTER_FACTOR = 0.2;
 const GHOST_CLOSE_CODE = 4410;
 
+/**
+ * A frame that may carry a structured agent launch failure. Both the replay and
+ * the live exit frame carry it, so a tab attached after the process died still
+ * receives the error rather than a bare exit code (AP-FR-015).
+ */
+export interface TerminalSocketMessage {
+  type: string;
+  data?: string;
+  code?: number;
+  launchFailure?: AgentLaunchFailure;
+}
+
 interface UseTerminalConnectionOptions {
   sessionId: string;
-  onReplay: (lines: string[], exitCode?: number) => void;
-  onMessage: (msg: { type: string; data?: string; code?: number }) => void;
+  onReplay: (lines: string[], exitCode?: number, launchFailure?: AgentLaunchFailure) => void;
+  onMessage: (msg: TerminalSocketMessage) => void;
 }
 
 function backoffDelay(attempt: number): number {
@@ -63,7 +76,7 @@ export function useTerminalConnection({
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === "replay") {
-          onReplayRef.current(msg.lines, msg.exitCode);
+          onReplayRef.current(msg.lines, msg.exitCode, msg.launchFailure);
         } else if (msg.type === "ping") {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: "pong" }));

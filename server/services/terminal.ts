@@ -9,6 +9,7 @@ import type {
   PersistedTerminalSession,
   ClaudeCodeSettings,
   ProjectPermissions,
+  AgentLaunchFailure,
 } from "@roubo/shared";
 import type {
   AgentPosture,
@@ -16,7 +17,12 @@ import type {
 } from "@roubo/shared/agent-launch-descriptor-schema";
 import { AgentPostureSchema } from "@roubo/shared/agent-launch-descriptor-schema";
 import { atomicWrite, getRouboDir } from "./state.js";
-import { getClaudeBinary, getLoginShell, resolveAgentCommand } from "./env.js";
+import {
+  AgentCommandNotFoundError,
+  getClaudeBinary,
+  getLoginShell,
+  resolveAgentCommand,
+} from "./env.js";
 import { writeClaudeSettingsLocal } from "./claude-settings-local.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
@@ -31,9 +37,20 @@ import {
   type AgentConfigLayers,
   type LaunchPermissions,
 } from "./agent-launch-pipeline.js";
+import {
+  AgentLaunchFailureError,
+  classifyLaunchExit,
+  compatibilityNotice,
+  hostInstallBrokenFailure,
+  missingBinaryFailure,
+  type AgentLaunchContextInfo,
+} from "./agent-launch-failure.js";
+import type { AgentVersionProbeResult } from "./agent-version-probe.js";
 import { UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const MAX_BUFFER_CHUNKS = 5000;
+/** Cap on the child's own bytes kept for the early-exit classifier (see registerSession). */
+const PTY_CAPTURE_LIMIT = 8192;
 const FLUSH_DEBOUNCE_MS = 500;
 const QUIESCENCE_DEBOUNCE_MS = 2000;
 // An agent TUI redraws continuously while it's working, so a short debounce
@@ -128,6 +145,11 @@ interface InternalSession {
   // the agent declares none.
   hookNotification: boolean;
   waitingDetection?: WaitingDetectionSpec;
+  // Set when this session's PTY exit was classified as a launch failure
+  // (AP-FR-015). Replayed to every WebSocket that attaches afterwards, so the
+  // error panel survives a reconnect rather than only reaching whoever happened
+  // to be listening at the moment the process died.
+  launchFailure?: AgentLaunchFailure;
 }
 
 const sessions = new Map<string, InternalSession>();
@@ -432,6 +454,13 @@ interface RegisterSessionOptions {
   hookNotification?: boolean;
   /** The agent's declared waiting-detection spec, when it declares one. */
   waitingDetection?: WaitingDetectionSpec;
+  /**
+   * Arms launch-failure classification for an agent session (AP-FR-015). Absent
+   * for the built-in shell path, which has no plugin to attribute a failure to.
+   */
+  launchContext?: AgentLaunchContextInfo;
+  /** A non-blocking compatibility notice written into the scrollback at byte zero. */
+  notice?: string;
 }
 
 function registerSession(
@@ -440,6 +469,10 @@ function registerSession(
   opts: RegisterSessionOptions = {},
 ): void {
   const id = session.id;
+  // Time-to-exit is measured from here rather than from the request, so the 5s
+  // early-exit window covers the child's own life and not the descriptor RPC
+  // that preceded it.
+  const spawnedAt = Date.now();
   const internal: InternalSession = {
     session,
     pty: ptyProcess,
@@ -458,9 +491,28 @@ function registerSession(
 
   sessions.set(id, internal);
 
+  // The notice is pushed BEFORE any PTY output so it reads as a preamble to the
+  // session rather than as something the agent said (AP-TC-072, AP-TC-074).
+  if (opts.notice) {
+    internal.buffer.push(`\x1b[33m${opts.notice}\x1b[0m\r\n\r\n`);
+  }
+
+  // The child's OWN bytes, accumulated separately from `internal.buffer` because
+  // that buffer also carries the host's compatibility notice above. Feeding the
+  // notice to the classifier would count Roubo's own words as agent output, which
+  // both prints our warning back to the user under "Captured agent output" and
+  // flips a zero-output missing-binary exit into a launch-failure, since the
+  // three-signal rule keys on the output being nonempty.
+  //
+  // Capped because this only ever feeds the early-exit classifier: `captureOutput`
+  // truncates at 4096 bytes anyway, and a healthy session must not accumulate its
+  // whole transcript twice.
+  let ptyOutput = "";
+
   // Buffer all PTY output (WS forwarding happens in handleWebSocket)
   ptyProcess.onData((data) => {
     internal.buffer.push(data);
+    if (ptyOutput.length < PTY_CAPTURE_LIMIT) ptyOutput += data;
     internal.lastOutputAt = Date.now();
     // Debounced flush: coalesces rapid output, also catches idle sessions
     scheduleBufferFlush(id);
@@ -481,6 +533,18 @@ function registerSession(
     internal.session.status = "ended";
     internal.session.exitCode = exitCode;
     cancelQuiescenceCheck(internal);
+    // Classified before persistence and before the caller's onExit hook, so
+    // whatever runs next already sees the verdict. This registration is made at
+    // session creation, ahead of handleWebSocket's own onExit listener, and
+    // node-pty fires listeners in registration order: by the time the socket
+    // sends its exit frame, `internal.launchFailure` is populated.
+    if (opts.launchContext) {
+      internal.launchFailure = classifyLaunchExit(opts.launchContext, {
+        exitCode,
+        timeToExitMs: Date.now() - spawnedAt,
+        output: ptyOutput,
+      });
+    }
     persistSession(id);
     try {
       onExit?.(id);
@@ -532,6 +596,8 @@ export interface AgentPromptInjection {
 export interface AgentSessionLaunch {
   session: TerminalSession;
   promptInjection: AgentPromptInjection;
+  /** The pre-spawn version probe, when the agent declared one (AP-FR-014). */
+  compatibility?: AgentVersionProbeResult;
 }
 
 /**
@@ -638,7 +704,27 @@ export async function createAgentSession(
   // so an unresolvable command surfaces its own error, which names every location
   // tried, instead of being rewrapped as an opaque spawn failure. The child's own
   // PATH is used for the probe, since descriptor env may have changed it.
-  const binary = resolveAgentCommand(command, env.PATH);
+  const launchContext: AgentLaunchContextInfo = {
+    agentPluginId: opts.agentPluginId,
+    agentName: prepared.manifest.name,
+    command,
+    ...(prepared.compatibility !== undefined && { compatibility: prepared.compatibility }),
+  };
+
+  let binary: string;
+  try {
+    binary = resolveAgentCommand(command, env.PATH);
+  } catch (err) {
+    // The one launch-failure class that is knowable before the spawn. Raised as
+    // a structured failure rather than a bare Error so the caller answers with
+    // install guidance instead of opening a terminal that dies on its own
+    // (AP-TC-058).
+    if (err instanceof AgentCommandNotFoundError) {
+      throw new AgentLaunchFailureError(missingBinaryFailure(launchContext, err.message));
+    }
+    throw err;
+  }
+  launchContext.command = binary;
 
   let ptyProcess;
   try {
@@ -650,9 +736,15 @@ export async function createAgentSession(
       env,
     });
   } catch (err) {
-    throw new Error(
-      `Failed to spawn agent session (command: ${binary}, cwd: ${cwd}): ${(err as Error).message}`,
-      { cause: err },
+    // Spike #504: a spawn throw means node-pty's own spawn helper is unusable,
+    // in which case EVERY spawn fails including known-good binaries. That is a
+    // Roubo install problem, so it is attributed to the host rather than blamed
+    // on the agent plugin.
+    throw new AgentLaunchFailureError(
+      hostInstallBrokenFailure(
+        launchContext,
+        `Failed to spawn agent session (command: ${binary}, cwd: ${cwd}): ${(err as Error).message}`,
+      ),
     );
   }
 
@@ -670,15 +762,27 @@ export async function createAgentSession(
   // is the only kind whose hook POSTs core will honour, and whichever waiting
   // detection it declared drives the quiescence debounce (AP-FR-013).
   const capabilities = descriptor.capabilities;
+  // Above the tested ceiling, and a probe that could not decide, both launch:
+  // agents ship weekly, so neither may block. They are surfaced as an in-terminal
+  // notice and returned to the caller (AP-TC-072, AP-TC-074, AP-TC-100 S002).
+  const notice = prepared.compatibility
+    ? compatibilityNotice(prepared.manifest.name, prepared.compatibility)
+    : undefined;
   registerSession(session, ptyProcess, {
     hookNotification: capabilities?.notification?.kind === "http-hook",
     ...(capabilities?.waitingDetection !== undefined && {
       waitingDetection: capabilities.waitingDetection,
     }),
     ...(opts.onAgentExit !== undefined && { onExit: opts.onAgentExit }),
+    launchContext,
+    ...(notice !== undefined && { notice }),
   });
 
-  return { session, promptInjection };
+  return {
+    session,
+    promptInjection,
+    ...(prepared.compatibility !== undefined && { compatibility: prepared.compatibility }),
+  };
 }
 
 /**
@@ -879,6 +983,10 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
       type: "replay",
       lines: internal.buffer.toArray(),
       exitCode: internal.exitCode ?? undefined,
+      // A failure that already happened is replayed, so a reconnect (or a tab
+      // opened after the fact) still shows the error panel rather than a bare
+      // exit code (AP-NFR-003: never a silent dead terminal).
+      launchFailure: internal.launchFailure,
     }),
   );
 
@@ -917,7 +1025,9 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
 
   const exitHandler = internal.pty.onExit(({ exitCode }) => {
     if (ws.readyState === ws.OPEN) {
-      ws.send(JSON.stringify({ type: "exit", code: exitCode }));
+      ws.send(
+        JSON.stringify({ type: "exit", code: exitCode, launchFailure: internal.launchFailure }),
+      );
     }
   });
 

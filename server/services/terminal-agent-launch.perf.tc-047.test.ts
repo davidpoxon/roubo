@@ -63,6 +63,17 @@ vi.mock("./notification.js", () => ({
 }));
 vi.mock("./bench-manager.js", () => ({ getBench: vi.fn() }));
 vi.mock("./env.js", () => ({
+  // terminal.ts branches on this class to word the missing-binary failure, so a
+  // mocked env module must still carry it.
+  AgentCommandNotFoundError: class AgentCommandNotFoundError extends Error {
+    constructor(
+      public readonly command: string,
+      public readonly tried: string[],
+    ) {
+      super(`Agent CLI "${command}" was not found. Tried: ${tried.join(", ")}`);
+      this.name = "AgentCommandNotFoundError";
+    }
+  },
   getClaudeBinary: () => "claude",
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),

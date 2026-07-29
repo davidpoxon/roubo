@@ -67,6 +67,7 @@ import * as state from "../services/state.js";
 import * as issueFormatting from "../services/issue-formatting.js";
 import { AgentUnavailableError } from "../services/agent-launch-pipeline.js";
 import { AgentDescriptorError } from "../services/agent-launch-executor.js";
+import { AgentLaunchFailureError } from "../services/agent-launch-failure.js";
 
 const app = express();
 app.use(express.json());
@@ -711,6 +712,73 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
 
     expect(res.status).toBe(502);
     expect(res.body.error).toMatch(/escapes the bench workspace/);
+  });
+
+  it.each([
+    ["below-floor-version", 409],
+    ["missing-binary", 409],
+    ["launch-failure", 409],
+    ["host-install-broken", 500],
+  ])("maps a %s launch failure to %i with the structured body (#519)", async (cls, status) => {
+    vi.mocked(terminalService.createAgentSession).mockRejectedValue(
+      new AgentLaunchFailureError({
+        class: cls as never,
+        message: "Acme Agent requires CLI version 2.1.111 or newer, but 2.1.100 is installed.",
+        guidance: "Update the agent CLI to 2.1.111 or newer, then launch again.",
+        detectedVersion: "2.1.100",
+        minVersion: "2.1.111",
+        actions: ["open-plugin-settings", "retry"],
+      }),
+    );
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ agentPluginId: "acme-agent" });
+
+    expect(res.status).toBe(status);
+    // Both shapes: `error` for anything reading the plain message, and the whole
+    // failure for the terminal pane's error panel (AP-TC-071, AP-TC-076).
+    expect(res.body.error).toMatch(/2.1.111/);
+    expect(res.body.launchFailure).toMatchObject({
+      class: cls,
+      detectedVersion: "2.1.100",
+      minVersion: "2.1.111",
+      actions: ["open-plugin-settings", "retry"],
+    });
+  });
+
+  it("reports an above-ceiling launch as compatibility on the 201, and stays silent in range", async () => {
+    const withCompatibility = (compatibility: Record<string, unknown>) => {
+      vi.mocked(terminalService.createAgentSession).mockResolvedValue({
+        session: AGENT_SESSION,
+        promptInjection: { mode: "argv-positional", injected: false },
+        compatibility,
+      } as never);
+    };
+
+    withCompatibility({
+      status: "above-tested-ceiling",
+      detectedVersion: "2.1.207",
+      testedCeiling: "2.1.205",
+    });
+
+    const warned = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ agentPluginId: "acme-agent" });
+
+    expect(warned.status).toBe(201);
+    expect(warned.body.compatibility).toMatchObject({ status: "above-tested-ceiling" });
+
+    // An in-range launch says nothing at all: no warning is the observable
+    // outcome AP-TC-070 asks for.
+    withCompatibility({ status: "within-tested-range", detectedVersion: "2.1.180" });
+
+    const quiet = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ agentPluginId: "acme-agent" });
+
+    expect(quiet.status).toBe(201);
+    expect(quiet.body.compatibility).toBeUndefined();
   });
 
   it("returns 500 when the PTY spawn itself fails", async () => {

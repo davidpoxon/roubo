@@ -9,6 +9,8 @@ import { WebSocketServer } from "ws";
 import { loadEnvFile, resolveShellPath, resolveClaudeBinary } from "./services/env.js";
 import { checkForUpdate } from "./services/version-check.js";
 import { detectClaudeAutoMode } from "./services/claude-version.js";
+import { warmAgentVersion } from "./services/agent-version-probe.js";
+import { isAgentNotAvailable, listAgents, resolveAgent } from "./services/agent-plugin-registry.js";
 import * as projectRegistry from "./services/project-registry.js";
 import { initializeIntegrationMigrations } from "./services/integration-migrations.js";
 import * as benchManager from "./services/bench-manager.js";
@@ -310,6 +312,21 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   }
 
   void detectClaudeAutoMode();
+
+  // Warm each agent plugin's declared version probe, the same fire-and-forget
+  // shape as the auto-mode detection above. By the time the user opens the AI
+  // Agents screen the detected CLI version is already cached, so the card renders
+  // its compatibility verdict without a launch and without probing per request
+  // (AP-TC-113, AP-TC-114).
+  //
+  // `listAgents` returns every installed agent whatever its status, so the warm is
+  // gated on the same availability check a launch uses: a plugin the host refuses
+  // to run must not have a manifest-declared command spawned on its behalf.
+  for (const manifest of listAgents()) {
+    if (!isAgentNotAvailable(resolveAgent(manifest.id))) {
+      warmAgentVersion(manifest.id, manifest.agentCompatibility);
+    }
+  }
 
   // Fetch + verify the hosted marketplace catalog on launch so the first
   // Plugins-view open serves a fresh, verified catalog and the on-disk cache is

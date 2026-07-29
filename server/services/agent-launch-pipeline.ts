@@ -14,6 +14,12 @@ import {
   type AgentNotAvailable,
 } from "./agent-plugin-registry.js";
 import { validateDescriptor } from "./agent-launch-executor.js";
+import {
+  invalidateAgentVersionProbe,
+  probeAgentVersion,
+  type AgentVersionProbeResult,
+} from "./agent-version-probe.js";
+import { AgentLaunchFailureError, belowFloorFailure } from "./agent-launch-failure.js";
 
 // Agent launch pipeline (issue #510, AP-FR-011, AP-NFR-002).
 //
@@ -47,6 +53,24 @@ export class AgentUnavailableError extends Error {
   constructor(public notAvailable: AgentNotAvailable) {
     super(describeAgentNotAvailable(notAvailable));
     this.name = "AgentUnavailableError";
+  }
+}
+
+/**
+ * A launch blocked by the pre-spawn version gate: the detected agent CLI is
+ * below the floor the plugin declares (AP-FR-014, AP-TC-071).
+ *
+ * It is an `AgentLaunchFailureError` so the HTTP layer maps it through exactly
+ * the same structured surface as every other failure class; the distinct name
+ * exists so a caller can tell "never started" from "started and died".
+ */
+export class AgentVersionGateError extends AgentLaunchFailureError {
+  constructor(
+    failure: ConstructorParameters<typeof AgentLaunchFailureError>[0],
+    public readonly probe: AgentVersionProbeResult,
+  ) {
+    super(failure);
+    this.name = "AgentVersionGateError";
   }
 }
 
@@ -148,6 +172,13 @@ export interface PreparedAgentLaunch {
   manifest: PluginManifest;
   descriptor: AgentLaunchDescriptor;
   effectiveConfig: Record<string, unknown>;
+  /**
+   * The pre-spawn version probe, when the descriptor declared one. A prepared
+   * launch never carries `below-floor` here: that throws `AgentVersionGateError`
+   * instead, which is what makes "no PTY is spawned" structural rather than
+   * incidental (AP-TC-071, AP-TC-100 S001).
+   */
+  compatibility?: AgentVersionProbeResult;
 }
 
 /**
@@ -201,10 +232,36 @@ export async function prepareAgentLaunch(
     params.timeoutMs !== undefined ? { timeoutMs: params.timeoutMs } : undefined,
   );
 
+  const descriptor = validateDescriptor(raw);
+
+  // The version gate runs HERE, in the deliberately spawn-free half of the
+  // launch, rather than beside the PTY: a below-floor agent is refused with
+  // nothing having been spawned and no workspace file having been written.
+  let compatibility: AgentVersionProbeResult | undefined;
+  const probeSpec = descriptor.capabilities?.versionProbe;
+  if (probeSpec) {
+    compatibility = await probeAgentVersion(params.pluginId, descriptor.command, probeSpec);
+    if (compatibility.status === "below-floor") {
+      // The refusal tells the user to update the CLI and launch again, and the
+      // Retry action re-enters this same gate. Drop the cached detection so that
+      // retry re-probes the (now possibly updated) binary instead of replaying
+      // the stale version until the TTL lapses.
+      invalidateAgentVersionProbe(params.pluginId);
+      throw new AgentVersionGateError(
+        belowFloorFailure(
+          { agentPluginId: params.pluginId, agentName: resolved.manifest.name },
+          compatibility,
+        ),
+        compatibility,
+      );
+    }
+  }
+
   return {
     pluginId: params.pluginId,
     manifest: resolved.manifest,
-    descriptor: validateDescriptor(raw),
+    descriptor,
     effectiveConfig,
+    ...(compatibility !== undefined && { compatibility }),
   };
 }

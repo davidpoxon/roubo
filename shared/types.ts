@@ -100,6 +100,8 @@ export type {
   PluginDefaultIntegrationConfig,
   PluginIcon,
   PluginLifecycle,
+  AgentCompatibility,
+  AgentVersionProbeDirective,
 } from "./plugin-manifest-schema.js";
 
 export { parseManifest } from "./plugin-manifest.js";
@@ -670,6 +672,79 @@ export interface AgentPluginState {
   configSchema?: Record<string, unknown>;
   config: Record<string, unknown>;
   unavailable: { reason: string; message: string } | null;
+  /**
+   * The agent-CLI compatibility window this plugin declares plus whatever the
+   * host has detected (AP-FR-014, AP-NFR-006). Absent only for a plugin whose
+   * manifest declares no window and for which no probe has ever run.
+   */
+  compatibility?: AgentCompatibilityState;
+}
+
+/**
+ * How a detected agent-CLI version sits against a plugin's declared window
+ * (spike #504 AC3). `unknown` is the honest fourth state the host reports before
+ * any probe has run: it is not a verdict, so no surface may render it as one.
+ */
+export type AgentVersionStatus =
+  | "within-tested-range"
+  | "above-tested-ceiling"
+  | "below-floor"
+  | "probe-failed";
+
+/**
+ * Compatibility metadata as the AI Agents screen renders it: the declared floor
+ * and tested ceiling come from the plugin manifest (so a card shows them without
+ * ever launching), and `detectedVersion` / `status` come from the host's cached
+ * version probe, which only runs at launch time.
+ */
+export interface AgentCompatibilityState {
+  minVersion?: string;
+  testedCeiling?: string;
+  detectedVersion?: string;
+  status: AgentVersionStatus | "unknown";
+  /** Why the probe could not decide, present only when `status` is probe-failed. */
+  reason?: string;
+}
+
+/**
+ * The closed set of ways an agent launch fails (spike #504 AC4). Every class
+ * ends in an actionable surface, which is the whole point: AP-NFR-003 allows no
+ * silent dead terminal.
+ */
+export type AgentLaunchFailureClass =
+  | "missing-binary"
+  | "host-install-broken"
+  | "below-floor-version"
+  | "version-probe-failed"
+  | "launch-failure";
+
+/** The recovery affordances a failure surface offers (AP-TC-075 S001-O03). */
+export type AgentLaunchFailureAction = "open-plugin-settings" | "retry";
+
+/**
+ * One agent launch failure, structured so the terminal pane can render the
+ * prototype's error panel (message, captured agent output, recovery actions)
+ * rather than a bare exit code (AP-FR-015).
+ *
+ * `capturedOutput` is the merged PTY stream, ANSI-stripped and truncated: a PTY
+ * has no separate stderr fd, so for an early-exit failure the buffer IS the
+ * agent's error text.
+ */
+export interface AgentLaunchFailure {
+  class: AgentLaunchFailureClass;
+  /** One-sentence headline naming what failed. */
+  message: string;
+  /** What the user can do about it. */
+  guidance?: string;
+  capturedOutput?: string;
+  agentPluginId?: string;
+  agentName?: string;
+  detectedVersion?: string;
+  minVersion?: string;
+  testedCeiling?: string;
+  exitCode?: number;
+  timeToExitMs?: number;
+  actions: AgentLaunchFailureAction[];
 }
 
 /**
@@ -1997,6 +2072,12 @@ export interface TerminalCreateResponse {
   jigScheduled?: boolean;
   /** Set when the resolved jig content exceeds MAX_CLI_PROMPT_LENGTH and was truncated */
   sizeWarning?: boolean;
+  /**
+   * The pre-launch version verdict, present only when the probe had something to
+   * say (above the tested ceiling, or the probe could not decide). An in-range
+   * launch is silent, so its absence is the normal case (AP-TC-070, AP-TC-072).
+   */
+  compatibility?: AgentCompatibilityState;
 }
 
 // ── Inspection run types ──

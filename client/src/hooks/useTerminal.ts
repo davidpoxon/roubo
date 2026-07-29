@@ -26,7 +26,8 @@ export function useCreateTerminal() {
       jigId?: string;
       // The agent launch path (AP-FR-007, issue #517): naming an agent plugin,
       // and optionally the preset's parameter overrides, routes creation
-      // through the agent pipeline instead of the built-in command path.
+      // through the agent pipeline instead of the built-in command path. It is
+      // also what the launch-failure Retry action relaunches through.
       agentPluginId?: string;
       presetOverrides?: Record<string, unknown>;
     }) =>

@@ -187,6 +187,24 @@ export function isExactSemverVersion(version: string): boolean {
 // on existing manifests (AP-NFR-004). The vocabulary mirrors the runtime
 // VersionProbeSpec from spike #502; the pre-launch probe and gate themselves are
 // runtime concerns handled outside this schema.
+//
+// The optional `probe` block is what lets the host read a detected CLI version
+// WITHOUT launching (AP-TC-113, AP-TC-114): the launch-time probe directive lives
+// on the descriptor, which only exists once a plugin has been asked to translate a
+// real launch, so a manifest-only declaration is the sole way the AI Agents screen
+// can show a detected version on a bench that has never been started. It is
+// deliberately the same three fields as the runtime `VersionProbeSpec` minus the
+// bounds, which the surrounding block already carries.
+export const AgentVersionProbeDirectiveSchema = z
+  .object({
+    /** The bare CLI name (or absolute path); the host resolves it as the launch does. */
+    command: z.string().min(1, "Required"),
+    args: z.array(z.string()).min(1, "Required"),
+    parse: z.literal("semver"),
+  })
+  .strict();
+export type AgentVersionProbeDirective = z.infer<typeof AgentVersionProbeDirectiveSchema>;
+
 export const AgentCompatibilitySchema = z
   .object({
     minVersion: z
@@ -199,6 +217,7 @@ export const AgentCompatibilitySchema = z
       .min(1, "Required")
       .refine(isExactSemverVersion, "Must be an exact semver version")
       .optional(),
+    probe: AgentVersionProbeDirectiveSchema.optional(),
   })
   .strict();
 export type AgentCompatibility = z.infer<typeof AgentCompatibilitySchema>;

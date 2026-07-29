@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "react-aria-components";
-import { Bot, ChevronDown, ChevronRight } from "lucide-react";
-import type { AgentPluginState } from "@roubo/shared";
+import { Bot, CheckCircle2, ChevronDown, ChevronRight, TriangleAlert } from "lucide-react";
+import type { AgentCompatibilityState, AgentPluginState } from "@roubo/shared";
 import AgentConfigForm from "./AgentConfigForm";
 
 const STRINGS = {
@@ -9,7 +9,86 @@ const STRINGS = {
   hide: "Hide",
   versionPrefix: "v",
   ready: "Ready",
+  detectedSuffix: "detected",
+  versionUndetected: "CLI version not detected yet",
+  floorPrefix: "floor",
+  ceilingPrefix: "tested <=",
+  withinRange: "within tested range",
+  aboveCeiling: "above tested ceiling",
+  belowFloor: "below required floor",
+  probeFailed: "version check failed",
 };
+
+const CHIP_CLASS =
+  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0";
+
+/**
+ * The compatibility line: the declared window (which the manifest carries, so it
+ * renders without ever launching) and the detected CLI version with its verdict
+ * chip (AP-TC-113, AP-TC-114).
+ *
+ * `unknown` gets no chip at all. It is the state before any launch has probed
+ * this agent, and dressing it as a verdict would claim a check that never ran.
+ */
+function CompatibilityLine({
+  agentId,
+  compatibility,
+}: {
+  agentId: string;
+  compatibility: AgentCompatibilityState;
+}) {
+  const { minVersion, testedCeiling, detectedVersion, status } = compatibility;
+  const bounds = [
+    minVersion && `${STRINGS.floorPrefix} ${minVersion}`,
+    testedCeiling && `${STRINGS.ceilingPrefix} ${testedCeiling}`,
+  ].filter(Boolean);
+
+  const chip =
+    status === "above-tested-ceiling"
+      ? { label: STRINGS.aboveCeiling, warn: true }
+      : status === "below-floor"
+        ? { label: STRINGS.belowFloor, warn: true }
+        : status === "probe-failed"
+          ? { label: STRINGS.probeFailed, warn: true }
+          : status === "within-tested-range"
+            ? { label: STRINGS.withinRange, warn: false }
+            : null;
+
+  return (
+    <div
+      data-testid={`agent-compatibility-${agentId}`}
+      data-status={status}
+      className="flex flex-wrap items-center gap-2"
+    >
+      <span className="text-[11px] font-mono text-stone-500 dark:text-stone-400">
+        {detectedVersion
+          ? `${detectedVersion} ${STRINGS.detectedSuffix}`
+          : STRINGS.versionUndetected}
+      </span>
+      {bounds.length > 0 && (
+        <span className="text-[11px] font-mono text-stone-400 dark:text-stone-600">
+          {bounds.join(" · ")}
+        </span>
+      )}
+      {chip && (
+        <span
+          className={`${CHIP_CLASS} ${
+            chip.warn
+              ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+              : "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+          }`}
+        >
+          {chip.warn ? (
+            <TriangleAlert size={10} aria-hidden="true" />
+          ) : (
+            <CheckCircle2 size={10} aria-hidden="true" />
+          )}
+          {chip.label}
+        </span>
+      )}
+    </div>
+  );
+}
 
 const DISCLOSURE_BUTTON_CLASS =
   "inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded text-stone-600 dark:text-stone-300 hover:bg-stone-100 hover:text-stone-900 dark:hover:bg-stone-800 dark:hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
@@ -65,6 +144,10 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
           {open ? STRINGS.hide : STRINGS.configure}
         </Button>
       </header>
+
+      {agent.compatibility && (
+        <CompatibilityLine agentId={agent.id} compatibility={agent.compatibility} />
+      )}
 
       {agent.unavailable ? (
         <p
