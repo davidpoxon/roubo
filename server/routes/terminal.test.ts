@@ -612,7 +612,22 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
       projectName: "My Project",
       agentPluginId: "acme-agent",
       layers: { preset: { posture: "auto-edit" }, perLaunch: { model: "opus" } },
+      onAgentExit: expect.any(Function),
     });
+  });
+
+  it("onAgentExit callback calls createNotification with the bench and agent-exited type (#646)", async () => {
+    await request(app).post("/project1/benches/1/terminals").send({ agentPluginId: "acme-agent" });
+
+    const onAgentExit = vi.mocked(terminalService.createAgentSession).mock.calls[0][0]
+      .onAgentExit as (sessionId: string) => void;
+    onAgentExit("agent-1");
+
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      MOCK_BENCH,
+      "agent-exited",
+      "agent-1",
+    );
   });
 
   it("omits an unsupplied layer rather than passing an empty object for it", async () => {
