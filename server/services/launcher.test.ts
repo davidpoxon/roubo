@@ -382,3 +382,38 @@ describe("executeTool with user", () => {
     );
   });
 });
+
+// Agent tools (AP-FR-008, issue #516). They share the `tools:` list with
+// browser and shell tools but not its execution path: an agent launches through
+// terminal session creation, so this fire-and-forget exec path must refuse them
+// outright rather than exec nothing and report success (AP-TC-032).
+describe("agent tools", () => {
+  const agentTools: RouboConfig["tools"] = [
+    { name: "Web App", icon: "globe", type: "browser", url: "http://localhost:3000" },
+    { name: "Repo triage", type: "agent", agent: "default", params: { mode: "plan" } },
+  ];
+
+  beforeEach(() => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ config: makeConfig({ tools: agentTools }) }),
+    );
+  });
+
+  it("resolves an agent tool with its preset rather than a url or command", () => {
+    const tools = getResolvedTools("test-project", 1);
+    expect(tools[1].type).toBe("agent");
+    expect(tools[1].url).toBeUndefined();
+    expect(tools[1].command).toBeUndefined();
+    expect(tools[1].preset?.name).toBe("Repo triage");
+    expect(tools[1].preset?.bindsDefaultAgent).toBe(true);
+    expect(tools[1].preset?.params).toEqual({ mode: "plan" });
+  });
+
+  it("refuses to execute an agent tool and spawns nothing", async () => {
+    const result = await executeTool("test-project", 1, 1);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("agent tool");
+    expect(exec).not.toHaveBeenCalled();
+    expect(execFile).not.toHaveBeenCalled();
+  });
+});

@@ -209,19 +209,51 @@ const ShellToolConfigSchema = z
   })
   .strict();
 
+/**
+ * The `agent` binding value that follows the app-level default agent instead of
+ * naming a plugin (AP-FR-009, issue #516). Stored, never resolved on write: the
+ * concrete agent is computed on every read, so changing the default re-points
+ * every default-bound preset without rewriting one of them.
+ */
+export const AGENT_TOOL_DEFAULT_AGENT = "default";
+
+/** An agent tool's `jig` value meaning "whatever the effective default jig is". */
+export const AGENT_TOOL_JIG_INHERIT = "__inherit__";
+/** An agent tool's `jig` value meaning "launch with no jig at all". */
+export const AGENT_TOOL_JIG_NONE = "__none__";
+
+const AgentToolConfigSchema = z
+  .object({
+    type: z.literal("agent"),
+    name: z.string(),
+    icon: z.string().optional(),
+    /** A plugin id, or `default` to follow the app-level default agent. */
+    agent: z.string(),
+    /** Parameter overrides layered over the agent's app and project config. */
+    params: z.record(z.string(), z.unknown()).optional(),
+    /** A jig id, or one of the `__inherit__` / `__none__` sentinels. */
+    jig: z.string().optional(),
+  })
+  .strict();
+
 export const ToolConfigSchema = z.discriminatedUnion("type", [
   BrowserToolConfigSchema,
   ShellToolConfigSchema,
+  AgentToolConfigSchema,
 ]);
 // Flat type for backward compat: Zod validates using the strict discriminated union above.
 export type ToolConfig = {
-  type: "browser" | "shell";
+  type: "browser" | "shell" | "agent";
   name: string;
-  icon: string;
+  /** Required for `browser` and `shell` tools; optional for `agent` tools. */
+  icon?: string;
   url?: string;
   command?: string;
   requires?: string;
   login?: LoginConfig;
+  agent?: string;
+  params?: Record<string, unknown>;
+  jig?: string;
 };
 
 export const InspectionConfigSchema = z

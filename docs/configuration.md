@@ -11,7 +11,7 @@ project: # Identity: name, displayName, type, repo, GitHub integration
 layout: # Repo shape: single-repo, monorepo, or meta-repo
 components: # The processes and containers a bench runs
 ports: # Port allocation bases per component
-tools: # Quick-open actions in the UI (browser, shell)
+tools: # Quick-open actions in the UI (browser, shell) and agent launch presets
 inspection: # Test/QA command
 benches: # Bench cap, root setup command, auto-clear policy
 jigs: # Optional: default AI coding agent jig and issue-type mappings
@@ -175,17 +175,53 @@ tools:
     command: code "{{workspace}}"
 ```
 
-| Field      | Required | Type   | Notes                                                            |
-| ---------- | -------- | ------ | ---------------------------------------------------------------- |
-| `name`     | yes      | string | Label shown in the UI.                                           |
-| `icon`     | yes      | string | A [Lucide](https://lucide.dev) icon name (e.g. `globe`, `code`). |
-| `type`     | yes      | enum   | `browser` or `shell`.                                            |
-| `url`      | yes¹     | string | For `browser` tools.                                             |
-| `command`  | yes¹     | string | For `shell` tools.                                               |
-| `requires` | no       | string | Component name that must be running for the tool to be enabled.  |
-| `login`    | no       | object | Browser tools only; automated login steps. See below.            |
+| Field      | Required | Type   | Notes                                                              |
+| ---------- | -------- | ------ | ------------------------------------------------------------------ |
+| `name`     | yes      | string | Label shown in the UI.                                             |
+| `icon`     | yes²     | string | A [Lucide](https://lucide.dev) icon name (e.g. `globe`, `code`).   |
+| `type`     | yes      | enum   | `browser`, `shell`, or `agent`.                                    |
+| `url`      | yes¹     | string | For `browser` tools.                                               |
+| `command`  | yes¹     | string | For `shell` tools.                                                 |
+| `requires` | no       | string | Component name that must be running for the tool to be enabled.    |
+| `login`    | no       | object | Browser tools only; automated login steps. See below.              |
+| `agent`    | yes³     | string | Agent tools only; a plugin id or `default`. See **Agent tools**.   |
+| `params`   | no       | object | Agent tools only; parameter overrides for the bound agent.         |
+| `jig`      | no       | string | Agent tools only; a jig id or an `__inherit__` / `__none__` value. |
 
 ¹ `url` is required for `browser` tools; `command` for `shell` tools.
+² `icon` is required for `browser` and `shell` tools; agent tools default to a bot icon.
+³ `agent` is required for `agent` tools, and is not accepted on the other two.
+
+### Agent tools
+
+An `agent` tool is a named launch preset for an AI coding agent: it binds an agent, a bag of parameter overrides, and jig behavior, and it appears in the bench Terminal tab rather than the tools bar. Declaring one in `roubo.yaml` shares it with everyone working on the project; the equivalent app-level presets are created under **Settings > Jigs > Agent tools** and stay local to your machine. Both kinds sit side by side in the launch list.
+
+```yaml
+tools:
+  - name: Repo triage
+    type: agent
+    agent: default
+    params:
+      mode: plan
+    jig: issue-triage
+  - name: Deep work
+    type: agent
+    agent: claude-code
+    params:
+      model: opus
+      effort: high
+```
+
+| `agent` value | Launches with                                                                |
+| ------------- | ---------------------------------------------------------------------------- |
+| `default`     | Whichever agent is the app-level default agent, re-resolved on every launch. |
+| A plugin id   | That agent plugin, whatever the default is.                                  |
+
+Roubo also ships three built-in presets, **Agent**, **Agent (Plan)** and **Agent (Auto)**. All three bind the default agent, so changing the default under **Settings > Jigs** re-points them (and every `agent: default` preset) without editing anything.
+
+`params` are per-agent: they are validated against the bound agent plugin's own configuration schema and layered over that agent's app-level and project-level configuration. A preset whose params the agent rejects is flagged with the offending parameter named, and is never launched. So is a preset bound to a plugin that is not installed.
+
+`jig` accepts a jig id, `__inherit__` (use the effective default jig, the same as omitting the field), or `__none__` (launch with no jig).
 
 ### `login.steps`
 

@@ -61,6 +61,15 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
 
   if (!tools || tools.length === 0) return null;
 
+  // Agent tools are launch presets, not quick-open actions: they launch through
+  // the bench Terminal tab, never through this bar's fire-and-forget execute
+  // path (issue #516). Positions are carried alongside because the execute
+  // endpoint addresses a tool by its index in the project's full tool list.
+  const launchable = tools
+    .map((tool, index) => ({ tool, index }))
+    .filter(({ tool }) => tool.type !== "agent");
+  if (launchable.length === 0) return null;
+
   const users = projects?.find((p) => p.id === projectId)?.config?.users;
 
   const execute = (index: number) => {
@@ -89,9 +98,10 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
     setPickerToolIndex(null);
   };
 
-  const primary = tools[0];
+  const primary = launchable[0].tool;
   const PrimaryIcon = TOOL_ICON_MAP[primary.icon];
-  const hasMore = tools.length > 1;
+  const hasMore = launchable.length > 1;
+  const executeLaunchable = (position: number) => execute(launchable[position].index);
 
   let toolsContent: React.ReactNode;
 
@@ -102,7 +112,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
         <Button className="p-1.5 rounded-md text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none">
           <ExternalLink size={13} />
         </Button>
-        <ToolMenu tools={tools} onAction={execute} />
+        <ToolMenu tools={launchable.map((entry) => entry.tool)} onAction={executeLaunchable} />
       </MenuTrigger>
     );
   } else if (!hasMore) {
@@ -110,7 +120,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
     toolsContent = (
       <Button
         isDisabled={!primary.enabled}
-        onPress={() => execute(0)}
+        onPress={() => executeLaunchable(0)}
         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-500 rounded-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
       >
         {PrimaryIcon && <PrimaryIcon size={12} />}
@@ -123,7 +133,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
       <div className="flex items-center">
         <Button
           isDisabled={!primary.enabled}
-          onPress={() => execute(0)}
+          onPress={() => executeLaunchable(0)}
           className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-xs font-medium text-stone-500 rounded-l-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
         >
           {PrimaryIcon && <PrimaryIcon size={12} />}
@@ -133,7 +143,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
           <Button className="flex items-center px-1.5 py-1.5 text-stone-400 dark:text-stone-600 rounded-r-lg border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none">
             <ChevronDown size={11} />
           </Button>
-          <ToolMenu tools={tools} onAction={execute} />
+          <ToolMenu tools={launchable.map((entry) => entry.tool)} onAction={executeLaunchable} />
         </MenuTrigger>
       </div>
     );

@@ -45,6 +45,7 @@ import JigRow from "./jig-editor/JigRow";
 import PluginsTab from "./settings/plugins/PluginsTab";
 import AgentsTab from "./settings/agents/AgentsTab";
 import DefaultAgentTile from "./settings/agents/DefaultAgentTile";
+import AgentToolsSection from "./settings/agents/AgentToolsSection";
 import MarketplacesTabPanel from "./settings/plugins/MarketplacesTabPanel";
 import Marketplace from "./marketplace/Marketplace";
 import { INPUT } from "./setup/styles";
@@ -363,6 +364,9 @@ function JigsTab() {
   // (AP-TC-041 S001).
   const selectedAgentId =
     persistedAgentId ?? (availableAgents.length === 1 ? availableAgents[0].id : null);
+  // The same resolution the agent tools list needs: a `default`-bound preset
+  // renders (and launches) against whichever agent this is right now.
+  const defaultAgent = availableAgents.find((agent) => agent.id === selectedAgentId);
 
   const [deletingJig, setDeletingJig] = useState<JigMeta | null>(null);
   const [deleteReferences, setDeleteReferences] = useState<JigReference[] | undefined>();
@@ -510,6 +514,12 @@ function JigsTab() {
           ))}
         </RadioGroup>
       </section>
+
+      <AgentToolsSection
+        agents={availableAgents}
+        {...(defaultAgent && { defaultAgent })}
+        jigs={jigOptions ?? []}
+      />
 
       <section>
         <div className="flex items-center justify-between mb-4">

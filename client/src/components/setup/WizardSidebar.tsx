@@ -161,7 +161,7 @@ export default function WizardSidebar({
                   {tools.map((tool, i) => {
                     const subKey = `tool-${i}`;
                     const subActive = currentSection === "tools" && currentSubStep === subKey;
-                    const ToolIcon = TOOL_ICON_MAP[tool.icon] ?? Globe;
+                    const ToolIcon = TOOL_ICON_MAP[tool.icon ?? ""] ?? Globe;
                     return (
                       <Button
                         key={tool.name || String(i)}

@@ -62,6 +62,9 @@ export {
   MarketplaceDeclarationSchema,
   zodIssuesToValidationErrors,
   zodIssuesToFieldMap,
+  AGENT_TOOL_DEFAULT_AGENT,
+  AGENT_TOOL_JIG_INHERIT,
+  AGENT_TOOL_JIG_NONE,
 } from "./config-schema.js";
 
 export { deepMergeIntegration } from "./deep-merge.js";
@@ -1476,14 +1479,108 @@ export interface BenchNotification {
 export interface ResolvedTool {
   name: string;
   icon: string;
-  type: "browser" | "shell";
+  type: "browser" | "shell" | "agent";
   url?: string;
   command?: string;
   requires?: string;
   login?: LoginConfig;
   enabled: boolean;
   requiresUserPicker: boolean;
+  /**
+   * Present only on `agent` tools (AP-FR-008, issue #516): the preset resolved
+   * against the live agent registry and the current default agent. Agent tools
+   * are not executed through the browser/shell path; they launch through
+   * terminal session creation.
+   */
+  preset?: ResolvedAgentPreset;
 }
+
+// ── Agent tool preset types (AP-FR-008, AP-FR-009, issue #516) ──
+
+/**
+ * One stored agent tool: a named launch preset binding an agent (a plugin id,
+ * or the `default` sentinel), parameter overrides, and jig behavior.
+ *
+ * App-level presets carry a generated `id` and live in `~/.roubo/settings.json`.
+ * Project-level presets come from `roubo.yaml tools:` and are keyed by name,
+ * which is why a project's agent tool names must be unique within that project.
+ */
+export interface AgentToolPreset {
+  id: string;
+  name: string;
+  icon?: string;
+  /** A plugin id, or `default` to follow the app-level default agent. */
+  agent: string;
+  params?: Record<string, unknown>;
+  /** A jig id, or one of the `__inherit__` / `__none__` sentinels. */
+  jig?: string;
+}
+
+/** Where a preset came from. Built-ins ship in code and are never persisted. */
+export type AgentPresetSource = "builtin" | "app" | "project";
+
+/**
+ * Why a preset cannot be launched. Each is actionable: the plugin is gone, no
+ * default agent is chosen, or the preset's params do not validate against the
+ * bound agent's `configSchema`.
+ */
+export type AgentPresetUnresolvedReason =
+  | "agent-unavailable"
+  | "no-default-agent"
+  | "invalid-params";
+
+/**
+ * One preset as any launch surface sees it, with its agent binding resolved
+ * against the live registry.
+ *
+ * Resolution is lazy and never persisted (AP-TC-027, AP-TC-031, AP-TC-039,
+ * AP-TC-045): a default-bound preset re-resolves on every read, so switching
+ * the default agent re-points it with no stored value to invalidate. An
+ * `unresolved` preset must never launch (AP-TC-032, AP-TC-033).
+ */
+export interface ResolvedAgentPreset {
+  id: string;
+  name: string;
+  icon: string;
+  source: AgentPresetSource;
+  /** The stored binding, verbatim: a plugin id or the `default` sentinel. */
+  agent: string;
+  bindsDefaultAgent: boolean;
+  /** The plugin the preset actually launches; absent when unresolved. */
+  agentPluginId?: string;
+  resolvedAgentName?: string;
+  params: Record<string, unknown>;
+  jig?: string;
+  unresolved?: { reason: AgentPresetUnresolvedReason; message: string };
+}
+
+/** Result of GET /api/projects/:projectId/agent-presets. */
+export interface AgentPresetsResponse {
+  presets: ResolvedAgentPreset[];
+}
+
+/**
+ * The presets Roubo ships (AP-FR-009). All three bind the default agent and
+ * differ only in the `mode` they override, so they follow whichever agent is
+ * the current default rather than pinning one. Never written to settings.
+ */
+export const BUILTIN_AGENT_PRESETS: readonly AgentToolPreset[] = [
+  { id: "__builtin_agent__", name: "Agent", icon: "bot", agent: "default", params: {} },
+  {
+    id: "__builtin_agent_plan__",
+    name: "Agent (Plan)",
+    icon: "bot",
+    agent: "default",
+    params: { mode: "plan" },
+  },
+  {
+    id: "__builtin_agent_auto__",
+    name: "Agent (Auto)",
+    icon: "bot",
+    agent: "default",
+    params: { mode: "auto" },
+  },
+] as const;
 
 export interface ExecuteToolRequest {
   userName?: string;
@@ -2376,6 +2473,11 @@ export const DEFAULT_GITHUB_SETTINGS: GitHubSettings = {
 export interface UserPreferences {
   theme: ThemeMode;
   jigs?: JigSettings;
+  /**
+   * App-level agent tool presets (AP-FR-008, issue #516). Built-in presets are
+   * never persisted here; only presets the user created in the editor are.
+   */
+  agentTools?: AgentToolPreset[];
   benches?: BenchSettings;
   testBench?: TestBenchSettings;
   claudeCode?: ClaudeCodeSettings;

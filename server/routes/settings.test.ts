@@ -673,6 +673,100 @@ describe("PUT / github settings", () => {
   });
 });
 
+// App-level agent tool presets (AP-FR-008, issue #516).
+describe("PUT / agentTools", () => {
+  beforeEach(() => {
+    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark" });
+    vi.mocked(state.saveSettings).mockReturnValue(undefined);
+  });
+
+  const valid = {
+    id: "at-1",
+    name: "Deep work",
+    agent: "claude-code",
+    params: { mode: "plan" },
+    jig: "__none__",
+  };
+
+  it("saves a valid agent tool preset", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", agentTools: [valid] });
+    expect(res.status).toBe(200);
+    expect(res.body.agentTools).toEqual([valid]);
+    expect(state.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ agentTools: [valid] }),
+    );
+  });
+
+  it("saves a preset bound to the default agent", async () => {
+    const preset = { id: "at-2", name: "Agent", agent: "default" };
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", agentTools: [preset] });
+    expect(res.status).toBe(200);
+    expect(res.body.agentTools).toEqual([preset]);
+  });
+
+  it("persists an empty list, which is how the last preset is deleted", async () => {
+    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark", agentTools: [valid] });
+    const res = await request(app).put("/").send({ theme: "dark", agentTools: [] });
+    expect(res.status).toBe(200);
+    expect(res.body.agentTools).toEqual([]);
+  });
+
+  it("keeps the stored presets when agentTools is absent", async () => {
+    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark", agentTools: [valid] });
+    const res = await request(app).put("/").send({ theme: "dark" });
+    expect(res.status).toBe(200);
+    expect(res.body.agentTools).toEqual([valid]);
+  });
+
+  it("returns 400 when agentTools is not an array", async () => {
+    const res = await request(app).put("/").send({ theme: "dark", agentTools: {} });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/must be an array/i);
+  });
+
+  it("returns 400 for a preset with no name", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", agentTools: [{ id: "at-1", name: "  ", agent: "default" }] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/agentTools\[0\]\.name/);
+  });
+
+  it("returns 400 for a preset whose agent is neither 'default' nor a plugin id", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", agentTools: [{ id: "at-1", name: "X", agent: "Claude Code" }] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/agentTools\[0\]\.agent/);
+  });
+
+  it("returns 400 for a duplicate preset id", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({
+        theme: "dark",
+        agentTools: [
+          { id: "at-1", name: "A", agent: "default" },
+          { id: "at-1", name: "B", agent: "default" },
+        ],
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/duplicate id/i);
+  });
+
+  it("returns 400 when params is not an object", async () => {
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", agentTools: [{ ...valid, params: "plan" }] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/agentTools\[0\]\.params/);
+  });
+});
+
 describe("GET /env-keys", () => {
   it("returns keys from the env file", async () => {
     vi.mocked(env.getEnvFileKeys).mockReturnValue(["DB_PASSWORD", "API_KEY"]);
