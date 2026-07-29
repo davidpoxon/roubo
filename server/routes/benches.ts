@@ -4,6 +4,7 @@ import { BenchError } from "../services/bench-manager.js";
 import { getDirtyState } from "../services/git-state.js";
 import * as notificationService from "../services/notification.js";
 import * as toolService from "../services/tool-launcher.js";
+import { listAgentPresets } from "../services/agent-presets.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as pluginManager from "../services/plugin-manager.js";
@@ -463,6 +464,21 @@ router.post("/:projectId/benches/:id/tools/:index/execute", async (req, res) => 
     } else {
       res.json(result);
     }
+  } catch (err) {
+    handleBenchError(res, err);
+  }
+});
+
+// ── Agent tool preset routes (AP-FR-008, AP-FR-009, issue #516) ──
+
+// Bench-independent by design: a preset is a launch configuration, not bench
+// state, so every bench in the project offers the same list. Built-in presets
+// come first, then app-level presets, then the project's own `roubo.yaml`
+// entries (AP-TC-026). Each entry is resolved on read, so the response reflects
+// the default agent as it stands right now (AP-TC-031, AP-TC-039).
+router.get("/:projectId/agent-presets", (req, res) => {
+  try {
+    res.json({ presets: listAgentPresets(req.params.projectId) });
   } catch (err) {
     handleBenchError(res, err);
   }

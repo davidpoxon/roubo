@@ -303,6 +303,8 @@ GET /api/projects/:projectId/benches/:id/tools
 
 Returns `ResolvedTool[]`, with `url`/`command` already template-substituted for the bench. Each tool has an `enabled` flag: `false` while the tool's `requires` component is not yet running.
 
+A tool of type `agent` is a launch preset, not a quick-open action. It carries a resolved `preset` instead of a `url` or `command`, and its `enabled` flag is `false` when that preset could not be resolved.
+
 ### Execute a tool
 
 ```
@@ -315,6 +317,18 @@ Content-Type: application/json
 `:index` is the zero-based index of the tool in the project's `tools` array.
 
 Returns `ToolResult` (`{ success, error?, login? }`). `400` if execution failed (response body is still a `ToolResult`).
+
+Agent tools are refused here with a `400`: they launch through terminal session creation, not through this fire-and-forget path.
+
+### List agent tool presets
+
+```
+GET /api/projects/:projectId/agent-presets
+```
+
+Returns `{ presets: ResolvedAgentPreset[] }`: the built-in presets Roubo ships, then the app-level presets saved under **Settings > Jigs > Agent tools**, then the project's own `type: agent` entries from `roubo.yaml tools:`.
+
+Each preset is resolved on read, never stored resolved. A preset bound to `default` carries `bindsDefaultAgent: true` and resolves to whichever agent is the current default, so changing the default changes this response with nothing to invalidate. A preset that cannot launch carries `unresolved: { reason, message }`, where `reason` is one of `agent-unavailable` (the bound plugin is not installed, consented, compatible, or running), `no-default-agent`, or `invalid-params` (the preset's `params` are rejected by the bound agent's `configSchema`). The message names the preset and, for a bad parameter, the parameter.
 
 ---
 

@@ -6,6 +6,7 @@ import { BenchError } from "./bench-manager.js";
 import { buildTemplateContext, resolveTemplate, applyContainerOverrides } from "./config-parser.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
+import { resolveAgentPreset, toolConfigToPreset } from "./agent-presets.js";
 
 export function getResolvedTools(projectId: string, benchId: number): ResolvedTool[] {
   const project = projectRegistry.getProject(projectId);
@@ -30,9 +31,24 @@ export function getResolvedTools(projectId: string, benchId: number): ResolvedTo
   return tools.map((tool) => {
     const enabled = !tool.requires || bench.components[tool.requires]?.status === "running";
 
+    // An agent tool is a launch preset, not a browser or shell action: it is
+    // resolved against the agent registry here and launched through terminal
+    // session creation, never through `executeTool` (issue #516).
+    if (tool.type === "agent") {
+      const preset = resolveAgentPreset(toolConfigToPreset(tool), "project");
+      return {
+        name: tool.name,
+        icon: preset.icon,
+        type: "agent" as const,
+        enabled: preset.unresolved === undefined,
+        requiresUserPicker: false,
+        preset,
+      };
+    }
+
     return {
       name: tool.name,
-      icon: tool.icon,
+      icon: tool.icon ?? "",
       type: tool.type,
       url: tool.url ? resolveTemplate(tool.url, ctx) : undefined,
       command: tool.command ? resolveTemplate(tool.command, ctx) : undefined,
@@ -79,6 +95,19 @@ export async function executeTool(
   }
 
   const rawTool = tools[toolIndex];
+
+  // Agent tools never reach the exec paths below (AP-TC-032). This path is
+  // fire-and-forget `exec`, which for an agent preset would either do nothing
+  // or, worse, leave a session-shaped nothing behind; an agent launch must go
+  // through terminal session creation so the session id is minted first and the
+  // plugin's launch descriptor drives the spawn.
+  if (rawTool.type === "agent") {
+    return {
+      success: false,
+      error: `Tool '${rawTool.name}' is an agent tool. Launch it from the bench Terminal tab, not the tools bar.`,
+    };
+  }
+
   const enabled = !rawTool.requires || bench.components[rawTool.requires]?.status === "running";
 
   if (!enabled) {

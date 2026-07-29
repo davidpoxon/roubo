@@ -90,15 +90,27 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "icon", "type"],
+        "required": ["name", "type"],
         "additionalProperties": false,
         "properties": {
           "name": { "type": "string" },
           "icon": { "type": "string" },
-          "type": { "type": "string", "enum": ["browser", "shell"] },
+          "type": { "type": "string", "enum": ["browser", "shell", "agent"] },
           "url": { "type": "string" },
           "command": { "type": "string" },
           "requires": { "type": "string" },
+          "agent": {
+            "type": "string",
+            "description": "Agent tools only. A plugin id, or \"default\" to follow the app-level default agent, re-resolved at launch time."
+          },
+          "params": {
+            "type": "object",
+            "description": "Agent tools only. Parameter overrides layered over the agent's app-level and project-level configuration. Validated against the bound agent's configSchema."
+          },
+          "jig": {
+            "type": "string",
+            "description": "Agent tools only. A jig id, or \"__inherit__\" to use the effective default jig, or \"__none__\" to launch with no jig."
+          },
           "login": {
             "type": "object",
             "required": ["steps"],
@@ -123,8 +135,38 @@
             }
           }
         },
-        "if": { "properties": { "type": { "const": "shell" } }, "required": ["type"] },
-        "then": { "not": { "required": ["login"] } }
+        "allOf": [
+          {
+            "if": { "properties": { "type": { "const": "shell" } }, "required": ["type"] },
+            "then": { "not": { "required": ["login"] } }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["browser", "shell"] } },
+              "required": ["type"]
+            },
+            "then": {
+              "required": ["icon"],
+              "properties": {
+                "agent": false,
+                "params": false,
+                "jig": false
+              }
+            }
+          },
+          {
+            "if": { "properties": { "type": { "const": "agent" } }, "required": ["type"] },
+            "then": {
+              "required": ["agent"],
+              "properties": {
+                "url": false,
+                "command": false,
+                "login": false,
+                "requires": false
+              }
+            }
+          }
+        ]
       }
     },
     "inspection": {

@@ -178,7 +178,7 @@ function ComponentMiniCard({
 }
 
 function ToolRow({ tool }: { tool: ToolConfig }) {
-  const IconComponent = TOOL_ICON_MAP[tool.icon] ?? Globe;
+  const IconComponent = TOOL_ICON_MAP[tool.icon ?? ""] ?? Globe;
   return (
     <div className="space-y-2">
       <ItemHeader icon={IconComponent} name={tool.name} badge={tool.type} />

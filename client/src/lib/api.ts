@@ -9,6 +9,7 @@ import type {
   RouboConfig,
   CheckConfigResult,
   ResolvedTool,
+  AgentPresetsResponse,
   ToolResult,
   TerminalSession,
   TerminalCreateResponse,
@@ -427,6 +428,11 @@ export function executeTool(
   });
 }
 
+// Agent tool presets (issue #516)
+export function fetchAgentPresets(projectId: string): Promise<AgentPresetsResponse> {
+  return request(`/projects/${projectId}/agent-presets`);
+}
+
 // Container assignment
 export function assignContainer(
   projectId: string,
@@ -469,10 +475,19 @@ export function createTerminal(
   benchId: number,
   command?: string,
   jigId?: string,
+  // The agent launch path (issue #516): naming an agent plugin, and optionally
+  // a preset's parameter overrides, routes session creation through the agent
+  // launch pipeline instead of the built-in command path.
+  agent?: { agentPluginId?: string; presetOverrides?: Record<string, unknown> },
 ): Promise<TerminalCreateResponse> {
   return request(`/projects/${projectId}/benches/${benchId}/terminals`, {
     method: "POST",
-    body: JSON.stringify({ command, ...(jigId ? { jigId } : {}) }),
+    body: JSON.stringify({
+      command,
+      ...(jigId ? { jigId } : {}),
+      ...(agent?.agentPluginId ? { agentPluginId: agent.agentPluginId } : {}),
+      ...(agent?.presetOverrides ? { presetOverrides: agent.presetOverrides } : {}),
+    }),
   });
 }
 

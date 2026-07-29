@@ -126,6 +126,18 @@ Every installed `agent`-kind plugin gets its own card, and every card renders a 
 - If a jig is bound to an agent that is later uninstalled, the select says so rather than reading as "Default agent", and the launch falls back to the default agent so the session still starts. A default agent that is itself uninstalled falls through the same way rather than failing the launch. Neither the binding nor the default is rewritten, so re-installing the plugin makes it take effect again.
 - The binding lives in the jig's own frontmatter (`agentPluginId`), so it travels with the jig: a repo-level jig carries its agent to everyone who checks out the repo.
 
+### Agent tools: named launch presets
+
+**Settings > Jigs > Agent tools** is where you name a launch configuration once and reuse it. A preset records three things: which agent it launches, parameter overrides for that agent, and jig behavior.
+
+- Three presets ship with Roubo: **Agent**, **Agent (Plan)** and **Agent (Auto)**. All three bind the default agent, so changing the default under **Default agent** re-points them immediately. They are marked `built-in` and cannot be edited or deleted.
+- **New agent tool** opens the editor: Name, Agent, the three parameter overrides (Model, Effort, Mode), and Jig. **Cancel** discards the draft entirely; nothing is saved and no entry appears in the list.
+- **Agent** is either **Default agent** or a specific plugin. A default-bound preset reads as `default agent -> <current default>` and follows the default forever; a plugin-bound preset stays on its plugin whatever the default becomes.
+- Parameter overrides are per-agent, so the editor offers the values the bound agent actually declares. Leaving a field on **inherit** means the preset does not touch it, and the agent's app-level and project-level configuration carry through.
+- **Jig** is either **Inherit (effective default)**, a named jig, or **None**.
+- A preset bound to a plugin that is not installed is flagged in the list and cannot launch, so it can never leave a dead session behind. Fix it by re-installing the plugin or re-pointing the preset.
+- Presets saved here are app-level and local to your machine. To share one with everyone working on a project, declare it in that project's `roubo.yaml` under `tools:` as a `type: agent` entry (see [configuration.md](configuration.md#agent-tools)). Project presets sit alongside app presets in the launch list; a project preset whose parameters the bound agent rejects is flagged with the offending parameter named, and never launches.
+
 ### Overriding agent configuration per project
 
 **Project > Settings > Agent overrides** is where one project departs from those application-level defaults. Every installed agent plugin gets a card, and every field the plugin declares gets a row with its own override toggle and the current app default shown beside it.

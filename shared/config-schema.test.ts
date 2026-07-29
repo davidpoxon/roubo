@@ -386,6 +386,75 @@ describe("layout submodule reserved key", () => {
   });
 });
 
+describe("agent tools", () => {
+  type ToolEntry = ReturnType<typeof makeConfig>["tools"][0];
+
+  it("accepts an agent tool bound to the default agent", () => {
+    const config = makeConfig({
+      tools: [
+        {
+          type: "agent",
+          name: "Repo triage",
+          agent: "default",
+          params: { mode: "plan" },
+          jig: "__inherit__",
+        } as unknown as ToolEntry,
+      ],
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it("accepts an agent tool bound to a named plugin, with no icon", () => {
+    const config = makeConfig({
+      tools: [{ type: "agent", name: "Deep work", agent: "claude-code" } as unknown as ToolEntry],
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it("rejects an agent tool with no agent binding", () => {
+    const config = makeConfig({
+      tools: [{ type: "agent", name: "Repo triage" } as unknown as ToolEntry],
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+
+  it("rejects an agent tool carrying browser or shell fields", () => {
+    const config = makeConfig({
+      tools: [
+        {
+          type: "agent",
+          name: "Repo triage",
+          agent: "default",
+          command: "bash",
+        } as unknown as ToolEntry,
+      ],
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+
+  it("rejects a browser tool carrying agent fields", () => {
+    const config = makeConfig({
+      tools: [
+        {
+          type: "browser",
+          name: "App",
+          icon: "globe",
+          url: "http://localhost",
+          agent: "claude-code",
+        } as unknown as ToolEntry,
+      ],
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+
+  it("still requires an icon on browser and shell tools", () => {
+    const config = makeConfig({
+      tools: [{ type: "shell", name: "Shell", command: "bash" } as unknown as ToolEntry],
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+});
+
 describe("tools", () => {
   it("rejects a shell tool with login", () => {
     const config = makeConfig({

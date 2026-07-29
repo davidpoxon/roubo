@@ -69,7 +69,7 @@ export default function ToolChipList({
       )}
 
       {tools.map((tool, i) => {
-        const IconComponent = TOOL_ICON_MAP[tool.icon] ?? TOOL_ICON_MAP["globe"];
+        const IconComponent = TOOL_ICON_MAP[tool.icon ?? ""] ?? TOOL_ICON_MAP["globe"];
         const isExpanded = expandedIndex === i;
 
         return (
