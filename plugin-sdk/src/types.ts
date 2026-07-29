@@ -957,8 +957,8 @@ export type AgentPosture = "read-only" | "guarded" | "auto-edit" | "full-auto";
  * the host; only the declaring plugin interprets them.
  */
 export interface AgentPermissionsModel {
-  posture: AgentPosture;
-  rules?: { allow: string[]; ask: string[]; deny: string[] };
+  posture?: AgentPosture;
+  rules: { allow: string[]; ask: string[]; deny: string[] };
 }
 
 /** How this agent realises each posture, and whether it honours rules at all. */

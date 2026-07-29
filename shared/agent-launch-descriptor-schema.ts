@@ -164,15 +164,14 @@ export type AgentPosture = z.infer<typeof AgentPostureSchema>;
 
 export const AgentPermissionsModelSchema = z
   .object({
-    posture: AgentPostureSchema,
+    posture: AgentPostureSchema.optional(),
     rules: z
       .object({
         allow: z.array(z.string()),
         ask: z.array(z.string()),
         deny: z.array(z.string()),
       })
-      .strict()
-      .optional(),
+      .strict(),
   })
   .strict();
 export type AgentPermissionsModel = z.infer<typeof AgentPermissionsModelSchema>;

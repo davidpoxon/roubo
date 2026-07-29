@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
+## [Unreleased]
+
+### Fixed
+
+- **`AgentPermissionsModel` declared its two fields the wrong way round** (#652). It required `posture` and made `rules` optional, the exact inverse of what the host sends: the host omits `posture` whenever the project has never chosen one, and always sends `rules`. A plugin that typed or zod-validated `config.permissions` against the shipped contract would have rejected the common no-posture payload. `posture` is now optional and `rules` required, matching both the host producer and the shape already documented in `docs/plugin-sdk.md`. Host behaviour is unchanged; only the declared contract moved. Narrowing `rules` to required means a value with no `rules` no longer type-checks against `AgentPermissionsModel`, but nothing was validating against the old shape, so nothing that worked before stops working.
+
 ## [0.2.0] - 2026-07-29
 
 Adds the **agent plugin contract**, a third plugin kind alongside integration and component. An agent plugin teaches Roubo to launch and supervise an AI coding agent CLI without the host hardcoding anything about that tool.
