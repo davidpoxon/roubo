@@ -338,7 +338,11 @@ function JigsTab() {
   const remove = useDeleteGlobalJig();
   const duplicate = useDuplicateGlobalJig();
   const updateJig = useUpdateGlobalJig();
-  const { data: agentData } = useAgentPlugins();
+  // `data` is undefined until the query resolves, and an undefined list is "not
+  // known yet", not "zero agents". Without this gate the tab would claim nothing
+  // is configured and flag every bound jig as unavailable for the length of the
+  // fetch, both of which are false (#647).
+  const { data: agentData, isPending: agentsPending } = useAgentPlugins();
   // Installed-and-configured, as the agent registry reports it: an agent is
   // selectable exactly when it resolves to a live, consented connection
   // (`unavailable === null`), so an uninstalled plugin never appears and an
@@ -452,7 +456,7 @@ function JigsTab() {
           and configured agents are listed.
         </p>
 
-        {availableAgents.length === 0 ? (
+        {agentsPending ? null : availableAgents.length === 0 ? (
           <p
             data-testid="default-agent-empty-state"
             className="rounded-lg border border-dashed border-stone-200 dark:border-stone-800 px-4 py-3 text-xs text-stone-400 dark:text-stone-600"
@@ -535,7 +539,7 @@ function JigsTab() {
                 }}
                 onDuplicate={handleDuplicate}
                 isDuplicating={duplicate.isPending}
-                agents={availableAgents}
+                agents={agentsPending ? undefined : availableAgents}
                 onAgentChange={handleJigAgentChange}
               />
             ))}
