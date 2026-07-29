@@ -7,6 +7,7 @@ import { buildTemplateContext, resolveTemplate, applyContainerOverrides } from "
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
 import { resolveAgentPreset, toolConfigToPreset } from "./agent-presets.js";
+import { loadSettings } from "./state.js";
 
 export function getResolvedTools(projectId: string, benchId: number): ResolvedTool[] {
   const project = projectRegistry.getProject(projectId);
@@ -28,6 +29,15 @@ export function getResolvedTools(projectId: string, benchId: number): ResolvedTo
 
   const hasUsers = (project.config.users?.length ?? 0) > 0;
 
+  // One settings read for the whole list, not one per agent tool. This route is
+  // polled every few seconds per open bench and `loadSettings` is uncached, so
+  // resolving each preset off its own read re-parsed the settings file once per
+  // agent tool per poll (issue #649). Projects with no agent tools keep costing
+  // zero reads.
+  const defaults = tools.some((tool) => tool.type === "agent")
+    ? { defaultAgentPluginId: loadSettings().jigs?.defaultAgentPluginId }
+    : undefined;
+
   return tools.map((tool) => {
     const enabled = !tool.requires || bench.components[tool.requires]?.status === "running";
 
@@ -35,7 +45,7 @@ export function getResolvedTools(projectId: string, benchId: number): ResolvedTo
     // resolved against the agent registry here and launched through terminal
     // session creation, never through `executeTool` (issue #516).
     if (tool.type === "agent") {
-      const preset = resolveAgentPreset(toolConfigToPreset(tool), "project");
+      const preset = resolveAgentPreset(toolConfigToPreset(tool), "project", defaults);
       return {
         name: tool.name,
         icon: preset.icon,
