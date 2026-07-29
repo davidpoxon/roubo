@@ -1271,6 +1271,26 @@ describe("ProjectSettings", () => {
       expect(within(group).getByRole("radio", { name: /Claude Code/ })).toBeChecked();
     });
 
+    it("falls through a stale default to the one agent still available", async () => {
+      // Nothing prunes the setting when a plugin is uninstalled, so the picker
+      // must degrade the same way `resolveLaunchAgentId` does rather than
+      // rendering with no tile selected at all.
+      setAgents([CLAUDE]);
+      mockedUseSettings.mockReturnValue({
+        settings: {
+          ...defaultSettings,
+          jigs: { ...DEFAULT_JIG_SETTINGS, defaultAgentPluginId: "codex-cli" },
+        },
+        isLoading: false,
+        updateSettings: vi.fn(),
+      });
+
+      await openJigsTab();
+
+      const group = screen.getByRole("radiogroup", { name: "Default agent" });
+      expect(within(group).getByRole("radio", { name: /Claude Code/ })).toBeChecked();
+    });
+
     it("points at the AI Agents screen when nothing is configured", async () => {
       setAgents([]);
       await openJigsTab();

@@ -803,10 +803,15 @@ describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
     vi.mocked(jigManager.getJig).mockReturnValue(
       BOUND_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
+    // `command: "claude"` keeps the jig-driven branch live, and the resolver is
+    // primed with a DIFFERENT agent, so the assertions below fail if the
+    // precedence is ever inverted rather than passing because the branch was
+    // never reached.
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue("codex-cli");
 
     await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ agentPluginId: "acme-agent", jigId: "push" });
+      .send({ command: "claude", agentPluginId: "acme-agent", jigId: "push" });
 
     expect(pipelineMocks.resolveLaunchAgentId).not.toHaveBeenCalled();
     expect(terminalService.createAgentSession).toHaveBeenCalledWith(

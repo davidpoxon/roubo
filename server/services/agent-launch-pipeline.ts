@@ -5,6 +5,7 @@ import { getProjectAgentOverrides, mergeAgentConfig } from "./agent-project-over
 import {
   describeAgentNotAvailable,
   isAgentNotAvailable,
+  listAgents,
   requestLaunchDescriptor,
   resolveAgent,
   type AgentNotAvailable,
@@ -72,15 +73,21 @@ export function resolveEffectiveAgentConfig(
 /**
  * Which agent a jig-driven launch runs (AP-FR-006, issue #515).
  *
- * The order is the whole contract: a jig's own binding wins, and the app-level
- * default agent is the fallback for every jig that carries none. A binding is
- * only honoured while it still resolves, so a jig left pointing at an agent
- * that was since uninstalled falls back to the default rather than failing the
- * launch (AP-TC-035 S002). The binding itself is never rewritten, so
- * re-installing the plugin makes it take effect again.
+ * The order is the whole contract: a jig's own binding wins, the app-level
+ * default agent is the fallback for every jig that carries none, and a lone
+ * configured agent is the default nobody had to choose (AP-TC-041 S001), which
+ * is what keeps launch resolution agreeing with the picker that already renders
+ * that single agent as selected.
  *
- * Returns `undefined` when neither layer names an agent, which is the signal to
- * stay on the built-in command path.
+ * Every layer is availability-gated, never just the binding: a jig left
+ * pointing at an agent that was since uninstalled falls back to the default
+ * (AP-TC-035 S002), and a default whose plugin has gone away likewise falls
+ * through rather than failing the launch with `AgentUnavailableError`. Neither
+ * stored value is ever rewritten, so re-installing the plugin makes it take
+ * effect again.
+ *
+ * Returns `undefined` when no layer names an agent that resolves, which is the
+ * signal to stay on the built-in command path.
  */
 export function resolveLaunchAgentId({
   jigAgentPluginId,
@@ -92,7 +99,18 @@ export function resolveLaunchAgentId({
   if (jigAgentPluginId && !isAgentNotAvailable(resolveAgent(jigAgentPluginId))) {
     return jigAgentPluginId;
   }
-  return defaultAgentPluginId;
+  if (defaultAgentPluginId && !isAgentNotAvailable(resolveAgent(defaultAgentPluginId))) {
+    return defaultAgentPluginId;
+  }
+  // With exactly one agent actually available there is nothing to choose
+  // between, so it is the default whether or not anything was ever persisted.
+  // This is also what rescues a default left pointing at an agent that has since
+  // gone away: resolution degrades to the one agent that is really there rather
+  // than to no agent at all.
+  const available = listAgents().filter(
+    (manifest) => !isAgentNotAvailable(resolveAgent(manifest.id)),
+  );
+  return available.length === 1 ? available[0].id : undefined;
 }
 
 export interface PrepareAgentLaunchParams {

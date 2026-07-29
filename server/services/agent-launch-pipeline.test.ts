@@ -214,6 +214,49 @@ describe("resolveLaunchAgentId (AP-FR-006 launch resolution order)", () => {
 
     expect(resolveLaunchAgentId({ jigAgentPluginId: "codex-cli" })).toBeUndefined();
   });
+
+  it("falls through rather than failing the launch when the default is no longer installed", () => {
+    // Two agents were installed when the default was chosen; both are gone now,
+    // so there is nothing to degrade to and the launch stays on the built-in
+    // command path instead of throwing AgentUnavailableError downstream.
+    onlyInstalled();
+    pluginManagerMocks.getAgentManifests.mockReturnValue([]);
+
+    expect(resolveLaunchAgentId({ defaultAgentPluginId: "codex-cli" })).toBeUndefined();
+  });
+
+  it("does not pick a survivor when the stale default leaves more than one agent available", () => {
+    onlyInstalled("claude-code", "codex-cli");
+    pluginManagerMocks.getAgentManifests.mockReturnValue([
+      makeManifest({ id: "claude-code" }),
+      makeManifest({ id: "codex-cli", name: "Codex CLI" }),
+    ]);
+
+    // `gemini-cli` was uninstalled after being made the default; with two agents
+    // still available there is no unambiguous stand-in, so resolution declines.
+    expect(resolveLaunchAgentId({ defaultAgentPluginId: "gemini-cli" })).toBeUndefined();
+  });
+
+  it("treats a single configured agent as the default with nothing persisted (AP-TC-041 S001)", () => {
+    onlyInstalled("claude-code");
+    pluginManagerMocks.getAgentManifests.mockReturnValue([makeManifest({ id: "claude-code" })]);
+
+    expect(resolveLaunchAgentId({})).toBe("claude-code");
+  });
+
+  it("degrades a stale default to the one agent that is actually available", () => {
+    onlyInstalled("claude-code");
+    pluginManagerMocks.getAgentManifests.mockReturnValue([makeManifest({ id: "claude-code" })]);
+
+    expect(resolveLaunchAgentId({ defaultAgentPluginId: "codex-cli" })).toBe("claude-code");
+  });
+
+  it("still prefers a resolvable jig binding over the single-agent fallback", () => {
+    onlyInstalled("claude-code", "codex-cli");
+    pluginManagerMocks.getAgentManifests.mockReturnValue([makeManifest({ id: "claude-code" })]);
+
+    expect(resolveLaunchAgentId({ jigAgentPluginId: "codex-cli" })).toBe("codex-cli");
+  });
 });
 
 describe("prepareAgentLaunch", () => {

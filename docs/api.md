@@ -379,7 +379,7 @@ GET /api/projects/:projectId/jigs
 
 Each jig in the payload may carry an `agentPluginId`: the `agent`-kind plugin that jig launches with. It is optional, and absent means the jig follows the application-level default agent (`jigs.defaultAgentPluginId` on `PUT /api/settings`). Jig create and update accept the same field, and an update may send `agentPluginId: null` to clear the binding. It is stored in the jig's Markdown frontmatter, so both app-level and repo-level jigs carry it.
 
-At launch, `POST /api/projects/:projectId/benches/:id/terminals` resolves the agent in that order: an explicit `agentPluginId` in the request first, then the driving jig's binding, then the default agent. A binding whose plugin is no longer resolvable falls back to the default agent rather than failing the launch.
+At launch, `POST /api/projects/:projectId/benches/:id/terminals` resolves the agent in that order: an explicit `agentPluginId` in the request first, then the driving jig's binding, then the default agent, and finally the single configured agent when exactly one is available. Every layer is availability-gated, so a binding or a default whose plugin is no longer resolvable falls through to the next layer rather than failing the launch. When no layer names an agent that resolves, the launch stays on the built-in command path.
 
 ### Inject a jig into a bench's workspace
 

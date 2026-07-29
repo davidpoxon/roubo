@@ -344,12 +344,21 @@ function JigsTab() {
   // (`unavailable === null`), so an uninstalled plugin never appears and an
   // unconsented or incompatible one is not offered as a default (AP-TC-019).
   const availableAgents = (agentData?.agents ?? []).filter((agent) => agent.unavailable === null);
+  // A stored default only counts while its agent is still available: nothing
+  // prunes the setting when a plugin is uninstalled, so a stale id must fall
+  // through rather than select a tile that is not rendered. This mirrors
+  // `resolveLaunchAgentId` on the server, which availability-gates the same
+  // layer, so the picker never disagrees with what a launch actually resolves.
+  const persistedAgentId = availableAgents.some(
+    (agent) => agent.id === jigSettings.defaultAgentPluginId,
+  )
+    ? jigSettings.defaultAgentPluginId
+    : undefined;
   // With exactly one configured agent there is nothing to choose between, so it
   // renders as the selected default even before anything is persisted
   // (AP-TC-041 S001).
   const selectedAgentId =
-    jigSettings.defaultAgentPluginId ??
-    (availableAgents.length === 1 ? availableAgents[0].id : null);
+    persistedAgentId ?? (availableAgents.length === 1 ? availableAgents[0].id : null);
 
   const [deletingJig, setDeletingJig] = useState<JigMeta | null>(null);
   const [deleteReferences, setDeleteReferences] = useState<JigReference[] | undefined>();
