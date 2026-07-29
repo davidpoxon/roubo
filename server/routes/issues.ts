@@ -200,7 +200,7 @@ router.post("/:projectId/issues/:externalId/transitions", async (req, res) => {
   try {
     const issue = await pluginManager.invoke<NormalizedIssue>(active.pluginId, "applyTransition", {
       externalId: req.params.externalId,
-      transitionName,
+      transition: transitionName,
     });
     res.json(issue);
   } catch (err) {
