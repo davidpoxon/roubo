@@ -35,6 +35,13 @@ const projectRegistryMocks = vi.hoisted(() => ({
 }));
 vi.mock("./project-registry.js", () => projectRegistryMocks);
 
+// The app-level config a preset's params overlay. Mocked so the overlay is
+// declared per test rather than read off the developer's own ~/.roubo.
+const agentOverrideMocks = vi.hoisted(() => ({
+  getEffectiveAgentConfig: vi.fn<(id: string) => Record<string, unknown>>(() => ({})),
+}));
+vi.mock("./agent-overrides.js", () => agentOverrideMocks);
+
 import { listAgentPresets, resolveAgentPreset } from "./agent-presets.js";
 import { resetAgentConfigValidatorCache } from "./agent-config-validator.js";
 
@@ -90,6 +97,7 @@ beforeEach(() => {
   consentMocks.hasConsent.mockReturnValue(true);
   stateMocks.loadSettings.mockReturnValue({ theme: "dark" });
   projectRegistryMocks.getProject.mockReturnValue(undefined);
+  agentOverrideMocks.getEffectiveAgentConfig.mockReturnValue({});
   installAgents([CLAUDE, CODEX]);
 });
 
@@ -212,6 +220,55 @@ describe("preset resolution", () => {
     );
     expect(resolved.unresolved).toBeUndefined();
     expect(resolved.params).toEqual({ mode: "plan", model: "opus" });
+  });
+
+  // A preset's params are a partial override, so a field the schema marks
+  // required but the preset does not set is the app config's problem, not the
+  // preset's. Validating the bare bag would take the shipped built-ins down on
+  // any agent whose schema has a required field.
+  it("does not reject a partial override against a schema with a required field", () => {
+    const REQUIRED_MODEL = makeManifest({
+      id: "picky-agent",
+      name: "Picky Agent",
+      configSchema: {
+        type: "object",
+        properties: {
+          mode: { type: "string", enum: ["plan", "auto"] },
+          model: { type: "string", enum: ["opus", "sonnet"] },
+        },
+        required: ["model"],
+        additionalProperties: false,
+      },
+    });
+    installAgents([REQUIRED_MODEL]);
+    agentOverrideMocks.getEffectiveAgentConfig.mockReturnValue({});
+
+    const builtins = listAgentPresets().filter((p) => p.source === "builtin");
+    const plan = builtins.find((p) => p.name === "Agent (Plan)");
+    expect(plan?.unresolved).toBeUndefined();
+    expect(plan?.resolvedAgentName).toBe("Picky Agent");
+
+    // The preset's OWN bad param is still rejected (AP-TC-033 still holds).
+    const bad = resolveAgentPreset(
+      { id: "p1", name: "Turbo", agent: "picky-agent", params: { mode: "turbo" } },
+      "app",
+      "picky-agent",
+    );
+    expect(bad.unresolved?.reason).toBe("invalid-params");
+    expect(bad.unresolved?.message).toContain("mode");
+  });
+
+  it("validates a preset's params against the app defaults they overlay", () => {
+    agentOverrideMocks.getEffectiveAgentConfig.mockReturnValue({ model: "opus" });
+    const resolved = resolveAgentPreset(
+      { id: "p1", name: "Deep work", agent: "claude-code", params: { mode: "plan" } },
+      "app",
+      "claude-code",
+    );
+    expect(resolved.unresolved).toBeUndefined();
+    // The overlay is a validation input only; the preset still records exactly
+    // the overrides it set, never the merged result.
+    expect(resolved.params).toEqual({ mode: "plan" });
   });
 
   it("carries the preset's jig behavior through unchanged", () => {

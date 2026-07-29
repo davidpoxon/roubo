@@ -17,6 +17,8 @@ import {
 } from "./agent-plugin-registry.js";
 import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
 import { validateAgentConfig } from "./agent-config-validator.js";
+import { getEffectiveAgentConfig } from "./agent-overrides.js";
+import { mergeAgentConfig } from "./agent-project-overrides.js";
 
 // Agent tool presets (AP-FR-008, AP-FR-009, issue #516).
 //
@@ -121,6 +123,13 @@ function unavailable(
  * `configSchema`. An invalid param names both the offending parameter and the
  * preset it belongs to (AP-TC-033), because a `roubo.yaml` author needs to know
  * which of several presets to fix, not just that "a param is invalid".
+ *
+ * A preset's params are a partial override, not a whole config, so they are
+ * validated against the app defaults they overlay rather than on their own,
+ * exactly as a project-level override is (`routes/project-agents.ts`). Checking
+ * the bare bag would let a `configSchema` that marks any field required reject
+ * every preset that overrides only some other field, which would take the
+ * shipped `Agent (Plan)` and `Agent (Auto)` built-ins down with it.
  */
 function withValidatedParams(
   base: ResolvedAgentPreset,
@@ -136,7 +145,14 @@ function withValidatedParams(
   const params = preset.params ?? {};
   if (Object.keys(params).length === 0) return resolved;
 
-  const errors = validateAgentConfig(agent.manifest, params);
+  const effective = mergeAgentConfig(getEffectiveAgentConfig(agent.pluginId), params);
+  const errors = validateAgentConfig(agent.manifest, effective).filter((err) => {
+    // Only the keys this preset actually sets are its to answer for. A defect
+    // inherited from the app-level config is surfaced by the AI Agents form
+    // that owns it, not by disabling every preset bound to the agent.
+    const [root = ""] = err.path.split(".");
+    return err.path === "" || root in params;
+  });
   if (errors.length === 0) return resolved;
 
   const detail = errors.map((err) => `${err.path || "config"}: ${err.message}`).join("; ");
