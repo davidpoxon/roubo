@@ -203,6 +203,26 @@ describe("AgentToolsSection", () => {
     );
   });
 
+  // AP-TC-032 in the editor (issue #650): the binding of a preset whose plugin
+  // is not installed stays named in the select and survives a save that never
+  // touched the field, rather than reading as "Default agent" and being
+  // rewritten to it.
+  it("keeps an uninstalled agent binding named in the editor and intact on save", async () => {
+    const user = userEvent.setup();
+    setPresets([{ id: "at-1", name: "Quick fix", agent: "codex-cli" }]);
+    render(<AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />);
+    await user.click(screen.getByRole("button", { name: "Edit Quick fix" }));
+
+    const select = screen.getByLabelText("Agent") as HTMLSelectElement;
+    expect(select.value).toBe("codex-cli");
+    expect(select.selectedOptions[0]?.textContent).toBe("codex-cli (not installed)");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(saveAgentTool).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "at-1", name: "Quick fix", agent: "codex-cli" }),
+    );
+  });
+
   it("deletes a preset", async () => {
     const user = userEvent.setup();
     setPresets([{ id: "at-1", name: "Deep work", agent: "claude-code" }]);
