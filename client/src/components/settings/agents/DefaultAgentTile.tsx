@@ -1,26 +1,8 @@
 import { Radio } from "react-aria-components";
 import type { AgentPluginState } from "@roubo/shared";
-
-const NO_PARAMS_LABEL = "No params configured";
-
-/**
- * The agent's effective params as one compact line (AP-TC-019 S002).
- *
- * Values only, in the order the saved config holds them, so a Claude Code
- * config of `{ model: "opus", effort: "high", posture: "plan" }` reads as
- * "opus, high, plan". Objects and arrays are skipped: the tile is a summary,
- * not a config viewer, and the full form lives on the AI Agents screen.
- */
-function describeEffectiveParams(config: Record<string, unknown>): string {
-  const parts = Object.values(config)
-    .filter(
-      (value): value is string | number | boolean =>
-        typeof value === "string" || typeof value === "number" || typeof value === "boolean",
-    )
-    .map((value) => String(value))
-    .filter((value) => value.length > 0);
-  return parts.length > 0 ? parts.join(" · ") : NO_PARAMS_LABEL;
-}
+// Shared with the Terminal-tab launch menu (AP-TC-019 S002, AP-TC-023) so the
+// same agent reads identically in both places.
+import { describeEffectiveParams } from "./agent-params";
 
 /**
  * One radio tile in the Settings > Jigs default-agent picker (AP-FR-005,

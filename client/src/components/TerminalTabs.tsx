@@ -7,17 +7,34 @@ import {
   Menu,
   MenuItem,
   Popover,
-  Separator,
 } from "react-aria-components";
 import { Plus, Bot, X, ChevronDown } from "lucide-react";
 import { useTerminalSessions, useCreateTerminal, useDestroyTerminal } from "../hooks/useTerminal";
 import { useJigs, useInjectJig } from "../hooks/useJigs";
 import { useSettings } from "../hooks/useSettings";
 import { useDismissNotification } from "../hooks/useBenches";
+import { useAgentPresets } from "../hooks/useAgentTools";
+import { useProjectAgents } from "../hooks/useProjectAgents";
+import { useProjectDefaultJig } from "../hooks/useProjectDefaultJig";
 import Terminal from "./Terminal";
 import NotificationIndicator from "./NotificationIndicator";
-import { GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
-import type { JigMeta, BenchNotification, ClaudeCodeMode } from "@roubo/shared";
+import AgentLaunchMenu from "./AgentLaunchMenu";
+import { agentLaunchBlocker, resolveLaunchTarget } from "./settings/agents/agent-launchability";
+import { agentTextClass } from "./settings/agents/agent-color";
+import {
+  AGENT_TOOL_JIG_INHERIT,
+  AGENT_TOOL_JIG_NONE,
+  BUILTIN_DEFAULT_AGENT_PRESET_ID,
+  GLOBAL_DEFAULT_JIG_ID,
+} from "@roubo/shared";
+import type {
+  JigMeta,
+  BenchNotification,
+  ClaudeCodeMode,
+  ProjectAgentState,
+  ResolvedAgentPreset,
+  TerminalSession,
+} from "@roubo/shared";
 import { useBenchViewState } from "../hooks/useBenchViewState";
 import { useToast } from "../hooks/useToast";
 
@@ -27,6 +44,11 @@ const modeLabelMap: Record<ClaudeCodeMode, string> = {
   "plan-auto": "plan \u2192 auto",
 };
 
+/**
+ * The session's launch mode, agent-generically. The badge names no agent and is
+ * gated on nothing but the presence of a mode, so a plugin-launched session and
+ * a built-in one read the same.
+ */
 function ModeBadge({ mode }: { mode?: ClaudeCodeMode }) {
   if (!mode) return null;
   return (
@@ -34,6 +56,16 @@ function ModeBadge({ mode }: { mode?: ClaudeCodeMode }) {
       {modeLabelMap[mode]}
     </span>
   );
+}
+
+/**
+ * The agent a session tab belongs to. `agentPluginId` is the agent-generic
+ * answer every launch from this component now carries; the `claude` command is
+ * the legacy built-in carrier that predates it, mapped here so a session opened
+ * on that path keeps its identity until #521 removes the path entirely.
+ */
+function sessionAgentId(session: TerminalSession): string | undefined {
+  return session.agentPluginId ?? (session.command === "claude" ? "claude-code" : undefined);
 }
 
 function SourceBadge({ source }: { source: JigMeta["source"] }) {
@@ -45,49 +77,20 @@ function SourceBadge({ source }: { source: JigMeta["source"] }) {
   );
 }
 
-const LAUNCH_FRESH_ID = "__launch_fresh";
-
-function JigMenu({
-  jigs,
-  onSelect,
-  onLaunchFresh,
-}: {
-  jigs: JigMeta[];
-  onSelect: (id: string) => void;
-  onLaunchFresh?: () => void;
-}) {
+/**
+ * The jig picker for a live session (inject into the running agent). The launch
+ * path no longer routes through this menu: since #517 a launch resolves its jig
+ * from auto-inject and the chosen preset, and the split-button's chevron opens
+ * `AgentLaunchMenu` instead.
+ */
+function JigMenu({ jigs, onSelect }: { jigs: JigMeta[]; onSelect: (id: string) => void }) {
   return (
     <Popover
       placement="bottom end"
       offset={6}
       className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[14rem] max-w-[18rem] max-h-72 overflow-y-auto"
     >
-      <Menu
-        onAction={(key) => {
-          const k = String(key);
-          if (k === LAUNCH_FRESH_ID) onLaunchFresh?.();
-          else onSelect(k);
-        }}
-        className="outline-none"
-      >
-        {onLaunchFresh && (
-          <MenuItem
-            id={LAUNCH_FRESH_ID}
-            className={({ isFocused }) =>
-              `flex items-center gap-2 px-3 py-2 rounded-lg cursor-default outline-none transition-colors ${
-                isFocused ? "bg-stone-100 dark:bg-stone-800" : ""
-              }`
-            }
-          >
-            <Bot size={11} className="text-stone-400 dark:text-stone-600" />
-            <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
-              Launch without jig
-            </span>
-          </MenuItem>
-        )}
-        {onLaunchFresh && jigs.length > 0 && (
-          <Separator className="my-1 border-t border-stone-200 dark:border-stone-800" />
-        )}
+      <Menu onAction={(key) => onSelect(String(key))} className="outline-none">
         {jigs.map((jig) => (
           <MenuItem
             key={jig.id}
@@ -135,8 +138,17 @@ export default function TerminalTabs({
   const { mutate: dismissNotification } = useDismissNotification();
   const injectJig = useInjectJig();
   const { data: jigs } = useJigs(projectId);
-  const { settings, isLoading: settingsLoading } = useSettings();
+  const { settings } = useSettings();
   const { addToast } = useToast();
+  const { data: presetsResponse } = useAgentPresets(projectId);
+  const { data: projectAgents } = useProjectAgents(projectId);
+  // The project's effective default jig, so a launch carrying the
+  // `GLOBAL_DEFAULT_JIG_ID` sentinel can still read that jig's agent binding.
+  const { data: defaultJig } = useProjectDefaultJig(projectId);
+
+  const availableJigs = useMemo(() => jigs ?? [], [jigs]);
+  const presets = useMemo(() => presetsResponse?.presets ?? [], [presetsResponse]);
+  const agents = useMemo(() => projectAgents?.agents ?? [], [projectAgents]);
 
   const { activeTerminalSessionId, setActiveTerminalSessionId } = useBenchViewState(
     projectId,
@@ -191,21 +203,9 @@ export default function TerminalTabs({
   }, [activeTab, projectId, benchId, dismissNotification, notifications]);
 
   const handleCreate = useCallback(
-    (command?: string, jigId?: string, skipAutoInject = false) => {
-      // For Claude sessions, determine which jig to inject (if any) at creation time.
-      // The server handles injection via CLI arg for reliable auto-execute.
-      let targetJigId: string | undefined;
-      if (command === "claude") {
-        const autoInject = settings?.jigs?.autoInject ?? true;
-        if (jigId) {
-          targetJigId = jigId;
-        } else if (autoInject && hasAssignedIssue && !skipAutoInject) {
-          targetJigId = settings?.jigs?.defaultJigId ?? GLOBAL_DEFAULT_JIG_ID;
-        }
-      }
-
+    (command?: string, jigId?: string) => {
       createTerminal.mutate(
-        { projectId, benchId, command, jigId: targetJigId },
+        { projectId, benchId, command, jigId },
         {
           onSuccess: (response) => {
             setJustCreated(response.sessionId);
@@ -218,7 +218,138 @@ export default function TerminalTabs({
         },
       );
     },
-    [projectId, benchId, createTerminal, settings, hasAssignedIssue, addToast],
+    [projectId, benchId, createTerminal, addToast],
+  );
+
+  /**
+   * Which jig an agent launch carries. Auto-inject decides the baseline exactly
+   * as it did for the built-in Claude button, and a preset's own `jig` field
+   * then overrides it: the two `__inherit__` / `__none__` sentinels mean "keep
+   * the baseline" and "explicitly none", and anything else names a jig.
+   */
+  const resolveLaunchJigId = useCallback(
+    (presetJig?: string) => {
+      const autoInject = settings?.jigs?.autoInject ?? true;
+      const baseline =
+        autoInject && hasAssignedIssue
+          ? (settings?.jigs?.defaultJigId ?? GLOBAL_DEFAULT_JIG_ID)
+          : undefined;
+      if (presetJig === undefined || presetJig === AGENT_TOOL_JIG_INHERIT) return baseline;
+      if (presetJig === AGENT_TOOL_JIG_NONE) return undefined;
+      return presetJig;
+    },
+    [settings, hasAssignedIssue],
+  );
+
+  const launchAgent = useCallback(
+    ({
+      agentPluginId,
+      agentName,
+      jigId,
+      presetOverrides,
+    }: {
+      agentPluginId: string;
+      agentName: string;
+      jigId?: string;
+      presetOverrides?: Record<string, unknown>;
+    }) => {
+      createTerminal.mutate(
+        {
+          projectId,
+          benchId,
+          jigId,
+          agentPluginId,
+          ...(presetOverrides !== undefined && { presetOverrides }),
+        },
+        {
+          onSuccess: (response) => {
+            setJustCreated(response.sessionId);
+            setUserSelectedTab(response.sessionId);
+            // AP-TC-017 S001-O03: the toast names the agent that actually
+            // resolved, not the button that was pressed, so a default-bound
+            // launch says which agent the default currently is.
+            addToast(`${agentName} session started`);
+          },
+          onError: (err) => {
+            const message =
+              err instanceof Error ? err.message : "Agent session could not be started";
+            addToast(message);
+          },
+        },
+      );
+    },
+    [projectId, benchId, createTerminal, addToast],
+  );
+
+  /**
+   * The jig a launch will actually run, for the purpose of reading its agent
+   * binding. `resolveLaunchJigId` may yield the `GLOBAL_DEFAULT_JIG_ID`
+   * sentinel, which only the host expands, so the project's resolved default
+   * stands in for it here.
+   */
+  const jigForLaunch = useCallback(
+    (jigId: string | undefined): JigMeta | undefined => {
+      if (!jigId) return undefined;
+      const id = jigId === GLOBAL_DEFAULT_JIG_ID ? defaultJig?.jigId : jigId;
+      return id === undefined ? undefined : availableJigs.find((jig) => jig.id === id);
+    },
+    [availableJigs, defaultJig],
+  );
+
+  /**
+   * What a preset would actually launch, resolved through the jig it would
+   * carry (AP-FR-006, AP-TC-038). One function behind the menu row, the
+   * split-button and the launch handler, so all three always agree about the
+   * agent, the summary and the disabled state.
+   */
+  const targetFor = useCallback(
+    (preset: ResolvedAgentPreset) => {
+      const boundId = jigForLaunch(resolveLaunchJigId(preset.jig))?.agentPluginId;
+      return resolveLaunchTarget(
+        preset,
+        agents,
+        boundId ? agents.find((agent) => agent.id === boundId) : undefined,
+      );
+    },
+    [agents, jigForLaunch, resolveLaunchJigId],
+  );
+
+  const handleLaunchPreset = useCallback(
+    (preset: ResolvedAgentPreset) => {
+      const jigId = resolveLaunchJigId(preset.jig);
+      const target = targetFor(preset);
+      // An unresolved preset, or one bound to an agent that cannot launch, never
+      // starts a session (AP-TC-032, AP-TC-033, AP-TC-038). The menu already
+      // disables it; this is the guard for the primary segment, whose preset can
+      // go unresolved between renders.
+      if (target.blocked || !target.agentPluginId) {
+        addToast(target.blocked?.message ?? `${preset.name} cannot launch right now.`);
+        return;
+      }
+      launchAgent({
+        agentPluginId: target.agentPluginId,
+        agentName: target.agentName,
+        jigId,
+        ...(Object.keys(preset.params).length > 0 && { presetOverrides: preset.params }),
+      });
+    },
+    [launchAgent, resolveLaunchJigId, targetFor, addToast],
+  );
+
+  const handleLaunchAgentPlugin = useCallback(
+    (agent: ProjectAgentState) => {
+      const blocked = agentLaunchBlocker(agent);
+      if (blocked) {
+        addToast(blocked.message);
+        return;
+      }
+      launchAgent({
+        agentPluginId: agent.id,
+        agentName: agent.name,
+        jigId: resolveLaunchJigId(),
+      });
+    },
+    [launchAgent, resolveLaunchJigId, addToast],
   );
 
   const handleDestroy = useCallback(
@@ -252,10 +383,29 @@ export default function TerminalTabs({
 
   void projectName; // Used by server to generate labels
 
-  const availableJigs = jigs ?? [];
-  const autoInjectEnabled = settings?.jigs?.autoInject ?? true;
-  const wouldAutoInject = !settingsLoading && autoInjectEnabled && hasAssignedIssue;
-  const showClaudeDropdown = availableJigs.length > 0 || wouldAutoInject;
+  // The primary segment fires the built-in default-agent preset rather than
+  // resolving the default itself: the server already resolves that preset to an
+  // agent plugin id and a display name, so there is one resolution path, not
+  // two that can disagree (AP-TC-017). The target is resolved through the same
+  // path the press takes, so the label, the tooltip and the disabled state all
+  // describe the agent that would actually start.
+  const defaultPreset = presets.find((preset) => preset.id === BUILTIN_DEFAULT_AGENT_PRESET_ID);
+  const primaryTarget = defaultPreset ? targetFor(defaultPreset) : undefined;
+  const primaryLabel = primaryTarget?.agentName ?? "Agent";
+  const primaryDisabled = primaryTarget === undefined || primaryTarget.blocked !== null;
+  const primaryTooltip = primaryTarget?.blocked
+    ? primaryTarget.blocked.message
+    : `Launch ${primaryLabel}`;
+
+  const launchMenu = (
+    <AgentLaunchMenu
+      presets={presets}
+      agents={agents}
+      resolveTarget={targetFor}
+      onLaunchPreset={handleLaunchPreset}
+      onLaunchAgent={handleLaunchAgentPlugin}
+    />
+  );
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -278,8 +428,12 @@ export default function TerminalTabs({
                 setUserSelectedTab(session.id);
               }}
             >
-              {session.command === "claude" && (
-                <Bot size={11} className="shrink-0 text-violet-400" />
+              {sessionAgentId(session) !== undefined && (
+                <Bot
+                  size={11}
+                  data-testid="session-agent-icon"
+                  className={`shrink-0 ${agentTextClass(sessionAgentId(session))}`}
+                />
               )}
               <span className="whitespace-nowrap">{shortLabel(session.label)}</span>
               <ModeBadge mode={session.claudeCodeMode} />
@@ -303,8 +457,11 @@ export default function TerminalTabs({
           {currentSessions.length > 0 && availableJigs.length > 0 && (
             <MenuTrigger>
               <TooltipTrigger delay={500}>
-                <Button className="flex items-center gap-1 px-2 py-1.5 rounded-md text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none">
-                  <Bot size={13} className="text-violet-400" />
+                <Button
+                  aria-label="Inject jig"
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-md text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
+                >
+                  <Bot size={13} className="text-stone-400" />
                   <ChevronDown size={10} className="text-stone-400" />
                 </Button>
                 <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
@@ -327,49 +484,32 @@ export default function TerminalTabs({
             </Tooltip>
           </TooltipTrigger>
 
-          {/* Claude Code button: show as split button when jigs exist or auto-inject would fire */}
-          {showClaudeDropdown ? (
-            <div className="flex items-center">
-              <TooltipTrigger delay={500}>
-                <Button
-                  onPress={() => handleCreate("claude")}
-                  className="p-1.5 rounded-l-md text-stone-500 hover:text-violet-400 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
-                >
-                  <Bot size={14} />
-                </Button>
-                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
-                  Launch Claude Code
-                </Tooltip>
-              </TooltipTrigger>
-              <MenuTrigger>
-                <Button
-                  aria-label="Choose launch option"
-                  className="flex items-center px-1 py-1.5 text-stone-400 dark:text-stone-600 rounded-r-md border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
-                >
-                  <ChevronDown size={10} />
-                </Button>
-                <JigMenu
-                  jigs={availableJigs}
-                  onSelect={(id) => handleCreate("claude", id)}
-                  onLaunchFresh={
-                    wouldAutoInject ? () => handleCreate("claude", undefined, true) : undefined
-                  }
-                />
-              </MenuTrigger>
-            </div>
-          ) : (
+          {/* Agent split-button: primary segment launches the default agent,
+              chevron opens the grouped launch menu (AP-FR-007, issue #517). */}
+          <div className="flex items-center">
             <TooltipTrigger delay={500}>
               <Button
-                onPress={() => handleCreate("claude")}
-                className="p-1.5 rounded-md text-stone-500 hover:text-violet-400 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
+                aria-label={`Launch ${primaryLabel}`}
+                isDisabled={primaryDisabled}
+                onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
+                className="p-1.5 rounded-l-md text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
               >
                 <Bot size={14} />
               </Button>
               <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
-                Launch Claude Code
+                {primaryTooltip}
               </Tooltip>
             </TooltipTrigger>
-          )}
+            <MenuTrigger>
+              <Button
+                aria-label="Choose launch option"
+                className="flex items-center px-1 py-1.5 text-stone-400 dark:text-stone-600 rounded-r-md border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
+              >
+                <ChevronDown size={10} />
+              </Button>
+              {launchMenu}
+            </MenuTrigger>
+          </div>
         </div>
       </div>
 
@@ -386,40 +526,26 @@ export default function TerminalTabs({
                 <Plus size={12} />
                 New Terminal
               </Button>
-              {showClaudeDropdown ? (
-                <div className="flex items-center">
-                  <Button
-                    onPress={() => handleCreate("claude")}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 rounded-l-lg transition-colors outline-none"
-                  >
-                    <Bot size={12} />
-                    Claude Code
-                  </Button>
-                  <MenuTrigger>
-                    <Button
-                      aria-label="Choose launch option"
-                      className="flex items-center px-1.5 py-1.5 text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 rounded-r-lg border-l border-violet-500/20 transition-colors outline-none"
-                    >
-                      <ChevronDown size={10} />
-                    </Button>
-                    <JigMenu
-                      jigs={availableJigs}
-                      onSelect={(id) => handleCreate("claude", id)}
-                      onLaunchFresh={
-                        wouldAutoInject ? () => handleCreate("claude", undefined, true) : undefined
-                      }
-                    />
-                  </MenuTrigger>
-                </div>
-              ) : (
+              {/* The same split-button as the tab bar, in the empty state. */}
+              <div className="flex items-center">
                 <Button
-                  onPress={() => handleCreate("claude")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 rounded-lg transition-colors outline-none"
+                  isDisabled={primaryDisabled}
+                  onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-l-lg transition-colors outline-none"
                 >
                   <Bot size={12} />
-                  Claude Code
+                  {primaryLabel}
                 </Button>
-              )}
+                <MenuTrigger>
+                  <Button
+                    aria-label="Choose launch option"
+                    className="flex items-center px-1.5 py-1.5 text-stone-950/70 bg-amber-500 hover:bg-amber-400 rounded-r-lg border-l border-stone-950/20 transition-colors outline-none"
+                  >
+                    <ChevronDown size={10} />
+                  </Button>
+                  {launchMenu}
+                </MenuTrigger>
+              </div>
             </div>
           </div>
         ) : (

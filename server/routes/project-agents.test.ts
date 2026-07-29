@@ -62,8 +62,22 @@ function manifest(id: string, name: string, configSchema: unknown): PluginManife
   return { id, name, version: "1.0.0", kind: "agent", configSchema } as PluginManifest;
 }
 
+// A schema with a required field: the only way an installed plugin can read as
+// "not yet configured" (AP-TC-038). A schema with no required field accepts the
+// empty config and is configured by definition.
+const UNCONFIGURED_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["apiKey"],
+  properties: { apiKey: { type: "string" } },
+};
+
 const CLAUDE = manifest("claude-code", "Claude Code", CLAUDE_SCHEMA);
 const CODEX = manifest("codex-cli", "Codex CLI", CODEX_SCHEMA);
+// A distinct id: the validator cache is keyed by id@version, so reusing
+// `codex-cli` here would validate one schema through the other's compiled
+// validator.
+const UNCONFIGURED = manifest("acme-agent", "Acme Agent", UNCONFIGURED_SCHEMA);
 
 const APP_DEFAULTS = { model: "opus", effort: "high", mode: "plan" };
 
@@ -164,6 +178,36 @@ describe("GET /api/projects/:projectId/agents", () => {
       reason: "not-consented",
       message: 'Agent plugin "claude-code" is not-consented.',
     });
+  });
+
+  it("reports a valid effective config as configured (AP-TC-038)", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([CLAUDE]);
+    vi.mocked(projectOverrides.resolveProjectAgentConfigs).mockReturnValue({
+      resolved: [
+        {
+          pluginId: "claude-code",
+          appDefaults: APP_DEFAULTS,
+          overrides: {},
+          effective: APP_DEFAULTS,
+        },
+      ],
+      orphaned: [],
+    });
+
+    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    expect(res.body.agents[0].misconfigured).toBeNull();
+  });
+
+  it("flags an installed-but-unconfigured agent with the offending field (AP-TC-038)", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([UNCONFIGURED]);
+    vi.mocked(projectOverrides.resolveProjectAgentConfigs).mockReturnValue({
+      resolved: [{ pluginId: "acme-agent", appDefaults: {}, overrides: {}, effective: {} }],
+      orphaned: [],
+    });
+
+    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    expect(res.body.agents[0].unavailable).toBeNull();
+    expect(res.body.agents[0].misconfigured.message).toContain("apiKey");
   });
 });
 

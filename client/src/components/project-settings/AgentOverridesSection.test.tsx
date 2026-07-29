@@ -33,6 +33,7 @@ const CLAUDE: ProjectAgentState = {
   overrides: {},
   effective: { model: "opus", effort: "high", mode: "plan" },
   unavailable: null,
+  misconfigured: null,
 };
 
 /**
@@ -51,6 +52,7 @@ const GEMINI: ProjectAgentState = {
   overrides: {},
   effective: { maxTurns: 12 },
   unavailable: null,
+  misconfigured: null,
 };
 
 function listResult(agents: ProjectAgentState[], orphanedOverrides: unknown[] = []) {
@@ -378,6 +380,7 @@ describe("AgentOverridesSection", () => {
       overrides: {},
       effective: { sandbox: "read-only" },
       unavailable: null,
+      misconfigured: null,
     };
     mockedList.mockReturnValue(listResult([CLAUDE, codex]));
     render(<AgentOverridesSection projectId="roubo-development" />);

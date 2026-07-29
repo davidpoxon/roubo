@@ -149,6 +149,17 @@ Every installed `agent`-kind plugin gets its own card, and every card renders a 
 - Values are validated against the same plugin schema as an app-level save, so an out-of-range override is refused with the field and its allowed values named.
 - If a project has an override for an agent plugin that is no longer installed, the section says so and ignores it. Nothing resolves a configuration for a plugin that is not installed.
 
+### Launching an agent from a bench
+
+**Bench > Terminal** is where a configured agent actually starts. The tab bar carries a split button: the left segment launches, and the chevron beside it opens the launch menu.
+
+- The **left segment** runs the built-in **Agent** preset, which follows whatever you chose as the default agent, unless the jig it carries binds an agent of its own (see below). Its label and tooltip name the agent that will actually start, so you can tell before you press it, and a toast confirms it afterwards. The segment is disabled, rather than launching something arbitrary, when no agent is available to start or the one that would start is not yet configured.
+- The **launch menu** is three groups, always in the same order. **Built-in · default agent** holds the presets Roubo ships, **Agent tools** holds the app-level and `roubo.yaml` presets, and **All agents** holds one entry per installed agent plugin. Each entry carries a compact summary of the parameters it will launch with, matching what **Settings > AI Agents** shows for the same agent.
+- An agent appears under **All agents** once its plugin is installed and its effective configuration is valid. One that is installed but not yet configured is listed disabled, marked `configure first` and carrying the offending field, so it can be fixed rather than quietly disappearing. It cannot be launched, so an unconfigured agent never leaves a dead session behind. The same holds for a preset bound to a plugin that is missing or to parameters the agent rejects.
+- Which jig a launch carries is unchanged by which entry you pick. Auto-inject still decides the jig for a bench with an assigned issue, and a preset that names its own jig, or explicitly none, overrides that. To push a jig into a session that is already running, use the jig picker beside the split button.
+- A jig that binds an agent of its own still wins over the default, exactly as it does for any other launch. That redirect applies to the plain **Agent** preset only: a preset that overrides parameters stays on the agent those parameters were checked against, since another agent may not accept them. If the jig's agent is missing or not yet configured, the launch falls back to the default agent rather than failing.
+- Session tabs identify their agent with a coloured glyph, one colour per agent, plus the launch mode where the agent reports one. The glyph and badge are the same for every agent.
+
 ## Next steps
 
 - Read the [Configuration Reference](./configuration.md) to learn what each `roubo.yaml` section does.
