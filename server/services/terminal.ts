@@ -49,6 +49,8 @@ import type { AgentVersionProbeResult } from "./agent-version-probe.js";
 import { UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const MAX_BUFFER_CHUNKS = 5000;
+/** Cap on the child's own bytes kept for the early-exit classifier (see registerSession). */
+const PTY_CAPTURE_LIMIT = 8192;
 const FLUSH_DEBOUNCE_MS = 500;
 const QUIESCENCE_DEBOUNCE_MS = 2000;
 // An agent TUI redraws continuously while it's working, so a short debounce
@@ -495,9 +497,22 @@ function registerSession(
     internal.buffer.push(`\x1b[33m${opts.notice}\x1b[0m\r\n\r\n`);
   }
 
+  // The child's OWN bytes, accumulated separately from `internal.buffer` because
+  // that buffer also carries the host's compatibility notice above. Feeding the
+  // notice to the classifier would count Roubo's own words as agent output, which
+  // both prints our warning back to the user under "Captured agent output" and
+  // flips a zero-output missing-binary exit into a launch-failure, since the
+  // three-signal rule keys on the output being nonempty.
+  //
+  // Capped because this only ever feeds the early-exit classifier: `captureOutput`
+  // truncates at 4096 bytes anyway, and a healthy session must not accumulate its
+  // whole transcript twice.
+  let ptyOutput = "";
+
   // Buffer all PTY output (WS forwarding happens in handleWebSocket)
   ptyProcess.onData((data) => {
     internal.buffer.push(data);
+    if (ptyOutput.length < PTY_CAPTURE_LIMIT) ptyOutput += data;
     internal.lastOutputAt = Date.now();
     // Debounced flush: coalesces rapid output, also catches idle sessions
     scheduleBufferFlush(id);
@@ -527,7 +542,7 @@ function registerSession(
       internal.launchFailure = classifyLaunchExit(opts.launchContext, {
         exitCode,
         timeToExitMs: Date.now() - spawnedAt,
-        output: internal.buffer.toArray().join(""),
+        output: ptyOutput,
       });
     }
     persistSession(id);

@@ -91,7 +91,7 @@ The manifest is validated by [`schema/roubo-plugin.schema.json`](../schema/roubo
 | `configSchema`                  | JSON Schema object                      | Optional, describes user-facing config fields                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `capabilities`                  | object                                  | Optional capability flags                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `defaultIntegrationConfig`      | object                                  | Optional. Plugin-global defaults seeded into the three-layer effective-config merge (per-project and per-source layers override these). See [Default integration config](#default-integration-config)                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `agentCompatibility`            | object                                  | Optional (agent plugins). Agent-CLI compatibility window `{ minVersion?, testedCeiling? }`, each an exact semver version. The host blocks a launch below `minVersion` and warns above `testedCeiling`. See [Agent compatibility](#agent-compatibility)                                                                                                                                                                                                                                                                                                                                                                                           |
+| `agentCompatibility`            | object                                  | Optional (agent plugins). Agent-CLI compatibility window `{ minVersion?, testedCeiling?, probe? }`; the two versions are exact semver. The host blocks a launch below `minVersion`, warns above `testedCeiling`, and uses `probe` to detect the installed version without launching. See [Agent compatibility](#agent-compatibility)                                                                                                                                                                                                                                                                                                             |
 
 `host.fetch` to a host outside `network.hosts` is rejected with a structured error before any DNS lookup. `host.credentials.get/set` to a slot not declared in `permissions.credentials.slots` is rejected before the keyring is touched.
 
@@ -128,11 +128,23 @@ agentCompatibility:
   # Highest CLI version the plugin was verified against. A launch above it
   # proceeds, with a staleness warning.
   testedCeiling: 2.1.207
+  # How the host reads the installed version WITHOUT launching a session, so the
+  # AI Agents card can show a detected version and a verdict on a bench that was
+  # never started. Optional; omit it and the card shows the declared window only.
+  probe:
+    command: claude
+    args:
+      - --version
+    parse: semver
 ```
 
-Both keys are optional and each must be an exact semver version (`major.minor.patch`, not a range). The whole block is optional, so integration and component manifests, and agent manifests that omit it, validate unchanged.
+`minVersion` and `testedCeiling` are optional and each must be an exact semver version (`major.minor.patch`, not a range). The whole block is optional, so integration and component manifests, and agent manifests that omit it, validate unchanged.
 
-The window is declared in two places, deliberately, and they must agree. The **manifest** block above is what the **Settings > AI Agents** card renders, so a user sees the supported window without ever launching. The **descriptor**'s `capabilities.versionProbe` (below) is what the launch gate actually enforces, because only the descriptor knows how to ask the CLI for its version. Declare both; the card falls back to reporting the version as not yet detected until a launch has probed it.
+`probe` carries the three fields the host needs to run the CLI itself: `command` (a bare name or an absolute path, resolved the same way a launch resolves it), `args` (spawned as argv, never through a shell), and `parse`, which is always `semver` and scans for the first `major.minor.patch` anywhere in the merged stdout and stderr. All three are required when `probe` is present.
+
+The window is declared in two places, deliberately, and they must agree. The **manifest** block above is what the **Settings > AI Agents** card renders, so a user sees the supported window, and the detected version, without ever launching. The **descriptor**'s `capabilities.versionProbe` (below) is what the launch gate actually enforces, because the descriptor is resolved per launch and can vary its command with the effective config. Declare both. A manifest that declares the window but no `probe` still renders its floor and ceiling; the card reports the version as not yet detected until a launch has probed it.
+
+The host probes at most once per resolved binary and caches the result, so opening the AI Agents screen never spawns a CLI per request. It warms that cache in the background at startup and re-probes at most once a minute on launch, which is what makes "update the CLI, then launch again" work after a below-floor refusal.
 
 ## Agent contract
 
@@ -238,7 +250,7 @@ capabilities: {
 }
 ```
 
-The host resolves the same binary the launch will spawn (step 8 below), runs the probe with a 5s timeout, and scans the merged stdout and stderr for the first `X.Y.Z`. The lenient scan is why one probe shape works across agents whose `--version` output looks nothing alike. The result is cached per resolved binary, so repeated launches and the AI Agents screen reuse one spawn.
+The host resolves the same binary the launch will spawn (step 9 below), runs the probe with a 5s timeout, and scans the merged stdout and stderr for the first `X.Y.Z`. The lenient scan is why one probe shape works across agents whose `--version` output looks nothing alike. The result is cached per resolved binary, so repeated launches and the AI Agents screen reuse one spawn.
 
 There are four verdicts:
 

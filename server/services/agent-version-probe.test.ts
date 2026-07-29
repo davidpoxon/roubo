@@ -22,10 +22,13 @@ import {
   classifyVersion,
   compareVersions,
   getCachedAgentVersion,
+  invalidateAgentVersionProbe,
   isAtLeast,
   parseVersion,
   probeAgentVersion,
+  probeDeclaredAgentVersion,
   resetAgentVersionProbeCache,
+  warmAgentVersion,
 } from "./agent-version-probe.js";
 
 const SPEC: VersionProbeSpec = {
@@ -121,6 +124,111 @@ describe("probeAgentVersion", () => {
     resetAgentVersionProbeCache();
     await probeAgentVersion("claude-code", "claude", SPEC);
     expect(runCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-probes once the detection has aged past its TTL", async () => {
+    vi.useFakeTimers();
+    try {
+      probeOutput("2.1.100 (Claude Code)");
+      const stale = await probeAgentVersion("claude-code", "claude", SPEC);
+      expect(stale.status).toBe("below-floor");
+
+      // An agent CLI is updated in place, so the resolved binary (and therefore
+      // the cache key) is unchanged. Without expiry the pre-update version would
+      // be replayed for the life of the process.
+      vi.advanceTimersByTime(61_000);
+      probeOutput("2.1.180 (Claude Code)");
+      const fresh = await probeAgentVersion("claude-code", "claude", SPEC);
+
+      expect(runCommand).toHaveBeenCalledTimes(2);
+      expect(fresh.status).toBe("within-tested-range");
+      expect(fresh.detectedVersion).toBe("2.1.180");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still serves the cached detection within the TTL", async () => {
+    vi.useFakeTimers();
+    try {
+      probeOutput("2.1.180 (Claude Code)");
+      await probeAgentVersion("claude-code", "claude", SPEC);
+      vi.advanceTimersByTime(30_000);
+      await probeAgentVersion("claude-code", "claude", SPEC);
+      expect(runCommand).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("invalidateAgentVersionProbe forces the next probe to re-spawn", async () => {
+    probeOutput("2.1.100 (Claude Code)");
+    await probeAgentVersion("claude-code", "claude", SPEC);
+
+    // What the below-floor refusal does, so the guidance ("update the CLI, then
+    // launch again") is actually actionable via the panel's Retry action.
+    invalidateAgentVersionProbe("claude-code");
+    probeOutput("2.1.180 (Claude Code)");
+    const result = await probeAgentVersion("claude-code", "claude", SPEC);
+
+    expect(runCommand).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("within-tested-range");
+  });
+});
+
+describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
+  const DECLARED = {
+    minVersion: "2.1.111",
+    testedCeiling: "2.1.205",
+    probe: { command: "claude", args: ["--version"], parse: "semver" as const },
+  };
+
+  it("probes from the manifest alone, with no launch descriptor (AP-TC-113)", async () => {
+    probeOutput("2.1.180 (Claude Code)");
+    const result = await probeDeclaredAgentVersion("claude-code", DECLARED);
+    expect(result?.status).toBe("within-tested-range");
+    expect(result?.detectedVersion).toBe("2.1.180");
+    expect(vi.mocked(runCommand).mock.calls[0][0]).toBe("claude");
+  });
+
+  it("carries the manifest's declared bounds into the verdict (AP-TC-114)", async () => {
+    probeOutput("2.1.207 (Claude Code)");
+    const result = await probeDeclaredAgentVersion("claude-code", DECLARED);
+    expect(result?.status).toBe("above-tested-ceiling");
+    expect(result?.testedCeiling).toBe("2.1.205");
+  });
+
+  it("resolves undefined and spawns nothing when the manifest declares no probe", async () => {
+    expect(
+      await probeDeclaredAgentVersion("claude-code", { minVersion: "2.1.111" }),
+    ).toBeUndefined();
+    expect(runCommand).not.toHaveBeenCalled();
+  });
+
+  it("warms the cache so the card shows a detected version without a launch (AP-TC-113)", async () => {
+    probeOutput("2.1.180 (Claude Code)");
+    warmAgentVersion("claude-code", DECLARED);
+    await vi.waitFor(() => expect(getCachedAgentVersion("claude-code")).toBeDefined());
+
+    expect(buildCompatibilityState("claude-code", DECLARED)).toMatchObject({
+      detectedVersion: "2.1.180",
+      status: "within-tested-range",
+    });
+  });
+
+  it("does not stack a spawn per call while a warm is in flight or already cached", async () => {
+    probeOutput("2.1.180 (Claude Code)");
+    warmAgentVersion("claude-code", DECLARED);
+    warmAgentVersion("claude-code", DECLARED);
+    await vi.waitFor(() => expect(getCachedAgentVersion("claude-code")).toBeDefined());
+    warmAgentVersion("claude-code", DECLARED);
+
+    expect(runCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a no-op for a manifest that declares no probe", () => {
+    warmAgentVersion("claude-code", { minVersion: "2.1.111" });
+    expect(runCommand).not.toHaveBeenCalled();
   });
 
   it("reports probe-failed with a reason on unparseable output (AP-TC-074)", async () => {

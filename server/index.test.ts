@@ -70,6 +70,9 @@ vi.mock("./services/plugin-manager.js", () => ({
   shutdown: vi.fn(() => Promise.resolve()),
   listInstalled: vi.fn(() => []),
   registerComponentPluginHooks: vi.fn(),
+  // Read at boot to warm each agent plugin's declared version probe. No agents
+  // installed here, so the warm loop is a no-op.
+  getAgentManifests: vi.fn(() => []),
 }));
 vi.mock("./services/catalog-client.js", () => ({
   prefetch: vi.fn(() => Promise.resolve()),
@@ -270,6 +273,7 @@ describe.sequential("startServer", () => {
         shutdown: vi.fn(() => Promise.resolve()),
         listInstalled: vi.fn(() => []),
         registerComponentPluginHooks: vi.fn(),
+        getAgentManifests: vi.fn(() => []),
       }));
       vi.doMock("./services/catalog-client.js", () => ({
         prefetch: vi.fn(() => Promise.resolve()),

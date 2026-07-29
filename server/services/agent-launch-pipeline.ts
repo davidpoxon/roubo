@@ -14,7 +14,11 @@ import {
   type AgentNotAvailable,
 } from "./agent-plugin-registry.js";
 import { validateDescriptor } from "./agent-launch-executor.js";
-import { probeAgentVersion, type AgentVersionProbeResult } from "./agent-version-probe.js";
+import {
+  invalidateAgentVersionProbe,
+  probeAgentVersion,
+  type AgentVersionProbeResult,
+} from "./agent-version-probe.js";
 import { AgentLaunchFailureError, belowFloorFailure } from "./agent-launch-failure.js";
 
 // Agent launch pipeline (issue #510, AP-FR-011, AP-NFR-002).
@@ -238,6 +242,11 @@ export async function prepareAgentLaunch(
   if (probeSpec) {
     compatibility = await probeAgentVersion(params.pluginId, descriptor.command, probeSpec);
     if (compatibility.status === "below-floor") {
+      // The refusal tells the user to update the CLI and launch again, and the
+      // Retry action re-enters this same gate. Drop the cached detection so that
+      // retry re-probes the (now possibly updated) binary instead of replaying
+      // the stale version until the TTL lapses.
+      invalidateAgentVersionProbe(params.pluginId);
       throw new AgentVersionGateError(
         belowFloorFailure(
           { agentPluginId: params.pluginId, agentName: resolved.manifest.name },

@@ -1023,4 +1023,43 @@ describe("compatibility notice in the session scrollback (AP-FR-014)", () => {
     expect(failure.guidance).toContain("stale");
     expect(failure.detectedVersion).toBe("2.1.207");
   });
+
+  it("does not present the host's own notice as captured agent output", async () => {
+    prepare(
+      { command: "acme" },
+      {},
+      { status: "above-tested-ceiling", detectedVersion: "2.1.207", testedCeiling: "2.1.205" },
+    );
+    const session = await launch();
+
+    lastPty()._emit("data", "error: unknown option '--effort'");
+    lastPty()._emit("exit", { exitCode: 1 });
+
+    const failure = replayFor(session.id).launchFailure as Record<string, unknown>;
+    // The notice is a preamble in the replay buffer, not something the agent said.
+    expect(failure.capturedOutput).toBe("error: unknown option '--effort'");
+    expect(failure.capturedOutput).not.toContain("newer than the highest version");
+    // It still reaches the user, via the replay, as a session preamble.
+    expect((replayFor(session.id).lines as string[]).join("")).toContain(
+      "newer than the highest version",
+    );
+  });
+
+  it("classifies a silent early exit as missing-binary even when a notice was shown", async () => {
+    prepare(
+      { command: "acme" },
+      {},
+      { status: "probe-failed", reason: "no recognisable version number" },
+    );
+    const session = await launch();
+
+    // Zero bytes from the child: spike #504's direct-spawn exec-failure arm. The
+    // notice must not satisfy the classifier's nonempty-output signal and turn
+    // this into a launch-failure attributed to the agent's arguments.
+    lastPty()._emit("exit", { exitCode: 1 });
+
+    const failure = replayFor(session.id).launchFailure as Record<string, unknown>;
+    expect(failure.class).toBe("missing-binary");
+    expect(failure.capturedOutput).toBeUndefined();
+  });
 });

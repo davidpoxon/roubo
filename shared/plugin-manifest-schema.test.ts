@@ -933,17 +933,32 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     });
   });
 
-  it("declares an optional agentCompatibility object with minVersion and testedCeiling (lockstep with zod)", () => {
+  it("declares an optional agentCompatibility object with minVersion, testedCeiling and probe (lockstep with zod)", () => {
     const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
     const agentCompatibility = properties.agentCompatibility as Record<string, unknown>;
     expect(agentCompatibility.type).toBe("object");
     expect(agentCompatibility.additionalProperties).toBe(false);
     const compatProps = agentCompatibility.properties as Record<string, { type: string }>;
-    expect(Object.keys(compatProps).sort()).toEqual(["minVersion", "testedCeiling"]);
+    expect(Object.keys(compatProps).sort()).toEqual(["minVersion", "probe", "testedCeiling"]);
     expect(compatProps.minVersion.type).toBe("string");
     expect(compatProps.testedCeiling.type).toBe("string");
     // agentCompatibility itself stays optional (zero new required fields).
     expect((jsonSchema.required as string[]).includes("agentCompatibility")).toBe(false);
+  });
+
+  it("declares the agentCompatibility.probe directive with all three fields required (lockstep with zod)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const compatProps = (properties.agentCompatibility as Record<string, unknown>)
+      .properties as Record<string, Record<string, unknown>>;
+    const probe = compatProps.probe;
+    expect(probe.type).toBe("object");
+    expect(probe.additionalProperties).toBe(false);
+    expect(probe.required).toEqual(["command", "args", "parse"]);
+    const probeProps = probe.properties as Record<string, Record<string, unknown>>;
+    expect(Object.keys(probeProps).sort()).toEqual(["args", "command", "parse"]);
+    expect(probeProps.command.type).toBe("string");
+    expect(probeProps.args.type).toBe("array");
+    expect(probeProps.parse.const).toBe("semver");
   });
 
   it("declares optional contractVersion and descriptorSchemaVersion integers (lockstep with zod)", () => {

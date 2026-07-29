@@ -100,6 +100,8 @@ export type {
   PluginDefaultIntegrationConfig,
   PluginIcon,
   PluginLifecycle,
+  AgentCompatibility,
+  AgentVersionProbeDirective,
 } from "./plugin-manifest-schema.js";
 
 export { parseManifest } from "./plugin-manifest.js";
@@ -2070,6 +2072,12 @@ export interface TerminalCreateResponse {
   jigScheduled?: boolean;
   /** Set when the resolved jig content exceeds MAX_CLI_PROMPT_LENGTH and was truncated */
   sizeWarning?: boolean;
+  /**
+   * The pre-launch version verdict, present only when the probe had something to
+   * say (above the tested ceiling, or the probe could not decide). An in-range
+   * launch is silent, so its absence is the normal case (AP-TC-070, AP-TC-072).
+   */
+  compatibility?: AgentCompatibilityState;
 }
 
 // ── Inspection run types ──

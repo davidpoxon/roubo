@@ -119,6 +119,29 @@
           "type": "string",
           "minLength": 1,
           "description": "Highest agent-CLI version the plugin was verified against, as an exact semver version. A launch above it proceeds with a staleness warning."
+        },
+        "probe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command", "args", "parse"],
+          "description": "How the host reads the installed agent-CLI version WITHOUT launching a session, so the AI Agents screen can show a detected version and a compatibility verdict on a bench that was never started. Optional.",
+          "properties": {
+            "command": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The agent CLI to run, as a bare name or an absolute path. Resolved the same way the launch resolves it."
+            },
+            "args": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" },
+              "description": "Arguments passed to the probe command, spawned as argv and never through a shell."
+            },
+            "parse": {
+              "const": "semver",
+              "description": "How to read a version out of the probe output. The host scans for the first semver anywhere in the merged stdout and stderr."
+            }
+          }
         }
       }
     },

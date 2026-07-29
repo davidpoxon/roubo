@@ -13,7 +13,7 @@ import {
   saveAgentConfig,
 } from "../services/agent-overrides.js";
 import { validateAgentConfig } from "../services/agent-config-validator.js";
-import { buildCompatibilityState } from "../services/agent-version-probe.js";
+import { buildCompatibilityState, warmAgentVersion } from "../services/agent-version-probe.js";
 
 // App-level agent configuration API (AP-FR-002, AP-FR-003, issue #508).
 //
@@ -42,9 +42,20 @@ function findAgentManifest(pluginId: string): PluginManifest | undefined {
 
 function toState(manifest: PluginManifest): AgentPluginState {
   const resolved = resolveAgent(manifest.id);
-  // Manifest-declared window plus the cached probe. Cache-only by design: this
-  // route is polled, and probing per request would spawn an agent CLI every time
-  // the AI Agents screen refreshed (AP-TC-113, AP-TC-114).
+  // Manifest-declared window plus the probe. The READ is cache-only, because this
+  // route is polled and probing inline would spawn an agent CLI on every refresh
+  // of the AI Agents screen. When nothing is cached yet, a warm is kicked off in
+  // the background instead: AP-TC-113 and AP-TC-114 expect a detected version on
+  // a screen the user merely opened, so waiting for a launch would leave the card
+  // reading "not detected yet" indefinitely.
+  //
+  // Gated on the agent actually resolving: an incompatible, errored or disabled
+  // plugin is one the host refuses to run, so it must not get a manifest-declared
+  // command spawned on its behalf either. Its card still renders the declared
+  // window, just without a detected version.
+  if (!isAgentNotAvailable(resolved)) {
+    warmAgentVersion(manifest.id, manifest.agentCompatibility);
+  }
   const compatibility = buildCompatibilityState(manifest.id, manifest.agentCompatibility);
   return {
     id: manifest.id,
