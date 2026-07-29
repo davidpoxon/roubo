@@ -1189,6 +1189,14 @@ describe("ProjectSettings", () => {
       } as unknown as ReturnType<typeof useAgentPlugins>);
     }
 
+    /** The in-flight shape of the query: no data yet, so nothing is known. */
+    function setAgentsPending() {
+      mockedUseAgentPlugins.mockReturnValue({
+        data: undefined,
+        isPending: true,
+      } as unknown as ReturnType<typeof useAgentPlugins>);
+    }
+
     async function openJigsTab() {
       const user = userEvent.setup();
       render();
@@ -1299,6 +1307,16 @@ describe("ProjectSettings", () => {
       expect(screen.queryByRole("radiogroup", { name: "Default agent" })).toBeNull();
     });
 
+    it("shows neither the empty state nor a picker while the agents query is in flight", async () => {
+      // `undefined` data is "not known yet", not "zero agents": claiming nothing
+      // is configured before the fetch lands is simply wrong (#647).
+      setAgentsPending();
+      await openJigsTab();
+
+      expect(screen.queryByTestId("default-agent-empty-state")).toBeNull();
+      expect(screen.queryByRole("radiogroup", { name: "Default agent" })).toBeNull();
+    });
+
     it("binds a jig to an agent through its per-jig select", async () => {
       const mutateAsync = vi.fn().mockResolvedValue({});
       mockedUseUpdateGlobalJig.mockReturnValue({
@@ -1345,6 +1363,21 @@ describe("ProjectSettings", () => {
 
       expect(agentSelectTrigger("refactor-pass")).toHaveTextContent("gemini-cli (unavailable)");
       expect(screen.getByText(/Agent unavailable/)).toBeInTheDocument();
+    });
+
+    it("does not call a bound jig's agent unavailable while the agents query is in flight", async () => {
+      // The binding is fine; the client just has not heard back yet. Warning
+      // here contradicts the server, whose `resolveLaunchAgentId` will happily
+      // use the bound agent (#647).
+      setAgentsPending();
+      mockedUseGlobalJigs.mockReturnValue({
+        data: [{ ...jigs[0], agentPluginId: "codex-cli" }],
+      } as ReturnType<typeof useGlobalJigs>);
+
+      await openJigsTab();
+
+      expect(screen.queryByTestId("jig-agent-select-refactor-pass")).toBeNull();
+      expect(screen.queryByText(/Agent unavailable/)).toBeNull();
     });
   });
 });
