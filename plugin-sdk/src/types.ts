@@ -952,8 +952,9 @@ export type WaitingDetectionSpec =
 export type AgentPosture = "read-only" | "guarded" | "auto-edit" | "full-auto";
 
 /**
- * The user-facing permissions model (AP-FR-016, as narrowed by spike #502): a
- * universal posture plus optional fine-grained rules. Rule strings are opaque to
+ * The user-facing permissions model (AP-FR-016, as narrowed by spike #502): the
+ * fine-grained rules the host always sends, plus an optional universal posture,
+ * absent whenever the project has never chosen one. Rule strings are opaque to
  * the host; only the declaring plugin interprets them.
  */
 export interface AgentPermissionsModel {
