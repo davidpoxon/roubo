@@ -190,13 +190,16 @@ interface AgentLaunchDescriptor {
 
 Everything else the launch needs is an optional declared capability, and **absence is first-class**. An agent that declares none launches as a plain terminal session; nothing in the host requires any capability to exist.
 
-| Capability         | Declares                                                                      | If absent                                            |
-| ------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `workspaceWrites`  | Files to write in the bench workspace, as ordered ops.                        | No workspace file is touched.                        |
-| `notification`     | How the agent signals the host (`http-hook` or `spawned-notifier`).           | Nothing is wired; quiescence detection only.         |
-| `versionProbe`     | The probe args, the semver floor, and the tested ceiling.                     | No version gate; the launch proceeds.                |
-| `waitingDetection` | `hook-driven` (with a quiescence fallback) or `quiescence-only`.              | The generic quiescence debounce every terminal gets. |
-| `permissions`      | How the agent realises each permission posture, and whether it honours rules. | No permission controls render; nothing is injected.  |
+| Capability         | Declares                                                                            | If absent                                                  |
+| ------------------ | ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `initialPrompt`    | How jig content reaches the agent: `argv-positional`, with an optional `maxLength`. | No jig content is injected; the session launches normally. |
+| `workspaceWrites`  | Files to write in the bench workspace, as ordered ops.                              | No workspace file is touched.                              |
+| `notification`     | How the agent signals the host (`http-hook` or `spawned-notifier`).                 | Nothing is wired; quiescence detection only.               |
+| `versionProbe`     | The probe args, the semver floor, and the tested ceiling.                           | No version gate; the launch proceeds.                      |
+| `waitingDetection` | `hook-driven` (with a quiescence fallback) or `quiescence-only`.                    | The generic quiescence debounce every terminal gets.       |
+| `permissions`      | How the agent realises each permission posture, and whether it honours rules.       | No permission controls render; nothing is injected.        |
+
+`initialPrompt` sits on the descriptor itself rather than under `capabilities`, but it behaves exactly like one: the host injects jig content only when you declare it, and only in the way you declare. With `argv-positional` the resolved jig is appended as the final positional argument, after your own `args` and after any posture binding's. Your `maxLength` is capped by the host's own 100,000-character ceiling, so you can ask for a shorter prompt than the host would allow and never a longer one. Declare nothing and a jig-driven launch still succeeds: the agent starts with no prompt at all, and the host neither claims the jig was injected nor writes it into the PTY after startup.
 
 The permissions model has two axes: a universal `posture` (`read-only`, `guarded`, `auto-edit`, `full-auto`) every agent plugin maps to its native mechanism, and optional fine-grained `allow` / `ask` / `deny` rules honoured only by plugins that declare the `rules` capability. Rule strings are opaque to the host: it stores, unions, and injects them, and never parses them.
 

@@ -381,6 +381,8 @@ Each jig in the payload may carry an `agentPluginId`: the `agent`-kind plugin th
 
 At launch, `POST /api/projects/:projectId/benches/:id/terminals` resolves the agent in that order: an explicit `agentPluginId` in the request first, then the driving jig's binding, then the default agent, and finally the single configured agent when exactly one is available. Every layer is availability-gated, so a binding or a default whose plugin is no longer resolvable falls through to the next layer rather than failing the launch. When no layer names an agent that resolves, the launch stays on the built-in command path.
 
+How the jig then reaches that agent is the agent's own declared capability (`initialPrompt` on its launch descriptor), not something the host assumes. With `jigs.autoExecute` on, the resolved jig is passed as the agent's initial prompt so it submits on start and the response carries `jigInjected: true`; with it off the jig is written into the session 1500ms after launch without submitting, and the response carries `jigScheduled: true`. An agent that declares no injection capability gets neither: it launches normally, nothing is injected, no post-startup write is scheduled, and the response reports neither flag. `sizeWarning` is about the jig rather than the agent, so it is still reported either way.
+
 ### Inject a jig into a bench's workspace
 
 ```

@@ -442,6 +442,28 @@ export interface CreateAgentSessionOptions {
 }
 
 /**
+ * What the launch actually did with the initial prompt (the resolved jig
+ * content), reported back so the caller never has to guess (AP-FR-012,
+ * AP-FR-018).
+ *
+ * `mode` echoes the descriptor's declared injection capability, and is `"none"`
+ * when the descriptor declares one. Core injects nothing then, so a caller that
+ * meant to deliver jig content must neither claim it was injected nor fall back
+ * to writing it into the PTY afterwards: an agent that declares no injection
+ * capability launches with nothing injected, by design.
+ */
+export interface AgentPromptInjection {
+  mode: "argv-positional" | "none";
+  /** The prompt reached argv: `mode` is declared AND a prompt was supplied. */
+  injected: boolean;
+}
+
+export interface AgentSessionLaunch {
+  session: TerminalSession;
+  promptInjection: AgentPromptInjection;
+}
+
+/**
  * Open a PTY session from a plugin-supplied `AgentLaunchDescriptor` (AP-FR-011).
  *
  * The ordering is the whole design. The session id is minted FIRST, before the
@@ -460,7 +482,7 @@ export interface CreateAgentSessionOptions {
  */
 export async function createAgentSession(
   opts: CreateAgentSessionOptions,
-): Promise<TerminalSession> {
+): Promise<AgentSessionLaunch> {
   const id = randomUUID();
 
   const prepared = await prepareAgentLaunch({
@@ -498,10 +520,18 @@ export async function createAgentSession(
   for (const arg of postureBinding?.args ?? []) {
     args.push(resolveTemplate(arg, ctx));
   }
-  // The initial prompt is positional, so it stays last, after every flag.
+  // The initial prompt is positional, so it stays last, after every flag. The
+  // descriptor's declared limit is capped by core's own MAX_CLI_PROMPT_LENGTH:
+  // a plugin can ask for a shorter prompt than core would allow, never a longer
+  // one (AP-FR-012).
+  const promptInjection: AgentPromptInjection = {
+    mode: descriptor.initialPrompt?.mode ?? "none",
+    injected: false,
+  };
   if (descriptor.initialPrompt?.mode === "argv-positional" && opts.initialInput) {
     const limit = Math.min(descriptor.initialPrompt.maxLength ?? Infinity, MAX_CLI_PROMPT_LENGTH);
     args.push(opts.initialInput.slice(0, limit));
+    promptInjection.injected = true;
   }
   const cwd = descriptor.cwd ? resolveTemplate(descriptor.cwd, ctx) : opts.workspacePath;
 
@@ -558,7 +588,7 @@ export async function createAgentSession(
 
   registerSession(session, ptyProcess, opts.onAgentExit);
 
-  return session;
+  return { session, promptInjection };
 }
 
 /**

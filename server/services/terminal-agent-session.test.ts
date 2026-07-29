@@ -111,7 +111,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function launch(overrides: Record<string, unknown> = {}) {
+/** The full launch result, including what it did with the initial prompt. */
+function launchWith(overrides: Record<string, unknown> = {}) {
   return createAgentSession({
     projectId: "roubo",
     benchId: 2,
@@ -120,6 +121,10 @@ function launch(overrides: Record<string, unknown> = {}) {
     agentPluginId: "acme-agent",
     ...overrides,
   });
+}
+
+async function launch(overrides: Record<string, unknown> = {}) {
+  return (await launchWith(overrides)).session;
 }
 
 describe("createAgentSession (AP-FR-011)", () => {
@@ -189,17 +194,73 @@ describe("createAgentSession (AP-FR-011)", () => {
   it("appends the initial prompt as a positional argv element when the descriptor asks for one", async () => {
     prepare({ args: ["--print"], initialPrompt: { mode: "argv-positional", maxLength: 5 } });
 
-    await launch({ initialInput: "abcdefghij" });
+    const { promptInjection } = await launchWith({ initialInput: "abcdefghij" });
 
     expect(spawnCall().args).toEqual(["--print", "abcde"]);
+    expect(promptInjection).toEqual({ mode: "argv-positional", injected: true });
   });
 
   it("does not append an initial prompt when the descriptor declares no mode for one", async () => {
     prepare({ args: ["--print"] });
 
-    await launch({ initialInput: "hello" });
+    const { promptInjection } = await launchWith({ initialInput: "hello" });
 
     expect(spawnCall().args).toEqual(["--print"]);
+    // The declared mode is reported back so the caller can tell "nothing to
+    // inject" apart from "this agent cannot be injected into" (AP-TC-063).
+    expect(promptInjection).toEqual({ mode: "none", injected: false });
+  });
+
+  it("reports the declared mode with nothing injected when the launch carries no prompt", async () => {
+    prepare({ args: ["--print"], initialPrompt: { mode: "argv-positional", maxLength: 5 } });
+
+    const { promptInjection } = await launchWith();
+
+    expect(spawnCall().args).toEqual(["--print"]);
+    expect(promptInjection).toEqual({ mode: "argv-positional", injected: false });
+  });
+
+  // AP-TC-062: the declared limit is a boundary, not an approximation. Content
+  // of exactly maxLength goes through whole; one character more loses exactly
+  // that one character.
+  it("passes content of exactly the declared maxLength through untruncated", async () => {
+    prepare({ args: ["--print"], initialPrompt: { mode: "argv-positional", maxLength: 64 } });
+    const content = "x".repeat(64);
+
+    await launch({ initialInput: content });
+
+    expect(spawnCall().args[1]).toBe(content);
+  });
+
+  it("truncates content of maxLength + 1 by exactly one character", async () => {
+    prepare({ args: ["--print"], initialPrompt: { mode: "argv-positional", maxLength: 64 } });
+    const content = `${"x".repeat(64)}y`;
+
+    await launch({ initialInput: content });
+
+    const prompt = spawnCall().args[1];
+    expect(prompt).toHaveLength(64);
+    expect(prompt).toBe(content.slice(0, 64));
+    expect(prompt.endsWith("y")).toBe(false);
+  });
+
+  it("caps a declared maxLength above core's own prompt ceiling at 100,000", async () => {
+    prepare({
+      args: ["--print"],
+      initialPrompt: { mode: "argv-positional", maxLength: 500_000 },
+    });
+
+    await launch({ initialInput: "x".repeat(150_000) });
+
+    expect(spawnCall().args[1]).toHaveLength(100_000);
+  });
+
+  it("caps an undeclared maxLength at core's own prompt ceiling too", async () => {
+    prepare({ args: ["--print"], initialPrompt: { mode: "argv-positional" } });
+
+    await launch({ initialInput: "x".repeat(150_000) });
+
+    expect(spawnCall().args[1]).toHaveLength(100_000);
   });
 });
 

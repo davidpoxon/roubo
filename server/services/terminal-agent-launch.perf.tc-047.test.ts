@@ -200,8 +200,8 @@ afterAll(() => {
   fs.rmSync(stateMocks.root, { recursive: true, force: true });
 });
 
-function launch() {
-  return createAgentSession({
+async function launch() {
+  const { session } = await createAgentSession({
     projectId: PROJECT_ID,
     benchId: 1,
     workspacePath: workspace,
@@ -209,6 +209,7 @@ function launch() {
     agentPluginId: PLUGIN_ID,
     layers: { preset: { posture: "auto-edit" }, perLaunch: { model: "per-launch-model" } },
   });
+  return session;
 }
 
 it.runIf(RUN)(
