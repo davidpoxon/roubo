@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AgentLaunchDescriptorSchema,
+  AgentPermissionsModelSchema,
   NotificationWiringSchema,
   PermissionsCapabilitySchema,
   SUPPORTED_AGENT_LAUNCH_SCHEMA_VERSION,
@@ -269,5 +270,16 @@ describe("PermissionsCapability", () => {
     expect(
       PermissionsCapabilitySchema.safeParse({ postures: { yolo: { args: [] } } }).success,
     ).toBe(false);
+  });
+});
+
+describe("AgentPermissionsModel", () => {
+  it("accepts a payload with no posture, the shape core sends when the project chose none", () => {
+    const rules = { allow: [], ask: [], deny: [] };
+    expect(AgentPermissionsModelSchema.parse({ rules })).toEqual({ rules });
+  });
+
+  it("rejects a payload without rules, which core always sends", () => {
+    expect(AgentPermissionsModelSchema.safeParse({ posture: "guarded" }).success).toBe(false);
   });
 });

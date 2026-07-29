@@ -153,26 +153,26 @@ export type WaitingDetectionSpec = z.infer<typeof WaitingDetectionSpecSchema>;
 
 // ── Permissions ──
 //
-// One user-facing model with two axes (AP-FR-016, narrowed by spike #502): a
-// universal `posture` every agent plugin maps to its native mechanism, plus
-// optional fine-grained rules honored only by plugins declaring the rules
-// capability. Core stores, unions, and injects rule strings; it never parses
-// them, so no agent-specific vocabulary reaches core's types.
+// One user-facing model with two axes (AP-FR-016, narrowed by spike #502): the
+// fine-grained rules core always sends, honored only by plugins declaring the
+// rules capability, plus an optional universal `posture` every agent plugin
+// maps to its native mechanism, absent whenever the project has never chosen
+// one. Core stores, unions, and injects rule strings; it never parses them, so
+// no agent-specific vocabulary reaches core's types.
 
 export const AgentPostureSchema = z.enum(["read-only", "guarded", "auto-edit", "full-auto"]);
 export type AgentPosture = z.infer<typeof AgentPostureSchema>;
 
 export const AgentPermissionsModelSchema = z
   .object({
-    posture: AgentPostureSchema,
+    posture: AgentPostureSchema.optional(),
     rules: z
       .object({
         allow: z.array(z.string()),
         ask: z.array(z.string()),
         deny: z.array(z.string()),
       })
-      .strict()
-      .optional(),
+      .strict(),
   })
   .strict();
 export type AgentPermissionsModel = z.infer<typeof AgentPermissionsModelSchema>;

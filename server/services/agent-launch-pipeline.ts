@@ -1,7 +1,7 @@
 import type { PluginManifest } from "@roubo/shared";
 import type {
   AgentLaunchDescriptor,
-  AgentPosture,
+  AgentPermissionsModel,
 } from "@roubo/shared/agent-launch-descriptor-schema";
 import { getEffectiveAgentConfig } from "./agent-overrides.js";
 import { getProjectAgentOverrides, mergeAgentConfig } from "./agent-project-overrides.js";
@@ -128,10 +128,7 @@ export function resolveLaunchAgentId({
  * managed on their own screen and are not an agent config field a preset or a
  * per-launch override may quietly outrank.
  */
-export interface LaunchPermissions {
-  posture?: AgentPosture;
-  rules: { allow: string[]; ask: string[]; deny: string[] };
-}
+export type LaunchPermissions = AgentPermissionsModel;
 
 export interface PrepareAgentLaunchParams {
   pluginId: string;
