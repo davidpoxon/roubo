@@ -430,8 +430,33 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
       "claude-code",
       "claude",
       VERSION_PROBE,
+      process.env.PATH,
     );
     expect(prepared.compatibility?.status).toBe("within-tested-range");
+  });
+
+  it("probes against the descriptor's own PATH rather than the server's (#660)", async () => {
+    pluginManagerMocks.invoke.mockResolvedValue(
+      makeDescriptor({
+        capabilities: { versionProbe: VERSION_PROBE },
+        env: { PATH: "/opt/agent/bin" },
+      }),
+    );
+    probeMocks.probeAgentVersion.mockResolvedValue({
+      status: "within-tested-range",
+      detectedVersion: "2.1.180",
+    });
+
+    await prepareAgentLaunch(launchParams);
+
+    // A descriptor's env fully overrides PATH on the child, so gating against the
+    // server's PATH would read a same-named binary the launch never spawns.
+    expect(probeMocks.probeAgentVersion).toHaveBeenCalledWith(
+      "claude-code",
+      "claude",
+      VERSION_PROBE,
+      "/opt/agent/bin",
+    );
   });
 
   it("blocks a below-floor launch with an actionable failure (AP-TC-071, AP-TC-100 S001)", async () => {

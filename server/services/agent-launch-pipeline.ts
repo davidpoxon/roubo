@@ -240,7 +240,17 @@ export async function prepareAgentLaunch(
   let compatibility: AgentVersionProbeResult | undefined;
   const probeSpec = descriptor.capabilities?.versionProbe;
   if (probeSpec) {
-    compatibility = await probeAgentVersion(params.pluginId, descriptor.command, probeSpec);
+    // The child's PATH, not the server's. `createAgentSession` layers descriptor
+    // env over the host environment and PATH is not among the keys core withholds,
+    // so a descriptor-supplied `env.PATH` replaces the host's outright. Handing it
+    // to the probe is what keeps the gate reading the binary the launch will spawn
+    // rather than a same-named one on the server's PATH (#660).
+    compatibility = await probeAgentVersion(
+      params.pluginId,
+      descriptor.command,
+      probeSpec,
+      descriptor.env?.PATH ?? process.env.PATH,
+    );
     if (compatibility.status === "below-floor") {
       // The refusal tells the user to update the CLI and launch again, and the
       // Retry action re-enters this same gate. Drop the cached detection so that
