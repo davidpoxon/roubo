@@ -418,8 +418,41 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
     if (!result.success) {
       const errors = zodIssuesToValidationErrors(result.error.issues);
       const match = errors.find((e) => e.path === "agentCompatibility.minVersion");
-      expect(match?.message).toBe("Must be an exact semver version");
+      expect(match?.message).toBe(
+        "Must be an exact semver version (major.minor.patch, no prerelease or build metadata)",
+      );
     }
+  });
+
+  // Issue #669: a prerelease or build-metadata bound is valid semver but
+  // uncomparable, because `compareVersions` splits on "." and `Number("111-beta")`
+  // is NaN, so it used to validate here and then classify every detected version
+  // `below-floor`. Both bounds now refuse the shape at authoring time, matching
+  // VersionProbeSpecSchema on the descriptor side (#661).
+  const UNCOMPARABLE_BOUNDS = ["2.1.111-beta.1", "2.1.111+build.5"];
+
+  it.each(UNCOMPARABLE_BOUNDS)("rejects an uncomparable minVersion (%s)", (minVersion) => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ kind: "agent", agentCompatibility: { minVersion } }),
+    );
+    expectFieldError(result, "agentCompatibility.minVersion");
+  });
+
+  it.each(UNCOMPARABLE_BOUNDS)("rejects an uncomparable testedCeiling (%s)", (testedCeiling) => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ kind: "agent", agentCompatibility: { testedCeiling } }),
+    );
+    expectFieldError(result, "agentCompatibility.testedCeiling");
+  });
+
+  it("still accepts a bare major.minor.patch window on both bounds", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        kind: "agent",
+        agentCompatibility: { minVersion: "2.1.83", testedCeiling: "2.1.207" },
+      }),
+    );
+    expect(result.success).toBe(true);
   });
 
   it("rejects a malformed testedCeiling version naming the field", () => {
@@ -467,7 +500,7 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
       expect(result.error.code).toBe("schema");
       expect(result.error.path).toBe("agentCompatibility.minVersion");
       expect(result.error.message).toBe(
-        "agentCompatibility.minVersion: Must be an exact semver version",
+        "agentCompatibility.minVersion: Must be an exact semver version (major.minor.patch, no prerelease or build metadata)",
       );
       // No raw stack trace leaks into the user-facing message.
       expect(result.error.message).not.toMatch(/\n\s+at\s/);
