@@ -53,6 +53,22 @@ describe("validateDescriptor", () => {
   it("rejects a non-object entirely", () => {
     expect(() => validateDescriptor("claude --print")).toThrow(AgentDescriptorError);
   });
+
+  // Issue #661: a `v`-prefixed floor used to validate here and then classify every
+  // detected version as `below-floor`, hard blocking the agent with a misleading
+  // message. It is an authoring mistake, so it is named as one at validation.
+  it("rejects a version-probe bound that is not exact semver, naming the field", () => {
+    const attempt = () =>
+      validateDescriptor({
+        ...minimalDescriptor,
+        capabilities: {
+          versionProbe: { args: ["--version"], parse: "semver", minVersion: "v2.1.111" },
+        },
+      });
+    expect(attempt).toThrow(AgentDescriptorError);
+    expect(attempt).toThrow(/minVersion/);
+    expect(attempt).toThrow(/exact semver/);
+  });
 });
 
 describe("collectWorkspaceWrites", () => {

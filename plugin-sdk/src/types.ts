@@ -935,7 +935,14 @@ export type NotificationWiring =
       correlation: { source: "template"; template: string };
     };
 
-/** Pre-launch agent-CLI version probe: args, semver extraction, floor, ceiling. */
+/**
+ * Pre-launch agent-CLI version probe: args, semver extraction, floor, ceiling.
+ *
+ * `minVersion` and `testedCeiling` must each be a single EXACT semver version
+ * (`major.minor.patch`, optional prerelease and build metadata), never a range
+ * and never `v`-prefixed. TypeScript cannot express that, so the host's Zod
+ * schema enforces it and rejects the descriptor when it does not hold.
+ */
 export interface VersionProbeSpec {
   args: string[];
   parse: "semver";

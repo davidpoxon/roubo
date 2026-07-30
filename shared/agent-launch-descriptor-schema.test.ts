@@ -245,6 +245,46 @@ describe("VersionProbeSpec", () => {
       false,
     );
   });
+
+  // Issue #661: a bound the semver comparison cannot parse used to be accepted
+  // here and then classified `below-floor` for every detected version, hard
+  // blocking the agent with a misleading message. Both bounds now carry the same
+  // exact-semver refinement AgentCompatibilitySchema applies on the manifest side.
+  it.each(["v2.1.111", "2.1", ">=2.1.0", "^2.1.0", "2.1.x", "latest"])(
+    "rejects a non-exact-semver minVersion (%s)",
+    (minVersion) => {
+      const result = VersionProbeSpecSchema.safeParse({
+        args: ["--version"],
+        parse: "semver",
+        minVersion,
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.path).toEqual(["minVersion"]);
+    },
+  );
+
+  it.each(["v2.1.207", "2.1", ">=2.1.0", "^2.1.0", "2.1.x", "latest"])(
+    "rejects a non-exact-semver testedCeiling (%s)",
+    (testedCeiling) => {
+      const result = VersionProbeSpecSchema.safeParse({
+        args: ["--version"],
+        parse: "semver",
+        testedCeiling,
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.path).toEqual(["testedCeiling"]);
+    },
+  );
+
+  it("accepts prerelease and build-metadata bounds, which exact semver allows", () => {
+    const spec = {
+      args: ["--version"],
+      parse: "semver" as const,
+      minVersion: "2.1.111-beta.1",
+      testedCeiling: "2.1.207+build.5",
+    };
+    expect(VersionProbeSpecSchema.parse(spec)).toEqual(spec);
+  });
 });
 
 describe("WaitingDetectionSpec", () => {

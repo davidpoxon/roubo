@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isExactSemverVersion } from "./plugin-manifest-schema.js";
 
 // Issue #507 / AP-FR-001: the typed AgentLaunchDescriptor an agent plugin emits
 // from `translateLaunch` and the host executes. See:
@@ -118,13 +119,31 @@ export type NotificationWiring = z.infer<typeof NotificationWiringSchema>;
 // Generalizes server/services/claude-version.ts: the probe args, the semver
 // extraction, an optional floor a launch is blocked below, and an optional
 // tested ceiling a launch warns above (AP-FR-014).
+//
+// Both bounds must be a single EXACT semver version, deliberately mirroring the
+// refinement AgentCompatibilitySchema applies to the same two fields on the
+// manifest side (plugin-manifest-schema.ts). docs/plugin-sdk.md tells authors to
+// declare the same window in both places, so the two schemas have to agree on
+// strictness. This schema is also the only guarantee `classifyVersion` has:
+// `compareVersions` does `split(".").map(Number)`, so a bound like `v2.1.111` or
+// `2.1` yields NaN, every comparison reads false, and the agent is hard blocked
+// as `below-floor` for every detected version. Rejecting it here turns a silent
+// misclassification into a legible authoring error (issue #661).
 
 export const VersionProbeSpecSchema = z
   .object({
     args: z.array(z.string()).min(1),
     parse: z.literal("semver"),
-    minVersion: z.string().min(1).optional(),
-    testedCeiling: z.string().min(1).optional(),
+    minVersion: z
+      .string()
+      .min(1)
+      .refine(isExactSemverVersion, "Must be an exact semver version")
+      .optional(),
+    testedCeiling: z
+      .string()
+      .min(1)
+      .refine(isExactSemverVersion, "Must be an exact semver version")
+      .optional(),
   })
   .strict();
 export type VersionProbeSpec = z.infer<typeof VersionProbeSpecSchema>;

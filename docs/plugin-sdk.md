@@ -261,7 +261,7 @@ There are four verdicts:
 | `below-floor`          | `v < minVersion`                              | **Refuses**, before anything is spawned and before any workspace write, naming the detected version and the floor. |
 | `probe-failed`         | Binary unresolvable, or output has no version | Launches, with a notice saying the check did not run. A probe that cannot decide never blocks.                     |
 
-Both bounds are inclusive and both are optional: a probe with no `minVersion` can never block, and one with no `testedCeiling` can never warn. The ceiling is deliberately non-blocking, because agent CLIs ship weekly and refusing to run on an unrecognised newer version would age far worse than a warning does. It still earns its keep: when a launch above the ceiling fails, the host attributes the failure to a probably-stale argument map rather than leaving the user guessing.
+Both bounds are inclusive and both are optional, and each must be an exact semver version (`major.minor.patch`, not a range and not `v`-prefixed), exactly as the manifest block requires. A bound the host cannot compare is rejected when the descriptor is validated, naming the offending field, rather than silently reading as a floor nothing satisfies. A probe with no `minVersion` can never block, and one with no `testedCeiling` can never warn. The ceiling is deliberately non-blocking, because agent CLIs ship weekly and refusing to run on an unrecognised newer version would age far worse than a warning does. It still earns its keep: when a launch above the ceiling fails, the host attributes the failure to a probably-stale argument map rather than leaving the user guessing.
 
 ### When a launch fails
 
