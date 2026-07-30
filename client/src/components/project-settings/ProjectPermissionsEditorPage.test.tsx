@@ -347,6 +347,53 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
     expect(screen.getByText(/was rejected because/)).toBeInTheDocument();
   });
 
+  // The error banner reports `mutation.isError || query.isError`, neither of
+  // which is tied to the rules axis, so it has to survive an agent that hides
+  // the rules editor but still offers a posture to change.
+  it("surfaces a rejected posture change for an agent that declares no rules capability", () => {
+    mockedUseProjectPermissions.mockReturnValue(
+      makeDefaultHook({
+        capabilities: {
+          agentPluginId: "codex",
+          agentName: "Codex",
+          postures: ["guarded"],
+          rules: false,
+          resync: false,
+        },
+        isError: true,
+        error: new Error(
+          'Posture "guarded" was rejected because Codex does not bind that posture.',
+        ),
+      }),
+    );
+    renderEditor();
+    expect(screen.queryByText("Add rule")).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Posture "guarded" was rejected because Codex does not bind that posture.'),
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces a failed permissions load for an agent that declares no rules capability", () => {
+    mockedUseProjectPermissions.mockReturnValue(
+      makeDefaultHook({
+        capabilities: {
+          agentPluginId: "codex",
+          agentName: "Codex",
+          postures: ["guarded"],
+          rules: false,
+          resync: false,
+        },
+        permissions: undefined,
+        isError: true,
+        error: new Error("Failed to fetch"),
+      }),
+    );
+    renderEditor();
+    expect(
+      screen.getByText("Failed to load or save permissions. Please try again."),
+    ).toBeInTheDocument();
+  });
+
   it("preserves the stored posture when a rule is added", async () => {
     const updatePermissions = vi.fn();
     mockedUseProjectPermissions.mockReturnValue(
