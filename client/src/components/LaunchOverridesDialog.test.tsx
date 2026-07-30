@@ -120,6 +120,33 @@ describe("LaunchOverridesDialog", () => {
     expect(traceText()).toContain("model=gpt-5.2-codex");
   });
 
+  it("drops draft values the newly selected agent does not declare", () => {
+    open();
+
+    setField("Model", "haiku");
+    setField("Effort", "max");
+
+    // Codex declares no `haiku`, so carrying it over would render a Model
+    // control showing a value absent from its own options while the launch
+    // still shipped it. Effort is free text on Codex, so nothing invalidates it
+    // and the user's choice survives the switch.
+    setField("Agent", "codex-cli");
+
+    expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe("");
+    expect((screen.getByLabelText("Effort") as HTMLInputElement).value).toBe("max");
+    expect(screen.getByTestId("resolution-layer-perLaunch").textContent).not.toContain("haiku");
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    expect(onLaunch).toHaveBeenCalledWith({
+      agentPluginId: "codex-cli",
+      agentName: "Codex CLI",
+      perLaunchOverrides: { effort: "max" },
+    });
+  });
+
   it("updates the trace live as fields change, emphasising this-launch values (AP-TC-029 S002, AP-TC-046)", () => {
     open();
 

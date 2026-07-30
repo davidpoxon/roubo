@@ -98,6 +98,30 @@ export default function LaunchOverridesDialog({
   const [params, setParams] = useState<Record<string, string>>({});
 
   const agent = launchable.find((candidate) => candidate.id === agentId);
+
+  /**
+   * Switching agent re-bases the draft on the new agent's schema. A value the
+   * newly selected agent does not declare (a Claude Code `model=haiku` against
+   * a Codex `model` enum) is dropped rather than carried over, so the rendered
+   * field and the launched payload can never disagree, and the fields update to
+   * reflect the newly selected agent's parameters (AP-TC-029 S001-O01). A field
+   * the new agent leaves free text keeps its value: nothing there is invalid.
+   */
+  const handleAgentChange = (nextAgentId: string) => {
+    const nextAgent = launchable.find((candidate) => candidate.id === nextAgentId);
+    setParams((current) => {
+      const kept: Record<string, string> = {};
+      for (const field of PARAM_FIELDS) {
+        const value = current[field.key];
+        if (!value) continue;
+        const options = enumOptionsFor(nextAgent, field.key);
+        if (options === undefined || options.includes(value)) kept[field.key] = value;
+      }
+      return kept;
+    });
+    setAgentId(nextAgentId);
+  };
+
   const presetApplies = preset?.agentPluginId !== undefined && preset.agentPluginId === agentId;
   const presetParams = presetApplies ? preset.params : undefined;
 
@@ -161,7 +185,7 @@ export default function LaunchOverridesDialog({
                 id="launch-overrides-agent"
                 className={INPUT}
                 value={agentId}
-                onChange={(e) => setAgentId(e.target.value)}
+                onChange={(e) => handleAgentChange(e.target.value)}
               >
                 {launchable.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>

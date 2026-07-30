@@ -63,18 +63,32 @@ describe("LaunchOverridesDialog: axe-core (AP-NFR-005)", () => {
   });
 
   it("carries modal semantics and a title, and traps focus inside the dialog", () => {
-    open();
+    // The dialog is rendered beside a focusable sibling on purpose. With the
+    // dialog alone, "everything focusable is inside it" holds trivially and
+    // would still pass with the modal wrapper removed, so the trap assertion
+    // needs something outside the dialog that it could otherwise escape to.
+    render(
+      <>
+        <button>Outside</button>
+        <LaunchOverridesDialog
+          isOpen
+          agents={[CLAUDE]}
+          preset={null}
+          onCancel={vi.fn()}
+          onLaunch={vi.fn()}
+        />
+      </>,
+    );
 
     const dialog = screen.getByRole("dialog");
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     // The title is the dialog's accessible name, via RAC's `slot="title"`.
     expect(screen.getByRole("dialog", { name: "Launch with overrides" })).toBe(dialog);
-    // Everything focusable lives inside the dialog, so the trap has nowhere to
-    // escape to: the backdrop inerts the rest of the document.
-    const focusable = Array.from(
-      document.querySelectorAll<HTMLElement>("button, select, input, [href], [tabindex]"),
-    ).filter((el) => el.getAttribute("tabindex") !== "-1");
-    expect(focusable.length).toBeGreaterThan(0);
-    expect(focusable.every((el) => dialog.contains(el))).toBe(true);
+
+    // React Aria hides the rest of the document behind the modal, so the
+    // sibling is both outside the dialog and unreachable while it is open.
+    const outside = screen.getByText("Outside");
+    expect(dialog.contains(outside)).toBe(false);
+    expect(outside.closest("[aria-hidden='true'],[inert]")).not.toBeNull();
   });
 });
