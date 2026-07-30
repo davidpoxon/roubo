@@ -1,0 +1,91 @@
+id: claude-code
+name: Claude Code
+version: 0.3.0
+description: E2E overlay that takes the bundled claude-code agent plugin's slot during Playwright runs. Mirrors the real plugin's configSchema and argv mapping against a stub CLI so AP-TC-087 can drive the integrated configure-then-launch journey. Not for production.
+kind: agent
+roubo: ^1.0.0
+entry: ./index.mjs
+contractVersion: 1
+# Mirrors roubo-plugins/plugins/claude-code/roubo-plugin.yaml, except that the
+# probe command names the e2e stub CLI rather than `claude`. A stub version
+# inside the window keeps the pre-launch gate (AP-FR-014) passing, so a launch
+# refused here would be a real drift signal rather than a fixture artefact.
+agentCompatibility:
+  minVersion: 2.1.111
+  testedCeiling: 2.1.207
+  probe:
+    command: roubo-e2e-claude-stub
+    args:
+      - --version
+    parse: semver
+# Copied VERBATIM from roubo-plugins/plugins/claude-code/roubo-plugin.yaml so the
+# AI Agents card renders the real Model / Effort / Mode selects plus the real
+# Additional CLI arguments field. Any divergence here would make the drift guard
+# assert a form the shipped plugin does not have.
+configSchema:
+  type: object
+  properties:
+    model:
+      title: Model
+      type: string
+      default: default
+      description: The Claude model the session runs on. `Account default` sends no `--model` flag and defers to the account setting.
+      oneOf:
+        - const: default
+          title: Account default
+        - const: opus
+          title: Opus
+        - const: sonnet
+          title: Sonnet
+        - const: haiku
+          title: Haiku
+    effort:
+      title: Effort
+      type: string
+      default: default
+      description: Reasoning effort passed as `--effort`. `CLI default` sends no flag and defers to the CLI's own default.
+      oneOf:
+        - const: default
+          title: CLI default
+        - const: low
+          title: Low
+        - const: medium
+          title: Medium
+        - const: high
+          title: High
+        - const: xhigh
+          title: Extra high
+        - const: max
+          title: Max
+    mode:
+      title: Mode
+      type: string
+      default: default
+      description: Permission mode passed as `--permission-mode`. `Default` sends no flag and defers to the account setting. A permission posture chosen on the project's permissions screen overrides this field, sending the posture's own `--permission-mode` value instead and dropping this field's flag, so exactly one `--permission-mode` ever reaches the CLI.
+      oneOf:
+        - const: default
+          title: Default
+        - const: plan
+          title: Plan
+        - const: auto
+          title: Auto
+        - const: acceptEdits
+          title: Accept edits
+        - const: manual
+          title: Manual
+    extraArgs:
+      title: Additional CLI arguments
+      type: string
+      description: Free-form extra arguments appended after the generated flags. Split into discrete argv tokens with quoting honoured; shell metacharacters are never interpreted.
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  # An agent plugin must declare `processes: false`; the descriptor is its only
+  # write route (PluginManifestSchema enforces this for kind: agent).
+  processes: false
+  ports: false
+  docker: false
