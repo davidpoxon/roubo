@@ -113,11 +113,13 @@
         "minVersion": {
           "type": "string",
           "minLength": 1,
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
           "description": "Lowest agent-CLI version the plugin supports, as a bare major.minor.patch semver version (no range, no prerelease or build metadata). A launch below this floor is blocked with an actionable message."
         },
         "testedCeiling": {
           "type": "string",
           "minLength": 1,
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
           "description": "Highest agent-CLI version the plugin was verified against, as a bare major.minor.patch semver version (no range, no prerelease or build metadata). A launch above it proceeds with a staleness warning."
         },
         "probe": {
