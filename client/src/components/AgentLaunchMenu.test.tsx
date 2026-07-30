@@ -87,6 +87,7 @@ const CLAUDE_UNCONFIGURED: ProjectAgentState = {
 
 const onLaunchPreset = vi.fn();
 const onLaunchAgent = vi.fn();
+const onLaunchWithOverrides = vi.fn();
 
 function open({
   presets = [BUILTIN_AGENT, BUILTIN_PLAN, APP_TOOL, BROKEN_PROJECT_TOOL],
@@ -103,6 +104,7 @@ function open({
         resolveTarget={(preset) => resolveLaunchTarget(preset, agents, undefined)}
         onLaunchPreset={onLaunchPreset}
         onLaunchAgent={onLaunchAgent}
+        onLaunchWithOverrides={onLaunchWithOverrides}
       />
     </MenuTrigger>,
   );
@@ -120,6 +122,7 @@ describe("AgentLaunchMenu", () => {
   beforeEach(() => {
     onLaunchPreset.mockClear();
     onLaunchAgent.mockClear();
+    onLaunchWithOverrides.mockClear();
   });
 
   it("renders the three groups in order with the overrides action below them (AP-TC-043)", () => {
@@ -234,10 +237,29 @@ describe("AgentLaunchMenu", () => {
     expect(onLaunchPreset).toHaveBeenCalledWith(BUILTIN_PLAN);
   });
 
-  it("ships the overrides action inert until its dialog lands (#518)", () => {
+  it("opens the per-launch override dialog from the overrides action (#518)", () => {
     open();
 
     const overrides = screen.getByRole("menuitem", { name: /Launch with overrides/ });
+    expect(overrides.getAttribute("aria-disabled")).not.toBe("true");
+
+    act(() => {
+      fireEvent.click(overrides);
+    });
+    expect(onLaunchWithOverrides).toHaveBeenCalledTimes(1);
+  });
+
+  // The dialog can only offer launchable agents, so with none of them launchable
+  // the action would open onto an empty picker (AP-TC-038).
+  it("disables the overrides action when no agent can launch", () => {
+    open({ agents: [CLAUDE_UNCONFIGURED, CODEX_UNCONFIGURED] });
+
+    const overrides = screen.getByRole("menuitem", { name: /Launch with overrides/ });
     expect(overrides.getAttribute("aria-disabled")).toBe("true");
+
+    act(() => {
+      fireEvent.click(overrides);
+    });
+    expect(onLaunchWithOverrides).not.toHaveBeenCalled();
   });
 });

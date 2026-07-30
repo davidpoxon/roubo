@@ -8,21 +8,10 @@ import {
   AGENT_TOOL_JIG_NONE,
 } from "@roubo/shared";
 import type { AgentPluginState, AgentToolPreset, JigMeta } from "@roubo/shared";
-
-/**
- * The three parameter overrides the editor exposes (AP-TC-025 S002). They are
- * per-plugin `configSchema` keys, not core concepts, so each renders as a select
- * when the bound agent declares an enum for it and as a free-text field
- * otherwise. An empty value means "inherit", which is why it is never written
- * into the preset's params.
- */
-const PARAM_FIELDS = [
-  { key: "model", label: "Model" },
-  { key: "effort", label: "Effort" },
-  { key: "mode", label: "Mode" },
-] as const;
-
-const INHERIT = "";
+// The three exposed params, the inherit sentinel, and the enum lookup are shared
+// with the per-launch override dialog (#518), so both surfaces offer the same
+// fields with the same inherit semantics.
+import { PARAM_FIELDS, INHERIT, enumOptionsFor } from "./agent-params";
 
 interface Props {
   isOpen: boolean;
@@ -34,15 +23,6 @@ interface Props {
   jigs: JigMeta[];
   onCancel: () => void;
   onSave: (preset: AgentToolPreset) => void;
-}
-
-function enumOptionsFor(agent: AgentPluginState | undefined, key: string): string[] | undefined {
-  const properties = agent?.configSchema?.properties as
-    | Record<string, { enum?: unknown[] }>
-    | undefined;
-  const values = properties?.[key]?.enum;
-  if (!Array.isArray(values)) return undefined;
-  return values.filter((value): value is string => typeof value === "string");
 }
 
 function initialParams(preset: AgentToolPreset | null): Record<string, string> {

@@ -221,6 +221,8 @@ Roubo also ships three built-in presets, **Agent**, **Agent (Plan)** and **Agent
 
 `params` are per-agent: they are validated against the bound agent plugin's own configuration schema and layered over that agent's app-level and project-level configuration. A preset whose params the agent rejects is flagged with the offending parameter named, and is never launched. So is a preset bound to a plugin that is not installed. The three built-in presets are the exception, because you cannot edit or delete them to fix such a rejection: they degrade instead, dropping the rejected parameter and launching with what is left, so against an agent that does not accept `mode`, **Agent (Plan)** and **Agent (Auto)** behave as plain **Agent**.
 
+A launch resolves four layers, lowest first, and a later layer wins field by field: the agent's application defaults, the project's agent overrides, this preset's `params`, and finally any per-launch overrides chosen in the launch dialog. Only the last of those four is transient; see [Launching with per-launch overrides](getting-started.md#launching-with-per-launch-overrides).
+
 `jig` accepts a jig id, `__inherit__` (use the effective default jig, the same as omitting the field), or `__none__` (launch with no jig).
 
 ### `login.steps`

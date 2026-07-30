@@ -1,0 +1,207 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, act, fireEvent } from "@testing-library/react";
+import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
+import LaunchOverridesDialog from "./LaunchOverridesDialog";
+
+// The per-launch override dialog (AP-TC-029, AP-TC-034, AP-TC-046, issue #518).
+
+const CLAUDE: ProjectAgentState = {
+  id: "claude-code",
+  name: "Claude Code",
+  configSchema: {
+    properties: {
+      model: { enum: ["opus", "sonnet", "haiku"] },
+      effort: { enum: ["high", "xhigh", "max"] },
+      mode: { enum: ["plan", "auto"] },
+    },
+  },
+  appDefaults: { model: "opus", effort: "high", mode: "plan" },
+  overrides: { model: "sonnet" },
+  effective: { model: "sonnet", effort: "high", mode: "plan" },
+  unavailable: null,
+  misconfigured: null,
+};
+
+const CODEX: ProjectAgentState = {
+  id: "codex-cli",
+  name: "Codex CLI",
+  configSchema: { properties: { model: { enum: ["gpt-5.2-codex"] } } },
+  appDefaults: { model: "gpt-5.2-codex" },
+  overrides: {},
+  effective: { model: "gpt-5.2-codex" },
+  unavailable: null,
+  misconfigured: null,
+};
+
+const UNCONFIGURED: ProjectAgentState = {
+  ...CODEX,
+  misconfigured: { message: "apiKey: must have required property 'apiKey'" },
+};
+
+/** A preset bound to Claude Code that contributes the third layer. */
+const MAX_EFFORT_PRESET: ResolvedAgentPreset = {
+  id: "at-deep",
+  name: "Deep work",
+  icon: "bot",
+  source: "app",
+  agent: "claude-code",
+  bindsDefaultAgent: false,
+  agentPluginId: "claude-code",
+  resolvedAgentName: "Claude Code",
+  params: { effort: "max" },
+};
+
+const onCancel = vi.fn();
+const onLaunch = vi.fn();
+
+function open({
+  agents = [CLAUDE, CODEX],
+  preset = null,
+}: { agents?: ProjectAgentState[]; preset?: ResolvedAgentPreset | null } = {}) {
+  return render(
+    <LaunchOverridesDialog
+      isOpen
+      agents={agents}
+      preset={preset}
+      onCancel={onCancel}
+      onLaunch={onLaunch}
+    />,
+  );
+}
+
+function setField(key: string, value: string) {
+  act(() => {
+    fireEvent.change(screen.getByLabelText(new RegExp(`^${key}$`, "i")), { target: { value } });
+  });
+}
+
+function traceText(): string {
+  return screen.getByTestId("launch-overrides-resolution").textContent ?? "";
+}
+
+describe("LaunchOverridesDialog", () => {
+  beforeEach(() => {
+    onCancel.mockClear();
+    onLaunch.mockClear();
+  });
+
+  it("says the launch is one-off and saves nothing", () => {
+    open();
+    expect(screen.getByText("One session only. Nothing is saved.")).toBeTruthy();
+  });
+
+  it("offers only agents that can actually launch", () => {
+    open({ agents: [CLAUDE, UNCONFIGURED] });
+
+    const options = Array.from(screen.getByLabelText("Agent").querySelectorAll("option")).map(
+      (option) => option.textContent,
+    );
+    expect(options).toEqual(["Claude Code"]);
+  });
+
+  it("re-reads the newly selected agent's parameters (AP-TC-029 S001-O01)", () => {
+    open();
+
+    // Claude Code declares three enums, so all three fields are selects.
+    expect(screen.getByLabelText("Model").tagName).toBe("SELECT");
+    expect(screen.getByLabelText("Effort").tagName).toBe("SELECT");
+
+    setField("Agent", "codex-cli");
+
+    // Codex declares only `model`, so Effort and Mode fall back to free text and
+    // Model offers Codex's values rather than Claude's.
+    const model = screen.getByLabelText("Model");
+    expect(Array.from(model.querySelectorAll("option")).map((o) => o.textContent)).toEqual([
+      "inherit",
+      "gpt-5.2-codex",
+    ]);
+    expect(screen.getByLabelText("Effort").tagName).toBe("INPUT");
+    expect(traceText()).toContain("model=gpt-5.2-codex");
+  });
+
+  it("updates the trace live as fields change, emphasising this-launch values (AP-TC-029 S002, AP-TC-046)", () => {
+    open();
+
+    // Before any edit the this-launch line contributes nothing.
+    expect(screen.getByTestId("resolution-layer-perLaunch").textContent).toContain("nothing");
+
+    setField("Model", "haiku");
+    setField("Effort", "max");
+    setField("Mode", "auto");
+
+    const perLaunch = screen.getByTestId("resolution-layer-perLaunch");
+    expect(perLaunch.textContent).toContain("model=haiku");
+    expect(perLaunch.textContent).toContain("effort=max");
+    expect(perLaunch.textContent).toContain("mode=auto");
+
+    // The this-launch values are accent-emphasised; the layers they supersede
+    // are dimmed and struck through (AP-TC-046 S001-O02).
+    expect(screen.getByTestId("resolution-perLaunch-model").className).toContain("amber");
+    expect(screen.getByTestId("resolution-app-model").dataset.superseded).toBe("true");
+    expect(screen.getByTestId("resolution-project-model").dataset.superseded).toBe("true");
+  });
+
+  it("lists an app-default line, a project line and a this-launch line (AP-TC-046 S001-O01)", () => {
+    open();
+
+    expect(screen.getByTestId("resolution-layer-app").textContent).toContain("app default");
+    expect(screen.getByTestId("resolution-layer-project").textContent).toContain("project");
+    expect(screen.getByTestId("resolution-layer-perLaunch").textContent).toContain("this launch");
+    // No preset contributes here, so the panel stays at three lines.
+    expect(screen.queryByTestId("resolution-layer-preset")).toBeNull();
+  });
+
+  it("shows the preset layer only while the selected agent is the one it binds", () => {
+    open({ preset: MAX_EFFORT_PRESET });
+
+    expect(screen.getByTestId("resolution-layer-preset").textContent).toContain("effort=max");
+
+    setField("Agent", "codex-cli");
+    expect(screen.queryByTestId("resolution-layer-preset")).toBeNull();
+  });
+
+  it("launches the draft as the top layer and leaves untouched fields out", () => {
+    open({ preset: MAX_EFFORT_PRESET });
+
+    setField("Mode", "auto");
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    expect(onLaunch).toHaveBeenCalledWith({
+      agentPluginId: "claude-code",
+      agentName: "Claude Code",
+      // Model and Effort were left on inherit, so they are absent rather than
+      // sent as empty strings (AP-TC-036 S001-O03).
+      perLaunchOverrides: { mode: "auto" },
+      presetOverrides: { effort: "max" },
+    });
+  });
+
+  it("cancels without launching and without reporting a saved change (AP-TC-034 S001)", () => {
+    open();
+
+    setField("Model", "haiku");
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    });
+
+    expect(onLaunch).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("never mutates the agent state it was handed (AP-TC-034 S003)", () => {
+    const agents = [structuredClone(CLAUDE)];
+    open({ agents });
+
+    setField("Model", "haiku");
+    setField("Effort", "max");
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    expect(agents[0].appDefaults).toEqual({ model: "opus", effort: "high", mode: "plan" });
+    expect(agents[0].overrides).toEqual({ model: "sonnet" });
+  });
+});

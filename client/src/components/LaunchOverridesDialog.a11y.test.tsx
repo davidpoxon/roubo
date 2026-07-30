@@ -1,0 +1,80 @@
+// @vitest-environment jsdom
+//
+// AP-NFR-005: zero serious axe violations on the per-launch override dialog, in
+// both the states the user can encounter (a fresh open, and after the draft has
+// been filled in so the Resolution panel carries superseded and emphasised
+// values). The modality semantics are asserted alongside, since React Aria omits
+// `aria-modal` and the dialog stamps it through a ref (see lib/aria-modal.ts).
+
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, act, fireEvent } from "@testing-library/react";
+import { axe } from "vitest-axe";
+import type { ProjectAgentState } from "@roubo/shared";
+import LaunchOverridesDialog from "./LaunchOverridesDialog";
+import { expectNoAxeFindings } from "../test/axe";
+
+const CLAUDE: ProjectAgentState = {
+  id: "claude-code",
+  name: "Claude Code",
+  configSchema: {
+    properties: {
+      model: { enum: ["opus", "sonnet", "haiku"] },
+      mode: { enum: ["plan", "auto"] },
+    },
+  },
+  appDefaults: { model: "opus", effort: "high", mode: "plan" },
+  overrides: { model: "sonnet" },
+  effective: { model: "sonnet", effort: "high", mode: "plan" },
+  unavailable: null,
+  misconfigured: null,
+};
+
+function open() {
+  return render(
+    <LaunchOverridesDialog
+      isOpen
+      agents={[CLAUDE]}
+      preset={null}
+      onCancel={vi.fn()}
+      onLaunch={vi.fn()}
+    />,
+  );
+}
+
+describe("LaunchOverridesDialog: axe-core (AP-NFR-005)", () => {
+  it("has no axe violations on open", async () => {
+    // React Aria's Modal portals outside the render container; scan the whole
+    // document body so the dialog markup is included.
+    const { baseElement } = open();
+    expectNoAxeFindings(await axe(baseElement));
+  });
+
+  it("has no axe violations with a filled-in draft", async () => {
+    const { baseElement } = open();
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText("Model"), { target: { value: "haiku" } });
+    });
+    act(() => {
+      fireEvent.change(screen.getByLabelText("Effort"), { target: { value: "max" } });
+    });
+
+    expectNoAxeFindings(await axe(baseElement));
+  });
+
+  it("carries modal semantics and a title, and traps focus inside the dialog", () => {
+    open();
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    // The title is the dialog's accessible name, via RAC's `slot="title"`.
+    expect(screen.getByRole("dialog", { name: "Launch with overrides" })).toBe(dialog);
+    // Everything focusable lives inside the dialog, so the trap has nowhere to
+    // escape to: the backdrop inerts the rest of the document.
+    const focusable = Array.from(
+      document.querySelectorAll<HTMLElement>("button, select, input, [href], [tabindex]"),
+    ).filter((el) => el.getAttribute("tabindex") !== "-1");
+    expect(focusable.length).toBeGreaterThan(0);
+    expect(focusable.every((el) => dialog.contains(el))).toBe(true);
+  });
+});

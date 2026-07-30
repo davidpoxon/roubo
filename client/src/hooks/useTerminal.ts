@@ -19,6 +19,7 @@ export function useCreateTerminal() {
       jigId,
       agentPluginId,
       presetOverrides,
+      perLaunchOverrides,
     }: {
       projectId: string;
       benchId: number;
@@ -30,10 +31,15 @@ export function useCreateTerminal() {
       // also what the launch-failure Retry action relaunches through.
       agentPluginId?: string;
       presetOverrides?: Record<string, unknown>;
+      // The transient fourth layer above the preset (AP-FR-011, issue #518),
+      // produced by the per-launch override dialog. It applies to this one
+      // session and is never written to app or project configuration.
+      perLaunchOverrides?: Record<string, unknown>;
     }) =>
       api.createTerminal(projectId, benchId, command, jigId, {
         ...(agentPluginId !== undefined && { agentPluginId }),
         ...(presetOverrides !== undefined && { presetOverrides }),
+        ...(perLaunchOverrides !== undefined && { perLaunchOverrides }),
       }),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["terminals", vars.projectId, vars.benchId] });

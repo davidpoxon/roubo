@@ -122,6 +122,7 @@ export default function AgentLaunchMenu({
   resolveTarget,
   onLaunchPreset,
   onLaunchAgent,
+  onLaunchWithOverrides,
 }: {
   presets: ResolvedAgentPreset[];
   agents: ProjectAgentState[];
@@ -133,9 +134,15 @@ export default function AgentLaunchMenu({
   resolveTarget: (preset: ResolvedAgentPreset) => LaunchTarget;
   onLaunchPreset: (preset: ResolvedAgentPreset) => void;
   onLaunchAgent: (agent: ProjectAgentState) => void;
+  /** Open the per-launch override dialog (AP-FR-010, issue #518). */
+  onLaunchWithOverrides: () => void;
 }) {
   const builtins = presets.filter((preset) => preset.source === "builtin");
   const agentTools = presets.filter((preset) => preset.source !== "builtin");
+  // The dialog can only offer agents that can actually launch, so with none of
+  // them launchable the action would open onto an empty picker. Disabling it
+  // keeps the rule that nothing which cannot launch is launchable (AP-TC-038).
+  const hasLaunchableAgent = agents.some((agent) => agentLaunchBlocker(agent) === null);
 
   return (
     <Popover
@@ -154,7 +161,9 @@ export default function AgentLaunchMenu({
           if (k.startsWith(AGENT_KEY_PREFIX)) {
             const agent = agents.find((a) => a.id === k.slice(AGENT_KEY_PREFIX.length));
             if (agent) onLaunchAgent(agent);
+            return;
           }
+          if (k === OVERRIDES_ACTION_ID) onLaunchWithOverrides();
         }}
         className="outline-none"
       >
@@ -183,14 +192,14 @@ export default function AgentLaunchMenu({
 
         {/*
          * Structurally required by AP-TC-043 O02: the action sits below the
-         * groups. The dialog behind it is issue #518, so the entry ships
-         * visible but inert rather than the groups shipping without it.
+         * groups, separated from them, because it adjusts a launch rather than
+         * naming one. It opens the per-launch override dialog (issue #518).
          */}
         <MenuItem
           id={OVERRIDES_ACTION_ID}
           textValue="Launch with overrides"
           aria-label="Launch with overrides"
-          isDisabled
+          isDisabled={!hasLaunchableAgent}
           className={({ isFocused, isDisabled }) => ITEM_CLASS(isFocused, isDisabled)}
         >
           <SlidersHorizontal size={12} className="text-stone-400 dark:text-stone-600 shrink-0" />

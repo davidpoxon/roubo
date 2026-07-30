@@ -479,8 +479,14 @@ export function createTerminal(
   jigId?: string,
   // The agent launch path (issue #516): naming an agent plugin, and optionally
   // a preset's parameter overrides, routes session creation through the agent
-  // launch pipeline instead of the built-in command path.
-  agent?: { agentPluginId?: string; presetOverrides?: Record<string, unknown> },
+  // launch pipeline instead of the built-in command path. `perLaunchOverrides`
+  // is the transient fourth layer above the preset, produced by the per-launch
+  // override dialog and persisted nowhere (issue #518).
+  agent?: {
+    agentPluginId?: string;
+    presetOverrides?: Record<string, unknown>;
+    perLaunchOverrides?: Record<string, unknown>;
+  },
 ): Promise<TerminalCreateResponse> {
   return request(`/projects/${projectId}/benches/${benchId}/terminals`, {
     method: "POST",
@@ -489,6 +495,7 @@ export function createTerminal(
       ...(jigId ? { jigId } : {}),
       ...(agent?.agentPluginId ? { agentPluginId: agent.agentPluginId } : {}),
       ...(agent?.presetOverrides ? { presetOverrides: agent.presetOverrides } : {}),
+      ...(agent?.perLaunchOverrides ? { perLaunchOverrides: agent.perLaunchOverrides } : {}),
     }),
   });
 }

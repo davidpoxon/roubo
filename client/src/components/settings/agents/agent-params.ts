@@ -23,3 +23,46 @@ export function describeEffectiveParams(config: Record<string, unknown>): string
     .filter((value) => value.length > 0);
   return parts.length > 0 ? parts.join(" · ") : NO_PARAMS_LABEL;
 }
+
+/**
+ * The three parameter overrides every override surface exposes (AP-TC-025 S002,
+ * AP-TC-029 S002). They are per-plugin `configSchema` keys, not core concepts,
+ * so each renders as a select when the bound agent declares an enum for it and
+ * as a free-text field otherwise.
+ *
+ * Shared by the agent tool editor (#516) and the per-launch override dialog
+ * (#518) so the two surfaces offer the same fields in the same order; two
+ * private lists would drift.
+ */
+export const PARAM_FIELDS = [
+  { key: "model", label: "Model" },
+  { key: "effort", label: "Effort" },
+  { key: "mode", label: "Mode" },
+] as const;
+
+/**
+ * The empty value both override surfaces read as "inherit". It is never written
+ * into a params record, which is what makes an untouched field fall through to
+ * the layers beneath it (AP-TC-036 S001-O03).
+ */
+export const INHERIT = "";
+
+/**
+ * The values an agent declares for one config key, or `undefined` when the
+ * plugin declares no enum for it (the field is then free text).
+ *
+ * Typed on the structural shape rather than one state interface, because both
+ * `AgentPluginState` (Settings) and `ProjectAgentState` (launch surfaces) carry
+ * the plugin's `configSchema` under the same name.
+ */
+export function enumOptionsFor(
+  agent: { configSchema?: Record<string, unknown> } | undefined,
+  key: string,
+): string[] | undefined {
+  const properties = agent?.configSchema?.properties as
+    | Record<string, { enum?: unknown[] }>
+    | undefined;
+  const values = properties?.[key]?.enum;
+  if (!Array.isArray(values)) return undefined;
+  return values.filter((value): value is string => typeof value === "string");
+}
