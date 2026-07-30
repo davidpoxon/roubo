@@ -440,6 +440,8 @@ export default function TerminalTabs({
         // preset selection contributes params only (issue #668): adopting the
         // selected preset's own jig would change how the layers combine, not
         // which preset feeds layer three, so it is deliberately left alone.
+        // That leaves the dialog's Agent select resolved through a jig this
+        // launch does not carry, tracked in #676.
         jigId: resolveLaunchJigId(),
         ...(selection.presetOverrides !== undefined && {
           presetOverrides: selection.presetOverrides,
