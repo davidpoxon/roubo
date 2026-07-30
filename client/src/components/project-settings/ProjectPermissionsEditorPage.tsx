@@ -346,19 +346,23 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             </div>
           </div>
 
-          {isError && (
-            <p className="text-sm text-red-500 dark:text-red-400">
-              {error instanceof Error && /rejected because/.test(error.message)
-                ? error.message
-                : "Failed to load or save permissions. Please try again."}
-            </p>
-          )}
-
           <p className="text-[11px] text-stone-500 dark:text-stone-600 leading-relaxed">
             Re-syncing adds any missing rules to existing benches. Removed rules take effect when a
             bench is cleared.
           </p>
         </>
+      )}
+
+      {/* Load and save failures are reported by `mutation.isError || query.isError`,
+          neither of which is tied to the rules axis, so the banner sits outside the
+          rules fragment: an agent that declares `rules: false` can still fail a
+          posture PUT or a permissions GET. */}
+      {!isLoading && isError && (
+        <p className="text-sm text-red-500 dark:text-red-400">
+          {error instanceof Error && /rejected because/.test(error.message)
+            ? error.message
+            : "Failed to load or save permissions. Please try again."}
+        </p>
       )}
 
       {/* An agent that declares no permissions capability at all reports both
