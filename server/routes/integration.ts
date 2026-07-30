@@ -439,39 +439,44 @@ router.put("/:projectId/integration/config", (req, res) => {
 
   try {
     const existing = loadOverride(req.params.projectId);
-    if (!existing?.integration.plugin) {
-      // The Switch dialog must have already set a plugin; refuse to write
-      // config for a project that has no active integration yet.
+    // Issue #1069: resolve the active plugin across all three config layers,
+    // exactly as the GET handler above does. Consulting the per-project
+    // override alone refused every project whose plugin comes from the
+    // committed roubo.yaml, even though the integration was fully working.
+    const effective = getEffectiveWithGlobal(project.config?.integration, existing);
+    const activePluginId = effective.plugin;
+    if (!activePluginId) {
+      // Nothing anywhere names a plugin, so there is no active integration to
+      // write config for.
       res.status(409).json({ error: "no-active-integration" });
       return;
     }
 
     // Shallow per-top-level-key replace. Arrays inside `sources` are
-    // replaced wholesale, matching the FR-023 contract.
-    const nextIntegration: IntegrationConfig = { ...existing.integration };
+    // replaced wholesale, matching the FR-023 contract. Seed from the override
+    // only: `plugin` is deliberately not copied down, so a committed or global
+    // plugin is never shadowed by a per-user copy that could go stale.
+    const nextIntegration: IntegrationConfig = { ...(existing?.integration ?? {}) };
     // CLI-FR-004 / CLI-NFR-009: gate the cut-list eviction below on an actual
     // instance change (jira-a -> jira-b), so a config-only edit (e.g.
-    // excludedStatusCategories) does not needlessly churn the cache.
-    const instanceChanged =
-      update.instance !== undefined && existing.integration.instance !== update.instance;
+    // excludedStatusCategories) does not needlessly churn the cache. Compare
+    // against the effective instance: an override-less project has no instance
+    // in the override, which used to read as a change on every save.
+    const instanceChanged = update.instance !== undefined && effective.instance !== update.instance;
     if (update.instance !== undefined) nextIntegration.instance = update.instance;
     if (update.sources !== undefined) nextIntegration.sources = update.sources;
     if (update.advanced !== undefined) {
       // Issue #125: strip any keys not in the active plugin's manifest schema
       // before writing, so stale leftovers from earlier schema versions
       // don't keep round-tripping through the per-project override file.
-      const activePluginId = existing.integration.plugin;
-      const manifest = activePluginId
-        ? (pluginManager.listInstalled().find((r) => r.id === activePluginId)?.manifest ?? null)
-        : null;
-      const cleaned = activePluginId
-        ? filterAdvancedAgainstManifest(
-            activePluginId,
-            update.advanced,
-            manifest,
-            "persist-project",
-          )
-        : undefined;
+      const manifest =
+        pluginManager.listInstalled().find((r) => r.id === activePluginId)?.manifest ?? null;
+      const cleaned = filterAdvancedAgainstManifest(
+        activePluginId,
+        update.advanced,
+        manifest,
+        "persist-project",
+      );
       if (cleaned) {
         nextIntegration.advanced = cleaned;
       } else {
