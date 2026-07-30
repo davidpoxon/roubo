@@ -334,6 +334,14 @@ A built-in preset does not report `invalid-params` for a parameter it can drop, 
 
 A preset that degraded that way carries `degraded: { droppedParams, message }`, so a client can detect the drop from the response rather than by diffing the resolved `params` against the stored preset. `droppedParams` lists the dropped keys; `message` names the preset, the resolved agent, and those keys. The field is advisory and separate from `unresolved`: a degraded preset is still launchable, so it never makes a tool `enabled: false`, and the two fields are mutually exclusive. Only built-ins ever set it; `app` and `project` presets keep the hard `invalid-params` rejection.
 
+### List agent tool presets without a project
+
+```
+GET /api/agents/presets
+```
+
+The app-scoped sibling of the route above, for app-level Settings, which has no project in scope. Same `{ presets: ResolvedAgentPreset[] }` envelope and the same resolution, minus the project layer: built-ins then app-level presets, never a `source: "project"` entry. It exists so an app-level surface can read `degraded` and `unresolved` from the server's resolution instead of re-deriving either.
+
 ---
 
 ## Inspection

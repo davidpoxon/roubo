@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
-import type { PluginManifest } from "@roubo/shared";
+import type { PluginManifest, ResolvedAgentPreset } from "@roubo/shared";
 
 vi.mock("../services/agent-plugin-registry.js", () => ({
   listAgents: vi.fn(),
@@ -23,10 +23,28 @@ vi.mock("../services/agent-overrides.js", async () => {
   };
 });
 
+// GET /presets runs the real preset service, so only the service's own
+// boundaries are stubbed: the settings read (which supplies the default agent
+// and the app-level presets) and the launch pipeline's default-agent resolution.
+// Stubbing `listAgentPresets` itself would pin nothing, because the degrade the
+// route exists to surface is produced inside it (issue #672).
+vi.mock("../services/state.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/state.js")>();
+  return { ...actual, loadSettings: vi.fn() };
+});
+
+vi.mock("../services/agent-launch-pipeline.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/agent-launch-pipeline.js")>();
+  return { ...actual, resolveLaunchAgentId: vi.fn() };
+});
+
 import router from "./agents.js";
+import { loadSettings } from "../services/state.js";
+import { resolveLaunchAgentId } from "../services/agent-launch-pipeline.js";
 import * as registry from "../services/agent-plugin-registry.js";
 import * as overrides from "../services/agent-overrides.js";
 import { probeAgentVersion, resetAgentVersionProbeCache } from "../services/agent-version-probe.js";
+import { resetAgentConfigValidatorCache } from "../services/agent-config-validator.js";
 
 function app() {
   const a = express();
@@ -110,6 +128,83 @@ describe("GET /api/agents", () => {
     expect(res.body.agents[0].unavailable).toEqual({
       reason: "not-consented",
       message: 'Agent plugin "claude-code" is not-consented.',
+    });
+  });
+});
+
+// Issue #672: the app-scoped resolved-preset list Settings reads. The point of
+// the route is that the client never re-derives resolution, so these cases pin
+// the fields it consumes, in particular the advisory `degraded` block.
+describe("GET /api/agents/presets", () => {
+  beforeEach(() => {
+    // Compiled validators are memoised by manifest id and version, so a case
+    // below that reuses an id with a different schema would otherwise validate
+    // against the previous one.
+    resetAgentConfigValidatorCache();
+    vi.mocked(loadSettings).mockReturnValue({ theme: "dark" });
+    vi.mocked(resolveLaunchAgentId).mockReturnValue("claude-code");
+  });
+
+  it("returns the built-ins followed by the app-level presets, with no project layer", async () => {
+    vi.mocked(loadSettings).mockReturnValue({
+      theme: "dark",
+      agentTools: [{ id: "at-1", name: "Deep work", agent: "claude-code" }],
+    });
+
+    const res = await request(app()).get("/api/agents/presets");
+    expect(res.status).toBe(200);
+    expect(
+      res.body.presets.map((preset: ResolvedAgentPreset) => [preset.id, preset.source]),
+    ).toEqual([
+      ["__builtin_agent__", "builtin"],
+      ["__builtin_agent_plan__", "builtin"],
+      ["__builtin_agent_auto__", "builtin"],
+      ["at-1", "app"],
+    ]);
+    expect(
+      res.body.presets.some((preset: ResolvedAgentPreset) => preset.source === "project"),
+    ).toBe(false);
+  });
+
+  it("reports a built-in that degraded, naming the dropped params", async () => {
+    // Claude Code's schema closes `additionalProperties` and never declares
+    // `mode`, so the two mode-setting built-ins drop it and launch as plain
+    // agents. Advisory, so neither is `unresolved`.
+    const res = await request(app()).get("/api/agents/presets");
+    expect(res.status).toBe(200);
+    const presets = res.body.presets as ResolvedAgentPreset[];
+    const plan = presets.find((preset) => preset.id === "__builtin_agent_plan__");
+    expect(plan?.degraded?.droppedParams).toEqual(["mode"]);
+    expect(plan?.degraded?.message).toContain("Agent (Plan)");
+    expect(plan?.degraded?.message).toContain("mode");
+    expect(plan?.unresolved).toBeUndefined();
+    expect(plan?.params).toEqual({});
+    // Plain `Agent` sets no params at all, so it has nothing to drop.
+    expect(presets.find((preset) => preset.id === "__builtin_agent__")?.degraded).toBeUndefined();
+  });
+
+  it("leaves a built-in unmarked when the bound agent accepts its params", async () => {
+    // A distinct version, so this open schema gets its own memoised validator
+    // rather than overwriting the closed CLAUDE one other cases rely on.
+    const permissive = {
+      ...manifest("claude-code", "Claude Code", {
+        type: "object",
+        properties: { mode: { type: "string", enum: ["plan", "auto"] } },
+      }),
+      version: "2.0.0",
+    } as PluginManifest;
+    vi.mocked(registry.resolveAgent).mockImplementation(
+      (pluginId: string) =>
+        ({ pluginId, manifest: permissive, connection: {} }) as ReturnType<
+          typeof registry.resolveAgent
+        >,
+    );
+
+    const res = await request(app()).get("/api/agents/presets");
+    const presets = res.body.presets as ResolvedAgentPreset[];
+    expect(presets.every((preset) => preset.degraded === undefined)).toBe(true);
+    expect(presets.find((preset) => preset.id === "__builtin_agent_plan__")?.params).toEqual({
+      mode: "plan",
     });
   });
 });

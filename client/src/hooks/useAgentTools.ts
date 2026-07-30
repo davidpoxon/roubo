@@ -62,6 +62,25 @@ export function useAgentPresets(projectId: string | undefined) {
   });
 }
 
+/**
+ * The app-scoped half of the same list, resolved server-side: built-ins plus
+ * app-level presets, with no project layer (issue #672). A separate hook rather
+ * than a `projectId`-less mode of `useAgentPresets`, so app settings can read
+ * the server's resolution without changing what a project surface fetches.
+ *
+ * Same short `staleTime` and for the same reason: a preset's resolved agent
+ * tracks the default agent, so a stale answer would describe the wrong one.
+ */
+export function useAppAgentPresets() {
+  return useQuery({
+    // Object-shaped scope rather than the bare string "app", which a real
+    // projectId could collide with, while keeping the shared key prefix.
+    queryKey: ["agent-presets", { scope: "app" }],
+    queryFn: () => api.fetchAppAgentPresets(),
+    staleTime: 5_000,
+  });
+}
+
 /** A stable id for a newly created app-level preset. */
 export function newAgentToolId(): string {
   return `at-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;

@@ -8,20 +8,29 @@ import { describe, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
-import type { AgentPluginState, AgentToolPreset, JigMeta } from "@roubo/shared";
+import type {
+  AgentPluginState,
+  AgentToolPreset,
+  JigMeta,
+  ResolvedAgentPreset,
+} from "@roubo/shared";
 import { expectNoAxeFindings } from "../../../test/axe";
 
 vi.mock("../../../hooks/useToast", () => ({ useToast: () => ({ addToast: vi.fn() }) }));
 
 vi.mock("../../../hooks/useAgentTools", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../hooks/useAgentTools")>();
-  return { ...actual, useAgentTools: vi.fn() };
+  return { ...actual, useAgentTools: vi.fn(), useAppAgentPresets: vi.fn() };
 });
 
-import { useAgentTools as _useAgentTools } from "../../../hooks/useAgentTools";
+import {
+  useAgentTools as _useAgentTools,
+  useAppAgentPresets as _useAppAgentPresets,
+} from "../../../hooks/useAgentTools";
 import AgentToolsSection from "./AgentToolsSection";
 
 const mockedAgentTools = vi.mocked(_useAgentTools);
+const mockedAppPresets = vi.mocked(_useAppAgentPresets);
 
 const CLAUDE: AgentPluginState = {
   id: "claude-code",
@@ -53,9 +62,14 @@ function setPresets(agentTools: AgentToolPreset[]) {
   });
 }
 
+function setResolved(presets: ResolvedAgentPreset[]) {
+  mockedAppPresets.mockReturnValue({ data: { presets } } as ReturnType<typeof _useAppAgentPresets>);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   setPresets([]);
+  setResolved([]);
 });
 
 describe("AgentToolsSection: axe-core", () => {
@@ -70,6 +84,31 @@ describe("AgentToolsSection: axe-core", () => {
     setPresets([
       { id: "at-1", name: "Deep work", agent: "claude-code", params: { mode: "plan" } },
       { id: "at-2", name: "Quick fix", agent: "codex-cli" },
+    ]);
+    const { container } = render(
+      <AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />,
+    );
+    expectNoAxeFindings(await axe(container));
+  });
+
+  it("has no axe violations with a degraded built-in marked", async () => {
+    setResolved([
+      {
+        id: "__builtin_agent_plan__",
+        name: "Agent (Plan)",
+        icon: "bot",
+        source: "builtin",
+        agent: "default",
+        bindsDefaultAgent: true,
+        agentPluginId: "claude-code",
+        resolvedAgentName: "Claude Code",
+        params: {},
+        degraded: {
+          droppedParams: ["mode"],
+          message:
+            'Agent tool "Agent (Plan)" drops mode, which Claude Code does not accept, so it launches as a plain agent.',
+        },
+      },
     ]);
     const { container } = render(
       <AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />,

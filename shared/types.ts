@@ -1656,7 +1656,11 @@ export interface ResolvedAgentPreset {
   degraded?: { droppedParams: string[]; message: string };
 }
 
-/** Result of GET /api/projects/:projectId/agent-presets. */
+/**
+ * Result of GET /api/projects/:projectId/agent-presets, and of its app-scoped
+ * sibling GET /api/agents/presets (issue #672). The shape is identical: the two
+ * differ only in whether a project's `roubo.yaml` presets are part of the list.
+ */
 export interface AgentPresetsResponse {
   presets: ResolvedAgentPreset[];
 }

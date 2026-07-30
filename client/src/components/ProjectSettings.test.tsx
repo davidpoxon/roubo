@@ -34,6 +34,18 @@ vi.mock("../hooks/useAgentPlugins", () => ({
   useAgentPlugins: vi.fn(),
 }));
 
+// The Agent tools section reads the app-scoped resolved presets over the wire
+// (issue #672). `renderWithProviders` supplies the query client, so this is not
+// load-bearing for rendering; it keeps these cases off a real fetch. Partial
+// mock: `useAgentTools` itself stays real, projected over the mocked settings.
+vi.mock("../hooks/useAgentTools", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../hooks/useAgentTools")>();
+  return {
+    ...actual,
+    useAppAgentPresets: () => ({ data: undefined }) as ReturnType<typeof actual.useAppAgentPresets>,
+  };
+});
+
 vi.mock("../hooks/useToast", () => ({
   useToast: vi.fn(() => ({ addToast: vi.fn(), removeToast: vi.fn() })),
 }));

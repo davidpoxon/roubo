@@ -9,20 +9,29 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { AgentPluginState, AgentToolPreset, JigMeta } from "@roubo/shared";
+import type {
+  AgentPluginState,
+  AgentToolPreset,
+  JigMeta,
+  ResolvedAgentPreset,
+} from "@roubo/shared";
 
 const toastMocks = vi.hoisted(() => ({ addToast: vi.fn() }));
 vi.mock("../../../hooks/useToast", () => ({ useToast: () => ({ addToast: toastMocks.addToast }) }));
 
 vi.mock("../../../hooks/useAgentTools", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../hooks/useAgentTools")>();
-  return { ...actual, useAgentTools: vi.fn() };
+  return { ...actual, useAgentTools: vi.fn(), useAppAgentPresets: vi.fn() };
 });
 
-import { useAgentTools as _useAgentTools } from "../../../hooks/useAgentTools";
+import {
+  useAgentTools as _useAgentTools,
+  useAppAgentPresets as _useAppAgentPresets,
+} from "../../../hooks/useAgentTools";
 import AgentToolsSection from "./AgentToolsSection";
 
 const mockedAgentTools = vi.mocked(_useAgentTools);
+const mockedAppPresets = vi.mocked(_useAppAgentPresets);
 const saveAgentTool = vi.fn();
 const deleteAgentTool = vi.fn();
 
@@ -62,9 +71,37 @@ function setPresets(agentTools: AgentToolPreset[]) {
   });
 }
 
+/**
+ * The server's resolved view of the same list (issue #672). Only `id` and
+ * `degraded` are read by the section, so a case supplies just the entries it
+ * cares about; a preset the response omits simply carries no marker.
+ */
+function setResolved(presets: ResolvedAgentPreset[]) {
+  mockedAppPresets.mockReturnValue({ data: { presets } } as ReturnType<typeof _useAppAgentPresets>);
+}
+
+function degradedBuiltin(id: string, name: string, droppedParams: string[]): ResolvedAgentPreset {
+  return {
+    id,
+    name,
+    icon: "bot",
+    source: "builtin",
+    agent: "default",
+    bindsDefaultAgent: true,
+    agentPluginId: "claude-code",
+    resolvedAgentName: "Claude Code",
+    params: {},
+    degraded: {
+      droppedParams,
+      message: `Agent tool "${name}" drops ${droppedParams.join(", ")}, which Claude Code does not accept, so it launches as a plain agent.`,
+    },
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   setPresets([]);
+  setResolved([]);
 });
 
 describe("AgentToolsSection", () => {
@@ -235,6 +272,69 @@ describe("AgentToolsSection", () => {
     render(<AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />);
     expect(screen.queryByRole("button", { name: "Edit Agent" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete Agent" })).toBeNull();
+  });
+
+  // Issue #672: the server's advisory `degraded` field, surfaced here rather
+  // than re-derived, so Settings stops presenting `Agent (Plan)` as if the
+  // bound agent honoured its mode.
+  describe("degraded built-ins", () => {
+    it("marks a degraded built-in with the params the bound agent dropped", () => {
+      setResolved([degradedBuiltin("__builtin_agent_plan__", "Agent (Plan)", ["mode"])]);
+      render(<AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />);
+
+      const rows = screen.getAllByTestId("agent-tool-row");
+      const plan = rows[1] as HTMLElement;
+      const notice = within(plan).getByTestId("agent-tool-degraded");
+      expect(notice.textContent).toContain("drops mode");
+      expect(notice.textContent).toContain("launches as a plain agent");
+      // Advisory only: the row is not flagged as unlaunchable.
+      expect(within(plan).queryByTestId("agent-tool-unresolved")).toBeNull();
+    });
+
+    it("leaves the other built-ins unmarked", () => {
+      setResolved([degradedBuiltin("__builtin_agent_plan__", "Agent (Plan)", ["mode"])]);
+      render(<AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />);
+      expect(screen.getAllByTestId("agent-tool-degraded")).toHaveLength(1);
+    });
+
+    it("keeps a degraded app-level preset editable and deletable", async () => {
+      const user = userEvent.setup();
+      setPresets([
+        { id: "at-1", name: "Deep work", agent: "claude-code", params: { mode: "plan" } },
+      ]);
+      setResolved([
+        { ...degradedBuiltin("at-1", "Deep work", ["mode"]), source: "app", agent: "claude-code" },
+      ]);
+      render(<AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />);
+
+      const row = screen.getAllByTestId("agent-tool-row").at(-1) as HTMLElement;
+      expect(within(row).getByTestId("agent-tool-degraded")).toBeTruthy();
+      await user.click(screen.getByRole("button", { name: "Edit Deep work" }));
+      expect(screen.getByLabelText("Name")).toBeTruthy();
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      await user.click(screen.getByRole("button", { name: "Delete Deep work" }));
+      expect(deleteAgentTool).toHaveBeenCalledWith("at-1");
+    });
+
+    it("renders the listing unchanged while the resolved presets are unavailable", () => {
+      // In flight, or the request failed. The marker is advisory, so its absence
+      // must not hold the listing back.
+      mockedAppPresets.mockReturnValue({ data: undefined } as ReturnType<
+        typeof _useAppAgentPresets
+      >);
+      render(<AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />);
+      expect(screen.getAllByTestId("agent-tool-row")).toHaveLength(3);
+      expect(screen.queryByTestId("agent-tool-degraded")).toBeNull();
+    });
+
+    it("drops the marker when a preset also fails to resolve", () => {
+      // The server never sets both, but a stale response paired with a fresh
+      // client-side unresolved verdict must not show two conflicting notices.
+      setResolved([degradedBuiltin("__builtin_agent_plan__", "Agent (Plan)", ["mode"])]);
+      render(<AgentToolsSection agents={[]} jigs={JIGS} />);
+      expect(screen.getAllByTestId("agent-tool-unresolved")).toHaveLength(3);
+      expect(screen.queryByTestId("agent-tool-degraded")).toBeNull();
+    });
   });
 
   it("renders a free-text parameter control for an agent declaring no enum", async () => {

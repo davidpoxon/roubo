@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "react-aria-components";
-import { Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, AlertTriangle, Info } from "lucide-react";
 import {
   AGENT_TOOL_DEFAULT_AGENT,
   AGENT_TOOL_JIG_NONE,
   BUILTIN_AGENT_PRESETS,
 } from "@roubo/shared";
-import type { AgentPluginState, AgentToolPreset, JigMeta } from "@roubo/shared";
-import { useAgentTools, newAgentToolId } from "../../../hooks/useAgentTools";
+import type {
+  AgentPluginState,
+  AgentToolPreset,
+  JigMeta,
+  ResolvedAgentPreset,
+} from "@roubo/shared";
+import { useAgentTools, useAppAgentPresets, newAgentToolId } from "../../../hooks/useAgentTools";
 import { useToast } from "../../../hooks/useToast";
 import { agentDotClass } from "./agent-color";
 import AgentToolEditorModal from "./AgentToolEditorModal";
@@ -44,6 +49,7 @@ function AgentToolRow({
   builtin,
   agents,
   defaultAgent,
+  degraded,
   onEdit,
   onDelete,
 }: {
@@ -51,6 +57,8 @@ function AgentToolRow({
   builtin: boolean;
   agents: AgentPluginState[];
   defaultAgent?: AgentPluginState;
+  /** The server's advisory drop notice for this preset, if it reported one. */
+  degraded?: ResolvedAgentPreset["degraded"];
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -95,6 +103,24 @@ function AgentToolRow({
               : `Agent plugin "${preset.agent}" is not installed or not available, so this tool cannot launch.`}
           </div>
         )}
+        {!unresolved && degraded && (
+          // Advisory, never a blocker (issue #672): the preset still launches,
+          // it just will not do what its name promises, so this is stone rather
+          // than the amber the unresolved notice above uses, and it leaves the
+          // row's Edit and Delete controls alone. The wording and the Info mark
+          // match the launch menu's chip, so both surfaces read the same.
+          <div
+            data-testid="agent-tool-degraded"
+            title={degraded.message}
+            className="mt-1 flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-stone-400"
+          >
+            <Info size={11} className="shrink-0" />
+            <span aria-hidden="true">drops {degraded.droppedParams.join(", ")}</span>
+            {/* The chip is terse on screen; a screen reader gets the whole
+                sentence rather than two words out of context. */}
+            <span className="sr-only">{degraded.message}</span>
+          </div>
+        )}
       </div>
       {onEdit && (
         <Button
@@ -125,11 +151,31 @@ function AgentToolRow({
  * editor writes. Project-level presets declared in `roubo.yaml tools:` are not
  * listed here: they belong to a project, not to app settings, and surface in
  * that project's bench launch menu instead.
+ *
+ * Binding and params are rendered from the stored preset, which is all a row
+ * needs. The one thing it cannot compute is whether the bound agent's
+ * `configSchema` rejects a built-in's hardcoded params, because that answer
+ * belongs to the server's resolution (issue #672). So the advisory `degraded`
+ * field is read off the app-scoped resolved-preset endpoint and matched by id,
+ * rather than re-derived here: a second client-side `validateAgentConfig` would
+ * be a second source of truth for what a preset actually launches with.
  */
 export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props) {
   const { agentTools, saveAgentTool, deleteAgentTool } = useAgentTools();
+  const { data: resolved } = useAppAgentPresets();
   const { addToast } = useToast();
   const [editing, setEditing] = useState<{ preset: AgentToolPreset | null } | null>(null);
+
+  // Absent while the request is in flight or if it failed, in which case rows
+  // render exactly as they did before: the marker is advisory, so its absence
+  // must never hold the listing back.
+  const degradedById = useMemo(() => {
+    const map = new Map<string, NonNullable<ResolvedAgentPreset["degraded"]>>();
+    for (const preset of resolved?.presets ?? []) {
+      if (preset.degraded) map.set(preset.id, preset.degraded);
+    }
+    return map;
+  }, [resolved]);
 
   const handleSave = (preset: AgentToolPreset) => {
     saveAgentTool({ ...preset, id: preset.id || newAgentToolId() });
@@ -166,6 +212,7 @@ export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props)
             builtin
             agents={agents}
             defaultAgent={defaultAgent}
+            degraded={degradedById.get(preset.id)}
           />
         ))}
         {agentTools.map((preset) => (
@@ -175,6 +222,7 @@ export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props)
             builtin={false}
             agents={agents}
             defaultAgent={defaultAgent}
+            degraded={degradedById.get(preset.id)}
             onEdit={() => setEditing({ preset })}
             onDelete={() => {
               deleteAgentTool(preset.id);
