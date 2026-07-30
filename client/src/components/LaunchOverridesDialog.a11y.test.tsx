@@ -9,8 +9,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { axe } from "vitest-axe";
-import type { ProjectAgentState } from "@roubo/shared";
+import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import LaunchOverridesDialog from "./LaunchOverridesDialog";
+import { resolveLaunchTarget } from "./settings/agents/agent-launchability";
 import { expectNoAxeFindings } from "../test/axe";
 
 const CLAUDE: ProjectAgentState = {
@@ -29,12 +30,27 @@ const CLAUDE: ProjectAgentState = {
   misconfigured: null,
 };
 
+/** A selectable preset, so the preset picker (issue #668) is part of the scan. */
+const PRESET: ResolvedAgentPreset = {
+  id: "at-deep",
+  name: "Deep work",
+  icon: "bot",
+  source: "app",
+  agent: "claude-code",
+  bindsDefaultAgent: false,
+  agentPluginId: "claude-code",
+  resolvedAgentName: "Claude Code",
+  params: { mode: "plan" },
+};
+
 function open() {
   return render(
     <LaunchOverridesDialog
       isOpen
       agents={[CLAUDE]}
-      preset={null}
+      presets={[PRESET]}
+      resolveTarget={(preset) => resolveLaunchTarget(preset, [CLAUDE], undefined)}
+      initialPresetId={PRESET.id}
       onCancel={vi.fn()}
       onLaunch={vi.fn()}
     />,
@@ -73,7 +89,9 @@ describe("LaunchOverridesDialog: axe-core (AP-NFR-005)", () => {
         <LaunchOverridesDialog
           isOpen
           agents={[CLAUDE]}
-          preset={null}
+          presets={[PRESET]}
+          resolveTarget={(preset) => resolveLaunchTarget(preset, [CLAUDE], undefined)}
+          initialPresetId={PRESET.id}
           onCancel={vi.fn()}
           onLaunch={vi.fn()}
         />

@@ -62,7 +62,9 @@ function openDialog() {
     <LaunchOverridesDialog
       isOpen
       agents={[CLAUDE]}
-      preset={PRESET}
+      presets={[PRESET]}
+      resolveTarget={(preset) => resolveLaunchTarget(preset, [CLAUDE], undefined)}
+      initialPresetId={PRESET.id}
       onCancel={vi.fn()}
       onLaunch={vi.fn()}
     />,
