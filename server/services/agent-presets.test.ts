@@ -258,6 +258,62 @@ describe("preset resolution", () => {
     expect(bad.unresolved?.message).toContain("mode");
   });
 
+  // Issue #654: `mode` is a per-plugin `configSchema` key, not a host concept,
+  // but the built-ins hardcode it. An agent whose schema closes
+  // `additionalProperties` and never declares `mode` therefore made
+  // `Agent (Plan)` and `Agent (Auto)` permanently unlaunchable, and built-ins
+  // cannot be edited or deleted. Built-ins degrade instead: the rejected key is
+  // dropped and the preset launches as plain `Agent`.
+  describe("a built-in whose hardcoded param the bound agent's schema rejects", () => {
+    const POSTURE_ONLY = makeManifest({
+      id: "posture-agent",
+      name: "Posture Agent",
+      configSchema: {
+        type: "object",
+        properties: { posture: { type: "string", enum: ["read-only", "write"] } },
+        additionalProperties: false,
+      },
+    });
+
+    beforeEach(() => {
+      installAgents([POSTURE_ONLY]);
+      setDefaultAgent("posture-agent");
+    });
+
+    it("resolves every built-in, dropping the rejected param", () => {
+      const builtins = listAgentPresets().filter((p) => p.source === "builtin");
+      expect(builtins.map((p) => p.name)).toEqual(["Agent", "Agent (Plan)", "Agent (Auto)"]);
+      expect(builtins.every((p) => p.unresolved === undefined)).toBe(true);
+      expect(builtins.every((p) => p.agentPluginId === "posture-agent")).toBe(true);
+      expect(builtins.every((p) => p.resolvedAgentName === "Posture Agent")).toBe(true);
+      // Degraded to plain-Agent behavior: `mode` is gone from the resolved params.
+      expect(builtins.map((p) => p.params)).toEqual([{}, {}, {}]);
+    });
+
+    // The carve-out is source-gated, not blanket: an app or project preset is
+    // editable, so its bad param stays surfaced rather than silently dropped.
+    it("still hard-rejects the same param on a project preset", () => {
+      const resolved = resolveAgentPreset(
+        { id: "project:Plan", name: "Plan", agent: "default", params: { mode: "plan" } },
+        "project",
+        { defaultAgentPluginId: "posture-agent" },
+      );
+      expect(resolved.unresolved?.reason).toBe("invalid-params");
+      expect(resolved.unresolved?.message).toContain("Plan");
+      expect(resolved.unresolved?.message).toContain("mode");
+      expect(resolved.params).toEqual({ mode: "plan" });
+    });
+
+    it("still hard-rejects the same param on an app preset", () => {
+      const resolved = resolveAgentPreset(
+        { id: "at-1", name: "Deep work", agent: "posture-agent", params: { mode: "plan" } },
+        "app",
+        { defaultAgentPluginId: "posture-agent" },
+      );
+      expect(resolved.unresolved?.reason).toBe("invalid-params");
+    });
+  });
+
   it("validates a preset's params against the app defaults they overlay", () => {
     agentOverrideMocks.getEffectiveAgentConfig.mockReturnValue({ model: "opus" });
     const resolved = resolveAgentPreset(

@@ -3,6 +3,7 @@ import {
   BUILTIN_AGENT_PRESETS,
   type AgentPresetSource,
   type AgentToolPreset,
+  type ConfigFieldError,
   type ResolvedAgentPreset,
   type ToolConfig,
 } from "@roubo/shared";
@@ -133,12 +134,27 @@ function unavailable(
  * preset it belongs to (AP-TC-033), because a `roubo.yaml` author needs to know
  * which of several presets to fix, not just that "a param is invalid".
  *
- * A preset's params are a partial override, not a whole config, so they are
- * validated against the app defaults they overlay rather than on their own,
- * exactly as a project-level override is (`routes/project-agents.ts`). Checking
- * the bare bag would let a `configSchema` that marks any field required reject
- * every preset that overrides only some other field, which would take the
- * shipped `Agent (Plan)` and `Agent (Auto)` built-ins down with it.
+ * Two carve-outs keep the shipped built-ins launchable, and they are distinct:
+ *
+ * 1. A preset's params are a partial override, not a whole config, so they are
+ *    validated against the app defaults they overlay rather than on their own,
+ *    exactly as a project-level override is (`routes/project-agents.ts`).
+ *    Checking the bare bag would let a `configSchema` that marks any field
+ *    required reject every preset that overrides only some other field, which
+ *    would take `Agent (Plan)` and `Agent (Auto)` down with it (issue #516).
+ *    That case is an error on a key the preset does NOT set, which is why the
+ *    filter below drops it.
+ * 2. The built-ins hardcode `mode`, which is a per-plugin `configSchema` key
+ *    rather than a host concept, so an agent whose schema closes
+ *    `additionalProperties` and never declares `mode` rejects a key the preset
+ *    DOES set. The filter cannot help there, and a built-in can be neither
+ *    edited nor deleted, so a hard rejection would leave two of the three
+ *    built-ins permanently unlaunchable. Built-ins therefore degrade: the
+ *    rejected keys are dropped from the resolved params (`Agent (Plan)` becomes
+ *    plain `Agent`) and the reduced overlay is revalidated, which keeps a
+ *    built-in that genuinely cannot be made valid surfaced (issue #654).
+ *    `app` and `project` presets keep the hard rejection, because a user can
+ *    actually edit those.
  */
 function withValidatedParams(
   base: ResolvedAgentPreset,
@@ -154,15 +170,25 @@ function withValidatedParams(
   const params = preset.params ?? {};
   if (Object.keys(params).length === 0) return resolved;
 
-  const effective = mergeAgentConfig(getEffectiveAgentConfig(agent.pluginId), params);
-  const errors = validateAgentConfig(agent.manifest, effective).filter((err) => {
-    // Only the keys this preset actually sets are its to answer for. A defect
-    // inherited from the app-level config is surfaced by the AI Agents form
-    // that owns it, not by disabling every preset bound to the agent.
-    const [root = ""] = err.path.split(".");
-    return err.path === "" || root in params;
-  });
-  if (errors.length === 0) return resolved;
+  let overlay = params;
+  let errors = presetParamErrors(agent, overlay);
+
+  if (errors.length > 0 && base.source === "builtin") {
+    // A root-level error (`path === ""`) names no key, so there is nothing to
+    // drop for it; such a built-in stays surfaced rather than degrading.
+    const rejected = new Set(
+      errors.map((err) => err.path.split(".")[0] ?? "").filter((key) => key !== ""),
+    );
+    if (rejected.size > 0) {
+      overlay = Object.fromEntries(Object.entries(params).filter(([key]) => !rejected.has(key)));
+      // Dropping a key can surface a fresh error (a `required` field the
+      // dropped key was satisfying), so the reduced overlay is revalidated
+      // rather than assumed good.
+      errors = presetParamErrors(agent, overlay);
+    }
+  }
+
+  if (errors.length === 0) return { ...resolved, params: overlay };
 
   const detail = errors.map((err) => `${err.path || "config"}: ${err.message}`).join("; ");
   return {
@@ -172,6 +198,23 @@ function withValidatedParams(
       message: `Agent tool "${preset.name}" has invalid parameters for ${resolved.resolvedAgentName} (${detail}).`,
     },
   };
+}
+
+/**
+ * The errors an overlay of `params` over the agent's app-level config produces,
+ * narrowed to the keys the overlay actually sets. A defect inherited from the
+ * app-level config is surfaced by the AI Agents form that owns it, not by
+ * disabling every preset bound to the agent.
+ */
+function presetParamErrors(
+  agent: ResolvedAgent,
+  params: Record<string, unknown>,
+): ConfigFieldError[] {
+  const effective = mergeAgentConfig(getEffectiveAgentConfig(agent.pluginId), params);
+  return validateAgentConfig(agent.manifest, effective).filter((err) => {
+    const [root = ""] = err.path.split(".");
+    return err.path === "" || root in params;
+  });
 }
 
 /** The app-level presets the editor saved, or an empty list. */
