@@ -1,9 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { RouboConfig, Bench } from "@roubo/shared";
+import type { RouboConfig, Bench, UserPreferences } from "@roubo/shared";
 import { makeProject, makeBench, makeConfig } from "../test/fixtures.js";
 
 vi.mock("./project-registry.js", () => ({
   getProject: vi.fn(),
+}));
+
+// Only `loadSettings` is stubbed, over an `importOriginal` spread: the real
+// bench-manager loaded below does `import * as stateService from "./state.js"`
+// and needs the rest of the module intact. Stubbing it both makes the read
+// count observable (issue #657) and stops these cases resolving off the
+// developer's own ~/.roubo.
+const stateMocks = vi.hoisted(() => ({
+  loadSettings: vi.fn<() => UserPreferences>(() => ({ theme: "dark" })),
+}));
+vi.mock("./state.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./state.js")>()),
+  ...stateMocks,
 }));
 
 vi.mock("./bench-manager.js", async (importOriginal) => {
@@ -415,5 +428,44 @@ describe("agent tools", () => {
     expect(result.error).toContain("agent tool");
     expect(exec).not.toHaveBeenCalled();
     expect(execFile).not.toHaveBeenCalled();
+  });
+
+  // Issue #649 hoisted the default-agent read out of the per-tool loop, and this
+  // route is polled every few seconds per open bench while `loadSettings` is
+  // uncached. `resolveAgentPreset` still falls back to its own read when the
+  // third argument is omitted, so without these two counts dropping the hoisted
+  // `defaults` argument would be behaviour-identical and silently regress the
+  // hot path back to one file parse per agent tool per poll (issue #657).
+  it("reads settings once for the whole list however many agent tools it holds", () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({
+        config: makeConfig({
+          tools: [
+            { name: "Repo triage", type: "agent", agent: "default" },
+            { name: "Deep work", type: "agent", agent: "default" },
+          ],
+        }),
+      }),
+    );
+
+    getResolvedTools("test-project", 1);
+
+    expect(stateMocks.loadSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads settings zero times for a list with no agent tools", () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({
+        config: makeConfig({
+          tools: [
+            { name: "Web App", icon: "globe", type: "browser", url: "http://localhost:3000" },
+          ],
+        }),
+      }),
+    );
+
+    getResolvedTools("test-project", 1);
+
+    expect(stateMocks.loadSettings).not.toHaveBeenCalled();
   });
 });
