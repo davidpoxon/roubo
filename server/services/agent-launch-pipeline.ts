@@ -38,18 +38,18 @@ import { AgentLaunchFailureError, belowFloorFailure } from "./agent-launch-failu
 // the http-hook carrier write embeds it, and argv carries it. One mint, one
 // session, no divergence.
 
-/**
- * The two launch-time layers that sit above the stored app and project layers.
- * Neither has a producer yet (presets are AP-WU-015 / #516, per-launch overrides
- * are AP-WU-017 / #518); they are accepted here so the AP-FR-011 resolution
- * order is complete and testable rather than retro-fitted later.
- */
 // The port `{{port}}` resolves to when the server has not published its bound
 // port yet. Same fallback terminal.ts and agent-permissions.ts use, so the PATH
 // this half resolves for the version gate matches the one the spawning half
 // resolves for the child.
 const DEFAULT_ROUBO_PORT = "3335";
 
+/**
+ * The two launch-time layers that sit above the stored app and project layers.
+ * Neither has a producer yet (presets are AP-WU-015 / #516, per-launch overrides
+ * are AP-WU-017 / #518); they are accepted here so the AP-FR-011 resolution
+ * order is complete and testable rather than retro-fitted later.
+ */
 export interface AgentConfigLayers {
   preset?: Record<string, unknown>;
   perLaunch?: Record<string, unknown>;
