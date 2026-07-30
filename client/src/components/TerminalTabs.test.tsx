@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, act, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { renderWithProviders } from "../test/renderWithProviders";
 import TerminalTabs from "./TerminalTabs";
 
@@ -14,7 +15,13 @@ vi.mock("../hooks/useProjectAgents");
 vi.mock("../hooks/useProjectDefaultJig");
 vi.mock("./Terminal", () => ({ default: () => null }));
 
-import type { JigMeta, ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
+import type {
+  AgentLaunchFailure,
+  JigMeta,
+  ProjectAgentState,
+  ResolvedAgentPreset,
+} from "@roubo/shared";
+import { ApiError } from "../lib/api";
 import { useTerminalSessions, useCreateTerminal, useDestroyTerminal } from "../hooks/useTerminal";
 import { useJigs, useInjectJig } from "../hooks/useJigs";
 import { useSettings } from "../hooks/useSettings";
@@ -1572,5 +1579,187 @@ describe("TerminalTabs: terminal session persistence", () => {
     // Terminal 2 is gone; Terminal 1 is the only available session (fallback)
     expect(screen.queryByText("Terminal 2")).not.toBeInTheDocument();
     expect(screen.getByText("Terminal 1")).toBeInTheDocument();
+  });
+});
+
+// The panel itself and the socket-side replay are covered elsewhere
+// (AgentLaunchFailurePanel.test.tsx, useTerminalConnection.test.ts). What only
+// this component decides is whether a refused launch becomes a panel or a toast,
+// and which launch Retry replays, so that is what this block pins down.
+describe("TerminalTabs: launch-failure surface", () => {
+  /** A refusal from the version gate: structured, and offering both actions. */
+  const BELOW_FLOOR: AgentLaunchFailure = {
+    class: "below-floor-version",
+    message: "Claude Code 1.0.2 is below the minimum supported 2.0.0.",
+    guidance: "Update the CLI, or point the plugin at a newer install.",
+    detectedVersion: "1.0.2",
+    minVersion: "2.0.0",
+    actions: ["open-plugin-settings", "retry"],
+  };
+
+  const REFUSAL_MESSAGE = "Agent session could not be started";
+
+  /** The shape a refused launch actually arrives in: a 409 carrying details. */
+  function apiErrorWith(launchFailure?: unknown) {
+    return new ApiError(REFUSAL_MESSAGE, 409, undefined, {
+      error: REFUSAL_MESSAGE,
+      ...(launchFailure !== undefined && { launchFailure }),
+    });
+  }
+
+  /** Reject every launch with `err`, so `onError` is the path under test. */
+  function failLaunchesWith(err: unknown) {
+    mockCreateMutate.mockImplementation(
+      (_vars: unknown, options: { onError?: (err: unknown) => void }) => {
+        options?.onError?.(err);
+      },
+    );
+  }
+
+  function succeedLaunches() {
+    mockCreateMutate.mockImplementation(
+      (_vars: unknown, options: { onSuccess?: (r: { sessionId: string }) => void }) => {
+        options?.onSuccess?.({ sessionId: "session-abc" });
+      },
+    );
+  }
+
+  // The failure panel links to plugin settings with a react-router `Link`, so
+  // this block needs a router even though the rest of the file does not.
+  function renderTabs() {
+    return renderWithProviders(
+      <MemoryRouter>
+        <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />
+      </MemoryRouter>,
+    );
+  }
+
+  const addToast = vi.fn();
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    addToast.mockClear();
+    mockCreateMutate.mockClear();
+    setupMocks({ autoInject: true });
+    vi.mocked(useToast).mockReturnValue({ addToast, removeToast: vi.fn() });
+    failLaunchesWith(apiErrorWith(BELOW_FLOOR));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("raises the failure panel, not a toast, when the refusal carries a launchFailure", () => {
+    renderTabs();
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+    });
+
+    const panel = screen.getByTestId("agent-launch-failure");
+    expect(panel.getAttribute("data-failure-class")).toBe("below-floor-version");
+    expect(panel).toHaveTextContent("below the minimum supported 2.0.0");
+    // AP-NFR-003: the refusal has a surface of its own, so it is not demoted to
+    // a toast that disappears on its own.
+    expect(addToast).not.toHaveBeenCalled();
+  });
+
+  it("falls through to a toast when the refusal carries no launchFailure", () => {
+    failLaunchesWith(apiErrorWith());
+    renderTabs();
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+    });
+
+    expect(addToast).toHaveBeenCalledWith(REFUSAL_MESSAGE);
+    expect(screen.queryByTestId("agent-launch-failure")).toBeNull();
+  });
+
+  it("falls through to a toast when the failure is not an ApiError", () => {
+    failLaunchesWith(new Error("spawn ENOENT"));
+    renderTabs();
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+    });
+
+    expect(addToast).toHaveBeenCalledWith("spawn ENOENT");
+    expect(screen.queryByTestId("agent-launch-failure")).toBeNull();
+  });
+
+  // The panel renders `failure.message` as its headline, so a details payload
+  // that only looks structured must not reach it: an empty panel would be the
+  // silent dead terminal all over again.
+  it("falls through to a toast when the launchFailure carries no message", () => {
+    failLaunchesWith(apiErrorWith({ class: "missing-binary", actions: ["retry"] }));
+    renderTabs();
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+    });
+
+    expect(addToast).toHaveBeenCalledWith(REFUSAL_MESSAGE);
+    expect(screen.queryByTestId("agent-launch-failure")).toBeNull();
+  });
+
+  it("replays the recorded agent launch when Retry is pressed (AP-TC-075)", () => {
+    renderTabs();
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+    });
+    expect(mockCreateMutate).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("agent-launch-failure-retry"));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledTimes(2);
+    expect(mockCreateMutate.mock.calls[1][0]).toMatchObject({
+      agentPluginId: "claude-code",
+      jigId: "feature-dev",
+    });
+    // Retry re-runs the same launch, not a generic one.
+    expect(mockCreateMutate.mock.calls[1][0]).toEqual(mockCreateMutate.mock.calls[0][0]);
+  });
+
+  // The bare-command path has its own `onError` branch and its own entry in the
+  // recorded-launch ref, so Retry has to stay on that path rather than falling
+  // into the agent pipeline.
+  it("raises the panel from the bare-command path and replays that command on Retry", () => {
+    renderTabs();
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "New Terminal" }));
+    });
+
+    expect(screen.getByTestId("agent-launch-failure")).toBeTruthy();
+    expect(mockCreateMutate.mock.calls[0][0]).not.toHaveProperty("agentPluginId");
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("agent-launch-failure-retry"));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledTimes(2);
+    expect(mockCreateMutate.mock.calls[1][0]).toEqual(mockCreateMutate.mock.calls[0][0]);
+    expect(mockCreateMutate.mock.calls[1][0]).not.toHaveProperty("agentPluginId");
+  });
+
+  it("clears the panel once a launch succeeds", () => {
+    renderTabs();
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Claude Code" }));
+    });
+    expect(screen.getByTestId("agent-launch-failure")).toBeTruthy();
+
+    succeedLaunches();
+    act(() => {
+      fireEvent.click(screen.getByTestId("agent-launch-failure-retry"));
+    });
+
+    expect(screen.queryByTestId("agent-launch-failure")).toBeNull();
   });
 });
