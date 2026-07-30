@@ -1,5 +1,5 @@
 import { Menu, MenuItem, MenuSection, Header, Popover, Separator } from "react-aria-components";
-import { AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, Info, SlidersHorizontal } from "lucide-react";
 import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import { agentDotClass } from "./settings/agents/agent-color";
 import { describeEffectiveParams, NO_PARAMS_LABEL } from "./settings/agents/agent-params";
@@ -50,6 +50,14 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
   // The row reads the same resolved target the split-button does, so a preset
   // can never render disabled here while the button beside it launches it.
   const blocked = target.blocked;
+  // Advisory, never a blocker (issue #665): a built-in that dropped a rejected
+  // param still launches, it just will not do what its name promises. The
+  // notice therefore rides in the summary slot and leaves `isDisabled` alone,
+  // where the amber blocker chip disables the row.
+  const degraded = blocked === null ? preset.degraded : undefined;
+  const summary = blocked
+    ? blocked.message
+    : `${presetSummary(preset, target)}${degraded ? `. ${degraded.message}` : ""}`;
   return (
     <MenuItem
       id={`${PRESET_KEY_PREFIX}${preset.id}`}
@@ -57,7 +65,7 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
       // The label carries the summary, or the blocker when there is one, so a
       // screen reader hears why an entry is disabled rather than just that it
       // is.
-      aria-label={`${preset.name}: ${blocked ? blocked.message : presetSummary(preset, target)}`}
+      aria-label={`${preset.name}: ${summary}`}
       isDisabled={blocked !== null}
       className={({ isFocused, isDisabled }) => ITEM_CLASS(isFocused, isDisabled)}
     >
@@ -74,6 +82,15 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
         >
           <AlertTriangle size={10} />
           {blocked.label}
+        </span>
+      ) : degraded ? (
+        <span
+          title={degraded.message}
+          data-testid="preset-degraded-notice"
+          className="ml-auto flex items-center gap-1 text-[10px] text-stone-500 dark:text-stone-400 shrink-0"
+        >
+          <Info size={10} />
+          drops {degraded.droppedParams.join(", ")}
         </span>
       ) : (
         <span className="ml-auto text-[10px] font-mono text-stone-400 dark:text-stone-600 truncate">

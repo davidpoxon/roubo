@@ -332,6 +332,8 @@ Each preset is resolved on read, never stored resolved. A preset bound to `defau
 
 A built-in preset does not report `invalid-params` for a parameter it can drop, because it cannot be edited to fix one: it degrades instead, dropping the rejected keys, so its resolved `params` may omit keys the stored preset sets and is not always a faithful copy of them. A violation that names no parameter at all (a whole-object schema rule) leaves nothing to drop, so such a built-in does still report `invalid-params`.
 
+A preset that degraded that way carries `degraded: { droppedParams, message }`, so a client can detect the drop from the response rather than by diffing the resolved `params` against the stored preset. `droppedParams` lists the dropped keys; `message` names the preset, the resolved agent, and those keys. The field is advisory and separate from `unresolved`: a degraded preset is still launchable, so it never makes a tool `enabled: false`, and the two fields are mutually exclusive. Only built-ins ever set it; `app` and `project` presets keep the hard `invalid-params` rejection.
+
 ---
 
 ## Inspection

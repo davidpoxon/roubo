@@ -290,6 +290,31 @@ describe("preset resolution", () => {
       expect(builtins.map((p) => p.params)).toEqual([{}, {}, {}]);
     });
 
+    // Issue #665: the drop used to be completely silent, so `Agent (Plan)`
+    // launched as plain `Agent` under its own name with nothing to say so.
+    it("reports the drop as an advisory notice that leaves the preset launchable", () => {
+      const builtins = listAgentPresets().filter((p) => p.source === "builtin");
+      const degraded = builtins.filter((p) => p.name !== "Agent");
+      expect(degraded.map((p) => p.name)).toEqual(["Agent (Plan)", "Agent (Auto)"]);
+
+      for (const preset of degraded) {
+        expect(preset.degraded?.droppedParams).toEqual(["mode"]);
+        expect(preset.degraded?.message).toContain(preset.name);
+        expect(preset.degraded?.message).toContain("mode");
+        expect(preset.degraded?.message).toContain("Posture Agent");
+        // Advisory only. `unresolved` is what a launch surface derives
+        // `enabled` from, and it must stay clear.
+        expect(preset.unresolved).toBeUndefined();
+      }
+    });
+
+    // Plain `Agent` sets no params at all, so nothing was ever dropped for it.
+    it("does not mark the paramless built-in degraded", () => {
+      const agent = listAgentPresets().find((p) => p.name === "Agent");
+      expect(agent?.degraded).toBeUndefined();
+      expect(agent?.unresolved).toBeUndefined();
+    });
+
     // The carve-out is source-gated, not blanket: an app or project preset is
     // editable, so its bad param stays surfaced rather than silently dropped.
     it("still hard-rejects the same param on a project preset", () => {
@@ -302,6 +327,9 @@ describe("preset resolution", () => {
       expect(resolved.unresolved?.message).toContain("Plan");
       expect(resolved.unresolved?.message).toContain("mode");
       expect(resolved.params).toEqual({ mode: "plan" });
+      // The advisory notice belongs to the degrade path only: this preset was
+      // rejected outright, not degraded (issue #665).
+      expect(resolved.degraded).toBeUndefined();
     });
 
     it("still hard-rejects the same param on an app preset", () => {
@@ -311,6 +339,7 @@ describe("preset resolution", () => {
         { defaultAgentPluginId: "posture-agent" },
       );
       expect(resolved.unresolved?.reason).toBe("invalid-params");
+      expect(resolved.degraded).toBeUndefined();
     });
   });
 
