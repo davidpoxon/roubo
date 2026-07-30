@@ -176,6 +176,53 @@ describe("probeAgentVersion", () => {
   });
 });
 
+describe("probeAgentVersion against the launch's PATH (issue #660)", () => {
+  it("resolves AND spawns against the supplied search path, not the server's", async () => {
+    probeOutput("2.1.180 (Claude Code)");
+    await probeAgentVersion("claude-code", "claude", SPEC, "/opt/agent/bin");
+
+    expect(resolveAgentCommand).toHaveBeenCalledWith("claude", "/opt/agent/bin");
+    // Resolution alone is not enough: a bare name comes back unchanged, so the
+    // exec would otherwise look it up on the server's PATH all over again.
+    expect(vi.mocked(runCommand).mock.calls[0][3]).toEqual({ PATH: "/opt/agent/bin" });
+  });
+
+  it("defaults to the server's PATH when no search path is supplied", async () => {
+    probeOutput("2.1.180 (Claude Code)");
+    await probeAgentVersion("claude-code", "claude", SPEC);
+
+    expect(resolveAgentCommand).toHaveBeenCalledWith("claude", process.env.PATH);
+  });
+
+  it("does not share one bare-name detection across two different search paths", async () => {
+    probeOutput("2.1.180 (Claude Code)");
+    const first = await probeAgentVersion("claude-code", "claude", SPEC, "/opt/a/bin");
+    probeOutput("2.1.100 (Claude Code)");
+    const second = await probeAgentVersion("other-agent", "claude", SPEC, "/opt/b/bin");
+
+    expect(runCommand).toHaveBeenCalledTimes(2);
+    expect(first.detectedVersion).toBe("2.1.180");
+    expect(second.detectedVersion).toBe("2.1.100");
+  });
+
+  it("still shares one detection for a path-shaped binary whatever the search path", async () => {
+    probeOutput("2.1.180 (Claude Code)");
+    await probeAgentVersion("claude-code", "/opt/a/bin/claude", SPEC, "/opt/a/bin");
+    await probeAgentVersion("other-agent", "/opt/a/bin/claude", SPEC, "/opt/b/bin");
+
+    expect(runCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports probe-failed for a templated search path (AP-TC-074)", async () => {
+    const result = await probeAgentVersion("claude-code", "claude", SPEC, "{{workspacePath}}/bin");
+
+    expect(result.status).toBe("probe-failed");
+    expect(result.reason).toContain("templated");
+    expect(resolveAgentCommand).not.toHaveBeenCalled();
+    expect(runCommand).not.toHaveBeenCalled();
+  });
+});
+
 describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
   const DECLARED = {
     minVersion: "2.1.111",

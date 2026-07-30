@@ -1,4 +1,5 @@
 import os from "node:os";
+import path from "node:path";
 import type {
   AgentCompatibility,
   AgentCompatibilityState,
@@ -23,7 +24,10 @@ import { AgentCommandNotFoundError, resolveAgentCommand } from "./env.js";
 //
 // Caching is keyed by RESOLVED BINARY plus probe argv, not by plugin, so two
 // plugins pointing at the same CLI probe it once and `GET /api/agents` can render
-// a detected version without spawning anything per request.
+// a detected version without spawning anything per request. When the resolution
+// lands on a bare name, the key also carries the search path it was resolved
+// against (#660): a bare name is only fully identified together with its PATH, so
+// two launches whose PATH differs name two different binaries under one name.
 
 const PROBE_TIMEOUT_MS = 5000;
 
@@ -58,9 +62,10 @@ export interface AgentVersionProbeResult {
 }
 
 /**
- * Detections keyed by the resolved binary and the probe argv, joined with control
- * characters (NUL between binary and argv, SOH between argv elements) so no
- * command or argument value can forge a key collision. Written as `\u0000` /
+ * Detections keyed by the resolved binary, the probe argv and (for a bare-name
+ * resolution) the search path, joined with control characters (NUL between
+ * fields, SOH between argv elements) so no command, argument or PATH value can
+ * forge a key collision. Written as `\u0000` /
  * `\u0001` escapes rather than literal bytes: literal control characters make git
  * classify this file as binary, which suppresses its diff and blame entirely.
  */
@@ -121,14 +126,32 @@ function probeFailed(spec: VersionProbeSpec, reason: string): AgentVersionProbeR
   };
 }
 
-function cacheKey(binary: string, spec: VersionProbeSpec): string {
-  return `${binary}\u0000${spec.args.join("\u0001")}`;
+/** True when `binary` names a location rather than something PATH has to find. */
+function isPathShaped(binary: string): boolean {
+  return binary.includes(path.sep) || binary.includes("/");
+}
+
+function cacheKey(binary: string, spec: VersionProbeSpec, searchPath: string | undefined): string {
+  // A path-shaped binary is already fully identified, so it keeps sharing one
+  // detection across every caller: that is what lets two plugins pointing at the
+  // same CLI probe it once. A bare name is not, because `resolveAgentCommand`
+  // returns it unchanged once it finds it on the search path, so that path is
+  // part of which binary the detection is actually about (#660).
+  const scope = isPathShaped(binary) ? "" : (searchPath ?? "");
+  return `${binary}\u0000${spec.args.join("\u0001")}\u0000${scope}`;
 }
 
 /**
  * Run one agent's declared version probe and classify the result against its
- * window. Cached per resolved binary, so repeated launches (and the AI Agents
- * screen) reuse one spawn.
+ * window. Cached per resolved binary (and, for a bare name, per search path), so
+ * repeated launches (and the AI Agents screen) reuse one spawn.
+ *
+ * `searchPath` is the PATH the launch will spawn the agent with, which a launch
+ * descriptor's `env.PATH` can replace outright. Passing it is what keeps the
+ * promise `docs/plugin-sdk.md` makes to plugin authors true: the probe resolves,
+ * runs and caches under the same binary the launch will spawn (#660). It defaults
+ * to the server's own PATH for callers with no launch environment to speak of,
+ * such as the manifest-declared warm probe.
  *
  * Never throws: an unresolvable command, a nonzero probe exit and unparseable
  * output all report `probe-failed` with a reason, because a probe that cannot
@@ -140,6 +163,7 @@ export async function probeAgentVersion(
   pluginId: string,
   command: string,
   spec: VersionProbeSpec,
+  searchPath: string | undefined = process.env.PATH,
 ): Promise<AgentVersionProbeResult> {
   // A templated command cannot be resolved before the launch context exists, so
   // there is nothing to probe. Reported honestly rather than probed blind.
@@ -150,19 +174,30 @@ export async function probeAgentVersion(
     );
   }
 
+  // A descriptor's `env` values are templates too, resolved only once the launch
+  // context exists. Probing against an unresolved PATH would resolve, run and
+  // cache the wrong binary just as silently as ignoring it did, so it gets the
+  // same honest treatment as a templated command.
+  if (searchPath?.includes("{{") === true) {
+    return probeFailed(
+      spec,
+      "The launch environment's PATH is templated and cannot be probed before launch",
+    );
+  }
+
   let binary: string;
   try {
     // The same resolution the spawn uses (#645): PATH, then the well-known
     // install locations. That chain already covers what claude-version.ts hedged
     // with an `sh -lc` retry, and resolving here means the probe and the spawn
     // agree on which binary they are talking about.
-    binary = resolveAgentCommand(command);
+    binary = resolveAgentCommand(command, searchPath);
   } catch (err) {
     if (err instanceof AgentCommandNotFoundError) return probeFailed(spec, err.message);
     throw err;
   }
 
-  const key = cacheKey(binary, spec);
+  const key = cacheKey(binary, spec, searchPath);
   lastProbe.set(pluginId, { key, spec });
 
   // Expiry is applied HERE and not in `getCachedAgentVersion`: a launch is worth
@@ -170,7 +205,7 @@ export async function probeAgentVersion(
   // a stale-but-known version than nothing at all.
   let detection = detections.get(key);
   if (detection === undefined || Date.now() - detection.at > DETECTION_TTL_MS) {
-    detection = await detect(binary, spec);
+    detection = await detect(binary, spec, searchPath);
     detections.set(key, detection);
   }
 
@@ -180,12 +215,20 @@ export async function probeAgentVersion(
   return classifyVersion(detection.version, spec);
 }
 
-async function detect(binary: string, spec: VersionProbeSpec): Promise<Detection> {
+async function detect(
+  binary: string,
+  spec: VersionProbeSpec,
+  searchPath: string | undefined,
+): Promise<Detection> {
+  // Resolution alone does not pin the binary down: `resolveAgentCommand` returns
+  // a bare name unchanged when it finds it on the search path, and `runCommand`
+  // otherwise spawns with the SERVER's environment. PATH is overridden here so
+  // the exec's own lookup lands on the same file the resolution just found (#660).
   const { code, stdout, stderr } = await runCommand(
     binary,
     spec.args,
     os.homedir(),
-    undefined,
+    searchPath !== undefined ? { PATH: searchPath } : undefined,
     PROBE_TIMEOUT_MS,
   );
 
@@ -232,6 +275,11 @@ export function invalidateAgentVersionProbe(pluginId: string): void {
  * installed?" for a screen the user opened without starting a bench. A manifest
  * that declares `agentCompatibility.probe` can, and it feeds the same per-binary
  * cache, so a launch that follows reuses this spawn instead of adding one.
+ *
+ * It passes no search path, so it probes against the server's own PATH. That is
+ * the only PATH available without a launch descriptor, and this probe gates
+ * nothing, so it is the honest choice. The PATH-scoped cache key then correctly
+ * keeps a launch that overrides `env.PATH` from reusing this detection (#660).
  *
  * Resolves to `undefined` when the manifest declares no probe, which is the
  * honest answer for a plugin that opted out: the card then shows the declared

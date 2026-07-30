@@ -250,7 +250,7 @@ capabilities: {
 }
 ```
 
-The host resolves the same binary the launch will spawn (step 9 below), runs the probe with a 5s timeout, and scans the merged stdout and stderr for the first `X.Y.Z`. The lenient scan is why one probe shape works across agents whose `--version` output looks nothing alike. The result is cached per resolved binary, so repeated launches and the AI Agents screen reuse one spawn.
+The host resolves the same binary the launch will spawn (step 9 below), runs the probe with a 5s timeout, and scans the merged stdout and stderr for the first `X.Y.Z`. Resolution and the probe spawn both use the PATH the launch will use, so a descriptor that sets `env.PATH` is gated against its own binary rather than a same-named one on the host's PATH. The lenient scan is why one probe shape works across agents whose `--version` output looks nothing alike. The result is cached per resolved binary (and, when that resolves to a bare name, per PATH), so repeated launches and the AI Agents screen reuse one spawn.
 
 There are four verdicts:
 
