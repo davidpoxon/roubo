@@ -251,12 +251,11 @@ describe("VersionProbeSpec", () => {
   // blocking the agent with a misleading message. Both bounds now refine against
   // what `compareVersions` can actually turn into three numbers.
   //
-  // The prerelease and build-metadata cases are the reason this is
-  // `isComparableSemverVersion` and not the manifest side's
-  // `isExactSemverVersion`: `"2.1.111-beta.1".split(".")` yields a `"111-beta"`
-  // segment that `Number` reads as NaN, so such a bound is just as uncomparable as
-  // `v2.1.111` even though it is valid semver. The manifest side still admits
-  // them (#669).
+  // The prerelease and build-metadata cases matter for the same reason:
+  // `"2.1.111-beta.1".split(".")` yields a `"111-beta"` segment that `Number`
+  // reads as NaN, so such a bound is just as uncomparable as `v2.1.111` even
+  // though it is valid semver. The manifest side rejects them too since #669, so
+  // both schemas now share the one `isExactSemverVersion` predicate.
   const UNCOMPARABLE_BOUNDS = [
     "v2.1.111",
     "2.1",

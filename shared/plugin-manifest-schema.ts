@@ -164,36 +164,26 @@ export function isValidRouboRange(range: string): boolean {
 }
 
 // A single, exact semver version (not a range), used to validate an agent
-// plugin's compatibility window (AP-FR-014). Kept dependency-free (the `shared`
-// workspace depends only on `yaml` + `zod`): `major.minor.patch` with optional
-// prerelease and build metadata, matching the `(\d+\.\d+\.\d+)` shape the
-// runtime version probe parses (spike #502). Unlike `isValidRouboRange` this
-// rejects operators, wildcards, and ranges: a version floor or ceiling is one
-// concrete version.
-const EXACT_SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+// plugin's compatibility window (AP-FR-014) on both the manifest
+// (`AgentCompatibilitySchema`) and the descriptor (`VersionProbeSpecSchema`).
+// Kept dependency-free (the `shared` workspace depends only on `yaml` + `zod`).
+// Unlike `isValidRouboRange` this rejects operators, wildcards, and ranges: a
+// version floor or ceiling is one concrete version.
+//
+// The shape is a BARE `major.minor.patch`, matching the `(\d+\.\d+\.\d+)` the
+// runtime version probe parses (spike #502), with no prerelease and no build
+// metadata. That is not cosmetic: `compareVersions`
+// (server/services/agent-version-probe.ts) does `split(".").map(Number)`, so a
+// suffix lands inside a segment. `"2.1.111-beta.1"` splits to
+// `["2", "1", "111-beta", "1"]` and `Number("111-beta")` is NaN, which reads
+// `false` in every comparison and classifies a detected version `below-floor`
+// for no legible reason (issues #661 and #669). A bound that cannot be compared
+// is worse than no bound, so both schemas refuse the shape up front and turn a
+// silent misclassification into a legible authoring error.
+const EXACT_SEMVER = /^\d+\.\d+\.\d+$/;
 
 export function isExactSemverVersion(version: string): boolean {
   return EXACT_SEMVER.test(version.trim());
-}
-
-// The subset of the above that the runtime version probe can actually COMPARE.
-//
-// `compareVersions` (server/services/agent-version-probe.ts) does
-// `split(".").map(Number)`, so a prerelease or build-metadata suffix lands inside
-// a segment: `"2.1.111-beta.1"` splits to `["2", "1", "111-beta", "1"]` and
-// `Number("111-beta")` is NaN, which reads `false` in every comparison and
-// classifies a detected version `below-floor` for no legible reason (the #661
-// failure mode, reached by a different route). A bound that cannot be compared is
-// worse than no bound, so the version-probe schema refines against THIS predicate
-// rather than `isExactSemverVersion`.
-//
-// `isExactSemverVersion` stays as it is: narrowing it would narrow the manifest's
-// `agentCompatibility` too, which is tracked separately as #669. Once that lands
-// the two predicates collapse back into one.
-const COMPARABLE_SEMVER = /^\d+\.\d+\.\d+$/;
-
-export function isComparableSemverVersion(version: string): boolean {
-  return COMPARABLE_SEMVER.test(version.trim());
 }
 
 // ── Agent compatibility ──
@@ -230,12 +220,18 @@ export const AgentCompatibilitySchema = z
     minVersion: z
       .string()
       .min(1, "Required")
-      .refine(isExactSemverVersion, "Must be an exact semver version")
+      .refine(
+        isExactSemverVersion,
+        "Must be an exact semver version (major.minor.patch, no prerelease or build metadata)",
+      )
       .optional(),
     testedCeiling: z
       .string()
       .min(1, "Required")
-      .refine(isExactSemverVersion, "Must be an exact semver version")
+      .refine(
+        isExactSemverVersion,
+        "Must be an exact semver version (major.minor.patch, no prerelease or build metadata)",
+      )
       .optional(),
     probe: AgentVersionProbeDirectiveSchema.optional(),
   })

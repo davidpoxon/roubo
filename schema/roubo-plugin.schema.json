@@ -113,12 +113,12 @@
         "minVersion": {
           "type": "string",
           "minLength": 1,
-          "description": "Lowest agent-CLI version the plugin supports, as an exact semver version. A launch below this floor is blocked with an actionable message."
+          "description": "Lowest agent-CLI version the plugin supports, as a bare major.minor.patch semver version (no range, no prerelease or build metadata). A launch below this floor is blocked with an actionable message."
         },
         "testedCeiling": {
           "type": "string",
           "minLength": 1,
-          "description": "Highest agent-CLI version the plugin was verified against, as an exact semver version. A launch above it proceeds with a staleness warning."
+          "description": "Highest agent-CLI version the plugin was verified against, as a bare major.minor.patch semver version (no range, no prerelease or build metadata). A launch above it proceeds with a staleness warning."
         },
         "probe": {
           "type": "object",
