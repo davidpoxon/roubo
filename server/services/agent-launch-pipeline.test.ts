@@ -459,6 +459,59 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
     );
   });
 
+  it("resolves a templated descriptor PATH before probing it (#670)", async () => {
+    pluginManagerMocks.invoke.mockResolvedValue(
+      makeDescriptor({
+        capabilities: { versionProbe: VERSION_PROBE },
+        env: { PATH: "{{workspace}}/node_modules/.bin:/usr/bin" },
+      }),
+    );
+    probeMocks.probeAgentVersion.mockResolvedValue({
+      status: "within-tested-range",
+      detectedVersion: "2.1.180",
+    });
+
+    await prepareAgentLaunch(launchParams);
+
+    // An unresolved PATH trips the probe's `{{` backstop, which reports
+    // `probe-failed` and never blocks, so the floor would be skipped entirely.
+    expect(probeMocks.probeAgentVersion).toHaveBeenCalledWith(
+      "claude-code",
+      "claude",
+      VERSION_PROBE,
+      "/workspaces/bench-3/node_modules/.bin:/usr/bin",
+    );
+  });
+
+  it("resolves {{sessionId}} and {{port}} in the probed PATH too (#670)", async () => {
+    pluginManagerMocks.invoke.mockResolvedValue(
+      makeDescriptor({
+        capabilities: { versionProbe: VERSION_PROBE },
+        env: { PATH: "/opt/{{sessionId}}/bin:/opt/{{port}}/bin" },
+      }),
+    );
+    probeMocks.probeAgentVersion.mockResolvedValue({
+      status: "within-tested-range",
+      detectedVersion: "2.1.180",
+    });
+
+    const priorPort = process.env.ROUBO_PORT;
+    process.env.ROUBO_PORT = "4444";
+    try {
+      await prepareAgentLaunch(launchParams);
+    } finally {
+      if (priorPort === undefined) delete process.env.ROUBO_PORT;
+      else process.env.ROUBO_PORT = priorPort;
+    }
+
+    expect(probeMocks.probeAgentVersion).toHaveBeenCalledWith(
+      "claude-code",
+      "claude",
+      VERSION_PROBE,
+      `/opt/${launchParams.sessionId}/bin:/opt/4444/bin`,
+    );
+  });
+
   it("blocks a below-floor launch with an actionable failure (AP-TC-071, AP-TC-100 S001)", async () => {
     descriptorWithProbe();
     probeMocks.probeAgentVersion.mockResolvedValue({

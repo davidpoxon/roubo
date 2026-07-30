@@ -14,6 +14,7 @@ import {
   type AgentNotAvailable,
 } from "./agent-plugin-registry.js";
 import { validateDescriptor } from "./agent-launch-executor.js";
+import { resolveTemplate, type ResolvedTemplateContext } from "./config-parser.js";
 import {
   invalidateAgentVersionProbe,
   probeAgentVersion,
@@ -43,6 +44,12 @@ import { AgentLaunchFailureError, belowFloorFailure } from "./agent-launch-failu
  * are AP-WU-017 / #518); they are accepted here so the AP-FR-011 resolution
  * order is complete and testable rather than retro-fitted later.
  */
+// The port `{{port}}` resolves to when the server has not published its bound
+// port yet. Same fallback terminal.ts and agent-permissions.ts use, so the PATH
+// this half resolves for the version gate matches the one the spawning half
+// resolves for the child.
+const DEFAULT_ROUBO_PORT = "3335";
+
 export interface AgentConfigLayers {
   preset?: Record<string, unknown>;
   perLaunch?: Record<string, unknown>;
@@ -245,11 +252,28 @@ export async function prepareAgentLaunch(
     // so a descriptor-supplied `env.PATH` replaces the host's outright. Handing it
     // to the probe is what keeps the gate reading the binary the launch will spawn
     // rather than a same-named one on the server's PATH (#660).
+    //
+    // It is resolved against the same template context `createAgentSession`
+    // builds, because a descriptor's `env` values are templates and everything
+    // they may reference is already in hand here. Handing the probe the raw
+    // template instead would trip its `{{` backstop and report `probe-failed`,
+    // which never blocks, so a plugin declaring a templated `env.PATH` would get
+    // no floor enforcement at all (#670).
+    const ctx: ResolvedTemplateContext = {
+      ports: {},
+      portHttps: {},
+      workspace: params.workspacePath,
+      components: {},
+      sessionId: params.sessionId,
+      port: process.env.ROUBO_PORT || DEFAULT_ROUBO_PORT,
+    };
     compatibility = await probeAgentVersion(
       params.pluginId,
       descriptor.command,
       probeSpec,
-      descriptor.env?.PATH ?? process.env.PATH,
+      descriptor.env?.PATH !== undefined
+        ? resolveTemplate(descriptor.env.PATH, ctx)
+        : process.env.PATH,
     );
     if (compatibility.status === "below-floor") {
       // The refusal tells the user to update the CLI and launch again, and the
