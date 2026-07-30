@@ -43,7 +43,10 @@ import { mergeAgentConfig } from "./agent-project-overrides.js";
 //    rejects (AP-TC-033) both mark the preset `unresolved` with a message that
 //    names the preset and, for a bad param, the parameter. Launch surfaces
 //    disable such an entry, which is what keeps a dead PTY session from ever
-//    being created for one.
+//    being created for one. The bad-param half of that applies to `app` and
+//    `project` presets only: a built-in can be neither edited nor deleted, so it
+//    degrades instead of dying, dropping the rejected keys and launching with
+//    what is left (issue #654, `withValidatedParams` below).
 
 const DEFAULT_AGENT_TOOL_ICON = "bot";
 
@@ -151,10 +154,15 @@ function unavailable(
  *    edited nor deleted, so a hard rejection would leave two of the three
  *    built-ins permanently unlaunchable. Built-ins therefore degrade: the
  *    rejected keys are dropped from the resolved params (`Agent (Plan)` becomes
- *    plain `Agent`) and the reduced overlay is revalidated, which keeps a
- *    built-in that genuinely cannot be made valid surfaced (issue #654).
- *    `app` and `project` presets keep the hard rejection, because a user can
- *    actually edit those.
+ *    plain `Agent`) and the reduced overlay is revalidated (issue #654). `app`
+ *    and `project` presets keep the hard rejection, because a user can actually
+ *    edit those.
+ *
+ *    Degrading deliberately stops at the dropped keys: an error the drop leaves
+ *    behind ON one of them is swallowed, because plain `Agent` sets no params at
+ *    all and so skips validation entirely, and holding `Agent (Plan)` to a
+ *    stricter bar than `Agent` against the very same agent would resurrect the
+ *    dead built-in this carve-out exists to prevent.
  */
 function withValidatedParams(
   base: ResolvedAgentPreset,
@@ -181,9 +189,11 @@ function withValidatedParams(
     );
     if (rejected.size > 0) {
       overlay = Object.fromEntries(Object.entries(params).filter(([key]) => !rejected.has(key)));
-      // Dropping a key can surface a fresh error (a `required` field the
-      // dropped key was satisfying), so the reduced overlay is revalidated
-      // rather than assumed good.
+      // Dropping a key can invalidate one that was KEPT (a schema whose
+      // `if`/`then` or `dependentRequired` branch turned on the dropped key), so
+      // the reduced overlay is revalidated rather than assumed good. An error
+      // landing back on a dropped key is filtered out by `presetParamErrors`,
+      // which is the intended degrade: see the second carve-out above.
       errors = presetParamErrors(agent, overlay);
     }
   }

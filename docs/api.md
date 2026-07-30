@@ -330,6 +330,8 @@ Returns `{ presets: ResolvedAgentPreset[] }`: the built-in presets Roubo ships, 
 
 Each preset is resolved on read, never stored resolved. A preset bound to `default` carries `bindsDefaultAgent: true` and resolves to whichever agent is the current default, so changing the default changes this response with nothing to invalidate. A preset that cannot launch carries `unresolved: { reason, message }`, where `reason` is one of `agent-unavailable` (the bound plugin is not installed, consented, compatible, or running), `no-default-agent`, or `invalid-params` (the preset's `params` are rejected by the bound agent's `configSchema`). The message names the preset and, for a bad parameter, the parameter.
 
+A built-in preset does not report `invalid-params` for a parameter it can drop, because it cannot be edited to fix one: it degrades instead, dropping the rejected keys, so its resolved `params` may omit keys the stored preset sets and is not always a faithful copy of them. A violation that names no parameter at all (a whole-object schema rule) leaves nothing to drop, so such a built-in does still report `invalid-params`.
+
 ---
 
 ## Inspection
