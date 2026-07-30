@@ -41,8 +41,13 @@ interface Props {
    * What a preset would actually launch. Supplied by the owner rather than
    * recomputed here, exactly as `AgentLaunchMenu` takes it, because it depends on
    * the jig the launch would carry, which only the Terminal tab resolves. Sharing
-   * one resolver is what keeps the dialog and the launch menu from disagreeing
+   * one resolver is what keeps a surface and its own launch from disagreeing
    * about which agent a preset starts, or about whether it may (AP-TC-038).
+   *
+   * For THIS dialog that jig is the bench's own baseline, not the selected
+   * preset's, because an ad-hoc launch never adopts a preset's jig (issue #676).
+   * So the resolver passed here is deliberately not the one the launch menu
+   * gets, and the two may legitimately name different agents for one preset.
    */
   resolveTarget: (preset: ResolvedAgentPreset) => LaunchTarget;
   /** Which preset is pre-selected on open, when it is selectable at all. */

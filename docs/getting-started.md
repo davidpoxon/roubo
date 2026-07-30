@@ -171,7 +171,7 @@ Every installed `agent`-kind plugin gets its own card, and every card renders a 
 - Layers resolve in that order and later layers win field by field. So an app default of `model=opus` with a project override of `model=sonnet`, a preset setting `effort=max` and this launch setting `mode=auto` launches with `model=sonnet`, `effort=max` and `mode=auto`.
 - **Launch session** starts one session with those parameters. **Cancel** discards the draft completely. Neither writes anything: nothing here reaches **Settings > AI Agents** or a project's **Agent overrides**, and reopening the dialog starts from inherit again.
 - Only agents that can actually launch are offered, on the same rule as the rest of the launch menu. With no agent installed and configured the menu entry is disabled rather than opening onto an empty picker.
-- Which jig the session carries is unchanged: the bench's usual auto-inject behaviour applies, exactly as it does for the split button. Selecting a preset here contributes that preset's parameters only, not its own jig.
+- Which jig the session carries is unchanged: the bench's usual auto-inject behaviour applies, exactly as it does for the split button. Selecting a preset here contributes that preset's parameters only, not its own jig. The **Agent** select follows suit: it reads the agent binding of the bench's own jig, not of the jig the selected preset names, so it always shows the agent this launch really starts. A preset whose own jig binds a different agent can therefore name one agent in the launch menu and another here.
 
 ## Next steps
 

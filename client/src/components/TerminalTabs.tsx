@@ -364,21 +364,43 @@ export default function TerminalTabs({
   );
 
   /**
-   * What a preset would actually launch, resolved through the jig it would
-   * carry (AP-FR-006, AP-TC-038). One function behind the menu row, the
-   * split-button and the launch handler, so all three always agree about the
-   * agent, the summary and the disabled state.
+   * What a preset would launch under a GIVEN jig. A jig's own agent binding
+   * beats the default agent, so the answer only holds against the jig the
+   * launch really carries, and that jig is the one thing the launch surfaces
+   * disagree about (see the two resolvers below).
    */
-  const targetFor = useCallback(
-    (preset: ResolvedAgentPreset) => {
-      const boundId = jigForLaunch(resolveLaunchJigId(preset.jig))?.agentPluginId;
+  const targetForJig = useCallback(
+    (preset: ResolvedAgentPreset, jigId: string | undefined) => {
+      const boundId = jigForLaunch(jigId)?.agentPluginId;
       return resolveLaunchTarget(
         preset,
         agents,
         boundId ? agents.find((agent) => agent.id === boundId) : undefined,
       );
     },
-    [agents, jigForLaunch, resolveLaunchJigId],
+    [agents, jigForLaunch],
+  );
+
+  /**
+   * What a preset would actually launch, resolved through the jig it would
+   * carry (AP-FR-006, AP-TC-038). One function behind the menu row, the
+   * split-button and the launch handler, so all three always agree about the
+   * agent, the summary and the disabled state.
+   */
+  const targetFor = useCallback(
+    (preset: ResolvedAgentPreset) => targetForJig(preset, resolveLaunchJigId(preset.jig)),
+    [targetForJig, resolveLaunchJigId],
+  );
+
+  /**
+   * The same question for the overrides dialog, whose launch carries the
+   * bench's own jig baseline rather than the selected preset's jig (issue
+   * #676). Reusing `targetFor` there would point the dialog's Agent select at
+   * an agent bound by a jig the session never runs under.
+   */
+  const overridesTargetFor = useCallback(
+    (preset: ResolvedAgentPreset) => targetForJig(preset, resolveLaunchJigId()),
+    [targetForJig, resolveLaunchJigId],
   );
 
   const handleLaunchPreset = useCallback(
@@ -440,8 +462,9 @@ export default function TerminalTabs({
         // preset selection contributes params only (issue #668): adopting the
         // selected preset's own jig would change how the layers combine, not
         // which preset feeds layer three, so it is deliberately left alone.
-        // That leaves the dialog's Agent select resolved through a jig this
-        // launch does not carry, tracked in #676.
+        // The dialog resolves its own targets through this same baseline
+        // (`overridesTargetFor`), so its Agent select names the agent this
+        // launch really starts (issue #676).
         jigId: resolveLaunchJigId(),
         ...(selection.presetOverrides !== undefined && {
           presetOverrides: selection.presetOverrides,
@@ -552,7 +575,7 @@ export default function TerminalTabs({
           isOpen
           agents={agents}
           presets={presets}
-          resolveTarget={targetFor}
+          resolveTarget={overridesTargetFor}
           initialPresetId={defaultPreset?.id ?? null}
           onCancel={() => setOverridesOpen(false)}
           onLaunch={handleLaunchWithOverrides}
