@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isComparableSemverVersion } from "./plugin-manifest-schema.js";
 
 // Issue #507 / AP-FR-001: the typed AgentLaunchDescriptor an agent plugin emits
 // from `translateLaunch` and the host executes. See:
@@ -118,13 +119,43 @@ export type NotificationWiring = z.infer<typeof NotificationWiringSchema>;
 // Generalizes server/services/claude-version.ts: the probe args, the semver
 // extraction, an optional floor a launch is blocked below, and an optional
 // tested ceiling a launch warns above (AP-FR-014).
+//
+// Both bounds must be a bare `major.minor.patch` version, because this schema is
+// the only guarantee `classifyVersion` has. `compareVersions` does
+// `split(".").map(Number)`, so anything it cannot turn into three numbers yields
+// NaN, every comparison reads false, and the agent is hard blocked as
+// `below-floor` for every detected version with a message naming a floor the user
+// cannot act on. Rejecting the bound here turns that silent misclassification
+// into a legible authoring error (issue #661).
+//
+// The refinement is `isComparableSemverVersion`, NOT the `isExactSemverVersion`
+// that AgentCompatibilitySchema uses on the manifest side: the latter also admits
+// prerelease and build metadata, which `compareVersions` cannot compare either.
+// The manifest side still admits those, which is tracked as #669; when it is
+// narrowed the two predicates collapse into one and both schemas agree again.
+// Until then this is deliberately the stricter of the two, since docs/plugin-sdk.md
+// tells authors to declare the same window in both places.
 
 export const VersionProbeSpecSchema = z
   .object({
     args: z.array(z.string()).min(1),
     parse: z.literal("semver"),
-    minVersion: z.string().min(1).optional(),
-    testedCeiling: z.string().min(1).optional(),
+    minVersion: z
+      .string()
+      .min(1)
+      .refine(
+        isComparableSemverVersion,
+        "Must be an exact semver version (major.minor.patch, no prerelease or build metadata)",
+      )
+      .optional(),
+    testedCeiling: z
+      .string()
+      .min(1)
+      .refine(
+        isComparableSemverVersion,
+        "Must be an exact semver version (major.minor.patch, no prerelease or build metadata)",
+      )
+      .optional(),
   })
   .strict();
 export type VersionProbeSpec = z.infer<typeof VersionProbeSpecSchema>;

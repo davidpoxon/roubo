@@ -14,6 +14,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
   Host behaviour is unchanged; only the declared contract moved, and no first-party code validated against the old shape. It is listed as breaking because the correction narrows the published `0.2.0` type in both directions: a value with no `rules` no longer satisfies `AgentPermissionsModel`, so a plugin that annotated one (for example `{ posture: "guarded" }`) must add `rules`; and `posture` is now optional, so a plugin that read it as non-nullable must handle `undefined`. Both are source-level only, and the wire payload the host sends is exactly what it always was.
 
+- **A version-probe bound must now be a bare `major.minor.patch` version** (#661). `VersionProbeSpecSchema` (`@roubo/shared/agent-launch-descriptor-schema`) accepted any non-empty string for `minVersion` and `testedCeiling`. The host compares a bound to the detected CLI version numerically, segment by segment, so a bound it could not parse that way (`v2.1.111`, `2.1`, `>=2.1.0`, or a prerelease or build-metadata suffix such as `2.1.111-beta.1`) silently compared as `NaN`: the floor half then classified every detected version `below-floor` and **hard-blocked every launch of that agent**, naming a floor the user could do nothing about.
+
+  Such a bound is now rejected when the descriptor is validated, as an `AgentDescriptorError` naming the offending field. An agent plugin that declared one against `0.2.0` must correct it to `major.minor.patch`; it was never functional, so the practical effect is that a launch which used to fail mysteriously now fails with an error the author can act on. Manifest `agentCompatibility` bounds already required exact semver, so the two declarations agree again, other than a manifest prerelease suffix, which is tracked as #669.
+
 ## [0.2.0] - 2026-07-29
 
 Adds the **agent plugin contract**, a third plugin kind alongside integration and component. An agent plugin teaches Roubo to launch and supervise an AI coding agent CLI without the host hardcoding anything about that tool.

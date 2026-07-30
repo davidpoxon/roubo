@@ -138,7 +138,7 @@ agentCompatibility:
     parse: semver
 ```
 
-`minVersion` and `testedCeiling` are optional and each must be an exact semver version (`major.minor.patch`, not a range). The whole block is optional, so integration and component manifests, and agent manifests that omit it, validate unchanged.
+`minVersion` and `testedCeiling` are optional and each must be an exact semver version (`major.minor.patch`, not a range). The whole block is optional, so integration and component manifests, and agent manifests that omit it, validate unchanged. Declare a bare `major.minor.patch` here: a prerelease or build-metadata suffix currently validates in the manifest but is rejected on the descriptor, which declares the same window (see [The version probe and its gate](#the-version-probe-and-its-gate)), and the host cannot compare it either way.
 
 `probe` carries the three fields the host needs to run the CLI itself: `command` (a bare name or an absolute path, resolved the same way a launch resolves it), `args` (spawned as argv, never through a shell), and `parse`, which is always `semver` and scans for the first `major.minor.patch` anywhere in the merged stdout and stderr. All three are required when `probe` is present.
 
@@ -261,7 +261,7 @@ There are four verdicts:
 | `below-floor`          | `v < minVersion`                                                                          | **Refuses**, before anything is spawned and before any workspace write, naming the detected version and the floor. |
 | `probe-failed`         | Binary unresolvable, `command` or launch `PATH` still templated, or output has no version | Launches, with a notice saying the check did not run. A probe that cannot decide never blocks.                     |
 
-Both bounds are inclusive and both are optional: a probe with no `minVersion` can never block, and one with no `testedCeiling` can never warn. The ceiling is deliberately non-blocking, because agent CLIs ship weekly and refusing to run on an unrecognised newer version would age far worse than a warning does. It still earns its keep: when a launch above the ceiling fails, the host attributes the failure to a probably-stale argument map rather than leaving the user guessing.
+Both bounds are inclusive and both are optional, and each must be a bare `major.minor.patch` version: not a range, not `v`-prefixed, and no prerelease or build-metadata suffix. The host compares a bound to the detected version numerically, one dot-separated segment at a time, so anything outside that shape is uncomparable. Such a bound is rejected when the descriptor is validated, naming the offending field, rather than silently reading as a floor nothing satisfies. A probe with no `minVersion` can never block, and one with no `testedCeiling` can never warn. The ceiling is deliberately non-blocking, because agent CLIs ship weekly and refusing to run on an unrecognised newer version would age far worse than a warning does. It still earns its keep: when a launch above the ceiling fails, the host attributes the failure to a probably-stale argument map rather than leaving the user guessing.
 
 ### When a launch fails
 
