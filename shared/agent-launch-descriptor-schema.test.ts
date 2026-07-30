@@ -248,40 +248,53 @@ describe("VersionProbeSpec", () => {
 
   // Issue #661: a bound the semver comparison cannot parse used to be accepted
   // here and then classified `below-floor` for every detected version, hard
-  // blocking the agent with a misleading message. Both bounds now carry the same
-  // exact-semver refinement AgentCompatibilitySchema applies on the manifest side.
-  it.each(["v2.1.111", "2.1", ">=2.1.0", "^2.1.0", "2.1.x", "latest"])(
-    "rejects a non-exact-semver minVersion (%s)",
-    (minVersion) => {
-      const result = VersionProbeSpecSchema.safeParse({
-        args: ["--version"],
-        parse: "semver",
-        minVersion,
-      });
-      expect(result.success).toBe(false);
-      expect(result.error?.issues[0]?.path).toEqual(["minVersion"]);
-    },
-  );
+  // blocking the agent with a misleading message. Both bounds now refine against
+  // what `compareVersions` can actually turn into three numbers.
+  //
+  // The prerelease and build-metadata cases are the reason this is
+  // `isComparableSemverVersion` and not the manifest side's
+  // `isExactSemverVersion`: `"2.1.111-beta.1".split(".")` yields a `"111-beta"`
+  // segment that `Number` reads as NaN, so such a bound is just as uncomparable as
+  // `v2.1.111` even though it is valid semver. The manifest side still admits
+  // them (#669).
+  const UNCOMPARABLE_BOUNDS = [
+    "v2.1.111",
+    "2.1",
+    "2",
+    ">=2.1.0",
+    "^2.1.0",
+    "2.1.x",
+    "latest",
+    "2.1.111-beta.1",
+    "2.1.111+build.5",
+  ];
 
-  it.each(["v2.1.207", "2.1", ">=2.1.0", "^2.1.0", "2.1.x", "latest"])(
-    "rejects a non-exact-semver testedCeiling (%s)",
-    (testedCeiling) => {
-      const result = VersionProbeSpecSchema.safeParse({
-        args: ["--version"],
-        parse: "semver",
-        testedCeiling,
-      });
-      expect(result.success).toBe(false);
-      expect(result.error?.issues[0]?.path).toEqual(["testedCeiling"]);
-    },
-  );
+  it.each(UNCOMPARABLE_BOUNDS)("rejects an uncomparable minVersion (%s)", (minVersion) => {
+    const result = VersionProbeSpecSchema.safeParse({
+      args: ["--version"],
+      parse: "semver",
+      minVersion,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["minVersion"]);
+  });
 
-  it("accepts prerelease and build-metadata bounds, which exact semver allows", () => {
+  it.each(UNCOMPARABLE_BOUNDS)("rejects an uncomparable testedCeiling (%s)", (testedCeiling) => {
+    const result = VersionProbeSpecSchema.safeParse({
+      args: ["--version"],
+      parse: "semver",
+      testedCeiling,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["testedCeiling"]);
+  });
+
+  it("accepts a bare major.minor.patch window on both bounds", () => {
     const spec = {
       args: ["--version"],
       parse: "semver" as const,
-      minVersion: "2.1.111-beta.1",
-      testedCeiling: "2.1.207+build.5",
+      minVersion: "2.1.111",
+      testedCeiling: "2.1.207",
     };
     expect(VersionProbeSpecSchema.parse(spec)).toEqual(spec);
   });

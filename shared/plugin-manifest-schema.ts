@@ -176,6 +176,26 @@ export function isExactSemverVersion(version: string): boolean {
   return EXACT_SEMVER.test(version.trim());
 }
 
+// The subset of the above that the runtime version probe can actually COMPARE.
+//
+// `compareVersions` (server/services/agent-version-probe.ts) does
+// `split(".").map(Number)`, so a prerelease or build-metadata suffix lands inside
+// a segment: `"2.1.111-beta.1"` splits to `["2", "1", "111-beta", "1"]` and
+// `Number("111-beta")` is NaN, which reads `false` in every comparison and
+// classifies a detected version `below-floor` for no legible reason (the #661
+// failure mode, reached by a different route). A bound that cannot be compared is
+// worse than no bound, so the version-probe schema refines against THIS predicate
+// rather than `isExactSemverVersion`.
+//
+// `isExactSemverVersion` stays as it is: narrowing it would narrow the manifest's
+// `agentCompatibility` too, which is tracked separately as #669. Once that lands
+// the two predicates collapse back into one.
+const COMPARABLE_SEMVER = /^\d+\.\d+\.\d+$/;
+
+export function isComparableSemverVersion(version: string): boolean {
+  return COMPARABLE_SEMVER.test(version.trim());
+}
+
 // ── Agent compatibility ──
 
 // An agent plugin declares the agent-CLI compatibility window the host probes
