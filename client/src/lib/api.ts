@@ -435,6 +435,13 @@ export function fetchAgentPresets(projectId: string): Promise<AgentPresetsRespon
   return request(`/projects/${projectId}/agent-presets`);
 }
 
+// The same list without a project layer: built-ins plus app-level presets,
+// resolved by the same server service, for the app-level Settings listing
+// (issue #672).
+export function fetchAppAgentPresets(): Promise<AgentPresetsResponse> {
+  return request("/agents/presets");
+}
+
 // Container assignment
 export function assignContainer(
   projectId: string,

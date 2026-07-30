@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { AgentPluginState, AgentPluginsResponse, PluginManifest } from "@roubo/shared";
+import type {
+  AgentPluginState,
+  AgentPluginsResponse,
+  AgentPresetsResponse,
+  PluginManifest,
+} from "@roubo/shared";
 import {
   describeAgentNotAvailable,
   isAgentNotAvailable,
@@ -14,6 +19,7 @@ import {
 } from "../services/agent-overrides.js";
 import { validateAgentConfig } from "../services/agent-config-validator.js";
 import { buildCompatibilityState, warmAgentVersion } from "../services/agent-version-probe.js";
+import { listAgentPresets } from "../services/agent-presets.js";
 
 // App-level agent configuration API (AP-FR-002, AP-FR-003, issue #508).
 //
@@ -21,6 +27,10 @@ import { buildCompatibilityState, warmAgentVersion } from "../services/agent-ver
 // plugins with each one's declared configSchema and saved defaults, plus the
 // per-plugin read/write of those defaults. Every plugin is addressed by id, so
 // the routes are as isolated as the files behind them (AP-TC-003, AP-TC-009).
+//
+// It also serves the app-scoped resolved-preset list the Settings agent tools
+// listing reads (issue #672), which belongs here rather than under a project
+// because app settings has no project in scope.
 
 const router = Router();
 
@@ -77,6 +87,19 @@ function toState(manifest: PluginManifest): AgentPluginState {
 // screen renders its empty state from it (AP-TC-012).
 router.get("/", (_req, res) => {
   const body: AgentPluginsResponse = { agents: listAgents().map(toState) };
+  res.json(body);
+});
+
+// The app-scoped sibling of GET /api/projects/:projectId/agent-presets (issue
+// #672). Same service, same envelope, minus the project layer: built-ins and
+// app-level presets only, which is exactly the pair Settings lists. It exists so
+// the app-level listing can read the server's advisory `degraded` field instead
+// of re-deriving the drop client-side, which would fork preset resolution into a
+// second implementation.
+//
+// No path conflict with `/:id/config`: that one is two segments, this is one.
+router.get("/presets", (_req, res) => {
+  const body: AgentPresetsResponse = { presets: listAgentPresets() };
   res.json(body);
 });
 
