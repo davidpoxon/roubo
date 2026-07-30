@@ -43,18 +43,6 @@ async function registerProject(request: APIRequestContext): Promise<void> {
   expect(res.status(), "register config-flow fixture project").toBe(201);
   const body = (await res.json()) as { id: string };
   expect(body.id).toBe(PROJECT_ID);
-
-  // Pin the active plugin in the per-user override. The Configure dialog's save
-  // (PUT /integration/config) refuses with 409 "no-active-integration" unless
-  // the active plugin lives in the override, since that is what the Switch flow
-  // establishes. This models a developer whose integration is already active;
-  // the TEAM DEFAULT sources still live only in the committed roubo.yaml (the
-  // override carries no `sources` key), so the developer "has not customized
-  // sources" yet, satisfying the TC-028 precondition.
-  const pin = await request.put(`/api/projects/${PROJECT_ID}/integration/override`, {
-    data: { plugin: "e2e-stub" },
-  });
-  expect(pin.status(), "pin active plugin in override").toBe(200);
 }
 
 test.beforeEach(async ({ request }) => {

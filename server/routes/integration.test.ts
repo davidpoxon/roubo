@@ -120,6 +120,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
   vi.mocked(integrationOverrides.loadOverride).mockReturnValue(null);
+  // `clearAllMocks` clears recorded calls but keeps implementations, so a test
+  // that makes saveOverride throw would otherwise leak that into every later
+  // test. Reset it back to the inert default here.
+  vi.mocked(integrationOverrides.saveOverride).mockReset();
   vi.mocked(integrationOverrides.loadGlobalOverride).mockReturnValue(null);
   vi.mocked(integrationOverrides.getEffectiveWithGlobal).mockImplementation(
     (committed, projectOverride) => ({
@@ -858,6 +862,77 @@ describe("PUT /:projectId/integration/config", () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("no-active-integration");
+  });
+
+  // Issue #1069: the guard is layer-aware, so a project whose active plugin
+  // comes from the committed roubo.yaml saves without a per-project override
+  // file having to exist first.
+  it("saves when the active plugin comes from the committed layer only (issue #1069)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "ghe", instance: "https://ghe-a.example.com" }),
+    );
+    // loadOverride defaults to null: no per-project override file yet.
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ instance: "https://ghe-b.example.com" });
+
+    expect(res.status).toBe(200);
+    expect(integrationOverrides.saveOverride).toHaveBeenCalledTimes(1);
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.instance).toBe("https://ghe-b.example.com");
+  });
+
+  // The first write must not copy the plugin id into the per-project override:
+  // that would shadow the committed value, so a later roubo.yaml plugin change
+  // would be silently ignored for this user.
+  it("does not persist the resolved plugin into the override on the first write (issue #1069)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "ghe", instance: "https://ghe-a.example.com" }),
+    );
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ excludedStatusCategories: ["Done"] });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration).not.toHaveProperty("plugin");
+  });
+
+  // The global layer cannot establish a plugin id on its own, but it can supply
+  // config for a plugin the committed layer already names. That combination
+  // must save too.
+  it("saves when the committed layer names the plugin and the global layer supplies config (issue #1069)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "ghe" }));
+    vi.mocked(integrationOverrides.getEffectiveWithGlobal).mockReturnValue({
+      plugin: "ghe",
+      instance: "https://ghe-global.example.com",
+    });
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ excludedStatusCategories: ["Done"] });
+
+    expect(res.status).toBe(200);
+    const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
+    expect(saved.integration.excludedStatusCategories).toEqual(["Done"]);
+  });
+
+  // Secondary fix in the same handler: the eviction gate compares against the
+  // EFFECTIVE instance, so re-sending the committed instance from an
+  // override-less project is not treated as a reconfiguration.
+  it("does not evict when the payload repeats the committed instance (issue #1069)", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ plugin: "ghe", instance: "https://ghe-a.example.com" }),
+    );
+
+    const res = await request(app)
+      .put("/demo/integration/config")
+      .send({ instance: "https://ghe-a.example.com" });
+
+    expect(res.status).toBe(200);
+    expect(cutListQueryService.evictProject).not.toHaveBeenCalled();
   });
 
   it("rejects an unknown top-level key with 400", async () => {
