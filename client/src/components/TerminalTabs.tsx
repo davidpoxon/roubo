@@ -20,6 +20,7 @@ import Terminal from "./Terminal";
 import NotificationIndicator from "./NotificationIndicator";
 import AgentLaunchMenu from "./AgentLaunchMenu";
 import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
+import LaunchOverridesDialog, { type LaunchOverridesSelection } from "./LaunchOverridesDialog";
 import { agentLaunchBlocker, resolveLaunchTarget } from "./settings/agents/agent-launchability";
 import { agentTextClass } from "./settings/agents/agent-color";
 import {
@@ -167,6 +168,12 @@ export default function TerminalTabs({
   // the terminal pane itself. Without this the only surface would be a toast,
   // which is exactly the silent-failure shape AP-NFR-003 rules out.
   const [blockedLaunch, setBlockedLaunch] = useState<AgentLaunchFailure | null>(null);
+  // The per-launch override dialog (issue #518). The counter is the remount key:
+  // each open mounts a fresh form, so a cancelled draft is unrecoverable rather
+  // than merely hidden, which is what makes "nothing is persisted" structural
+  // rather than a cleanup step that can be forgotten (AP-TC-034).
+  const [overridesOpen, setOverridesOpen] = useState(false);
+  const [overridesKey, setOverridesKey] = useState(0);
   const currentSessions = useMemo(() => sessions ?? [], [sessions]);
 
   // Derive activeTab: prefer user selection if valid, fall back to first session
@@ -229,6 +236,7 @@ export default function TerminalTabs({
         agentName: string;
         jigId?: string;
         presetOverrides?: Record<string, unknown>;
+        perLaunchOverrides?: Record<string, unknown>;
       }
     | null
   >(null);
@@ -285,11 +293,13 @@ export default function TerminalTabs({
       agentName,
       jigId,
       presetOverrides,
+      perLaunchOverrides,
     }: {
       agentPluginId: string;
       agentName: string;
       jigId?: string;
       presetOverrides?: Record<string, unknown>;
+      perLaunchOverrides?: Record<string, unknown>;
     }) => {
       lastLaunchRef.current = {
         kind: "agent",
@@ -297,6 +307,7 @@ export default function TerminalTabs({
         agentName,
         jigId,
         ...(presetOverrides !== undefined && { presetOverrides }),
+        ...(perLaunchOverrides !== undefined && { perLaunchOverrides }),
       };
       createTerminal.mutate(
         {
@@ -305,6 +316,7 @@ export default function TerminalTabs({
           jigId,
           agentPluginId,
           ...(presetOverrides !== undefined && { presetOverrides }),
+          ...(perLaunchOverrides !== undefined && { perLaunchOverrides }),
         },
         {
           onSuccess: (response) => {
@@ -407,6 +419,38 @@ export default function TerminalTabs({
     [launchAgent, resolveLaunchJigId, addToast],
   );
 
+  const handleOpenOverrides = useCallback(() => {
+    setOverridesKey((key) => key + 1);
+    setOverridesOpen(true);
+  }, []);
+
+  /**
+   * Launch the dialog's draft as the transient top layer (AP-FR-010, AP-FR-011).
+   * The draft is sent with the request and nowhere else, so neither a cancelled
+   * nor a launched one-off value reaches app or project configuration
+   * (AP-TC-034).
+   */
+  const handleLaunchWithOverrides = useCallback(
+    (selection: LaunchOverridesSelection) => {
+      setOverridesOpen(false);
+      launchAgent({
+        agentPluginId: selection.agentPluginId,
+        agentName: selection.agentName,
+        // An ad-hoc launch carries the bench's own jig baseline: the dialog
+        // names an agent directly rather than a preset, so there is no preset
+        // jig to override it with.
+        jigId: resolveLaunchJigId(),
+        ...(selection.presetOverrides !== undefined && {
+          presetOverrides: selection.presetOverrides,
+        }),
+        ...(Object.keys(selection.perLaunchOverrides).length > 0 && {
+          perLaunchOverrides: selection.perLaunchOverrides,
+        }),
+      });
+    },
+    [launchAgent, resolveLaunchJigId],
+  );
+
   const handleDestroy = useCallback(
     (sessionId: string) => {
       destroyTerminal.mutate({ projectId, benchId, sessionId });
@@ -492,11 +536,24 @@ export default function TerminalTabs({
       resolveTarget={targetFor}
       onLaunchPreset={handleLaunchPreset}
       onLaunchAgent={handleLaunchAgentPlugin}
+      onLaunchWithOverrides={handleOpenOverrides}
     />
   );
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      {/* Per-launch overrides (issue #518). Keyed so each open is a fresh form. */}
+      {overridesOpen && (
+        <LaunchOverridesDialog
+          key={overridesKey}
+          isOpen
+          agents={agents}
+          preset={defaultPreset ?? null}
+          onCancel={() => setOverridesOpen(false)}
+          onLaunch={handleLaunchWithOverrides}
+        />
+      )}
+
       {/* Tab bar */}
       <div className="flex items-center border-b border-stone-200 dark:border-stone-800/60 shrink-0">
         <div className="flex items-center gap-0.5 overflow-x-auto px-1 py-1">

@@ -312,6 +312,70 @@ describe("TerminalTabs: agent launch and jig resolution", () => {
     );
   });
 
+  // Issue #518: the dialog is the producer of the transient fourth layer, so the
+  // whole chain (menu action -> dialog -> mutation payload) is asserted here.
+  // Without `perLaunchOverrides` reaching the request the layer the server
+  // already merges would have no producer at all (AP-TC-030).
+  it("carries the override dialog's draft as perLaunchOverrides", () => {
+    setupMocks({ autoInject: false });
+    renderWithProviders(
+      <TerminalTabs
+        projectId="project1"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Choose launch option" })[0]);
+    });
+    act(() => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /Launch with overrides/ }));
+    });
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText("Mode"), { target: { value: "auto" } });
+    });
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentPluginId: "claude-code",
+        perLaunchOverrides: { mode: "auto" },
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("sends no perLaunchOverrides when the dialog's fields are left inheriting", () => {
+    setupMocks({ autoInject: false });
+    renderWithProviders(
+      <TerminalTabs
+        projectId="project1"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Choose launch option" })[0]);
+    });
+    act(() => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /Launch with overrides/ }));
+    });
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    const payload = mockCreateMutate.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.agentPluginId).toBe("claude-code");
+    expect("perLaunchOverrides" in payload).toBe(false);
+  });
+
   it("launches an All-agents entry directly", () => {
     setupMocks({ autoInject: false });
     renderWithProviders(
