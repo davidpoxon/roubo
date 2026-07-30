@@ -58,7 +58,7 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     bundled overlay under ROUBO_BUNDLED_PLUGINS_DIR (an agent-kind stub whose
 //     configSchema mirrors the real plugin) plus the `roubo-e2e-claude-stub`
 //     binary on the server's PATH, which captures the spawned child's own argv
-//     into ROUBO_E2E_AGENT_ARGV_LOG.
+//     to AGENT_ARGV_LOG_PATH whenever ROUBO_E2E_AGENT_ARGV_LOG is set.
 //   - project-settings: same built-app surface, holds the WU-068 specs
 //     (TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
@@ -158,10 +158,10 @@ export default defineConfig({
         ROUBO_E2E: "1",
         ROUBO_USER_PLUGINS_DIR: E2E_USER_PLUGINS_DIR,
         ROUBO_BUNDLED_PLUGINS_DIR: E2E_BUNDLED_PLUGINS_DIR,
-        // AP-TC-087 (#531): make `roubo-e2e-claude-stub` resolvable, and tell it
-        // where to write the spawned child's argv. `resolveShellPath()` merges the
-        // login shell's PATH by prepending only entries this value does not
-        // already carry, so the fixture dir survives that merge.
+        // AP-TC-087 (#531): make `roubo-e2e-claude-stub` resolvable, and switch on
+        // its argv capture. `resolveShellPath()` merges the login shell's PATH by
+        // prepending only entries this value does not already carry, so the fixture
+        // dir survives that merge.
         PATH: [E2E_FIXTURE_BIN_DIR, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter),
         ROUBO_E2E_AGENT_ARGV_LOG: AGENT_ARGV_LOG_PATH,
         // Neutralise host-app env inherited by bench terminals (issue #877):

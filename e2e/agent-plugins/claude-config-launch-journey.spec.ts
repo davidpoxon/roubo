@@ -39,8 +39,8 @@ const observe = makeObserve("AP-TC-087");
 // would assert our own arithmetic rather than the child's reality. The overlay's
 // descriptor therefore names a stub binary (e2e/fixtures/bin/roubo-e2e-claude-stub,
 // deliberately NOT called `claude` so a real install cannot win the PATH lookup)
-// which writes its OWN `process.argv.slice(2)` as JSON to
-// $ROUBO_E2E_AGENT_ARGV_LOG. Asserting over that array is direct evidence for all
+// which writes its OWN `process.argv.slice(2)` as JSON to AGENT_ARGV_LOG_PATH,
+// the one path both sides import. Asserting over that array is direct evidence for all
 // three S008 observations, including "no shell interpretation": a shell would have
 // re-split or expanded the tokens before the child ever saw them.
 

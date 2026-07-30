@@ -19,13 +19,13 @@
 //   --version   print a version inside the overlay's declared compatibility
 //               window and exit 0, so the pre-launch version gate resolves
 //               `within-tested-range` and the launch proceeds.
-//   otherwise   write argv (everything after the script path) as JSON to the
-//               argv log, then idle so the PTY session stays live and the host
-//               classifies no early-exit failure.
+//   otherwise   write argv (everything after the script path) as JSON to
+//               AGENT_ARGV_LOG_PATH, then idle so the PTY session stays live and
+//               the host classifies no early-exit failure.
 //
-// The log is written only when $ROUBO_E2E_AGENT_ARGV_LOG is present AND names the
-// path this file derives for itself, so the variable gates the write without
-// choosing where it lands (see ARGV_LOG_PATH below).
+// $ROUBO_E2E_AGENT_ARGV_LOG gates the write but does not choose where it lands:
+// the destination is the shared AGENT_ARGV_LOG_PATH constant, imported below. An
+// environment variable is untrusted input and must not steer a filesystem path.
 //
 // The version-probe path never writes the log: it exits before the write, and
 // `runCommand` strips every ROUBO_* variable from the probe's environment, so
@@ -34,22 +34,16 @@
 // ESM: the file has no extension, so Node resolves its module type from the
 // nearest package.json, and roubo/package.json declares `"type": "module"`.
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+
+// The one file this stub will ever write. Defined once, in plain ESM, so this
+// binary and the spec's TypeScript support module cannot disagree about where the
+// argv lands: a drifted second copy would surface as a spec that reads no argv
+// and blames the launch.
+import { AGENT_ARGV_LOG_PATH } from "../../agent-plugins/_support/argv-log-path.mjs";
 
 // Inside the overlay's declared window (floor 2.1.111, tested ceiling 2.1.207),
 // so the gate neither blocks the launch nor emits a staleness notice.
 const STUB_VERSION = "2.1.150";
-
-// The one file this stub will ever write, built entirely from constants. It has
-// to agree with AGENT_ARGV_LOG_PATH in ../../agent-plugins/_support/argv-log.ts,
-// which cannot be imported here: that module is TypeScript and this binary runs
-// straight off disk with no build step. $ROUBO_E2E_AGENT_ARGV_LOG is therefore
-// treated as an assertion about the channel rather than as the destination, and a
-// mismatch is reported below instead of honoured. Deriving the path locally is
-// also what keeps an environment variable, which is untrusted input, out of a
-// filesystem path expression: nothing this process is told can steer the write.
-const ARGV_LOG_PATH = path.join(os.tmpdir(), "roubo-e2e-agent-argv.json");
 
 const argv = process.argv.slice(2);
 
@@ -58,19 +52,12 @@ if (argv.includes("--version")) {
   process.exit(0);
 }
 
-const requestedLogPath = process.env.ROUBO_E2E_AGENT_ARGV_LOG;
-if (requestedLogPath && path.resolve(requestedLogPath) === ARGV_LOG_PATH) {
+if (process.env.ROUBO_E2E_AGENT_ARGV_LOG) {
   try {
-    fs.writeFileSync(ARGV_LOG_PATH, `${JSON.stringify(argv)}\n`, "utf-8");
+    fs.writeFileSync(AGENT_ARGV_LOG_PATH, `${JSON.stringify(argv)}\n`, "utf-8");
   } catch (err) {
     process.stderr.write(`roubo-e2e-claude-stub: could not write argv log: ${err.message}\n`);
   }
-} else if (requestedLogPath) {
-  // Loud, because the alternative is a spec that reads no argv and blames the
-  // launch. This means the two definitions of the channel have drifted.
-  process.stderr.write(
-    `roubo-e2e-claude-stub: refusing argv log path ${requestedLogPath}, expected ${ARGV_LOG_PATH}\n`,
-  );
 }
 
 // A line of output so the session reads as a live agent rather than a silent
