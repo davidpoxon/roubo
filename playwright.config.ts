@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
+import { AGENT_ARGV_LOG_PATH } from "./e2e/agent-plugins/_support/argv-log.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // The stubbed plugin (WU-060) lives outside the bundled `plugins/` tree; the
@@ -18,6 +19,12 @@ const E2E_USER_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures");
 // `plugin.id === ...` UI branches (PluginConfigureDialog: integration-fields
 // section, OAuth section, instance handling) activate as they would in prod.
 const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bundled-overlays");
+// AP-TC-087 (#531): the `claude-code` bundled overlay's launch descriptor and
+// version probe both name `roubo-e2e-claude-stub`, which lives here. Prepending
+// this directory to the server's PATH is what makes the stub resolvable to
+// `resolveAgentCommand` (and to the probe) without installing anything. The stub
+// is deliberately NOT named `claude`, so prepending cannot shadow a real CLI.
+const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 
 // Four surfaces share one config:
 //   - dev-fixture: drives Vite-served component fixtures (the Enable-plugin
@@ -46,6 +53,12 @@ const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bund
 //     and built under e2e/fixtures/ so plugin-manager discovers it via
 //     ROUBO_USER_PLUGINS_DIR, and on `/test/__register-fixture-project`'s
 //     `componentPlugin` option to bind a `deploy` component to it.
+//   - agent-plugins: same built-app surface, holds the AP-TC-087 (#531)
+//     configure-Claude-then-launch drift guard. Relies on the `claude-code`
+//     bundled overlay under ROUBO_BUNDLED_PLUGINS_DIR (an agent-kind stub whose
+//     configSchema mirrors the real plugin) plus the `roubo-e2e-claude-stub`
+//     binary on the server's PATH, which captures the spawned child's own argv
+//     into ROUBO_E2E_AGENT_ARGV_LOG.
 //   - project-settings: same built-app surface, holds the WU-068 specs
 //     (TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
@@ -122,6 +135,11 @@ export default defineConfig({
       testMatch: ["component-plugins/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
     },
+    {
+      name: "agent-plugins",
+      testMatch: ["agent-plugins/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
+    },
   ],
   webServer: [
     {
@@ -140,6 +158,12 @@ export default defineConfig({
         ROUBO_E2E: "1",
         ROUBO_USER_PLUGINS_DIR: E2E_USER_PLUGINS_DIR,
         ROUBO_BUNDLED_PLUGINS_DIR: E2E_BUNDLED_PLUGINS_DIR,
+        // AP-TC-087 (#531): make `roubo-e2e-claude-stub` resolvable, and tell it
+        // where to write the spawned child's argv. `resolveShellPath()` merges the
+        // login shell's PATH by prepending only entries this value does not
+        // already carry, so the fixture dir survives that merge.
+        PATH: [E2E_FIXTURE_BIN_DIR, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter),
+        ROUBO_E2E_AGENT_ARGV_LOG: AGENT_ARGV_LOG_PATH,
         // Neutralise host-app env inherited by bench terminals (issue #877):
         // with ROUBO_PRODUCTION set, the server under test would resolve state
         // to the real ~/.roubo and startServer now refuses to boot alongside
