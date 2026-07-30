@@ -250,16 +250,16 @@ capabilities: {
 }
 ```
 
-The host resolves the same binary the launch will spawn (step 9 below), runs the probe with a 5s timeout, and scans the merged stdout and stderr for the first `X.Y.Z`. Resolution and the probe spawn both use the PATH the launch will use, so a descriptor that sets `env.PATH` is gated against its own binary rather than a same-named one on the host's PATH. The lenient scan is why one probe shape works across agents whose `--version` output looks nothing alike. The result is cached per resolved binary (and, when that resolves to a bare name, per PATH), so repeated launches and the AI Agents screen reuse one spawn.
+The host resolves the same binary the launch will spawn (step 9 below), runs the probe with a 5s timeout, and scans the merged stdout and stderr for the first `X.Y.Z`. Resolution and the probe spawn both use the PATH the launch will use, so a descriptor that sets `env.PATH` is gated against its own binary rather than a same-named one on the host's PATH. One exception: the probe runs before the launch context exists, so a `command` or an `env.PATH` still carrying an unresolved `{{...}}` template cannot be probed at all and reports `probe-failed` rather than being gated. The lenient scan is why one probe shape works across agents whose `--version` output looks nothing alike. The result is cached per resolved binary (and, when that resolves to a bare name, per PATH), so repeated launches and the AI Agents screen reuse one spawn.
 
 There are four verdicts:
 
-| Verdict                | When                                          | What the host does                                                                                                 |
-| ---------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `within-tested-range`  | `minVersion <= v <= testedCeiling`            | Launches, silently. No warning is the observable outcome.                                                          |
-| `above-tested-ceiling` | `v > testedCeiling`                           | Launches, with a non-blocking notice in the session and an amber chip on the plugin card.                          |
-| `below-floor`          | `v < minVersion`                              | **Refuses**, before anything is spawned and before any workspace write, naming the detected version and the floor. |
-| `probe-failed`         | Binary unresolvable, or output has no version | Launches, with a notice saying the check did not run. A probe that cannot decide never blocks.                     |
+| Verdict                | When                                                                                      | What the host does                                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `within-tested-range`  | `minVersion <= v <= testedCeiling`                                                        | Launches, silently. No warning is the observable outcome.                                                          |
+| `above-tested-ceiling` | `v > testedCeiling`                                                                       | Launches, with a non-blocking notice in the session and an amber chip on the plugin card.                          |
+| `below-floor`          | `v < minVersion`                                                                          | **Refuses**, before anything is spawned and before any workspace write, naming the detected version and the floor. |
+| `probe-failed`         | Binary unresolvable, `command` or launch `PATH` still templated, or output has no version | Launches, with a notice saying the check did not run. A probe that cannot decide never blocks.                     |
 
 Both bounds are inclusive and both are optional: a probe with no `minVersion` can never block, and one with no `testedCeiling` can never warn. The ceiling is deliberately non-blocking, because agent CLIs ship weekly and refusing to run on an unrecognised newer version would age far worse than a warning does. It still earns its keep: when a launch above the ceiling fails, the host attributes the failure to a probably-stale argument map rather than leaving the user guessing.
 
