@@ -436,9 +436,10 @@ export default function TerminalTabs({
       launchAgent({
         agentPluginId: selection.agentPluginId,
         agentName: selection.agentName,
-        // An ad-hoc launch carries the bench's own jig baseline: the dialog
-        // names an agent directly rather than a preset, so there is no preset
-        // jig to override it with.
+        // An ad-hoc launch carries the bench's own jig baseline. The dialog's
+        // preset selection contributes params only (issue #668): adopting the
+        // selected preset's own jig would change how the layers combine, not
+        // which preset feeds layer three, so it is deliberately left alone.
         jigId: resolveLaunchJigId(),
         ...(selection.presetOverrides !== undefined && {
           presetOverrides: selection.presetOverrides,
@@ -548,7 +549,9 @@ export default function TerminalTabs({
           key={overridesKey}
           isOpen
           agents={agents}
-          preset={defaultPreset ?? null}
+          presets={presets}
+          resolveTarget={targetFor}
+          initialPresetId={defaultPreset?.id ?? null}
           onCancel={() => setOverridesOpen(false)}
           onLaunch={handleLaunchWithOverrides}
         />

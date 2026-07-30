@@ -164,13 +164,14 @@ Every installed `agent`-kind plugin gets its own card, and every card renders a 
 
 **Launch with overrides...**, at the bottom of the launch menu, adjusts the parameters of one session without changing any saved configuration. Use it for the one-off: a single deeper-reasoning run, or one session in plan mode, without editing the agent's defaults or creating a preset for it.
 
-- The dialog offers an **Agent** select plus the same three parameter overrides as the agent tool editor: **Model**, **Effort** and **Mode**. Switching the agent re-reads that agent's own declared values, so the fields always offer what the selected agent accepts.
+- The dialog offers a **Preset** select, an **Agent** select, and the same three parameter overrides as the agent tool editor: **Model**, **Effort** and **Mode**. Switching the agent re-reads that agent's own declared values, so the fields always offer what the selected agent accepts.
+- The **Preset** select chooses which preset this launch layers on top of, so a named preset can be adjusted for one session instead of re-entering everything that preset already supplies. It opens on the built-in **Agent** preset and keeps a **No preset** option. Picking a preset switches the **Agent** to the one that preset would really start, and re-bases the fields on that agent exactly as switching the agent does. A preset that cannot launch is listed disabled carrying the reason, on the same rule as the launch menu.
 - Every field starts on **inherit**, meaning this launch does not touch it and the layers beneath it carry through. Only the fields you actually set are applied.
 - The **Resolution** panel names each layer that contributes, lowest first: the app default, the project's overrides, the preset where one applies, and finally this launch. A value a higher layer replaces is struck through, so you can read what will really be used and where it comes from. It updates as you change the fields.
 - Layers resolve in that order and later layers win field by field. So an app default of `model=opus` with a project override of `model=sonnet`, a preset setting `effort=max` and this launch setting `mode=auto` launches with `model=sonnet`, `effort=max` and `mode=auto`.
 - **Launch session** starts one session with those parameters. **Cancel** discards the draft completely. Neither writes anything: nothing here reaches **Settings > AI Agents** or a project's **Agent overrides**, and reopening the dialog starts from inherit again.
 - Only agents that can actually launch are offered, on the same rule as the rest of the launch menu. With no agent installed and configured the menu entry is disabled rather than opening onto an empty picker.
-- Which jig the session carries is unchanged: the bench's usual auto-inject behaviour applies, exactly as it does for the split button.
+- Which jig the session carries is unchanged: the bench's usual auto-inject behaviour applies, exactly as it does for the split button. Selecting a preset here contributes that preset's parameters only, not its own jig.
 
 ## Next steps
 

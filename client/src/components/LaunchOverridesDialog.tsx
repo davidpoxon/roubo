@@ -5,7 +5,7 @@ import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import { stampAriaModal } from "../lib/aria-modal";
 import { INPUT } from "./setup/styles";
 import { PARAM_FIELDS, INHERIT, enumOptionsFor } from "./settings/agents/agent-params";
-import { agentLaunchBlocker } from "./settings/agents/agent-launchability";
+import { agentLaunchBlocker, type LaunchTarget } from "./settings/agents/agent-launchability";
 import { buildResolutionTrace, type ResolutionLayer } from "./launch-overrides-trace";
 
 // The per-launch override dialog (AP-FR-010, AP-FR-011, issue #518).
@@ -30,17 +30,31 @@ interface Props {
   /** The agents a launch may actually start, unfiltered; blocked ones are dropped here. */
   agents: ProjectAgentState[];
   /**
-   * The preset this launch starts from, when there is one. Its params form the
-   * third layer, but only while the selected agent is the one the preset resolves
-   * to: a preset's params are validated against that agent's schema, so pointing
-   * them at another agent would ship keys its schema never saw (AP-TC-033).
+   * Every preset this launch could start from (issue #668). The selected one's
+   * params form the third layer, but only while the selected agent is the one
+   * that preset resolves to: a preset's params are validated against that
+   * agent's schema, so pointing them at another agent would ship keys its schema
+   * never saw (AP-TC-033).
    */
-  preset?: ResolvedAgentPreset | null;
+  presets: ResolvedAgentPreset[];
+  /**
+   * What a preset would actually launch. Supplied by the owner rather than
+   * recomputed here, exactly as `AgentLaunchMenu` takes it, because it depends on
+   * the jig the launch would carry, which only the Terminal tab resolves. Sharing
+   * one resolver is what keeps the dialog and the launch menu from disagreeing
+   * about which agent a preset starts, or about whether it may (AP-TC-038).
+   */
+  resolveTarget: (preset: ResolvedAgentPreset) => LaunchTarget;
+  /** Which preset is pre-selected on open, when it is selectable at all. */
+  initialPresetId?: string | null;
   onCancel: () => void;
   onLaunch: (selection: LaunchOverridesSelection) => void;
 }
 
 const LABEL_CLASS = "block text-[11px] font-medium text-stone-500 mb-1.5";
+
+/** The empty select value that spells "layer three contributes nothing". */
+const NO_PRESET = "";
 
 /** One trace line: the layer, then its fields, with superseded values dimmed. */
 function LayerLine({ layer }: { layer: ResolutionLayer }) {
@@ -84,30 +98,56 @@ function LayerLine({ layer }: { layer: ResolutionLayer }) {
 export default function LaunchOverridesDialog({
   isOpen,
   agents,
-  preset,
+  presets,
+  resolveTarget,
+  initialPresetId,
   onCancel,
   onLaunch,
 }: Props) {
   // Nothing that cannot launch is offered, exactly as the launch menu gates its
   // rows: the dialog must not be a way around AP-TC-038.
   const launchable = agents.filter((agent) => agentLaunchBlocker(agent) === null);
-  const initialAgentId =
-    launchable.find((agent) => agent.id === preset?.agentPluginId)?.id ?? launchable[0]?.id ?? "";
 
-  const [agentId, setAgentId] = useState(initialAgentId);
+  /**
+   * Every preset with the target it would actually launch. A preset whose target
+   * is blocked, or that resolves to an agent this dialog cannot offer, stays in
+   * the list as a disabled option carrying its reason, so the fix is
+   * discoverable rather than the entry silently going missing (AP-TC-038), which
+   * is how the launch menu treats the same case.
+   */
+  const choices = presets.map((preset) => {
+    const target = resolveTarget(preset);
+    const selectable =
+      target.blocked === null &&
+      target.agentPluginId !== undefined &&
+      launchable.some((candidate) => candidate.id === target.agentPluginId);
+    return { preset, target, selectable };
+  });
+
+  const initialChoice = choices.find(
+    (choice) => choice.selectable && choice.preset.id === initialPresetId,
+  );
+
+  const [presetId, setPresetId] = useState(initialChoice?.preset.id ?? NO_PRESET);
+  const [agentId, setAgentId] = useState(
+    initialChoice?.target.agentPluginId ?? launchable[0]?.id ?? "",
+  );
   const [params, setParams] = useState<Record<string, string>>({});
 
   const agent = launchable.find((candidate) => candidate.id === agentId);
+  const selectedChoice = choices.find(
+    (choice) => choice.selectable && choice.preset.id === presetId,
+  );
 
   /**
-   * Switching agent re-bases the draft on the new agent's schema. A value the
-   * newly selected agent does not declare (a Claude Code `model=haiku` against
-   * a Codex `model` enum) is dropped rather than carried over, so the rendered
-   * field and the launched payload can never disagree, and the fields update to
-   * reflect the newly selected agent's parameters (AP-TC-029 S001-O01). A field
-   * the new agent leaves free text keeps its value: nothing there is invalid.
+   * Re-base the draft on an agent's schema. A value the newly selected agent
+   * does not declare (a Claude Code `model=haiku` against a Codex `model` enum)
+   * is dropped rather than carried over, so the rendered field and the launched
+   * payload can never disagree, and the fields update to reflect the newly
+   * selected agent's parameters (AP-TC-029 S001-O01). A field the new agent
+   * leaves free text keeps its value: nothing there is invalid.
    */
-  const handleAgentChange = (nextAgentId: string) => {
+  const rebaseParams = (nextAgentId: string) => {
     const nextAgent = launchable.find((candidate) => candidate.id === nextAgentId);
     setParams((current) => {
       const kept: Record<string, string> = {};
@@ -119,11 +159,37 @@ export default function LaunchOverridesDialog({
       }
       return kept;
     });
+  };
+
+  const handleAgentChange = (nextAgentId: string) => {
+    rebaseParams(nextAgentId);
     setAgentId(nextAgentId);
   };
 
-  const presetApplies = preset?.agentPluginId !== undefined && preset.agentPluginId === agentId;
-  const presetParams = presetApplies ? preset.params : undefined;
+  /**
+   * Switching preset switches the agent with it (issue #668). A preset resolves
+   * to one specific agent, and that agent's schema is what validates the fields,
+   * so the draft is re-based exactly as an agent switch re-bases it. The agent
+   * followed is the RESOLVED target rather than the preset's own binding, so a
+   * preset redirected by a jig's agent binding lands on the agent that would
+   * really start.
+   */
+  const handlePresetChange = (nextPresetId: string) => {
+    const choice = choices.find(
+      (candidate) => candidate.selectable && candidate.preset.id === nextPresetId,
+    );
+    setPresetId(choice?.preset.id ?? NO_PRESET);
+    const nextAgentId = choice?.target.agentPluginId;
+    if (nextAgentId !== undefined) {
+      rebaseParams(nextAgentId);
+      setAgentId(nextAgentId);
+    }
+  };
+
+  const selectedPreset = selectedChoice?.preset;
+  const presetApplies =
+    selectedPreset?.agentPluginId !== undefined && selectedPreset.agentPluginId === agentId;
+  const presetParams = presetApplies ? selectedPreset.params : undefined;
 
   /** The draft, with inherit-valued fields dropped rather than sent as empty. */
   const draft: Record<string, unknown> = {};
@@ -177,6 +243,29 @@ export default function LaunchOverridesDialog({
           </div>
 
           <div className="px-5 py-4 space-y-4">
+            <div>
+              <label htmlFor="launch-overrides-preset" className={LABEL_CLASS}>
+                Preset
+              </label>
+              <select
+                id="launch-overrides-preset"
+                className={INPUT}
+                value={presetId}
+                onChange={(e) => handlePresetChange(e.target.value)}
+              >
+                {/* Layer three stays optional, so the pre-#668 behaviour of
+                    overriding nothing but the agent is still reachable. */}
+                <option value={NO_PRESET}>No preset</option>
+                {choices.map(({ preset, target, selectable }) => (
+                  <option key={preset.id} value={preset.id} disabled={!selectable}>
+                    {selectable
+                      ? preset.name
+                      : `${preset.name}: ${target.blocked?.message ?? "cannot launch right now."}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label htmlFor="launch-overrides-agent" className={LABEL_CLASS}>
                 Agent
@@ -245,7 +334,18 @@ export default function LaunchOverridesDialog({
               </div>
               <div className="text-[11px] font-mono leading-relaxed">
                 {trace.layers.map((layer) => (
-                  <LayerLine key={layer.id} layer={layer} />
+                  // The preset line names the preset that is contributing (issue
+                  // #668), so a user who switched presets can read which one the
+                  // third layer came from. Only the label changes: the layer id
+                  // is the resolution order, not a display concern.
+                  <LayerLine
+                    key={layer.id}
+                    layer={
+                      layer.id === "preset" && selectedPreset !== undefined
+                        ? { ...layer, label: `${layer.label}: ${selectedPreset.name}` }
+                        : layer
+                    }
+                  />
                 ))}
               </div>
             </div>
