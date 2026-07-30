@@ -37,8 +37,17 @@ vi.mock("./plugin-route-helpers.js", () => ({
   resolveActivePluginQuiet: vi.fn(),
 }));
 
+// The agent-presets route runs the real preset service and, through it, the real
+// agent-plugin-registry, so this mock has to cover the whole plugin-manager
+// surface that registry imports, not just `invoke`. `getAgentManifests` in
+// particular is what `resolveLaunchAgentId` calls, so leaving it out turns a
+// preset read into a TypeError.
 vi.mock("../services/plugin-manager.js", () => ({
   invoke: vi.fn(),
+  getAgentManifests: vi.fn(() => []),
+  getRecord: vi.fn(),
+  getConnection: vi.fn(),
+  HOST_API_VERSION: "1.4.0",
 }));
 
 // Keep fetchIssueForStart real so the route's actual prefetch-and-bound path is
@@ -85,6 +94,7 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as notificationService from "../services/notification.js";
 import * as gitState from "../services/git-state.js";
 import * as pluginManager from "../services/plugin-manager.js";
+import { loadSettings } from "../services/state.js";
 import {
   getActivePluginOrRespond,
   fetchPluginComments,
@@ -93,6 +103,7 @@ import {
 import { assertGateOpen } from "../services/start-gate.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
 import { ServiceError } from "../services/service-error.js";
+import type { ResolvedAgentPreset } from "@roubo/shared";
 
 const app = express();
 app.use(express.json());
@@ -1120,6 +1131,90 @@ describe("POST /:projectId/benches/:id/tools/:index/execute", () => {
 
     const res = await request(app).post("/project/benches/99/tools/0/execute");
     expect(res.status).toBe(404);
+  });
+});
+
+// ── Agent tool preset route tests (#655) ──
+//
+// The preset service and the agent registry behind it run for real here: the two
+// contracts this pins (a `roubo.yaml` `type: agent` tool surfacing as
+// `source: "project"`, and the unregistered-project response) are produced by
+// that service, so stubbing `listAgentPresets` would pin nothing. Only the
+// service's own boundaries (the project registry and settings) are mocked, and
+// they already are, file-wide.
+//
+// Resolution semantics are deliberately NOT re-asserted here: with no agents
+// installed every preset resolves `unresolved: { reason: "no-default-agent" }`,
+// and `services/agent-presets.test.ts` covers resolution in depth. This block
+// pins the route's envelope, source ordering, and status codes.
+
+describe("GET /:projectId/agent-presets", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // No default agent and no app-level presets, so the response is built-ins
+    // plus whatever the project declares.
+    vi.mocked(loadSettings).mockReturnValue({ theme: "dark" });
+    vi.mocked(pluginManager.getAgentManifests).mockReturnValue([]);
+  });
+
+  it("returns the three built-in presets for a registered project", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "my-project",
+      config: {},
+    } as any);
+
+    const res = await request(app).get("/my-project/agent-presets");
+    expect(res.status).toBe(200);
+    const presets = res.body.presets as ResolvedAgentPreset[];
+    expect(presets.map((preset) => [preset.id, preset.name])).toEqual([
+      ["__builtin_agent__", "Agent"],
+      ["__builtin_agent_plan__", "Agent (Plan)"],
+      ["__builtin_agent_auto__", "Agent (Auto)"],
+    ]);
+    expect(presets.every((preset) => preset.source === "builtin")).toBe(true);
+    expect(presets.every((preset) => preset.bindsDefaultAgent)).toBe(true);
+    expect(projectRegistry.getProject).toHaveBeenCalledWith("my-project");
+  });
+
+  it("appends a roubo.yaml agent tool with source project, after the built-ins", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "my-project",
+      config: {
+        tools: [
+          { name: "Web Tool", type: "browser", url: "https://localhost:5174" },
+          { name: "Ship it", type: "agent", icon: "rocket" },
+        ],
+      },
+    } as any);
+
+    const res = await request(app).get("/my-project/agent-presets");
+    expect(res.status).toBe(200);
+    const presets = res.body.presets as ResolvedAgentPreset[];
+    expect(presets).toHaveLength(4);
+    expect(presets[3]).toMatchObject({
+      id: "project:Ship it",
+      name: "Ship it",
+      icon: "rocket",
+      source: "project",
+    });
+    // Non-agent tools are not presets.
+    expect(presets.some((preset) => preset.name === "Web Tool")).toBe(false);
+  });
+
+  it("returns 200 with the built-ins for an unregistered project, not a 404", async () => {
+    // Pinned contract: an unknown projectId is not an error here. Presets are a
+    // launch configuration list, not project state, and the built-ins exist
+    // regardless of the project, so the route answers with them. This matches
+    // GET /:projectId/benches, which likewise returns 200 with [] rather than
+    // 404 for a project the registry does not know.
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const res = await request(app).get("/no-such-project/agent-presets");
+    expect(res.status).toBe(200);
+    const presets = res.body.presets as ResolvedAgentPreset[];
+    expect(presets).toHaveLength(3);
+    expect(presets.every((preset) => preset.source === "builtin")).toBe(true);
+    expect(presets.some((preset) => preset.source === "project")).toBe(false);
   });
 });
 
