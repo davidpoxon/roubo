@@ -1642,6 +1642,18 @@ export interface ResolvedAgentPreset {
   params: Record<string, unknown>;
   jig?: string;
   unresolved?: { reason: AgentPresetUnresolvedReason; message: string };
+  /**
+   * Advisory only: a built-in preset resolved cleanly but is not doing what its
+   * name promises, because the bound agent's `configSchema` rejected keys it
+   * sets and the built-in dropped them rather than dying (issue #654,
+   * `withValidatedParams`). `droppedParams` names those keys.
+   *
+   * Deliberately a sibling of `unresolved` rather than a reason inside it: a
+   * degraded preset is still launchable, so this field must never gate
+   * `enabled`, which launch surfaces derive from `unresolved` alone (issue
+   * #665). A preset is never both `degraded` and `unresolved`.
+   */
+  degraded?: { droppedParams: string[]; message: string };
 }
 
 /** Result of GET /api/projects/:projectId/agent-presets. */

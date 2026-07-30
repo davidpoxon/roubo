@@ -26,6 +26,21 @@ const BUILTIN_PLAN: ResolvedAgentPreset = {
   params: { mode: "plan" },
 };
 
+/**
+ * A built-in whose `mode` the resolved agent's schema rejected, so the host
+ * dropped it and the preset launches as plain `Agent` (issue #665). Advisory,
+ * so it carries no `unresolved`.
+ */
+const BUILTIN_PLAN_DEGRADED: ResolvedAgentPreset = {
+  ...BUILTIN_PLAN,
+  params: {},
+  degraded: {
+    droppedParams: ["mode"],
+    message:
+      'Agent tool "Agent (Plan)" drops mode, which Claude Code does not accept, so it launches as a plain agent.',
+  },
+};
+
 const APP_TOOL: ResolvedAgentPreset = {
   id: "at-fast",
   name: "Fast Codex",
@@ -213,6 +228,31 @@ describe("AgentLaunchMenu", () => {
     expect(
       screen.getByRole("menuitem", { name: /^Fast Codex:/ }).getAttribute("aria-disabled"),
     ).not.toBe("true");
+  });
+
+  // Issue #665: the degrade is advisory. The row must say the preset will not
+  // do what its name promises, and must still launch when picked.
+  it("notes a degraded preset's dropped params while leaving it selectable", () => {
+    open({ presets: [BUILTIN_AGENT, BUILTIN_PLAN_DEGRADED] });
+
+    const plan = screen.getByRole("menuitem", { name: /^Agent \(Plan\):/ });
+    expect(plan.getAttribute("aria-disabled")).not.toBe("true");
+    expect(plan.textContent).toContain("drops mode");
+    expect(plan.getAttribute("aria-label")).toContain("launches as a plain agent");
+    // The notice is not the amber blocker chip the disabled rows carry.
+    expect(plan.textContent).not.toContain("unavailable");
+
+    // A healthy sibling keeps its ordinary param summary.
+    expect(
+      screen
+        .getByRole("menuitem", { name: /^Agent:/ })
+        .querySelector('[data-testid="preset-degraded-notice"]'),
+    ).toBeNull();
+
+    act(() => {
+      fireEvent.click(plan);
+    });
+    expect(onLaunchPreset).toHaveBeenCalledWith(BUILTIN_PLAN_DEGRADED);
   });
 
   it("disables an unresolved preset rather than launching it", () => {

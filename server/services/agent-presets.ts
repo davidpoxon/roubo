@@ -163,6 +163,13 @@ function unavailable(
  *    all and so skips validation entirely, and holding `Agent (Plan)` to a
  *    stricter bar than `Agent` against the very same agent would resurrect the
  *    dead built-in this carve-out exists to prevent.
+ *
+ *    The drop is reported rather than silent (issue #665): a built-in that
+ *    degrades carries `degraded`, naming the dropped keys, so a launch surface
+ *    can say that `Agent (Plan)` will behave as plain `Agent` here. It is
+ *    advisory and sits beside `unresolved`, never inside it, because the preset
+ *    still launches. The two are mutually exclusive: `degraded` is attached
+ *    only where the reduced overlay revalidates clean.
  */
 function withValidatedParams(
   base: ResolvedAgentPreset,
@@ -180,6 +187,7 @@ function withValidatedParams(
 
   let overlay = params;
   let errors = presetParamErrors(agent, overlay);
+  let droppedParams: string[] = [];
 
   if (errors.length > 0 && base.source === "builtin") {
     // A root-level error (`path === ""`) names no key, so there is nothing to
@@ -189,6 +197,7 @@ function withValidatedParams(
     );
     if (rejected.size > 0) {
       overlay = Object.fromEntries(Object.entries(params).filter(([key]) => !rejected.has(key)));
+      droppedParams = [...rejected].sort();
       // Dropping a key can invalidate one that was KEPT (a schema whose
       // `if`/`then` or `dependentRequired` branch turned on the dropped key), so
       // the reduced overlay is revalidated rather than assumed good. An error
@@ -198,7 +207,20 @@ function withValidatedParams(
     }
   }
 
-  if (errors.length === 0) return { ...resolved, params: overlay };
+  if (errors.length === 0) {
+    return {
+      ...resolved,
+      params: overlay,
+      // Attached on the clean return only, so `degraded` always means
+      // "launchable, but not what its name says", never "broken" (issue #665).
+      ...(droppedParams.length > 0 && {
+        degraded: {
+          droppedParams,
+          message: `Agent tool "${preset.name}" drops ${droppedParams.join(", ")}, which ${resolved.resolvedAgentName} does not accept, so it launches as a plain agent.`,
+        },
+      }),
+    };
+  }
 
   const detail = errors.map((err) => `${err.path || "config"}: ${err.message}`).join("; ");
   return {
