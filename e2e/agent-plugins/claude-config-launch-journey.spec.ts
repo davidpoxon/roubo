@@ -223,14 +223,22 @@ test("AP-TC-087: configure Claude defaults, launch, and verify the assembled arg
 
   const installed = page.getByRole("region", { name: "Installed agent plugins" });
   const card = installed.getByTestId(`agent-plugin-card-${PLUGIN_ID}`);
-  await expect(card).toBeVisible({ timeout: 15_000 });
   const disclosure = page.getByTestId(`agent-configure-${PLUGIN_ID}`);
+  // A TOLERATED wait, not an assertion. Every condition an observation covers has
+  // to fail through `observe` so the FR-020 block names the diverged step, the
+  // expected-vs-actual and the owning slice; a bare `expect(...).toBeVisible()`
+  // here would pre-empt S001-O01 and fail with an unattributed Playwright
+  // timeout instead. The counts are then read ONCE, so the boolean and the
+  // reported actual can never disagree.
+  await card.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+  const cardCount = await card.count();
+  const disclosureCount = await disclosure.count();
   observe(
     STEPS.S001,
     "S001-O01",
-    (await card.count()) === 1 && (await disclosure.count()) === 1,
+    cardCount === 1 && disclosureCount === 1,
     `the ${AGENT_NAME} card is listed under Installed with a Configure action`,
-    `card count=${await card.count()}, configure action count=${await disclosure.count()}`,
+    `card count=${cardCount}, configure action count=${disclosureCount}`,
   );
 
   // --- S002: Configure expands the schema-driven config form -----------------
@@ -246,7 +254,9 @@ test("AP-TC-087: configure Claude defaults, launch, and verify the assembled arg
   await disclosure.click();
 
   const form = page.getByTestId(`agent-config-form-${PLUGIN_ID}`);
-  await expect(form).toBeVisible();
+  // Tolerated wait again: a form that never expands leaves all four field counts
+  // at 0, which S002-O01 below reports as an attributed divergence.
+  await form.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
   const fieldCounts = {
     model: await page.getByTestId("config-field-model").count(),
     effort: await page.getByTestId("config-field-effort").count(),
@@ -278,7 +288,14 @@ test("AP-TC-087: configure Claude defaults, launch, and verify the assembled arg
   const save = page.getByTestId(`agent-config-save-${PLUGIN_ID}`);
   await expect(save, "Save defaults is enabled once the draft diverges").toBeEnabled();
   await save.click();
-  await expect(form.getByText("Saved."), "the form confirms the save").toBeVisible();
+  // Tolerated wait: the "Saved." indicator is how long to wait for the round
+  // trip, not the observation. S005-O01 below reads the persisted record back
+  // through the real API, so a save that silently failed is reported there with
+  // its expected-vs-actual rather than throwing here unattributed.
+  await form
+    .getByText("Saved.")
+    .waitFor({ state: "visible", timeout: 15_000 })
+    .catch(() => {});
 
   // Read the persisted app-level record back through the real API rather than
   // trusting the form's own optimistic state.
@@ -305,13 +322,20 @@ test("AP-TC-087: configure Claude defaults, launch, and verify the assembled arg
   // ("Launch <agentName>"), so finding it by that name is what proves the button
   // targets Claude Code rather than merely existing.
   const launchButton = page.getByRole("button", { name: `Launch ${AGENT_NAME}` });
-  await expect(launchButton).toBeVisible({ timeout: 15_000 });
+  // Tolerated wait, for the same reason as S001: a button that never appears, or
+  // one whose accessible name names a different default agent, is the single most
+  // likely S006 divergence and has to be reported with its owning slice. The
+  // enabled read is guarded on the count so it cannot throw when nothing matched,
+  // which would otherwise bypass the observer from inside its own argument list.
+  await launchButton.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+  const launchCount = await launchButton.count();
+  const launchEnabled = launchCount === 1 ? await launchButton.isEnabled() : false;
   observe(
     STEPS.S006,
     "S006-O01",
-    (await launchButton.count()) === 1 && (await launchButton.isEnabled()),
+    launchCount === 1 && launchEnabled,
     `the Agent launch split button is present and targets the default agent (${AGENT_NAME})`,
-    `count=${await launchButton.count()}, enabled=${await launchButton.isEnabled()}`,
+    `count=${launchCount}, enabled=${launchEnabled}`,
   );
 
   // --- S007: pressing it opens a new Claude PTY session ----------------------
