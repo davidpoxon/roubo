@@ -910,13 +910,18 @@ describe("PUT /:projectId/integration/config", () => {
       instance: "https://ghe-global.example.com",
     });
 
+    // Echo the global layer's instance back. The eviction gate compares against
+    // the EFFECTIVE instance, so this only reads as unchanged if the global
+    // layer actually reached the handler: with the committed layer alone
+    // (no instance) it would look like a reconfiguration and evict.
     const res = await request(app)
       .put("/demo/integration/config")
-      .send({ excludedStatusCategories: ["Done"] });
+      .send({ instance: "https://ghe-global.example.com", excludedStatusCategories: ["Done"] });
 
     expect(res.status).toBe(200);
     const saved = vi.mocked(integrationOverrides.saveOverride).mock.calls[0][1];
     expect(saved.integration.excludedStatusCategories).toEqual(["Done"]);
+    expect(cutListQueryService.evictProject).not.toHaveBeenCalled();
   });
 
   // Secondary fix in the same handler: the eviction gate compares against the
