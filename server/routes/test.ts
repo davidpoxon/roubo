@@ -105,6 +105,44 @@ interface FixtureProjectEntry {
 }
 const fixtureProjects = new Map<string, FixtureProjectEntry>();
 
+// #686: drop the bench workspaces a fixture project provisioned under
+// `<rouboDir>/workspaces/<projectId>/`. Unlike `seededWorkspacePaths` (tmpdirs
+// this route mints for `seedBenches`), these are written by the real
+// provisioning path in bench-manager, so nothing in FixtureProjectEntry tracks
+// them and they survived every /test/__reset. A surviving directory is then
+// inherited by the next run, where bench-manager's pre-flight has to `git
+// worktree remove` + `rmSync` it before `git worktree add` can run. That extra
+// work sits on the provisioning critical path, and a spec that reads the bench
+// worktree straight after create (TC-007) then sees a worktree that is not
+// checked out yet: the read 404s with "No readable test-cases.json for spec
+// ...", order- and state-dependently, breaking 10x determinism (NFR-018).
+//
+// Scoped to the single `<projectId>` subtree, never the whole `workspaces/`
+// tree: `~/.roubo-dev/<checkout>/workspaces/` is shared with the developer's own
+// `npm run dev` benches, so a blanket wipe would destroy real work.
+//
+// Carries the same ROUBO_PRODUCTION + `.roubo-dev/` guard as
+// wipePersistedTestState (see its comment for why a destructive op keeps its own
+// guard rather than trusting only the ROUBO_E2E route gate), and logs rather
+// than throws so a failure here cannot abort the caller's other cleanup steps.
+function removeProjectWorkspaces(projectId: string, caller: string): void {
+  try {
+    if (process.env.ROUBO_PRODUCTION) {
+      throw new Error("removeProjectWorkspaces refuses to run when ROUBO_PRODUCTION is set");
+    }
+    const rouboDir = state.getRouboDir();
+    if (!rouboDir.includes(`${path.sep}.roubo-dev${path.sep}`)) {
+      throw new Error(`removeProjectWorkspaces refuses to touch a non-dev roubo dir: ${rouboDir}`);
+    }
+    fs.rmSync(state.getProjectWorkspacesDir(projectId), { recursive: true, force: true });
+  } catch (err) {
+    console.error(
+      `${caller}: failed to rm bench workspaces for ${projectId}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
 // Drop everything one fixture project wrote to disk. Each step is wrapped in
 // try/catch so a single failure does not skip the others: the caller wants
 // "after this, the fixture is gone or we logged why it couldn't be."
@@ -143,6 +181,9 @@ function cleanupFixtureProject(entry: FixtureProjectEntry): void {
       );
     }
   }
+  // #686: and the bench workspaces the real provisioning path wrote under
+  // `<rouboDir>/workspaces/<projectId>/`, which nothing above covers.
+  removeProjectWorkspaces(entry.projectId, "/test/__reset");
 }
 
 // Default port base for a fixture project. High enough to keep collisions with
@@ -1349,6 +1390,14 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   if (fixtureProjects.has(projectId)) {
     return res.status(409).json({ error: `Fixture project '${projectId}' is already registered` });
   }
+
+  // #686: pre-clean this project id's bench workspaces before anything is
+  // created. `fixtureProjects` is a module-level Map, so it is empty after a
+  // server restart and the /test/__reset cleanup below cannot reach a directory
+  // left by an EARLIER `playwright test` invocation. Doing it here is what makes
+  // a run immune to the previous run's leftovers, whatever happened to that run
+  // (crash, SIGINT, a spec that never reached its next reset).
+  removeProjectWorkspaces(projectId, "/test/__register-fixture-project");
 
   let repoPath: string;
   try {

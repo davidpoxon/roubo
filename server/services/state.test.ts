@@ -123,6 +123,18 @@ describe("getWorkspacePath", () => {
   });
 });
 
+describe("getProjectWorkspacesDir", () => {
+  it("returns the parent directory of the project's bench workspaces", () => {
+    expect(stateModule.getProjectWorkspacesDir("project")).toBe(
+      "/mock-home/.roubo/workspaces/project",
+    );
+  });
+
+  it("rejects a project name that is not a safe identifier", () => {
+    expect(() => stateModule.getProjectWorkspacesDir("../escape")).toThrow(/projectName/);
+  });
+});
+
 describe("atomicWrite", () => {
   it("writes to .tmp then renames", () => {
     stateModule.atomicWrite("/some/file.json", '{"data":1}');
