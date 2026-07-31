@@ -1,0 +1,50 @@
+id: codex-cli
+name: Codex CLI
+version: 0.1.0
+description: E2E overlay that installs a second agent plugin during Playwright runs, so AP-TC-113 S002 can read a real Codex CLI compatibility line (floor, tested ceiling, detected version) rather than a fixtured one. Not for production.
+kind: agent
+roubo: ^1.0.0
+entry: ./index.mjs
+contractVersion: 1
+# UNLIKE the sibling claude-code overlay, this manifest MIRRORS NOTHING: there is
+# no shipped Codex agent plugin yet (#520 owns it, and roubo-plugins/plugins/ has
+# no codex-cli workspace). The window below is authored from spike 502's
+# real-binary survey (.specifications/agent-plugins/spikes/spike-502-agent-contract-shape.md),
+# which probed @openai/codex 0.144.1 directly: `codex --version` prints
+# `codex-cli 0.144.1`, so the floor and ceiling bracket that one verified
+# version. #520 MUST re-base this block on the shipped manifest's real window
+# once that plugin exists; until then the numbers are a plausible bracket, not a
+# claim about which Codex versions Roubo supports.
+#
+# The probe names the e2e stub rather than `codex`, for the same reason the
+# Claude stub is not named `claude`: `resolveShellPath()` prepends
+# `~/.local/bin`, so a real Codex install on a developer machine would win the
+# PATH lookup and the card would report that binary's version instead.
+agentCompatibility:
+  minVersion: 0.144.0
+  testedCeiling: 0.160.0
+  probe:
+    command: roubo-e2e-codex-stub
+    args:
+      - --version
+    parse: semver
+# No `configSchema`, deliberately. AP-TC-113 S002 observes the compatibility
+# line only, and the AP-TC-087 guard counts `config-field-<key>` test ids
+# PAGE-WIDE while every agent card mounts its form expanded, so a `model` or
+# `effort` property here would make that guard read two controls where it
+# expects one and fail on a fixture artefact. #520's real schema (spike 502's
+# validated axes: `-m` for the model, `-c model_reasoning_effort=` for the
+# effort) lands with the real plugin, alongside whatever scoping that guard then
+# needs.
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  # An agent plugin must declare `processes: false`; the descriptor is its only
+  # write route (PluginManifestSchema enforces this for kind: agent).
+  processes: false
+  ports: false
+  docker: false

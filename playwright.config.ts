@@ -24,6 +24,9 @@ const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bund
 // this directory to the server's PATH is what makes the stub resolvable to
 // `resolveAgentCommand` (and to the probe) without installing anything. The stub
 // is deliberately NOT named `claude`, so prepending cannot shadow a real CLI.
+// AP-TC-113 (#683) adds a second pair on the same wiring: the `codex-cli`
+// overlay and `roubo-e2e-codex-stub`. Both hooks are directory walks, so a new
+// overlay directory and a new stub file are picked up with no config change.
 const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 
 // Four surfaces share one config:
@@ -59,6 +62,12 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     configSchema mirrors the real plugin) plus the `roubo-e2e-claude-stub`
 //     binary on the server's PATH, which captures the spawned child's own argv
 //     to AGENT_ARGV_LOG_PATH whenever ROUBO_E2E_AGENT_ARGV_LOG is set.
+//     A second agent-kind overlay, `codex-cli` with `roubo-e2e-codex-stub`
+//     (#683), sits alongside it so a spec can observe two agents: it declares a
+//     compatibility window and a probe but no config fields, and its stub never
+//     writes the argv log, so neither half of the AP-TC-087 guard moves. It is
+//     installed but UNCONSENTED unless a spec consents it, which keeps
+//     `resolveLaunchAgentId`'s lone-available-agent fallback on Claude Code.
 //   - project-settings: same built-app surface, holds the WU-068 specs
 //     (TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
