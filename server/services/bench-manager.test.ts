@@ -6967,6 +6967,13 @@ describe("startComponent (per-component Start setup gating)", () => {
 });
 
 describe("createBench global cap", () => {
+  // Test-case ids here belong to the `global-bench-limit` spec, which mints them
+  // bare. Always tag titles with the `GBL-` prefix: product-dev:verify's suite
+  // mapper matches ids by lowercase-alphanumeric containment, so a bare id whose
+  // preceding word ends in another spec's id_code (the "ap" of "cap" spells AP-)
+  // manufactures that prefix and gets read as that spec's case. See
+  // davidpoxon/roubo-development#679.
+
   // Flushes the void create/teardown background promise chains so seeded benches
   // settle and torn-down benches leave the Map before the next assertion.
   const flushBackground = () => new Promise((r) => setTimeout(r, 0));
@@ -7025,7 +7032,7 @@ describe("createBench global cap", () => {
           args[0].includes("settings.json"),
       ).length;
 
-  it("creates a bench when the global count is below the cap (TC-006)", () => {
+  it("creates a bench when the global count is below the cap (GBL-TC-006)", () => {
     seed(2);
     setCap(5);
 
@@ -7035,7 +7042,7 @@ describe("createBench global cap", () => {
     expect(benchManager.getBenches()).toHaveLength(3);
   });
 
-  it("rejects with GLOBAL_CAP_REACHED when the count equals the cap (TC-007)", () => {
+  it("rejects with GLOBAL_CAP_REACHED when the count equals the cap (GBL-TC-007)", () => {
     seed(3);
     setCap(3);
 
@@ -7051,7 +7058,7 @@ describe("createBench global cap", () => {
     expect(benchManager.getBenches()).toHaveLength(3);
   });
 
-  it("rejects when the cap is lowered exactly to the current count (TC-029)", () => {
+  it("rejects when the cap is lowered exactly to the current count (GBL-TC-029)", () => {
     seed(5);
     setCap(5);
 
@@ -7065,7 +7072,7 @@ describe("createBench global cap", () => {
     expect(benchManager.getBenches()).toHaveLength(5);
   });
 
-  it("counts error-state benches toward the cap (TC-017)", () => {
+  it("counts error-state benches toward the cap (GBL-TC-017)", () => {
     seed(2);
     setCap(2);
     // Force one seeded bench into the error state; it must still count.
@@ -7082,7 +7089,7 @@ describe("createBench global cap", () => {
     expect(thrown?.code).toBe("GLOBAL_CAP_REACHED");
   });
 
-  it("does not enforce a cap when maxGlobal is absent, regardless of count (TC-018)", () => {
+  it("does not enforce a cap when maxGlobal is absent, regardless of count (GBL-TC-018)", () => {
     seed(50);
     setCap(undefined);
 
@@ -7092,7 +7099,7 @@ describe("createBench global cap", () => {
     expect(benchManager.getBenches()).toHaveLength(51);
   });
 
-  it("reserves the slot synchronously so a parallel create sees the cap (TC-008)", () => {
+  it("reserves the slot synchronously so a parallel create sees the cap (GBL-TC-008)", () => {
     seed(3);
     setCap(4);
 
@@ -7110,7 +7117,7 @@ describe("createBench global cap", () => {
     expect(benchManager.getBenches()).toHaveLength(4);
   });
 
-  it("yields exactly one success and one rejection at the boundary (TC-032/TC-023)", async () => {
+  it("yields exactly one success and one rejection at the boundary (GBL-TC-032/GBL-TC-023)", async () => {
     seed(3);
     setCap(4);
 
@@ -7127,7 +7134,7 @@ describe("createBench global cap", () => {
     expect(benchManager.getBenches()).toHaveLength(4);
   });
 
-  it("never blocks clearing, and a cleared slot can be re-created (TC-009)", async () => {
+  it("never blocks clearing, and a cleared slot can be re-created (GBL-TC-009)", async () => {
     seed(3);
     setCap(3);
 
@@ -7147,7 +7154,7 @@ describe("createBench global cap", () => {
     expect(benchManager.getBenches()).toHaveLength(3);
   });
 
-  it("fails open and warns exactly once when settings.json is corrupt (TC-016)", () => {
+  it("fails open and warns exactly once when settings.json is corrupt (GBL-TC-016)", () => {
     setupCreateBenchMocks();
     setupProcessMocks();
     setupDockerServiceMocks();
@@ -7176,7 +7183,7 @@ describe("createBench global cap", () => {
     expect(capWarnCount()).toBe(1);
   });
 
-  it("treats a missing settings.json as unlimited and does not warn (TC-030)", () => {
+  it("treats a missing settings.json as unlimited and does not warn (GBL-TC-030)", () => {
     setupCreateBenchMocks();
     setupProcessMocks();
     setupDockerServiceMocks();
@@ -7189,7 +7196,7 @@ describe("createBench global cap", () => {
     expect(capWarnCount()).toBe(0);
   });
 
-  it("reads the cap via a single loadSettings call and no extra fs reads (TC-019)", () => {
+  it("reads the cap via a single loadSettings call and no extra fs reads (GBL-TC-019)", () => {
     seed(1);
     setCap(5);
     vi.mocked(stateService.loadSettings).mockClear();
@@ -7204,7 +7211,7 @@ describe("createBench global cap", () => {
     expect(fs.default.readFileSync).not.toHaveBeenCalled();
   });
 
-  it("lets the per-Project cap take precedence when tighter than the global cap (TC-025)", () => {
+  it("lets the per-Project cap take precedence when tighter than the global cap (GBL-TC-025)", () => {
     const projA = makeProject({
       id: "proj-a",
       config: makeConfig({ benches: { max: 2 } }),
@@ -7258,7 +7265,7 @@ describe("createBench global cap", () => {
   });
 
   it.each([1, 2, 3, 5, 10, 100])(
-    "never exceeds the cap at the boundary for cap=%i (TC-036)",
+    "never exceeds the cap at the boundary for cap=%i (GBL-TC-036)",
     (cap) => {
       seed(cap - 1);
       setCap(cap);
@@ -7280,7 +7287,7 @@ describe("createBench global cap", () => {
     },
   );
 
-  it("does not leak Map entries across many create+clear cycles at the boundary (TC-037)", async () => {
+  it("does not leak Map entries across many create+clear cycles at the boundary (GBL-TC-037)", async () => {
     seed(5);
     setCap(5);
 
