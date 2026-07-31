@@ -45,6 +45,28 @@ const UNCONFIGURED: ProjectAgentState = {
   misconfigured: { message: "apiKey: must have required property 'apiKey'" },
 };
 
+/**
+ * `CLAUDE`'s model choices, spelled the way the shipping claude-code manifest
+ * spells them: a `oneOf` of `{ const, title }` branches, so each choice carries
+ * its own display title. `agent-params.test.ts` covers the helper's reading of
+ * both spellings; this fixture is what proves the DIALOG renders the titled one
+ * and still launches the const.
+ */
+const CLAUDE_TITLED: ProjectAgentState = {
+  ...CLAUDE,
+  configSchema: {
+    properties: {
+      model: {
+        oneOf: [
+          { const: "opus", title: "Opus" },
+          { const: "sonnet", title: "Sonnet" },
+          { const: "haiku", title: "Haiku" },
+        ],
+      },
+    },
+  },
+};
+
 /** A preset bound to Claude Code that contributes the third layer. */
 const MAX_EFFORT_PRESET: ResolvedAgentPreset = {
   id: "at-deep",
@@ -233,6 +255,38 @@ describe("LaunchOverridesDialog", () => {
       agentPluginId: "codex-cli",
       agentName: "Codex CLI",
       perLaunchOverrides: { effort: "max" },
+    });
+  });
+
+  // The override surfaces read a `oneOf` schema as a closed set, so this dialog
+  // offers the manifest's titles. What it LAUNCHES has to stay the const: a
+  // payload carrying "Opus" would not match anything the agent's schema
+  // declares.
+  it("offers a oneOf schema's titles while launching its consts", () => {
+    open({ agents: [CLAUDE_TITLED, CODEX] });
+
+    const model = screen.getByLabelText("Model");
+    expect(
+      Array.from(model.querySelectorAll("option")).map((option) => [
+        option.value,
+        option.textContent,
+      ]),
+    ).toEqual([
+      ["", "inherit"],
+      ["opus", "Opus"],
+      ["sonnet", "Sonnet"],
+      ["haiku", "Haiku"],
+    ]);
+
+    setField("Model", "haiku");
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    expect(onLaunch).toHaveBeenCalledWith({
+      agentPluginId: "claude-code",
+      agentName: "Claude Code",
+      perLaunchOverrides: { model: "haiku" },
     });
   });
 
