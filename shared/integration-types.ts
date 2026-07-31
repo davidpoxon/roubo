@@ -20,9 +20,7 @@ export interface SourceCandidateCategory {
 }
 
 export type SourceCandidatesShape =
-  | "multi-list"
-  | "categorized-multi-list"
-  | "searchable-categorized";
+  "multi-list" | "categorized-multi-list" | "searchable-categorized";
 
 // One selectable mode within a synthetic category (e.g. "assigned to me":
 // in-project vs anywhere). Distinct from a SourceCandidateItem in that it has

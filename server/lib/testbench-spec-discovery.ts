@@ -92,8 +92,7 @@ export interface SpecDiscovery {
 // The shape returned by validateManualPath: on success the resolved slug + count,
 // on failure a flat list of human-readable errors (no path/slug fields).
 export type ManualPathValidation =
-  | { ok: true; slug: string; caseCount: number }
-  | { ok: false; errors: string[] };
+  { ok: true; slug: string; caseCount: number } | { ok: false; errors: string[] };
 
 // A fresh, all-zero status tally.
 function zeroStatusCounts(): SpecStatusCounts {

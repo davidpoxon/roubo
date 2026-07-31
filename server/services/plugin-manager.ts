@@ -287,8 +287,7 @@ function recordIsolationNotice(entry: PluginEntry, resolvedPluginDir: string): v
 // Tests set it via __test.setKnownUnsharedDockerPathFn to exercise the tier
 // downgrade path without needing a real /Applications dir on the test runner.
 let knownUnsharedDockerPathFn:
-  | ((platform: NodeJS.Platform, resolvedDir: string) => boolean)
-  | null = null;
+  ((platform: NodeJS.Platform, resolvedDir: string) => boolean) | null = null;
 
 // Isolation probes (NFR-005: query each runtime, never assume). The real
 // host-capability probes (defaultIsolationProbes: Docker daemon reachability via

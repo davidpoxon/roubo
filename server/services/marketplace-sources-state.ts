@@ -125,14 +125,12 @@ export function listSources(): MarketplaceSource[] {
  * shape. Never carries a credential (CPHMTP-NFR-002); only `hasCredential`.
  */
 export function listSourceSummaries(): MarketplaceSourceSummary[] {
-  const thirdParty = listSources().map(
-    (s): MarketplaceSourceSummary => ({
-      id: s.id,
-      url: s.url,
-      hasCredential: s.hasCredential,
-      registeredAt: s.registeredAt,
-    }),
-  );
+  const thirdParty = listSources().map((s): MarketplaceSourceSummary => ({
+    id: s.id,
+    url: s.url,
+    hasCredential: s.hasCredential,
+    registeredAt: s.registeredAt,
+  }));
   return [FIRST_PARTY_SUMMARY, ...thirdParty];
 }
 

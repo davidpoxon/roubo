@@ -7,9 +7,7 @@ import type { HostLogger } from "./plugin-host-api.js";
 const PERMISSION_DENIED_CODE = -32001;
 
 export type FilesystemDenyReason =
-  | "path-not-in-allowlist"
-  | "path-resolution-failed"
-  | "invalid-params";
+  "path-not-in-allowlist" | "path-resolution-failed" | "invalid-params";
 
 export interface FilesystemPermissionDeniedData {
   code: "permission-denied";

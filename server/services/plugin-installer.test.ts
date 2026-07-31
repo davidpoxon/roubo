@@ -998,8 +998,7 @@ describe("previewFromRelease (issue #370)", () => {
     fakeDownload(await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]));
     await pluginInstaller.previewFromRelease(ASSET_URL);
     const init = vi.mocked(fetch).mock.calls[0]?.[1] as
-      | { headers?: Record<string, string> }
-      | undefined;
+      { headers?: Record<string, string> } | undefined;
     expect(init?.headers?.accept).toBe("application/octet-stream");
   });
 

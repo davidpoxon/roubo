@@ -8,11 +8,7 @@ export class PromoteIntegrationError extends Error {
   constructor(
     message: string,
     public readonly code:
-      | "PROJECT_NOT_FOUND"
-      | "CONFIG_INVALID"
-      | "NO_ACTIVE_PLUGIN"
-      | "VALIDATION"
-      | "WRITE_FAILED",
+      "PROJECT_NOT_FOUND" | "CONFIG_INVALID" | "NO_ACTIVE_PLUGIN" | "VALIDATION" | "WRITE_FAILED",
   ) {
     super(message);
     this.name = "PromoteIntegrationError";

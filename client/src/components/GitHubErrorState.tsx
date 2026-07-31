@@ -7,11 +7,7 @@ import { ApiError, getApiErrorParams } from "../lib/api";
 // through this component, but they describe transport / plugin-lifecycle state
 // rather than GitHub itself, so they get their own copy.
 type PluginErrorCode =
-  | "rpc-error"
-  | "rpc-init-failed"
-  | "plugin-not-enabled"
-  | "unknown-plugin"
-  | "timeout";
+  "rpc-error" | "rpc-init-failed" | "plugin-not-enabled" | "unknown-plugin" | "timeout";
 
 interface ErrorCopy {
   code: GitHubErrorCode | PluginErrorCode | "GENERIC";

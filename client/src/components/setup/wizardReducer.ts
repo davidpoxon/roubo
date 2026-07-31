@@ -46,14 +46,7 @@ export function nextAvailablePort(
 }
 
 export type WizardSection =
-  | "project"
-  | "layout"
-  | "components"
-  | "tools"
-  | "users"
-  | "inspection"
-  | "benches"
-  | "review";
+  "project" | "layout" | "components" | "tools" | "users" | "inspection" | "benches" | "review";
 export type SectionStatus = "pristine" | "valid" | "invalid";
 
 export const WIZARD_SECTIONS: WizardSection[] = [

@@ -42,8 +42,7 @@ describe("forge.config", () => {
   it("registers the roubo:// protocol scheme for deep linking and OAuth", () => {
     type Protocol = { name: string; schemes: string[] };
     const protocols = (config.packagerConfig as Record<string, unknown>)?.protocols as
-      | Protocol[]
-      | undefined;
+      Protocol[] | undefined;
     expect(protocols).toBeDefined();
     expect(protocols?.some((p) => p.schemes.includes("roubo"))).toBe(true);
   });

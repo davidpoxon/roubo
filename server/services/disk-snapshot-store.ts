@@ -95,11 +95,7 @@ export interface CacheKeyInput {
 
 /** Reasons a stored file is discarded on read, surfaced (without secrets) to the discard log. */
 export type DiscardReason =
-  | "missing"
-  | "corrupt"
-  | "schema-version-mismatch"
-  | "plugin-version-mismatch"
-  | "over-age";
+  "missing" | "corrupt" | "schema-version-mismatch" | "plugin-version-mismatch" | "over-age";
 
 /** Reasons a `put` does not persist, surfaced to the discard log. */
 export type SkipReason = "over-entry-cap";
