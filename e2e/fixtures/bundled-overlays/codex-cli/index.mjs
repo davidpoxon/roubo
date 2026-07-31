@@ -32,8 +32,10 @@ const COMMAND = "roubo-e2e-codex-stub";
 /**
  * Codex's interactive form is `codex [OPTIONS] [PROMPT]` (spike 502, section 2),
  * so a positional initial prompt is the faithful mode. No length bound is
- * declared: the real limit is #520's to establish against the real binary, and
- * an invented one would silently truncate a jig here.
+ * declared here: the shipped plugin sets `maxLength: 100_000`
+ * (roubo-plugins/plugins/codex/src/translate-launch.ts), and this overlay drives
+ * the e2e stub rather than the real binary, so copying that cap would only be a
+ * copy the guard proves nothing about.
  */
 const INITIAL_PROMPT = { mode: "argv-positional" };
 
