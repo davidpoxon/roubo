@@ -124,6 +124,14 @@ export interface ResolvedTemplateContext {
    * wiring and never learns a real port.
    */
   port?: string;
+  /**
+   * The absolute path of the notifier program core installed for this launch,
+   * supplied only when resolving a descriptor whose notification wiring is
+   * `spawned-notifier` (issue #698). A plugin declares `{{notifier}}` when it
+   * needs the program by path rather than by PATH lookup, and never learns
+   * where core keeps it.
+   */
+  notifier?: string;
 }
 
 export function resolveTemplate(template: string, ctx: ResolvedTemplateContext): string {
@@ -152,6 +160,7 @@ export function resolveTemplate(template: string, ctx: ResolvedTemplateContext):
     // leave-unresolved default rather than picking up an empty string.
     if (key === "sessionId" && ctx.sessionId !== undefined) return ctx.sessionId;
     if (key === "port" && ctx.port !== undefined) return ctx.port;
+    if (key === "notifier" && ctx.notifier !== undefined) return ctx.notifier;
 
     if (key.startsWith("user.")) {
       const propName = key.slice("user.".length);

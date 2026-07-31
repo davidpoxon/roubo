@@ -100,9 +100,18 @@ export const NotificationWiringSchema = z.discriminatedUnion("kind", [
       kind: z.literal("spawned-notifier"),
       event: z.literal("turn-complete"),
       // Argv the host appends when spawning the agent; string elements may carry
-      // {{sessionId}} / {{port}} / {{workspace}} for core to resolve.
+      // {{sessionId}} / {{port}} / {{workspace}} / {{notifier}} for core to
+      // resolve. {{notifier}} is the absolute path of the notifier program core
+      // installs for this launch, and is exclusive to this arm; the program's
+      // directory also leads the agent's PATH, so a bare `roubo-notify` resolves
+      // without it (issue #698).
       carrier: z.object({ args: z.array(z.string()) }).strict(),
       payload: z.literal("json-arg"),
+      // Resolved through the same substitution, in the same context, as the
+      // carrier argv above, so the token the notifier is invoked with is the one
+      // the host later looks up. Declare something session-derived: a constant
+      // is guessable, and the host refuses a token another live session already
+      // owns rather than let two agents share one.
       correlation: z
         .object({
           source: z.literal("template"),
@@ -266,6 +275,8 @@ export type AgentCapabilities = z.infer<typeof AgentCapabilitiesSchema>;
 // never shell-interpreted (AP-NFR-001); string elements may carry
 // {{sessionId}} / {{port}} / {{workspace}}, which core resolves so a plugin
 // declares shape and never learns a real port or mints a session id.
+// {{notifier}} resolves too, but only inside a spawned-notifier carrier: it
+// names a program core installs for that wiring and nothing else.
 
 export const AgentLaunchDescriptorSchema = z
   .object({

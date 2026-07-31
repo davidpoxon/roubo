@@ -573,6 +573,27 @@ Returns `{ "status": "ok" }`. Repeat calls for one session are safe: they collap
 
 Waiting notifications clear themselves when the session produces fresh output or receives input, so there is no matching "no longer waiting" call.
 
+### Report a turn complete (agent notifier)
+
+```
+POST /api/hooks/agent-notification
+Content-Type: application/json
+
+{ "token": "550e8400-e29b-41d4-a716-446655440000" }
+```
+
+The other half of the same idea, for an agent that cannot POST anywhere itself. Such an agent spawns a configured program when its turn ends, so Roubo installs one (`~/.roubo/bin/roubo-notify`), tells the agent to spawn it with a correlation token, and this is where that program reports in. Like the endpoint above it is meant for the agent's own machinery, not for an integrator. A `payload` field carrying the event JSON the agent appended is accepted and ignored.
+
+`token` is the correlation key, and it is whatever the agent plugin's launch descriptor declared as its `correlation.template` resolved to at launch: usually the session id, but it need not be. Roubo registers the token against the session at launch and trades it back here, so the same rules apply as above: the token is honoured only while its session is live, and an unregistered, expired, or duplicated token raises nothing.
+
+Returns `{ "status": "ok" }`, and repeat calls collapse into one notification.
+
+| Status | Reason                                                             |
+| ------ | ------------------------------------------------------------------ |
+| `200`  | Notification raised (or already present)                           |
+| `400`  | `token` missing or not a string; or its session is no longer live  |
+| `404`  | No session registered for the token, or its bench no longer exists |
+
 ---
 
 ## Terminal (WebSocket)

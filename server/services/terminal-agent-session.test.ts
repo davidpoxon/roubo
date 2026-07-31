@@ -81,7 +81,10 @@ import {
   getSession,
   handleWebSocket,
   isHookNotificationEligible,
+  isNotifierNotificationEligible,
+  resolveNotifierSession,
 } from "./terminal.js";
+import { getNotifierDir, getNotifierPath } from "./agent-notifier.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
 import { AgentCommandNotFoundError } from "./env.js";
@@ -788,7 +791,10 @@ describe("hook notification eligibility (AP-TC-069, AP-TC-084)", () => {
 
     const session = await launch();
 
+    // Ineligible HERE, but wired: the two endpoints are separate paths, and the
+    // positive case is the notifier one (issue #698).
     expect(isHookNotificationEligible(session.id)).toBe(false);
+    expect(isNotifierNotificationEligible(session.id)).toBe(true);
   });
 
   it("expires the correlation token once the agent exits", async () => {
@@ -807,6 +813,173 @@ describe("hook notification eligibility (AP-TC-069, AP-TC-084)", () => {
 
   it("reports an unknown session id as ineligible", () => {
     expect(isHookNotificationEligible("00000000-0000-4000-8000-000000000000")).toBe(false);
+  });
+});
+
+// ── The spawned-notifier wiring, end to end (issue #698) ──
+
+/**
+ * The other arm of the notification union: the agent has no way to POST to core
+ * itself, so it spawns a program core supplies and the correlation token rides
+ * that program's argv.
+ */
+function spawnedNotifier(overrides: Record<string, unknown> = {}) {
+  return {
+    kind: "spawned-notifier",
+    event: "turn-complete",
+    carrier: { args: ["--notify", "{{notifier}} {{sessionId}}"] },
+    payload: "json-arg",
+    correlation: { source: "template", template: "{{sessionId}}" },
+    ...overrides,
+  };
+}
+
+describe("spawned-notifier launch wiring (issue #698)", () => {
+  it("appends the declared carrier args, after the posture args and before the prompt", async () => {
+    prepare(
+      {
+        args: ["--flag"],
+        initialPrompt: { mode: "argv-positional" },
+        capabilities: {
+          notification: spawnedNotifier({ carrier: { args: ["-c", "notify=on"] } }),
+          permissions: { postures: { guarded: { args: ["--ask"] } } },
+        },
+      },
+      { posture: "guarded" },
+    );
+
+    await launch({ initialInput: "do the thing" });
+
+    // Descriptor args, then the posture binding's, then the notification
+    // carrier's, and the positional prompt still last.
+    expect(spawnCall().args).toEqual(["--flag", "--ask", "-c", "notify=on", "do the thing"]);
+  });
+
+  it("resolves {{notifier}} to the installed program and {{sessionId}} to the real id", async () => {
+    prepare({ capabilities: { notification: spawnedNotifier() } });
+
+    const session = await launch();
+
+    expect(spawnCall().args).toEqual(["--notify", `${getNotifierPath()} ${session.id}`]);
+  });
+
+  it("resolves {{port}} and {{workspace}} in carrier argv too", async () => {
+    vi.stubEnv("ROUBO_PORT", "51234");
+    prepare({
+      capabilities: {
+        notification: spawnedNotifier({
+          carrier: { args: ["--port={{port}}", "--cwd={{workspace}}"] },
+        }),
+      },
+    });
+
+    await launch();
+
+    expect(spawnCall().args).toEqual(["--port=51234", `--cwd=${workspace}`]);
+  });
+
+  it("leads the child PATH with the notifier's directory, so a bare name resolves", async () => {
+    prepare({ capabilities: { notification: spawnedNotifier() } });
+
+    await launch();
+
+    const env = spawnCall().opts.env as Record<string, string>;
+    expect(env.PATH.startsWith(`${getNotifierDir()}${path.delimiter}`)).toBe(true);
+  });
+
+  it("does not install a notifier, or touch PATH, for an http-hook agent", async () => {
+    prepare({ capabilities: { notification: HTTP_HOOK_NOTIFICATION } });
+
+    await launch();
+
+    const env = spawnCall().opts.env as Record<string, string>;
+    expect(env.PATH.startsWith(getNotifierDir())).toBe(false);
+  });
+
+  it("registers the session against the token the carrier argv tells the agent to quote", async () => {
+    prepare({ capabilities: { notification: spawnedNotifier() } });
+
+    const session = await launch();
+
+    // The second acceptance criterion: one resolution, so the token core
+    // registered is byte-identical to the one that reached argv.
+    const token = spawnCall().args[1].split(" ")[1];
+    expect(token).toBe(session.id);
+    expect(isNotifierNotificationEligible(token)).toBe(true);
+    expect(resolveNotifierSession(token)?.id).toBe(session.id);
+  });
+
+  it("honours a correlation template that is not the bare session id", async () => {
+    prepare({
+      capabilities: {
+        notification: spawnedNotifier({
+          carrier: { args: ["--notify=roubo:{{sessionId}}"] },
+          correlation: { source: "template", template: "roubo:{{sessionId}}" },
+        }),
+      },
+    });
+
+    const session = await launch();
+
+    expect(isNotifierNotificationEligible(`roubo:${session.id}`)).toBe(true);
+    expect(isNotifierNotificationEligible(session.id)).toBe(false);
+    expect(spawnCall().args).toEqual([`--notify=roubo:${session.id}`]);
+  });
+
+  it("expires the correlation token once the agent exits", async () => {
+    prepare({ capabilities: { notification: spawnedNotifier() } });
+
+    const session = await launch();
+    expect(isNotifierNotificationEligible(session.id)).toBe(true);
+
+    lastPty()._emit("exit", { exitCode: 0 });
+
+    // The record survives so the scrollback is still readable, but the token
+    // it carried is spent (AP-TC-084).
+    expect(getSession(session.id)?.status).toBe("ended");
+    expect(isNotifierNotificationEligible(session.id)).toBe(false);
+  });
+
+  it("reports an unregistered token as ineligible", () => {
+    expect(isNotifierNotificationEligible("never-registered")).toBe(false);
+    expect(resolveNotifierSession("never-registered")).toBeUndefined();
+  });
+
+  it("refuses a constant token a live session already owns", async () => {
+    const constantToken = { correlation: { source: "template", template: "always-the-same" } };
+    prepare({ capabilities: { notification: spawnedNotifier(constantToken) } });
+    const first = await launch();
+
+    prepare({ capabilities: { notification: spawnedNotifier(constantToken) } });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const second = await launch();
+    warnSpy.mockRestore();
+
+    // The first owner keeps the token; the second session is simply not
+    // notifier-wired rather than able to raise notifications against the first.
+    expect(resolveNotifierSession("always-the-same")?.id).toBe(first.id);
+    expect(resolveNotifierSession("always-the-same")?.id).not.toBe(second.id);
+  });
+
+  it("treats quiescence as the fallback, not the primary, for a notifier-wired agent", async () => {
+    prepare({ capabilities: { notification: spawnedNotifier() } });
+
+    const session = await launch();
+    vi.useFakeTimers();
+    lastPty()._emit("data", "working");
+
+    // The generic 2000ms terminal debounce must not fire: turn-complete is the
+    // primary signal, so quiescence gets the same 8000ms window a hook gets.
+    vi.advanceTimersByTime(7999);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      "agent-waiting",
+      session.id,
+      { label: session.label },
+    );
   });
 });
 
