@@ -2,7 +2,7 @@
 
 `@roubo/plugin-sdk` is the package plugin authors import to talk to the Roubo host. It wraps the JSON-RPC protocol so authors implement only contract methods and call typed host helpers; the SDK handles framing, stdio binding, and error wrapping.
 
-This document covers the manifest format, every contract method, pagination, host helpers, the error shape, and the trust model. The SDK source itself lives at [`plugin-sdk/`](../plugin-sdk/).
+This document covers the manifest format, the integration contract methods, the [agent contract](#agent-contract) (`defineAgentPlugin`, the launch descriptor, and the `kind: agent` manifest), pagination, host helpers, the error shape, and the trust model. The SDK source itself lives at [`plugin-sdk/`](../plugin-sdk/).
 
 ## Install
 
@@ -69,6 +69,8 @@ definePlugin({
 ```
 
 Roubo will spawn the plugin as a Node child process, talk to it over stdio, and call the contract methods you implemented.
+
+The scaffold above is an integration plugin. For an `agent`-kind plugin, which registers with `defineAgentPlugin` and implements one method, start from [Agent quick start](#agent-quick-start) instead.
 
 ## Manifest reference
 
@@ -169,6 +171,177 @@ defineAgentPlugin({
 `defineAgentPlugin` validates synchronously, at definition time, never at launch time: an incompatible `contractVersion` (it must equal the SDK's `SUPPORTED_AGENT_CONTRACT_VERSION`) and a contract missing `translateLaunch` both throw before the process ever answers a request. The agent contract is versioned separately from the component contract's `SUPPORTED_CONTRACT_VERSION`, so the two can move independently.
 
 The `config` your `translateLaunch` receives is whatever the user saved for your plugin, and your manifest `configSchema` is the only thing that decides what that form looks like. Roubo renders the schema's top-level properties on the **Settings > AI Agents** screen: a `string` becomes a text field, a `boolean` a checkbox, a `number` or `integer` a number field, and a property with an `enum` (or a `oneOf` of `const` branches, each of which may carry its own `title`) becomes a select of exactly those values. Give each property a `title` and a `description` and they become the control's label and help text. The host validates every save against the same schema and refuses an out-of-range value, so `translateLaunch` can trust that its `config` conforms. Each agent plugin's saved defaults live in their own file, `~/.roubo/agents/_global/<pluginId>.yaml`, so nothing you declare can collide with another agent plugin's configuration.
+
+### Agent quick start
+
+An agent plugin is a directory Roubo discovers under `~/.roubo/plugins/<id>/`, exactly like an integration plugin. It needs a `roubo-plugin.yaml` declaring `kind: agent` and a Node entry script that calls `defineAgentPlugin`. The scaffold below is complete: follow the five steps top to bottom and you get a plugin that compiles against the published SDK and loads as an agent.
+
+```text
+my-agent/
+  roubo-plugin.yaml
+  package.json
+  tsconfig.json
+  src/index.ts
+```
+
+**1. Declare the manifest.** `kind: agent` and `permissions.processes: false` are the two agent-specific requirements. A `processes` block on an agent manifest is rejected at validation, because the launch descriptor is an agent plugin's only route to a process or a workspace file (see [Workspace writes are declarative, always](#workspace-writes-are-declarative-always)). `agentCompatibility` is optional, and it is what lets the **Settings > AI Agents** card show your supported version window and the detected CLI version before anything is launched (see [Agent compatibility](#agent-compatibility)). `configSchema` is optional too; every property you declare becomes a control on that same screen and arrives back as `config` on each `translateLaunch`.
+
+```yaml
+# my-agent/roubo-plugin.yaml
+id: my-agent
+name: My Agent
+version: 0.1.0
+description: Launches the My Agent CLI in a bench workspace.
+kind: agent
+roubo: ^1.0.0
+entry: ./dist/index.js
+agentCompatibility:
+  minVersion: 1.4.0
+  testedCeiling: 1.9.2
+  probe:
+    command: my-agent
+    args:
+      - --version
+    parse: semver
+configSchema:
+  type: object
+  properties:
+    model:
+      title: Model
+      type: string
+      default: default
+      description: The model the session runs on. `Account default` sends no `--model` flag.
+      oneOf:
+        - const: default
+          title: Account default
+        - const: fast
+          title: Fast
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  # An agent plugin MUST declare `processes: false`. Anything else is rejected
+  # when the manifest is validated.
+  processes: false
+```
+
+**2. Depend on the SDK.** The SDK is ESM, so the package sets `"type": "module"`. Pin the version exactly; the agent contract arrived in `0.2.0`.
+
+```json
+{
+  "name": "my-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "tsc" },
+  "dependencies": { "@roubo/plugin-sdk": "0.3.0" },
+  "devDependencies": { "@types/node": "26.0.1", "typescript": "6.0.3" }
+}
+```
+
+The SDK ships bundled `.d.ts` declarations, so resolving them needs nothing beyond a Node-style resolver. `@types/node` is not optional: the SDK's declarations reference the `NodeJS` namespace, and the `"types": ["node"]` entry below asks for it by name, so a project without it fails on the config before it ever reaches your code. Keep `skipLibCheck: true` as well; it is the usual guard against type errors surfacing from inside the SDK's own dependency declarations, which are not yours to fix.
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["./src/**/*.ts"]
+}
+```
+
+**3. Write the entry.** `translateLaunch` is the only method there is. It is a pure function: read `config` and `context`, return an `AgentLaunchDescriptor`. Leave `{{sessionId}}` in the argv verbatim; the host resolves it (see [The descriptor](#the-descriptor)).
+
+```ts
+// my-agent/src/index.ts
+import {
+  defineAgentPlugin,
+  SUPPORTED_AGENT_CONTRACT_VERSION,
+  type AgentContract,
+  type AgentLaunchContext,
+  type AgentLaunchDescriptor,
+} from "@roubo/plugin-sdk";
+
+const contract: AgentContract = {
+  translateLaunch({
+    config,
+    context,
+  }: {
+    config: Record<string, unknown>;
+    context: AgentLaunchContext;
+  }): AgentLaunchDescriptor {
+    const args = ["--session-id", "{{sessionId}}"];
+    const model = config.model;
+    if (typeof model === "string" && model !== "default") {
+      args.push("--model", model);
+    }
+    return {
+      schemaVersion: 1,
+      kind: "agent-launch",
+      command: "my-agent",
+      args,
+      cwd: context.workspacePath,
+    };
+  },
+};
+
+defineAgentPlugin(contract, { contractVersion: SUPPORTED_AGENT_CONTRACT_VERSION });
+```
+
+`contractVersion` defaults to `SUPPORTED_AGENT_CONTRACT_VERSION` when you omit the options argument entirely, so `defineAgentPlugin(contract)` is exactly equivalent to the line above: passing the constant you imported from the SDK can never disagree with the SDK's own value. Pin a literal (`{ contractVersion: 1 }`) only if you want a future contract bump to refuse to register rather than to be picked up silently; that refusal is a throw at definition time, when the plugin process starts, not a build error.
+
+**4. Build and install.** Roubo spawns the entry with its own Node binary and the plugin directory as the working directory, so a bare `@roubo/plugin-sdk` import resolves from a `node_modules` sitting beside `dist/`. Copying it across is what makes the dropped-in directory self-contained.
+
+```bash
+cd my-agent
+npm install
+npm run build
+mkdir -p ~/.roubo/plugins/my-agent
+cp -R roubo-plugin.yaml dist node_modules ~/.roubo/plugins/my-agent/
+```
+
+For distribution rather than local development, bundle the SDK into the entry instead (the first-party plugins build with tsup and `noExternal: ["@roubo/plugin-sdk"]`), so the published artifact ships `roubo-plugin.yaml` and `dist/` with no `node_modules` at all.
+
+**5. Enable it.** Restart Roubo. The plugin appears on **Settings > Plugins** as an agent; review its declared permissions and grant consent there. Consent is checked before any launch, so an un-consented agent plugin stays inert no matter what its process is doing. Once consented it is selectable on **Settings > AI Agents** and as a tool when you open a terminal on a bench.
+
+Everything past this point is optional. An agent that declares no capabilities launches as a plain terminal session, which is what the scaffold above does; add a [declared capability](#declared-capabilities) only when you need the behaviour it buys.
+
+### Exported agent surface
+
+Every agent-contract name this document describes is a named export of `@roubo/plugin-sdk` (agent support landed in `0.2.0`). Value exports are importable directly; the rest are types, imported with `import type` or an inline `type` specifier.
+
+| Export                             | Kind  | What it is                                                                                                                                           |
+| ---------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `defineAgentPlugin`                | value | The agent definition entry point. Registers the contract and validates it synchronously. See [Agent contract](#agent-contract)                       |
+| `SUPPORTED_AGENT_CONTRACT_VERSION` | value | The agent contract version this SDK speaks. `defineAgentPlugin` rejects any other `contractVersion`                                                  |
+| `AgentContract`                    | type  | The contract you implement. Currently an alias of `DeclarativeAgentContract`                                                                         |
+| `DeclarativeAgentContract`         | type  | The one-method shape: `translateLaunch({ config, context })`. See [`translateLaunch`](#translatelaunch-config-context--promiseagentlaunchdescriptor) |
+| `AgentContractMethodName`          | type  | The method-name union the host may call. `"translateLaunch"`                                                                                         |
+| `DefineAgentPluginOptions`         | type  | The second argument to `defineAgentPlugin`: `contractVersion`, plus `streams` for test harnesses                                                     |
+| `AgentPluginHandle`                | type  | What `defineAgentPlugin` returns. Carries `dispose()` only; there is deliberately no `host` client                                                   |
+| `AgentLaunchContext`               | type  | The per-launch `context`: ids, workspace path, host-minted session id, merged effective config, resolved jig                                         |
+| `AgentLaunchDescriptor`            | type  | What `translateLaunch` returns. See [The descriptor](#the-descriptor)                                                                                |
+| `AgentCapabilities`                | type  | The optional `capabilities` block on the descriptor. See [Declared capabilities](#declared-capabilities)                                             |
+| `VersionProbeSpec`                 | type  | `capabilities.versionProbe`. See [The version probe and its gate](#the-version-probe-and-its-gate)                                                   |
+| `WaitingDetectionSpec`             | type  | `capabilities.waitingDetection`: `hook-driven` or `quiescence-only`                                                                                  |
+| `NotificationWiring`               | type  | `capabilities.notification`: `http-hook` or `spawned-notifier`                                                                                       |
+| `PermissionsCapability`            | type  | `capabilities.permissions`: the per-posture bindings and the optional `rules` declaration                                                            |
+| `AgentPosture`                     | type  | `"read-only" \| "guarded" \| "auto-edit" \| "full-auto"`                                                                                             |
+| `AgentPermissionsModel`            | type  | The model the host layers onto the config as `config.permissions`: an optional `posture` plus `allow` / `ask` / `deny` rules                         |
+| `WorkspaceWriteSpec`               | type  | A declared workspace file mutation. See [Workspace writes are declarative, always](#workspace-writes-are-declarative-always)                         |
+| `WriteOp`                          | type  | One op inside a `WorkspaceWriteSpec`: `unionArray`, `set`, or `delete`                                                                               |
+
+The manifest fields these pair with (`kind: agent`, `agentCompatibility`, `configSchema`, `permissions.processes`) are in the [Manifest reference](#manifest-reference); they are validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json) and have no SDK type of their own.
 
 ### `translateLaunch({ config, context }): Promise<AgentLaunchDescriptor>`
 
