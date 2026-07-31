@@ -118,7 +118,10 @@ export function ensureSpawnHelperExecutable({
 
   try {
     const mode = statSync(helper).mode;
-    if ((mode & EXEC_BITS) === EXEC_BITS) return { status: "already-executable", path: helper };
+    // Any execute bit is enough to run the helper, so only a total absence is a
+    // defect. Matching server/services/pty-preflight.ts keeps the repair and the
+    // diagnosis from disagreeing, and leaves a deliberate 0700 helper untouched.
+    if ((mode & EXEC_BITS) !== 0) return { status: "already-executable", path: helper };
     chmodSync(helper, mode | EXEC_BITS);
     return { status: "fixed", path: helper };
   } catch (err) {

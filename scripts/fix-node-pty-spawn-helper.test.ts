@@ -109,6 +109,17 @@ describe("ensureSpawnHelperExecutable", () => {
     expect(modeOf(helper)).toBe(0o755);
   });
 
+  it("leaves an owner-only executable helper at its narrower mode", () => {
+    // Any execute bit is enough to run the helper, so 0700 is healthy and must
+    // not be widened. server/services/pty-preflight.ts reports it healthy too;
+    // the two must agree.
+    const helper = seedPrebuild(0o700);
+    expect(
+      ensureSpawnHelperExecutable({ nodePtyRoot: root, platform: PLATFORM, arch: ARCH }),
+    ).toEqual({ status: "already-executable", path: helper });
+    expect(modeOf(helper)).toBe(0o700);
+  });
+
   it("is a silent no-op when the helper is absent", () => {
     expect(
       ensureSpawnHelperExecutable({ nodePtyRoot: root, platform: PLATFORM, arch: ARCH }),
