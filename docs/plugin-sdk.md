@@ -242,7 +242,7 @@ permissions:
 }
 ```
 
-The SDK ships bundled `.d.ts` declarations, so resolving them needs nothing beyond a Node-style resolver. `@types/node` is not optional: the SDK's declarations reference the `NodeJS` namespace, so a project without it fails to compile on the SDK's own types rather than on your code.
+The SDK ships bundled `.d.ts` declarations, so resolving them needs nothing beyond a Node-style resolver. `@types/node` is not optional: the SDK's declarations reference the `NodeJS` namespace, and the `"types": ["node"]` entry below asks for it by name, so a project without it fails on the config before it ever reaches your code. Keep `skipLibCheck: true` as well; it is the usual guard against type errors surfacing from inside the SDK's own dependency declarations, which are not yours to fix.
 
 ```json
 {
@@ -298,7 +298,7 @@ const contract: AgentContract = {
 defineAgentPlugin(contract, { contractVersion: SUPPORTED_AGENT_CONTRACT_VERSION });
 ```
 
-`contractVersion` defaults to `SUPPORTED_AGENT_CONTRACT_VERSION` when you omit the options argument entirely, so `defineAgentPlugin(contract)` is equivalent. Passing it explicitly is what makes a future contract bump fail loudly at your build rather than silently at a launch.
+`contractVersion` defaults to `SUPPORTED_AGENT_CONTRACT_VERSION` when you omit the options argument entirely, so `defineAgentPlugin(contract)` is exactly equivalent to the line above: passing the constant you imported from the SDK can never disagree with the SDK's own value. Pin a literal (`{ contractVersion: 1 }`) only if you want a future contract bump to refuse to register rather than to be picked up silently; that refusal is a throw at definition time, when the plugin process starts, not a build error.
 
 **4. Build and install.** Roubo spawns the entry with its own Node binary and the plugin directory as the working directory, so a bare `@roubo/plugin-sdk` import resolves from a `node_modules` sitting beside `dist/`. Copying it across is what makes the dropped-in directory self-contained.
 
@@ -312,7 +312,7 @@ cp -R roubo-plugin.yaml dist node_modules ~/.roubo/plugins/my-agent/
 
 For distribution rather than local development, bundle the SDK into the entry instead (the first-party plugins build with tsup and `noExternal: ["@roubo/plugin-sdk"]`), so the published artifact ships `roubo-plugin.yaml` and `dist/` with no `node_modules` at all.
 
-**5. Enable it.** Restart Roubo. The plugin appears on **Settings > Plugins** as an agent; review its declared permissions and grant consent there. Consent is checked before any launch, so an un-consented agent plugin stays inert no matter what its process is doing. Once consented it is selectable on **Settings > AI Agents** and in a bench's terminal launcher.
+**5. Enable it.** Restart Roubo. The plugin appears on **Settings > Plugins** as an agent; review its declared permissions and grant consent there. Consent is checked before any launch, so an un-consented agent plugin stays inert no matter what its process is doing. Once consented it is selectable on **Settings > AI Agents** and as a tool when you open a terminal on a bench.
 
 Everything past this point is optional. An agent that declares no capabilities launches as a plain terminal session, which is what the scaffold above does; add a [declared capability](#declared-capabilities) only when you need the behaviour it buys.
 
