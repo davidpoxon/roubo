@@ -383,6 +383,60 @@ describe("TerminalTabs: agent launch and jig resolution", () => {
     expect("perLaunchOverrides" in payload).toBe(false);
   });
 
+  // Issue #676: the dialog launches with the bench's own jig baseline, never the
+  // selected preset's jig, so its Agent select has to resolve through that same
+  // baseline. Resolving through the preset's jig instead would name an agent
+  // bound by a jig this session never runs under.
+  it("resolves the override dialog's agent through the baseline jig, not the preset's", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useJigs).mockReturnValue({
+      data: [
+        JIGS[0],
+        { ...JIGS[0], id: "codex-jig", name: "Codex Jig", agentPluginId: "codex-cli" },
+      ],
+    } as unknown as ReturnType<typeof useJigs>);
+    const JIG_PRESET: ResolvedAgentPreset = {
+      ...DEFAULT_PRESET,
+      id: "at-codex-jig",
+      name: "Jig Preset",
+      source: "app",
+      jig: "codex-jig",
+    };
+    setupAgentMocks([DEFAULT_PRESET, JIG_PRESET], [CLAUDE_AGENT, CODEX_AGENT]);
+
+    renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Choose launch option" })[0]);
+    });
+
+    // The menu row DOES carry the preset's jig, so it still names Codex CLI.
+    // That is what pins the two resolvers apart.
+    expect(screen.getByRole("menuitem", { name: /^Jig Preset:/ }).textContent).toContain(
+      "Codex CLI",
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /Launch with overrides/ }));
+    });
+    act(() => {
+      fireEvent.change(screen.getByLabelText("Preset"), { target: { value: "at-codex-jig" } });
+    });
+
+    expect((screen.getByLabelText("Agent") as HTMLSelectElement).value).toBe("claude-code");
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ agentPluginId: "claude-code", jigId: "feature-dev" }),
+      expect.anything(),
+    );
+  });
+
   it("launches an All-agents entry directly", () => {
     setupMocks({ autoInject: false });
     renderWithProviders(
