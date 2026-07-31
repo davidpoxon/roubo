@@ -76,6 +76,19 @@ vi.mock("node-pty", () => ({
   spawn: (...args: unknown[]) => mockSpawn(...args),
 }));
 
+// The spawn-helper diagnosis (#685) reads the real node_modules, so it is
+// stubbed here to keep these assertions about the wiring rather than about the
+// machine the suite happens to run on. pty-preflight.test.ts owns the diagnosis
+// itself.
+const mockWithSpawnHelperDiagnosis = vi.fn((detail: string) => detail);
+vi.mock("./pty-preflight.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./pty-preflight.js")>();
+  return {
+    ...actual,
+    withSpawnHelperDiagnosis: (...args: [string]) => mockWithSpawnHelperDiagnosis(...args),
+  };
+});
+
 function createMockPty() {
   const emitter = new EventEmitter();
   return {
@@ -128,6 +141,7 @@ beforeEach(() => {
   mockCreateNotification.mockReset();
   mockDismissWaitingForSession.mockReset().mockReturnValue(false);
   mockGetBench.mockReset().mockReturnValue({ id: 1, projectId: "project1", notifications: [] });
+  mockWithSpawnHelperDiagnosis.mockReset().mockImplementation((detail: string) => detail);
 });
 
 afterEach(() => {
@@ -184,6 +198,22 @@ describe("createSession", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("carries the spawn-helper diagnosis into a spawn failure (#685)", async () => {
+    mockSpawn.mockImplementation(() => {
+      throw new Error("posix_spawnp failed.");
+    });
+    mockWithSpawnHelperDiagnosis.mockImplementation(
+      (detail: string) => `${detail} Run \`chmod +x /pkg/node-pty/prebuilds/x/spawn-helper\`.`,
+    );
+    const { createSession } = await loadModule();
+
+    // On its own `posix_spawnp failed` names neither the cause nor the fix,
+    // which is what made #685 cost a full verification run.
+    expect(() => createSession("project1", 1, "/workspace", "My Project")).toThrow(
+      /posix_spawnp failed\..*chmod \+x \/pkg\/node-pty\/prebuilds\/x\/spawn-helper/,
+    );
   });
 
   it('creates a claude session when command is "claude"', async () => {

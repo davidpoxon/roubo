@@ -59,6 +59,18 @@ vi.mock("./env.js", () => ({
 const spawnMock = vi.hoisted(() => vi.fn());
 vi.mock("node-pty", () => ({ spawn: spawnMock }));
 
+// The spawn-helper diagnosis (#685) reads the real node_modules, so it is
+// stubbed here to keep these assertions about the wiring rather than about the
+// machine the suite happens to run on. pty-preflight.test.ts owns the diagnosis
+// itself.
+const preflightMocks = vi.hoisted(() => ({
+  withSpawnHelperDiagnosis: vi.fn((detail: string) => detail),
+}));
+vi.mock("./pty-preflight.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./pty-preflight.js")>();
+  return { ...actual, withSpawnHelperDiagnosis: preflightMocks.withSpawnHelperDiagnosis };
+});
+
 const pipelineMocks = vi.hoisted(() => ({ prepareAgentLaunch: vi.fn() }));
 vi.mock("./agent-launch-pipeline.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./agent-launch-pipeline.js")>();
@@ -131,6 +143,9 @@ let workspace: string;
 beforeEach(() => {
   workspace = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-agent-ws-"));
   spawnMock.mockReset().mockImplementation(() => createMockPty());
+  preflightMocks.withSpawnHelperDiagnosis
+    .mockReset()
+    .mockImplementation((detail: string) => detail);
   envMocks.resolveAgentCommand.mockReset().mockImplementation((command: string) => command);
   stateMocks.atomicWrite.mockReset();
   pipelineMocks.prepareAgentLaunch.mockReset();
@@ -668,6 +683,23 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     // every spawn fails. That is Roubo's problem, not the agent plugin's.
     expect(err.failure.class).toBe("host-install-broken");
     expect(err.failure.guidance).toMatch(/Failed to spawn agent session \(command: missing-agent/);
+  });
+
+  it("carries the spawn-helper diagnosis into the guidance when there is one (#685)", async () => {
+    prepare({ command: "acme" });
+    spawnMock.mockImplementation(() => {
+      throw new Error("posix_spawnp failed.");
+    });
+    preflightMocks.withSpawnHelperDiagnosis.mockImplementation(
+      (detail: string) => `${detail} Run \`chmod +x /pkg/node-pty/prebuilds/x/spawn-helper\`.`,
+    );
+
+    const err = (await launch().catch((e: unknown) => e)) as AgentLaunchFailureError;
+
+    // "Reinstall Roubo" alone sent a user down the wrong path in #685; the real
+    // fix is one chmod, so the guidance has to name it.
+    expect(err.failure.class).toBe("host-install-broken");
+    expect(err.failure.guidance).toContain("chmod +x /pkg/node-pty/prebuilds/x/spawn-helper");
   });
 
   it("spawns what the shared resolver returns, not the descriptor's bare command (#645)", async () => {
