@@ -1,0 +1,58 @@
+#!/usr/bin/env node
+
+// Stub agent CLI for the `codex-cli` e2e overlay (issue #683).
+//
+// The overlay (../bundled-overlays/codex-cli/) points its manifest-declared
+// version probe and its launch descriptor at this binary. It exists so the AI
+// Agents screen can read a DETECTED Codex version from a real spawn rather than
+// echoing the manifest back, which is what AP-TC-113 S002-O01 asks for: floor,
+// tested ceiling, and a detected version that came from probing something.
+//
+// Deliberately NOT named `codex`: `resolveShellPath()` prepends `~/.local/bin`
+// to the server's PATH, so a real Codex install on a developer machine would win
+// the lookup and the screen would report that binary's version instead.
+//
+// Two behaviours, keyed on argv:
+//
+//   --version   print a version inside the overlay's declared compatibility
+//               window and exit 0, so the card resolves `within-tested-range`
+//               and any launch passes the pre-launch gate.
+//   otherwise   print a ready line and idle so the PTY session stays live and
+//               the host classifies no early-exit failure.
+//
+// Unlike roubo-e2e-claude-stub this binary NEVER writes AGENT_ARGV_LOG_PATH.
+// That log is a single shared file the AP-TC-087 guard reads as evidence of the
+// argv its own launch produced; a second writer could only race it or clobber it.
+
+// The output shape is the real `codex --version` shape, `codex-cli <semver>`,
+// recorded against @openai/codex 0.144.1 in spike 502 and already covered by
+// `parseVersion` (server/services/agent-version-probe.test.ts). The trailing
+// marker keeps a stray real invocation legible in a log.
+//
+// Inside the overlay's declared window (floor 0.144.0, tested ceiling 0.160.0),
+// so the gate neither blocks a launch nor emits a staleness notice.
+const STUB_VERSION = "0.150.0";
+
+const argv = process.argv.slice(2);
+
+if (argv.includes("--version")) {
+  process.stdout.write(`codex-cli ${STUB_VERSION} (Roubo e2e stub)\n`);
+  process.exit(0);
+}
+
+// A line of output so the session reads as a live agent rather than a silent
+// one, and so the early-exit classifier has captured output to work with if this
+// process ever does die.
+process.stdout.write("roubo-e2e-codex-stub ready\n");
+
+// Idle. The spec destroys the session when it is done, and the timer is the only
+// handle keeping the event loop alive, so an unref'd or cleared timer would end
+// the process.
+const keepAlive = setInterval(() => {}, 1000);
+
+for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+  process.on(signal, () => {
+    clearInterval(keepAlive);
+    process.exit(0);
+  });
+}
