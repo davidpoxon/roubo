@@ -148,7 +148,47 @@ describe("LaunchOverridesDialog", () => {
     expect(options).toEqual(["Claude Code"]);
   });
 
-  it("re-reads the newly selected agent's parameters (AP-TC-029 S001-O01)", () => {
+  // The whole of AP-TC-029 in one test, so the case maps to a single suite
+  // entry that covers both of its observations. The narrower tests below walk
+  // the same ground a step at a time and are deliberately not tagged with this
+  // case's id: a case carrying more than one id-tagged test can never be
+  // corroborated from a JUnit report (#680).
+  it("re-reads the selected agent's parameters, then traces this-launch edits over the layers beneath (AP-TC-029)", () => {
+    open();
+
+    // S001-O01: Claude Code declares three enums, so all three fields are
+    // selects. Codex declares only `model`, so switching agent re-reads the
+    // field set from the newly selected agent rather than keeping the old one.
+    expect(screen.getByLabelText("Model").tagName).toBe("SELECT");
+    expect(screen.getByLabelText("Effort").tagName).toBe("SELECT");
+
+    setField("Agent", "codex-cli");
+
+    expect(
+      Array.from(screen.getByLabelText("Model").querySelectorAll("option")).map(
+        (option) => option.textContent,
+      ),
+    ).toEqual(["inherit", "gpt-5.2-codex"]);
+    expect(screen.getByLabelText("Effort").tagName).toBe("INPUT");
+    expect(traceText()).toContain("model=gpt-5.2-codex");
+
+    // S002-O01: back on Claude Code, adjusting Model, Effort and Mode puts each
+    // value on the this-launch line and supersedes the layers beneath it.
+    setField("Agent", "claude-code");
+    setField("Model", "haiku");
+    setField("Effort", "max");
+    setField("Mode", "auto");
+
+    const perLaunch = screen.getByTestId("resolution-layer-perLaunch");
+    expect(perLaunch.textContent).toContain("this launch");
+    expect(perLaunch.textContent).toContain("model=haiku");
+    expect(perLaunch.textContent).toContain("effort=max");
+    expect(perLaunch.textContent).toContain("mode=auto");
+    expect(screen.getByTestId("resolution-app-model").dataset.superseded).toBe("true");
+    expect(screen.getByTestId("resolution-project-model").dataset.superseded).toBe("true");
+  });
+
+  it("re-reads the newly selected agent's parameters (S001-O01)", () => {
     open();
 
     // Claude Code declares three enums, so all three fields are selects.
@@ -195,7 +235,7 @@ describe("LaunchOverridesDialog", () => {
     });
   });
 
-  it("updates the trace live as fields change, emphasising this-launch values (AP-TC-029 S002, AP-TC-046)", () => {
+  it("updates the trace live as fields change, emphasising this-launch values (S002, AP-TC-046)", () => {
     open();
 
     // Before any edit the this-launch line contributes nothing.
