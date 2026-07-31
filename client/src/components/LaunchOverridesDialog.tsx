@@ -160,7 +160,8 @@ export default function LaunchOverridesDialog({
         const value = current[field.key];
         if (!value) continue;
         const options = enumOptionsFor(nextAgent, field.key);
-        if (options === undefined || options.includes(value)) kept[field.key] = value;
+        if (options === undefined || options.some((option) => option.key === value))
+          kept[field.key] = value;
       }
       return kept;
     });
@@ -309,8 +310,8 @@ export default function LaunchOverridesDialog({
                       >
                         <option value={INHERIT}>inherit</option>
                         {options.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
+                          <option key={option.key} value={option.key}>
+                            {option.label}
                           </option>
                         ))}
                       </select>
