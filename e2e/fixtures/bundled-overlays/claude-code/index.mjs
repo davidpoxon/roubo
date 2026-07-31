@@ -27,6 +27,9 @@ import * as rpc from "vscode-jsonrpc/node";
  */
 const COMMAND = "roubo-e2e-claude-stub";
 
+/** Mirrors the real plugin's SETTINGS_REL_PATH. */
+const SETTINGS_REL_PATH = ".claude/settings.local.json";
+
 /** Mirrors the real plugin's MAX_PROMPT_LENGTH. */
 const MAX_PROMPT_LENGTH = 100_000;
 
@@ -42,7 +45,16 @@ const VERSION_PROBE = {
   testedCeiling: "2.1.207",
 };
 
-/** Mirrors the real plugin's PERMISSIONS_CAPABILITY posture bindings. */
+/**
+ * Mirrors the real plugin's PERMISSIONS_CAPABILITY, both axes.
+ *
+ * Every posture binds through argv alone, because Claude Code's native mechanism
+ * for that axis is `--permission-mode`. The fine-grained rules are the other
+ * axis and they do need a file, which is why `rules` declares the
+ * workspace-write carrier and opts into resync: without it `applyProjectPermissions`
+ * reports carrier "none" and skips every bench, so the AP-TC-101 resync journey
+ * has nothing to observe.
+ */
 const PERMISSIONS_CAPABILITY = {
   postures: {
     "read-only": { args: ["--permission-mode", "plan"] },
@@ -50,6 +62,44 @@ const PERMISSIONS_CAPABILITY = {
     "auto-edit": { args: ["--permission-mode", "acceptEdits"] },
     "full-auto": { args: ["--permission-mode", "auto"] },
   },
+  rules: { carrier: "workspace-write", resync: true },
+};
+
+/**
+ * Mirrors the real plugin's NOTIFICATION_WIRING.
+ *
+ * Catch-all with no matcher, correlated on the CLI's own `session_id`, which is
+ * the uuid the host handed it as `--session-id`. Declaring this is what makes a
+ * session hook-wired: without it `isHookNotificationEligible` returns false and
+ * POST /api/hooks/claude-notification answers 400, so the AP-TC-065 / AP-TC-099
+ * waiting-notification journeys cannot be driven at all.
+ *
+ * `Notification` is SET rather than unioned, so a stale registration can never
+ * survive, and only that key is touched (AP-TC-098).
+ */
+const NOTIFICATION_WIRING = {
+  kind: "http-hook",
+  event: "waiting",
+  carrier: {
+    workspaceWrite: {
+      relPath: SETTINGS_REL_PATH,
+      format: "json",
+      ops: [
+        {
+          op: "set",
+          path: "hooks.Notification",
+          value: [
+            {
+              hooks: [
+                { type: "http", url: "http://localhost:{{port}}/api/hooks/claude-notification" },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  correlation: { field: "session_id", source: "agent-native" },
 };
 
 /**
@@ -187,6 +237,46 @@ function readPosture(permissions) {
   return typeof posture === "string" ? posture : undefined;
 }
 
+/** Every string in one rule list, ignoring anything that is not a string. */
+function readRuleList(value) {
+  return Array.isArray(value) ? value.filter((rule) => typeof rule === "string") : [];
+}
+
+/** The project's fine-grained rules, when it has any. Mirrors readRules. */
+function readRules(permissions) {
+  if (permissions === undefined || permissions === null) return undefined;
+  if (typeof permissions !== "object" || Array.isArray(permissions)) return undefined;
+  const raw = permissions.rules;
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  return {
+    allow: readRuleList(raw.allow),
+    ask: readRuleList(raw.ask),
+    deny: readRuleList(raw.deny),
+  };
+}
+
+/**
+ * The rules write, or undefined when there is nothing to write. Mirrors
+ * buildRulesWrite, including the allow/deny/ask op ordering, which is what makes
+ * a fresh settings file byte-identical to the built-in writer's (AP-TC-097).
+ */
+function buildRulesWrite(rules) {
+  if (!rules) return undefined;
+  const ops = [];
+  if (rules.allow.length > 0) {
+    ops.push({ op: "unionArray", path: "permissions.allow", values: rules.allow });
+  }
+  if (rules.deny.length > 0) {
+    ops.push({ op: "unionArray", path: "permissions.deny", values: rules.deny });
+  }
+  if (rules.ask.length > 0) {
+    ops.push({ op: "unionArray", path: "permissions.ask", values: rules.ask });
+  }
+  if (ops.length === 0) return undefined;
+  return { relPath: SETTINGS_REL_PATH, format: "json", ops };
+}
+
 const reader = new rpc.StreamMessageReader(process.stdin);
 const writer = new rpc.StreamMessageWriter(process.stdout);
 const connection = rpc.createMessageConnection(reader, writer);
@@ -194,6 +284,7 @@ const connection = rpc.createMessageConnection(reader, writer);
 connection.onRequest("translateLaunch", (params) => {
   const config = (params && params.config) || {};
   const posture = readPosture(config.permissions);
+  const rulesWrite = buildRulesWrite(readRules(config.permissions));
   return {
     schemaVersion: 1,
     kind: "agent-launch",
@@ -207,9 +298,11 @@ connection.onRequest("translateLaunch", (params) => {
     ],
     initialPrompt: { mode: "argv-positional", maxLength: MAX_PROMPT_LENGTH },
     capabilities: {
-      // No `notification` wiring: the real plugin declares an http-hook carrier
-      // write, but AP-TC-087 asserts nothing about hooks and the extra workspace
-      // write would only add a failure mode to this guard.
+      // The rules write comes first so a fresh settings file gets `permissions`
+      // before `hooks`, byte-for-byte what the built-in integration produces for
+      // the same inputs (AP-TC-097).
+      ...(rulesWrite !== undefined && { workspaceWrites: [rulesWrite] }),
+      notification: NOTIFICATION_WIRING,
       versionProbe: VERSION_PROBE,
       permissions: PERMISSIONS_CAPABILITY,
     },
