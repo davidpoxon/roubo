@@ -4,9 +4,12 @@ import { clearCapturedArgv, readCapturedArgv } from "./_support/argv-log.js";
 import {
   CLAUDE_AGENT_NAME,
   CLAUDE_PLUGIN_ID,
+  CODEX_PLUGIN_ID,
   DEFAULT_AGENT_BINDING,
   clearAgentConfig,
   consentAgent,
+  disablePlugin,
+  enablePlugin,
   setAppAgentTools,
   setDefaultAgent,
   waitForAvailableAgents,
@@ -194,6 +197,17 @@ async function openLaunchMenu(page: Page): Promise<Locator> {
   // observations below to report the divergence through the FR-020 block rather
   // than failing here as an unattributed Playwright timeout.
   await menu.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+  // The menu itself is data-INDEPENDENT: the three MenuSections and the
+  // "Launch with overrides" action render before `useAgentPresets` resolves, and
+  // the chevron that opens it is never disabled. So waiting on the menu alone
+  // would let the counts below be read against an empty list. Wait for the first
+  // preset row too, also TOLERATED: a list that stays empty still reports through
+  // the FR-020 observation rather than as an unattributed timeout.
+  await menu
+    .locator('[data-testid^="launch-preset-"]')
+    .first()
+    .waitFor({ state: "visible", timeout: 15_000 })
+    .catch(() => {});
   return menu;
 }
 
@@ -221,10 +235,20 @@ test.beforeEach(async ({ request }) => {
   const reset = await request.post("/test/__reset", { data: {} });
   expect(reset.status(), "POST /test/__reset").toBe(200);
 
-  // Precondition: Claude Code installed, configured and the default agent, so
-  // every default-bound preset resolves to it.
+  // Precondition: "Claude Code and Codex CLI are both installed and configured"
+  // and "Claude Code is the default agent" (AP-TC-027).
+  //
+  // The SECOND agent is what makes the observation discriminating. With only one
+  // available agent, `resolveLaunchAgentId` (server/services/agent-launch-pipeline.ts)
+  // falls back to it whenever the pinned default is missing or unusable, so a
+  // regression that stopped honouring `jigs.defaultAgentPluginId` would still
+  // resolve to Claude Code and the case would pass anyway. With two available
+  // agents that fallback is unreachable, and the pin is the only thing that can
+  // make the built-ins resolve to Claude Code.
+  await enablePlugin(request, CODEX_PLUGIN_ID);
   await consentAgent(request, CLAUDE_PLUGIN_ID);
-  await waitForAvailableAgents(request, [CLAUDE_PLUGIN_ID]);
+  await consentAgent(request, CODEX_PLUGIN_ID);
+  await waitForAvailableAgents(request, [CLAUDE_PLUGIN_ID, CODEX_PLUGIN_ID]);
   await setDefaultAgent(request, CLAUDE_PLUGIN_ID);
   // Both cases assert an argv, and an app-level default left behind by another
   // spec would layer underneath the preset's overrides and change it.
@@ -269,6 +293,10 @@ test.afterEach(async ({ request }) => {
   await destroyAllSessions(request);
   await setAppAgentTools(request, []);
   await setDefaultAgent(request, null);
+  // Hand the environment back with exactly one available agent again, the way
+  // default-agent-tiles.spec.ts does: the second overlay is opt-in per spec, and
+  // AP-TC-087's single-available-agent fallback depends on it being off.
+  await disablePlugin(request, CODEX_PLUGIN_ID);
   clearCapturedArgv();
 });
 

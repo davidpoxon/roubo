@@ -3,8 +3,11 @@ import { makeObserve, type JourneyStep } from "../component-plugins/_support/ste
 import {
   CLAUDE_AGENT_NAME,
   CLAUDE_PLUGIN_ID,
+  CODEX_PLUGIN_ID,
   DEFAULT_AGENT_BINDING,
   consentAgent,
+  disablePlugin,
+  enablePlugin,
   readAppAgentTools,
   setAppAgentTools,
   setDefaultAgent,
@@ -135,11 +138,23 @@ test.beforeEach(async ({ request }) => {
   const reset = await request.post("/test/__reset", { data: {} });
   expect(reset.status(), "POST /test/__reset").toBe(200);
 
-  // Precondition: an installed, configured agent for the default binding to
-  // resolve to. `resolveAgent` refuses an unconsented agent, so without this the
-  // subtitle would read "default agent -> none".
+  // Precondition: "Claude Code and Codex CLI are both installed and configured"
+  // (AP-TC-025), with Claude Code pinned as the default so the binding has
+  // something to resolve to. `resolveAgent` refuses an unconsented agent, so
+  // without the consent calls the subtitle would read "default agent -> none".
+  //
+  // The SECOND agent is what makes S003-O02 discriminating. The subtitle's
+  // resolved name is computed CLIENT-side (ProjectSettings.tsx, the
+  // `defaultAgent` prop): the availability-gated `jigs.defaultAgentPluginId` is
+  // consulted first, then it falls back to `availableAgents.length === 1 ?
+  // availableAgents[0].id : null`. With one available agent, a regression that
+  // dropped the pinned default entirely would still render "default agent ->
+  // Claude Code" and the observation would pass anyway. With two, the pin is the
+  // only thing that can produce that subtitle.
+  await enablePlugin(request, CODEX_PLUGIN_ID);
   await consentAgent(request, CLAUDE_PLUGIN_ID);
-  await waitForAvailableAgents(request, [CLAUDE_PLUGIN_ID]);
+  await consentAgent(request, CODEX_PLUGIN_ID);
+  await waitForAvailableAgents(request, [CLAUDE_PLUGIN_ID, CODEX_PLUGIN_ID]);
   await setDefaultAgent(request, CLAUDE_PLUGIN_ID);
 
   // App-level presets live in settings.json, which /test/__reset does not clear,
@@ -151,6 +166,10 @@ test.beforeEach(async ({ request }) => {
 test.afterEach(async ({ request }) => {
   await setAppAgentTools(request, []);
   await setDefaultAgent(request, null);
+  // Hand the environment back with exactly one available agent again: the second
+  // overlay is opt-in per spec, and AP-TC-087's single-available-agent fallback
+  // depends on it being off.
+  await disablePlugin(request, CODEX_PLUGIN_ID);
 });
 
 test("AP-TC-025: bind an agent tool to the default agent, override params, save (S001-S003)", async ({
