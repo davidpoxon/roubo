@@ -202,6 +202,25 @@ describe("loadSettings", () => {
     );
   });
 
+  // AP-FR-008 (#681): app-level agent tool presets are rendered from this read,
+  // and the settings PUT falls back to it when a request omits `agentTools`, so
+  // dropping the key here both hid every saved preset and erased the file's copy
+  // on the next unrelated settings write.
+  it("preserves app-level agentTools from file", () => {
+    existsSync.mockReturnValue(true);
+    const agentTools = [
+      { id: "deep-work", name: "Deep work", agent: "default", params: { model: "opus" } },
+    ];
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", agentTools }));
+    expect(stateModule.loadSettings().agentTools).toEqual(agentTools);
+  });
+
+  it("omits agentTools entirely when the file declares none", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark" }));
+    expect(stateModule.loadSettings().agentTools).toBeUndefined();
+  });
+
   it("preserves benches.maxGlobal from file", () => {
     existsSync.mockReturnValue(true);
     readFileSync.mockReturnValue(

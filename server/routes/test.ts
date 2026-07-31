@@ -5,7 +5,11 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BUNDLED_PLUGIN_IDS, DEFAULT_PROJECT_SETTINGS } from "@roubo/shared";
+import {
+  AGENT_TOOL_DEFAULT_AGENT,
+  BUNDLED_PLUGIN_IDS,
+  DEFAULT_PROJECT_SETTINGS,
+} from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
@@ -145,6 +149,19 @@ function cleanupFixtureProject(entry: FixtureProjectEntry): void {
 // a developer's pre-existing dev projects unlikely.
 const FIXTURE_DEFAULT_PORT_BASE = 39100;
 
+// AP-TC-026 (#681): one `roubo.yaml tools:` entry of type `agent`, as a fixture
+// spec declares it. Mirrors the `agent` arm of the strict ToolConfigSchema minus
+// its `type` discriminator, which the writer supplies.
+interface FixtureAgentTool {
+  name: string;
+  icon?: string;
+  /** A plugin id, or the `default` sentinel that follows the default agent. */
+  agent: string;
+  params?: Record<string, unknown>;
+  /** A jig id, or one of the `__inherit__` / `__none__` sentinels. */
+  jig?: string;
+}
+
 // Minimum roubo.yaml that satisfies RouboConfigSchema (project, layout,
 // components ≥1, ports ≥1, benches). The single port uses a high base to
 // keep collisions with a developer's pre-existing dev projects unlikely;
@@ -165,6 +182,7 @@ function writeFixtureRouboYaml(
   enforceIssueDependencies = false,
   declaredMarketplaces: string[] = [],
   componentBinding: { name: string; pluginId: string } | null = null,
+  agentTools: FixtureAgentTool[] = [],
 ): void {
   const dotRoubo = path.join(repoPath, ".roubo");
   fs.mkdirSync(dotRoubo, { recursive: true });
@@ -204,6 +222,28 @@ function writeFixtureRouboYaml(
     declaredMarketplaces.length > 0
       ? `\nmarketplaces:\n${declaredMarketplaces.map((url) => `  - url: ${url}`).join("\n")}`
       : "";
+  // AP-TC-026 (#681): declare project-level agent tool presets under `tools:`,
+  // which is the only route by which a preset reaches a bench launch menu with
+  // source `project`. Every optional field is emitted only when the caller set
+  // it, so the block satisfies the STRICT AgentToolConfigSchema. `params` is a
+  // free-form record, so it is serialised with JSON.stringify rather than hand
+  // indented: JSON is valid YAML flow style, which keeps an arbitrary nested
+  // value correct without this fixture reimplementing a YAML emitter.
+  const toolsBlock =
+    agentTools.length > 0
+      ? `\ntools:\n${agentTools
+          .map((tool) =>
+            [
+              `  - type: agent`,
+              `    name: ${JSON.stringify(tool.name)}`,
+              ...(tool.icon !== undefined ? [`    icon: ${JSON.stringify(tool.icon)}`] : []),
+              `    agent: ${JSON.stringify(tool.agent)}`,
+              ...(tool.params !== undefined ? [`    params: ${JSON.stringify(tool.params)}`] : []),
+              ...(tool.jig !== undefined ? [`    jig: ${JSON.stringify(tool.jig)}`] : []),
+            ].join("\n"),
+          )
+          .join("\n")}`
+      : "";
   const yaml = `project:
   name: ${projectId}
   displayName: Roubo E2E Fixture
@@ -220,7 +260,7 @@ ports:
   app:
     base: ${portBase}
 benches:
-  max: 5${enforceIssueDependencies ? "\n  enforceIssueDependencies: true" : ""}${marketplacesBlock}
+  max: 5${enforceIssueDependencies ? "\n  enforceIssueDependencies: true" : ""}${marketplacesBlock}${toolsBlock}
 `;
   fs.writeFileSync(path.join(dotRoubo, "roubo.yaml"), yaml, "utf-8");
 }
@@ -386,6 +426,22 @@ function disableFailureFixturePlugins(): void {
   }
 }
 
+// AP-TC-018 (#681): agent-kind fixtures that exist to be a SECOND agent, and so
+// must be opted into rather than ambiently present. `resolveLaunchAgentId` treats
+// "exactly one available agent" as the default whether or not anything is
+// persisted, so a second consented agent left running would silently un-resolve
+// the default for every spec that never chose one (AP-TC-087). Consent has no
+// revoke route and outlives both /__reset and the server process, so the enable
+// ledger is the lever: forcing these disabled at every reset makes a second agent
+// something a spec asks for (POST /api/plugins/codex-cli/enable) and cannot leak
+// (NFR-018), even if an earlier run was interrupted mid-spec.
+const OPT_IN_AGENT_FIXTURE_PLUGIN_IDS = ["codex-cli"] as const;
+function disableOptInAgentFixturePlugins(): void {
+  for (const id of OPT_IN_AGENT_FIXTURE_PLUGIN_IDS) {
+    pluginEnableState.setPluginEnabled(id, false);
+  }
+}
+
 // WU-066 (TC-171/TC-172): inverse of `ensureBundledPluginsEnabled`. Writes
 // every bundled plugin id as "disabled" so the project-load Enable-plugin
 // prompt fires when the next spec navigates to a project that references one
@@ -510,6 +566,7 @@ router.post("/__reset", async (req: Request, res: Response) => {
       ensureBundledPluginsEnabled();
     }
     disableFailureFixturePlugins();
+    disableOptInAgentFixturePlugins();
     await pluginManager.initialize();
     res.status(200).json({ ok: true });
   } catch (err) {
@@ -862,6 +919,12 @@ interface RegisterFixtureBody {
   // real, installed component plugin): this drives the missing-plugin bench-start
   // resolution for a plugin served only by a declared marketplace.
   componentBinding?: unknown;
+  // AP-TC-026 (#681): optional list of `agent` tool presets written into the
+  // fixture roubo.yaml `tools:` block. A project-level preset has no other route
+  // into the app (the editor writes app-level presets into settings.json), so
+  // without this the "declared in roubo.yaml, listed under Agent tools" journey
+  // cannot be driven at all. Each entry is { name, agent, params?, jig?, icon? }.
+  agentTools?: unknown;
 }
 
 interface SeedBenchInput {
@@ -915,6 +978,9 @@ interface ParsedRegisterFixture {
   // CPHMTP-TC-073 (#575): an extra component bound to an arbitrary plugin id, or
   // null when the fixture project keeps only the default `app` component.
   componentBinding: { name: string; pluginId: string } | null;
+  // AP-TC-026 (#681): project-level agent tool presets for the `tools:` block
+  // (empty when the fixture declares none).
+  agentTools: FixtureAgentTool[];
 }
 
 // TC-001 (#438): slug component of a `.specifications/<slug>/` feature folder.
@@ -1144,6 +1210,52 @@ function parseRegisterFixtureBody(
     }
     componentBinding = { name, pluginId };
   }
+  // AP-TC-026 (#681): project-level agent tool presets. Shape-checked here so a
+  // malformed entry answers 400 rather than writing a roubo.yaml the strict
+  // RouboConfig parse rejects at load, which would surface as a project that
+  // silently has no tools at all.
+  const agentTools: FixtureAgentTool[] = [];
+  if (body?.agentTools !== undefined) {
+    if (!Array.isArray(body.agentTools)) {
+      return "agentTools must be an array of { name, agent, params?, jig?, icon? } objects";
+    }
+    for (let i = 0; i < body.agentTools.length; i += 1) {
+      const entry: unknown = body.agentTools[i];
+      if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+        return `agentTools[${i}] must be an object`;
+      }
+      const { name, icon, agent, params, jig } = entry as Record<string, unknown>;
+      if (typeof name !== "string" || name.trim().length === 0) {
+        return `agentTools[${i}].name must be a non-empty string`;
+      }
+      // `default` is the sentinel that follows the app-level default agent;
+      // anything else must be a concrete plugin id, exactly as the settings
+      // route enforces for app-level presets.
+      if (
+        typeof agent !== "string" ||
+        (agent !== AGENT_TOOL_DEFAULT_AGENT && !FIXTURE_PROJECT_ID_RE.test(agent))
+      ) {
+        return `agentTools[${i}].agent must be '${AGENT_TOOL_DEFAULT_AGENT}' or a plugin id matching /^[a-z][a-z0-9-]*$/`;
+      }
+      if (icon !== undefined && typeof icon !== "string") {
+        return `agentTools[${i}].icon must be a string when provided`;
+      }
+      if (params !== undefined && (params === null || typeof params !== "object")) {
+        return `agentTools[${i}].params must be an object when provided`;
+      }
+      if (Array.isArray(params)) return `agentTools[${i}].params must be an object when provided`;
+      if (jig !== undefined && typeof jig !== "string") {
+        return `agentTools[${i}].jig must be a string when provided`;
+      }
+      agentTools.push({
+        name,
+        agent,
+        ...(icon !== undefined && { icon }),
+        ...(params !== undefined && { params: params as Record<string, unknown> }),
+        ...(jig !== undefined && { jig }),
+      });
+    }
+  }
   return {
     projectId: projectIdRaw,
     plugin,
@@ -1157,6 +1269,7 @@ function parseRegisterFixtureBody(
     enforceIssueDependencies,
     declaredMarketplaces,
     componentBinding,
+    agentTools,
   };
 }
 
@@ -1230,6 +1343,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
     enforceIssueDependencies,
     declaredMarketplaces,
     componentBinding,
+    agentTools,
   } = parsed;
 
   if (fixtureProjects.has(projectId)) {
@@ -1255,6 +1369,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
       enforceIssueDependencies,
       declaredMarketplaces,
       componentBinding,
+      agentTools,
     );
     // TC-001 (#438): seed `.specifications/<slug>/test-cases.json` files BEFORE
     // git init so they ride into the initial commit, making them visible both

@@ -46,7 +46,14 @@ function Toast({
         transform: visible && !toast.exiting ? "translateY(0)" : "translateY(8px)",
       }}
     >
-      <div className="flex items-center gap-3 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-4 py-2.5 shadow-lg shadow-black/10 dark:shadow-black/20">
+      {/* `status` gives the toast an implicit `aria-live="polite"`, so a screen
+          reader announces a confirmation the user never focuses, and a
+          browser-driven check can locate it by role rather than by its text
+          (AP-TC-018 S001-O03). */}
+      <div
+        role="status"
+        className="flex items-center gap-3 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-4 py-2.5 shadow-lg shadow-black/10 dark:shadow-black/20"
+      >
         <p className="text-sm text-stone-800 dark:text-stone-200 min-w-0 truncate">
           {toast.message}
         </p>

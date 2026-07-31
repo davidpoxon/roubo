@@ -90,7 +90,11 @@ function AgentToolRow({
           )}
         </div>
         <div className="text-[11px] font-mono text-stone-400 dark:text-stone-600 truncate">
-          {binding} · {describeParams(preset)}
+          {/* The binding is its own element so a browser-driven check can read
+              it apart from the params that follow it (AP-TC-025 S003-O02, which
+              is specifically about the "default agent → <current default>"
+              form). The rendered text is unchanged. */}
+          <span data-testid="agent-tool-binding">{binding}</span> · {describeParams(preset)}
         </div>
         {unresolved && (
           <div

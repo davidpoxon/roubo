@@ -268,6 +268,16 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
     return {
       theme: raw.theme ?? "dark",
       jigs: mergedJigSettings as UserPreferences["jigs"],
+      // AP-FR-008 (found while writing the AP-TC-025 e2e, #681): the app-level
+      // agent tool presets have to be read back explicitly. This object is
+      // rebuilt key by key rather than spread from `raw`, so an unlisted key is
+      // dropped on EVERY read: `listAppAgentPresets` saw no presets, the editor
+      // re-rendered an empty list, and the next settings write erased the file's
+      // copy too (PUT /api/settings falls back to `current.agentTools`). Saving
+      // an agent tool therefore never survived a reload.
+      ...(Array.isArray(raw.agentTools) && {
+        agentTools: raw.agentTools as UserPreferences["agentTools"],
+      }),
       benches: { ...DEFAULT_BENCH_SETTINGS, ...raw.benches },
       testBench: { ...DEFAULT_TESTBENCH_SETTINGS, ...raw.testBench },
       claudeCode: { ...DEFAULT_CLAUDE_CODE_SETTINGS, ...raw.claudeCode },

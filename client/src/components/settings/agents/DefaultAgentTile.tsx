@@ -19,6 +19,12 @@ export default function DefaultAgentTile({ agent }: { agent: AgentPluginState })
     <Radio value={agent.id} className="outline-none">
       {({ isSelected, isFocusVisible }) => (
         <div
+          data-testid={`default-agent-tile-${agent.id}`}
+          // The highlight and the filled check indicator below are both driven
+          // by `isSelected`, so mirroring it onto the tile is what lets a
+          // browser-driven check observe the VISUAL selection (AP-TC-018
+          // S001-O01) rather than only the radio's checked state.
+          data-selected={isSelected}
           className={[
             "flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all duration-150 cursor-pointer select-none",
             isSelected
