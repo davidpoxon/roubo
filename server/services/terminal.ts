@@ -46,6 +46,7 @@ import {
   type AgentLaunchContextInfo,
 } from "./agent-launch-failure.js";
 import type { AgentVersionProbeResult } from "./agent-version-probe.js";
+import { withSpawnHelperDiagnosis } from "./pty-preflight.js";
 import { UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const MAX_BUFFER_CHUNKS = 5000;
@@ -412,8 +413,12 @@ export function createSession(
       ),
     });
   } catch (err) {
+    // A spawn throw is usually node-pty's own helper rather than the shell, so
+    // carry the diagnosis when there is one (#685).
     throw new Error(
-      `Failed to spawn terminal (shell: ${shell}, cwd: ${workspacePath}): ${(err as Error).message}`,
+      withSpawnHelperDiagnosis(
+        `Failed to spawn terminal (shell: ${shell}, cwd: ${workspacePath}): ${(err as Error).message}`,
+      ),
       { cause: err },
     );
   }
@@ -739,11 +744,15 @@ export async function createAgentSession(
     // Spike #504: a spawn throw means node-pty's own spawn helper is unusable,
     // in which case EVERY spawn fails including known-good binaries. That is a
     // Roubo install problem, so it is attributed to the host rather than blamed
-    // on the agent plugin.
+    // on the agent plugin. When the helper's executable bit is the cause (#685)
+    // the guidance names the one-line `chmod` fix instead of stopping at the
+    // generic "reinstall Roubo".
     throw new AgentLaunchFailureError(
       hostInstallBrokenFailure(
         launchContext,
-        `Failed to spawn agent session (command: ${binary}, cwd: ${cwd}): ${(err as Error).message}`,
+        withSpawnHelperDiagnosis(
+          `Failed to spawn agent session (command: ${binary}, cwd: ${cwd}): ${(err as Error).message}`,
+        ),
       ),
     );
   }

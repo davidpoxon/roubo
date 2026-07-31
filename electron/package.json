@@ -21,6 +21,7 @@
     "start": "electron-forge start",
     "start:dev": "cross-env ROUBO_DEV=1 electron-forge start",
     "build": "tsc",
+    "postinstall": "node ../scripts/fix-node-pty-spawn-helper.mjs",
     "prepackage:deps": "npm install --prefix . --omit=dev --no-save --package-lock=false --workspaces=false --install-strategy=nested",
     "build:icons": "node scripts/build-icons.mjs",
     "make": "tsc && node scripts/copy-resources.mjs && npm run build:icons && npm run prepackage:deps && electron-forge make",

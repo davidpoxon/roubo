@@ -7,6 +7,7 @@ import type * as http from "node:http";
 
 import { WebSocketServer } from "ws";
 import { loadEnvFile, resolveShellPath, resolveClaudeBinary } from "./services/env.js";
+import { describeSpawnHelperProblem } from "./services/pty-preflight.js";
 import { checkForUpdate } from "./services/version-check.js";
 import { detectClaudeAutoMode } from "./services/claude-version.js";
 import { warmAgentVersion } from "./services/agent-version-probe.js";
@@ -76,6 +77,10 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     resolveClaudeBinary();
     initialEnvPort = process.env.ROUBO_PORT;
     envInitialized = true;
+    // A non-executable node-pty spawn-helper breaks every terminal, but stays
+    // invisible until someone opens one (#685). Say so at boot instead.
+    const spawnHelperProblem = describeSpawnHelperProblem();
+    if (spawnHelperProblem !== undefined) console.warn(spawnHelperProblem);
   }
 
   // Contradictory flags fail fast, before any state-touching work (issue #877).
