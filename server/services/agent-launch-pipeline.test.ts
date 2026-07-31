@@ -169,7 +169,7 @@ describe("resolveLaunchAgentId (AP-FR-006 launch resolution order)", () => {
   // entry that covers every observation. The three tests after it break the
   // same steps out one at a time and are deliberately not id-tagged: a case
   // with more than one id-tagged test can never be corroborated (#680).
-  it("prefers a jig's binding over the default, before and after the default changes (AP-TC-021)", () => {
+  it("covers the jig binding, the default fallback, and the binding surviving a default change (AP-TC-021)", () => {
     onlyInstalled("claude-code", "codex-cli");
 
     // S001-O01: with Claude Code still the default, the bound jig resolves to

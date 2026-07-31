@@ -188,7 +188,8 @@ describe("LaunchOverridesDialog", () => {
     expect(screen.getByTestId("resolution-project-model").dataset.superseded).toBe("true");
   });
 
-  it("re-reads the newly selected agent's parameters (S001-O01)", () => {
+  // AP-TC-029 S001-O01 broken out step-by-step; deliberately not id-tagged (#680).
+  it("re-reads the newly selected agent's parameters", () => {
     open();
 
     // Claude Code declares three enums, so all three fields are selects.
@@ -235,7 +236,8 @@ describe("LaunchOverridesDialog", () => {
     });
   });
 
-  it("updates the trace live as fields change, emphasising this-launch values (S002, AP-TC-046)", () => {
+  // AP-TC-029 S002 broken out step-by-step; deliberately not id-tagged (#680).
+  it("updates the trace live as fields change, emphasising this-launch values (AP-TC-046)", () => {
     open();
 
     // Before any edit the this-launch line contributes nothing.
