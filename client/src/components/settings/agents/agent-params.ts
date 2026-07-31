@@ -5,6 +5,8 @@
 // same string. Two independent formatters would drift, and AP-TC-023 reads the
 // menu's summary against what Settings shows.
 
+import { enumOptions, type EnumOption } from "../../config-schema-utils";
+
 export const NO_PARAMS_LABEL = "No params configured";
 
 /**
@@ -27,8 +29,8 @@ export function describeEffectiveParams(config: Record<string, unknown>): string
 /**
  * The three parameter overrides every override surface exposes (AP-TC-025 S002,
  * AP-TC-029 S002). They are per-plugin `configSchema` keys, not core concepts,
- * so each renders as a select when the bound agent declares an enum for it and
- * as a free-text field otherwise.
+ * so each renders as a select when the bound agent declares a closed set of
+ * values for it and as a free-text field otherwise.
  *
  * Shared by the agent tool editor (#516) and the per-launch override dialog
  * (#518) so the two surfaces offer the same fields in the same order; two
@@ -48,8 +50,20 @@ export const PARAM_FIELDS = [
 export const INHERIT = "";
 
 /**
- * The values an agent declares for one config key, or `undefined` when the
- * plugin declares no enum for it (the field is then free text).
+ * The choices an agent declares for one config key, or `undefined` when it
+ * declares no closed set for it (the field is then free text).
+ *
+ * Delegates to `enumOptions`, the helper the AI Agents card renders from, so the
+ * override surfaces read a `configSchema` exactly as that card does: a bare
+ * `enum: [...]` and a `oneOf` of `{ const, title }` branches both mean a closed
+ * set, and every shipping agent manifest uses the second spelling. Owning a
+ * second, narrower reading here is what made these surfaces fall through to a
+ * free-text box against a manifest the AI Agents card renders as a select
+ * (AP-TC-025 S002-O01, issue #691).
+ *
+ * Filtered to string-valued consts because all three surfaces write into a
+ * `Record<string, string>` draft, so a numeric or boolean choice has nowhere to
+ * go; a key offering nothing else stays free text.
  *
  * Typed on the structural shape rather than one state interface, because both
  * `AgentPluginState` (Settings) and `ProjectAgentState` (launch surfaces) carry
@@ -58,10 +72,10 @@ export const INHERIT = "";
 export function enumOptionsFor(
   agent: { configSchema?: Record<string, unknown> } | undefined,
   key: string,
-): string[] | undefined {
-  const properties = agent?.configSchema?.properties as
-    Record<string, { enum?: unknown[] }> | undefined;
-  const values = properties?.[key]?.enum;
-  if (!Array.isArray(values)) return undefined;
-  return values.filter((value): value is string => typeof value === "string");
+): EnumOption[] | undefined {
+  const properties = agent?.configSchema?.properties as Record<string, unknown> | undefined;
+  const options = enumOptions(properties?.[key]);
+  if (options === null) return undefined;
+  const strings = options.filter((option) => typeof option.value === "string");
+  return strings.length > 0 ? strings : undefined;
 }

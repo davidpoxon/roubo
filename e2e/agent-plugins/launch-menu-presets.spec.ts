@@ -41,27 +41,11 @@ const observe027 = makeObserve("AP-TC-027");
 // reconstruction of our own arithmetic. See the AP-TC-087 guard's header for the
 // full account of that channel.
 //
-// ---------------------------------------------------------------------------
-// KNOWN DIVERGENCE, AP-TC-027 S001-O01
-// ---------------------------------------------------------------------------
-// The case says all three built-ins (Agent, Agent (Plan), Agent (Auto)) show
-// "-> Claude Code" as the resolved agent. Today only `Agent` does.
-//
-// `presetSummary` (client/src/components/AgentLaunchMenu.tsx:43-47) returns the
-// PARAM summary whenever the preset has params and only falls back to the arrow
-// form when it has none, and BUILTIN_AGENT_PRESETS (shared/types.ts:1681-1703)
-// gives Agent (Plan) `params: { mode: "plan" }` and Agent (Auto)
-// `params: { mode: "auto" }`. So those two render "plan" and "auto" in the slot
-// where the case expects the arrow. All three still RESOLVE to Claude Code,
-// which is what the case is really about, and this spec asserts that resolution
-// against the server's own resolved-preset list as well as asserting what each
-// row renders today.
-//
-// Asserting the case's wording verbatim would ship a permanently red suite;
-// quietly rewriting the case would lose the signal. Reconciling the two (render
-// the arrow alongside the params, or amend the case) is a `product-dev:align`
-// follow-up and is out of scope for a coverage issue.
-// ---------------------------------------------------------------------------
+// AP-TC-027 S001-O01 is read twice over, deliberately: against the server's own
+// resolved-preset list (what "resolve to the default agent" means) and against
+// what each row actually renders. A summary slot that named only the preset's
+// params would satisfy the first and not the second, which is the divergence
+// issue #691 closed.
 
 const PROJECT_ID = "ap-tc-026-launch-menu";
 const BENCH_ID = 1;
@@ -391,18 +375,21 @@ test("AP-TC-027: built-in presets resolve to the default agent and launch with t
     )}`,
   );
 
-  // The rendered summary slot. See the KNOWN DIVERGENCE note at the top of this
-  // file: the case expects "→ Claude Code" on all three, and only the
-  // parameterless built-in renders it, because the other two spend that slot on
-  // their param summary instead.
+  // The rendered summary slot, which is where the case's "each show
+  // '→ Claude Code'" is observable at all. BUILTIN_AGENT_PRESETS
+  // (shared/types.ts) gives Agent (Plan) `mode: plan` and Agent (Auto)
+  // `mode: auto`, so those two rows carry their mode ahead of the arrow rather
+  // than instead of it.
   const summaries = await readPresetSummaries(page, BUILTIN_IDS);
+  const arrow = `→ ${CLAUDE_AGENT_NAME}`;
   observe027(
     STEPS["027-S001"],
     "S001-O01",
-    summaries["__builtin_agent__"] === `→ ${CLAUDE_AGENT_NAME}` &&
-      summaries[BUILTIN_PLAN_ID] === "plan" &&
-      summaries["__builtin_agent_auto__"] === "auto",
-    `the parameterless built-in renders "→ ${CLAUDE_AGENT_NAME}" while the two parameterised ones render their mode ("plan", "auto") in that same slot: KNOWN DIVERGENCE from the case's "each show '→ ${CLAUDE_AGENT_NAME}'", see the file header`,
+    BUILTIN_IDS.every((id) => (summaries[id] ?? "").includes(arrow)) &&
+      summaries["__builtin_agent__"] === arrow &&
+      summaries[BUILTIN_PLAN_ID] === `plan ${arrow}` &&
+      summaries["__builtin_agent_auto__"] === `auto ${arrow}`,
+    `every built-in row's summary names the resolved agent as "${arrow}", the parameterised ones behind their own mode ("plan ${arrow}", "auto ${arrow}")`,
     JSON.stringify(summaries),
   );
 

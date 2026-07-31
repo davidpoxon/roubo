@@ -170,6 +170,27 @@ describe("AgentLaunchMenu", () => {
     expect(names[2]).toEqual(["Claude Code", "Codex CLI"]);
   });
 
+  // AP-TC-027 S001-O01 (issue #691): the summary slot carries both halves, so a
+  // preset that overrides params still names the agent it will really start.
+  it("summarises a preset as its params and the resolved agent", () => {
+    open();
+
+    // Overrides nothing, so there is nothing but the arrow.
+    expect(screen.getByRole("menuitem", { name: /^Agent:/ }).textContent).toContain(
+      "→ Claude Code",
+    );
+
+    const plan = screen.getByRole("menuitem", { name: /^Agent \(Plan\):/ });
+    expect(plan.textContent).toContain("plan → Claude Code");
+    // The label a screen reader hears says the same thing as the row.
+    expect(plan.getAttribute("aria-label")).toBe("Agent (Plan): plan → Claude Code");
+
+    // A named tool bound to the other agent names that one.
+    expect(screen.getByRole("menuitem", { name: /^Fast Codex:/ }).textContent).toContain(
+      "low → Codex CLI",
+    );
+  });
+
   it("offers one launchable entry per configured agent with its param summary (AP-TC-023)", () => {
     open();
 

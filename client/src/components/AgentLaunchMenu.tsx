@@ -39,11 +39,18 @@ const ITEM_CLASS = (isFocused: boolean, isDisabled: boolean) =>
  * The right-aligned summary line: what this entry will actually launch with.
  * The agent named is the RESOLVED target, not the preset's own binding, so a
  * row redirected by a jig binding says which agent it will really start.
+ *
+ * Both halves, params then the resolved agent (`plan → Claude Code`), because
+ * either alone is half an answer: a row that names only its params leaves the
+ * agent it will start unsaid, which is what AP-TC-027 S001-O01 reads (issue
+ * #691). A preset overriding nothing is just the arrow, and one whose target
+ * did not resolve is just the params.
  */
 function presetSummary(preset: ResolvedAgentPreset, target: LaunchTarget): string {
   const params = describeEffectiveParams(preset.params);
-  if (params !== NO_PARAMS_LABEL) return params;
-  return target.agentPluginId ? `→ ${target.agentName}` : "";
+  const resolved = target.agentPluginId ? `→ ${target.agentName}` : "";
+  if (params === NO_PARAMS_LABEL) return resolved;
+  return resolved === "" ? params : `${params} ${resolved}`;
 }
 
 function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: LaunchTarget }) {

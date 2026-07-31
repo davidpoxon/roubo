@@ -45,6 +45,26 @@ const UNCONFIGURED: ProjectAgentState = {
   misconfigured: { message: "apiKey: must have required property 'apiKey'" },
 };
 
+/**
+ * The same closed set, spelled the way the shipping claude-code manifest spells
+ * it: a `oneOf` of `{ const, title }` branches, so each choice carries its own
+ * display title (issue #691).
+ */
+const CLAUDE_TITLED: ProjectAgentState = {
+  ...CLAUDE,
+  configSchema: {
+    properties: {
+      model: {
+        oneOf: [
+          { const: "opus", title: "Opus" },
+          { const: "sonnet", title: "Sonnet" },
+          { const: "haiku", title: "Haiku" },
+        ],
+      },
+    },
+  },
+};
+
 /** A preset bound to Claude Code that contributes the third layer. */
 const MAX_EFFORT_PRESET: ResolvedAgentPreset = {
   id: "at-deep",
@@ -233,6 +253,36 @@ describe("LaunchOverridesDialog", () => {
       agentPluginId: "codex-cli",
       agentName: "Codex CLI",
       perLaunchOverrides: { effort: "max" },
+    });
+  });
+
+  it("offers a oneOf schema's titles while writing its consts (#691)", () => {
+    open({ agents: [CLAUDE_TITLED, CODEX] });
+
+    const model = screen.getByLabelText("Model");
+    expect(
+      Array.from(model.querySelectorAll("option")).map((option) => [
+        option.value,
+        option.textContent,
+      ]),
+    ).toEqual([
+      ["", "inherit"],
+      ["opus", "Opus"],
+      ["sonnet", "Sonnet"],
+      ["haiku", "Haiku"],
+    ]);
+
+    setField("Model", "haiku");
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    // The const, never the title: what the launch carries has to be what the
+    // agent's schema declares.
+    expect(onLaunch).toHaveBeenCalledWith({
+      agentPluginId: "claude-code",
+      agentName: "Claude Code",
+      perLaunchOverrides: { model: "haiku" },
     });
   });
 

@@ -52,6 +52,28 @@ const CODEX: AgentPluginState = {
   unavailable: null,
 };
 
+/**
+ * The same closed set, spelled the way every shipping agent manifest spells it:
+ * a `oneOf` of `{ const, title }` branches, so each choice carries its own
+ * display title (issue #691). The AI Agents card has always rendered this; the
+ * override surfaces read it through the same helper now.
+ */
+const CLAUDE_TITLED: AgentPluginState = {
+  ...CLAUDE,
+  configSchema: {
+    type: "object",
+    properties: {
+      mode: {
+        type: "string",
+        oneOf: [
+          { const: "plan", title: "Plan" },
+          { const: "auto", title: "Auto" },
+        ],
+      },
+    },
+  },
+};
+
 const JIGS: JigMeta[] = [
   {
     id: "refactor-pass",
@@ -335,6 +357,33 @@ describe("AgentToolsSection", () => {
       expect(screen.getAllByTestId("agent-tool-unresolved")).toHaveLength(3);
       expect(screen.queryByTestId("agent-tool-degraded")).toBeNull();
     });
+  });
+
+  // AP-TC-025 S002-O01: the override selects the case asks for, against the
+  // `oneOf` spelling the shipping manifests use rather than a bare `enum`.
+  it("renders a titled select for an agent spelling its choices as oneOf", async () => {
+    const user = userEvent.setup();
+    render(<AgentToolsSection agents={[CLAUDE_TITLED]} defaultAgent={CLAUDE_TITLED} jigs={JIGS} />);
+    await user.click(screen.getByRole("button", { name: "New agent tool" }));
+
+    const mode = screen.getByLabelText("Mode");
+    expect(mode.tagName).toBe("SELECT");
+    // The branch titles, not the raw consts: a select that listed "plan" and
+    // "auto" would be the free-text helper's reading of the schema, not the
+    // card's.
+    expect(
+      Array.from(mode.querySelectorAll("option")).map((o) => [o.value, o.textContent]),
+    ).toEqual([
+      ["", "inherit"],
+      ["plan", "Plan"],
+      ["auto", "Auto"],
+    ]);
+
+    await user.type(screen.getByLabelText("Name"), "Deep work");
+    await user.selectOptions(mode, "plan");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    // The const is what gets written, never the title.
+    expect(saveAgentTool.mock.calls[0][0].params).toEqual({ mode: "plan" });
   });
 
   it("renders a free-text parameter control for an agent declaring no enum", async () => {

@@ -32,29 +32,11 @@ const observe = makeObserve("AP-TC-025");
 // claude-code overlay, which is copied verbatim from the shipping plugin's
 // manifest, so the controls under test are the ones a user really sees.
 //
-// ---------------------------------------------------------------------------
-// KNOWN DIVERGENCE, AP-TC-025 S002-O01
-// ---------------------------------------------------------------------------
-// The case says "Parameter override SELECTS ... accept values". Today Model,
-// Effort and Mode render as free-text inputs, not selects.
-//
-// `enumOptionsFor` (client/src/components/settings/agents/agent-params.ts:58-68)
-// reads `configSchema.properties[key].enum` and nothing else, but the claude-code
-// manifest spells its choices as `oneOf: [{ const, title }]`, both in the
-// shipping plugin and in the e2e overlay copied from it
-// (e2e/fixtures/bundled-overlays/claude-code/roubo-plugin.yaml:25-79). With no
-// `enum` key to find, the editor falls through to its free-text branch
-// (AgentToolEditorModal.tsx:186-196). The sibling helper
-// client/src/components/config-schema-utils.ts:35-55 handles BOTH spellings; the
-// preset editor simply does not use it, which looks like a latent bug rather
-// than a decision.
-//
-// This spec asserts the observable CURRENT behaviour and says so in the
-// expected-vs-actual text, rather than asserting the case's wording and shipping
-// a permanently red suite, or quietly redefining the case. Reconciling the two
-// (fix the editor, or amend the case) is a `product-dev:align` follow-up and is
-// out of scope for a coverage issue.
-// ---------------------------------------------------------------------------
+// That is what makes S002-O01's "parameter override SELECTS" discriminating
+// here. The overlay spells its choices as `oneOf: [{ const, title }]`, the way
+// every shipping manifest does, so a helper that only understood a bare `enum`
+// would render three free-text boxes against it and still accept the values
+// written into them (the divergence issue #691 closed).
 
 const SETTINGS_PATH = "/settings";
 const PRESET_NAME = "AP-TC-025 deep work";
@@ -62,9 +44,24 @@ const PRESET_NAME = "AP-TC-025 deep work";
 /** The overrides S002 sets. All three are valid values in Claude Code's schema. */
 const OVERRIDES = { model: "opus", effort: "high", mode: "plan" } as const;
 
+/**
+ * The title the overlay's manifest gives each of those values
+ * (e2e/fixtures/bundled-overlays/claude-code/roubo-plugin.yaml). A select
+ * offering the raw const instead would be reading the schema as a bare `enum`
+ * rather than as the titled choice list the manifest declares.
+ */
+const OVERRIDE_TITLES = { model: "Opus", effort: "High", mode: "Plan" } as const;
+
 /** The editor's jig sentinels (shared/config-schema.ts:221-223). */
 const JIG_INHERIT = "__inherit__";
 const JIG_NONE = "__none__";
+
+/**
+ * The inherit entry every parameter select carries. Its value is empty because
+ * the editor never writes it, which is what makes an untouched override fall
+ * through to the layers beneath it (AP-TC-036 S001-O03).
+ */
+const INHERIT_OPTION = { value: "", label: "inherit" } as const;
 
 // The slice issues that own this behaviour, used by the FR-020 failure-output
 // contract to attribute a divergence.
@@ -107,22 +104,31 @@ async function optionsOf(select: Locator): Promise<OptionEntry[]> {
   );
 }
 
+interface ParamControl {
+  key: string;
+  /** `select` is what S002-O01 requires; `input` is the free-text fallback. */
+  tag: string;
+  value: string;
+  /** Every option a select offers, or empty for the free-text fallback. */
+  options: OptionEntry[];
+}
+
 /**
  * Write one parameter override, whichever control the editor chose to render for
- * it, and report which that was. See the KNOWN DIVERGENCE note above: the two
- * branches are not equivalent, and which one appears is part of what S002
- * observes.
+ * it, and report which that was. Both branches are driven because S002-O01
+ * observes WHICH control appeared as much as whether it took the value: a
+ * free-text box that accepts "opus" is not the select the case asks for, so the
+ * fallback has to be reachable in order to be reported.
  */
-async function setParamField(
-  page: Page,
-  key: string,
-  value: string,
-): Promise<{ tag: string; value: string }> {
+async function setParamField(page: Page, key: string, value: string): Promise<ParamControl> {
   const field = page.locator(`#agent-tool-${key}`);
   const tag = await field.evaluate((el) => el.tagName.toLowerCase());
-  if (tag === "select") await field.selectOption(value);
-  else await field.fill(value);
-  return { tag, value: await field.inputValue() };
+  if (tag === "select") {
+    await field.selectOption(value);
+    return { key, tag, value: await field.inputValue(), options: await optionsOf(field) };
+  }
+  await field.fill(value);
+  return { key, tag, value: await field.inputValue(), options: [] };
 }
 
 /** Open Settings and switch to the Jigs tab, which hosts the Agent tools list. */
@@ -218,16 +224,30 @@ test("AP-TC-025: bind an agent tool to the default agent, override params, save 
   await jigSelect.selectOption(JIG_INHERIT);
   const jigValue = await jigSelect.inputValue();
 
-  // The three param controls accepted the values written into them, and the jig
-  // select offers all three kinds of jig behaviour with Inherit selected.
-  //
-  // The `expected` text below states the CURRENT contract, including that the
-  // param controls are text inputs today: see the KNOWN DIVERGENCE note at the
-  // top of this file for why this deviates from the case's wording.
+  // The three param controls are selects offering the bound agent's own choices
+  // and they took the values written into them, and the jig select offers all
+  // three kinds of jig behaviour with Inherit selected.
+  const controls = [model, effort, mode];
   const paramsAccepted =
     model.value === OVERRIDES.model &&
     effort.value === OVERRIDES.effort &&
     mode.value === OVERRIDES.mode;
+  // "Parameter override selects": each field is a select whose options are the
+  // manifest's titled choices plus the inherit entry that leaves the field
+  // falling through to the layers beneath it. A free-text box would accept the
+  // same three values while offering the user none of them.
+  const paramsAreChoiceSelects = controls.every(
+    (control) =>
+      control.tag === "select" &&
+      control.options.some(
+        (option) => option.value === INHERIT_OPTION.value && option.label === INHERIT_OPTION.label,
+      ) &&
+      control.options.some(
+        (option) =>
+          option.value === control.value &&
+          option.label === OVERRIDE_TITLES[control.key as keyof typeof OVERRIDE_TITLES],
+      ),
+  );
   const jigOffersEverything =
     jigOptions.some((option) => option.value === JIG_INHERIT) &&
     namedJigs.length >= 1 &&
@@ -236,9 +256,14 @@ test("AP-TC-025: bind an agent tool to the default agent, override params, save 
   observe(
     STEPS.S002,
     "S002-O01",
-    paramsAccepted && jigOffersEverything,
-    "the Model, Effort and Mode controls accept override values (as free-text inputs today, NOT selects: KNOWN DIVERGENCE from the case's wording, see the file header) and the jig behavior select offers Inherit, a named jig and None",
-    `model=<${model.tag}> ${JSON.stringify(model.value)}, effort=<${effort.tag}> ${JSON.stringify(effort.value)}, mode=<${mode.tag}> ${JSON.stringify(mode.value)}; jig value=${JSON.stringify(jigValue)}, options=${JSON.stringify(jigOptions)}`,
+    paramsAccepted && paramsAreChoiceSelects && jigOffersEverything,
+    `the Model, Effort and Mode overrides are selects offering inherit plus the bound agent's own titled choices (${OVERRIDE_TITLES.model} / ${OVERRIDE_TITLES.effort} / ${OVERRIDE_TITLES.mode}) and accept the override values, and the jig behavior select offers Inherit, a named jig and None`,
+    `${controls
+      .map(
+        (control) =>
+          `${control.key}=<${control.tag}> ${JSON.stringify(control.value)} options=${JSON.stringify(control.options)}`,
+      )
+      .join(", ")}; jig value=${JSON.stringify(jigValue)}, options=${JSON.stringify(jigOptions)}`,
   );
 
   // --- S003: save, then read the list entry back ----------------------------
