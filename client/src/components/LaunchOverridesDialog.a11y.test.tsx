@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import LaunchOverridesDialog from "./LaunchOverridesDialog";
@@ -43,7 +44,7 @@ const PRESET: ResolvedAgentPreset = {
   params: { mode: "plan" },
 };
 
-function open() {
+function open(onLaunch: () => void = vi.fn()) {
   return render(
     <LaunchOverridesDialog
       isOpen
@@ -52,7 +53,7 @@ function open() {
       resolveTarget={(preset) => resolveLaunchTarget(preset, [CLAUDE], undefined)}
       initialPresetId={PRESET.id}
       onCancel={vi.fn()}
-      onLaunch={vi.fn()}
+      onLaunch={onLaunch}
     />,
   );
 }
@@ -108,5 +109,62 @@ describe("LaunchOverridesDialog: axe-core (AP-NFR-005)", () => {
     const outside = screen.getByText("Outside");
     expect(dialog.contains(outside)).toBe(false);
     expect(outside.closest("[aria-hidden='true'],[inert]")).not.toBeNull();
+  });
+});
+
+describe("LaunchOverridesDialog: keyboard operation (AP-TC-053)", () => {
+  it("tabs through every control and launches with the keyboard (S001-O01, S002-O01)", async () => {
+    const user = userEvent.setup();
+    const onLaunch = vi.fn();
+    open(onLaunch);
+
+    // Preset, Agent, then the three param controls, then Cancel and Launch:
+    // the whole dialog in tab order, each one named.
+    const order = [
+      screen.getByLabelText("Preset"),
+      screen.getByLabelText("Agent"),
+      screen.getByLabelText("Model"),
+      screen.getByLabelText("Effort"),
+      screen.getByLabelText("Mode"),
+      screen.getByRole("button", { name: "Cancel" }),
+      screen.getByRole("button", { name: "Launch session" }),
+    ];
+
+    for (const control of order) {
+      await user.tab();
+      expect(document.activeElement).toBe(control);
+    }
+
+    // Focus already sits on Launch session, so Enter finishes the flow without
+    // a pointer ever being used.
+    await user.keyboard("{Enter}");
+
+    expect(onLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({ agentPluginId: "claude-code", agentName: "Claude Code" }),
+    );
+  });
+
+  it("sets a param by keyboard alone and the trace follows (S001-O01)", async () => {
+    const user = userEvent.setup();
+    open();
+
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByLabelText("Model"));
+    await user.selectOptions(document.activeElement as HTMLSelectElement, "haiku");
+
+    expect(screen.getByTestId("resolution-perLaunch-model").textContent).toBe("model=haiku");
+  });
+
+  it("exposes the Resolution trace as a named group (S001-O01)", () => {
+    open();
+
+    // Anonymous divs would leave the trace lines unattributed; the caption has
+    // to name the group that carries them.
+    const panel = screen.getByRole("group", { name: "Resolution" });
+    expect(panel).toBe(screen.getByTestId("launch-overrides-resolution"));
+    expect(panel.textContent).toContain("app default");
+    expect(panel.textContent).toContain("this launch");
   });
 });

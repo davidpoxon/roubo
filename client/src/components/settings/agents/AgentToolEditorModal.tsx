@@ -25,6 +25,9 @@ interface Props {
   onSave: (preset: AgentToolPreset) => void;
 }
 
+/** Ties the validation message to the one field that can produce it. */
+const ERROR_ID = "agent-tool-name-error";
+
 function initialParams(preset: AgentToolPreset | null): Record<string, string> {
   const params = preset?.params ?? {};
   const seed: Record<string, string> = {};
@@ -124,6 +127,12 @@ export default function AgentToolEditorModal({
                 id="agent-tool-name"
                 className={INPUT}
                 value={name}
+                // The only field Save can reject, so the rejection is tied to
+                // it: a message floating at the foot of the dialog names no
+                // control and is never read out with the field it is about
+                // (WCAG 3.3.1).
+                aria-invalid={error !== null}
+                {...(error !== null && { "aria-describedby": ERROR_ID })}
                 onChange={(e) => {
                   setName(e.target.value);
                   setError(null);
@@ -222,7 +231,11 @@ export default function AgentToolEditorModal({
               </select>
             </div>
 
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {error && (
+              <p id={ERROR_ID} role="alert" className="text-xs text-red-500">
+                {error}
+              </p>
+            )}
 
             <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
               Saved to app settings. Add to{" "}

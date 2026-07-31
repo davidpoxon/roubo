@@ -61,6 +61,9 @@ const LABEL_CLASS = "block text-[11px] font-medium text-stone-500 mb-1.5";
 /** The empty select value that spells "layer three contributes nothing". */
 const NO_PRESET = "";
 
+/** Names the resolution trace after the caption above it. */
+const RESOLUTION_LABEL_ID = "launch-overrides-resolution-label";
+
 /** One trace line: the layer, then its fields, with superseded values dimmed. */
 function LayerLine({ layer }: { layer: ResolutionLayer }) {
   const isPerLaunch = layer.id === "perLaunch";
@@ -331,11 +334,23 @@ export default function LaunchOverridesDialog({
               })}
             </div>
 
+            {/*
+             * A named group, not anonymous divs: the "Resolution" caption is
+             * the only thing that says what the trace lines beneath it are, so
+             * it has to be tied to them programmatically or a screen reader
+             * meets four unattributed lines of `key=value` (AP-TC-053 S001-O01,
+             * WCAG 1.3.1).
+             */}
             <div
+              role="group"
+              aria-labelledby={RESOLUTION_LABEL_ID}
               data-testid="launch-overrides-resolution"
               className="rounded-lg bg-stone-100 dark:bg-stone-950/60 border border-stone-200 dark:border-stone-800/60 px-3.5 py-2.5"
             >
-              <div className="text-[10px] uppercase tracking-[0.15em] text-stone-400 dark:text-stone-600 font-semibold mb-1.5">
+              <div
+                id={RESOLUTION_LABEL_ID}
+                className="text-[10px] uppercase tracking-[0.15em] text-stone-400 dark:text-stone-600 font-semibold mb-1.5"
+              >
                 Resolution
               </div>
               <div className="text-[11px] font-mono leading-relaxed">

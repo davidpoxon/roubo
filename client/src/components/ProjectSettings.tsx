@@ -44,7 +44,7 @@ import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
 import JigRow from "./jig-editor/JigRow";
 import PluginsTab from "./settings/plugins/PluginsTab";
 import AgentsTab from "./settings/agents/AgentsTab";
-import DefaultAgentTile from "./settings/agents/DefaultAgentTile";
+import DefaultAgentPicker from "./settings/agents/DefaultAgentPicker";
 import AgentToolsSection from "./settings/agents/AgentToolsSection";
 import MarketplacesTabPanel from "./settings/plugins/MarketplacesTabPanel";
 import Marketplace from "./marketplace/Marketplace";
@@ -460,24 +460,12 @@ function JigsTab() {
           and configured agents are listed.
         </p>
 
-        {agentsPending ? null : availableAgents.length === 0 ? (
-          <p
-            data-testid="default-agent-empty-state"
-            className="rounded-lg border border-dashed border-stone-200 dark:border-stone-800 px-4 py-3 text-xs text-stone-400 dark:text-stone-600"
-          >
-            No configured agents yet. Install and configure one under Settings, AI Agents.
-          </p>
-        ) : (
-          <RadioGroup
-            value={selectedAgentId}
+        {agentsPending ? null : (
+          <DefaultAgentPicker
+            agents={availableAgents}
+            selectedAgentId={selectedAgentId}
             onChange={handleDefaultAgentChange}
-            aria-label="Default agent"
-            className="flex flex-col gap-2"
-          >
-            {availableAgents.map((agent) => (
-              <DefaultAgentTile key={agent.id} agent={agent} />
-            ))}
-          </RadioGroup>
+          />
         )}
       </section>
 

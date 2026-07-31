@@ -105,6 +105,10 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
   // so the form is the content, not a secondary action. The disclosure exists
   // to collapse a card once a user has many agents installed.
   const [open, setOpen] = useState(true);
+  // The disclosure's state and target have to be programmatic, not only drawn
+  // as a chevron: without them a screen reader hears "Hide" with no notion that
+  // it collapses anything (AP-TC-127, WCAG 4.1.2).
+  const panelId = `agent-config-panel-${agent.id}`;
 
   return (
     <section
@@ -137,6 +141,8 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
         </div>
         <Button
           onPress={() => setOpen((prev) => !prev)}
+          aria-expanded={open}
+          aria-controls={panelId}
           data-testid={`agent-configure-${agent.id}`}
           className={DISCLOSURE_BUTTON_CLASS}
         >
@@ -162,7 +168,7 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
       )}
 
       {open && (
-        <div className="pt-2 border-t border-stone-100 dark:border-stone-800">
+        <div id={panelId} className="pt-2 border-t border-stone-100 dark:border-stone-800">
           <AgentConfigForm agent={agent} />
         </div>
       )}
