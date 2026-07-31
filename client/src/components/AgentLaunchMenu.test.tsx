@@ -170,6 +170,22 @@ describe("AgentLaunchMenu", () => {
     expect(names[2]).toEqual(["Claude Code", "Codex CLI"]);
   });
 
+  // Issue #690: the summary slot used to hold the params OR the arrow, so a
+  // parameterised preset never said which agent it would really start. It now
+  // holds both, which is what makes AP-TC-027 S001-O01 true of every built-in
+  // rather than only of the parameterless one.
+  it("names the resolved agent alongside a preset's params (AP-TC-027 S001-O01)", () => {
+    open();
+
+    const summaryOf = (name: RegExp) =>
+      screen.getByRole("menuitem", { name }).querySelector('[data-testid="launch-preset-summary"]')
+        ?.textContent;
+
+    expect(summaryOf(/^Agent:/)).toBe("→ Claude Code");
+    expect(summaryOf(/^Agent \(Plan\):/)).toBe("plan → Claude Code");
+    expect(summaryOf(/^Fast Codex:/)).toBe("low → Codex CLI");
+  });
+
   it("offers one launchable entry per configured agent with its param summary (AP-TC-023)", () => {
     open();
 

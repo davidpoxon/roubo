@@ -36,14 +36,21 @@ const ITEM_CLASS = (isFocused: boolean, isDisabled: boolean) =>
     .join(" ");
 
 /**
- * The right-aligned summary line: what this entry will actually launch with.
- * The agent named is the RESOLVED target, not the preset's own binding, so a
- * row redirected by a jig binding says which agent it will really start.
+ * The right-aligned summary line: what this entry will actually launch with,
+ * as `<params> → <agent>`. The agent named is the RESOLVED target, not the
+ * preset's own binding, so a row redirected by a jig binding says which agent
+ * it will really start.
+ *
+ * Both halves render when both exist (AP-TC-027 S001-O01, issue #690). The slot
+ * used to hold one or the other, which meant a parameterised preset never named
+ * its agent, and "says which agent it will really start" held for the
+ * parameterless rows only.
  */
 function presetSummary(preset: ResolvedAgentPreset, target: LaunchTarget): string {
   const params = describeEffectiveParams(preset.params);
-  if (params !== NO_PARAMS_LABEL) return params;
-  return target.agentPluginId ? `→ ${target.agentName}` : "";
+  const arrow = target.agentPluginId ? `→ ${target.agentName}` : "";
+  if (params === NO_PARAMS_LABEL) return arrow;
+  return arrow ? `${params} ${arrow}` : params;
 }
 
 function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: LaunchTarget }) {

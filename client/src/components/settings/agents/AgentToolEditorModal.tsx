@@ -178,8 +178,8 @@ export default function AgentToolEditorModal({
                       >
                         <option value={INHERIT}>inherit</option>
                         {options.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
+                          <option key={option.key} value={option.key}>
+                            {option.label}
                           </option>
                         ))}
                       </select>

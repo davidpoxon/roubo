@@ -32,29 +32,12 @@ const observe = makeObserve("AP-TC-025");
 // claude-code overlay, which is copied verbatim from the shipping plugin's
 // manifest, so the controls under test are the ones a user really sees.
 //
-// ---------------------------------------------------------------------------
-// KNOWN DIVERGENCE, AP-TC-025 S002-O01
-// ---------------------------------------------------------------------------
-// The case says "Parameter override SELECTS ... accept values". Today Model,
-// Effort and Mode render as free-text inputs, not selects.
-//
-// `enumOptionsFor` (client/src/components/settings/agents/agent-params.ts:58-68)
-// reads `configSchema.properties[key].enum` and nothing else, but the claude-code
-// manifest spells its choices as `oneOf: [{ const, title }]`, both in the
-// shipping plugin and in the e2e overlay copied from it
-// (e2e/fixtures/bundled-overlays/claude-code/roubo-plugin.yaml:25-79). With no
-// `enum` key to find, the editor falls through to its free-text branch
-// (AgentToolEditorModal.tsx:186-196). The sibling helper
-// client/src/components/config-schema-utils.ts:35-55 handles BOTH spellings; the
-// preset editor simply does not use it, which looks like a latent bug rather
-// than a decision.
-//
-// This spec asserts the observable CURRENT behaviour and says so in the
-// expected-vs-actual text, rather than asserting the case's wording and shipping
-// a permanently red suite, or quietly redefining the case. Reconciling the two
-// (fix the editor, or amend the case) is a `product-dev:align` follow-up and is
-// out of scope for a coverage issue.
-// ---------------------------------------------------------------------------
+// S002-O01 asserts the case's own wording, that the three param overrides are
+// SELECTS. It once diverged: `enumOptionsFor` read `configSchema.properties[key]
+// .enum` and nothing else, while the manifest spells its choices as
+// `oneOf: [{ const, title }]`, so the editor fell through to free-text inputs.
+// Issue #690 decided that in favour of the case, and the helper now delegates to
+// `config-schema-utils.ts`'s `enumOptions`, which reads both spellings.
 
 const SETTINGS_PATH = "/settings";
 const PRESET_NAME = "AP-TC-025 deep work";
@@ -109,9 +92,10 @@ async function optionsOf(select: Locator): Promise<OptionEntry[]> {
 
 /**
  * Write one parameter override, whichever control the editor chose to render for
- * it, and report which that was. See the KNOWN DIVERGENCE note above: the two
- * branches are not equivalent, and which one appears is part of what S002
- * observes.
+ * it, and report which that was. Deliberately tag-agnostic while the observation
+ * below is not: a field that regressed to free text still ACCEPTS the value, so
+ * writing it either way is what lets S002-O01 report the control it actually
+ * found instead of failing as an unattributed Playwright error.
  */
 async function setParamField(
   page: Page,
@@ -218,13 +202,15 @@ test("AP-TC-025: bind an agent tool to the default agent, override params, save 
   await jigSelect.selectOption(JIG_INHERIT);
   const jigValue = await jigSelect.inputValue();
 
-  // The three param controls accepted the values written into them, and the jig
-  // select offers all three kinds of jig behaviour with Inherit selected.
-  //
-  // The `expected` text below states the CURRENT contract, including that the
-  // param controls are text inputs today: see the KNOWN DIVERGENCE note at the
-  // top of this file for why this deviates from the case's wording.
+  // The three param controls are selects, they accepted the values written into
+  // them, and the jig select offers all three kinds of jig behaviour with
+  // Inherit selected. The tag is asserted, not merely reported: the case says
+  // "parameter override SELECTS", and a free-text field would accept these three
+  // values just as happily while offering none of the agent's real choices.
   const paramsAccepted =
+    model.tag === "select" &&
+    effort.tag === "select" &&
+    mode.tag === "select" &&
     model.value === OVERRIDES.model &&
     effort.value === OVERRIDES.effort &&
     mode.value === OVERRIDES.mode;
@@ -237,7 +223,7 @@ test("AP-TC-025: bind an agent tool to the default agent, override params, save 
     STEPS.S002,
     "S002-O01",
     paramsAccepted && jigOffersEverything,
-    "the Model, Effort and Mode controls accept override values (as free-text inputs today, NOT selects: KNOWN DIVERGENCE from the case's wording, see the file header) and the jig behavior select offers Inherit, a named jig and None",
+    "the Model, Effort and Mode parameter override SELECTS accept values, and the jig behavior select offers Inherit, a named jig and None",
     `model=<${model.tag}> ${JSON.stringify(model.value)}, effort=<${effort.tag}> ${JSON.stringify(effort.value)}, mode=<${mode.tag}> ${JSON.stringify(mode.value)}; jig value=${JSON.stringify(jigValue)}, options=${JSON.stringify(jigOptions)}`,
   );
 
