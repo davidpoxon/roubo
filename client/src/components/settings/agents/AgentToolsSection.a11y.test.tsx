@@ -5,7 +5,7 @@
 // the open editor modal).
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import type {
@@ -128,7 +128,12 @@ describe("AgentToolEditorModal: keyboard operation (AP-TC-052)", () => {
   /** Open the editor exactly as a keyboard user does: Tab to the trigger, Enter. */
   async function openByKeyboard(user: ReturnType<typeof userEvent.setup>) {
     const trigger = screen.getByRole("button", { name: "New agent tool" });
-    trigger.focus();
+    // React Aria's Button tracks its own focus state, so a bare .focus() lands a
+    // React update outside act() and the suite fails the zero-stderr rule in
+    // docs/development.md. act() puts the update back under the test's control.
+    await act(async () => {
+      trigger.focus();
+    });
     await user.keyboard("{Enter}");
     return { trigger, dialog: await screen.findByRole("dialog") };
   }

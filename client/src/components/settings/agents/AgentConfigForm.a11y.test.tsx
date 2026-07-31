@@ -6,8 +6,10 @@
 // arguments field are exercised here rather than only scanned in place by
 // `AgentsTab.a11y.test.tsx`.
 //
-// Contrast (S003-O01's second half) is undecidable in jsdom, which computes no
-// layout, so it stays with the browser-driven checks under `e2e/`.
+// Coverage gap (#703): contrast, the second half of S003-O01, is undecidable in
+// jsdom, which computes no layout, so axe reports zero contrast violations even
+// when text fails AA in a browser. No browser-driven check covers this surface
+// yet; #703 tracks adding one.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";

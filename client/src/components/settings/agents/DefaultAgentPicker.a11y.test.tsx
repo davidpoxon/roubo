@@ -4,9 +4,11 @@
 // radiogroup, moves selection with the arrow keys, commits with Space, and
 // scans clean.
 //
-// Contrast (AP-TC-050 S003-O01's second half) is out of reach here: axe-core's
-// `color-contrast` rule needs real layout, which jsdom does not compute, so it
-// is covered by the browser-driven contrast checks under `e2e/` instead.
+// Coverage gap (#703): contrast, the second half of AP-TC-050 S003-O01, is out
+// of reach here. axe-core's `color-contrast` rule needs real layout, which jsdom
+// does not compute, so it reports zero contrast violations even when text fails
+// AA in a browser. No browser-driven check covers this surface yet; #703 tracks
+// adding one, modelled on e2e/e2e-flow/spec-picker-contrast.spec.ts.
 
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";

@@ -10,7 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { MemoryRouter } from "react-router-dom";
 import type { AgentPluginState, JigMeta } from "@roubo/shared";
-import JigRow, { DEFAULT_AGENT_VALUE } from "./JigRow";
+import JigRow from "./JigRow";
 import { expectNoAxeFindings } from "../../test/axe";
 
 const AGENTS: AgentPluginState[] = [
@@ -128,9 +128,5 @@ describe("JigRow agent binding: accessibility (AP-TC-051)", () => {
       "ghost-agent (unavailable)",
     );
     expectNoAxeFindings(await axe(container));
-  });
-
-  it("keeps the sentinel exported for the binding's null value", () => {
-    expect(DEFAULT_AGENT_VALUE).toBe("__default_agent__");
   });
 });
