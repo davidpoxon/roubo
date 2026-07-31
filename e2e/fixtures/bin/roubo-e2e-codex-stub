@@ -29,9 +29,11 @@
 // `parseVersion` (server/services/agent-version-probe.test.ts). The trailing
 // marker keeps a stray real invocation legible in a log.
 //
-// Inside the overlay's declared window (floor 0.144.0, tested ceiling 0.160.0),
-// so the gate neither blocks a launch nor emits a staleness notice.
-const STUB_VERSION = "0.150.0";
+// Inside the overlay's declared window (floor 0.144.0, tested ceiling 0.144.1,
+// re-based on the shipped Codex plugin's manifest in #520), so the gate neither
+// blocks a launch nor emits a staleness notice. Both bounds are inclusive, so
+// sitting exactly on the ceiling still resolves `within-tested-range`.
+const STUB_VERSION = "0.144.1";
 
 const argv = process.argv.slice(2);
 
