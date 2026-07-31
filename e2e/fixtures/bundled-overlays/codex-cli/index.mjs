@@ -1,19 +1,20 @@
 // E2E overlay runtime for a second agent plugin slot, `codex-cli` (issue #683).
 //
-// NOT a mirror of a shipped plugin. There is no Codex agent plugin yet (#520
-// owns it), so this file implements the smallest runtime that makes the slot a
+// NOT a mirror of a shipped plugin. The shipped Codex agent plugin (#520) lives
+// in roubo-plugins/plugins/codex/ and this overlay deliberately does not
+// reproduce it; it implements the smallest runtime that makes the slot a
 // REAL installed agent rather than a manifest on disk: `resolveAgent` refuses to
 // resolve a plugin with no live JSON-RPC connection, and both `warmAgentVersion`
 // callers (server boot and GET /api/agents) are gated on that resolution. Without
 // a running entrypoint the card would render its declared window with no detected
 // version, which is exactly the half of AP-TC-113 S002-O01 that needs proving.
 //
-// Deliberately minimal where the real plugin will be rich: the argv mapping,
-// the config schema, the notification wiring and the permissions bindings are
-// #520's to author from spike 502
-// (.specifications/agent-plugins/spikes/spike-502-agent-contract-shape.md).
-// Inventing them here would fixture behaviour nobody owns, and a guard that
-// asserts against an invented mapping proves nothing about the shipped one.
+// Deliberately minimal where the real plugin is rich: its argv mapping, config
+// schema, notification wiring and permissions bindings stay out of this file.
+// The AP-TC-087 guard counts `config-field-<key>` test ids PAGE-WIDE while every
+// agent card mounts its form expanded, so reproducing the shipped configSchema
+// here would make that guard read two controls where it expects one, and a guard
+// that asserts against a copy proves nothing about the shipped mapping anyway.
 //
 // Modelled on the sibling claude-code overlay for the JSON-RPC shape; ESM
 // because the manifest entry is `./index.mjs` and `vscode-jsonrpc/node` resolves
@@ -31,8 +32,10 @@ const COMMAND = "roubo-e2e-codex-stub";
 /**
  * Codex's interactive form is `codex [OPTIONS] [PROMPT]` (spike 502, section 2),
  * so a positional initial prompt is the faithful mode. No length bound is
- * declared: the real limit is #520's to establish against the real binary, and
- * an invented one would silently truncate a jig here.
+ * declared here: the shipped plugin sets `maxLength: 100_000`
+ * (roubo-plugins/plugins/codex/src/translate-launch.ts), and this overlay drives
+ * the e2e stub rather than the real binary, so copying that cap would only be a
+ * copy the guard proves nothing about.
  */
 const INITIAL_PROMPT = { mode: "argv-positional" };
 
@@ -46,7 +49,7 @@ const VERSION_PROBE = {
   args: ["--version"],
   parse: "semver",
   minVersion: "0.144.0",
-  testedCeiling: "0.160.0",
+  testedCeiling: "0.144.1",
 };
 
 const reader = new rpc.StreamMessageReader(process.stdin);

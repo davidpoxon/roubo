@@ -15,15 +15,21 @@ contractVersion: 1
 # wants this overlay enables it (POST /api/plugins/codex-cli/enable) and hands it
 # back disabled.
 #
-# UNLIKE the sibling claude-code overlay, this manifest MIRRORS NOTHING: there is
-# no shipped Codex agent plugin yet (#520 owns it, and roubo-plugins/plugins/ has
-# no codex-cli workspace). The window below is authored from spike 502's
-# real-binary survey (.specifications/agent-plugins/spikes/spike-502-agent-contract-shape.md),
+# The window below is re-based on the shipped Codex agent plugin's manifest
+# (roubo-plugins/plugins/codex/roubo-plugin.yaml, #520), so the overlay claims
+# the same compatibility window the real plugin does rather than the plausible
+# bracket it carried before that plugin existed. Both come from spike 502's
+# real-binary survey
+# (.specifications/agent-plugins/spikes/spike-502-agent-contract-shape.md),
 # which probed @openai/codex 0.144.1 directly: `codex --version` prints
-# `codex-cli 0.144.1`, so the floor and ceiling bracket that one verified
-# version. #520 MUST re-base this block on the shipped manifest's real window
-# once that plugin exists; until then the numbers are a plausible bracket, not a
-# claim about which Codex versions Roubo supports.
+# `codex-cli 0.144.1`, the only version any Roubo work has validated. Re-base
+# this block again whenever the shipped manifest's window moves, and keep the
+# stub's version (e2e/fixtures/bin/roubo-e2e-codex-stub) inside it so the card
+# resolves `within-tested-range`.
+#
+# UNLIKE the sibling claude-code overlay, the RUNTIME still mirrors nothing: the
+# argv mapping, config schema, notification wiring and permissions bindings stay
+# out of index.mjs on purpose (see the note there).
 #
 # The probe names the e2e stub rather than `codex`, for the same reason the
 # Claude stub is not named `claude`: `resolveShellPath()` prepends
@@ -31,7 +37,7 @@ contractVersion: 1
 # PATH lookup and the card would report that binary's version instead.
 agentCompatibility:
   minVersion: 0.144.0
-  testedCeiling: 0.160.0
+  testedCeiling: 0.144.1
   probe:
     command: roubo-e2e-codex-stub
     args:
@@ -41,10 +47,10 @@ agentCompatibility:
 # line only, and the AP-TC-087 guard counts `config-field-<key>` test ids
 # PAGE-WIDE while every agent card mounts its form expanded, so a `model` or
 # `effort` property here would make that guard read two controls where it
-# expects one and fail on a fixture artefact. #520's real schema (spike 502's
-# validated axes: `-m` for the model, `-c model_reasoning_effort=` for the
-# effort) lands with the real plugin, alongside whatever scoping that guard then
-# needs.
+# expects one and fail on a fixture artefact. The shipped plugin's real schema
+# (model, reasoning effort, approval policy, sandbox, extra arguments) lives in
+# roubo-plugins/plugins/codex/roubo-plugin.yaml and is deliberately not copied
+# here; exercising it through this overlay needs that guard scoped first.
 permissions:
   network:
     hosts: []
