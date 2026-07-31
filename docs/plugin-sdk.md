@@ -148,6 +148,8 @@ The window is declared in two places, deliberately, and they must agree. The **m
 
 The host probes at most once per resolved binary and caches the result, so opening the AI Agents screen never spawns a CLI per request. It warms that cache in the background at startup and re-probes at most once a minute on launch, which is what makes "update the CLI, then launch again" work after a below-floor refusal.
 
+The declared window is also what a **marketplace listing** shows, before anything is installed. An `agent`-kind listing renders `minVersion` and `testedCeiling` on its card and in its detail drawer, so a user can see which CLI versions a plugin supports without installing it first. Only the two bounds are shown: nothing has been probed at that point, so there is no detected version and no verdict, and `probe` is a host instruction rather than something a consumer reads. Declare the bounds even if you omit `probe`, or your listing reads "compatibility not declared". Only `agent`-kind listings show this; a component or integration listing never does.
+
 ## Agent contract
 
 An `agent`-kind plugin registers with `defineAgentPlugin` instead of `definePlugin`, and implements exactly one method, `translateLaunch`. It is a pure function: given the plugin's config and the host-resolved launch context, it returns an `AgentLaunchDescriptor` describing how to start the AI coding agent. The host validates that descriptor and executes it.

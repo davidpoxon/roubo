@@ -16,7 +16,14 @@ const STRINGS = {
   withinRange: "within tested range",
   aboveCeiling: "above tested ceiling",
   belowFloor: "below required floor",
-  probeFailed: "version check failed",
+  probeFailed: "CLI not detected",
+  // The CLI-absent state (AP-TC-122). Deliberately says nothing about the
+  // install: the plugin IS installed, and claiming otherwise would send a user
+  // to reinstall a plugin that is fine. What is missing is the agent's own CLI,
+  // so the guidance names that and nothing else.
+  cliMissingHeadline: (name: string) => `${name} is installed, but its agent CLI was not detected.`,
+  cliMissingGuidance:
+    "Install the agent's command-line tool and make sure it is on your PATH, then reopen this screen.",
 };
 
 const CHIP_CLASS =
@@ -90,6 +97,40 @@ function CompatibilityLine({
   );
 }
 
+/**
+ * The unconfigured, CLI-not-detected state (AP-TC-122).
+ *
+ * An agent plugin installs and resolves perfectly well on a machine that does
+ * not have the agent's CLI: the availability chain
+ * (server/services/agent-plugin-registry.ts) is about the PLUGIN (installed,
+ * compatible, consented, running) and has no notion of the binary. So without
+ * this branch the card said "Ready" for an agent that cannot launch, and the
+ * only trace of the problem was an unexplained "version check failed" chip.
+ *
+ * The probe reports that case as `probe-failed` with a `reason` naming what it
+ * tried and what happened (an unresolvable command, a nonzero exit, unparseable
+ * output). The reason is shown verbatim rather than paraphrased, because it is
+ * the only thing that distinguishes "no such binary" from "the binary printed
+ * something we could not read", and the fix differs.
+ */
+function CliNotDetected({ agent }: { agent: AgentPluginState }) {
+  return (
+    <div
+      role="status"
+      data-testid={`agent-cli-missing-${agent.id}`}
+      className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed space-y-1"
+    >
+      <p className="font-medium">{STRINGS.cliMissingHeadline(agent.name)}</p>
+      {agent.compatibility?.reason && (
+        <p data-testid={`agent-cli-missing-reason-${agent.id}`} className="font-mono">
+          {agent.compatibility.reason}
+        </p>
+      )}
+      <p>{STRINGS.cliMissingGuidance}</p>
+    </div>
+  );
+}
+
 const DISCLOSURE_BUTTON_CLASS =
   "inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded text-stone-600 dark:text-stone-300 hover:bg-stone-100 hover:text-stone-900 dark:hover:bg-stone-800 dark:hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
@@ -109,6 +150,10 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
   // as a chevron: without them a screen reader hears "Hide" with no notion that
   // it collapses anything (AP-TC-127, WCAG 4.1.2).
   const panelId = `agent-config-panel-${agent.id}`;
+  // Ordered behind `unavailable`: a plugin blocked at the registry (incompatible,
+  // unconsented, not running) has a nearer cause than a missing binary, and
+  // showing both would offer two fixes for one card.
+  const cliMissing = agent.unavailable === null && agent.compatibility?.status === "probe-failed";
 
   return (
     <section
@@ -163,6 +208,8 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
         >
           {agent.unavailable.message}
         </p>
+      ) : cliMissing ? (
+        <CliNotDetected agent={agent} />
       ) : (
         <p className="text-[11px] text-stone-500 dark:text-stone-400">{STRINGS.ready}</p>
       )}

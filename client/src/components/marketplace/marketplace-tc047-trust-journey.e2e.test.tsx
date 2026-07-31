@@ -117,6 +117,7 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     updateAvailable: false,
     declaredPermissions: null,
     lifecycle: null,
+    agentCompatibility: null,
     sourceId: FIRST_PARTY_SOURCE_ID,
     ...over,
   };

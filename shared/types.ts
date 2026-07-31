@@ -179,6 +179,7 @@ export type {
 
 import type { CapturedUserId, IntegrationConfig } from "./config-schema.js";
 import type {
+  AgentCompatibility,
   PluginPermissions,
   PluginDefaultIntegrationConfig,
   PluginLifecycle,
@@ -378,6 +379,24 @@ export interface SignedKeyRing {
 }
 
 /**
+ * The agent-CLI compatibility window a marketplace listing renders PRE-INSTALL
+ * (AP-FR-022, issue #522): the manifest-declared version floor and tested
+ * ceiling, and nothing else.
+ *
+ * Deliberately NOT `AgentCompatibilityState` (the AI Agents screen's shape): a
+ * marketplace listing describes a plugin that has not been installed, so nothing
+ * has been probed and there is no `detectedVersion` and no verdict `status` to
+ * report. It also drops the manifest's `probe` directive, which is a host
+ * instruction rather than something a consumer reads. What remains is exactly
+ * the declared window, so the card can say "floor x, tested <= y" and nothing it
+ * cannot know.
+ */
+export type MarketplaceAgentCompatibility = Pick<
+  AgentCompatibility,
+  "minVersion" | "testedCeiling"
+>;
+
+/**
  * A catalog entry annotated with the consumer's local install state. Returned
  * by `GET /api/marketplace/plugins`. `installed` reflects whether a plugin with
  * this id is present in `listInstalled()`; `installedVersion` is its on-disk
@@ -401,8 +420,17 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // pre-install (a non-bundled or release-sourced, not-yet-installed entry).
   // `lifecycle` is the component lifecycle shape (long-running / one-shot), or
   // `null` for integration plugins and when the manifest is unavailable.
+  // `agentCompatibility` is the agent-CLI window an AGENT-kind entry declared
+  // (AP-FR-022, issue #522), gated on the kind here on the server so a component
+  // or integration listing can never render CLI compatibility metadata
+  // (AP-TC-125). `null` for every other kind, when the manifest is unavailable
+  // pre-install, and when an agent manifest declares no bounds at all: the one
+  // null branch the card renders its "compatibility not declared" fallback from
+  // (AP-TC-121), so a missing manifest and an undeclared window read the same
+  // rather than one of them rendering an empty row.
   declaredPermissions: PluginPermissions | null;
   lifecycle: PluginLifecycle | null;
+  agentCompatibility: MarketplaceAgentCompatibility | null;
   // The id of the marketplace source this entry came from: `FIRST_PARTY_SOURCE_ID`
   // for the built-in catalog, otherwise the registered source's generated id
   // (CPHMTP-FR-004, issue #557). Every listing carries exactly one, so the card

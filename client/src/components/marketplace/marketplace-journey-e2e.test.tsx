@@ -130,6 +130,7 @@ function redisListing(over: Partial<MarketplaceListing> = {}): MarketplaceListin
     updateAvailable: false,
     declaredPermissions: null,
     lifecycle: null,
+    agentCompatibility: null,
     sourceId: FIRST_PARTY_SOURCE_ID,
     ...over,
   };

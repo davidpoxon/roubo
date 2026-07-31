@@ -5,6 +5,7 @@ import semver from "semver";
 import { FIRST_PARTY_SOURCE_ID, parseManifest } from "@roubo/shared";
 import type {
   InstallPreview,
+  MarketplaceAgentCompatibility,
   MarketplaceCatalogEntry,
   MarketplaceCatalogSource,
   MarketplaceKind,
@@ -188,6 +189,29 @@ function readEntryManifest(
   }
 }
 
+/**
+ * The agent-CLI compatibility window a listing renders PRE-INSTALL (AP-FR-022,
+ * issue #522), read off the entry's declared manifest through the same
+ * `readEntryManifest()` seam `declaredPermissions` / `lifecycle` already use.
+ *
+ * Returns null when the manifest is unavailable AND when it declares no bounds
+ * at all, so "we could not read it" and "the author declared nothing" collapse
+ * into the single state the card has a fallback for (AP-TC-121). The manifest's
+ * `probe` directive is deliberately dropped: it tells the host how to detect a
+ * version, which is not something a consumer browsing the catalog reads.
+ */
+function declaredAgentWindow(
+  manifest: PluginManifest | null,
+): MarketplaceAgentCompatibility | null {
+  const declared = manifest?.agentCompatibility;
+  if (!declared) return null;
+  const window: MarketplaceAgentCompatibility = {
+    ...(declared.minVersion !== undefined && { minVersion: declared.minVersion }),
+    ...(declared.testedCeiling !== undefined && { testedCeiling: declared.testedCeiling }),
+  };
+  return window.minVersion === undefined && window.testedCeiling === undefined ? null : window;
+}
+
 function annotate(
   entry: MarketplaceCatalogEntry,
   sourceId: string,
@@ -220,6 +244,11 @@ function annotate(
   const declaredPermissions = manifest?.permissions ?? null;
   const lifecycle: PluginLifecycle | null =
     manifest !== null && entry.kind === "component" ? (manifest.lifecycle ?? "long-running") : null;
+  // Agent-CLI compatibility is an AGENT-kind concept, gated here rather than in
+  // the card so only agent listings can ever render it (AP-TC-125): the client
+  // has no kind branch to forget, and a component or integration entry that
+  // happened to declare the block would still list nothing.
+  const agentCompatibility = entry.kind === "agent" ? declaredAgentWindow(manifest) : null;
   return {
     ...entry,
     installed,
@@ -227,6 +256,7 @@ function annotate(
     updateAvailable,
     declaredPermissions,
     lifecycle,
+    agentCompatibility,
     // Per-entry provenance (CPHMTP-FR-004, issue #557): stamped from the client
     // that returned the entry, never read off the entry itself.
     sourceId,

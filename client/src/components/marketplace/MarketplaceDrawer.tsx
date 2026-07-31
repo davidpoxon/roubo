@@ -38,6 +38,10 @@ const STRINGS = {
   sandbox: "Sandbox",
   unsandboxed: "Unsandboxed (v2)",
   lifecycle: "Lifecycle",
+  // The agent-CLI compatibility window (AP-FR-022, issue #522), phrased exactly
+  // as the card's line so the two surfaces agree word for word.
+  agentCompatibility: "Agent CLI",
+  agentCompatibilityUndeclared: "compatibility not declared",
   permissionsHeading: "Declared permissions",
   noPermissions: "This plugin declares no special permissions.",
   install: "Install",
@@ -54,6 +58,22 @@ const LIFECYCLE_DESCRIPTION: Record<PluginLifecycle, string> = {
   "long-running": "long-running (start, stop, health, and logs)",
   "one-shot": "one-shot (start runs to completion, then completed)",
 };
+
+/**
+ * The declared agent-CLI window as one line, or the undeclared fallback
+ * (AP-TC-121). Mirrors the card's `AgentCompatibilityLine` phrasing; the drawer
+ * renders it as a metadata row because that is how every other derived
+ * pre-install fact (lifecycle, provenance, curation) reads here.
+ */
+function describeAgentCompatibility(
+  compatibility: NonNullable<MarketplaceListing["agentCompatibility"]>,
+): string {
+  const bounds = [
+    compatibility.minVersion && `floor ${compatibility.minVersion}`,
+    compatibility.testedCeiling && `tested <= ${compatibility.testedCeiling}`,
+  ].filter(Boolean);
+  return bounds.length > 0 ? bounds.join(" · ") : STRINGS.agentCompatibilityUndeclared;
+}
 
 interface Props {
   listing: MarketplaceListing;
@@ -169,6 +189,19 @@ export default function MarketplaceDrawer({
                 </span>
               </MetaRow>
               <MetaRow label={STRINGS.kind}>{listing.kind}</MetaRow>
+              {listing.kind === "agent" && (
+                <MetaRow label={STRINGS.agentCompatibility}>
+                  <span
+                    data-testid="marketplace-drawer-agent-compatibility"
+                    data-declared={listing.agentCompatibility !== null}
+                    className={listing.agentCompatibility === null ? "italic" : "font-mono"}
+                  >
+                    {listing.agentCompatibility === null
+                      ? STRINGS.agentCompatibilityUndeclared
+                      : describeAgentCompatibility(listing.agentCompatibility)}
+                  </span>
+                </MetaRow>
+              )}
               {listing.lifecycle !== null && (
                 <MetaRow label={STRINGS.lifecycle}>
                   <span data-testid="marketplace-drawer-lifecycle" className="font-mono">
