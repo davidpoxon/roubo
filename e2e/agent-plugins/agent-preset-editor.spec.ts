@@ -45,6 +45,22 @@ const PRESET_NAME = "AP-TC-025 deep work";
 /** The overrides S002 sets. All three are valid values in Claude Code's schema. */
 const OVERRIDES = { model: "opus", effort: "high", mode: "plan" } as const;
 
+/**
+ * The title the overlay's manifest gives each of those values
+ * (e2e/fixtures/bundled-overlays/claude-code/roubo-plugin.yaml). A select
+ * offering the raw const instead would be reading the schema as a bare `enum`
+ * rather than as the titled choice list the manifest actually declares, so
+ * asserting the labels is what distinguishes the two readings.
+ */
+const OVERRIDE_TITLES = { model: "Opus", effort: "High", mode: "Plan" } as const;
+
+/**
+ * The inherit entry every parameter select carries. Its value is empty because
+ * the editor never writes it, which is what makes an untouched override fall
+ * through to the layers beneath it (AP-TC-036 S001-O03).
+ */
+const INHERIT_OPTION = { value: "", label: "inherit" } as const;
+
 /** The editor's jig sentinels (shared/config-schema.ts:221-223). */
 const JIG_INHERIT = "__inherit__";
 const JIG_NONE = "__none__";
@@ -96,17 +112,25 @@ async function optionsOf(select: Locator): Promise<OptionEntry[]> {
  * below is not: a field that regressed to free text still ACCEPTS the value, so
  * writing it either way is what lets S002-O01 report the control it actually
  * found instead of failing as an unattributed Playwright error.
+ *
+ * `options` carries what a select offered (empty for the free-text fallback),
+ * so the observation can assert the choices are the manifest's titled ones
+ * rather than only that the control is a select.
  */
 async function setParamField(
   page: Page,
   key: string,
   value: string,
-): Promise<{ tag: string; value: string }> {
+): Promise<{ tag: string; value: string; options: OptionEntry[] }> {
   const field = page.locator(`#agent-tool-${key}`);
   const tag = await field.evaluate((el) => el.tagName.toLowerCase());
   if (tag === "select") await field.selectOption(value);
   else await field.fill(value);
-  return { tag, value: await field.inputValue() };
+  return {
+    tag,
+    value: await field.inputValue(),
+    options: tag === "select" ? await optionsOf(field) : [],
+  };
 }
 
 /** Open Settings and switch to the Jigs tab, which hosts the Agent tools list. */
@@ -214,6 +238,26 @@ test("AP-TC-025: bind an agent tool to the default agent, override params, save 
     model.value === OVERRIDES.model &&
     effort.value === OVERRIDES.effort &&
     mode.value === OVERRIDES.mode;
+  // "Parameter override SELECTS ... accept values" also constrains WHICH values
+  // are on offer. Each select carries the inherit entry plus the manifest's own
+  // titled choices, so a select built from a bare-`enum` reading of the schema
+  // (labels reading "opus" rather than "Opus") fails here even though its tag
+  // and accepted value would both pass above.
+  const paramsOfferManifestChoices = (
+    [
+      ["model", model],
+      ["effort", effort],
+      ["mode", mode],
+    ] as const
+  ).every(
+    ([key, control]) =>
+      control.options.some(
+        (option) => option.value === INHERIT_OPTION.value && option.label === INHERIT_OPTION.label,
+      ) &&
+      control.options.some(
+        (option) => option.value === control.value && option.label === OVERRIDE_TITLES[key],
+      ),
+  );
   const jigOffersEverything =
     jigOptions.some((option) => option.value === JIG_INHERIT) &&
     namedJigs.length >= 1 &&
@@ -222,9 +266,9 @@ test("AP-TC-025: bind an agent tool to the default agent, override params, save 
   observe(
     STEPS.S002,
     "S002-O01",
-    paramsAccepted && jigOffersEverything,
-    "the Model, Effort and Mode parameter override SELECTS accept values, and the jig behavior select offers Inherit, a named jig and None",
-    `model=<${model.tag}> ${JSON.stringify(model.value)}, effort=<${effort.tag}> ${JSON.stringify(effort.value)}, mode=<${mode.tag}> ${JSON.stringify(mode.value)}; jig value=${JSON.stringify(jigValue)}, options=${JSON.stringify(jigOptions)}`,
+    paramsAccepted && paramsOfferManifestChoices && jigOffersEverything,
+    `the Model, Effort and Mode parameter override SELECTS accept values and offer inherit plus the bound agent's own titled choices (${OVERRIDE_TITLES.model} / ${OVERRIDE_TITLES.effort} / ${OVERRIDE_TITLES.mode}), and the jig behavior select offers Inherit, a named jig and None`,
+    `model=<${model.tag}> ${JSON.stringify(model.value)} options=${JSON.stringify(model.options)}, effort=<${effort.tag}> ${JSON.stringify(effort.value)} options=${JSON.stringify(effort.options)}, mode=<${mode.tag}> ${JSON.stringify(mode.value)} options=${JSON.stringify(mode.options)}; jig value=${JSON.stringify(jigValue)}, options=${JSON.stringify(jigOptions)}`,
   );
 
   // --- S003: save, then read the list entry back ----------------------------
