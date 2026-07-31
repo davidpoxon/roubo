@@ -48,7 +48,14 @@ export default function DefaultAgentTile({ agent }: { agent: AgentPluginState })
           >
             {agent.name}
           </span>
-          <span className="ml-auto text-[11px] font-mono text-stone-400 dark:text-stone-600 truncate">
+          {/*
+            stone-600, not the muted stone-500 used elsewhere: the selected tile's
+            background is stone-100, where stone-500 measures 4.38:1 and misses AA
+            body (#703). One colour for both states so the subtitle does not shift
+            weight on selection; the hierarchy against the agent name reads through
+            size and the monospace face instead.
+          */}
+          <span className="ml-auto text-[11px] font-mono text-stone-600 dark:text-stone-400 truncate">
             {params}
           </span>
         </div>

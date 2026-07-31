@@ -7,8 +7,10 @@
 // Coverage gap (#703): contrast, the second half of AP-TC-050 S003-O01, is out
 // of reach here. axe-core's `color-contrast` rule needs real layout, which jsdom
 // does not compute, so it reports zero contrast violations even when text fails
-// AA in a browser. No browser-driven check covers this surface yet; #703 tracks
-// adding one, modelled on e2e/e2e-flow/spec-picker-contrast.spec.ts.
+// AA in a browser. Real-rendering color-contrast is therefore verified separately
+// in the Playwright spec e2e/agent-plugins/agent-surfaces-contrast.spec.ts, which
+// injects axe-core into Chromium and runs the color-contrast rule over the
+// rendered radiogroup across both themes, at rest and with a tile focused.
 
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";

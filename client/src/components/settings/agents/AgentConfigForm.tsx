@@ -153,7 +153,7 @@ export default function AgentConfigForm({ agent }: { agent: AgentPluginState }) 
         )}
       </div>
 
-      <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+      <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
         {STRINGS.resetHint}
       </p>
     </div>

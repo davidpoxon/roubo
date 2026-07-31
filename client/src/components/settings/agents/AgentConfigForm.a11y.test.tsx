@@ -8,8 +8,11 @@
 //
 // Coverage gap (#703): contrast, the second half of S003-O01, is undecidable in
 // jsdom, which computes no layout, so axe reports zero contrast violations even
-// when text fails AA in a browser. No browser-driven check covers this surface
-// yet; #703 tracks adding one.
+// when text fails AA in a browser. Real-rendering color-contrast is therefore
+// verified separately in the Playwright spec
+// e2e/agent-plugins/agent-surfaces-contrast.spec.ts, which injects axe-core into
+// Chromium and runs the color-contrast rule over the installed-agents section
+// with both cards' config forms expanded, across both themes.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
