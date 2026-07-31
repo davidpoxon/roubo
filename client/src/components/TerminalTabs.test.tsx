@@ -486,6 +486,29 @@ describe("TerminalTabs: agent launch and jig resolution", () => {
     );
   });
 
+  // AP-TC-054 S001-O01: both split-button segments suppress the native outline,
+  // so each has to draw its own indicator or a keyboard user reaching the launch
+  // control sees nothing at all (WCAG 2.4.7).
+  it("gives both split-button segments a visible keyboard focus indicator", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useTerminalSessions).mockReturnValue({
+      data: SESSION,
+    } as unknown as ReturnType<typeof useTerminalSessions>);
+
+    renderWithProviders(
+      <TerminalTabs
+        projectId="project1"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={true}
+      />,
+    );
+
+    for (const name of ["Launch Claude Code", "Choose launch option"]) {
+      expect(screen.getByRole("button", { name }).className).toContain("focus-visible:ring-2");
+    }
+  });
+
   // AP-FR-006: a jig's own agent binding beats the DEFAULT agent. The host
   // applies that order only when the request names no agent, and every launch
   // from this surface names one, so the surface has to apply it. Without this

@@ -665,7 +665,7 @@ export default function TerminalTabs({
                 aria-label={`Launch ${primaryLabel}`}
                 isDisabled={primaryDisabled}
                 onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
-                className="p-1.5 rounded-l-md text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
+                className="p-1.5 rounded-l-md text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 <Bot size={14} />
               </Button>
@@ -676,7 +676,7 @@ export default function TerminalTabs({
             <MenuTrigger>
               <Button
                 aria-label="Choose launch option"
-                className="flex items-center px-1 py-1.5 text-stone-400 dark:text-stone-600 rounded-r-md border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
+                className="flex items-center px-1 py-1.5 text-stone-400 dark:text-stone-600 rounded-r-md border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 <ChevronDown size={10} />
               </Button>
@@ -707,7 +707,7 @@ export default function TerminalTabs({
                 <Button
                   isDisabled={primaryDisabled}
                   onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-l-lg transition-colors outline-none"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-l-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                 >
                   <Bot size={12} />
                   {primaryLabel}
@@ -715,7 +715,7 @@ export default function TerminalTabs({
                 <MenuTrigger>
                   <Button
                     aria-label="Choose launch option"
-                    className="flex items-center px-1.5 py-1.5 text-stone-950/70 bg-amber-500 hover:bg-amber-400 rounded-r-lg border-l border-stone-950/20 transition-colors outline-none"
+                    className="flex items-center px-1.5 py-1.5 text-stone-950/70 bg-amber-500 hover:bg-amber-400 rounded-r-lg border-l border-stone-950/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                   >
                     <ChevronDown size={10} />
                   </Button>
