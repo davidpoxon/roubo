@@ -252,7 +252,10 @@ describe("PUT /", () => {
     expect(res.body.jigs.defaultJigId).toBeUndefined();
   });
 
-  it("persists defaultAgentPluginId (AP-TC-018)", async () => {
+  // Untagged on purpose (#680): this is the persistence half of AP-TC-018, not
+  // the whole case. The bare id lives on the one test that asserts every
+  // observation, e2e/agent-plugins/default-agent-tiles.spec.ts.
+  it("persists defaultAgentPluginId", async () => {
     const jigs = { autoInject: true, autoExecute: true, defaultAgentPluginId: "codex-cli" };
     const res = await request(app).put("/").send({ theme: "dark", jigs });
     expect(res.status).toBe(200);

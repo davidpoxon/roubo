@@ -67,6 +67,10 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
       // is.
       aria-label={`${preset.name}: ${summary}`}
       isDisabled={blocked !== null}
+      // Identifying rather than generic, so a browser-driven check can name the
+      // preset row it means (AP-TC-026 S001, AP-TC-027 S001) instead of indexing
+      // into an ordered list.
+      data-testid={`launch-preset-${preset.id}`}
       className={({ isFocused, isDisabled }) => ITEM_CLASS(isFocused, isDisabled)}
     >
       <span
@@ -93,7 +97,10 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
           drops {degraded.droppedParams.join(", ")}
         </span>
       ) : (
-        <span className="ml-auto text-[10px] font-mono text-stone-400 dark:text-stone-600 truncate">
+        <span
+          data-testid="launch-preset-summary"
+          className="ml-auto text-[10px] font-mono text-stone-400 dark:text-stone-600 truncate"
+        >
           {presetSummary(preset, target)}
         </span>
       )}

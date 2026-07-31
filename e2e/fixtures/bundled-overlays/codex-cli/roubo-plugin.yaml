@@ -6,6 +6,15 @@ kind: agent
 roubo: ^1.0.0
 entry: ./index.mjs
 contractVersion: 1
+# OPT-IN, not ambient. Every POST /test/__reset forces this id disabled, via
+# OPT_IN_AGENT_FIXTURE_PLUGIN_IDS in server/routes/test.ts (#681). Consent has no
+# revoke route and outlives both the reset and the server process, so the enable
+# ledger is the only lever that stops a spec which consented this agent from
+# leaving a SECOND available agent behind: "exactly one available agent" is a
+# resolution fallback several specs depend on (AP-TC-087, NFR-018). A spec that
+# wants this overlay enables it (POST /api/plugins/codex-cli/enable) and hands it
+# back disabled.
+#
 # UNLIKE the sibling claude-code overlay, this manifest MIRRORS NOTHING: there is
 # no shipped Codex agent plugin yet (#520 owns it, and roubo-plugins/plugins/ has
 # no codex-cli workspace). The window below is authored from spike 502's

@@ -3,7 +3,13 @@ import path from "node:path";
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import * as YAML from "yaml";
 import { discoverSpecs } from "../lib/testbench-spec-discovery.js";
+// AP-TC-026 (#681): the `tools:` block the fixture writer emits has to survive
+// the same strict parse a real project's roubo.yaml goes through, so the
+// round-trip below re-validates it through the production parser rather than
+// through a hand-rolled expectation about YAML text.
+import { validateConfigObject } from "../services/config-parser.js";
 
 // Redirect getRouboDir() away from the user's real `~/.roubo` (or
 // `~/.roubo-dev/<bench>`) so wipePersistedTestState() targets a throwaway
@@ -306,14 +312,17 @@ describe("POST /test/__reset", () => {
     // the project-settings specs can drive the overlay slots.
     // TC-154 (#222): known fixture failure plugins (e.g. broken-plugin) are
     // force-disabled so they don't auto-spawn and crash on every reset.
+    // AP-TC-018 (#681): the second-agent fixture is force-disabled too, so a
+    // spec that consented it cannot leave a second available agent behind.
     const FAILURE_FIXTURE_IDS = ["broken-plugin", "errored-component-stub"];
+    const OPT_IN_AGENT_FIXTURE_IDS = ["codex-cli"];
     expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(
-      BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length,
+      BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length + OPT_IN_AGENT_FIXTURE_IDS.length,
     );
     for (const id of BUNDLED_PLUGIN_IDS) {
       expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, true);
     }
-    for (const id of FAILURE_FIXTURE_IDS) {
+    for (const id of [...FAILURE_FIXTURE_IDS, ...OPT_IN_AGENT_FIXTURE_IDS]) {
       expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, false);
     }
 
@@ -442,21 +451,19 @@ describe("POST /test/__reset", () => {
   // force-enabling them, so the project-load Enable-plugin prompt fires for
   // the next spec. TC-154 (#222): disableFailureFixturePlugins() also fires
   // regardless of the bundledPluginsDisabled flag, so the call count includes
-  // those ids (broken-plugin, errored-component-stub) as well.
+  // those ids (broken-plugin, errored-component-stub) as well, and AP-TC-018
+  // (#681) adds the opt-in second-agent fixture (codex-cli) to the same set.
   it("writes every bundled plugin id as disabled when bundledPluginsDisabled: true", async () => {
     process.env.ROUBO_E2E = "1";
-    const FAILURE_FIXTURE_IDS = ["broken-plugin", "errored-component-stub"];
+    const FORCED_DISABLED_IDS = ["broken-plugin", "errored-component-stub", "codex-cli"];
 
     const res = await request(app).post("/test/__reset").send({ bundledPluginsDisabled: true });
 
     expect(res.status).toBe(200);
     expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(
-      BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length,
+      BUNDLED_PLUGIN_IDS.length + FORCED_DISABLED_IDS.length,
     );
-    for (const id of BUNDLED_PLUGIN_IDS) {
-      expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, false);
-    }
-    for (const id of FAILURE_FIXTURE_IDS) {
+    for (const id of [...BUNDLED_PLUGIN_IDS, ...FORCED_DISABLED_IDS]) {
       expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, false);
     }
   });
@@ -1014,6 +1021,73 @@ describe("POST /test/__register-fixture-project", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/declaredMarketplaces/);
+    expect(projectRegistry.registerProject).not.toHaveBeenCalled();
+  });
+
+  // AP-TC-026 (#681): `agentTools` writes a `tools:` block of `type: agent`
+  // entries, which is the only route by which a PROJECT-level preset reaches a
+  // bench launch menu. The generated YAML has to survive the strict
+  // RouboConfig parse, so the round-trip below re-parses it rather than only
+  // matching lines.
+  it("writes agentTools into the fixture roubo.yaml tools: block", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({
+        projectId: "fixture-agent-tools",
+        agentTools: [
+          {
+            name: "Project deep work",
+            agent: "claude-code",
+            params: { model: "opus", effort: "high" },
+            jig: "__none__",
+          },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).toMatch(/^tools:$/m);
+
+    const parsed = validateConfigObject(YAML.parse(yaml));
+    expect(parsed.errors ?? []).toEqual([]);
+    expect(parsed.config?.tools).toEqual([
+      {
+        type: "agent",
+        name: "Project deep work",
+        agent: "claude-code",
+        params: { model: "opus", effort: "high" },
+        jig: "__none__",
+      },
+    ]);
+  });
+
+  it("omits the tools block when agentTools is not provided", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-no-tools", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+
+    const yaml = fs.readFileSync(`${res.body.repoPath}/.roubo/roubo.yaml`, "utf-8");
+    expect(yaml).not.toMatch(/^tools:$/m);
+  });
+
+  it("returns 400 when an agentTools entry names no agent binding", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-bad-tool", agentTools: [{ name: "Nameless binding" }] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/agentTools\[0\]\.agent/);
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 

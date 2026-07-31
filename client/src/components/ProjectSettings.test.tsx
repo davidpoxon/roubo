@@ -1241,7 +1241,11 @@ describe("ProjectSettings", () => {
       expect(within(group).getByText("opus · high · plan")).toBeInTheDocument();
     });
 
-    it("persists the selection and confirms it with a toast (AP-TC-018)", async () => {
+    // Untagged on purpose (#680): AP-TC-018 has three observations and this test
+    // asserts one of them, so leaving the bare id here would make the suite
+    // mapper choose between two partial candidates and corroborate neither. The
+    // whole case is carried by e2e/agent-plugins/default-agent-tiles.spec.ts.
+    it("persists the selection and confirms it with a toast", async () => {
       const updateSettings = vi.fn();
       const addToast = vi.fn();
       mockedUseSettings.mockReturnValue({
