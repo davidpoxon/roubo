@@ -126,8 +126,7 @@ function buildAndStartClaudeSession(
   comments: Array<{ user: string; body: string }>,
   issueType?: string | null,
 ): { sessionId?: string } & (
-  | { jigId: string; jigSource: JigDefaultSource }
-  | { jigId?: undefined; jigSource?: undefined }
+  { jigId: string; jigSource: JigDefaultSource } | { jigId?: undefined; jigSource?: undefined }
 ) {
   const settings = loadSettings();
   const autoInject = settings.jigs?.autoInject ?? true;

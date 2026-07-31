@@ -686,10 +686,7 @@ export interface AgentPluginState {
  * any probe has run: it is not a verdict, so no surface may render it as one.
  */
 export type AgentVersionStatus =
-  | "within-tested-range"
-  | "above-tested-ceiling"
-  | "below-floor"
-  | "probe-failed";
+  "within-tested-range" | "above-tested-ceiling" | "below-floor" | "probe-failed";
 
 /**
  * Compatibility metadata as the AI Agents screen renders it: the declared floor
@@ -857,11 +854,7 @@ export type IntegrationCategoryId = "issues" | "code-scanning" | "secret-scannin
  * - `error`: probe returned an unexpected status or threw a non-timeout error
  */
 export type IntegrationCategoryStatus =
-  | "ok"
-  | "scope-missing"
-  | "not-enabled"
-  | "timed-out"
-  | "error";
+  "ok" | "scope-missing" | "not-enabled" | "timed-out" | "error";
 
 /**
  * One row in the Test Connection result strip. `label` is the human-facing
@@ -916,11 +909,7 @@ export const INTEGRATION_CATEGORY_LABELS: Record<IntegrationCategoryId, string> 
  * - `disabled`: plugin not enabled; never reflects connectivity
  */
 export type ConnectionState =
-  | "connected"
-  | "disconnected"
-  | "auth-problem"
-  | "errored"
-  | "disabled";
+  "connected" | "disconnected" | "auth-problem" | "errored" | "disabled";
 
 /**
  * Cached connection-status snapshot for a plugin. `detail` is surfaced in the
@@ -1067,12 +1056,7 @@ export interface RegisteredProject {
 
 export type BenchStatus = "idle" | "preparing" | "active" | "error" | "clearing";
 export type ComponentStatusValue =
-  | "stopped"
-  | "starting"
-  | "running"
-  | "error"
-  | "stopping"
-  | "completed";
+  "stopped" | "starting" | "running" | "error" | "stopping" | "completed";
 
 export type ProvisioningStepStatus = "pending" | "running" | "done" | "error" | "cancelled";
 
@@ -1517,11 +1501,7 @@ export interface Bench {
 // ── Git dirty-state types ──
 
 export type DirtyReasonKind =
-  | "dirty-worktree"
-  | "stash"
-  | "unpushed-commits"
-  | "no-upstream"
-  | "local-only-after-merge";
+  "dirty-worktree" | "stash" | "unpushed-commits" | "no-upstream" | "local-only-after-merge";
 
 /**
  * A single reason a bench is not safe to tear down.
@@ -1615,9 +1595,7 @@ export type AgentPresetSource = "builtin" | "app" | "project";
  * bound agent's `configSchema`.
  */
 export type AgentPresetUnresolvedReason =
-  | "agent-unavailable"
-  | "no-default-agent"
-  | "invalid-params";
+  "agent-unavailable" | "no-default-agent" | "invalid-params";
 
 /**
  * One preset as any launch surface sees it, with its agent binding resolved

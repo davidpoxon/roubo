@@ -60,8 +60,7 @@ export function enumOptionsFor(
   key: string,
 ): string[] | undefined {
   const properties = agent?.configSchema?.properties as
-    | Record<string, { enum?: unknown[] }>
-    | undefined;
+    Record<string, { enum?: unknown[] }> | undefined;
   const values = properties?.[key]?.enum;
   if (!Array.isArray(values)) return undefined;
   return values.filter((value): value is string => typeof value === "string");

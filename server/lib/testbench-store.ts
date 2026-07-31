@@ -138,11 +138,7 @@ function parseMajor(version: unknown): number {
 // prior-major case: it points at the documented migration path in
 // docs/testbench-schema-migrations.md instead of a generic shape error.
 export type ResultsRecoveryReason =
-  | "missing"
-  | "corrupt-json"
-  | "future-version"
-  | "version-migration-required"
-  | "schema-invalid";
+  "missing" | "corrupt-json" | "future-version" | "version-migration-required" | "schema-invalid";
 
 // ── Fail-open load of the results sidecar (FR-014/FR-015/AC3) ──
 //

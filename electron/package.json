@@ -45,7 +45,7 @@
     "@electron-forge/plugin-auto-unpack-natives": "7.11.2",
     "@electron-forge/publisher-github": "7.11.2",
     "@electron-forge/shared-types": "7.11.2",
-    "@electron/rebuild": "4.0.4",
+    "@electron/rebuild": "4.0.6",
     "@types/node": "26.0.1",
     "electron": "42.5.0",
     "ts-node": "10.9.2",

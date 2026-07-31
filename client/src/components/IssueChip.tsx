@@ -4,12 +4,7 @@ import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
 import type { SecurityCategory, StatusTone } from "../lib/chip-mapping";
 
 export type IssueChipVariant =
-  | "status"
-  | "milestone"
-  | "label"
-  | "issue-type"
-  | "metadata"
-  | "security-category";
+  "status" | "milestone" | "label" | "issue-type" | "metadata" | "security-category";
 
 interface IssueChipProps {
   variant: IssueChipVariant;

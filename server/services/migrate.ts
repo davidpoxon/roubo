@@ -44,8 +44,7 @@ function buildEnableStateSeed(value: PluginEnableStateValue): PluginEnableState 
 }
 
 export type MigrationOutcome =
-  | { status: "noop" }
-  | (MigrationRecord & { status: "success" | "rolled-back" });
+  { status: "noop" } | (MigrationRecord & { status: "success" | "rolled-back" });
 
 interface AuthFile {
   githubToken: string;

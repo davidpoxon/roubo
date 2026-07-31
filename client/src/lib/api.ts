@@ -560,11 +560,7 @@ export function abortInspection(projectId: string, benchId: number): Promise<voi
 // `null`/absent and "missing" are the silent clean-slate cases (a fresh bench with
 // no sidecar); the other reasons surface a dismissible recovery prompt (#417).
 export type ResultsRecoveryReason =
-  | "missing"
-  | "corrupt-json"
-  | "future-version"
-  | "version-migration-required"
-  | "schema-invalid";
+  "missing" | "corrupt-json" | "future-version" | "version-migration-required" | "schema-invalid";
 
 export interface TestbenchPlanResponse {
   plan: TestCasesPlan;
@@ -1605,8 +1601,7 @@ export interface InvalidSpec {
 // Result of validating a manual path: on success the resolved slug + case count,
 // on failure a flat list of human-readable error messages.
 export type ManualPathValidation =
-  | { ok: true; slug: string; caseCount: number }
-  | { ok: false; errors: string[] };
+  { ok: true; slug: string; caseCount: number } | { ok: false; errors: string[] };
 
 // GET /testbench/specs: enumerate specs under the project repo. Returns the
 // usable `specs` plus any present-but-invalid spec files (`invalid`) with their

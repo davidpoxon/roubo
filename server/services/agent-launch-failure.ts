@@ -23,10 +23,7 @@ export const EARLY_EXIT_WINDOW_MS = 5000;
 const MAX_CAPTURE_BYTES = 4096;
 
 export type PtyExitClass =
-  | "launch-failure"
-  | "missing-binary"
-  | "fast-clean-exit"
-  | "session-ended";
+  "launch-failure" | "missing-binary" | "fast-clean-exit" | "session-ended";
 
 export interface PtyExitSignals {
   exitCode: number;

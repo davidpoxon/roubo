@@ -264,8 +264,7 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
     // sub-key were renamed to `jigs` / `defaultJigId`. Honor old keys only if
     // the new ones are absent, so a user-authored settings file keeps working.
     const legacyJigSettings = raw.blueprints as
-      | (Record<string, unknown> & { defaultBlueprintId?: string })
-      | undefined;
+      (Record<string, unknown> & { defaultBlueprintId?: string }) | undefined;
     const mergedJigSettings = {
       ...DEFAULT_JIG_SETTINGS,
       ...(legacyJigSettings ?? {}),

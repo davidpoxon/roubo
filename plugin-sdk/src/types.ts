@@ -245,9 +245,7 @@ export interface SourceCandidateCategory {
 }
 
 export type SourceCandidatesShape =
-  | "multi-list"
-  | "categorized-multi-list"
-  | "searchable-categorized";
+  "multi-list" | "categorized-multi-list" | "searchable-categorized";
 
 // One selectable mode within a synthetic searchable category (e.g. "assigned to
 // me": in-project vs anywhere). Distinct from a SourceCandidateItem in that it
@@ -376,11 +374,7 @@ export type ProbeAlertCategory = "code-scanning" | "secret-scanning" | "dependab
  * - `error`: probe returned an unexpected status or threw a non-timeout error
  */
 export type ProbeAlertCategoryStatus =
-  | "ok"
-  | "scope-missing"
-  | "not-enabled"
-  | "timed-out"
-  | "error";
+  "ok" | "scope-missing" | "not-enabled" | "timed-out" | "error";
 
 export interface ProbeAlertCategoriesParams {
   /**
@@ -662,9 +656,7 @@ export interface OneshotProvisionDescriptor {
  * `schemaVersion` and then executes it.
  */
 export type ProvisionDescriptor =
-  | DockerProvisionDescriptor
-  | ProcessProvisionDescriptor
-  | OneshotProvisionDescriptor;
+  DockerProvisionDescriptor | ProcessProvisionDescriptor | OneshotProvisionDescriptor;
 
 /**
  * Per-bench context the host resolves (ports allocated, env merged) before any
