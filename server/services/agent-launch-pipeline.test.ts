@@ -165,7 +165,35 @@ describe("resolveLaunchAgentId (AP-FR-006 launch resolution order)", () => {
     );
   }
 
-  it("returns the jig's binding when the jig has one (AP-TC-021 S001)", () => {
+  // The whole of AP-TC-021 in one test, so the case maps to a single suite
+  // entry that covers every observation. The three tests after it break the
+  // same steps out one at a time and are deliberately not id-tagged: a case
+  // with more than one id-tagged test can never be corroborated (#680).
+  it("covers the jig binding, the default fallback, and the binding surviving a default change (AP-TC-021)", () => {
+    onlyInstalled("claude-code", "codex-cli");
+
+    // S001-O01: with Claude Code still the default, the bound jig resolves to
+    // its own agent.
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "claude-code",
+        defaultAgentPluginId: "claude-code",
+      }),
+    ).toBe("claude-code");
+
+    // S002-O01: the default moves to codex-cli, and an unbound jig follows it.
+    expect(resolveLaunchAgentId({ defaultAgentPluginId: "codex-cli" })).toBe("codex-cli");
+
+    // S003-O01: the bound jig is untouched by that same default change.
+    expect(
+      resolveLaunchAgentId({
+        jigAgentPluginId: "claude-code",
+        defaultAgentPluginId: "codex-cli",
+      }),
+    ).toBe("claude-code");
+  });
+
+  it("returns the jig's binding when the jig has one (S001)", () => {
     onlyInstalled("claude-code", "codex-cli");
 
     expect(
@@ -176,13 +204,13 @@ describe("resolveLaunchAgentId (AP-FR-006 launch resolution order)", () => {
     ).toBe("claude-code");
   });
 
-  it("falls back to the current default when the jig has no binding (AP-TC-021 S002)", () => {
+  it("falls back to the current default when the jig has no binding (S002)", () => {
     onlyInstalled("claude-code", "codex-cli");
 
     expect(resolveLaunchAgentId({ defaultAgentPluginId: "codex-cli" })).toBe("codex-cli");
   });
 
-  it("leaves an explicit binding untouched by a default change (AP-TC-021 S003)", () => {
+  it("leaves an explicit binding untouched by a default change (S003)", () => {
     onlyInstalled("claude-code", "codex-cli");
 
     // The default moved to codex-cli; the bound jig still resolves to its own agent.
