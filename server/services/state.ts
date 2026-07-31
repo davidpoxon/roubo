@@ -88,6 +88,19 @@ export function sanitizeBranchForPath(branch: string): string {
   return slashed.slice(start, end) || "branch";
 }
 
+/**
+ * The directory every bench workspace for one project is provisioned under
+ * (`<rouboDir>/workspaces/<projectName>`), i.e. the parent of every
+ * `getWorkspacePath(projectName, ...)`. Exposed so a caller that needs to drop a
+ * project's workspaces wholesale (the e2e fixture-project cleanup in
+ * routes/test.ts, #686) resolves the same containment-checked path the
+ * provisioning side does, rather than re-joining `getWorkspacesDir()` by hand.
+ */
+export function getProjectWorkspacesDir(projectName: string): string {
+  assertSafeIdentifier(projectName, PROJECT_ID_RE, "projectName");
+  return resolveWithin(WORKSPACES_DIR, projectName);
+}
+
 export function getWorkspacePath(
   projectName: string,
   benchNumber: number,

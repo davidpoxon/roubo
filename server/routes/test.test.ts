@@ -19,11 +19,11 @@ import { validateConfigObject } from "../services/config-parser.js";
 // under a `.roubo-dev` segment so the route's path-shape guard accepts it
 // as a dev path. The path is computed without `fs`/`os`/`path` so it can run
 // inside vi.hoisted before the regular import bindings have been initialised.
-const { TEST_TMP_ROOT, TEST_ROUBO_DIR } = vi.hoisted(() => {
+const { TEST_TMP_ROOT, TEST_ROUBO_DIR, TEST_SEP } = vi.hoisted(() => {
   const sep = process.platform === "win32" ? "\\" : "/";
   const tmpRoot = `${process.env.TMPDIR ?? process.env.TEMP ?? "/tmp"}${sep}roubo-test-route-${process.pid}-${Date.now()}`;
   const rouboDir = `${tmpRoot}${sep}.roubo-dev${sep}test-bench`;
-  return { TEST_TMP_ROOT: tmpRoot, TEST_ROUBO_DIR: rouboDir };
+  return { TEST_TMP_ROOT: tmpRoot, TEST_ROUBO_DIR: rouboDir, TEST_SEP: sep };
 });
 // Ensure the tmp dir exists once the regular imports have run. The mock
 // factory only needs the path string, so a deferred mkdir is fine.
@@ -92,6 +92,12 @@ vi.mock("../services/state.js", () => ({
   removeProject: vi.fn(),
   addBench: vi.fn(),
   getRouboDir: () => TEST_ROUBO_DIR,
+  // #686: the directory /test/__reset and /test/__register-fixture-project rm to
+  // stop a previous run's bench workspaces being inherited. Mirrors the real
+  // `<rouboDir>/workspaces/<projectId>` shape so the tests below can seed and
+  // assert against a concrete path under the throwaway roubo dir.
+  getProjectWorkspacesDir: (projectId: string) =>
+    `${TEST_ROUBO_DIR}${TEST_SEP}workspaces${TEST_SEP}${projectId}`,
   // #574: the /test/__seed-notice route reads + rewrites state.json via these.
   // Default to an empty state; tests that assert the merge override loadState.
   loadState: vi.fn(() => ({ benches: [] })),
@@ -1838,6 +1844,91 @@ describe("POST /test/__reset (fixture cleanup)", () => {
 
     expect(res.status).toBe(200);
     expect(fs.existsSync(seededPaths[0])).toBe(false);
+  });
+});
+
+// #686: the bench workspaces the REAL provisioning path writes under
+// `<rouboDir>/workspaces/<projectId>/` (as opposed to the `seedBenches` tmpdirs
+// above). Nothing tracked them, so one survived every reset and was inherited by
+// the next `playwright test` invocation, where bench-manager's pre-flight had to
+// `git worktree remove` + `rmSync` it before provisioning could proceed. Both
+// directions are covered: __reset for the within-run case, and
+// __register-fixture-project for the cross-run case that no in-memory bookkeeping
+// can reach (the fixtureProjects Map is empty after a server restart).
+describe("bench workspace cleanup (#686)", () => {
+  const workspacesFor = (projectId: string): string =>
+    path.join(TEST_ROUBO_DIR, "workspaces", projectId);
+
+  // Stand in for what bench-manager leaves behind: a `bench-N` worktree carrying
+  // the spec files the TestBench binding reads.
+  function seedStaleWorkspace(projectId: string): string {
+    const dir = workspacesFor(projectId);
+    fs.mkdirSync(path.join(dir, "bench-1", ".specifications", "spec-a"), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "bench-1", ".specifications", "spec-a", "test-cases.json"),
+      "{}",
+    );
+    return dir;
+  }
+
+  it("removes <workspacesDir>/<projectId> on /test/__reset", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const registered = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-ws-reset", plugin: "e2e-stub" });
+    expect(registered.status).toBe(200);
+    createdTmpdirs.push(registered.body.repoPath);
+
+    // Provisioned after registration, exactly as a real bench create would.
+    const workspaces = seedStaleWorkspace("fixture-ws-reset");
+    expect(fs.existsSync(workspaces)).toBe(true);
+
+    const res = await request(app).post("/test/__reset");
+
+    expect(res.status).toBe(200);
+    expect(fs.existsSync(workspaces)).toBe(false);
+  });
+
+  it("removes a previous run's <workspacesDir>/<projectId> on /test/__register-fixture-project", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    // No fixture project is registered in memory: this is the cross-run case,
+    // where the leftover predates the current server process.
+    const workspaces = seedStaleWorkspace("fixture-ws-register");
+    expect(fs.existsSync(workspaces)).toBe(true);
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-ws-register", plugin: "e2e-stub" });
+
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+    expect(fs.existsSync(workspaces)).toBe(false);
+  });
+
+  it("leaves the tree alone and logs when ROUBO_PRODUCTION is set", async () => {
+    process.env.ROUBO_E2E = "1";
+    const workspaces = seedStaleWorkspace("fixture-ws-guard");
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    process.env.ROUBO_PRODUCTION = "1";
+
+    const res = await request(app)
+      .post("/test/__register-fixture-project")
+      .send({ projectId: "fixture-ws-guard", plugin: "e2e-stub" });
+
+    delete process.env.ROUBO_PRODUCTION;
+    expect(res.status).toBe(200);
+    createdTmpdirs.push(res.body.repoPath);
+    // The guard refused, so the directory is untouched and the refusal is
+    // surfaced rather than swallowed.
+    expect(fs.existsSync(workspaces)).toBe(true);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "/test/__register-fixture-project: failed to rm bench workspaces for fixture-ws-guard:",
+      expect.stringContaining("ROUBO_PRODUCTION"),
+    );
+    consoleSpy.mockRestore();
+    fs.rmSync(workspaces, { recursive: true, force: true });
   });
 });
 
