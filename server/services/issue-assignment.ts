@@ -8,7 +8,7 @@ import type {
   RouboConfig,
   JigDefaultSource,
 } from "@roubo/shared";
-import { AGENT_STARTUP_DELAY_MS, DONE_STATUSES } from "@roubo/shared";
+import { AGENT_STARTUP_DELAY_MS, DONE_STATUSES, NO_AGENT_RESOLVED_MESSAGE } from "@roubo/shared";
 import { parseAlertExternalId, isAlertExternalId } from "./alert-external-id.js";
 import { formatAlertBody } from "./alert-formatting.js";
 import * as benchManager from "./bench-manager.js";
@@ -86,6 +86,7 @@ async function finalizeAssignedBench(
     sessionId: terminalSessionId,
     jigId,
     jigSource,
+    launchWarning,
   } = await buildAndStartAgentSession(
     projectId,
     bench.id,
@@ -107,6 +108,7 @@ async function finalizeAssignedBench(
     status: "success",
     bench,
     terminalSessionId,
+    ...(launchWarning !== undefined && { launchWarning }),
   };
 }
 
@@ -117,6 +119,13 @@ async function finalizeAssignedBench(
  * and assigned with no session rather than launching something else: the caller
  * reports `terminalSessionId` as absent and the user launches from the bench
  * once an agent plugin is installed.
+ *
+ * Whenever that happens it also returns a `launchWarning`, which the caller puts
+ * on the response so the user is told why no session opened. The assignment
+ * really did succeed, so this is not a failed request, but a missing session
+ * must not be silent (AP-NFR-003). Both call sites assign an issue (one to a
+ * bench it just created, one to an existing bench), so the text stays neutral
+ * about where the bench came from.
  */
 async function buildAndStartAgentSession(
   projectId: string,
@@ -136,7 +145,7 @@ async function buildAndStartAgentSession(
   comments: Array<{ user: string; body: string }>,
   issueType?: string | null,
 ): Promise<
-  { sessionId?: string } & (
+  { sessionId?: string; launchWarning?: string } & (
     { jigId: string; jigSource: JigDefaultSource } | { jigId?: undefined; jigSource?: undefined }
   )
 > {
@@ -186,7 +195,8 @@ async function buildAndStartAgentSession(
         `(issue ${issue.externalId ?? `#${issue.number}`}). Install an agent plugin from ` +
         `Settings > AI Agents and launch from the bench.`,
     );
-    return jigId && jigSource ? { jigId, jigSource } : {};
+    const launchWarning = `${NO_AGENT_RESOLVED_MESSAGE} The issue was assigned, so you can launch an agent from the bench once one is installed.`;
+    return jigId && jigSource ? { jigId, jigSource, launchWarning } : { launchWarning };
   }
 
   let launch;
@@ -205,7 +215,9 @@ async function buildAndStartAgentSession(
       `Failed to start an agent session for bench ${benchId} (issue ${issue.externalId ?? `#${issue.number}`}):`,
       err,
     );
-    return jigId && jigSource ? { jigId, jigSource } : {};
+    const reason = err instanceof Error && err.message ? err.message : "the agent failed to start";
+    const launchWarning = `The issue was assigned, but no agent session opened: ${reason}`;
+    return jigId && jigSource ? { jigId, jigSource, launchWarning } : { launchWarning };
   }
 
   const { session, promptInjection } = launch;
@@ -506,6 +518,7 @@ export async function assignIssue(
     sessionId: terminalSessionId,
     jigId,
     jigSource,
+    launchWarning,
   } = await buildAndStartAgentSession(
     projectId,
     benchId,
@@ -547,6 +560,7 @@ export async function assignIssue(
   return {
     bench,
     terminalSessionId,
+    ...(launchWarning !== undefined && { launchWarning }),
   };
 }
 

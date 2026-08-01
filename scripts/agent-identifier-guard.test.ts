@@ -89,6 +89,47 @@ describe("scanFiles (AgentIdentifierGuard, AP-NFR-006, AP-TC-112)", () => {
     expect(findings[0].reason).toMatch(/--full-auto/);
   });
 
+  it('flags the removed built-in dispatch `command === "claude"` (AP-TC-104)', () => {
+    // The exact construct #521 deleted from server/routes/terminal.ts. Rule 1
+    // blanks string CONTENTS by design, so only rule 3 can see this; without it
+    // the built-in launch branch could return with zero guard violations.
+    const findings = scan({
+      "server/routes/terminal.ts": [
+        "function isBuiltIn(command: string): boolean {",
+        '  return command === "claude";', // line 2: violation
+        "}",
+      ].join("\n"),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].file).toBe("server/routes/terminal.ts");
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].reason).toMatch(/agent-name dispatch '=== "claude"'/);
+  });
+
+  it("flags an agent-name `case` label outside the allowlisted install table", () => {
+    const findings = scan({
+      "server/services/terminal.ts": [
+        "switch (agentId) {",
+        '  case "codex":', // line 2: violation
+        "    return 1;",
+        "}",
+      ].join("\n"),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].reason).toMatch(/agent-name dispatch 'case "codex"'/);
+  });
+
+  it("flags an agent-name dispatch written with the string on the left", () => {
+    const findings = scan({
+      "shared/types.ts": ['export const isClaude = (c: string) => "claude-code" === c;'].join("\n"),
+    });
+    // Rule 1 also fires on the `isClaude` identifier; rule 3 is the added one.
+    expect(findings.some((f) => /agent-name dispatch '"claude-code" ==='/.test(f.reason))).toBe(
+      true,
+    );
+  });
+
   it("does NOT flag an agent name inside a string literal (the install-path table)", () => {
     const findings = scan({
       "server/services/env.ts": [

@@ -291,7 +291,6 @@ describe.sequential("startServer", () => {
       vi.doUnmock("./services/terminal.js");
       vi.doUnmock("./services/jig-manager.js");
       vi.doUnmock("./services/version-check.js");
-      vi.doUnmock("./services/claude-version.js");
       vi.doUnmock("./services/plugin-manager.js");
       vi.doUnmock("./services/catalog-client.js");
       vi.doUnmock("./services/migrate.js");

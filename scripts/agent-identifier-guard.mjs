@@ -5,7 +5,7 @@
 // fails the build if core (server/ + shared/) regrows knowledge of a specific
 // AI coding agent, outside the bundled plugins.
 //
-// Two rule sets:
+// Three rule sets:
 //
 //   1. Agent-specific identifier. A declaration, property, or member access
 //      whose NAME embeds a vendor agent name (claude / codex), e.g.
@@ -20,8 +20,16 @@
 //      plugin's descriptor; core resolving a flag itself is the built-in path
 //      growing back (AP-FR-019).
 //
-// Why the two rules read different sources, and why that is what makes the
-// narrow rule-set work without a pile of file allowlists:
+//   3. Agent-name string DISPATCH. An equality comparison or `case` label
+//      against a string naming an agent, e.g. `command === "claude"`,
+//      `case "codex":`. Rule 1 cannot see this (it blanks string contents by
+//      design, see below), yet it is precisely the branch #521 deleted from
+//      `server/routes/terminal.ts` and `server/services/terminal.ts`. Naming an
+//      agent in a string is fine; BRANCHING on that name is the built-in path
+//      regrowing under a different spelling (AP-FR-019, AP-TC-104).
+//
+// Why the rules read different sources, and why that is what keeps the rule-set
+// narrow without a pile of file allowlists:
 //
 //   - Rule 1 runs against source with comments AND string-literal CONTENTS
 //     blanked. Everything core legitimately keeps that mentions an agent by
@@ -33,10 +41,17 @@
 //     contents therefore needs no allowlist at all, and it cannot hide a real
 //     identifier, because an identifier is code. Template-literal `${...}`
 //     interpolations are NOT blanked, so an identifier inside one still flags.
-//   - Rule 2 runs against comment-stripped source with strings intact, because
-//     a CLI flag IS a string literal.
+//   - Rules 2 and 3 run against comment-stripped source with strings intact,
+//     because a CLI flag IS a string literal and so is a dispatch operand.
 //
-// Both rules ignore comments, so prose documenting the forbidden patterns (this
+// Rule 3 is the one rule that needs an allowlist, and it is deliberately a
+// single file: `wellKnownPathsFor`'s host install-location table genuinely
+// switches on an agent CLI's own basename to know where that CLI installs
+// itself. That is host knowledge, not launch knowledge, and it is the sanctioned
+// survivor `CLAUDE.md` names. Allowlisting one file mirrors the component guard,
+// whose own rule 1 allowlists exactly one file for the same reason.
+//
+// Every rule ignores comments, so prose documenting the forbidden patterns (this
 // header included) is never itself a violation. Stripping a comment can only
 // ever remove a would-be violation from prose, never hide real code, so the
 // guard stays sound.
@@ -65,6 +80,24 @@ const AGENT_CLI_FLAGS = [
 const AGENT_CLI_FLAG = new RegExp(
   `(${AGENT_CLI_FLAGS.map((f) => f.replace(/-/g, "\\-")).join("|")})\\b`,
 );
+
+// Rule 3: an equality comparison or `case` label against a string naming an
+// agent. Three alternatives (operand on the right, a `case` label, operand on
+// the left); each carries its own quote-delimiter backreference, so the group
+// numbers are 1, 2, 3 in source order.
+const AGENT_STRING = `[^'"\`\\n]*(?:claude|codex)[^'"\`\\n]*`;
+const AGENT_STRING_DISPATCH = new RegExp(
+  [
+    `[!=]==?\\s*(['"\`])${AGENT_STRING}\\1`,
+    `\\bcase\\s+(['"\`])${AGENT_STRING}\\2`,
+    `(['"\`])${AGENT_STRING}\\3\\s*[!=]==?`,
+  ].join("|"),
+  "gi",
+);
+
+// The one sanctioned dispatch: the host install-location table keys on an agent
+// CLI's own basename to know where that CLI installs itself (CLAUDE.md).
+const AGENT_STRING_DISPATCH_ALLOWLIST = new Set(["server/services/env.ts"]);
 
 /**
  * Blank // line comments and block comments, preserving newlines so reported
@@ -273,6 +306,24 @@ export function scanFiles(files, readFn) {
             "launch descriptor, so core must not assemble an agent's own flags " +
             "(AP-NFR-006, AP-FR-019).",
         });
+      }
+    }
+
+    // Rule 3: a dispatch branching on an agent's name as a string.
+    if (!AGENT_STRING_DISPATCH_ALLOWLIST.has(file)) {
+      for (let i = 0; i < flagLines.length; i++) {
+        for (const match of flagLines[i].matchAll(AGENT_STRING_DISPATCH)) {
+          findings.push({
+            file,
+            line: i + 1,
+            text: rawLines[i].trim(),
+            reason:
+              `agent-name dispatch '${match[0].trim()}': core may NAME an agent in a ` +
+              "string, but branching on that name is the built-in launch path " +
+              "regrowing. Route the decision through the plugin's launch descriptor " +
+              "instead (AP-NFR-006, AP-FR-019).",
+          });
+        }
       }
     }
   }

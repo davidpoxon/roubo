@@ -2388,6 +2388,13 @@ export interface AssignIssueRequest {
 export interface AssignIssueResponse {
   bench: Bench;
   terminalSessionId: string | undefined;
+  /**
+   * Set when the issue was assigned but no agent session opened, for the same
+   * reason and with the same contract as on `CreateBenchWithIssueResponse`
+   * (AP-NFR-003): the assignment succeeded, but a missing session is never
+   * silent.
+   */
+  launchWarning?: string;
 }
 
 // ── GitHub project types ──
@@ -2617,8 +2624,33 @@ export interface BranchConflictInfo {
   branchName: string;
 }
 
+/**
+ * What a user is told when a launch resolves no agent. Core stopped launching an
+ * agent CLI of its own in #521, so this has to name the way out: agents arrive as
+ * plugins, and the AI Agents screen is where they are installed and made the
+ * default (AP-FR-019, AP-TC-103).
+ *
+ * Shared rather than route-local because two paths refuse for this reason: the
+ * terminal route (as a 409) and create-and-assign (as `launchWarning` below).
+ * Both must say the same thing.
+ */
+export const NO_AGENT_RESOLVED_MESSAGE =
+  "No AI coding agent is available to launch. Agents are installed as plugins: " +
+  "open Settings, then AI Agents, to install one and set it as the default.";
+
 export type CreateBenchWithIssueResponse =
-  | { status: "success"; bench: Bench; terminalSessionId: string | undefined }
+  | {
+      status: "success";
+      bench: Bench;
+      terminalSessionId: string | undefined;
+      /**
+       * Set when the bench was created and assigned but no agent session opened.
+       * The bench itself succeeded, so this is not an error status, but the
+       * absence of a session must never be silent (AP-NFR-003): the client
+       * surfaces this text so the user learns why and what to do.
+       */
+      launchWarning?: string;
+    }
   | { status: "conflict"; branchConflict: BranchConflictInfo };
 
 export type GitHubErrorCode =

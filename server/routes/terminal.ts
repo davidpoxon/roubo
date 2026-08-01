@@ -22,7 +22,11 @@ import { toLaunchPermissions } from "../services/agent-permissions.js";
 import type { AgentNotAvailable } from "../services/agent-plugin-registry.js";
 import { parseIntParam, VALID_JIG_ID } from "./helpers.js";
 import type { TerminalCreateRequest } from "@roubo/shared";
-import { AGENT_STARTUP_DELAY_MS, GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
+import {
+  AGENT_STARTUP_DELAY_MS,
+  GLOBAL_DEFAULT_JIG_ID,
+  NO_AGENT_RESOLVED_MESSAGE,
+} from "@roubo/shared";
 
 /**
  * Each `AgentNotAvailable` reason is a different caller problem, so each gets
@@ -64,16 +68,6 @@ function statusForLaunchFailure(failureClass: AgentLaunchFailureClass): number {
       return 409;
   }
 }
-
-/**
- * The one answer to "an agent session was asked for and no agent plugin
- * resolved". Core stopped launching an agent CLI of its own in #521, so this
- * has to name the way out: agents arrive as plugins, and the AI Agents screen
- * is where they are installed and made the default (AP-FR-019, AP-TC-103).
- */
-const NO_AGENT_RESOLVED_MESSAGE =
-  "No AI coding agent is available to launch. Agents are installed as plugins: " +
-  "open Settings, then AI Agents, to install one and set it as the default.";
 
 const router = Router();
 

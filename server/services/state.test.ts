@@ -412,6 +412,37 @@ describe("saveSettings", () => {
       "/mock-home/.roubo/settings.json",
     );
   });
+
+  it("carries the legacy agent block across a whole-file rewrite (AP-FR-021, AP-TC-109)", () => {
+    // `UserPreferences` no longer models the block, so a naive rewrite would
+    // drop it and silently retire the first-run notice on the next unrelated
+    // settings save, before the upgrading user ever reached the AI Agents tab.
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(
+      JSON.stringify({ theme: "dark", claudeCode: { enableAutoMode: true } }),
+    );
+
+    stateModule.saveSettings({ theme: "light" as const });
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string) as Record<string, unknown>;
+    expect(written.theme).toBe("light");
+    expect(written.claudeCode).toEqual({ enableAutoMode: true });
+    // Close the round trip: point the read stub at what was actually written,
+    // so the signal is re-derived from the saved bytes rather than from the
+    // pre-save fixture. Without this the assertion below cannot fail.
+    readFileSync.mockReturnValue(writeFileSync.mock.calls[0][1] as string);
+    expect(stateModule.hasLegacyAgentSettings()).toBe(true);
+  });
+
+  it("writes no legacy block when the file never carried one (AP-TC-110)", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark" }));
+
+    stateModule.saveSettings({ theme: "light" as const });
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string) as Record<string, unknown>;
+    expect(written).not.toHaveProperty("claudeCode");
+  });
 });
 
 describe("hasLegacyAgentSettings (AP-FR-021, #521)", () => {

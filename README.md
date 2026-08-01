@@ -68,6 +68,7 @@ Earlier builds shipped a Claude Code launch path inside Roubo itself, configured
 - **Nothing is migrated.** The old auto-mode and plan-mode preferences are not carried over into any plugin's configuration. They are left in `~/.roubo/settings.json` and ignored. Set the equivalents in **Settings > AI Agents** under the plugin you install.
 - **Install an agent before your first launch.** With no agent plugin installed there is nothing to launch: the bench's agent button is disabled, and a launch attempt is refused with a message pointing at the AI Agents screen rather than quietly opening a plain shell.
 - **Plain terminals are unaffected.** Opening a shell terminal in a bench needs no plugin.
+- **API callers: `command` is now an agent-launch carrier.** `POST /api/projects/:projectId/benches/:id/terminals` treats any request carrying `command` as an agent launch, so one that used to open a shell by naming a binary now resolves an agent instead, and is refused with a `409` when none resolves. Send no `command` (and no `jigId` or `agentPluginId`) to open a plain login shell. See the [API Reference](./docs/api.md).
 - **On first launch** the AI Agents screen shows a one-time notice saying the same thing. Dismiss it and it stays dismissed.
 
 ## Documentation

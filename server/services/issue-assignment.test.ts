@@ -552,6 +552,10 @@ describe("assignIssue", () => {
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("No AI coding agent is available"),
     );
+    // A console warning reaches nobody. The missing session must also come back
+    // on the response so the user is told why and what to do (AP-NFR-003).
+    expect(result.launchWarning).toContain("No AI coding agent is available to launch");
+    expect(result.launchWarning).toContain("Settings");
     warnSpy.mockRestore();
   });
 
@@ -877,6 +881,10 @@ describe("createBenchAndAssignFromIssue", () => {
       expect.stringContaining("Failed to start an agent session"),
       expect.any(Error),
     );
+    // The spawn failure is reported to the user too, carrying the reason
+    // (AP-NFR-003), not just logged server-side.
+    expect(result.launchWarning).toContain("no agent session opened");
+    expect(result.launchWarning).toContain("Failed to spawn terminal");
   });
 
   it("returns branch conflict info when branch exists and no resolution provided", async () => {

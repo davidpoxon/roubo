@@ -1403,4 +1403,54 @@ describe("plugin-descriptor parity for the settings write (CC-PERM-08)", () => {
     expect(settings.permissions).toBeUndefined();
     expect(settings.hooks).toEqual({ Notification: FORCED_NOTIFICATION_HOOK(HOOK_URL_DEFAULT) });
   });
+
+  // CC-SET-02's successor. The retired built-in writer replaced the whole
+  // `hooks` key; the descriptor sets `hooks.Notification` specifically, so the
+  // guarantee is narrower and worth pinning exactly: our Notification wiring
+  // always wins, and a user's unrelated hook events survive.
+  it("CC-PERM-08: a user-authored Notification hook is overwritten, sibling events survive (CC-SET-02)", () => {
+    const ws = mkdtempSync(join(realOs.tmpdir(), "cc-parity-plugin-"));
+    tmpWorkspaces.push(ws);
+    mkdirSync(join(ws, ".claude"), { recursive: true });
+    writeFileSync(
+      workspaceSettingsPath(ws),
+      JSON.stringify({
+        hooks: {
+          Notification: [{ hooks: [{ type: "command", command: "echo user-hook" }] }],
+          Stop: [{ hooks: [{ type: "command", command: "echo stopping" }] }],
+        },
+      }),
+    );
+
+    runPluginWrites(ws, rules);
+
+    const hooks = readWorkspaceSettings(ws).hooks as Record<string, unknown>;
+    // Never merged with the user's: correlation depends on ours being the one
+    // that fires, so it is replaced outright.
+    expect(hooks.Notification).toEqual(FORCED_NOTIFICATION_HOOK(HOOK_URL_DEFAULT));
+    expect(JSON.stringify(hooks.Notification)).not.toContain("user-hook");
+    // A different event is none of our business and is left alone.
+    expect(hooks.Stop).toEqual([{ hooks: [{ type: "command", command: "echo stopping" }] }]);
+  });
+
+  // CC-SET-06's successor: the descriptor write path is now the sole producer
+  // of the hook wiring, so its corrupt-file handling has to be pinned here.
+  it("CC-PERM-08: a corrupt existing settings file is treated as empty and rewritten as valid JSON (CC-SET-06)", () => {
+    const ws = mkdtempSync(join(realOs.tmpdir(), "cc-parity-plugin-"));
+    tmpWorkspaces.push(ws);
+    mkdirSync(join(ws, ".claude"), { recursive: true });
+    writeFileSync(workspaceSettingsPath(ws), "{not json at all");
+
+    runPluginWrites(ws, rules);
+
+    const raw = readFileSync(workspaceSettingsPath(ws), "utf-8");
+    expect(() => JSON.parse(raw)).not.toThrow();
+    const settings = readWorkspaceSettings(ws);
+    expect(settings.hooks).toEqual({ Notification: FORCED_NOTIFICATION_HOOK(HOOK_URL_DEFAULT) });
+    expect(settings.permissions).toEqual({
+      allow: rules.allow,
+      deny: rules.deny,
+      ask: rules.ask,
+    });
+  });
 });
