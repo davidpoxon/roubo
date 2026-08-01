@@ -1107,10 +1107,18 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     expect((gate?.then.properties as Record<string, { const?: string }>).kind.const).toBe("agent");
   });
 
+  // The pattern is pinned as a literal and the schema asserted to carry exactly
+  // it, rather than compiling whatever string the file happens to hold. Building
+  // a RegExp out of file contents is a regex-injection sink (CodeQL
+  // js/regex-injection), and pinning is the stricter lockstep check anyway: a
+  // rewritten pattern fails here even when it still accepts the sample paths.
+  const ITEM_PATTERN = "^(?!.*[{][{])(?!.*/[.][.](?:/|$))(?:~/|/).+$";
+
   it("its item pattern accepts real install locations and rejects the shapes zod rejects", () => {
     const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
     const items = properties.agentInstallLocations.items as Record<string, string>;
-    const pattern = new RegExp(items.pattern, "u");
+    expect(items.pattern).toBe(ITEM_PATTERN);
+    const pattern = new RegExp(ITEM_PATTERN, "u");
     for (const ok of ["~/.local/bin/codex", "/opt/homebrew/bin/codex", "/usr/local/bin/codex"]) {
       expect(pattern.test(ok)).toBe(true);
       expect(isValidAgentInstallLocation(ok)).toBe(true);
