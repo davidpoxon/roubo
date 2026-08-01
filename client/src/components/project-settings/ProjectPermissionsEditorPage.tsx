@@ -85,7 +85,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
   // project already had is worse than briefly showing one their agent ignores.
   // Posture fails CLOSED: it is a control this release introduces, and an empty
   // `postures` list is the server's own designed answer for an agent that
-  // declares none (including the built-in carrier), so it stays hidden until
+  // declares none (as does having no agent plugin at all), so it stays hidden until
   // the probe positively reports postures to offer.
   const showRules = capabilities?.rules !== false;
   const showResync = showRules && capabilities?.resync !== false;

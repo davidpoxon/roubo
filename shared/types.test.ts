@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveClaudeCodeMode, GLOBAL_DEFAULT_JIG_ID, DEFAULT_JIG_SETTINGS } from "./types.js";
+import { GLOBAL_DEFAULT_JIG_ID, DEFAULT_JIG_SETTINGS } from "./types.js";
 import type {
   JigSource,
   JigSettings,
@@ -8,28 +8,6 @@ import type {
   NormalizedIssue,
   MarketplaceKind,
 } from "./types.js";
-
-describe("deriveClaudeCodeMode", () => {
-  it('returns "auto" when enableAutoMode is true and startInPlanMode is false', () => {
-    expect(deriveClaudeCodeMode({ enableAutoMode: true, startInPlanMode: false })).toBe("auto");
-  });
-
-  it('returns "plan-auto" when both enableAutoMode and startInPlanMode are true', () => {
-    expect(deriveClaudeCodeMode({ enableAutoMode: true, startInPlanMode: true })).toBe("plan-auto");
-  });
-
-  it('returns "plan" when only startInPlanMode is true', () => {
-    expect(deriveClaudeCodeMode({ enableAutoMode: false, startInPlanMode: true })).toBe("plan");
-  });
-
-  it("returns undefined when both flags are false", () => {
-    expect(deriveClaudeCodeMode({ enableAutoMode: false, startInPlanMode: false })).toBeUndefined();
-  });
-
-  it("returns undefined when settings is undefined", () => {
-    expect(deriveClaudeCodeMode(undefined)).toBeUndefined();
-  });
-});
 
 describe("jig type exports", () => {
   it("GLOBAL_DEFAULT_JIG_ID is the sentinel string", () => {

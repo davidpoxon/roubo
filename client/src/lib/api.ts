@@ -1048,13 +1048,6 @@ export function fetchEnvKeys(): Promise<{ keys: string[] }> {
   return request("/settings/env-keys");
 }
 
-export function recheckClaudeCode(): Promise<{
-  claudeCodeAutoModeAvailable: boolean;
-  claudeCodeAutoModeReason?: string;
-}> {
-  return request("/settings/claude-code/recheck", { method: "POST" });
-}
-
 // Permissions
 export function fetchProjectPermissions(projectId: string): Promise<ProjectPermissions> {
   return request(`/projects/${projectId}/permissions`);

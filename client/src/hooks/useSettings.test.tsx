@@ -18,7 +18,7 @@ describe("useThemeSync", () => {
   it("applies dark theme class when theme is dark", async () => {
     mockedApi.fetchSettings.mockResolvedValue({
       theme: "dark",
-      claudeCodeAutoModeAvailable: true,
+      legacyAgentSettingsPresent: false,
       contextWindow: 200_000,
     });
 
@@ -32,7 +32,7 @@ describe("useThemeSync", () => {
     document.documentElement.classList.add("dark");
     mockedApi.fetchSettings.mockResolvedValue({
       theme: "light",
-      claudeCodeAutoModeAvailable: true,
+      legacyAgentSettingsPresent: false,
       contextWindow: 200_000,
     });
 
@@ -54,7 +54,7 @@ describe("useThemeSync", () => {
 
     mockedApi.fetchSettings.mockResolvedValue({
       theme: "system",
-      claudeCodeAutoModeAvailable: true,
+      legacyAgentSettingsPresent: false,
       contextWindow: 200_000,
     });
 
@@ -77,7 +77,7 @@ describe("useSettings", () => {
   it("fetches settings", async () => {
     mockedApi.fetchSettings.mockResolvedValue({
       theme: "dark",
-      claudeCodeAutoModeAvailable: true,
+      legacyAgentSettingsPresent: false,
       contextWindow: 200_000,
     });
 
@@ -86,7 +86,7 @@ describe("useSettings", () => {
 
     expect(result.current.settings).toEqual({
       theme: "dark",
-      claudeCodeAutoModeAvailable: true,
+      legacyAgentSettingsPresent: false,
       contextWindow: 200_000,
     });
   });
@@ -94,7 +94,7 @@ describe("useSettings", () => {
   it("rolls back optimistic update and restores theme on error", async () => {
     mockedApi.fetchSettings.mockResolvedValue({
       theme: "dark",
-      claudeCodeAutoModeAvailable: true,
+      legacyAgentSettingsPresent: false,
       contextWindow: 200_000,
     });
     mockedApi.updateSettings.mockRejectedValue(new Error("Network error"));
@@ -112,7 +112,7 @@ describe("useSettings", () => {
   it("calls updateSettings API and updates cache optimistically", async () => {
     mockedApi.fetchSettings.mockResolvedValue({
       theme: "dark",
-      claudeCodeAutoModeAvailable: true,
+      legacyAgentSettingsPresent: false,
       contextWindow: 200_000,
     });
     mockedApi.updateSettings.mockResolvedValue({ theme: "light" });

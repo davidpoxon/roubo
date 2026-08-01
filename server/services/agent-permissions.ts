@@ -11,7 +11,6 @@ import {
   resolveLaunchAgentId,
   type LaunchPermissions,
 } from "./agent-launch-pipeline.js";
-import { injectPermissions } from "./claude-settings-local.js";
 import { filterSafeRules } from "./permission-rule-guard.js";
 import { loadSettings } from "./state.js";
 import type { ResolvedTemplateContext } from "./config-parser.js";
@@ -26,20 +25,18 @@ import type { ResolvedTemplateContext } from "./config-parser.js";
 // what keeps AP-NFR-001's "no agent specifics leak into shared types" true even
 // as the permissions screen grows.
 //
-// Two carriers exist by design, and this module is the only thing that chooses
-// between them:
-//
-//   - `agent-plugin`: the project resolves to an installed agent plugin. Its
-//     descriptor's workspace writes carry the rules, executed core-side under
-//     the same path-confinement barriers every other descriptor write uses.
-//   - `built-in`: no agent plugin resolves, so the bundled Claude Code
-//     integration's writer stays the carrier. Phase 3 (#S17) removes it; until
-//     then a host with no agent plugin installed keeps working unchanged.
+// There is exactly one carrier: `agent-plugin`. The project resolves to an
+// installed agent plugin, and its descriptor's workspace writes carry the
+// rules, executed core-side under the same path-confinement barriers every
+// other descriptor write uses. The `built-in` carrier that wrote an
+// agent-specific settings file straight from core went with the rest of the
+// built-in path in #521; with no agent plugin installed there is nothing to
+// write rules for, so nothing is written.
 
 const DEFAULT_ROUBO_PORT = "3335";
 
 /** Which carrier actually applied a project's permissions to a workspace. */
-export type PermissionsCarrier = "agent-plugin" | "built-in" | "none";
+export type PermissionsCarrier = "agent-plugin" | "none";
 
 export interface ApplyPermissionsResult {
   carrier: PermissionsCarrier;
@@ -91,8 +88,10 @@ export function resolveProjectAgentPluginId(): string | undefined {
  * no rules capability). Probing means asking the plugin for a descriptor, which
  * is the only place the capability is declared; nothing is written.
  *
- * A project with no agent plugin reports the built-in carrier's capabilities:
- * rules and resync, no posture bindings.
+ * A project with no agent plugin has no carrier at all (#521). Rules still
+ * report as available, because the model is core's and stays editable so it is
+ * ready for whichever agent plugin gets installed; resync does not, because
+ * there is nothing to re-inject through until one is.
  */
 export async function describeAgentPermissions(
   projectId: string,
@@ -105,7 +104,7 @@ export async function describeAgentPermissions(
       agentName: null,
       postures: [],
       rules: true,
-      resync: true,
+      resync: false,
     };
   }
 
@@ -152,14 +151,10 @@ export async function applyProjectPermissions(opts: {
   const permissions = toLaunchPermissions(opts.permissions);
 
   if (pluginId === undefined) {
-    // The bundled integration's additive union. It early-returns on an empty
-    // rule set, so removal still only takes effect on bench clear.
-    injectPermissions(opts.workspacePath, {
-      allow: permissions.rules.allow,
-      deny: permissions.rules.deny,
-      ask: permissions.rules.ask,
-    });
-    return { carrier: "built-in", written: [] };
+    // No agent plugin, so no carrier. Core writes no agent-specific file of its
+    // own any more (#521): the bench is reported as skipped, exactly as it is
+    // for a plugin that opts out of resync.
+    return { carrier: "none", written: [] };
   }
 
   const sessionId = randomUUID();

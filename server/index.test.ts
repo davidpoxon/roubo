@@ -14,9 +14,7 @@ vi.mock("./services/env.js", () => ({
   },
   loadEnvFile: vi.fn(),
   resolveShellPath: vi.fn(),
-  resolveClaudeBinary: vi.fn(),
   cleanEnv: vi.fn(() => ({})),
-  getClaudeBinary: vi.fn(() => "claude"),
   getEnvFileKeys: vi.fn(() => []),
   getContextWindow: vi.fn(() => 200000),
   resolveAgentCommand: vi.fn((command: string) => command),
@@ -61,9 +59,6 @@ vi.mock("./services/jig-manager.js", () => ({
 }));
 vi.mock("./services/version-check.js", () => ({
   checkForUpdate: vi.fn(() => Promise.resolve()),
-}));
-vi.mock("./services/claude-version.js", () => ({
-  detectClaudeAutoMode: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("./services/plugin-manager.js", () => ({
   initialize: vi.fn(() => Promise.resolve()),
@@ -186,11 +181,11 @@ describe.sequential("startServer", () => {
     await expect(handle.shutdown()).resolves.toBeUndefined();
   });
 
-  it("publishes the bound port to process.env.ROUBO_PORT so downstream code (Claude hook URL) can resolve it", async () => {
-    // Downstream concern: writeClaudeSettingsLocal reads process.env.ROUBO_PORT
-    // to build the notification hook URL written into each bench's
-    // .claude/settings.local.json. With port: 0 the OS assigns the port, so
-    // startServer must publish it back into the environment.
+  it("publishes the bound port to process.env.ROUBO_PORT so the agent hook URL can resolve it", async () => {
+    // Downstream concern: an agent plugin's descriptor templates the notification
+    // hook URL from `{{port}}`, which core resolves from process.env.ROUBO_PORT.
+    // With port: 0 the OS assigns the port, so startServer must publish it back
+    // into the environment.
     const originalPort = process.env.ROUBO_PORT;
     delete process.env.ROUBO_PORT;
     try {
@@ -225,9 +220,7 @@ describe.sequential("startServer", () => {
           process.env.ROUBO_PORT = String(freePort);
         }),
         resolveShellPath: vi.fn(),
-        resolveClaudeBinary: vi.fn(),
         cleanEnv: vi.fn(() => ({})),
-        getClaudeBinary: vi.fn(() => "claude"),
         getEnvFileKeys: vi.fn(() => []),
         getContextWindow: vi.fn(() => 200000),
         resolveAgentCommand: vi.fn((command: string) => command),
@@ -264,9 +257,6 @@ describe.sequential("startServer", () => {
       }));
       vi.doMock("./services/version-check.js", () => ({
         checkForUpdate: vi.fn(() => Promise.resolve()),
-      }));
-      vi.doMock("./services/claude-version.js", () => ({
-        detectClaudeAutoMode: vi.fn(() => Promise.resolve()),
       }));
       vi.doMock("./services/plugin-manager.js", () => ({
         initialize: vi.fn(() => Promise.resolve()),

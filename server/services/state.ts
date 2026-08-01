@@ -6,7 +6,6 @@ import {
   DEFAULT_JIG_SETTINGS,
   DEFAULT_BENCH_SETTINGS,
   DEFAULT_TESTBENCH_SETTINGS,
-  DEFAULT_CLAUDE_CODE_SETTINGS,
   DEFAULT_GITHUB_SETTINGS,
 } from "@roubo/shared";
 import { PROJECT_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
@@ -254,7 +253,6 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     };
   }
@@ -292,7 +290,6 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
       }),
       benches: { ...DEFAULT_BENCH_SETTINGS, ...raw.benches },
       testBench: { ...DEFAULT_TESTBENCH_SETTINGS, ...raw.testBench },
-      claudeCode: { ...DEFAULT_CLAUDE_CODE_SETTINGS, ...raw.claudeCode },
       github: { ...DEFAULT_GITHUB_SETTINGS, ...raw.github },
     };
   } catch (err) {
@@ -309,7 +306,6 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     };
   }
@@ -318,6 +314,38 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
 export function saveSettings(data: UserPreferences) {
   ensureDirs();
   atomicWrite(SETTINGS_FILE, JSON.stringify(data, null, 2));
+}
+
+/**
+ * The key the retired built-in agent preferences were stored under. It is a
+ * legacy FILE key, not a `UserPreferences` field: #521 removed the field, and
+ * nothing reads or writes this block any more. It is named in exactly one place
+ * so the core-purity guard can allowlist that one place (AP-FR-021).
+ */
+const LEGACY_AGENT_SETTINGS_KEY = "claudeCode";
+
+/**
+ * True when `settings.json` still carries the retired built-in agent
+ * preferences block, which is the ONLY signal that this install is an upgrade
+ * rather than a fresh one (AP-FR-021, AP-TC-110).
+ *
+ * Deliberately reads the raw file: `loadSettings` merges defaults in, so its
+ * result can never distinguish "the user had this block" from "we filled it
+ * in". Nothing is migrated from the block and nothing removes it; it is read
+ * once so the AI Agents screen can say the preferences were not carried over.
+ */
+export function hasLegacyAgentSettings(): boolean {
+  if (!fs.existsSync(SETTINGS_FILE)) return false;
+  try {
+    const raw: unknown = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return false;
+    return (raw as Record<string, unknown>)[LEGACY_AGENT_SETTINGS_KEY] !== undefined;
+  } catch {
+    // A corrupt settings file tells us nothing about what the user had, and
+    // guessing "upgrade" would show the notice to someone who never used the
+    // built-in. Fail closed.
+    return false;
+  }
 }
 
 export function getPersistedBenches(projectId?: string): PersistedBench[] {

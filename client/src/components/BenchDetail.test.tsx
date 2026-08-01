@@ -567,7 +567,7 @@ describe("BenchDetail", () => {
         notifications: [
           {
             id: "n1",
-            type: "claude-waiting",
+            type: "agent-waiting",
             priority: "action-needed",
             sourceSessionId: "term-1",
             createdAt: "2024-01-01T00:00:00Z",

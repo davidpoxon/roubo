@@ -899,7 +899,7 @@ describe("TerminalTabs: notification indicators", () => {
     const notifications = [
       {
         id: "n1",
-        type: "claude-waiting" as const,
+        type: "agent-waiting" as const,
         priority: "action-needed" as const,
         sourceSessionId: "session-2",
         createdAt: "2024-01-01T00:00:00Z",
@@ -948,7 +948,7 @@ describe("TerminalTabs: notification indicators", () => {
     const notifications = [
       {
         id: "n1",
-        type: "claude-waiting" as const,
+        type: "agent-waiting" as const,
         priority: "action-needed" as const,
         sourceSessionId: "agent-session",
         createdAt: "2024-01-01T00:00:00Z",
@@ -985,7 +985,7 @@ describe("TerminalTabs: notification indicators", () => {
     const notifications = [
       {
         id: "n1",
-        type: "claude-waiting" as const,
+        type: "agent-waiting" as const,
         priority: "action-needed" as const,
         sourceSessionId: "session-1",
         createdAt: "2024-01-01T00:00:00Z",
@@ -1031,7 +1031,7 @@ describe("TerminalTabs: notification indicators", () => {
     const notifications = [
       {
         id: "n1",
-        type: "claude-waiting" as const,
+        type: "agent-waiting" as const,
         priority: "action-needed" as const,
         sourceSessionId: "session-1",
         createdAt: "2024-01-01T00:00:00Z",
@@ -1050,154 +1050,6 @@ describe("TerminalTabs: notification indicators", () => {
     // session-1 is active, session-2 has no matching notification
     const session2Tab = screen.getByText("Terminal 2").closest("div");
     expect(session2Tab?.querySelector('[role="img"]')).toBeNull();
-  });
-});
-
-describe("TerminalTabs: mode badge", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.useFakeTimers();
-    vi.mocked(useDestroyTerminal).mockReturnValue({
-      mutate: vi.fn(),
-    } as unknown as ReturnType<typeof useDestroyTerminal>);
-    vi.mocked(useCreateTerminal).mockReturnValue({
-      mutate: vi.fn(),
-    } as unknown as ReturnType<typeof useCreateTerminal>);
-    vi.mocked(useJigs).mockReturnValue({
-      data: [],
-    } as unknown as ReturnType<typeof useJigs>);
-    vi.mocked(useInjectJig).mockReturnValue({
-      mutate: vi.fn(),
-    } as unknown as ReturnType<typeof useInjectJig>);
-    vi.mocked(useSettings).mockReturnValue({
-      settings: {
-        theme: "dark",
-        jigs: {
-          autoInject: false,
-          autoExecute: false,
-          defaultJigId: "feature-dev",
-        },
-      },
-      isLoading: false,
-      updateSettings: vi.fn(),
-    } as unknown as ReturnType<typeof useSettings>);
-    vi.mocked(useDismissNotification).mockReturnValue({
-      mutate: vi.fn(),
-    } as unknown as ReturnType<typeof useDismissNotification>);
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('shows "auto" badge when session has claudeCodeMode "auto"', () => {
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "session-1",
-          benchKey: "p:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-          claudeCodeMode: "auto" as const,
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
-    renderWithProviders(
-      <TerminalTabs projectId="proj" benchId={1} projectName="Project" hasAssignedIssue={false} />,
-    );
-
-    expect(screen.getByText("auto")).toBeInTheDocument();
-  });
-
-  it('shows "plan → auto" badge when session has claudeCodeMode "plan-auto"', () => {
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "session-1",
-          benchKey: "p:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-          claudeCodeMode: "plan-auto" as const,
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
-    renderWithProviders(
-      <TerminalTabs projectId="proj" benchId={1} projectName="Project" hasAssignedIssue={false} />,
-    );
-
-    expect(screen.getByText("plan \u2192 auto")).toBeInTheDocument();
-  });
-
-  it('shows "plan" badge when session has claudeCodeMode "plan"', () => {
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "session-1",
-          benchKey: "p:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-          claudeCodeMode: "plan" as const,
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
-    renderWithProviders(
-      <TerminalTabs projectId="proj" benchId={1} projectName="Project" hasAssignedIssue={false} />,
-    );
-
-    expect(screen.getByText("plan")).toBeInTheDocument();
-  });
-
-  it("shows no badge when session has no claudeCodeMode", () => {
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "session-1",
-          benchKey: "p:1",
-          label: "Claude 1",
-          createdAt: "2024-01-01",
-          command: "claude",
-          status: "live",
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
-    renderWithProviders(
-      <TerminalTabs projectId="proj" benchId={1} projectName="Project" hasAssignedIssue={false} />,
-    );
-
-    expect(screen.queryByText("auto")).toBeNull();
-    expect(screen.queryByText("plan")).toBeNull();
-    expect(screen.queryByText("plan \u2192 auto")).toBeNull();
-  });
-
-  it("shows no badge for a plain terminal session", () => {
-    vi.mocked(useTerminalSessions).mockReturnValue({
-      data: [
-        {
-          id: "session-1",
-          benchKey: "p:1",
-          label: "Terminal 1",
-          createdAt: "2024-01-01",
-          status: "live",
-        },
-      ],
-    } as unknown as ReturnType<typeof useTerminalSessions>);
-
-    renderWithProviders(
-      <TerminalTabs projectId="proj" benchId={1} projectName="Project" hasAssignedIssue={false} />,
-    );
-
-    expect(screen.queryByText("auto")).toBeNull();
-    expect(screen.queryByText("plan")).toBeNull();
   });
 });
 
@@ -1251,10 +1103,10 @@ describe("TerminalTabs: agent-generic session tabs", () => {
     expect(icon.getAttribute("class")).toContain("text-cyan-400");
   });
 
-  it("keeps the identity glyph on a legacy built-in Claude session (#521 owns its removal)", () => {
+  it("shows no agent glyph for a session whose only carrier is a command name (#521)", () => {
     setup([
       {
-        id: "claude-session",
+        id: "legacy-session",
         benchKey: "p:1",
         label: "Claude 1",
         createdAt: "2024-01-01",
@@ -1263,9 +1115,10 @@ describe("TerminalTabs: agent-generic session tabs", () => {
       },
     ]);
 
-    expect(screen.getByTestId("session-agent-icon").getAttribute("class")).toContain(
-      "text-violet-400",
-    );
+    // `agentPluginId` is the only carrier now. A command name never identifies
+    // an agent, so no product-specific mapping survives in the client
+    // (AP-TC-104).
+    expect(screen.queryByTestId("session-agent-icon")).toBeNull();
   });
 
   it("shows no agent glyph on a plain shell session", () => {
@@ -1348,14 +1201,14 @@ describe("TerminalTabs: tab-switch dismiss behaviour", () => {
     const notifications = [
       {
         id: "n-a",
-        type: "claude-waiting" as const,
+        type: "agent-waiting" as const,
         priority: "action-needed" as const,
         sourceSessionId: "session-a",
         createdAt: "2024-01-01T00:00:00Z",
       },
       {
         id: "n-b",
-        type: "claude-waiting" as const,
+        type: "agent-waiting" as const,
         priority: "action-needed" as const,
         sourceSessionId: "session-b",
         createdAt: "2024-01-01T00:00:00Z",
@@ -1388,7 +1241,7 @@ describe("TerminalTabs: tab-switch dismiss behaviour", () => {
     const notifications = [
       {
         id: "n-b",
-        type: "claude-waiting" as const,
+        type: "agent-waiting" as const,
         priority: "action-needed" as const,
         sourceSessionId: "session-b",
         createdAt: "2024-01-01T00:00:00Z",
@@ -1424,7 +1277,7 @@ describe("TerminalTabs: tab-switch dismiss behaviour", () => {
     const notifications = [
       {
         id: "n-a",
-        type: "claude-waiting" as const,
+        type: "agent-waiting" as const,
         priority: "action-needed" as const,
         sourceSessionId: "session-a",
         createdAt: "2024-01-01T00:00:00Z",
@@ -1454,7 +1307,7 @@ describe("TerminalTabs: tab-switch dismiss behaviour", () => {
     const notifications = [
       {
         id: "n-a",
-        type: "claude-waiting" as const,
+        type: "agent-waiting" as const,
         priority: "action-needed" as const,
         sourceSessionId: "session-a",
         createdAt: "2024-01-01T00:00:00Z",
@@ -1482,7 +1335,7 @@ describe("TerminalTabs: tab-switch dismiss behaviour", () => {
   it("does not re-dismiss when notifications prop gets a new array reference (poll re-render)", () => {
     const notification = {
       id: "n-a",
-      type: "claude-waiting" as const,
+      type: "agent-waiting" as const,
       priority: "action-needed" as const,
       sourceSessionId: "session-a",
       createdAt: "2024-01-01T00:00:00Z",

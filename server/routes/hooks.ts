@@ -5,6 +5,9 @@ import * as benchManager from "../services/bench-manager.js";
 
 const router = Router();
 
+// The endpoint every `http-hook` agent descriptor POSTs its waiting events to.
+// The path is a stable published contract that shipped plugin manifests already
+// carry, so it keeps its name; nothing about the handler is agent-specific.
 router.post("/claude-notification", (req, res) => {
   const { session_id } = req.body as { session_id?: unknown };
 
@@ -49,7 +52,7 @@ router.post("/claude-notification", (req, res) => {
   }
 
   try {
-    notificationService.createNotification(bench, "claude-waiting", session_id);
+    notificationService.createNotification(bench, "agent-waiting", session_id);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     return;

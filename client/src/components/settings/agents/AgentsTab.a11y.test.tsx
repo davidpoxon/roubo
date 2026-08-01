@@ -12,6 +12,11 @@ import type { AgentPluginState } from "@roubo/shared";
 import { expectNoAxeFindings } from "../../../test/axe";
 
 vi.mock("../../../hooks/useAgentPlugins");
+// AgentsTab mounts the one-time upgrade notice, which reads settings. Stub the
+// hook so these tests need no QueryClientProvider; the notice has its own suite.
+vi.mock("../../../hooks/useSettings", () => ({
+  useSettings: () => ({ settings: undefined, isLoading: false, updateSettings: vi.fn() }),
+}));
 
 import {
   useAgentPlugins as _useAgentPlugins,

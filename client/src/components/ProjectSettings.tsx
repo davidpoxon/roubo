@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import {
-  Button,
   Tabs,
   TabList,
   Tab,
@@ -12,8 +11,8 @@ import {
   TextField,
   Input,
 } from "react-aria-components";
-import { RefreshCw, Sun, Moon, Monitor, Plus } from "lucide-react";
-import { useSettings, useRecheckClaudeCode } from "../hooks/useSettings";
+import { Sun, Moon, Monitor, Plus } from "lucide-react";
+import { useSettings } from "../hooks/useSettings";
 import {
   useGlobalJigs,
   useDeleteGlobalJig,
@@ -27,17 +26,9 @@ import {
   DEFAULT_JIG_SETTINGS,
   DEFAULT_BENCH_SETTINGS,
   DEFAULT_TESTBENCH_SETTINGS,
-  DEFAULT_CLAUDE_CODE_SETTINGS,
   GLOBAL_DEFAULT_JIG_ID,
 } from "@roubo/shared";
-import type {
-  ThemeMode,
-  JigSettings,
-  BenchSettings,
-  ClaudeCodeSettings,
-  JigMeta,
-  JigReference,
-} from "@roubo/shared";
+import type { ThemeMode, JigSettings, BenchSettings, JigMeta, JigReference } from "@roubo/shared";
 import { ApiError, isJigReferencedError } from "../lib/api";
 import { useToast } from "../hooks/useToast";
 import DeleteJigDialog from "./jig-editor/DeleteJigDialog";
@@ -436,7 +427,7 @@ function JigsTab() {
             isSelected={jigSettings.autoInject}
             onChange={(val) => update({ autoInject: val })}
             label="Auto-inject jig"
-            description="When a Claude Code session starts, automatically inject the default jig into the terminal."
+            description="When an agent session starts, automatically inject the default jig into the terminal."
           />
 
           <div className="pl-5 border-l border-stone-200 dark:border-stone-800">
@@ -571,84 +562,6 @@ function JigsTab() {
   );
 }
 
-function ClaudeCodeTab() {
-  const { settings, updateSettings } = useSettings();
-  const recheck = useRecheckClaudeCode();
-  const ccSettings = settings?.claudeCode ?? DEFAULT_CLAUDE_CODE_SETTINGS;
-  const available = settings?.claudeCodeAutoModeAvailable ?? false;
-  const reason = settings?.claudeCodeAutoModeReason;
-
-  const update = (patch: Partial<ClaudeCodeSettings>) => {
-    if (!settings) return;
-    updateSettings({ ...settings, claudeCode: { ...ccSettings, ...patch } });
-  };
-
-  return (
-    <div className="space-y-10">
-      <section>
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 mb-5">
-          Auto Mode
-        </h3>
-
-        <div className="space-y-6">
-          <SettingToggle
-            isSelected={ccSettings.enableAutoMode}
-            onChange={(val) =>
-              update(
-                val ? { enableAutoMode: true } : { enableAutoMode: false, startInPlanMode: false },
-              )
-            }
-            isDisabled={!available}
-            label="Enable auto mode"
-            description="Start Claude Code sessions in auto mode, allowing autonomous code changes without confirmation."
-          />
-
-          <div className="pl-5 border-l border-stone-200 dark:border-stone-800">
-            <SettingToggle
-              isSelected={ccSettings.startInPlanMode}
-              onChange={(val) => update({ startInPlanMode: val })}
-              isDisabled={!available || !ccSettings.enableAutoMode}
-              label="Start in plan mode"
-              description="Begin each session in plan mode, where Claude Code outlines changes before executing them."
-            />
-          </div>
-        </div>
-
-        <p className="text-xs text-stone-400 dark:text-stone-600 mt-4 leading-relaxed">
-          Auto mode lets Claude Code make changes autonomously; plan mode requires it to outline
-          changes first before executing them.{" "}
-          <a
-            href="https://docs.anthropic.com/en/docs/claude-code/settings#permission-modes"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-stone-500 dark:text-stone-400 underline hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
-          >
-            Learn about permission modes
-          </a>
-        </p>
-
-        {!available && (
-          <div className="mt-2 flex items-center gap-3">
-            {reason && (
-              <p className="text-xs text-stone-400 dark:text-stone-600 leading-relaxed flex-1">
-                {reason}
-              </p>
-            )}
-            <Button
-              onPress={() => recheck.mutate()}
-              isDisabled={recheck.isPending}
-              className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500 rounded shrink-0"
-            >
-              <RefreshCw className={`w-3 h-3 ${recheck.isPending ? "animate-spin" : ""}`} />
-              Re-check
-            </Button>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
 function TestBenchTab() {
   const { settings, updateSettings } = useSettings();
   const testBenchSettings = settings?.testBench ?? DEFAULT_TESTBENCH_SETTINGS;
@@ -757,7 +670,6 @@ function AppearanceTab() {
 // "marketplace" is the Browse view; "marketplaces" (issue #561) is the source
 // registry section. Near-identical ids, deliberately distinct sections.
 const TAB_LABELS: Record<string, string> = {
-  "claude-code": "Claude Code",
   "ai-agents": "AI Agents",
   benches: "Benches",
   testbench: "TestBench",
@@ -773,7 +685,6 @@ const HASH_TAB_IDS = new Set([
   "ai-agents",
   "marketplace",
   "marketplaces",
-  "claude-code",
 ]);
 
 export default function ProjectSettings() {
@@ -806,7 +717,6 @@ export default function ProjectSettings() {
               "ai-agents",
               "marketplace",
               "marketplaces",
-              "claude-code",
             ] as const
           ).map((id) => (
             <Tab
@@ -859,10 +769,6 @@ export default function ProjectSettings() {
 
         <TabPanel id="marketplaces" className="outline-none">
           <MarketplacesTabPanel />
-        </TabPanel>
-
-        <TabPanel id="claude-code" className="outline-none">
-          <ClaudeCodeTab />
         </TabPanel>
       </Tabs>
     </div>

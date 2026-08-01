@@ -152,10 +152,6 @@ const DEFAULT_BENCH_SETTINGS = {
   autoStartComponents: false,
 };
 const DEFAULT_TESTBENCH_SETTINGS = { enabled: true };
-const DEFAULT_CLAUDE_CODE_SETTINGS = {
-  enableAutoMode: false,
-  startInPlanMode: false,
-};
 const DEFAULT_GITHUB_SETTINGS = { issueTypesCacheTtlSeconds: 300 };
 
 describe("loadSettings", () => {
@@ -166,7 +162,6 @@ describe("loadSettings", () => {
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
@@ -179,7 +174,6 @@ describe("loadSettings", () => {
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
@@ -192,7 +186,6 @@ describe("loadSettings", () => {
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
@@ -254,7 +247,6 @@ describe("loadSettings", () => {
       jigs: customJigs,
       benches: DEFAULT_BENCH_SETTINGS,
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
@@ -280,7 +272,6 @@ describe("loadSettings", () => {
       },
       benches: DEFAULT_BENCH_SETTINGS,
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
@@ -310,40 +301,6 @@ describe("loadSettings", () => {
         autoStartComponents: false,
       },
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
-      github: DEFAULT_GITHUB_SETTINGS,
-    });
-  });
-
-  it("preserves custom claudeCode settings from file", () => {
-    existsSync.mockReturnValue(true);
-    readFileSync.mockReturnValue(
-      JSON.stringify({
-        theme: "dark",
-        claudeCode: { enableAutoMode: true, startInPlanMode: true },
-      }),
-    );
-    expect(stateModule.loadSettings()).toEqual({
-      theme: "dark",
-      jigs: DEFAULT_JIG_SETTINGS,
-      benches: DEFAULT_BENCH_SETTINGS,
-      testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: { enableAutoMode: true, startInPlanMode: true },
-      github: DEFAULT_GITHUB_SETTINGS,
-    });
-  });
-
-  it("merges partial claudeCode settings with defaults", () => {
-    existsSync.mockReturnValue(true);
-    readFileSync.mockReturnValue(
-      JSON.stringify({ theme: "dark", claudeCode: { enableAutoMode: true } }),
-    );
-    expect(stateModule.loadSettings()).toEqual({
-      theme: "dark",
-      jigs: DEFAULT_JIG_SETTINGS,
-      benches: DEFAULT_BENCH_SETTINGS,
-      testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: { enableAutoMode: true, startInPlanMode: false },
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
@@ -364,7 +321,6 @@ describe("loadSettings", () => {
         autoStartComponents: true,
       },
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
@@ -385,7 +341,6 @@ describe("loadSettings", () => {
         autoStartComponents: false,
       },
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
@@ -426,7 +381,6 @@ describe("loadSettings", () => {
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: { issueTypesCacheTtlSeconds: 60 },
     });
   });
@@ -439,7 +393,6 @@ describe("loadSettings", () => {
       jigs: DEFAULT_JIG_SETTINGS,
       benches: DEFAULT_BENCH_SETTINGS,
       testBench: DEFAULT_TESTBENCH_SETTINGS,
-      claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
       github: DEFAULT_GITHUB_SETTINGS,
     });
   });
@@ -458,6 +411,54 @@ describe("saveSettings", () => {
       "/mock-home/.roubo/settings.json.tmp",
       "/mock-home/.roubo/settings.json",
     );
+  });
+});
+
+describe("hasLegacyAgentSettings (AP-FR-021, #521)", () => {
+  it("reports false on a fresh install with no settings file at all (AP-TC-110)", () => {
+    existsSync.mockReturnValue(false);
+    expect(stateModule.hasLegacyAgentSettings()).toBe(false);
+  });
+
+  it("reports false for a settings file that never carried the legacy block (AP-TC-110)", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", jigs: { autoInject: true } }));
+    expect(stateModule.hasLegacyAgentSettings()).toBe(false);
+  });
+
+  it("reports true when the raw settings file still carries the legacy block", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(
+      JSON.stringify({ theme: "dark", claudeCode: { enableAutoMode: true } }),
+    );
+    expect(stateModule.hasLegacyAgentSettings()).toBe(true);
+  });
+
+  it("reports true even for an empty legacy block, since presence is the signal", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", claudeCode: {} }));
+    expect(stateModule.hasLegacyAgentSettings()).toBe(true);
+  });
+
+  it("reads the RAW file, so loadSettings' defaults merge cannot make it always true", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark" }));
+    // loadSettings fills defaults in for every block it knows about; the legacy
+    // block is not one of them any more, and the raw read must agree.
+    expect(stateModule.loadSettings()).not.toHaveProperty("claudeCode");
+    expect(stateModule.hasLegacyAgentSettings()).toBe(false);
+  });
+
+  it("fails closed on a corrupt settings file rather than guessing 'upgrade'", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue("not valid json{{{");
+    expect(stateModule.hasLegacyAgentSettings()).toBe(false);
+  });
+
+  it("fails closed when the settings file parses to a non-object", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue("[]");
+    expect(stateModule.hasLegacyAgentSettings()).toBe(false);
   });
 });
 

@@ -24,12 +24,11 @@ const stateMocks = vi.hoisted(() => ({
 }));
 vi.mock("./state.js", () => stateMocks);
 
-vi.mock("./claude-settings-local.js", () => ({ writeClaudeSettingsLocal: vi.fn() }));
 vi.mock("./notification.js", () => ({
   dismissBySession: vi.fn(),
   createNotification: vi.fn(),
   dismissWaitingForSession: vi.fn().mockReturnValue(false),
-  WAITING_NOTIFICATION_TYPES: new Set(["terminal-waiting", "claude-waiting"]),
+  WAITING_NOTIFICATION_TYPES: new Set(["terminal-waiting", "agent-waiting"]),
 }));
 vi.mock("./bench-manager.js", () => ({ getBench: vi.fn() }));
 // Binary resolution itself is env.ts's job and is pinned in env.test.ts; here the
@@ -50,7 +49,6 @@ vi.mock("./env.js", () => ({
       this.name = "AgentCommandNotFoundError";
     }
   },
-  getClaudeBinary: () => "claude",
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
   resolveAgentCommand: envMocks.resolveAgentCommand,
@@ -826,7 +824,7 @@ describe("per-agent quiescence debounce (AP-TC-065)", () => {
     vi.advanceTimersByTime(1);
     expect(notificationService.createNotification).toHaveBeenCalledWith(
       expect.objectContaining({ projectId: "roubo" }),
-      "claude-waiting",
+      "agent-waiting",
       session.id,
       { label: session.label },
     );
@@ -851,7 +849,7 @@ describe("per-agent quiescence debounce (AP-TC-065)", () => {
     vi.advanceTimersByTime(1);
     expect(notificationService.createNotification).toHaveBeenCalledWith(
       expect.anything(),
-      "claude-waiting",
+      "agent-waiting",
       session.id,
       { label: session.label },
     );

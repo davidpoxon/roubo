@@ -206,10 +206,9 @@ export class AgentCommandNotFoundError extends Error {
  *    name (rather than the first matching directory entry) keeps this step a
  *    probe, not a reimplementation of execvp's own search.
  * 3. Otherwise the first well-known install location holding an executable file.
- *    This is the same list the built-in Claude Code path uses, so a session launched
- *    from an agent plugin finds the CLI on every install the built-in path does
- *    (notably the ~/.claude/local/claude shim, and fish or GUI launches whose
- *    PATH the server process never inherits).
+ *    The table below is keyed on the CLI's own basename, so a session launched
+ *    from an agent plugin finds the CLI on installs whose PATH the server process
+ *    never inherits (notably per-user shims, and fish or GUI launches).
  * 4. On a total miss, throws AgentCommandNotFoundError naming every location
  *    tried, rather than leaving an opaque ENOENT to surface from the PTY.
  *
@@ -235,41 +234,6 @@ export function resolveAgentCommand(
   tried.push(...wellKnownPathsFor(command));
 
   throw new AgentCommandNotFoundError(command, tried);
-}
-
-/**
- * Resolves the absolute path to the Claude CLI and stores it in process.env.ROUBO_CLAUDE_BINARY.
- * Resolution order: login-shell `command -v claude`, then the well-known install locations shared
- * with resolveAgentCommand, then bare 'claude' (relies on PATH; spawn will throw a descriptive
- * error if not found).
- * Silently no-ops on failure: the bare-name fallback ensures backwards-compatible behaviour.
- */
-export function resolveClaudeBinary(): void {
-  const shell = getLoginShell();
-  if (path.basename(shell) !== "fish") {
-    try {
-      const resolved = execFileSync(shell, ["-lc", "command -v claude"], {
-        timeout: 2000,
-        encoding: "utf-8",
-        stdio: ["ignore", "pipe", "ignore"],
-      }).trim();
-      if (resolved) {
-        process.env.ROUBO_CLAUDE_BINARY = resolved;
-        return;
-      }
-    } catch {
-      // fall through to well-known paths
-    }
-  }
-
-  const wellKnown = findWellKnownPath("claude");
-  if (wellKnown) process.env.ROUBO_CLAUDE_BINARY = wellKnown;
-  // No path found: leave ROUBO_CLAUDE_BINARY unset; getClaudeBinary() returns 'claude'.
-}
-
-/** Returns the resolved absolute path to the Claude CLI, or 'claude' as a fallback. */
-export function getClaudeBinary(): string {
-  return process.env.ROUBO_CLAUDE_BINARY ?? "claude";
 }
 
 /** Returns a copy of process.env with internal ROUBO_ variables stripped, for use in child process environments. */

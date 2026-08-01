@@ -14,7 +14,7 @@ import type {
 
 function makeNotification(
   priority: BenchNotification["priority"],
-  type: BenchNotification["type"] = "claude-waiting",
+  type: BenchNotification["type"] = "agent-waiting",
   id = "1",
 ): BenchNotification {
   return { id, type, priority, createdAt: new Date().toISOString() };
@@ -89,13 +89,13 @@ describe("collectActionNeeded", () => {
   });
 
   it("filters to action-needed only", () => {
-    const n1 = makeNotification("action-needed", "claude-waiting", "a");
+    const n1 = makeNotification("action-needed", "agent-waiting", "a");
     const n2 = makeNotification("info", "bench-ready", "b");
     expect(collectActionNeeded([makeBench([n1, n2])])).toEqual([n1]);
   });
 
   it("collects across multiple benches", () => {
-    const n1 = makeNotification("action-needed", "claude-waiting", "a");
+    const n1 = makeNotification("action-needed", "agent-waiting", "a");
     const n2 = makeNotification("action-needed", "terminal-waiting", "b");
     expect(collectActionNeeded([makeBench([n1]), makeBench([n2])])).toEqual([n1, n2]);
   });
@@ -107,11 +107,10 @@ describe("collectActionNeeded", () => {
 
 describe("formatNotification", () => {
   const actionNeededTypes: NotificationType[] = [
-    "claude-waiting",
+    "agent-waiting",
     "terminal-waiting",
     "bench-error",
     "component-error",
-    "claude-exited",
     "agent-exited",
   ];
   const infoTypes: NotificationType[] = ["bench-ready", "inspection-complete"];
@@ -128,11 +127,10 @@ describe("formatNotification", () => {
   }
 
   it("names no specific AI coding tool in agent-session copy", () => {
-    // `claude-waiting` keeps a legacy type name, but any agent plugin's session
-    // raises it, so its copy must stay product-neutral (docs/brand.md).
-    // `claude-exited` is excluded deliberately: only the legacy built-in path
-    // raises it, and a plugin agent raises `agent-exited` instead.
-    for (const type of ["claude-waiting", "agent-exited"] as NotificationType[]) {
+    // Any agent plugin's session raises these, so their copy must stay
+    // product-neutral (docs/brand.md). Since #521 there is no built-in path
+    // left to raise a product-specific one.
+    for (const type of ["agent-waiting", "agent-exited"] as NotificationType[]) {
       const { title, body } = formatNotification(makeNotification("action-needed", type));
       expect(`${title} ${body}`).not.toMatch(/claude|codex|gemini|copilot/i);
     }

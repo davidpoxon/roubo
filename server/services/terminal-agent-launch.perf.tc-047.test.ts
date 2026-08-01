@@ -80,12 +80,11 @@ const pluginManagerMocks = vi.hoisted(() => ({
 vi.mock("./plugin-manager.js", () => pluginManagerMocks);
 vi.mock("./plugin-consent-state.js", () => ({ hasConsent: () => true }));
 
-vi.mock("./claude-settings-local.js", () => ({ writeClaudeSettingsLocal: vi.fn() }));
 vi.mock("./notification.js", () => ({
   dismissBySession: vi.fn(),
   createNotification: vi.fn(),
   dismissWaitingForSession: vi.fn().mockReturnValue(false),
-  WAITING_NOTIFICATION_TYPES: new Set(["terminal-waiting", "claude-waiting"]),
+  WAITING_NOTIFICATION_TYPES: new Set(["terminal-waiting", "agent-waiting"]),
 }));
 vi.mock("./bench-manager.js", () => ({ getBench: vi.fn() }));
 vi.mock("./env.js", () => ({
@@ -100,7 +99,6 @@ vi.mock("./env.js", () => ({
       this.name = "AgentCommandNotFoundError";
     }
   },
-  getClaudeBinary: () => "claude",
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
   // Identity: binary resolution (#645) is env.ts's job and is pinned in env.test.ts.

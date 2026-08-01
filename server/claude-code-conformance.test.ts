@@ -160,14 +160,12 @@ vi.mock("./services/env.js", () => ({
       this.name = "AgentCommandNotFoundError";
     }
   },
-  getClaudeBinary: () => "claude",
   getLoginShell: () => "/bin/zsh",
   cleanEnv: () => ({}),
   getEnvFileKeys: () => [],
   getContextWindow: () => 200_000,
   loadEnvFile: () => {},
   resolveShellPath: () => {},
-  resolveClaudeBinary: () => {},
   resolveAgentCommand: (command: string) => command,
 }));
 
@@ -223,8 +221,8 @@ vi.mock("./services/issue-formatting.js", () => ({
 // is what lets the plugin rows assert the same observable seams as the built-in
 // ones. The CC-NOTIFY-PARITY rows ride the same fixture, declaring notification
 // and waiting-detection capabilities on the descriptor instead of an
-// `initialPrompt`. `installed` defaults to false so every built-in row above
-// resolves no agent at all and keeps its current behavior.
+// `initialPrompt`. `installed` defaults to false, which since #521 means a
+// launch resolves no agent at all and fails rather than falling back.
 const agentFixture = vi.hoisted(() => ({
   pluginId: "acme-agent",
   installed: false,
@@ -266,7 +264,6 @@ import {
   resolveWriteTemplates,
   validateDescriptor,
 } from "./services/agent-launch-executor.js";
-import { writeClaudeSettingsLocal } from "./services/claude-settings-local.js";
 
 // The app under test mounts the REAL routers exactly as server/index.ts does.
 const app = express();
@@ -486,150 +483,52 @@ afterAll(() => {
 });
 
 // ── Area 1: jig injection ──
+//
+// #521 removed the built-in launch path, so every CC-JIG row is now proved on
+// the agent-plugin path in Area 1b. What stays here are the rows that are about
+// the ROUTE rather than the agent: a bad jig id, and a launch that resolves no
+// agent at all.
 
-describe("jig injection (CC-JIG)", () => {
-  it("CC-JIG-01: autoExecute on passes the resolved jig as the final positional argument and reports jigInjected", async () => {
-    const { benchId, workspacePath } = seedBench();
-    seedJig("push", "Push my branch to GitHub");
-    writeUserSettings({ jigs: { autoInject: true, autoExecute: true } });
-
-    const res = await createTerminal(benchId, { command: "claude", jigId: "push" });
-
-    expect(res.status).toBe(201);
-    expect(res.body.jigInjected).toBe(true);
-    expect(res.body.jigScheduled).toBeUndefined();
-    const spawn = lastSpawn();
-    expect(spawn.file).toBe("claude");
-    expect(spawn.cwd).toBe(workspacePath);
-    expect(spawn.args[spawn.args.length - 1]).toBe("Push my branch to GitHub");
-    expect(sessionIdArg(spawn)).toBe(res.body.sessionId);
-  });
-
-  it("CC-JIG-02: autoExecute off omits the positional argument and writes the jig to the PTY 1500ms after creation", async () => {
-    vi.useFakeTimers();
-    const { benchId } = seedBench();
-    seedJig("push", "Push my branch to GitHub");
-    writeUserSettings({ jigs: { autoInject: true, autoExecute: false } });
-
-    const res = await createTerminal(benchId, { command: "claude", jigId: "push" });
-
-    expect(res.status).toBe(201);
-    expect(res.body.jigScheduled).toBe(true);
-    expect(res.body.jigInjected).toBeUndefined();
-    const spawn = lastSpawn();
-    // No positional prompt: argv ends at the session id.
-    expect(spawn.args).toEqual(["--session-id", res.body.sessionId]);
-
-    vi.advanceTimersByTime(1499);
-    expect(spawn.pty.writes).toEqual([]);
-    vi.advanceTimersByTime(1);
-    expect(spawn.pty.writes).toEqual(["Push my branch to GitHub"]);
-  });
-
-  it("CC-JIG-03: the positional prompt argument is truncated to 100,000 characters", async () => {
-    const { benchId } = seedBench();
-    seedJig("huge", "x".repeat(150_000));
-
-    const res = await createTerminal(benchId, { command: "claude", jigId: "huge" });
-
-    expect(res.status).toBe(201);
-    expect(res.body.jigInjected).toBe(true);
-    const spawn = lastSpawn();
-    expect(spawn.args[spawn.args.length - 1]).toHaveLength(100_000);
-  });
-
-  it("CC-JIG-03: the scheduled PTY write path delivers the full content untruncated", async () => {
-    vi.useFakeTimers();
-    const { benchId } = seedBench();
-    seedJig("huge", "x".repeat(150_000));
-    writeUserSettings({ jigs: { autoInject: true, autoExecute: false } });
-
-    const res = await createTerminal(benchId, { command: "claude", jigId: "huge" });
-
-    expect(res.status).toBe(201);
-    const spawn = lastSpawn();
-    vi.advanceTimersByTime(1500);
-    expect(spawn.pty.writes[0]).toHaveLength(150_000);
-  });
-
-  it("CC-JIG-04: agent argv is the auto-mode flag (--enable-auto-mode or --permission-mode auto), then --permission-mode plan, --session-id <uuid>, prompt", async () => {
-    const { benchId } = seedBench();
-    seedJig("push", "Do the thing");
-    writeUserSettings({
-      jigs: { autoInject: true, autoExecute: true },
-      claudeCode: { enableAutoMode: true, startInPlanMode: true },
-    });
-
-    const res = await createTerminal(benchId, { command: "claude", jigId: "push" });
-
-    expect(res.status).toBe(201);
-    const args = lastSpawn().args;
-
-    // The stable tail is asserted strictly: --permission-mode plan, --session-id <uuid>, prompt.
-    const stableTail = [
-      "--permission-mode",
-      "plan",
-      "--session-id",
-      res.body.sessionId,
-      "Do the thing",
-    ];
-    expect(args.slice(-stableTail.length)).toEqual(stableTail);
-
-    // The auto-mode flag position carries matrix row CC-JIG-04's one sanctioned built-in vs plugin
-    // deviation: the current built-in emits the removed --enable-auto-mode (live drift, eliminated by
-    // #521), while a compliant plugin must emit --permission-mode auto (AP-FR-017 / AP-TC-092 / #511).
-    // Accept either form here so the suite stays green against both trees; every other row stays strict.
-    const autoModeFlag = args.slice(0, args.length - stableTail.length);
-    expect([["--enable-auto-mode"], ["--permission-mode", "auto"]]).toContainEqual(autoModeFlag);
-  });
-
-  it("CC-JIG-05: a jigId on a non-claude command is ignored: plain shell, no argv, no settings write", async () => {
+describe("jig injection route contract (CC-JIG)", () => {
+  it("CC-JIG-05: a launch that resolves no agent fails outright, never a silent shell (AP-TC-103)", async () => {
     const { benchId, workspacePath } = seedBench();
     seedJig("push", "Do the thing");
 
     const res = await createTerminal(benchId, { jigId: "push" });
 
+    // There is no built-in path left to fall through to, and no fallback is
+    // permitted: the launch fails with guidance instead.
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no ai coding agent is available/i);
+    expect(spawnRecords).toHaveLength(0);
+    expect(existsSync(workspaceSettingsPath(workspacePath))).toBe(false);
+  });
+
+  it("CC-JIG-05: a plain terminal (no jig, no agent) is still a plain shell with no argv", async () => {
+    const { benchId, workspacePath } = seedBench();
+
+    const res = await createTerminal(benchId, {});
+
     expect(res.status).toBe(201);
-    expect(res.body.jigInjected).toBeUndefined();
-    expect(res.body.jigScheduled).toBeUndefined();
     const spawn = lastSpawn();
     expect(spawn.file).toBe("/bin/zsh");
     expect(spawn.args).toEqual([]);
+    // Core writes no agent-specific settings file of its own (AP-TC-104).
     expect(existsSync(workspaceSettingsPath(workspacePath))).toBe(false);
   });
 
   it("CC-JIG-06: unknown jigId returns 404 and spawns nothing; malformed jigId returns 400", async () => {
     const { benchId } = seedBench();
 
-    const missing = await createTerminal(benchId, { command: "claude", jigId: "no-such-jig" });
+    const missing = await createTerminal(benchId, { jigId: "no-such-jig" });
     expect(missing.status).toBe(404);
     expect(missing.body.error).toMatch(/jig not found/i);
 
-    const malformed = await createTerminal(benchId, { command: "claude", jigId: "../evil" });
+    const malformed = await createTerminal(benchId, { jigId: "../evil" });
     expect(malformed.status).toBe(400);
     expect(malformed.body.error).toMatch(/invalid jig id/i);
 
     expect(spawnRecords).toHaveLength(0);
-  });
-
-  it("CC-JIG-07: a jig flagged sizeWarning propagates sizeWarning: true in the response", async () => {
-    const { benchId } = seedBench();
-    seedJig("big", "large content", true);
-
-    const res = await createTerminal(benchId, { command: "claude", jigId: "big" });
-
-    expect(res.status).toBe(201);
-    expect(res.body.jigInjected).toBe(true);
-    expect(res.body.sizeWarning).toBe(true);
-  });
-
-  it("CC-JIG-08: .claude/settings.local.json exists before the agent process is spawned", async () => {
-    const { benchId } = seedBench();
-
-    const res = await createTerminal(benchId, { command: "claude" });
-
-    expect(res.status).toBe(201);
-    expect(lastSpawn().settingsFileExistedAtSpawn).toBe(true);
   });
 });
 
@@ -743,6 +642,42 @@ describe("jig injection through the agent plugin (AP-TC-096)", () => {
     expect(res.body.sizeWarning).toBe(true);
   });
 
+  it("CC-JIG-04 (plugin): the posture binding's argv precedes --session-id and the positional prompt", async () => {
+    agentFixture.installed = true;
+    agentFixture.descriptor = {
+      schemaVersion: 1,
+      kind: "agent-launch",
+      command: "claude",
+      args: ["--session-id", "{{sessionId}}"],
+      initialPrompt: CLAUDE_PARITY,
+      capabilities: {
+        permissions: {
+          postures: { "read-only": { args: ["--permission-mode", "plan"] } },
+          rules: { carrier: "workspace-write", resync: true },
+        },
+      },
+    };
+    const { benchId } = seedBench();
+    seedJig("push", "Do the thing");
+    await setProjectRules({ allow: [], deny: [], ask: [], posture: "read-only" } as never);
+
+    const res = await launchWithJig(benchId, "push");
+
+    expect(res.status).toBe(201);
+    // Strict, whole-argv: the descriptor's own args, then the posture binding,
+    // then the positional prompt. Core contributes no flag of its own, so the
+    // removed --enable-auto-mode form the built-in emitted has no way back in
+    // (AP-FR-017, AP-TC-092, AP-TC-104).
+    expect(lastSpawn().args).toEqual([
+      "--session-id",
+      res.body.sessionId,
+      "--permission-mode",
+      "plan",
+      "Do the thing",
+    ]);
+    await setProjectRules({ allow: [], deny: [], ask: [] });
+  });
+
   it("AP-TC-063: an agent that declares no injection capability launches with nothing injected and no error", async () => {
     vi.useFakeTimers();
     installAgent(); // no `initialPrompt` in the descriptor
@@ -779,144 +714,23 @@ describe("jig injection through the agent plugin (AP-TC-096)", () => {
   });
 });
 
-// ── Area 2: .claude/settings.local.json writer ──
-
-describe("settings.local.json writer (CC-SET)", () => {
-  it("CC-SET-01: a fresh workspace gets a valid settings file whose Notification hook is the catch-all Roubo HTTP hook (default port 3335)", async () => {
-    const { benchId, workspacePath } = seedBench();
-
-    const res = await createTerminal(benchId, { command: "claude" });
-
-    expect(res.status).toBe(201);
-    const settings = readWorkspaceSettings(workspacePath);
-    expect(settings.hooks).toEqual({
-      Notification: FORCED_NOTIFICATION_HOOK(HOOK_URL_DEFAULT),
-    });
-    // No matcher key: the hook is a catch-all over every Notification event.
-    const entry = (settings.hooks as { Notification: Array<Record<string, unknown>> })
-      .Notification[0];
-    expect(entry).not.toHaveProperty("matcher");
-  });
-
-  it("CC-SET-01: the forced hook URL honors ROUBO_PORT", async () => {
-    const { benchId, workspacePath } = seedBench();
-    process.env.ROUBO_PORT = "4444";
-    try {
-      const res = await createTerminal(benchId, { command: "claude" });
-      expect(res.status).toBe(201);
-      const settings = readWorkspaceSettings(workspacePath);
-      expect(settings.hooks).toEqual({
-        Notification: FORCED_NOTIFICATION_HOOK(
-          "http://localhost:4444/api/hooks/claude-notification",
-        ),
-      });
-    } finally {
-      delete process.env.ROUBO_PORT;
-    }
-  });
-
-  it("CC-SET-02: user-defined hooks are overwritten (Notification is never merged) while unrelated top-level keys survive", async () => {
-    const { benchId, workspacePath } = seedBench();
-    mkdirSync(join(workspacePath, ".claude"), { recursive: true });
-    writeFileSync(
-      workspaceSettingsPath(workspacePath),
-      JSON.stringify({
-        hooks: {
-          Notification: [{ hooks: [{ type: "command", command: "echo user-hook" }] }],
-          Stop: [{ hooks: [{ type: "command", command: "echo stop" }] }],
-        },
-        model: "opus",
-      }),
-    );
-
-    const res = await createTerminal(benchId, { command: "claude" });
-
-    expect(res.status).toBe(201);
-    const settings = readWorkspaceSettings(workspacePath);
-    expect(settings.hooks).toEqual({
-      Notification: FORCED_NOTIFICATION_HOOK(HOOK_URL_DEFAULT),
-    });
-    expect(settings.model).toBe("opus");
-  });
-
-  it("CC-SET-03: enableAutoMode drives permissions.defaultMode: set to auto when on, removed when off", async () => {
-    const { benchId, workspacePath } = seedBench();
-    writeUserSettings({ claudeCode: { enableAutoMode: true, startInPlanMode: false } });
-
-    let res = await createTerminal(benchId, { command: "claude" });
-    expect(res.status).toBe(201);
-    const perms = readWorkspaceSettings(workspacePath).permissions as Record<string, unknown>;
-    expect(perms.defaultMode).toBe("auto");
-
-    writeUserSettings({ claudeCode: { enableAutoMode: false, startInPlanMode: false } });
-    res = await createTerminal(benchId, { command: "claude" });
-    expect(res.status).toBe(201);
-    expect(readWorkspaceSettings(workspacePath).permissions).toBeUndefined();
-  });
-
-  it("CC-SET-04: allow/deny/ask are deduplicating unions of the existing workspace arrays and the project rules, existing entries first", async () => {
-    const { benchId, workspacePath } = seedBench();
-    mkdirSync(join(workspacePath, ".claude"), { recursive: true });
-    writeFileSync(
-      workspaceSettingsPath(workspacePath),
-      JSON.stringify({
-        permissions: {
-          allow: ["Bash(ls:*)"],
-          deny: ["Bash(rm:*)"],
-          ask: ["Edit(.env)"],
-          additionalDirectories: ["/extra"],
-        },
-      }),
-    );
-    await setProjectRules({
-      allow: ["Bash(ls:*)", "Bash(npm test:*)"],
-      deny: ["Read(secrets/*)"],
-      ask: ["Edit(.env)"],
-    });
-
-    const res = await createTerminal(benchId, { command: "claude" });
-
-    expect(res.status).toBe(201);
-    const perms = readWorkspaceSettings(workspacePath).permissions as Record<string, unknown>;
-    expect(perms.allow).toEqual(["Bash(ls:*)", "Bash(npm test:*)"]);
-    expect(perms.deny).toEqual(["Bash(rm:*)", "Read(secrets/*)"]);
-    expect(perms.ask).toEqual(["Edit(.env)"]);
-    // Unknown permissions sub-keys are preserved untouched.
-    expect(perms.additionalDirectories).toEqual(["/extra"]);
-  });
-
-  it("CC-SET-05: with no rules and auto mode off, the permissions key is absent entirely", async () => {
-    const { benchId, workspacePath } = seedBench();
-
-    const res = await createTerminal(benchId, { command: "claude" });
-
-    expect(res.status).toBe(201);
-    const settings = readWorkspaceSettings(workspacePath);
-    expect(settings.permissions).toBeUndefined();
-    expect(settings.hooks).toBeDefined();
-  });
-
-  it("CC-SET-06: a corrupt existing settings file is treated as empty and rewritten as valid JSON", async () => {
-    const { benchId, workspacePath } = seedBench();
-    mkdirSync(join(workspacePath, ".claude"), { recursive: true });
-    writeFileSync(workspaceSettingsPath(workspacePath), "{not json at all");
-
-    const res = await createTerminal(benchId, { command: "claude" });
-
-    expect(res.status).toBe(201);
-    const settings = readWorkspaceSettings(workspacePath);
-    expect(settings.hooks).toEqual({
-      Notification: FORCED_NOTIFICATION_HOOK(HOOK_URL_DEFAULT),
-    });
-  });
-});
+// ── Area 2: the agent workspace settings file ──
+//
+// The built-in writer this area used to pin was removed in #521: core writes no
+// agent-specific settings file on a launch at all. The whole area now lives in
+// CC-PERM-08 below, which pins the descriptor's workspace writes (the hook
+// wiring, the rule arrays, the preserve-unknown-keys merge) as the one
+// remaining producer of that file.
 
 // ── Area 3: hook endpoint correlation ──
 
 describe("hook endpoint correlation (CC-HOOK)", () => {
-  it("CC-HOOK-01: the --session-id handed to the agent correlates a hook POST back to a claude-waiting record on the owning bench", async () => {
+  it("CC-HOOK-01: the --session-id handed to the agent correlates a hook POST back to an agent-waiting record on the owning bench", async () => {
     const { bench, benchId } = seedBench();
-    const created = await createTerminal(benchId, { command: "claude" });
+    const created = await createAgentTerminal(benchId, {
+      notification: HTTP_HOOK_WIRING,
+      waitingDetection: { kind: "hook-driven" },
+    });
     expect(created.status).toBe(201);
     const sessionId = created.body.sessionId as string;
     // The correlation key the agent will echo back is exactly the spawn argv id.
@@ -928,7 +742,7 @@ describe("hook endpoint correlation (CC-HOOK)", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: "ok" });
-    const waiting = notificationsOfType(bench, "claude-waiting");
+    const waiting = notificationsOfType(bench, "agent-waiting");
     expect(waiting).toHaveLength(1);
     expect(waiting[0].sourceSessionId).toBe(sessionId);
   });
@@ -973,12 +787,15 @@ describe("hook endpoint correlation (CC-HOOK)", () => {
 
   it("CC-HOOK-07: a hook POST quoting an already-exited session is rejected and records nothing", async () => {
     const { bench, benchId } = seedBench();
-    const created = await createTerminal(benchId, { command: "claude" });
+    const created = await createAgentTerminal(benchId, {
+      notification: HTTP_HOOK_WIRING,
+      waitingDetection: { kind: "hook-driven" },
+    });
     expect(created.status).toBe(201);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     lastSpawn().pty.emitExit(0);
-    // Exit records claude-exited; the point of this row is that no *waiting*
+    // Exit records agent-exited; the point of this row is that no *waiting*
     // record follows the stale token.
     bench.notifications.length = 0;
 
@@ -994,7 +811,10 @@ describe("hook endpoint correlation (CC-HOOK)", () => {
 
   it("CC-HOOK-05: a session whose bench no longer exists returns 404", async () => {
     const { benchId } = seedBench();
-    const created = await createTerminal(benchId, { command: "claude" });
+    const created = await createAgentTerminal(benchId, {
+      notification: HTTP_HOOK_WIRING,
+      waitingDetection: { kind: "hook-driven" },
+    });
     expect(created.status).toBe(201);
     benchFixtures.benches.delete(`${PROJECT_ID}:${benchId}`);
 
@@ -1005,9 +825,12 @@ describe("hook endpoint correlation (CC-HOOK)", () => {
     expect(res.status).toBe(404);
   });
 
-  it("CC-HOOK-06: repeated hook POSTs for one session dedupe to a single claude-waiting record", async () => {
+  it("CC-HOOK-06: repeated hook POSTs for one session dedupe to a single agent-waiting record", async () => {
     const { bench, benchId } = seedBench();
-    const created = await createTerminal(benchId, { command: "claude" });
+    const created = await createAgentTerminal(benchId, {
+      notification: HTTP_HOOK_WIRING,
+      waitingDetection: { kind: "hook-driven" },
+    });
     const sessionId = created.body.sessionId as string;
 
     const first = await request(app)
@@ -1019,32 +842,35 @@ describe("hook endpoint correlation (CC-HOOK)", () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(1);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(1);
   });
 });
 
 // ── Area 4: quiescence debounce and waiting/exited notifications ──
 
 describe("quiescence and lifecycle notifications (CC-QUI)", () => {
-  it("CC-QUI-01: a claude session notifies claude-waiting after exactly 8000ms of PTY silence, with the session label as metadata", async () => {
+  it("CC-QUI-01: a hook-wired agent session notifies agent-waiting after exactly 8000ms of PTY silence, with the session label as metadata", async () => {
     vi.useFakeTimers();
     const { bench, benchId } = seedBench();
-    const created = await createTerminal(benchId, { command: "claude" });
+    const created = await createAgentTerminal(benchId, {
+      notification: HTTP_HOOK_WIRING,
+      waitingDetection: { kind: "hook-driven" },
+    });
     const sessionId = created.body.sessionId as string;
     const spawn = lastSpawn();
 
     spawn.pty.emitData("thinking...");
     vi.advanceTimersByTime(7999);
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(0);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(0);
 
     vi.advanceTimersByTime(1);
-    const waiting = notificationsOfType(bench, "claude-waiting");
+    const waiting = notificationsOfType(bench, "agent-waiting");
     expect(waiting).toHaveLength(1);
     expect(waiting[0].sourceSessionId).toBe(sessionId);
     expect(waiting[0].metadata).toEqual({ label: created.body.label });
   });
 
-  it("CC-QUI-02: a non-claude session notifies terminal-waiting after 2000ms of PTY silence", async () => {
+  it("CC-QUI-02: a plain shell session notifies terminal-waiting after 2000ms of PTY silence", async () => {
     vi.useFakeTimers();
     const { bench, benchId } = seedBench();
     const created = await createTerminal(benchId, {});
@@ -1063,7 +889,10 @@ describe("quiescence and lifecycle notifications (CC-QUI)", () => {
   it("CC-QUI-03: fresh PTY output within the window resets the debounce timer", async () => {
     vi.useFakeTimers();
     const { bench, benchId } = seedBench();
-    await createTerminal(benchId, { command: "claude" });
+    await createAgentTerminal(benchId, {
+      notification: HTTP_HOOK_WIRING,
+      waitingDetection: { kind: "hook-driven" },
+    });
     const spawn = lastSpawn();
 
     spawn.pty.emitData("chunk 1");
@@ -1071,53 +900,34 @@ describe("quiescence and lifecycle notifications (CC-QUI)", () => {
     spawn.pty.emitData("chunk 2");
     vi.advanceTimersByTime(5000);
     // 10s since the first chunk, but only 5s since the last: no notification.
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(0);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(0);
 
     vi.advanceTimersByTime(3000);
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(1);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(1);
   });
 
-  it("CC-QUI-04: fresh PTY output dismisses a pending claude-waiting record", async () => {
+  it("CC-QUI-04: fresh PTY output dismisses a pending agent-waiting record", async () => {
     vi.useFakeTimers();
     const { bench, benchId } = seedBench();
-    await createTerminal(benchId, { command: "claude" });
+    await createAgentTerminal(benchId, {
+      notification: HTTP_HOOK_WIRING,
+      waitingDetection: { kind: "hook-driven" },
+    });
     const spawn = lastSpawn();
 
     spawn.pty.emitData("idle now");
     vi.advanceTimersByTime(8000);
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(1);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(1);
 
     spawn.pty.emitData("working again");
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(0);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(0);
   });
 
-  it("CC-QUI-05: agent process exit records a claude-exited notification for the session", async () => {
-    const { bench, benchId } = seedBench();
-    const created = await createTerminal(benchId, { command: "claude" });
-    const spawn = lastSpawn();
-
-    spawn.pty.emitExit(0);
-
-    const exited = notificationsOfType(bench, "claude-exited");
-    expect(exited).toHaveLength(1);
-    expect(exited[0].sourceSessionId).toBe(created.body.sessionId);
-  });
-
-  it("CC-QUI-05: a non-claude session exit records no claude-exited notification", async () => {
-    const { bench, benchId } = seedBench();
-    await createTerminal(benchId, {});
-    const spawn = lastSpawn();
-
-    spawn.pty.emitExit(0);
-
-    expect(notificationsOfType(bench, "claude-exited")).toHaveLength(0);
-  });
-
-  // Exit parity, not type parity: the built-in path raises `claude-exited` and
-  // the plugin path raises the product-neutral `agent-exited` (#646). What this
-  // row pins is that a hook-wired agent session raises an exited notification at
-  // all, which it did not before AP-FR-013 wired `onAgentExit`.
-  it("CC-QUI-07: a hook-wired agent session's exit records agent-exited too", async () => {
+  // Since #521 there is one exited notification and it is product-neutral:
+  // `agent-exited`, raised by the plugin launch path (#646). This row pins that
+  // a hook-wired agent session raises it at all, which it did not before
+  // AP-FR-013 wired `onAgentExit`.
+  it("CC-QUI-05: an agent session's exit records agent-exited", async () => {
     const { bench, benchId } = seedBench();
     const created = await createAgentTerminal(benchId, {
       notification: HTTP_HOOK_WIRING,
@@ -1132,18 +942,21 @@ describe("quiescence and lifecycle notifications (CC-QUI)", () => {
     expect(exited[0].sourceSessionId).toBe(created.body.sessionId);
   });
 
-  it("CC-QUI-06: continued silence after a claude-waiting fires does not create duplicates", async () => {
+  it("CC-QUI-06: continued silence after an agent-waiting fires does not create duplicates", async () => {
     vi.useFakeTimers();
     const { bench, benchId } = seedBench();
-    await createTerminal(benchId, { command: "claude" });
+    await createAgentTerminal(benchId, {
+      notification: HTTP_HOOK_WIRING,
+      waitingDetection: { kind: "hook-driven" },
+    });
     const spawn = lastSpawn();
 
     spawn.pty.emitData("idle");
     vi.advanceTimersByTime(8000);
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(1);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(1);
 
     vi.advanceTimersByTime(16_000);
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(1);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(1);
   });
 });
 
@@ -1155,7 +968,7 @@ describe("quiescence and lifecycle notifications (CC-QUI)", () => {
 // debounce come from (the descriptor, not the command name).
 
 describe("descriptor-driven notification parity (CC-NOTIFY-PARITY)", () => {
-  it("CC-NOTIFY-PARITY-01: a descriptor-declared http-hook correlates a POST to a claude-waiting record", async () => {
+  it("CC-NOTIFY-PARITY-01: a descriptor-declared http-hook correlates a POST to an agent-waiting record", async () => {
     const { bench, benchId } = seedBench();
     const created = await createAgentTerminal(benchId, { notification: HTTP_HOOK_WIRING });
     expect(created.status).toBe(201);
@@ -1167,7 +980,7 @@ describe("descriptor-driven notification parity (CC-NOTIFY-PARITY)", () => {
       .send({ session_id: sessionId, notification_type: "permission_prompt" });
 
     expect(res.status).toBe(200);
-    const waiting = notificationsOfType(bench, "claude-waiting");
+    const waiting = notificationsOfType(bench, "agent-waiting");
     expect(waiting).toHaveLength(1);
     expect(waiting[0].sourceSessionId).toBe(sessionId);
   });
@@ -1186,7 +999,7 @@ describe("descriptor-driven notification parity (CC-NOTIFY-PARITY)", () => {
     warnSpy.mockRestore();
   });
 
-  it("CC-NOTIFY-PARITY-03: the declared quiescence debounce replaces the built-in windows", async () => {
+  it("CC-NOTIFY-PARITY-03: the declared quiescence debounce replaces the default windows", async () => {
     vi.useFakeTimers();
     const { bench, benchId } = seedBench();
     const created = await createAgentTerminal(benchId, {
@@ -1200,7 +1013,7 @@ describe("descriptor-driven notification parity (CC-NOTIFY-PARITY)", () => {
     expect(bench.notifications).toHaveLength(0);
 
     vi.advanceTimersByTime(1);
-    const waiting = notificationsOfType(bench, "claude-waiting");
+    const waiting = notificationsOfType(bench, "agent-waiting");
     expect(waiting).toHaveLength(1);
     expect(waiting[0].sourceSessionId).toBe(created.body.sessionId);
     expect(waiting[0].metadata).toEqual({ label: created.body.label });
@@ -1216,95 +1029,21 @@ describe("descriptor-driven notification parity (CC-NOTIFY-PARITY)", () => {
 
     spawn.pty.emitData("idle now");
     vi.advanceTimersByTime(1000);
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(1);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(1);
 
     spawn.pty.emitData("working again");
-    expect(notificationsOfType(bench, "claude-waiting")).toHaveLength(0);
+    expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(0);
   });
 });
 
 // ── Area 5: version gate ──
-
-describe("version gate (CC-VER)", () => {
-  async function recheck(): Promise<request.Response> {
-    return request(app).post("/api/settings/claude-code/recheck").send({});
-  }
-
-  it("CC-VER-01: version 2.1.83 (the exact minimum) reports auto mode available with no reason", async () => {
-    execState.script.push({ code: 0, stdout: "2.1.83 (Claude Code)", stderr: "" });
-
-    const res = await recheck();
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ claudeCodeAutoModeAvailable: true });
-    expect(execState.calls[0]).toEqual({ cmd: "claude", args: ["--version"] });
-  });
-
-  it("CC-VER-02: a version below 2.1.83 reports unavailable, naming both versions", async () => {
-    execState.script.push({ code: 0, stdout: "2.1.82 (Claude Code)", stderr: "" });
-
-    const res = await recheck();
-
-    expect(res.status).toBe(200);
-    expect(res.body.claudeCodeAutoModeAvailable).toBe(false);
-    expect(res.body.claudeCodeAutoModeReason).toContain("2.1.82");
-    expect(res.body.claudeCodeAutoModeReason).toContain("2.1.83");
-  });
-
-  it("CC-VER-03: a failed direct probe retries through a login shell before succeeding", async () => {
-    execState.script.push({ code: 127, stdout: "", stderr: "not found" });
-    execState.script.push({ code: 0, stdout: "3.0.0 (Claude Code)", stderr: "" });
-
-    const res = await recheck();
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ claudeCodeAutoModeAvailable: true });
-    expect(execState.calls).toEqual([
-      { cmd: "claude", args: ["--version"] },
-      { cmd: "sh", args: ["-lc", "claude --version"] },
-    ]);
-  });
-
-  it("CC-VER-04: when both probes fail, auto mode is unavailable with a not-installed reason", async () => {
-    execState.script.push({ code: 127, stdout: "", stderr: "" });
-    execState.script.push({ code: 127, stdout: "", stderr: "" });
-
-    const res = await recheck();
-
-    expect(res.status).toBe(200);
-    expect(res.body.claudeCodeAutoModeAvailable).toBe(false);
-    expect(res.body.claudeCodeAutoModeReason).toMatch(/not installed|could not be run/i);
-  });
-
-  it("CC-VER-05: unparseable version output reports unavailable with a could-not-determine reason", async () => {
-    execState.script.push({ code: 0, stdout: "no semver here", stderr: "" });
-
-    const res = await recheck();
-
-    expect(res.status).toBe(200);
-    expect(res.body.claudeCodeAutoModeAvailable).toBe(false);
-    expect(res.body.claudeCodeAutoModeReason).toMatch(/could not be determined/i);
-  });
-
-  it("CC-VER-06: the detection result is cached until an explicit recheck resets it", async () => {
-    execState.script.push({ code: 0, stdout: "2.5.0 (Claude Code)", stderr: "" });
-    await recheck();
-    const callsAfterDetect = execState.calls.length;
-
-    // A settings read reuses the cache: the binary is not probed again.
-    const settingsRes = await request(app).get("/api/settings");
-    expect(settingsRes.status).toBe(200);
-    expect(settingsRes.body.claudeCodeAutoModeAvailable).toBe(true);
-    expect(execState.calls.length).toBe(callsAfterDetect);
-
-    // An explicit recheck re-probes and can flip the result.
-    execState.script.push({ code: 127, stdout: "", stderr: "" });
-    execState.script.push({ code: 127, stdout: "", stderr: "" });
-    const flipped = await recheck();
-    expect(flipped.body.claudeCodeAutoModeAvailable).toBe(false);
-    expect(execState.calls.length).toBeGreaterThan(callsAfterDetect);
-  });
-});
+//
+// The built-in `claude --version` probe and its POST /api/settings/claude-code/
+// recheck route went with the rest of the built-in path in #521. The version
+// gate is now the descriptor's own declared probe, resolved by
+// agent-version-probe.ts and pinned in agent-version-probe.test.ts and the
+// AP-FR-014 rows of terminal-agent-session.test.ts. There is nothing
+// agent-specific left in core to pin here.
 
 // ── Area 6: permissions CRUD and resync ──
 
@@ -1378,6 +1117,14 @@ describe("permissions CRUD and resync (CC-PERM)", () => {
   });
 
   it("CC-PERM-06: resync additively unions the project rules into every operable bench workspace and reports resynced/skipped/errors", async () => {
+    // Since #521 the agent plugin is the ONLY carrier, so resync needs one
+    // installed to have anywhere to write (AP-TC-101).
+    agentFixture.installed = true;
+    agentFixture.descriptor = claudeCodePluginDescriptor({
+      allow: ["Bash(npm test:*)"],
+      ask: [],
+      deny: [],
+    });
     const projectId = "cc-parity-resync";
     seedProject(projectId);
     const a = seedBench(projectId);
@@ -1416,17 +1163,22 @@ describe("permissions CRUD and resync (CC-PERM)", () => {
     await setProjectRules({ allow: [], deny: [], ask: [] }, projectId);
   });
 
-  it("CC-PERM-07: resync with an empty project rule set writes nothing (rule removal never propagates)", async () => {
+  it("CC-PERM-07: resync with no agent plugin installed writes nothing at all (AP-TC-103)", async () => {
     const projectId = "cc-parity-noop";
     seedProject(projectId);
     const { workspacePath } = seedBench(projectId);
+    await setProjectRules({ allow: ["Bash(npm test:*)"], deny: [], ask: [] }, projectId);
 
     const res = await request(app).post(`/api/projects/${projectId}/permissions/resync`);
 
     expect(res.status).toBe(200);
-    // The bench still counts as resynced, but no file is created.
-    expect(res.body).toEqual({ resynced: 1, skipped: 0, errors: [] });
+    // The retired built-in carrier wrote an agent-specific settings file here.
+    // With no plugin there is no carrier, so the bench is reported as skipped
+    // and core writes nothing of its own.
+    expect(res.body).toEqual({ resynced: 0, skipped: 1, errors: [] });
     expect(existsSync(workspaceSettingsPath(workspacePath))).toBe(false);
+
+    await setProjectRules({ allow: [], deny: [], ask: [] }, projectId);
   });
 });
 
@@ -1434,15 +1186,15 @@ describe("permissions CRUD and resync (CC-PERM)", () => {
 //
 // Not a parity-matrix row: this pins the one parity gap the matrix left open,
 // namely that the matrix's argv and correlation rows say nothing about how the
-// CLI itself is found. The built-in path resolves `claude` through a well-known
-// install list; a plugin's launch descriptor names a bare command. Both must land
-// on the same binary, or a plugin-launched session fails to spawn on installs the
-// built-in path works on. The real env module is used here (the fixture mock at
-// the top of this file is what every other row wants) so the agreement is pinned
-// against the shipping resolver, not a stub.
+// CLI itself is found. A plugin's launch descriptor names a bare command, and it
+// must land on the same binary the retired built-in path used to find, or a
+// plugin-launched session fails to spawn on installs that used to work. The real
+// env module is used here (the fixture mock at the top of this file is what
+// every other row wants) so this is pinned against the shipping resolver, not a
+// stub.
 
 describe("agent CLI discovery (#645)", () => {
-  it("the built-in path and a descriptor command resolve through one shared resolver", async () => {
+  it("a descriptor command resolves through the shared well-known install list", async () => {
     const env = await vi.importActual<typeof import("./services/env.js")>("./services/env.js");
     const candidates = env.wellKnownPathsFor("claude");
     // Guard: the homedir-rooted candidates must sit inside the isolated home, or
@@ -1455,20 +1207,13 @@ describe("agent CLI discovery (#645)", () => {
     // (#651), so a default-0644 shim would be skipped like a broken install.
     writeFileSync(shim, "#!/bin/sh\nexec true\n", { mode: 0o755 });
 
-    const original = {
-      PATH: process.env.PATH,
-      SHELL: process.env.SHELL,
-      binary: process.env.ROUBO_CLAUDE_BINARY,
-    };
-    // An empty PATH plus a fish login shell (whose PATH the server never resolves)
-    // is the install shape from the issue: neither path can find `claude` by
-    // searching, so the shared well-known list is the only thing left.
+    const original = { PATH: process.env.PATH, SHELL: process.env.SHELL };
+    // An empty PATH plus a fish login shell (whose PATH the server never
+    // resolves) is the install shape from the issue: the command cannot be
+    // found by searching, so the well-known list is the only thing left.
     process.env.PATH = "";
     process.env.SHELL = "/usr/local/bin/fish";
-    delete process.env.ROUBO_CLAUDE_BINARY;
     try {
-      env.resolveClaudeBinary();
-      expect(env.getClaudeBinary()).toBe(shim);
       expect(env.resolveAgentCommand("claude")).toBe(shim);
 
       // An explicit path in a descriptor is spawned exactly as given.
@@ -1478,8 +1223,6 @@ describe("agent CLI discovery (#645)", () => {
     } finally {
       process.env.PATH = original.PATH;
       process.env.SHELL = original.SHELL;
-      if (original.binary === undefined) delete process.env.ROUBO_CLAUDE_BINARY;
-      else process.env.ROUBO_CLAUDE_BINARY = original.binary;
       rmSync(shim, { force: true });
     }
   });
@@ -1585,21 +1328,30 @@ describe("plugin-descriptor parity for the settings write (CC-PERM-08)", () => {
     deny: ["Bash(rm -rf *)"],
   };
 
-  it("CC-PERM-08: the plugin descriptor's writes are byte-identical to the built-in writer (AP-TC-097)", () => {
-    const builtIn = mkdtempSync(join(realOs.tmpdir(), "cc-parity-builtin-"));
+  it("CC-PERM-08: the plugin descriptor's writes reproduce the retired built-in writer's bytes (AP-TC-097)", () => {
     const plugin = mkdtempSync(join(realOs.tmpdir(), "cc-parity-plugin-"));
-    tmpWorkspaces.push(builtIn, plugin);
+    tmpWorkspaces.push(plugin);
 
-    writeClaudeSettingsLocal(builtIn, undefined, {
-      allow: rules.allow,
-      deny: rules.deny,
-      ask: rules.ask,
-    });
     runPluginWrites(plugin, rules);
 
-    expect(readFileSync(workspaceSettingsPath(plugin), "utf-8")).toBe(
-      readFileSync(workspaceSettingsPath(builtIn), "utf-8"),
+    // The exact bytes the removed built-in writer produced for these inputs,
+    // frozen here as literal expected output. #521 deleted that writer, so the
+    // parity claim can no longer be proved by running both; it is proved by
+    // pinning the target instead, which is what a parity baseline is for.
+    const expected = JSON.stringify(
+      {
+        permissions: {
+          allow: rules.allow,
+          deny: rules.deny,
+          ask: rules.ask,
+        },
+        hooks: { Notification: FORCED_NOTIFICATION_HOOK(HOOK_URL_DEFAULT) },
+      },
+      null,
+      2,
     );
+
+    expect(readFileSync(workspaceSettingsPath(plugin), "utf-8")).toBe(expected);
   });
 
   it("CC-PERM-08: allow, ask, and deny land in their own arrays with the hook wired (AP-TC-078)", () => {

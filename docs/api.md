@@ -395,7 +395,7 @@ DELETE /api/projects/:projectId/benches/:id/inspection
 
 ## Jigs
 
-Jigs are sets of agent instructions Roubo can write into the bench workspace. Today the consumer is Claude Code; the format is generic Markdown so other tools can read it too.
+Jigs are sets of agent instructions Roubo can write into the bench workspace. The consumer is whichever AI coding agent the launch resolves to; the format is generic Markdown so any tool can read it.
 
 ### List jigs available to a project
 
@@ -405,7 +405,7 @@ GET /api/projects/:projectId/jigs
 
 Each jig in the payload may carry an `agentPluginId`: the `agent`-kind plugin that jig launches with. It is optional, and absent means the jig follows the application-level default agent (`jigs.defaultAgentPluginId` on `PUT /api/settings`). Jig create and update accept the same field, and an update may send `agentPluginId: null` to clear the binding. It is stored in the jig's Markdown frontmatter, so both app-level and repo-level jigs carry it.
 
-At launch, `POST /api/projects/:projectId/benches/:id/terminals` resolves the agent in that order: an explicit `agentPluginId` in the request first, then the driving jig's binding, then the default agent, and finally the single configured agent when exactly one is available. Every layer is availability-gated, so a binding or a default whose plugin is no longer resolvable falls through to the next layer rather than failing the launch. When no layer names an agent that resolves, the launch stays on the built-in command path.
+At launch, `POST /api/projects/:projectId/benches/:id/terminals` resolves the agent in that order: an explicit `agentPluginId` in the request first, then the driving jig's binding, then the default agent, and finally the single configured agent when exactly one is available. Every layer is availability-gated, so a binding or a default whose plugin is no longer resolvable falls through to the next layer rather than failing the launch. When no layer names an agent that resolves, the launch is refused with a `409` naming the way out (install an agent plugin from Settings, then AI Agents): there is no built-in agent behind the plugin runtime to fall back to, and no silent downgrade to a plain shell. A request that names neither an agent nor a jig is not an agent launch at all: it opens a plain login shell.
 
 How the jig then reaches that agent is the agent's own declared capability (`initialPrompt` on its launch descriptor), not something the host assumes. With `jigs.autoExecute` on, the resolved jig is passed as the agent's initial prompt so it submits on start and the response carries `jigInjected: true`; with it off the jig is written into the session 1500ms after launch without submitting, and the response carries `jigScheduled: true`. An agent that declares no injection capability gets neither: it launches normally, nothing is injected, no post-startup write is scheduled, and the response reports neither flag. `sizeWarning` is about the jig rather than the agent, so it is still reported either way.
 
@@ -417,7 +417,7 @@ The 201 also carries `compatibility` when the pre-launch version probe had somet
 POST /api/projects/:projectId/benches/:benchId/inject-jig
 Content-Type: application/json
 
-{ "jigId": "standard", "sessionId": "optional-claude-session" }
+{ "jigId": "standard", "sessionId": "optional-agent-session" }
 ```
 
 Resolves template variables (`{{ports.*}}`, `{{workspace}}`, etc.) against the bench, optionally hydrates an `IssueContext` if the bench is assigned to a GitHub issue, and writes the resolved Markdown into the workspace so the AI coding tool picks it up on its next read.
@@ -493,7 +493,7 @@ GET /api/projects/:projectId/permissions/capabilities
 }
 ```
 
-Resolves the project's agent plugin and reads the `capabilities.permissions` its launch descriptor declares, so a client can hide the axes that agent ignores (an agent declaring no `rules` capability gets no rules editor and no re-sync control). Nothing is written. When no agent plugin resolves, or the probe fails, the response describes the built-in carrier: `agentPluginId: null`, no postures, rules and resync both `true`.
+Resolves the project's agent plugin and reads the `capabilities.permissions` its launch descriptor declares, so a client can hide the axes that agent ignores (an agent declaring no `rules` capability gets no rules editor and no re-sync control). Nothing is written. When no agent plugin resolves, or the probe fails, there is no carrier at all: `agentPluginId: null`, no postures, `rules: true` (the model is Roubo's own and stays editable, ready for whichever agent plugin gets installed) and `resync: false` (there is nothing to re-inject through yet).
 
 ### Re-sync existing benches
 
@@ -505,7 +505,7 @@ POST /api/projects/:projectId/permissions/resync
 { "resynced": 2, "skipped": 1, "errors": [{ "benchId": 4, "message": "..." }] }
 ```
 
-Re-injects the project's rules into every live bench workspace by dispatching through the agent plugin's declared carrier. A bench with no workspace path, one mid-teardown (`clearing`), or one whose agent declares no rules capability (or declares rules that opt out of re-sync with `resync: false`) is counted in `skipped` rather than raising an error. A per-bench failure lands in `errors` and never fails the request.
+Re-injects the project's rules into every live bench workspace by dispatching through the agent plugin's declared carrier. A bench with no workspace path, one mid-teardown (`clearing`), one whose agent declares no rules capability (or declares rules that opt out of re-sync with `resync: false`), or any bench at all when no agent plugin is installed, is counted in `skipped` rather than raising an error. A per-bench failure lands in `errors` and never fails the request.
 
 - `404` when the project is not registered
 
@@ -559,7 +559,7 @@ Content-Type: application/json
 
 The endpoint an AI coding agent calls to say it is waiting on the user, raising a waiting notification on the bench that owns the session. It is meant to be called by the agent process, not by an integrator: Roubo configures the agent to call it at launch, substituting the real session id and its own bound port. Extra fields (`notification_type`, `message`, `title`) are accepted and ignored.
 
-`session_id` is the correlation key and must be the id Roubo minted for the session. It is honoured only when that session is still live and its agent is hook-wired: for a plugin agent that means it declared the wiring in its launch descriptor, and for the legacy built-in Claude Code path (which has no descriptor) it means core wired the hook itself at launch. Everything else is rejected and logged, raising no notification: an id for a session that never existed, one whose session has since exited or was restored after a server restart (its token is spent), and one for a session with no hook wiring.
+`session_id` is the correlation key and must be the id Roubo minted for the session. It is honoured only when that session is still live and its agent declared hook wiring in its launch descriptor. Everything else is rejected and logged, raising no notification: an id for a session that never existed, one whose session has since exited or was restored after a server restart (its token is spent), and one for a session with no hook wiring. The endpoint keeps its historical path because shipped plugin manifests already point at it; nothing about the handler is agent-specific.
 
 Returns `{ "status": "ok" }`. Repeat calls for one session are safe: they collapse into a single waiting notification.
 

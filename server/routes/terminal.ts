@@ -19,11 +19,10 @@ import { AgentDescriptorError } from "../services/agent-launch-executor.js";
 import { AgentLaunchFailureError } from "../services/agent-launch-failure.js";
 import type { AgentLaunchFailureClass } from "@roubo/shared";
 import { toLaunchPermissions } from "../services/agent-permissions.js";
-import { filterSafeRules } from "../services/permission-rule-guard.js";
 import type { AgentNotAvailable } from "../services/agent-plugin-registry.js";
 import { parseIntParam, VALID_JIG_ID } from "./helpers.js";
 import type { TerminalCreateRequest } from "@roubo/shared";
-import { CLAUDE_STARTUP_DELAY_MS, GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
+import { AGENT_STARTUP_DELAY_MS, GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
 
 /**
  * Each `AgentNotAvailable` reason is a different caller problem, so each gets
@@ -66,6 +65,16 @@ function statusForLaunchFailure(failureClass: AgentLaunchFailureClass): number {
   }
 }
 
+/**
+ * The one answer to "an agent session was asked for and no agent plugin
+ * resolved". Core stopped launching an agent CLI of its own in #521, so this
+ * has to name the way out: agents arrive as plugins, and the AI Agents screen
+ * is where they are installed and made the default (AP-FR-019, AP-TC-103).
+ */
+const NO_AGENT_RESOLVED_MESSAGE =
+  "No AI coding agent is available to launch. Agents are installed as plugins: " +
+  "open Settings, then AI Agents, to install one and set it as the default.";
+
 const router = Router();
 
 router.post("/:projectId/benches/:id/terminals", async (req, res) => {
@@ -98,8 +107,8 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   }
 
   // Refuse a non-operable bench (blank workspacePath, see bench-operability.ts):
-  // spawning a terminal here would set cwd="" (the server's own working directory) and
-  // write .claude/settings.local.json into it.
+  // spawning a terminal here would set cwd="" (the server's own working directory)
+  // and run the session against it.
   if (!isBenchOperable(bench)) {
     res.status(400).json({ error: benchNotOperableMessage() });
     return;
@@ -107,6 +116,13 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
 
   const project = projectRegistry.getProject(projectId);
   const projectName = project?.config?.project?.displayName ?? projectId;
+
+  // Whether this request is asking for an AGENT session rather than a plain
+  // shell. `command` is the retired built-in carrier kept only so a request
+  // still naming one gets the actionable failure below instead of silently
+  // opening a shell (AP-FR-019, #521); a jig is only ever injected into an
+  // agent, so it asks for one too.
+  const agentLaunchRequested = command !== undefined || jigId !== undefined;
 
   const settings = loadSettings();
   let initialInput: string | undefined;
@@ -119,11 +135,10 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   // (AP-FR-006).
   let launchJigAgentPluginId: string | undefined;
 
-  // An explicit `agentPluginId` is the agent-generic carrier the launch
-  // surfaces now use (AP-FR-007, issue #517). Gating jig resolution on the
-  // legacy `claude` command alone would silently drop the jig from every such
-  // launch, so both carriers resolve it.
-  if (jigId && (command === "claude" || agentPluginId !== undefined) && project?.config) {
+  // A jig only ever drives an agent launch, so its resolution is gated on
+  // nothing but the presence of a jig id (AP-FR-007, issue #517). Since #521
+  // there is no command-name carrier left to test against.
+  if (jigId && project?.config) {
     const jig = jigManager.getJig(projectId, jigId);
     if (!jig) {
       res.status(404).json({ error: "Jig not found" });
@@ -181,7 +196,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
       scheduleWrite = (sessionId: string) => {
         setTimeout(() => {
           terminalService.writeToSession(sessionId, resolved);
-        }, CLAUDE_STARTUP_DELAY_MS);
+        }, AGENT_STARTUP_DELAY_MS);
       };
       jigScheduled = true;
     }
@@ -194,7 +209,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   // keeps its agent across default changes.
   const launchAgentPluginId =
     agentPluginId ??
-    (jigId && command === "claude"
+    (agentLaunchRequested
       ? resolveLaunchAgentId({
           ...(launchJigAgentPluginId !== undefined && {
             jigAgentPluginId: launchJigAgentPluginId,
@@ -207,7 +222,8 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
 
   // Agent-plugin launch (AP-FR-011): the plugin supplies a declarative
   // descriptor and core assembles argv, executes the workspace writes, and
-  // spawns. The built-in `command` path below is untouched by this branch.
+  // spawns. Since #521 this is the ONLY way an agent starts; the branch below
+  // opens a plain login shell and nothing else.
   if (launchAgentPluginId !== undefined) {
     let launch;
     try {
@@ -300,31 +316,18 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     return;
   }
 
-  const onClaudeExit =
-    command === "claude"
-      ? (sessionId: string) => {
-          notificationService.createNotification(bench, "claude-exited", sessionId);
-        }
-      : undefined;
-
-  // Filtered like the agent-plugin path above (AP-TC-081): the built-in carrier
-  // writes the same settings file, so it must not seed an escaping rule either.
-  const projectPermissions =
-    command === "claude" ? filterSafeRules(getProjectPermissions(projectId)) : undefined;
+  // An agent was asked for and none resolved. There is no built-in path left to
+  // fall through to (#521), so this is a launch failure with a route out, never
+  // a silently-downgraded shell: 409, because the request is fine and it is the
+  // host's current state that cannot serve it (AP-FR-019, AP-TC-103).
+  if (agentLaunchRequested) {
+    res.status(409).json({ error: NO_AGENT_RESOLVED_MESSAGE });
+    return;
+  }
 
   let session;
   try {
-    session = terminalService.createSession(
-      projectId,
-      benchId,
-      bench.workspacePath,
-      projectName,
-      command,
-      initialInput,
-      settings.claudeCode,
-      projectPermissions,
-      onClaudeExit,
-    );
+    session = terminalService.createSession(projectId, benchId, bench.workspacePath, projectName);
   } catch (err) {
     const message = (err as Error).message ?? String(err);
     console.error(

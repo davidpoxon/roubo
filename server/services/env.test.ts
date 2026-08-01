@@ -505,112 +505,6 @@ describe("getContextWindow", () => {
   });
 });
 
-describe("resolveClaudeBinary / getClaudeBinary", () => {
-  const originalEnv = { ...process.env };
-
-  beforeEach(() => {
-    process.env = { ...originalEnv, SHELL: "/bin/zsh" };
-    delete process.env.ROUBO_CLAUDE_BINARY;
-    vi.resetAllMocks();
-  });
-
-  afterEach(() => {
-    process.env = originalEnv;
-  });
-
-  it("resolves claude path via login shell and stores it in ROUBO_CLAUDE_BINARY", async () => {
-    vi.mocked(execFileSync).mockReturnValue("/usr/local/bin/claude\n");
-    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
-    resolveClaudeBinary();
-    expect(execFileSync).toHaveBeenCalledWith(
-      "/bin/zsh",
-      ["-lc", "command -v claude"],
-      expect.objectContaining({ encoding: "utf-8" }),
-    );
-    expect(process.env.ROUBO_CLAUDE_BINARY).toBe("/usr/local/bin/claude");
-    expect(getClaudeBinary()).toBe("/usr/local/bin/claude");
-  });
-
-  it("falls back to ~/.local/bin/claude (native installer) when shell resolution fails", async () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error("not found");
-    });
-    mockFs({ files: [`${process.env.HOME}/.local/bin/claude`] });
-    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
-    resolveClaudeBinary();
-    expect(process.env.ROUBO_CLAUDE_BINARY).toBe(`${process.env.HOME}/.local/bin/claude`);
-    expect(getClaudeBinary()).toBe(`${process.env.HOME}/.local/bin/claude`);
-  });
-
-  it("falls back to ~/.claude/local/claude when shell resolution fails", async () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error("not found");
-    });
-    mockFs({ files: [`${process.env.HOME}/.claude/local/claude`] });
-    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
-    resolveClaudeBinary();
-    expect(process.env.ROUBO_CLAUDE_BINARY).toBe(`${process.env.HOME}/.claude/local/claude`);
-    expect(getClaudeBinary()).toBe(`${process.env.HOME}/.claude/local/claude`);
-  });
-
-  it("falls back to /opt/homebrew/bin/claude when earlier options are unavailable", async () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error("not found");
-    });
-    mockFs({ files: ["/opt/homebrew/bin/claude"] });
-    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
-    resolveClaudeBinary();
-    expect(process.env.ROUBO_CLAUDE_BINARY).toBe("/opt/homebrew/bin/claude");
-    expect(getClaudeBinary()).toBe("/opt/homebrew/bin/claude");
-  });
-
-  it('leaves ROUBO_CLAUDE_BINARY unset and returns "claude" when no path is found', async () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error("not found");
-    });
-    mockFs({});
-    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
-    resolveClaudeBinary();
-    expect(process.env.ROUBO_CLAUDE_BINARY).toBeUndefined();
-    expect(getClaudeBinary()).toBe("claude");
-  });
-
-  it("skips login shell for fish and goes straight to well-known paths", async () => {
-    process.env.SHELL = "/usr/local/bin/fish";
-    mockFs({ files: ["/usr/local/bin/claude"] });
-    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
-    resolveClaudeBinary();
-    expect(execFileSync).not.toHaveBeenCalled();
-    expect(getClaudeBinary()).toBe("/usr/local/bin/claude");
-  });
-
-  it("skips a well-known path that is a directory, not a file (#651)", async () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error("not found");
-    });
-    mockFs({
-      dirs: [`${process.env.HOME}/.local/bin/claude`],
-      files: ["/opt/homebrew/bin/claude"],
-    });
-    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
-    resolveClaudeBinary();
-    expect(getClaudeBinary()).toBe("/opt/homebrew/bin/claude");
-  });
-
-  it("skips a well-known path that is a file without the execute bit (#651)", async () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error("not found");
-    });
-    mockFs({
-      files: [`${process.env.HOME}/.local/bin/claude`, "/opt/homebrew/bin/claude"],
-      executable: ["/opt/homebrew/bin/claude"],
-    });
-    const { resolveClaudeBinary, getClaudeBinary } = await import("./env.js");
-    resolveClaudeBinary();
-    expect(getClaudeBinary()).toBe("/opt/homebrew/bin/claude");
-  });
-});
-
 describe("resolveAgentCommand (#645)", () => {
   const originalEnv = { ...process.env };
 
@@ -746,14 +640,11 @@ describe("resolveAgentCommand (#645)", () => {
   });
 });
 
-describe("resolveClaudeBinary and resolveAgentCommand agree (#645)", () => {
+describe("resolveAgentCommand well-known install locations (#645, #651)", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
-    // fish skips the login-shell probe, so both paths reduce to the shared
-    // well-known-location list: exactly the agreement under test.
     process.env = { ...originalEnv, SHELL: "/usr/local/bin/fish", PATH: "/usr/bin:/bin" };
-    delete process.env.ROUBO_CLAUDE_BINARY;
     vi.resetAllMocks();
   });
 
@@ -761,38 +652,28 @@ describe("resolveClaudeBinary and resolveAgentCommand agree (#645)", () => {
     process.env = originalEnv;
   });
 
-  it("resolves claude to the same binary from every well-known location", async () => {
-    const { wellKnownPathsFor, resolveAgentCommand, resolveClaudeBinary, getClaudeBinary } =
-      await import("./env.js");
+  it("resolves an agent CLI from every well-known location its basename declares", async () => {
+    const { wellKnownPathsFor, resolveAgentCommand } = await import("./env.js");
     const candidates = wellKnownPathsFor("claude");
     expect(candidates.length).toBeGreaterThan(0);
 
     for (const installed of candidates) {
-      delete process.env.ROUBO_CLAUDE_BINARY;
       mockFs({ files: [installed] });
-      resolveClaudeBinary();
-      expect(getClaudeBinary()).toBe(installed);
-      expect(resolveAgentCommand("claude")).toBe(getClaudeBinary());
+      expect(resolveAgentCommand("claude")).toBe(installed);
     }
   });
 
-  it("both fall through past a non-executable candidate to the same next one (#651)", async () => {
-    const { wellKnownPathsFor, resolveAgentCommand, resolveClaudeBinary, getClaudeBinary } =
-      await import("./env.js");
+  it("falls through past a non-executable candidate to the next one (#651)", async () => {
+    const { wellKnownPathsFor, resolveAgentCommand } = await import("./env.js");
     const candidates = wellKnownPathsFor("claude");
     expect(candidates.length).toBeGreaterThan(1);
 
-    // Walk the list making candidate i present-but-unexecutable and i+1 working:
-    // both resolvers must skip i and land on i+1, or the two would drift.
     for (let i = 0; i < candidates.length - 1; i++) {
-      delete process.env.ROUBO_CLAUDE_BINARY;
       mockFs({
         files: [candidates[i], candidates[i + 1]],
         executable: [candidates[i + 1]],
       });
-      resolveClaudeBinary();
-      expect(getClaudeBinary()).toBe(candidates[i + 1]);
-      expect(resolveAgentCommand("claude")).toBe(getClaudeBinary());
+      expect(resolveAgentCommand("claude")).toBe(candidates[i + 1]);
     }
   });
 });

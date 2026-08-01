@@ -13,7 +13,7 @@ const mockedApi = vi.mocked(api);
 function makeSettings(maxGlobal?: number): SettingsResponse {
   return {
     theme: "dark",
-    claudeCodeAutoModeAvailable: true,
+    legacyAgentSettingsPresent: false,
     contextWindow: 200_000,
     benches: maxGlobal === undefined ? undefined : ({ maxGlobal } as SettingsResponse["benches"]),
   } as SettingsResponse;

@@ -4,12 +4,10 @@ import request from "supertest";
 
 vi.mock("../services/state.js");
 vi.mock("../services/env.js");
-vi.mock("../services/claude-version.js");
 
 import router from "./settings.js";
 import * as state from "../services/state.js";
 import * as env from "../services/env.js";
-import * as claudeVersion from "../services/claude-version.js";
 
 const app = express();
 app.use(express.json());
@@ -17,7 +15,7 @@ app.use("/", router);
 
 describe("GET /", () => {
   beforeEach(() => {
-    vi.mocked(claudeVersion.getClaudeAutoModeInfo).mockResolvedValue({ available: true });
+    vi.mocked(state.hasLegacyAgentSettings).mockReturnValue(false);
     vi.mocked(env.getContextWindow).mockReturnValue(200_000);
   });
 
@@ -55,50 +53,36 @@ describe("GET /", () => {
     expect(state.loadSettings).toHaveBeenCalled();
     expect(res.body).toMatchObject({ theme: "light" });
   });
+});
 
-  it("includes claudeCodeAutoModeAvailable: true when auto mode is available", async () => {
+describe("GET / legacyAgentSettingsPresent (AP-FR-021, #521)", () => {
+  beforeEach(() => {
+    vi.mocked(env.getContextWindow).mockReturnValue(200_000);
     vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark" });
-    vi.mocked(claudeVersion.getClaudeAutoModeInfo).mockResolvedValue({ available: true });
+  });
+
+  it("reports false on a fresh install, so the upgrade notice never shows (AP-TC-110)", async () => {
+    vi.mocked(state.hasLegacyAgentSettings).mockReturnValue(false);
 
     const res = await request(app).get("/");
     expect(res.status).toBe(200);
-    expect(res.body.claudeCodeAutoModeAvailable).toBe(true);
-    expect(res.body.claudeCodeAutoModeReason).toBeUndefined();
+    expect(res.body.legacyAgentSettingsPresent).toBe(false);
   });
 
-  it("includes claudeCodeAutoModeAvailable: false and claudeCodeAutoModeReason when auto mode is unavailable", async () => {
-    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark" });
-    vi.mocked(claudeVersion.getClaudeAutoModeInfo).mockResolvedValue({
-      available: false,
-      reason: "Claude Code is not installed or could not be run",
-    });
+  it("reports true when the raw settings file still carries the legacy block", async () => {
+    vi.mocked(state.hasLegacyAgentSettings).mockReturnValue(true);
 
     const res = await request(app).get("/");
     expect(res.status).toBe(200);
-    expect(res.body.claudeCodeAutoModeAvailable).toBe(false);
-    expect(res.body.claudeCodeAutoModeReason).toBe(
-      "Claude Code is not installed or could not be run",
-    );
+    expect(res.body.legacyAgentSettingsPresent).toBe(true);
   });
 
-  it("calls getClaudeAutoModeInfo on each request", async () => {
-    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark" });
-    vi.mocked(claudeVersion.getClaudeAutoModeInfo).mockClear();
-
-    await request(app).get("/");
-    await request(app).get("/");
-
-    expect(claudeVersion.getClaudeAutoModeInfo).toHaveBeenCalledTimes(2);
-  });
-
-  it("returns claudeCodeAutoModeAvailable: false with reason when version check throws", async () => {
-    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark" });
-    vi.mocked(claudeVersion.getClaudeAutoModeInfo).mockRejectedValue(new Error("spawn error"));
+  it("never echoes the legacy preferences back, since nothing is migrated (AP-TC-111)", async () => {
+    vi.mocked(state.hasLegacyAgentSettings).mockReturnValue(true);
 
     const res = await request(app).get("/");
     expect(res.status).toBe(200);
-    expect(res.body.claudeCodeAutoModeAvailable).toBe(false);
-    expect(res.body.claudeCodeAutoModeReason).toBe("Version check failed");
+    expect(res.body).not.toHaveProperty("claudeCode");
   });
 });
 
@@ -459,78 +443,6 @@ describe("PUT /", () => {
     expect([401, 403]).not.toContain(res.status);
   });
 
-  it("saves valid claudeCode settings alongside theme", async () => {
-    const claudeCode = { enableAutoMode: true, startInPlanMode: false };
-    const res = await request(app).put("/").send({ theme: "dark", claudeCode });
-    expect(res.status).toBe(200);
-    expect(res.body.claudeCode).toEqual(claudeCode);
-    expect(state.saveSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ theme: "dark", claudeCode }),
-    );
-  });
-
-  it("returns 400 when claudeCode.enableAutoMode is not a boolean", async () => {
-    const res = await request(app)
-      .put("/")
-      .send({
-        theme: "dark",
-        claudeCode: { enableAutoMode: "yes", startInPlanMode: false },
-      });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid claudeCode/i);
-  });
-
-  it("returns 400 when claudeCode.startInPlanMode is not a boolean", async () => {
-    const res = await request(app)
-      .put("/")
-      .send({
-        theme: "dark",
-        claudeCode: { enableAutoMode: true, startInPlanMode: 1 },
-      });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid claudeCode/i);
-  });
-
-  it("returns 400 when claudeCode is null", async () => {
-    const res = await request(app).put("/").send({ theme: "dark", claudeCode: null });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid claudeCode/i);
-  });
-
-  it("returns 400 when claudeCode.startInPlanMode is absent", async () => {
-    const res = await request(app)
-      .put("/")
-      .send({
-        theme: "dark",
-        claudeCode: { enableAutoMode: true },
-      });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid claudeCode/i);
-  });
-
-  it("returns 400 when startInPlanMode is true but enableAutoMode is false", async () => {
-    const res = await request(app)
-      .put("/")
-      .send({
-        theme: "dark",
-        claudeCode: { enableAutoMode: false, startInPlanMode: true },
-      });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/startInPlanMode requires enableAutoMode/i);
-  });
-
-  it("preserves existing claudeCode settings when not provided in request", async () => {
-    const existingClaudeCode = { enableAutoMode: true, startInPlanMode: true };
-    vi.mocked(state.loadSettings).mockReturnValue({
-      theme: "dark",
-      claudeCode: existingClaudeCode,
-    });
-
-    const res = await request(app).put("/").send({ theme: "light" });
-    expect(res.status).toBe(200);
-    expect(res.body.claudeCode).toEqual(existingClaudeCode);
-  });
-
   it("saves valid testBench settings alongside theme", async () => {
     const testBench = { enabled: false };
     const res = await request(app).put("/").send({ theme: "dark", testBench });
@@ -579,41 +491,6 @@ describe("PUT /", () => {
     const res = await request(app).put("/").send({ theme: "light" });
     expect(res.status).toBe(200);
     expect(res.body.testBench).toEqual(existingTestBench);
-  });
-});
-
-describe("POST /claude-code/recheck", () => {
-  it("resets cache, runs detection, and returns available: true", async () => {
-    vi.mocked(claudeVersion.detectClaudeAutoMode).mockResolvedValue({ available: true });
-
-    const res = await request(app).post("/claude-code/recheck");
-    expect(res.status).toBe(200);
-    expect(claudeVersion.resetCache).toHaveBeenCalled();
-    expect(claudeVersion.detectClaudeAutoMode).toHaveBeenCalled();
-    expect(res.body).toEqual({ claudeCodeAutoModeAvailable: true });
-  });
-
-  it("returns available: false with reason when detection fails", async () => {
-    vi.mocked(claudeVersion.detectClaudeAutoMode).mockResolvedValue({
-      available: false,
-      reason: "Claude Code is not installed or could not be run",
-    });
-
-    const res = await request(app).post("/claude-code/recheck");
-    expect(res.status).toBe(200);
-    expect(res.body.claudeCodeAutoModeAvailable).toBe(false);
-    expect(res.body.claudeCodeAutoModeReason).toBe(
-      "Claude Code is not installed or could not be run",
-    );
-  });
-
-  it("returns available: false with fallback reason when detection throws", async () => {
-    vi.mocked(claudeVersion.detectClaudeAutoMode).mockRejectedValue(new Error("spawn error"));
-
-    const res = await request(app).post("/claude-code/recheck");
-    expect(res.status).toBe(200);
-    expect(res.body.claudeCodeAutoModeAvailable).toBe(false);
-    expect(res.body.claudeCodeAutoModeReason).toBe("Version check failed");
   });
 });
 
