@@ -157,6 +157,7 @@ Roubo's server does not always inherit the `PATH` a user's shell has. A per-user
 
 ```yaml
 kind: agent
+roubo: ^1.5.0
 # Probed in this order when `codex` is not on the PATH the server inherits.
 # Absolute or ~/-prefixed only; no `..` segment, and no {{ }} template (a
 # manifest is read at install time, long before a launch context exists).
@@ -165,6 +166,8 @@ agentInstallLocations:
   - /opt/homebrew/bin/codex
   - /usr/local/bin/codex
 ```
+
+Note the `roubo` range. The field landed in host API **1.5.0**, and the manifest schema is strict: a host that predates it rejects the whole manifest at validation, on the unrecognised key, rather than ignoring the field. Declaring `^1.5.0` does not convert that into a compatibility refusal, because the strict parse runs before the range is ever read. What the range does buy you is a clean refusal, naming the version the host reports, from a host that knows the field but sits below the floor. So declare `^1.5.0` (or higher) whenever you declare the list, and do not declare the list at all until a host carrying the field is your minimum supported release. Take the real locations from your CLI's own installers rather than guessing, and keep the entries static: a version-scoped path (an nvm or volta Node prefix, say) cannot be expressed here, and those installs already resolve through `PATH`, which is probed first.
 
 The list belongs on the manifest rather than on the descriptor because it is install-time metadata about where a CLI puts itself, not a per-launch instruction: the descriptor stays declarative and host-agnostic. It also keeps the knowledge out of Roubo's core, which carries no per-agent branches (see `lint:agent-guard`).
 
