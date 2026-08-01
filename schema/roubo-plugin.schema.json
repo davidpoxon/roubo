@@ -21,6 +21,17 @@
           }
         }
       }
+    },
+    {
+      "description": "agentInstallLocations says where an agent CLI installs itself, so it is meaningful only on a kind: agent manifest. Kept in lockstep with the kind gate on PluginManifestSchema in shared/plugin-manifest-schema.ts.",
+      "if": {
+        "required": ["agentInstallLocations"]
+      },
+      "then": {
+        "properties": {
+          "kind": { "const": "agent" }
+        }
+      }
     }
   ],
   "properties": {
@@ -146,6 +157,17 @@
           }
         }
       }
+    },
+    "agentInstallLocations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!.*[{][{])(?!.*/[.][.](?:/|$))(?:~/|/).+$"
+      },
+      "description": "Agent-plugin field: where this plugin's agent CLI installs itself, probed in order when the CLI is not on the PATH the server inherits. Each entry is an absolute or ~/-prefixed path, with no .. segment and no {{ }} template. Candidates only: the host still requires an executable regular file and still fails a total miss with an error naming every location tried. Optional; a plugin that declares nothing resolves through PATH alone. Kept in lockstep with AgentInstallLocationsSchema in shared/plugin-manifest-schema.ts.",
+      "examples": [["~/.local/bin/codex", "/opt/homebrew/bin/codex", "/usr/local/bin/codex"]]
     },
     "permissions": {
       "type": "object",

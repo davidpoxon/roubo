@@ -772,7 +772,9 @@ export async function createAgentSession(
   // the PTY (#645). This runs OUTSIDE the try below
   // so an unresolvable command surfaces its own error, which names every location
   // tried, instead of being rewrapped as an opaque spawn failure. The child's own
-  // PATH is used for the probe, since descriptor env may have changed it.
+  // PATH is used for the probe, since descriptor env may have changed it, and the
+  // manifest's own `agentInstallLocations` supply the fallback candidates for
+  // this agent's CLI when it declared any (#712).
   const launchContext: AgentLaunchContextInfo = {
     agentPluginId: opts.agentPluginId,
     agentName: prepared.manifest.name,
@@ -782,7 +784,7 @@ export async function createAgentSession(
 
   let binary: string;
   try {
-    binary = resolveAgentCommand(command, env.PATH);
+    binary = resolveAgentCommand(command, env.PATH, prepared.manifest.agentInstallLocations);
   } catch (err) {
     // The one launch-failure class that is knowable before the spawn. Raised as
     // a structured failure rather than a bare Error so the caller answers with

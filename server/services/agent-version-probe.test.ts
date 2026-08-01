@@ -181,7 +181,7 @@ describe("probeAgentVersion against the launch's PATH (issue #660)", () => {
     probeOutput("2.1.180 (Claude Code)");
     await probeAgentVersion("claude-code", "claude", SPEC, "/opt/agent/bin");
 
-    expect(resolveAgentCommand).toHaveBeenCalledWith("claude", "/opt/agent/bin");
+    expect(resolveAgentCommand).toHaveBeenCalledWith("claude", "/opt/agent/bin", undefined);
     // Resolution alone is not enough: a bare name comes back unchanged, so the
     // exec would otherwise look it up on the server's PATH all over again.
     expect(vi.mocked(runCommand).mock.calls[0][3]).toEqual({ PATH: "/opt/agent/bin" });
@@ -191,7 +191,23 @@ describe("probeAgentVersion against the launch's PATH (issue #660)", () => {
     probeOutput("2.1.180 (Claude Code)");
     await probeAgentVersion("claude-code", "claude", SPEC);
 
-    expect(resolveAgentCommand).toHaveBeenCalledWith("claude", process.env.PATH);
+    expect(resolveAgentCommand).toHaveBeenCalledWith("claude", process.env.PATH, undefined);
+  });
+
+  // #712: the probe and the spawn must agree on which binary they are talking
+  // about, so the launching plugin's manifest-declared install locations reach
+  // the resolution here exactly as they reach `createAgentSession`.
+  it("passes the plugin's declared install locations through to the resolution (#712)", async () => {
+    probeOutput("0.144.1 (codex-cli)");
+    await probeAgentVersion("codex", "codex", SPEC, "/opt/agent/bin", [
+      "~/.local/bin/codex",
+      "/opt/homebrew/bin/codex",
+    ]);
+
+    expect(resolveAgentCommand).toHaveBeenCalledWith("codex", "/opt/agent/bin", [
+      "~/.local/bin/codex",
+      "/opt/homebrew/bin/codex",
+    ]);
   });
 
   it("does not share one bare-name detection across two different search paths", async () => {
@@ -243,6 +259,29 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     const result = await probeDeclaredAgentVersion("claude-code", DECLARED);
     expect(result?.status).toBe("above-tested-ceiling");
     expect(result?.testedCeiling).toBe("2.1.205");
+  });
+
+  // #712: the declared locations and the declared window come off the same
+  // manifest, so the screen that renders one resolves against the other. Without
+  // this the card would report "CLI not detected" for an agent installed exactly
+  // where its manifest says it installs.
+  it("carries the manifest's declared install locations into the resolution (#712)", async () => {
+    probeOutput("2.1.180 (Claude Code)");
+    await probeDeclaredAgentVersion("claude-code", DECLARED, ["~/.local/bin/claude"]);
+
+    expect(resolveAgentCommand).toHaveBeenCalledWith("claude", process.env.PATH, [
+      "~/.local/bin/claude",
+    ]);
+  });
+
+  it("carries them through the background warm too (#712)", async () => {
+    probeOutput("2.1.180 (Claude Code)");
+    warmAgentVersion("claude-code", DECLARED, ["~/.local/bin/claude"]);
+    await vi.waitFor(() => expect(getCachedAgentVersion("claude-code")).toBeDefined());
+
+    expect(resolveAgentCommand).toHaveBeenCalledWith("claude", process.env.PATH, [
+      "~/.local/bin/claude",
+    ]);
   });
 
   it("resolves undefined and spawns nothing when the manifest declares no probe", async () => {

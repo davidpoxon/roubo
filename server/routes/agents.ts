@@ -64,7 +64,7 @@ function toState(manifest: PluginManifest): AgentPluginState {
   // command spawned on its behalf either. Its card still renders the declared
   // window, just without a detected version.
   if (!isAgentNotAvailable(resolved)) {
-    warmAgentVersion(manifest.id, manifest.agentCompatibility);
+    warmAgentVersion(manifest.id, manifest.agentCompatibility, manifest.agentInstallLocations);
   }
   const compatibility = buildCompatibilityState(manifest.id, manifest.agentCompatibility);
   return {

@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import {
   PluginManifestSchema,
   PluginDefaultIntegrationConfigSchema,
+  isValidAgentInstallLocation,
   type PluginManifest,
 } from "./plugin-manifest-schema.js";
 import { RouboConfigSchema, zodIssuesToValidationErrors } from "./config-schema.js";
@@ -473,6 +474,98 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
       }),
     );
     expect(result.success).toBe(false);
+  });
+
+  // #712: per-agent well-known install locations live on the manifest, so an
+  // agent CLI other than `claude` resolves through the host's fallback without
+  // core growing another per-agent branch.
+  describe("agentInstallLocations (#712)", () => {
+    it("accepts absolute and ~/-prefixed locations on a kind: agent manifest", () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({
+          kind: "agent",
+          agentInstallLocations: [
+            "~/.local/bin/codex",
+            "/opt/homebrew/bin/codex",
+            "/usr/local/bin/codex",
+          ],
+        }),
+      );
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Order is the probe order, so it must survive parsing untouched.
+        expect(result.data.agentInstallLocations).toEqual([
+          "~/.local/bin/codex",
+          "/opt/homebrew/bin/codex",
+          "/usr/local/bin/codex",
+        ]);
+      }
+    });
+
+    it("stays optional, so an agent manifest that omits it validates unchanged", () => {
+      const result = PluginManifestSchema.safeParse(makeManifest({ kind: "agent" }));
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.agentInstallLocations).toBeUndefined();
+    });
+
+    it("rejects an empty list, which would silently mean nothing at all", () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "agent", agentInstallLocations: [] }),
+      );
+      expectFieldError(result, "agentInstallLocations");
+    });
+
+    // A candidate list is what the host probes and may spawn from, so every
+    // shape that could name something other than a fixed install location is
+    // refused at authoring time rather than dropped at resolution time.
+    it.each([
+      ["a relative path", "bin/codex"],
+      ["a bare name", "codex"],
+      ["a parent-directory escape", "/opt/homebrew/bin/../../../etc/codex"],
+      ["a ~/ parent-directory escape", "~/../../etc/codex"],
+      ["an unresolved template", "{{workspace}}/bin/codex"],
+      ["a bare ~ with no separator", "~codex"],
+    ])("rejects %s", (_label, location) => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "agent", agentInstallLocations: [location] }),
+      );
+      expectFieldError(result, "agentInstallLocations.0");
+    });
+
+    it("rejects the field on a non-agent manifest rather than ignoring it", () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "integration", agentInstallLocations: ["/usr/local/bin/codex"] }),
+      );
+      expectFieldError(result, "agentInstallLocations");
+    });
+
+    it("surfaces a malformed location through parseManifest naming the field", async () => {
+      const { parseManifest } = await import("./plugin-manifest.js");
+      const yaml = [
+        "id: codex",
+        "name: Codex CLI",
+        "version: 1.0.0",
+        "description: Codex agent plugin",
+        "kind: agent",
+        "roubo: ^1.0.0",
+        "entry: ./dist/index.js",
+        "agentInstallLocations:",
+        "  - bin/codex",
+        "permissions:",
+        "  network: { hosts: [] }",
+        "  credentials: { slots: [] }",
+        "  filesystem: { paths: [] }",
+        "  processes: false",
+        "",
+      ].join("\n");
+      const result = parseManifest(yaml, "/fake/roubo-plugin.yaml");
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("schema");
+        expect(result.error.path).toBe("agentInstallLocations.0");
+        expect(result.error.message).not.toMatch(/\n\s+at\s/);
+      }
+    });
   });
 
   it("surfaces the malformed agent field through parseManifest with no raw stack trace (AP-TC-007)", async () => {
@@ -992,6 +1085,55 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     expect(probeProps.command.type).toBe("string");
     expect(probeProps.args.type).toBe("array");
     expect(probeProps.parse.const).toBe("semver");
+  });
+
+  // Same reason as the processes gate above: this artifact is hand-authored and
+  // exempt from schema-drift, so this suite is the only thing keeping the #712
+  // field and its kind gate in lockstep with the zod schema.
+  it("declares an optional agentInstallLocations array gated to kind: agent (lockstep with zod, #712)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const locations = properties.agentInstallLocations;
+    expect(locations.type).toBe("array");
+    expect(locations.minItems).toBe(1);
+    const items = locations.items as Record<string, unknown>;
+    expect(items.type).toBe("string");
+    expect((jsonSchema.required as string[]).includes("agentInstallLocations")).toBe(false);
+
+    const allOf = jsonSchema.allOf as Array<Record<string, Record<string, unknown>>>;
+    const gate = allOf.find((entry) =>
+      (entry.if?.required as string[] | undefined)?.includes("agentInstallLocations"),
+    );
+    expect(gate).toBeDefined();
+    expect((gate?.then.properties as Record<string, { const?: string }>).kind.const).toBe("agent");
+  });
+
+  // The pattern is pinned as a literal and the schema asserted to carry exactly
+  // it, rather than compiling whatever string the file happens to hold. Building
+  // a RegExp out of file contents is a regex-injection sink (CodeQL
+  // js/regex-injection), and pinning is the stricter lockstep check anyway: a
+  // rewritten pattern fails here even when it still accepts the sample paths.
+  const ITEM_PATTERN = "^(?!.*[{][{])(?!.*/[.][.](?:/|$))(?:~/|/).+$";
+
+  it("its item pattern accepts real install locations and rejects the shapes zod rejects", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const items = properties.agentInstallLocations.items as Record<string, string>;
+    expect(items.pattern).toBe(ITEM_PATTERN);
+    const pattern = new RegExp(ITEM_PATTERN, "u");
+    for (const ok of ["~/.local/bin/codex", "/opt/homebrew/bin/codex", "/usr/local/bin/codex"]) {
+      expect(pattern.test(ok)).toBe(true);
+      expect(isValidAgentInstallLocation(ok)).toBe(true);
+    }
+    for (const bad of [
+      "bin/codex",
+      "codex",
+      "/opt/homebrew/bin/../../../etc/codex",
+      "~/../../etc/codex",
+      "{{workspace}}/bin/codex",
+      "~codex",
+    ]) {
+      expect(pattern.test(bad)).toBe(false);
+      expect(isValidAgentInstallLocation(bad)).toBe(false);
+    }
   });
 
   it("declares optional contractVersion and descriptorSchemaVersion integers (lockstep with zod)", () => {

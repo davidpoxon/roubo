@@ -550,6 +550,15 @@ describe("agent plugins (issue #507)", () => {
     await mgr.initialize();
     const rec = findRecord(mgr.listInstalled(), "agent-echo");
     expect(rec.manifest?.kind).toBe("agent");
+    // The per-agent candidate list a real on-disk manifest declares survives
+    // discovery, so `createAgentSession` and the version probe can resolve the
+    // CLI from it (#712). The base name is not `claude`, which is the whole
+    // point: core's own table knows one base name and is frozen there.
+    expect(rec.manifest?.agentInstallLocations).toEqual([
+      "~/.local/bin/echo-agent",
+      "/opt/homebrew/bin/echo-agent",
+      "/usr/local/bin/echo-agent",
+    ]);
     expect(rec.status).toBe("enabled");
     expect(typeof rec.pid).toBe("number");
     const pid = need(rec.pid, "pid");
