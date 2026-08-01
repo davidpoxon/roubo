@@ -77,9 +77,13 @@ const AGENT_CLI_FLAGS = [
   "--ask-for-approval",
   "--dangerously-bypass-approvals-and-sandbox",
 ];
-const AGENT_CLI_FLAG = new RegExp(
-  `(${AGENT_CLI_FLAGS.map((f) => f.replace(/-/g, "\\-")).join("|")})\\b`,
-);
+// Escape EVERY regex metacharacter, not just the `-` these flags happen to
+// contain. Escaping one character is a sanitiser that silently stops being one
+// the moment somebody adds a flag containing anything else, and a partial escape
+// that leaves backslashes alone is the classic incomplete-sanitization defect.
+// A full escape costs nothing here and cannot rot.
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+const AGENT_CLI_FLAG = new RegExp(`(${AGENT_CLI_FLAGS.map(escapeRegExp).join("|")})\\b`);
 
 // Rule 3: an equality comparison or `case` label against a string naming an
 // agent. Three alternatives (operand on the right, a `case` label, operand on
