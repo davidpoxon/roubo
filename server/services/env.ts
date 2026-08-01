@@ -140,9 +140,9 @@ export function resolveShellPath(): void {
  * returns a declarative, host-agnostic launch descriptor and has no business
  * hardcoding absolute install paths for the machine it happens to run on. Making
  * the candidate list per-agent data (carried on the descriptor or the plugin
- * manifest) is deferred to #645's follow-up discussion; until then an agent whose
- * basename is not known here resolves through PATH only, which is exactly the
- * behaviour it had before, plus an actionable error on a miss.
+ * manifest) is deferred to #712; until then an agent whose basename is not known
+ * here resolves through PATH only, which is exactly the behaviour it had before,
+ * plus an actionable error on a miss.
  */
 export function wellKnownPathsFor(command: string): string[] {
   switch (path.basename(command)) {
