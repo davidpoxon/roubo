@@ -72,10 +72,19 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // `PluginManifestSchema` is `.strict()`: a manifest carrying an unknown key
 // fails validation outright rather than having it ignored, so a published
 // manifest declaring the field would hard-fail plugin load on every host
-// predating #712. A plugin therefore needs a `roubo` range that can exclude
-// those hosts, and only a bumped host API makes that floor expressible. That is
-// what this version is for (issue #715), and it is why the first-party agent
-// manifests declaring the field pin `roubo: ^1.5.0`.
+// predating #712. Note what the range can and cannot do about that. It cannot
+// fence off a host that does not know the key at all: `parseManifest` runs
+// before `manifest.roubo` is ever compared against this constant (in
+// `buildEntryFromDir` below, and again in `plugin-installer.ts`), so such a
+// host reports `invalid-manifest` and never reads the range. What it does buy
+// is a clean, version-named refusal from a host that knows the field but sits
+// below the floor, which is only expressible once the host API is bumped. The
+// other half of the gate is the release: #712 and this bump ship together, so
+// no released host predates the key. That is what this version is for (issue
+// #715), and it is why the first-party agent manifests declaring the field pin
+// `roubo: ^1.5.0`. Teaching the host to answer with the version it needs
+// instead of an unknown-key error, so the gate stops resting on release order,
+// is #719.
 export const HOST_API_VERSION = "1.5.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
