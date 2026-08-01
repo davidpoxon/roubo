@@ -717,6 +717,18 @@ export type AgentVersionStatus =
   "within-tested-range" | "above-tested-ceiling" | "below-floor" | "probe-failed";
 
 /**
+ * WHY a `probe-failed` probe could not decide (AP-TC-122, issue #522).
+ *
+ * `probe-failed` on its own conflates two states that need different words and
+ * different guidance: `command-not-found` means the agent's CLI could not be
+ * resolved at all (install it, or put it on `PATH`), while `probe-error` means
+ * the CLI WAS resolved and run but its output could not be read (it exited
+ * nonzero, or printed no recognisable version). Telling someone whose CLI works
+ * to install it is wrong, so surfaces branch on this rather than on `status`.
+ */
+export type AgentVersionProbeFailureCause = "command-not-found" | "probe-error";
+
+/**
  * Compatibility metadata as the AI Agents screen renders it: the declared floor
  * and tested ceiling come from the plugin manifest (so a card shows them without
  * ever launching), and `detectedVersion` / `status` come from the host's cached
@@ -729,6 +741,12 @@ export interface AgentCompatibilityState {
   status: AgentVersionStatus | "unknown";
   /** Why the probe could not decide, present only when `status` is probe-failed. */
   reason?: string;
+  /**
+   * WHICH kind of failure it was, present only when `status` is probe-failed
+   * (AP-TC-122, issue #522). The screen branches on this, not on `status`, so a
+   * user whose CLI is merely misbehaving is not told to install it.
+   */
+  cause?: AgentVersionProbeFailureCause;
 }
 
 /**

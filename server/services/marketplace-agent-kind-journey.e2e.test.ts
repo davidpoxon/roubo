@@ -345,11 +345,14 @@ describe("AP-TC-117: one-click install moves a marketplace agent plugin into the
       "AP-TC-117 step S001 diverged: staging must not write the plugin directory before consent.",
     ).toBe("ENOENT");
 
-    // S002-O01: the package integrity digest is verified. The preview only exists
-    // because the recomputed sha256 over the UNPACKED artifact matched the
-    // catalog's declared `integrity`; the AP-TC-120 counterpart below shows the
-    // same call rejecting when it does not.
-    expect(dirDigest).toMatch(/^sha256-[0-9a-f]{64}$/);
+    // S002-O01: the package integrity digest is verified. What proves it is the
+    // PAIR: this preview exists only because the digest recomputed over the
+    // unpacked artifact matched the catalog's declared `integrity`, and the
+    // AP-TC-120 case below feeds the same pipeline the same bytes under a
+    // mismatched declaration and gets `integrity-failed` instead of a preview.
+    // Re-asserting the shape of `dirDigest` here would prove nothing: the test
+    // computed that value itself.
+    expect(preview.stagingToken).not.toBe("");
 
     // S002-O02: accepting completes the install with no further manual steps.
     vi.mocked(pluginManager.registerInstalled).mockResolvedValue(installedAgentRecord());
@@ -363,9 +366,15 @@ describe("AP-TC-117: one-click install moves a marketplace agent plugin into the
     expect(pluginManager.registerInstalled).toHaveBeenCalledWith(target);
     expect(await listStaging()).not.toContain(preview.stagingToken);
 
-    // The consent record the accepted prompt mints, persisted and read back through
-    // the real ledger. Without it the agent registry refuses to resolve the plugin
-    // (AP-TC-014 S002), so this is what makes the installed agent usable.
+    // Consent is NOT written by this layer: `marketplace.install()` and
+    // `pluginInstaller.commit()` never touch the ledger. The route does it
+    // (`POST /plugins/install/:token/confirm`, server/routes/plugins.ts), after
+    // commit succeeds. So the call below STANDS IN for that route, and what it
+    // pins is the ledger's own write/read-back round trip for an agent id, not
+    // the install path. Without a consent record the agent registry refuses to
+    // resolve the plugin (AP-TC-014 S002), which is what makes an installed agent
+    // usable, so it is worth pinning here even though the install path is not
+    // what mints it.
     consentState.upsertConsent(PLUGIN_ID, ["network"]);
     consentState.__test.reset();
     expect(consentState.hasConsent(PLUGIN_ID)).toBe(true);
@@ -430,9 +439,15 @@ describe("AP-TC-120: a tampered agent package fails digest verification and is n
     ).toEqual([]);
     await expect(stat(path.join(pluginsRoot, PLUGIN_ID))).rejects.toMatchObject({ code: "ENOENT" });
     expect(pluginManager.registerInstalled).not.toHaveBeenCalled();
+    // Weaker than it looks, and deliberately kept: consent is written by the
+    // confirm ROUTE, not by this layer, so this asserts that the rejected install
+    // left the ledger untouched rather than that some consent-writing call was
+    // skipped. The load-bearing half of S003-O02 is the assertion above that no
+    // committable staging token exists, which is what makes the confirm route
+    // unreachable for this artifact in the first place.
     expect(
       consentState.hasConsent(PLUGIN_ID),
-      "AP-TC-120 step S003 (S003-O02) diverged: a rejected install must persist no consent-granted state.",
+      "AP-TC-120 step S003 (S003-O02) diverged: a rejected install must leave no consent-granted state.",
     ).toBe(false);
   });
 

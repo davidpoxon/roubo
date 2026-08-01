@@ -121,14 +121,14 @@ Every installed `agent`-kind plugin gets its own card, and every card renders a 
 The **Marketplace** tab lists agent plugins alongside components and integrations. The **Agent** filter chip narrows the list to agents only.
 
 - Every agent listing carries an `agent` kind chip, a source chip naming where the entry came from, and the agent CLI compatibility window the plugin declares: the version floor it supports and the highest version it was tested against. A plugin whose author declared no window reads "compatibility not declared" rather than showing a blank row; the listing is otherwise unaffected. Only agent listings show a compatibility window.
-- **Install** stages the package, then asks you to acknowledge the permissions the plugin declares. That is the only prompt: accepting it verifies the package's integrity digest and completes the install with no further steps. The card then reads **Installed**, and the plugin appears under **Settings > AI Agents**.
-- If the downloaded package does not match its published digest, the install is refused before anything is written to disk, with an error naming the integrity check as the cause. Nothing is installed and no consent is recorded, so there is nothing to clean up: fix the source and try again.
+- **Install** downloads the package and verifies its integrity digest first, then asks you to acknowledge the permissions the plugin declares. That is the only prompt, and it is the last step: accepting it completes the install with no further manual steps. The card then reads **Installed**, and the plugin appears under **Settings > AI Agents**.
+- If the downloaded package does not match its published digest, the install is refused before any plugin files are installed, with an error naming the integrity check as the cause. You never reach the permissions prompt, the staged copy is discarded, and no consent is recorded, so there is nothing to clean up: fix the source and try again.
 
 ### When an agent's CLI is missing
 
 An agent plugin and the AI coding agent's own command-line tool are separate installs. Installing the plugin from the Marketplace does not install the CLI.
 
-If Roubo cannot detect the CLI, the plugin's card under **Settings > AI Agents** says so: it reports that the plugin is installed but its agent CLI was not detected, shows what the version check actually tried and what happened, and tells you to install the agent's command-line tool and put it on your `PATH`. The install itself succeeded, so there is nothing to reinstall. Install the CLI, then reopen the screen and the card reports the detected version against the plugin's declared window.
+If Roubo cannot detect the CLI, the plugin's card under **Settings > AI Agents** says so: it reports that the plugin is installed but its agent CLI was not detected, shows what the version check actually tried and what happened, and tells you to install the agent's command-line tool and put it on your `PATH`. The install itself succeeded, so there is nothing to reinstall. Install the CLI, then reopen the screen: Roubo re-checks in the background, so the card picks up the detected version and compares it against the plugin's declared window on a following refresh rather than the instant you return.
 
 ### Choosing which agent a jig launches
 

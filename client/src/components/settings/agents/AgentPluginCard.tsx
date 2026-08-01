@@ -16,7 +16,11 @@ const STRINGS = {
   withinRange: "within tested range",
   aboveCeiling: "above tested ceiling",
   belowFloor: "below required floor",
-  probeFailed: "CLI not detected",
+  // Two labels, because `probe-failed` covers two different states: the CLI was
+  // never found, or it was found and run but said nothing readable. Only the
+  // first is fixed by installing anything, so they must not share one word.
+  cliNotDetected: "CLI not detected",
+  probeFailed: "version check failed",
   // The CLI-absent state (AP-TC-122). Deliberately says nothing about the
   // install: the plugin IS installed, and claiming otherwise would send a user
   // to reinstall a plugin that is fine. What is missing is the agent's own CLI,
@@ -44,7 +48,7 @@ function CompatibilityLine({
   agentId: string;
   compatibility: AgentCompatibilityState;
 }) {
-  const { minVersion, testedCeiling, detectedVersion, status } = compatibility;
+  const { minVersion, testedCeiling, detectedVersion, status, cause } = compatibility;
   const bounds = [
     minVersion && `${STRINGS.floorPrefix} ${minVersion}`,
     testedCeiling && `${STRINGS.ceilingPrefix} ${testedCeiling}`,
@@ -56,7 +60,13 @@ function CompatibilityLine({
       : status === "below-floor"
         ? { label: STRINGS.belowFloor, warn: true }
         : status === "probe-failed"
-          ? { label: STRINGS.probeFailed, warn: true }
+          ? // The chip names the CAUSE, not the status: "CLI not detected" is only
+            // true when the binary could not be found. A CLI that ran and printed
+            // something unreadable is a failed check, not a missing tool.
+            {
+              label: cause === "command-not-found" ? STRINGS.cliNotDetected : STRINGS.probeFailed,
+              warn: true,
+            }
           : status === "within-tested-range"
             ? { label: STRINGS.withinRange, warn: false }
             : null;
@@ -107,11 +117,13 @@ function CompatibilityLine({
  * this branch the card said "Ready" for an agent that cannot launch, and the
  * only trace of the problem was an unexplained "version check failed" chip.
  *
- * The probe reports that case as `probe-failed` with a `reason` naming what it
- * tried and what happened (an unresolvable command, a nonzero exit, unparseable
- * output). The reason is shown verbatim rather than paraphrased, because it is
- * the only thing that distinguishes "no such binary" from "the binary printed
- * something we could not read", and the fix differs.
+ * The probe reports that case as `probe-failed` with `cause: "command-not-found"`
+ * and a `reason` naming the command it could not resolve. The panel is gated on
+ * the CAUSE, never on `probe-failed` alone: the other cause (`probe-error`, a
+ * CLI that WAS found and run but exited nonzero or printed no version) is not a
+ * missing tool, and telling that user to install one would be wrong. The reason
+ * is shown verbatim rather than paraphrased, because it names the command that
+ * could not be found.
  */
 function CliNotDetected({ agent }: { agent: AgentPluginState }) {
   return (
@@ -152,8 +164,12 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
   const panelId = `agent-config-panel-${agent.id}`;
   // Ordered behind `unavailable`: a plugin blocked at the registry (incompatible,
   // unconsented, not running) has a nearer cause than a missing binary, and
-  // showing both would offer two fixes for one card.
-  const cliMissing = agent.unavailable === null && agent.compatibility?.status === "probe-failed";
+  // showing both would offer two fixes for one card. Gated on the probe's CAUSE
+  // rather than on `probe-failed`, so only a genuinely unresolvable CLI gets the
+  // install-the-CLI panel; a CLI that ran and misbehaved keeps its chip and the
+  // ordinary Ready/status line.
+  const cliMissing =
+    agent.unavailable === null && agent.compatibility?.cause === "command-not-found";
 
   return (
     <section

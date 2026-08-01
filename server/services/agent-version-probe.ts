@@ -3,6 +3,7 @@ import path from "node:path";
 import type {
   AgentCompatibility,
   AgentCompatibilityState,
+  AgentVersionProbeFailureCause,
   AgentVersionStatus,
 } from "@roubo/shared";
 import type { VersionProbeSpec } from "@roubo/shared/agent-launch-descriptor-schema";
@@ -48,6 +49,14 @@ interface Detection {
   version?: string;
   /** Why no version could be read. Present exactly when `version` is absent. */
   reason?: string;
+  /**
+   * WHICH kind of failure this was, present exactly when `version` is absent
+   * (AP-TC-122, issue #522). `probe-failed` alone conflates two states a surface
+   * must not describe with one sentence: a CLI that could not be found at all,
+   * and a CLI that was found, ran, and could not be read. Only the first is
+   * fixed by installing the agent's command-line tool.
+   */
+  cause?: AgentVersionProbeFailureCause;
   /** When this detection was taken, for TTL expiry. */
   at: number;
 }
@@ -59,6 +68,8 @@ export interface AgentVersionProbeResult {
   testedCeiling?: string;
   /** Why the probe could not decide (probe-failed only). */
   reason?: string;
+  /** Which kind of probe failure this was (probe-failed only). */
+  cause?: AgentVersionProbeFailureCause;
 }
 
 /**
@@ -117,10 +128,15 @@ export function classifyVersion(detected: string, spec: VersionProbeSpec): Agent
   return { status: "within-tested-range", detectedVersion: detected, ...bounds };
 }
 
-function probeFailed(spec: VersionProbeSpec, reason: string): AgentVersionProbeResult {
+function probeFailed(
+  spec: VersionProbeSpec,
+  reason: string,
+  cause: AgentVersionProbeFailureCause = "probe-error",
+): AgentVersionProbeResult {
   return {
     status: "probe-failed",
     reason,
+    cause,
     ...(spec.minVersion !== undefined && { minVersion: spec.minVersion }),
     ...(spec.testedCeiling !== undefined && { testedCeiling: spec.testedCeiling }),
   };
@@ -193,7 +209,19 @@ export async function probeAgentVersion(
     // agree on which binary they are talking about.
     binary = resolveAgentCommand(command, searchPath);
   } catch (err) {
-    if (err instanceof AgentCommandNotFoundError) return probeFailed(spec, err.message);
+    if (err instanceof AgentCommandNotFoundError) {
+      // Cache the miss before returning (AP-TC-122, issue #522). This branch used
+      // to return without touching `lastProbe` / `detections`, so an agent whose
+      // CLI is simply not installed left NOTHING for `getCachedAgentVersion` to
+      // read: the AI Agents screen fell back to `unknown` and rendered "Ready"
+      // for an agent that cannot launch. The declared `command` keys the entry
+      // (there is no resolved binary to key it by), which is the same shape a
+      // bare-name resolution would have produced anyway.
+      const missKey = cacheKey(command, spec, searchPath);
+      lastProbe.set(pluginId, { key: missKey, spec });
+      detections.set(missKey, { at: Date.now(), reason: err.message, cause: "command-not-found" });
+      return probeFailed(spec, err.message, "command-not-found");
+    }
     throw err;
   }
 
@@ -204,13 +232,23 @@ export async function probeAgentVersion(
   // one fresh spawn, whereas the AI Agents card is a display and is better served
   // a stale-but-known version than nothing at all.
   let detection = detections.get(key);
+  // A cached `command-not-found` miss is discarded on sight rather than waited
+  // out: resolution just SUCCEEDED, so that entry is provably stale (the user
+  // installed the CLI). Without this, a bare name that resolves to itself reuses
+  // its own miss under the same key and keeps reporting "not detected" for up to
+  // a TTL after the fix (issue #522).
+  if (detection?.cause === "command-not-found") detection = undefined;
   if (detection === undefined || Date.now() - detection.at > DETECTION_TTL_MS) {
     detection = await detect(binary, spec, searchPath);
     detections.set(key, detection);
   }
 
   if (detection.version === undefined) {
-    return probeFailed(spec, detection.reason ?? "The version probe did not report a version");
+    return probeFailed(
+      spec,
+      detection.reason ?? "The version probe did not report a version",
+      detection.cause,
+    );
   }
   return classifyVersion(detection.version, spec);
 }
@@ -238,11 +276,15 @@ async function detect(
   const version = parseVersion(output);
   const at = Date.now();
 
+  // Both failure shapes below are `probe-error`, never `command-not-found`: this
+  // function only runs once `resolveAgentCommand` found the binary, so the CLI
+  // demonstrably exists and was executed. What failed is reading its output.
   if (version !== null) return { version, at };
   if (code !== 0) {
     const detail = output.trim().split("\n")[0] ?? "";
     return {
       at,
+      cause: "probe-error",
       reason:
         `\`${binary} ${spec.args.join(" ")}\` exited with code ${code}` +
         (detail ? `: ${detail}` : ""),
@@ -250,6 +292,7 @@ async function detect(
   }
   return {
     at,
+    cause: "probe-error",
     reason: `\`${binary} ${spec.args.join(" ")}\` produced no recognisable version number`,
   };
 }
@@ -310,6 +353,14 @@ const warming = new Set<string>();
  * the in-flight set keeps a slow or repeatedly-failing probe from stacking one
  * spawn per poll.
  *
+ * A cached `command-not-found` miss is the ONE cached state that does not end
+ * warming (issue #522). It is the only outcome the user is told to go and fix
+ * ("install the agent's command-line tool, then reopen this screen"), so warming
+ * has to keep asking or that instruction is false: nothing else re-probes for
+ * this screen, and the card would sit on "CLI not detected" until the app was
+ * restarted. Re-asking is cheap, because the not-found path throws inside
+ * `resolveAgentCommand` and never reaches a spawn.
+ *
  * The rejection is caught HERE rather than left to the caller. `probeAgentVersion`
  * reports an unresolvable command and a failed probe as `probe-failed` results,
  * but it deliberately rethrows anything else, and this call is `void`ed from
@@ -318,7 +369,8 @@ const warming = new Set<string>();
  */
 export function warmAgentVersion(pluginId: string, declared: AgentCompatibility | undefined): void {
   if (!declared?.probe) return;
-  if (getCachedAgentVersion(pluginId) !== undefined) return;
+  const cached = getCachedAgentVersion(pluginId);
+  if (cached !== undefined && cached.cause !== "command-not-found") return;
   if (warming.has(pluginId)) return;
   warming.add(pluginId);
   void probeDeclaredAgentVersion(pluginId, declared)
@@ -339,7 +391,11 @@ export function getCachedAgentVersion(pluginId: string): AgentVersionProbeResult
   const detection = detections.get(last.key);
   if (!detection) return undefined;
   if (detection.version === undefined) {
-    return probeFailed(last.spec, detection.reason ?? "The version probe did not report a version");
+    return probeFailed(
+      last.spec,
+      detection.reason ?? "The version probe did not report a version",
+      detection.cause,
+    );
   }
   return classifyVersion(detection.version, last.spec);
 }
@@ -364,6 +420,7 @@ export function buildCompatibilityState(
     ...(probe?.testedCeiling !== undefined && { testedCeiling: probe.testedCeiling }),
     ...(probe?.detectedVersion !== undefined && { detectedVersion: probe.detectedVersion }),
     ...(probe?.reason !== undefined && { reason: probe.reason }),
+    ...(probe?.cause !== undefined && { cause: probe.cause }),
     status: probe?.status ?? "unknown",
   };
 }

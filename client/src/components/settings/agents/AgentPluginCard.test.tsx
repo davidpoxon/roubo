@@ -109,6 +109,10 @@ describe("AgentPluginCard CLI-not-detected state (AP-TC-122)", () => {
       minVersion: "0.144.0",
       testedCeiling: "0.144.1",
       status: "probe-failed",
+      // The CAUSE, not just the status, is what selects this state: a probe can
+      // also fail with the CLI present (it ran and said nothing readable), and
+      // that must not be dressed as a missing tool.
+      cause: "command-not-found",
       reason: PROBE_REASON,
     });
   }
@@ -181,5 +185,34 @@ describe("AgentPluginCard CLI-not-detected state (AP-TC-122)", () => {
     );
     expect(screen.getByText("Ready")).toBeInTheDocument();
     expect(screen.queryByTestId("agent-cli-missing-claude-code")).toBeNull();
+  });
+
+  // The other half of `probe-failed`, and the reason this branch keys on `cause`
+  // rather than on `status`: the CLI WAS found and run, it just said nothing
+  // readable. Telling this user to install the tool they already have would be
+  // wrong, so no install guidance appears and the chip stays neutral.
+  it("does not offer CLI-install guidance when the probe failed with the CLI present", () => {
+    render(
+      <AgentPluginCard
+        agent={agent({
+          minVersion: "0.144.0",
+          testedCeiling: "0.144.1",
+          status: "probe-failed",
+          cause: "probe-error",
+          reason: "`codex --version` produced no recognisable version number",
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("agent-cli-missing-claude-code")).toBeNull();
+    const line = screen.getByTestId("agent-compatibility-claude-code");
+    expect(line).toHaveTextContent("version check failed");
+    expect(line).not.toHaveTextContent("CLI not detected");
+  });
+
+  it("labels the compatibility chip 'CLI not detected' only for a missing CLI", () => {
+    render(<AgentPluginCard agent={cliMissingAgent()} />);
+    expect(screen.getByTestId("agent-compatibility-claude-code")).toHaveTextContent(
+      "CLI not detected",
+    );
   });
 });

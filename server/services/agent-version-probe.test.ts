@@ -278,12 +278,45 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     expect(runCommand).not.toHaveBeenCalled();
   });
 
+  // The one cached state that must NOT end warming (issue #522). The card tells a
+  // user with no CLI to install it and reopen the screen, and warming is the only
+  // thing that re-probes for that screen, so a cached miss that stopped warming
+  // would leave the card stuck on "CLI not detected" until the app restarted.
+  it("keeps warming after a cached missing-CLI miss, so installing the CLI is picked up", async () => {
+    vi.mocked(resolveAgentCommand).mockImplementation(() => {
+      throw new AgentCommandNotFoundError("claude", ["/usr/bin/claude"]);
+    });
+    warmAgentVersion("claude-code", DECLARED);
+    await vi.waitFor(() =>
+      expect(getCachedAgentVersion("claude-code")?.cause).toBe("command-not-found"),
+    );
+    expect(runCommand).not.toHaveBeenCalled();
+
+    // The user installs the CLI. Warming is called per poll of GET /api/agents,
+    // so the retry loop here IS the caller: it keeps polling until the re-probe
+    // lands, rather than assuming the first call after the miss is not still
+    // in-flight (the `warming` set skips a call that overlaps one).
+    vi.mocked(resolveAgentCommand).mockImplementation((command: string) => command);
+    probeOutput("2.1.180 (Claude Code)");
+
+    await vi.waitFor(() => {
+      warmAgentVersion("claude-code", DECLARED);
+      expect(getCachedAgentVersion("claude-code")?.status).toBe("within-tested-range");
+    });
+    expect(buildCompatibilityState("claude-code", DECLARED)).toMatchObject({
+      detectedVersion: "2.1.180",
+      status: "within-tested-range",
+    });
+  });
+
   it("reports probe-failed with a reason on unparseable output (AP-TC-074)", async () => {
     probeOutput("this build has no version number");
     const result = await probeAgentVersion("claude-code", "claude", SPEC);
     expect(result.status).toBe("probe-failed");
     expect(result.reason).toContain("no recognisable version");
     expect(result.minVersion).toBe("2.1.111");
+    // The CLI was found and ran, so this is not a missing tool (issue #522).
+    expect(result.cause).toBe("probe-error");
   });
 
   it("reports probe-failed with the exit detail on a nonzero probe exit", async () => {
@@ -291,6 +324,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     const result = await probeAgentVersion("claude-code", "claude", SPEC);
     expect(result.status).toBe("probe-failed");
     expect(result.reason).toContain("127");
+    expect(result.cause).toBe("probe-error");
   });
 
   it("reports probe-failed rather than throwing when the binary resolves nowhere", async () => {
@@ -299,7 +333,45 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     });
     const result = await probeAgentVersion("claude-code", "claude", SPEC);
     expect(result.status).toBe("probe-failed");
+    expect(result.cause).toBe("command-not-found");
     expect(runCommand).not.toHaveBeenCalled();
+  });
+
+  // AP-TC-122 (issue #522). This outcome used to return WITHOUT caching, so the
+  // AI Agents screen (a cache-only read) saw nothing and reported `unknown`,
+  // rendering "Ready" for an agent that cannot launch.
+  it("caches the missing-CLI outcome so a cache-only read can see it (AP-TC-122)", async () => {
+    vi.mocked(resolveAgentCommand).mockImplementation(() => {
+      throw new AgentCommandNotFoundError("claude", ["/usr/bin/claude"]);
+    });
+    await probeAgentVersion("claude-code", "claude", SPEC);
+
+    const cached = getCachedAgentVersion("claude-code");
+    expect(cached?.status).toBe("probe-failed");
+    expect(cached?.cause).toBe("command-not-found");
+    expect(cached?.reason).toContain("was not found");
+    expect(buildCompatibilityState("claude-code", { minVersion: "2.1.111" })).toMatchObject({
+      status: "probe-failed",
+      cause: "command-not-found",
+    });
+  });
+
+  // Installing the CLI must take effect at once, not after the detection TTL:
+  // a successful resolution proves the cached miss is stale.
+  it("discards a cached missing-CLI entry as soon as the command resolves again", async () => {
+    vi.mocked(resolveAgentCommand).mockImplementation(() => {
+      throw new AgentCommandNotFoundError("claude", ["/usr/bin/claude"]);
+    });
+    await probeAgentVersion("claude-code", "claude", SPEC);
+    expect(getCachedAgentVersion("claude-code")?.cause).toBe("command-not-found");
+
+    vi.mocked(resolveAgentCommand).mockImplementation((command: string) => command);
+    probeOutput("2.1.180 (Claude Code)");
+    const result = await probeAgentVersion("claude-code", "claude", SPEC);
+
+    expect(result.status).toBe("within-tested-range");
+    expect(result.detectedVersion).toBe("2.1.180");
+    expect(getCachedAgentVersion("claude-code")?.status).toBe("within-tested-range");
   });
 
   it("does not probe a templated command", async () => {
