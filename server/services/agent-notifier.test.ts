@@ -8,9 +8,14 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
+import type { AddressInfo } from "node:net";
+
+const execFileAsync = promisify(execFile);
 
 const hoisted = vi.hoisted(() => ({ rouboDir: "" }));
 vi.mock("./state.js", async (importOriginal) => {
@@ -95,12 +100,66 @@ describe("the notifier script itself", () => {
       mode: 0o755,
     });
 
-    // Port 1 refuses the connection; the notifier must still exit 0, and it
-    // must reach that point rather than dying on its own JSON escaping.
+    // Port 1 refuses the connection; the notifier must still exit 0 and say
+    // nothing. What the body looked like is not observable here (the script
+    // ends in `|| exit 0`, so a malformed one exits the same way); the
+    // round-trip case below is what pins the escaping.
     const stdout = execFileSync(script, ["token", '{"type":"turn-complete","msg":"a\nb"}'], {
       stdio: "pipe",
     });
 
     expect(stdout.toString()).toBe("");
+  });
+
+  // Regression guard for the json_string pipeline (issue #707). Only the
+  // double-quote rule was previously guarded (by spawned-notifier-e2e.test.ts,
+  // whose payload has no backslash and no newline), so deleting the
+  // backslash-doubling rule or the newline rule left the suite green. Asserting
+  // an exact round-trip against a real listener pins all three rules, plus the
+  // first-arg/last-arg argv contract, in one case.
+  it("round-trips a payload carrying a quote, a backslash and a newline", async () => {
+    let deliver: (body: string) => void = () => {};
+    const received = new Promise<string>((resolve) => {
+      deliver = resolve;
+    });
+    const server = http.createServer((req, res) => {
+      let raw = "";
+      req.setEncoding("utf-8");
+      req.on("data", (chunk: string) => {
+        raw += chunk;
+      });
+      req.on("end", () => {
+        // curl waits on the response, so answer before resolving.
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end("{}");
+        deliver(raw);
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as AddressInfo).port;
+
+    try {
+      const script = path.join(home, "probe-escaping");
+      fs.writeFileSync(
+        script,
+        buildNotifierScript(`http://127.0.0.1:${port}/api/hooks/agent-notification`),
+        { mode: 0o755 },
+      );
+
+      const token = "9c1f4c2e-b0a1-4f3d-9c77-1f0f2f3a4b5c";
+      // All three rules in one value: a double quote, a backslash, and a
+      // newline that is deliberately INTERIOR. A trailing newline is dropped by
+      // command substitution, so asserting a round-trip on one would pin
+      // behaviour the program does not have.
+      const payload = '{"type":"turn-complete","msg":"she said \\"go\\"\nlog at C:\\\\tmp"}';
+
+      await execFileAsync(script, [token, payload]);
+
+      const body = JSON.parse(await received);
+      expect(body.token).toBe(token);
+      expect(body.payload).toBe(payload);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 });
