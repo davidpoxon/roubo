@@ -961,6 +961,23 @@ describe("spawned-notifier launch wiring (issue #698)", () => {
     expect(resolveNotifierSession("always-the-same")?.id).not.toBe(second.id);
   });
 
+  it("hands a constant token on once the session holding it has exited", async () => {
+    const constantToken = { correlation: { source: "template", template: "always-the-same" } };
+    prepare({ capabilities: { notification: spawnedNotifier(constantToken) } });
+    const first = await launch();
+    // The record outlives the PTY so the scrollback stays readable, but the
+    // token it held is spent, so it must not block the next launch for the rest
+    // of the process (the conflict test above is about LIVE ownership only).
+    lastPty()._emit("exit", { exitCode: 0 });
+
+    prepare({ capabilities: { notification: spawnedNotifier(constantToken) } });
+    const second = await launch();
+
+    expect(resolveNotifierSession("always-the-same")?.id).toBe(second.id);
+    expect(isNotifierNotificationEligible("always-the-same")).toBe(true);
+    expect(getSession(first.id)?.status).toBe("ended");
+  });
+
   it("treats quiescence as the fallback, not the primary, for a notifier-wired agent", async () => {
     prepare({ capabilities: { notification: spawnedNotifier() } });
 

@@ -160,6 +160,22 @@ function forgetNotifierToken(internal: InternalSession): void {
   }
 }
 
+/**
+ * Whether a correlation token is currently held by a session that is still live.
+ *
+ * A registration only conflicts while the incumbent can actually be notified.
+ * The map keeps an exited session's entry until that session record is destroyed,
+ * so presence in the map is not ownership: the same liveness test
+ * `isNotifierNotificationEligible` applies decides who really holds it.
+ */
+function isNotifierTokenHeldByLiveSession(token: string): boolean {
+  const ownerId = notifierTokens.get(token);
+  if (ownerId === undefined) return false;
+  const owner = sessions.get(ownerId);
+  if (!owner) return false;
+  return owner.pty !== null && owner.exitCode === null;
+}
+
 function ensureSessionsDir() {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 }
@@ -478,8 +494,14 @@ function registerSession(
   // token would let either agent's notifier raise notifications against the
   // other. The launch itself is unaffected; that session simply falls back on
   // quiescence, which is the pre-#698 behaviour.
+  //
+  // Liveness, not mere presence: a session record outlives its PTY so the
+  // scrollback stays readable, and its token is spent the moment the PTY exits
+  // (isNotifierNotificationEligible). Testing `has` alone would let a dead
+  // session hold a constant token for the rest of the process, so every later
+  // launch declaring it would silently lose the wiring for no benefit.
   let notifierCorrelation = opts.notifierCorrelation;
-  if (notifierCorrelation !== undefined && notifierTokens.has(notifierCorrelation)) {
+  if (notifierCorrelation !== undefined && isNotifierTokenHeldByLiveSession(notifierCorrelation)) {
     console.warn(
       "[terminal] ignoring a correlation token already registered to another session for session %s",
       id,
