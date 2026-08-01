@@ -573,6 +573,27 @@ Returns `{ "status": "ok" }`. Repeat calls for one session are safe: they collap
 
 Waiting notifications clear themselves when the session produces fresh output or receives input, so there is no matching "no longer waiting" call.
 
+### Report a turn complete (agent notifier)
+
+```
+POST /api/hooks/agent-notification
+Content-Type: application/json
+
+{ "token": "550e8400-e29b-41d4-a716-446655440000" }
+```
+
+The other half of the same idea, for an agent that cannot POST anywhere itself. Such an agent spawns a configured program when its turn ends, so Roubo installs one (`~/.roubo/bin/roubo-notify`), tells the agent to spawn it with a correlation token, and this is where that program reports in. Like the endpoint above it is meant for the agent's own machinery, not for an integrator. A `payload` field carrying the event JSON the agent appended is accepted and ignored.
+
+`token` is the correlation key, and it is whatever the agent plugin's launch descriptor declared as its `correlation.template` resolved to at launch: usually the session id, but it need not be. Roubo registers the token against the session at launch and trades it back here, so the same rules apply as above: the token is honoured only while its session is live, and an unregistered or expired token raises nothing. A token is registered to one session at a time, so a plugin that declares a constant rather than a session-derived template gets one owner and not two: the second session to claim a token a live session already holds is refused it at launch and falls back on quiescence, and any call quoting that token, including one from the refused session's own notifier, is attributed to the session that owns it.
+
+Returns `{ "status": "ok" }`, and repeat calls collapse into one notification.
+
+| Status | Reason                                                             |
+| ------ | ------------------------------------------------------------------ |
+| `200`  | Notification raised (or already present)                           |
+| `400`  | `token` missing or not a string; or its session is no longer live  |
+| `404`  | No session registered for the token, or its bench no longer exists |
+
 ---
 
 ## Terminal (WebSocket)

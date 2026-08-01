@@ -11,6 +11,7 @@ import type {
 import { AgentPostureSchema } from "@roubo/shared/agent-launch-descriptor-schema";
 import { atomicWrite, getRouboDir } from "./state.js";
 import { AgentCommandNotFoundError, getLoginShell, resolveAgentCommand } from "./env.js";
+import { ensureNotifierInstalled } from "./agent-notifier.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
 import { resolveTemplate, type ResolvedTemplateContext } from "./config-parser.js";
@@ -130,6 +131,13 @@ interface InternalSession {
   // `waitingDetection` is the agent's declared detection spec, absent when
   // the agent declares none.
   hookNotification: boolean;
+  // The resolved correlation token for a `spawned-notifier` agent (issue #698),
+  // absent for every other session. Unlike the http-hook path, whose
+  // `correlation.source: "agent-native"` makes the session id itself the token,
+  // this token is whatever the plugin's `correlation.template` resolved to, so
+  // it is registered in `notifierTokens` and traded back for this session when
+  // the spawned program calls home.
+  notifierCorrelation?: string;
   waitingDetection?: WaitingDetectionSpec;
   // Set when this session's PTY exit was classified as a launch failure
   // (AP-FR-015). Replayed to every WebSocket that attaches afterwards, so the
@@ -139,7 +147,34 @@ interface InternalSession {
 }
 
 const sessions = new Map<string, InternalSession>();
+// Correlation token -> session id, for the `spawned-notifier` wiring only. The
+// http-hook path needs no such registry: its token IS the session id.
+const notifierTokens = new Map<string, string>();
 const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Drop a removed session's correlation token so it can never be traded again. */
+function forgetNotifierToken(internal: InternalSession): void {
+  const token = internal.notifierCorrelation;
+  if (token !== undefined && notifierTokens.get(token) === internal.session.id) {
+    notifierTokens.delete(token);
+  }
+}
+
+/**
+ * Whether a correlation token is currently held by a session that is still live.
+ *
+ * A registration only conflicts while the incumbent can actually be notified.
+ * The map keeps an exited session's entry until that session record is destroyed,
+ * so presence in the map is not ownership: the same liveness test
+ * `isNotifierNotificationEligible` applies decides who really holds it.
+ */
+function isNotifierTokenHeldByLiveSession(token: string): boolean {
+  const ownerId = notifierTokens.get(token);
+  if (ownerId === undefined) return false;
+  const owner = sessions.get(ownerId);
+  if (!owner) return false;
+  return owner.pty !== null && owner.exitCode === null;
+}
 
 function ensureSessionsDir() {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
@@ -269,15 +304,25 @@ function dismissWaitingNotificationsForSession(internal: InternalSession): void 
  * Descriptor-driven first (AP-FR-013): a `quiescence-only` agent gets exactly
  * the debounce it declared, and a `hook-driven` one gets its declared fallback
  * (quiescence is only a safety net behind its hook). An agent declaring no
- * waiting detection falls back on its wiring: a hook-wired one (a plugin
- * declaring `notification.kind === "http-hook"`) gets the same 8000ms fallback
- * window, and anything else gets the generic terminal debounce.
+ * waiting detection falls back on its wiring: a notification-wired one (a plugin
+ * declaring `notification.kind` of either `http-hook` or `spawned-notifier`)
+ * gets the same 8000ms fallback window, and anything else gets the generic
+ * terminal debounce. A spawned-notifier agent counts because its own signal
+ * fires on turn completion only, so quiescence is its fallback rather than its
+ * primary mechanism, exactly as it is for a hook.
  */
 function resolveQuiescenceDebounce(internal: InternalSession): number {
   const spec = internal.waitingDetection;
   if (spec?.kind === "quiescence-only") return spec.debounceMs;
   if (spec?.kind === "hook-driven") return spec.quiescenceFallbackMs ?? HOOK_QUIESCENCE_FALLBACK_MS;
-  return internal.hookNotification ? HOOK_QUIESCENCE_FALLBACK_MS : QUIESCENCE_DEBOUNCE_MS;
+  return isNotificationWiredSession(internal)
+    ? HOOK_QUIESCENCE_FALLBACK_MS
+    : QUIESCENCE_DEBOUNCE_MS;
+}
+
+/** Whether the agent signals core itself, by hook POST or by spawned notifier. */
+function isNotificationWiredSession(internal: InternalSession): boolean {
+  return internal.hookNotification || internal.notifierCorrelation !== undefined;
 }
 
 /**
@@ -287,7 +332,7 @@ function resolveQuiescenceDebounce(internal: InternalSession): number {
  * exactly what the descriptor schema says absence means.
  */
 function isAgentWaitingSession(internal: InternalSession): boolean {
-  return internal.hookNotification || internal.waitingDetection !== undefined;
+  return isNotificationWiredSession(internal) || internal.waitingDetection !== undefined;
 }
 
 function scheduleQuiescenceCheck(id: string): void {
@@ -416,6 +461,12 @@ interface RegisterSessionOptions {
   onExit?: (sessionId: string) => void;
   /** The agent POSTs waiting events to core's hook endpoint. */
   hookNotification?: boolean;
+  /**
+   * The resolved correlation token a `spawned-notifier` agent's notifier program
+   * will quote back (issue #698). Registered here so the token, minted at launch
+   * from the same template context as the carrier argv, is the one core looks up.
+   */
+  notifierCorrelation?: string;
   /** The agent's declared waiting-detection spec, when it declares one. */
   waitingDetection?: WaitingDetectionSpec;
   /**
@@ -437,6 +488,26 @@ function registerSession(
   // early-exit window covers the child's own life and not the descriptor RPC
   // that preceded it.
   const spawnedAt = Date.now();
+  // A correlation template is plugin-authored and only validated as non-empty,
+  // so a plugin could declare a constant rather than something session-derived.
+  // Refuse a token another live session already owns: two sessions sharing one
+  // token would let either agent's notifier raise notifications against the
+  // other. The launch itself is unaffected; that session simply falls back on
+  // quiescence, which is the pre-#698 behaviour.
+  //
+  // Liveness, not mere presence: a session record outlives its PTY so the
+  // scrollback stays readable, and its token is spent the moment the PTY exits
+  // (isNotifierNotificationEligible). Testing `has` alone would let a dead
+  // session hold a constant token for the rest of the process, so every later
+  // launch declaring it would silently lose the wiring for no benefit.
+  let notifierCorrelation = opts.notifierCorrelation;
+  if (notifierCorrelation !== undefined && isNotifierTokenHeldByLiveSession(notifierCorrelation)) {
+    console.warn(
+      "[terminal] ignoring a correlation token already registered to another session for session %s",
+      id,
+    );
+    notifierCorrelation = undefined;
+  }
   const internal: InternalSession = {
     session,
     pty: ptyProcess,
@@ -449,11 +520,13 @@ function registerSession(
     lastOutputAt: null,
     lastNotifiedAt: null,
     hookNotification: opts.hookNotification === true,
+    ...(notifierCorrelation !== undefined && { notifierCorrelation }),
     ...(opts.waitingDetection !== undefined && { waitingDetection: opts.waitingDetection }),
   };
   const onExit = opts.onExit;
 
   sessions.set(id, internal);
+  if (notifierCorrelation !== undefined) notifierTokens.set(notifierCorrelation, id);
 
   // The notice is pushed BEFORE any PTY output so it reads as a preamble to the
   // session rather than as something the agent said (AP-TC-072, AP-TC-074).
@@ -598,13 +671,23 @@ export async function createAgentSession(
   });
 
   const { descriptor } = prepared;
+  const notification = descriptor.capabilities?.notification;
+  const port = process.env.ROUBO_PORT || DEFAULT_ROUBO_PORT;
+  // A spawned-notifier agent spawns a program core has to supply, so the program
+  // is installed BEFORE templates resolve: `{{notifier}}` is an absolute path and
+  // there is nothing to point at until it exists (issue #698). The endpoint it
+  // POSTs to is baked in at that write, for the same reason the hook URL is baked
+  // into the Claude settings write: ROUBO_PORT never reaches a child.
+  const notifierPath =
+    notification?.kind === "spawned-notifier" ? installNotifier(port) : undefined;
   const ctx: ResolvedTemplateContext = {
     ports: {},
     portHttps: {},
     workspace: opts.workspacePath,
     components: {},
     sessionId: id,
-    port: process.env.ROUBO_PORT || DEFAULT_ROUBO_PORT,
+    port,
+    ...(notifierPath !== undefined && { notifier: notifierPath }),
   };
 
   // A posture binding has two carriers, argv and workspace writes, and a
@@ -621,6 +704,20 @@ export async function createAgentSession(
   const args = descriptor.args.map((arg) => resolveTemplate(arg, ctx));
   for (const arg of postureBinding?.args ?? []) {
     args.push(resolveTemplate(arg, ctx));
+  }
+  // The spawned-notifier carrier rides argv, so its contribution is appended here
+  // and, like the posture args, ahead of the positional prompt (issue #698). The
+  // http-hook carrier rides a workspace write instead and contributes nothing to
+  // argv, which is why this is the only notification arm with an argv branch.
+  //
+  // The correlation token is resolved from the SAME ctx, so whatever the carrier
+  // argv tells the agent to quote back is exactly what core registers.
+  let notifierCorrelation: string | undefined;
+  if (notification?.kind === "spawned-notifier" && notifierPath !== undefined) {
+    for (const arg of notification.carrier.args) {
+      args.push(resolveTemplate(arg, ctx));
+    }
+    notifierCorrelation = resolveTemplate(notification.correlation.template, ctx);
   }
   // The initial prompt is positional, so it stays last, after every flag. The
   // descriptor's declared limit is capped by core's own MAX_CLI_PROMPT_LENGTH:
@@ -660,6 +757,14 @@ export async function createAgentSession(
   for (const [key, value] of Object.entries(descriptor.env ?? {})) {
     if (HOST_INTERNAL_ENV_KEYS.has(key)) continue;
     env[key] = resolveTemplate(value, ctx);
+  }
+  // Prepended AFTER the descriptor's env layering so a descriptor cannot displace
+  // it: a carrier naming the notifier by bare name has to resolve to the program
+  // core just installed and to nothing else (issue #698). The directory holds
+  // that one fixed-name program, so leading the PATH costs nothing else.
+  if (notifierPath !== undefined) {
+    const notifierDir = path.dirname(notifierPath);
+    env.PATH = env.PATH ? `${notifierDir}${path.delimiter}${env.PATH}` : notifierDir;
   }
 
   // A descriptor's command is a bare name far more often than a path, so it is
@@ -727,8 +832,10 @@ export async function createAgentSession(
   };
 
   // Notification wiring comes straight off the descriptor: an http-hook agent
-  // is the only kind whose hook POSTs core will honour, and whichever waiting
-  // detection it declared drives the quiescence debounce (AP-FR-013).
+  // is the only kind whose hook POSTs core will honour, a spawned-notifier one
+  // is reachable only through the correlation token resolved above, and
+  // whichever waiting detection it declared drives the quiescence debounce
+  // (AP-FR-013, issue #698).
   const capabilities = descriptor.capabilities;
   // Above the tested ceiling, and a probe that could not decide, both launch:
   // agents ship weekly, so neither may block. They are surfaced as an in-terminal
@@ -738,6 +845,7 @@ export async function createAgentSession(
     : undefined;
   registerSession(session, ptyProcess, {
     hookNotification: capabilities?.notification?.kind === "http-hook",
+    ...(notifierCorrelation !== undefined && { notifierCorrelation }),
     ...(capabilities?.waitingDetection !== undefined && {
       waitingDetection: capabilities.waitingDetection,
     }),
@@ -751,6 +859,24 @@ export async function createAgentSession(
     promptInjection,
     ...(prepared.compatibility !== undefined && { compatibility: prepared.compatibility }),
   };
+}
+
+/**
+ * Install the notifier program, or give up on the wiring (issue #698).
+ *
+ * Best-effort for the same reason the built-in hook settings write is: a
+ * notification carrier is a convenience, not the launch. A disk that refuses the
+ * write costs the turn-complete signal and nothing else, and the caller drops
+ * the whole wiring rather than pointing the agent at a program that is not
+ * there, leaving the session on quiescence exactly as it was before #698.
+ */
+function installNotifier(port: string): string | undefined {
+  try {
+    return ensureNotifierInstalled(port);
+  } catch (err) {
+    console.warn("Failed to install the agent notifier program:", err);
+    return undefined;
+  }
 }
 
 /**
@@ -798,6 +924,42 @@ export function isHookNotificationEligible(sessionId: string): boolean {
   return internal.pty !== null && internal.exitCode === null && internal.hookNotification;
 }
 
+/**
+ * The session a spawned notifier's correlation token belongs to (issue #698).
+ *
+ * The `spawned-notifier` counterpart to addressing a session by its own id. That
+ * shortcut is what `correlation.source: "agent-native"` buys the http-hook path:
+ * the agent already knows the Roubo session id, so the id IS the token. An agent
+ * with no session-id concept of its own cannot do that, so the token is whatever
+ * the plugin's `correlation.template` resolved to at launch and core has to hold
+ * the mapping.
+ */
+export function resolveNotifierSession(token: string): TerminalSession | undefined {
+  const sessionId = notifierTokens.get(token);
+  if (sessionId === undefined) return undefined;
+  return sessions.get(sessionId)?.session;
+}
+
+/**
+ * Whether a notifier POST quoting this correlation token may raise a
+ * notification (issue #698).
+ *
+ * The same three-part rule `isHookNotificationEligible` applies, read through
+ * the token: the token must be registered, the session it names must still be
+ * live, and that session must be the one that registered it. A token outlives
+ * nothing: the session record survives an exit so its scrollback stays readable,
+ * but the token it carried is spent the moment the PTY does (AP-TC-084).
+ */
+export function isNotifierNotificationEligible(token: string): boolean {
+  const sessionId = notifierTokens.get(token);
+  if (sessionId === undefined) return false;
+  const internal = sessions.get(sessionId);
+  if (!internal) return false;
+  return (
+    internal.pty !== null && internal.exitCode === null && internal.notifierCorrelation === token
+  );
+}
+
 export function destroySession(sessionId: string): boolean {
   const internal = sessions.get(sessionId);
   if (!internal) return false;
@@ -821,6 +983,7 @@ export function destroySession(sessionId: string): boolean {
     }
   }
 
+  forgetNotifierToken(internal);
   sessions.delete(sessionId);
   deletePersistedSession(sessionId);
   return true;
@@ -846,6 +1009,7 @@ export function destroyBenchSessions(projectId: string, benchId: number): void {
           /* ignore */
         }
       }
+      forgetNotifierToken(internal);
       sessions.delete(id);
       deletePersistedSession(id);
     }
@@ -877,6 +1041,7 @@ export function destroyAllSessions(): void {
     }
   }
   sessions.clear();
+  notifierTokens.clear();
 }
 
 export function loadPersistedSessions(): void {

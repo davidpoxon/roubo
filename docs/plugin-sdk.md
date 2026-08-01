@@ -410,6 +410,41 @@ permissions: {
 
 `resync: true` is the plugin's statement that those writes are safe to re-apply to an already-created bench workspace, which is what `POST /api/projects/:projectId/permissions/resync` dispatches through. A plugin that declares no `rules` key gets no rules editor in the UI and is skipped by re-sync; declaring `rules` with `resync: false` keeps the editor but not the re-sync control. Path-escaping patterns in the access-granting groups never reach a plugin: the host rejects an `allow` or `ask` entry naming a path outside the bench workspace when it is stored, and filters any survivors before the model is handed over. `deny` entries are subtractive, so they are passed through as written and a plugin must not assume every rule string it receives is workspace-relative.
 
+### Notification wiring
+
+`capabilities.notification` is how your agent tells the host it is done, rather than leaving the host to infer it from an idle terminal. Two shapes, and the host executes both:
+
+```ts
+// The agent can POST for itself, and already knows the host's session id.
+capabilities: {
+  notification: {
+    kind: "http-hook",
+    event: "waiting",
+    carrier: { workspaceWrite: { /* registers the hook in the agent's own settings file */ } },
+    correlation: { field: "session_id", source: "agent-native" },
+  },
+}
+
+// The agent cannot POST, but spawns a configured program when a turn ends.
+capabilities: {
+  notification: {
+    kind: "spawned-notifier",
+    event: "turn-complete",
+    carrier: { args: ["-c", 'notify=["roubo-notify","{{sessionId}}"]'] },
+    payload: "json-arg",
+    correlation: { source: "template", template: "{{sessionId}}" },
+  },
+}
+```
+
+With `http-hook` the registration rides a workspace write and the correlation is `agent-native`: the agent quotes back the session id the host already gave it, so there is nothing else to track.
+
+With `spawned-notifier` the registration rides argv, and the host supplies the program. It writes `roubo-notify` into `~/.roubo/bin` at launch with its own endpoint baked in (nothing can read the port at runtime, because the host strips it from every child environment), leads the agent's `PATH` with that directory so a bare `roubo-notify` in your carrier resolves, and appends your `carrier.args` to argv. Your `correlation.template` is resolved through the same substitution, in the same context, as those args, so the token the program is invoked with is exactly the one the host registered. Declare something session-derived: a constant is guessable, and the host refuses a token another live session already owns rather than let two agents share one. `payload: "json-arg"` states what every such agent does, which is to append the event JSON as one final argument; the host forwards it and does not read it.
+
+The program reads its own argv positionally, so declare the carrier to match: the resolved correlation token must be the **first** argument the agent passes it, the event JSON is the **last**, and anything in between is ignored. Fewer than two arguments exits `2`. Nothing validates this at launch, because the invocation is buried inside your agent's own configuration string, so a carrier that puts a flag where the token belongs reports nothing and raises nothing.
+
+Either way the host raises the same bench notification, and the waiting state clears itself when the session produces fresh output. Quiescence stays armed behind both, on the 8000ms fallback window rather than the generic 2000ms one, because a turn-complete signal never fires for an agent sitting on an approval prompt.
+
 ### The version probe and its gate
 
 `capabilities.versionProbe` is how a plugin gets the host to check the installed CLI **before** it spawns anything. The plugin declares; the host spawns, parses, and decides. Plugin code never runs a process.
@@ -481,9 +516,9 @@ Ops mutate the parsed existing file rather than replacing it, so unknown keys th
 3. **Effective config.** Four shallow overlays, in this order, later layers winning per field: application defaults (`~/.roubo/agents/_global/<pluginId>.yaml`), project overrides (`~/.roubo/agents/<projectId>/<pluginId>.yaml`), the preset, then per-launch overrides. A field a layer does not mention falls through, so it keeps tracking the layer beneath it. The result arrives as both `config` and `context.effectiveConfig`.
 4. **`translateLaunch`.** One round trip. Your plugin returns a descriptor; the host validates it against the Zod schema before touching anything.
 5. **Version gate.** When the descriptor declares a `versionProbe`, the host probes the CLI here, in the spawn-free half of the launch. Below the floor the launch is refused outright with a structured error; above the ceiling, or on a probe that could not decide, the verdict is carried forward as a non-blocking notice. This step is why "no PTY is spawned for a below-floor launch" is structural rather than incidental.
-6. **Template resolution.** `{{sessionId}}`, `{{port}}`, and `{{workspace}}` are resolved through `command`, every element of `args`, every `env` value, `cwd`, and both the `relPath` and the values of every workspace write. `{{port}}` is the port the host is actually listening on. An unrecognised `{{...}}` is left verbatim rather than blanked.
+6. **Template resolution.** `{{sessionId}}`, `{{port}}`, and `{{workspace}}` are resolved through `command`, every element of `args`, every `env` value, `cwd`, and both the `relPath` and the values of every workspace write. `{{port}}` is the port the host is actually listening on. A fourth, `{{notifier}}`, resolves in all the same places, but only for a descriptor whose `capabilities.notification.kind` is `spawned-notifier`: it is the absolute path of the program the host installed for that launch, and is left verbatim for every other descriptor. An unrecognised `{{...}}` is left verbatim rather than blanked.
 7. **Workspace writes.** Executed core-side, path-validated, and **before** the spawn, so a descriptor that tries to escape the bench workspace aborts the launch with nothing written anywhere rather than leaving a half-configured agent running.
-8. **Posture bindings.** When the effective config selects a `posture` your descriptor declares a binding for, **both** carriers of that binding are applied: its `args` are appended to argv (after your descriptor's own `args`, before any positional initial prompt), and its `workspaceWrites` join the write batch in step 7. Declare whichever carrier your agent uses; a binding is never half-applied.
+8. **Posture bindings, then the notification carrier.** When the effective config selects a `posture` your descriptor declares a binding for, **both** carriers of that binding are applied: its `args` are appended to argv (after your descriptor's own `args`), and its `workspaceWrites` join the write batch in step 7. Declare whichever carrier your agent uses; a binding is never half-applied. A `spawned-notifier` notification carrier's `args` are appended after those, and a positional initial prompt still comes last of all.
 9. **Command resolution.** A `command` containing a path separator is an explicit path and is spawned exactly as given. A bare name is looked for on the child's `PATH` first, then in the host's well-known install locations for that CLI, so a bare command resolves on installs the server's own `PATH` would miss (a shim under the agent's home directory, or a fish or Dock launch whose `PATH` the server never inherits). A candidate counts only when it is a regular file the host may execute, so a directory or an unchmodded file at one of those locations is skipped rather than spawned and does not shadow a working install further down the list. A command found nowhere fails the launch with an error naming every location tried, before the PTY is opened. The well-known list is host-side and keyed by the command's base name, and it currently holds entries for one base name only: every other bare command resolves through `PATH` alone until per-agent candidate lists land (#712). A miss is not silent, it fails the launch with an error naming every location tried. Keep declaring a bare command, and never hardcode an absolute install path in a descriptor.
 10. **Spawn.** `args` reaches the PTY as an **array**. Nothing joins it into a shell string, so shell metacharacters anywhere in the effective config, including a free-form extra-arguments field, arrive at your agent as literal argv elements. There is no shell, so there is nothing to expand.
 
