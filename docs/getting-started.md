@@ -96,7 +96,7 @@ From here you can:
 
 - Click any tool defined in `roubo.yaml` (browser, IDE, shell) to open it pointed at this bench.
 - Open the workspace directly: it is just a normal git worktree at the path Roubo allocated.
-- Point your AI coding tool (Roubo has first-class integration with [Claude Code](https://www.anthropic.com/claude-code); see [Supported AI coding tools](../README.md#supported-ai-coding-tools)) at the workspace and have it work in isolation.
+- Point your AI coding tool at the workspace and have it work in isolation, or launch one from the bench's Terminal tab once you have installed its agent plugin (see [Supported AI coding tools](../README.md#supported-ai-coding-tools)).
 
 To run another stream of work in parallel, set up a second bench from a different branch. Each bench gets its own port range, its own worktree, and its own database container. They do not collide.
 

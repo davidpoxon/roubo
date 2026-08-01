@@ -29,6 +29,7 @@ vi.mock("./state.js", () => ({
   updateBench: vi.fn(),
   getWorkspacePath: vi.fn().mockReturnValue("/workspaces/project/bench-0-issue-42-fix-login-bug"),
   getPersistedBenches: vi.fn().mockReturnValue([]),
+  getProjectPermissions: vi.fn().mockReturnValue({ allow: [], deny: [], ask: [] }),
   loadSettings: vi.fn().mockReturnValue({
     jigs: {
       autoExecute: true,
@@ -46,8 +47,18 @@ vi.mock("./github.js", () => ({
 }));
 
 vi.mock("./terminal.js", () => ({
-  createSession: vi.fn(),
+  createAgentSession: vi.fn(),
   writeToSession: vi.fn(),
+}));
+
+// #521: create-and-assign resolves an agent plugin and launches through the
+// plugin runtime. There is no built-in path left to fall through to.
+vi.mock("./agent-launch-pipeline.js", () => ({
+  resolveLaunchAgentId: vi.fn().mockReturnValue("acme-agent"),
+}));
+
+vi.mock("./agent-permissions.js", () => ({
+  toLaunchPermissions: vi.fn().mockReturnValue({ rules: { allow: [], ask: [], deny: [] } }),
 }));
 
 vi.mock("./exec.js", () => ({
@@ -95,9 +106,38 @@ import * as stateService from "./state.js";
 import * as githubService from "./github.js";
 import * as terminalService from "./terminal.js";
 import * as jigManager from "./jig-manager.js";
+import * as pipeline from "./agent-launch-pipeline.js";
 import { runCommand } from "./exec.js";
 import fs from "node:fs";
 import type { NormalizedIssue } from "@roubo/shared";
+
+/**
+ * Stub one agent-plugin launch. `promptInjection` mirrors an agent that takes a
+ * positional prompt, which is what the built-in path used to do unconditionally.
+ */
+function mockAgentSession(id: string, promptMode: "argv-positional" | "none" = "argv-positional") {
+  vi.mocked(terminalService.createAgentSession).mockResolvedValue({
+    session: {
+      id,
+      benchKey: "project1:1",
+      label: "Acme 1",
+      createdAt: "2026-01-01",
+      command: "acme",
+      status: "live",
+      agentPluginId: "acme-agent",
+    },
+    promptInjection: { mode: promptMode, injected: promptMode !== "none" },
+  });
+}
+
+/** The launch options every create-and-assign launch carries. */
+const LAUNCH_BASE = {
+  projectId: "project1",
+  benchId: 1,
+  workspacePath: "/workspace",
+  projectName: "My Project",
+  agentPluginId: "acme-agent",
+};
 import { assignIssue, unassignIssue, createBenchAndAssignFromIssue } from "./issue-assignment.js";
 
 /** A plain GitHub issue: numeric `#<n>` tail, github-com integration, open. */
@@ -208,7 +248,7 @@ describe("assignIssue", () => {
     },
   };
 
-  it("creates branch, assigns issue, and launches Claude Code", async () => {
+  it("creates branch, assigns issue, and launches the resolved agent", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
     vi.mocked(runCommand).mockResolvedValue({
@@ -216,14 +256,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "2026-01-01",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     const result = await assignIssue("project1", 1, githubIssue(), []);
 
@@ -243,14 +276,11 @@ describe("assignIssue", () => {
       "/workspace",
     );
     expect(stateService.updateBench).toHaveBeenCalled();
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      expect.stringContaining("https://github.com/org/repo/issues/42"),
-      undefined,
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...LAUNCH_BASE,
+        initialInput: expect.stringContaining("https://github.com/org/repo/issues/42"),
+      }),
     );
     // assignIssue must never trigger auto-start directly: that lives behind
     // bench-manager. (Plain assignIssue doesn't create a bench, so the
@@ -265,14 +295,7 @@ describe("assignIssue", () => {
     vi.mocked(runCommand)
       .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "already exists" }) // checkout -b fails
       .mockResolvedValueOnce({ code: 0, stdout: "", stderr: "" }); // checkout succeeds
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-2",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-2");
 
     const result = await assignIssue(
       "project1",
@@ -353,14 +376,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     const result = await assignIssue("project1", 1, githubIssue({ title: "New issue" }), []);
     expect(result.bench.assignedIssue).toEqual({
@@ -400,14 +416,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
 
@@ -434,14 +443,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
 
@@ -452,7 +454,7 @@ describe("assignIssue", () => {
     }
   });
 
-  it("includes comments in Claude Code prompt", async () => {
+  it("includes comments in the injected jig", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
     vi.mocked(runCommand).mockResolvedValue({
@@ -460,14 +462,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-3",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-3");
 
     await assignIssue(
       "project1",
@@ -482,14 +477,11 @@ describe("assignIssue", () => {
       [{ user: "reviewer", body: "Please fix ASAP" }],
     );
 
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      expect.stringContaining("Please fix ASAP"),
-      undefined,
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...LAUNCH_BASE,
+        initialInput: expect.stringContaining("Please fix ASAP"),
+      }),
     );
   });
 
@@ -509,39 +501,20 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
 
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      expect.any(String),
-      undefined,
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...LAUNCH_BASE,
+        initialInput: expect.any(String),
+      }),
     );
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
   });
 
-  it("forwards claudeCode settings to createSession", async () => {
-    vi.mocked(stateService.loadSettings).mockReturnValue({
-      theme: "system",
-      jigs: {
-        autoExecute: true,
-        autoInject: true,
-        defaultJigId: "feature-dev",
-      },
-      claudeCode: { enableAutoMode: true, startInPlanMode: false },
-    });
+  it("forwards the project's permissions model to the agent launch (#521)", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
     vi.mocked(runCommand).mockResolvedValue({
@@ -549,26 +522,41 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
 
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      expect.any(String),
-      { enableAutoMode: true, startInPlanMode: false },
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...LAUNCH_BASE,
+        permissions: { rules: { allow: [], ask: [], deny: [] } },
+      }),
     );
+  });
+
+  it("creates no session at all when no agent plugin resolves (#521)", async () => {
+    vi.mocked(pipeline.resolveLaunchAgentId).mockReturnValueOnce(undefined);
+    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(runCommand).mockResolvedValue({
+      code: 0,
+      stdout: "",
+      stderr: "",
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
+
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
+    expect(result.terminalSessionId).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("No AI coding agent is available"),
+    );
+    // A console warning reaches nobody. The missing session must also come back
+    // on the response so the user is told why and what to do (AP-NFR-003).
+    expect(result.launchWarning).toContain("No AI coding agent is available to launch");
+    expect(result.launchWarning).toContain("Settings");
+    warnSpy.mockRestore();
   });
 
   it("writes jig without executing when autoExecute is false", async () => {
@@ -588,26 +576,16 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
 
     // Session created without initialInput (no CLI arg)
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      undefined,
-      undefined,
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining(LAUNCH_BASE),
+    );
+    expect(vi.mocked(terminalService.createAgentSession).mock.calls[0][0]).not.toHaveProperty(
+      "initialInput",
     );
     // Jig not written yet (before timeout)
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
@@ -634,14 +612,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     // Blockers present on the normalized issue must not block assignment.
     const result = await assignIssue(
@@ -671,14 +642,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     const result = await assignIssue("project1", 1, githubIssue({ body: null }), []);
 
@@ -702,14 +666,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     const result = await assignIssue("project1", 1, githubIssue({ body: null }), []);
 
@@ -725,14 +682,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     const result = await assignIssue("project1", 1, githubIssue({ body: null }), []);
 
@@ -748,14 +698,7 @@ describe("assignIssue", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     const result = await assignIssue("project1", 1, jiraIssue(), []);
 
@@ -808,14 +751,7 @@ describe("createBenchAndAssignFromIssue", () => {
       stderr: "",
     }); // branch does not exist
     vi.mocked(benchManager.createBench).mockReturnValue({ ...createdBench });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
   }
 
   it("creates a bench and assigns a github issue in one operation", async () => {
@@ -928,11 +864,11 @@ describe("createBenchAndAssignFromIssue", () => {
     );
   });
 
-  it("succeeds and returns undefined terminalSessionId when Claude terminal fails to spawn", async () => {
+  it("succeeds and returns undefined terminalSessionId when the agent session fails to spawn", async () => {
     setupHappyPath();
-    vi.mocked(terminalService.createSession).mockImplementation(() => {
-      throw new Error("Failed to spawn terminal (shell: /not/found/claude, cwd: /workspace): ...");
-    });
+    vi.mocked(terminalService.createAgentSession).mockRejectedValue(
+      new Error("Failed to spawn terminal (shell: /not/found/claude, cwd: /workspace): ..."),
+    );
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
@@ -942,9 +878,13 @@ describe("createBenchAndAssignFromIssue", () => {
     expect(result.terminalSessionId).toBeUndefined();
     expect(result.bench.assignedIssue).toBeDefined();
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to start Claude terminal"),
+      expect.stringContaining("Failed to start an agent session"),
       expect.any(Error),
     );
+    // The spawn failure is reported to the user too, carrying the reason
+    // (AP-NFR-003), not just logged server-side.
+    expect(result.launchWarning).toContain("no agent session opened");
+    expect(result.launchWarning).toContain("Failed to spawn terminal");
   });
 
   it("returns branch conflict info when branch exists and no resolution provided", async () => {
@@ -1001,14 +941,7 @@ describe("createBenchAndAssignFromIssue", () => {
       stderr: "",
     }); // branch exists
     vi.mocked(benchManager.createBench).mockReturnValue({ ...createdBench });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     const result = await createBenchAndAssignFromIssue(
       "project1",
@@ -1041,14 +974,7 @@ describe("createBenchAndAssignFromIssue", () => {
       ...createdBench,
       branch: "issue-42-fix-login-bug-2",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
 
     const result = await createBenchAndAssignFromIssue(
       "project1",
@@ -1113,14 +1039,11 @@ describe("createBenchAndAssignFromIssue", () => {
 
     await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      expect.any(String),
-      undefined,
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...LAUNCH_BASE,
+        initialInput: expect.any(String),
+      }),
     );
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
   });
@@ -1140,14 +1063,11 @@ describe("createBenchAndAssignFromIssue", () => {
     await createBenchAndAssignFromIssue("project1", githubIssue(), []);
 
     // Session created without initialInput (no CLI arg)
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      undefined,
-      undefined,
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining(LAUNCH_BASE),
+    );
+    expect(vi.mocked(terminalService.createAgentSession).mock.calls[0][0]).not.toHaveProperty(
+      "initialInput",
     );
     // Jig not written yet (before timeout)
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
@@ -1255,14 +1175,7 @@ describe("createBenchAndAssignFromIssue", () => {
       vi.mocked(benchManager.createBench).mockReturnValue(bench);
       // Branch does not yet exist -> rev-parse --verify fails (non-zero).
       vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
-      vi.mocked(terminalService.createSession).mockReturnValue({
-        id: "term-9",
-        benchKey: "project1:3",
-        label: "Claude 3",
-        createdAt: "",
-        command: "claude",
-        status: "live",
-      });
+      mockAgentSession("term-9");
       return bench;
     }
 
@@ -1354,14 +1267,7 @@ describe("createBenchAndAssignFromIssue", () => {
       vi.mocked(benchManager.createBench).mockReturnValue(bench);
       // Branch does not yet exist -> rev-parse --verify fails (non-zero).
       vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
-      vi.mocked(terminalService.createSession).mockReturnValue({
-        id: "term-10",
-        benchKey: "project1:4",
-        label: "Claude 4",
-        createdAt: "",
-        command: "claude",
-        status: "live",
-      });
+      mockAgentSession("term-10");
       return bench;
     }
 
@@ -1582,14 +1488,7 @@ describe("default jig hierarchy injection", () => {
       stderr: "",
     });
     vi.mocked(benchManager.createBench).mockReturnValue({ ...createdBench });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
   }
 
   it("records the project-level default jig ID on the bench", async () => {
@@ -1688,9 +1587,9 @@ describe("default jig hierarchy injection", () => {
       jigId: "proj-jig",
       source: "project",
     });
-    vi.mocked(terminalService.createSession).mockImplementation(() => {
-      throw new Error("terminal spawn failed");
-    });
+    vi.mocked(terminalService.createAgentSession).mockRejectedValue(
+      new Error("terminal spawn failed"),
+    );
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await createBenchAndAssignFromIssue(
@@ -1703,7 +1602,7 @@ describe("default jig hierarchy injection", () => {
     if (result.status !== "success") throw new Error("expected success");
     expect(result.bench.injectedJigId).toBeUndefined();
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to start Claude terminal"),
+      expect.stringContaining("Failed to start an agent session"),
       expect.any(Error),
     );
   });
@@ -1736,14 +1635,7 @@ describe("default jig hierarchy injection", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
     vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
       jigId: "proj-jig",
       source: "project",
@@ -1795,14 +1687,7 @@ describe("issue-type-to-jig mapping resolution", () => {
       stderr: "",
     });
     vi.mocked(benchManager.createBench).mockReturnValue({ ...createdBench });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
   }
 
   it("passes the issue type to resolveJigForIssue and records source when type has a mapping", async () => {
@@ -1940,14 +1825,7 @@ describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
       stdout: "",
       stderr: "",
     });
-    vi.mocked(terminalService.createSession).mockReturnValue({
-      id: "term-1",
-      benchKey: "project1:1",
-      label: "Claude 1",
-      createdAt: "",
-      command: "claude",
-      status: "live",
-    });
+    mockAgentSession("term-1");
   }
 
   it("passes the issue type to resolveJigForIssue and records source when type has a mapping", async () => {

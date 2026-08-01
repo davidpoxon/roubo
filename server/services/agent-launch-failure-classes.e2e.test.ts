@@ -48,12 +48,11 @@ const stateMocks = vi.hoisted(() => ({
   getRouboDir: () => path.join(os.tmpdir(), "roubo-launch-failure-e2e"),
 }));
 vi.mock("./state.js", () => stateMocks);
-vi.mock("./claude-settings-local.js", () => ({ writeClaudeSettingsLocal: vi.fn() }));
 vi.mock("./notification.js", () => ({
   dismissBySession: vi.fn(),
   createNotification: vi.fn(),
   dismissWaitingForSession: vi.fn().mockReturnValue(false),
-  WAITING_NOTIFICATION_TYPES: new Set(["terminal-waiting", "claude-waiting"]),
+  WAITING_NOTIFICATION_TYPES: new Set(["terminal-waiting", "agent-waiting"]),
 }));
 vi.mock("./bench-manager.js", () => ({ getBench: vi.fn(() => undefined) }));
 
@@ -77,7 +76,6 @@ vi.mock("./env.js", () => ({
       this.name = "AgentCommandNotFoundError";
     }
   },
-  getClaudeBinary: () => "claude",
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
   resolveAgentCommand: envMocks.resolveAgentCommand,

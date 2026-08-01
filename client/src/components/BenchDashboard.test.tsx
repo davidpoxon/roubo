@@ -845,6 +845,56 @@ describe("BenchDashboard", () => {
       );
     });
 
+    it("surfaces a launchWarning toast when the bench was created but no agent session opened (#521, AP-NFR-003)", async () => {
+      const { addToast, getCapturedOptions, getCapturedToastOptions } = stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+      });
+      renderDashboard("/projects/proj-1");
+      await userEvent.click(screen.getByTestId("pick-issue-1"));
+      await userEvent.click(screen.getByTestId("issue-picker-select"));
+      act(() => {
+        getCapturedToastOptions().onExpire?.();
+      });
+      addToast.mockClear();
+      // A success response, so this never reaches onError: without the toast the
+      // user would just get a bench with no agent and no reason why.
+      await act(async () => {
+        getCapturedOptions().onSuccess?.({
+          status: "success",
+          bench: makeBench({ id: 1 }),
+          terminalSessionId: undefined,
+          launchWarning: "No AI coding agent is available to launch. Install one from Settings.",
+        });
+      });
+      expect(addToast).toHaveBeenCalledWith(
+        "No AI coding agent is available to launch. Install one from Settings.",
+        expect.objectContaining({ duration: 10000 }),
+      );
+    });
+
+    it("raises no toast when a successful create-and-assign opened a session normally", async () => {
+      const { addToast, getCapturedOptions, getCapturedToastOptions } = stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+      });
+      renderDashboard("/projects/proj-1");
+      await userEvent.click(screen.getByTestId("pick-issue-1"));
+      await userEvent.click(screen.getByTestId("issue-picker-select"));
+      act(() => {
+        getCapturedToastOptions().onExpire?.();
+      });
+      addToast.mockClear();
+      await act(async () => {
+        getCapturedOptions().onSuccess?.({
+          status: "success",
+          bench: makeBench({ id: 1 }),
+          terminalSessionId: "session-1",
+        });
+      });
+      expect(addToast).not.toHaveBeenCalled();
+    });
+
     it("uses fallback toast message when onError receives a non-Error value", async () => {
       const { addToast, getCapturedOptions, getCapturedToastOptions } = stubDefaults({
         projects: [makeProject()],

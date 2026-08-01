@@ -6,7 +6,7 @@ import type { BenchNotification } from "@roubo/shared";
 
 function makeNotification(
   priority: BenchNotification["priority"],
-  type: BenchNotification["type"] = "claude-waiting",
+  type: BenchNotification["type"] = "agent-waiting",
 ): BenchNotification {
   return { id: crypto.randomUUID(), type, priority, createdAt: new Date().toISOString() };
 }

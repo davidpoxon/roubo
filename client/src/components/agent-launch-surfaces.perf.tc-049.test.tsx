@@ -44,7 +44,7 @@ import type {
   ResolvedAgentPreset,
   UserPreferences,
 } from "@roubo/shared";
-import { DEFAULT_JIG_SETTINGS, DEFAULT_CLAUDE_CODE_SETTINGS } from "@roubo/shared";
+import { DEFAULT_JIG_SETTINGS } from "@roubo/shared";
 
 /**
  * A minimal live store standing in for the settings query, so a default-agent
@@ -201,7 +201,7 @@ const AGENT_PLUGINS: AgentPluginState[] = [
 const BASE_SETTINGS = {
   theme: "dark",
   jigs: DEFAULT_JIG_SETTINGS,
-  claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
+  legacyAgentSettingsPresent: false,
 } as UserPreferences;
 
 /** Fresh settings: no persisted default, so nothing is selected on mount. */

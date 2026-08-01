@@ -230,6 +230,14 @@ export default function BenchDashboard() {
             const response = result as CreateBenchWithIssueResponse;
             if (response.status === "conflict") {
               setBranchConflict({ ...response.branchConflict, externalId });
+              return;
+            }
+            // The bench was created and assigned, but no agent session opened.
+            // That is not a failed request, so it never reaches onError; without
+            // this the user would just see a bench with no agent and no reason
+            // why (AP-NFR-003).
+            if (response.launchWarning) {
+              addToast(response.launchWarning, { duration: 10000 });
             }
           },
           onError: (err) => {

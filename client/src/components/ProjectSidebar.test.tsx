@@ -327,7 +327,7 @@ describe("ProjectSidebar", () => {
             notifications: [
               {
                 id: "n1",
-                type: "claude-waiting",
+                type: "agent-waiting",
                 priority: "action-needed",
                 createdAt: "2024-01-01T00:00:00Z",
               },
@@ -364,7 +364,7 @@ describe("ProjectSidebar", () => {
             notifications: [
               {
                 id: "n1",
-                type: "claude-waiting",
+                type: "agent-waiting",
                 priority: "action-needed",
                 createdAt: "2024-01-01T00:00:00Z",
               },
@@ -416,7 +416,7 @@ describe("ProjectSidebar", () => {
             notifications: [
               {
                 id: "n1",
-                type: "claude-waiting",
+                type: "agent-waiting",
                 priority: "action-needed",
                 createdAt: "2024-01-01T00:00:00Z",
               },

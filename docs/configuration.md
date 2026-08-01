@@ -295,7 +295,7 @@ benches:
 
 ## `jigs`
 
-Optional AI coding agent configuration. Today this drives [Claude Code](../README.md#supported-ai-coding-tools) integration. Any tool that can read Markdown files from a workspace can consume the resolved jig content; the [API Reference](./api.md#jigs) covers the inject endpoint.
+Optional AI coding agent configuration. The jig reaches whichever [agent plugin](../README.md#supported-ai-coding-tools) the launch resolves to, and any tool that can read Markdown files from a workspace can consume the resolved content; the [API Reference](./api.md#jigs) covers the inject endpoint.
 
 ```yaml
 jigs:

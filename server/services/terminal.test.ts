@@ -29,12 +29,6 @@ vi.mock("./state.js", () => ({
   getRouboDir: () => "/tmp/roubo-test",
 }));
 
-const mockWriteClaudeSettingsLocal = vi.fn();
-
-vi.mock("./claude-settings-local.js", () => ({
-  writeClaudeSettingsLocal: (...args: unknown[]) => mockWriteClaudeSettingsLocal(...args),
-}));
-
 const mockDismissBySession = vi.fn();
 const mockCreateNotification = vi.fn();
 const mockDismissWaitingForSession = vi.fn().mockReturnValue(false);
@@ -43,7 +37,7 @@ vi.mock("./notification.js", () => ({
   dismissBySession: (...args: unknown[]) => mockDismissBySession(...args),
   createNotification: (...args: unknown[]) => mockCreateNotification(...args),
   dismissWaitingForSession: (...args: unknown[]) => mockDismissWaitingForSession(...args),
-  WAITING_NOTIFICATION_TYPES: new Set(["terminal-waiting", "claude-waiting"]),
+  WAITING_NOTIFICATION_TYPES: new Set(["terminal-waiting", "agent-waiting"]),
 }));
 
 const mockGetBench = vi.fn();
@@ -64,7 +58,6 @@ vi.mock("./env.js", () => ({
       this.name = "AgentCommandNotFoundError";
     }
   },
-  getClaudeBinary: () => "claude",
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
   // Identity: binary resolution (#645) is env.ts's job and is pinned in env.test.ts.
@@ -136,7 +129,6 @@ beforeEach(() => {
   mockUnlinkSync.mockReset();
   mockReaddirSync.mockReset().mockReturnValue([]);
   mockReadFileSync.mockReset().mockReturnValue("{}");
-  mockWriteClaudeSettingsLocal.mockReset();
   mockDismissBySession.mockReset();
   mockCreateNotification.mockReset();
   mockDismissWaitingForSession.mockReset().mockReturnValue(false);
@@ -214,316 +206,6 @@ describe("createSession", () => {
     expect(() => createSession("project1", 1, "/workspace", "My Project")).toThrow(
       /posix_spawnp failed\..*chmod \+x \/pkg\/node-pty\/prebuilds\/x\/spawn-helper/,
     );
-  });
-
-  it('creates a claude session when command is "claude"', async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude");
-
-    expect(session.command).toBe("claude");
-    expect(session.label).toContain("Claude");
-    expect(mockSpawn).toHaveBeenCalledWith(
-      "claude",
-      ["--session-id", expect.stringMatching(UUID_REGEX)],
-      expect.objectContaining({ cwd: "/workspace" }),
-    );
-  });
-
-  it("passes initialInput as a CLI argument for claude sessions", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", "claude", "Fix the bug");
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      "claude",
-      ["--session-id", expect.stringMatching(UUID_REGEX), "Fix the bug"],
-      expect.objectContaining({ cwd: "/workspace" }),
-    );
-  });
-
-  it("ignores initialInput for non-claude sessions", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", undefined, "some input");
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      expect.any(String),
-      [],
-      expect.objectContaining({ cwd: "/workspace" }),
-    );
-  });
-
-  it("truncates initialInput exceeding 100,000 characters", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const longJig = "x".repeat(150_000);
-    createSession("project1", 1, "/workspace", "My Project", "claude", longJig);
-
-    const passedArgs = mockSpawn.mock.calls[0][1] as string[];
-    // args: ['--session-id', uuid, truncatedInput]
-    expect(passedArgs[2]).toHaveLength(100_000);
-  });
-
-  it("prepends --enable-auto-mode when enableAutoMode is true", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", "claude", undefined, {
-      enableAutoMode: true,
-      startInPlanMode: false,
-    });
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      "claude",
-      ["--enable-auto-mode", "--session-id", expect.stringMatching(UUID_REGEX)],
-      expect.objectContaining({ cwd: "/workspace" }),
-    );
-  });
-
-  it("prepends --permission-mode plan when startInPlanMode is true", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", "claude", undefined, {
-      enableAutoMode: false,
-      startInPlanMode: true,
-    });
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      "claude",
-      ["--permission-mode", "plan", "--session-id", expect.stringMatching(UUID_REGEX)],
-      expect.objectContaining({ cwd: "/workspace" }),
-    );
-  });
-
-  it("passes both --enable-auto-mode and --permission-mode plan when both flags are enabled", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", "claude", undefined, {
-      enableAutoMode: true,
-      startInPlanMode: true,
-    });
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      "claude",
-      [
-        "--enable-auto-mode",
-        "--permission-mode",
-        "plan",
-        "--session-id",
-        expect.stringMatching(UUID_REGEX),
-      ],
-      expect.objectContaining({ cwd: "/workspace" }),
-    );
-  });
-
-  it("prepends flags before initialInput", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", "claude", "Fix the bug", {
-      enableAutoMode: true,
-      startInPlanMode: true,
-    });
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      "claude",
-      [
-        "--enable-auto-mode",
-        "--permission-mode",
-        "plan",
-        "--session-id",
-        expect.stringMatching(UUID_REGEX),
-        "Fix the bug",
-      ],
-      expect.objectContaining({ cwd: "/workspace" }),
-    );
-  });
-
-  it("applies no flags when both are false", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", "claude", "Fix the bug", {
-      enableAutoMode: false,
-      startInPlanMode: false,
-    });
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      "claude",
-      ["--session-id", expect.stringMatching(UUID_REGEX), "Fix the bug"],
-      expect.objectContaining({ cwd: "/workspace" }),
-    );
-  });
-
-  it("calls writeClaudeSettingsLocal with workspace, settings, and projectPermissions before spawn", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const settings = { enableAutoMode: true, startInPlanMode: false };
-    const permissions = { allow: ["Bash(*)", "Read(*)"], deny: [] };
-    createSession(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      undefined,
-      settings,
-      permissions,
-    );
-
-    expect(mockWriteClaudeSettingsLocal).toHaveBeenCalledWith("/workspace", settings, permissions);
-    const writeOrder = mockWriteClaudeSettingsLocal.mock.invocationCallOrder[0];
-    const spawnOrder = mockSpawn.mock.invocationCallOrder[0];
-    expect(writeOrder).toBeLessThan(spawnOrder);
-  });
-
-  it("calls writeClaudeSettingsLocal with undefined settings and permissions when none provided", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", "claude");
-
-    expect(mockWriteClaudeSettingsLocal).toHaveBeenCalledWith("/workspace", undefined, undefined);
-  });
-
-  it("ignores claudeCodeSettings for non-claude sessions", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", undefined, undefined, {
-      enableAutoMode: true,
-      startInPlanMode: true,
-    });
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      expect.any(String),
-      [],
-      expect.objectContaining({ cwd: "/workspace" }),
-    );
-    expect(mockWriteClaudeSettingsLocal).not.toHaveBeenCalled();
-  });
-
-  it('sets claudeCodeMode to "auto" when enableAutoMode is true and startInPlanMode is false', async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude", undefined, {
-      enableAutoMode: true,
-      startInPlanMode: false,
-    });
-
-    expect(session.claudeCodeMode).toBe("auto");
-  });
-
-  it('sets claudeCodeMode to "plan-auto" when both flags are true', async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude", undefined, {
-      enableAutoMode: true,
-      startInPlanMode: true,
-    });
-
-    expect(session.claudeCodeMode).toBe("plan-auto");
-  });
-
-  it('sets claudeCodeMode to "plan" when only startInPlanMode is true', async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude", undefined, {
-      enableAutoMode: false,
-      startInPlanMode: true,
-    });
-
-    expect(session.claudeCodeMode).toBe("plan");
-  });
-
-  it("omits claudeCodeMode when both flags are false", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude", undefined, {
-      enableAutoMode: false,
-      startInPlanMode: false,
-    });
-
-    expect(session.claudeCodeMode).toBeUndefined();
-  });
-
-  it("omits claudeCodeMode for non-claude sessions", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", undefined, undefined, {
-      enableAutoMode: true,
-      startInPlanMode: true,
-    });
-
-    expect(session.claudeCodeMode).toBeUndefined();
-  });
-
-  it('omits claudeCodeMode when command is "claude" but claudeCodeSettings is undefined', async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const session = createSession(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      undefined,
-      undefined,
-    );
-
-    expect(session.claudeCodeMode).toBeUndefined();
-  });
-
-  it("continues session creation and warns if writeClaudeSettingsLocal throws", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    mockWriteClaudeSettingsLocal.mockImplementation(() => {
-      throw new Error("disk full");
-    });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { createSession } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude");
-
-    expect(warnSpy).toHaveBeenCalledWith(
-      "Failed to write .claude/settings.local.json:",
-      expect.any(Error),
-    );
-    expect(mockSpawn).toHaveBeenCalled();
-    expect(session.id).toMatch(UUID_REGEX);
-    warnSpy.mockRestore();
   });
 
   it("persists session on creation", async () => {
@@ -609,7 +291,7 @@ describe("getSessions", () => {
     const { createSession, getSessions } = await loadModule();
 
     createSession("project1", 1, "/workspace", "My Project");
-    createSession("project1", 1, "/workspace", "My Project", "claude");
+    createSession("project1", 1, "/workspace", "My Project");
     createSession("project1", 2, "/workspace2", "My Project");
 
     const sessions = getSessions("project1", 1);
@@ -916,9 +598,9 @@ describe("ghost sessions", () => {
         session: {
           id: "term-restored",
           benchKey: "project1:1",
-          label: "Claude 1",
+          label: "Acme 1",
           createdAt: "2026-01-01",
-          command: "claude",
+          command: "acme",
           status: "live",
         },
         buffer: ["data"],
@@ -969,63 +651,6 @@ describe("PTY exit", () => {
     expect(JSON.parse(exitMsgs[0])).toEqual({ type: "exit", code: 0 });
   });
 
-  it("calls onClaudeExit callback when a claude session exits", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const onClaudeExit = vi.fn();
-    const session = createSession(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      undefined,
-      undefined,
-      undefined,
-      onClaudeExit,
-    );
-
-    pty._emit("exit", { exitCode: 0 });
-
-    expect(onClaudeExit).toHaveBeenCalledOnce();
-    expect(onClaudeExit).toHaveBeenCalledWith(session.id);
-  });
-
-  it("does not call onClaudeExit callback when a plain shell session exits", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const onClaudeExit = vi.fn();
-    createSession(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      onClaudeExit,
-    );
-
-    pty._emit("exit", { exitCode: 0 });
-
-    expect(onClaudeExit).not.toHaveBeenCalled();
-  });
-});
-
-describe("parseBenchKey", () => {
-  it("parses a valid bench key into projectId and benchId", async () => {
-    const { parseBenchKey } = await loadModule();
-    expect(parseBenchKey("project1:1")).toEqual({
-      projectId: "project1",
-      benchId: 1,
-    });
-  });
-
   it("returns null when benchId portion after first colon is not a number", async () => {
     const { parseBenchKey } = await loadModule();
     // The first colon splits: projectId='proj', benchId=parseInt('with:colon:2')=NaN → returns null
@@ -1043,26 +668,8 @@ describe("parseBenchKey", () => {
   });
 });
 
-describe("auto-clear claude-waiting notifications on input", () => {
-  it("calls dismissBySession when a claude session receives input", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession, handleWebSocket } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude");
-    const ws = createMockWs();
-    handleWebSocket(session.id, ws);
-
-    ws._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "y\n" })));
-
-    expect(mockGetBench).toHaveBeenCalledWith("project1", 1);
-    expect(mockDismissBySession).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: "project1" }),
-      session.id,
-    );
-  });
-
-  it("calls dismissBySession for non-claude sessions on input", async () => {
+describe("auto-clear agent-waiting notifications on input", () => {
+  it("calls dismissBySession for a shell session on input", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
     const { createSession, handleWebSocket } = await loadModule();
@@ -1080,26 +687,7 @@ describe("auto-clear claude-waiting notifications on input", () => {
     );
   });
 
-  it("does not break terminal input when dismissBySession throws (claude session)", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    mockDismissBySession.mockImplementation(() => {
-      throw new Error("bench gone");
-    });
-    const { createSession, handleWebSocket } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude");
-    const ws = createMockWs();
-    handleWebSocket(session.id, ws);
-
-    // Should not throw
-    expect(() => {
-      ws._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "y\n" })));
-    }).not.toThrow();
-    expect(pty.write).toHaveBeenCalledWith("y\n");
-  });
-
-  it("does not break terminal input when dismissBySession throws (non-claude session)", async () => {
+  it("does not break terminal input when dismissBySession throws", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
     mockDismissBySession.mockImplementation(() => {
@@ -1120,7 +708,7 @@ describe("auto-clear claude-waiting notifications on input", () => {
 });
 
 describe("terminal-waiting quiescence detection", () => {
-  it("emits terminal-waiting notification after output quiesces for a non-claude session", async () => {
+  it("emits terminal-waiting notification after output quiesces for a shell session", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
     const { createSession } = await loadModule();
@@ -1160,65 +748,6 @@ describe("terminal-waiting quiescence detection", () => {
     // Full debounce after last output
     vi.advanceTimersByTime(1000);
     expect(mockCreateNotification).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not emit terminal-waiting for claude sessions", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", "claude");
-
-    pty._emit("data", "Claude output\r\n");
-    // Non-claude debounce (2s) must not fire for a claude session.
-    vi.advanceTimersByTime(2000);
-
-    expect(mockCreateNotification).not.toHaveBeenCalled();
-  });
-
-  it("emits claude-waiting after the longer claude debounce window", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude");
-
-    pty._emit("data", "Claude streaming output\r\n");
-    vi.advanceTimersByTime(7999);
-    expect(mockCreateNotification).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(1);
-    expect(mockCreateNotification).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: "project1" }),
-      "claude-waiting",
-      session.id,
-      { label: session.label },
-    );
-  });
-
-  it("resets the claude quiescence timer when more output arrives", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession } = await loadModule();
-
-    createSession("project1", 1, "/workspace", "My Project", "claude");
-
-    pty._emit("data", "first stream chunk\r\n");
-    vi.advanceTimersByTime(5000);
-    expect(mockCreateNotification).not.toHaveBeenCalled();
-
-    pty._emit("data", "second stream chunk\r\n");
-    vi.advanceTimersByTime(5000);
-    expect(mockCreateNotification).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(3000);
-    expect(mockCreateNotification).toHaveBeenCalledTimes(1);
-    expect(mockCreateNotification).toHaveBeenCalledWith(
-      expect.anything(),
-      "claude-waiting",
-      expect.any(String),
-      expect.anything(),
-    );
   });
 
   it("does not emit terminal-waiting after the session exits", async () => {
@@ -1380,9 +909,9 @@ describe("terminal-waiting quiescence detection", () => {
     mockSpawn.mockReturnValue(pty);
     const { createSession } = await loadModule();
 
-    const session = createSession("project1", 1, "/workspace", "My Project", "claude");
+    const session = createSession("project1", 1, "/workspace", "My Project");
 
-    // Wire a bench with a matching claude-waiting notification only after the
+    // Wire a bench with a matching agent-waiting notification only after the
     // session id is known, so the pre-check finds something to dismiss.
     mockGetBench.mockReturnValue({
       id: 1,
@@ -1390,7 +919,7 @@ describe("terminal-waiting quiescence detection", () => {
       notifications: [
         {
           id: "notif-1",
-          type: "claude-waiting",
+          type: "agent-waiting",
           priority: "action-needed",
           sourceSessionId: session.id,
           createdAt: "2026-01-01",
@@ -1398,7 +927,7 @@ describe("terminal-waiting quiescence detection", () => {
       ],
     });
 
-    pty._emit("data", "Claude resumes work\r\n");
+    pty._emit("data", "the session resumes work\r\n");
 
     expect(mockDismissWaitingForSession).toHaveBeenCalledWith(
       expect.objectContaining({ projectId: "project1" }),

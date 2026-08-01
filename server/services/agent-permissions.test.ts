@@ -25,8 +25,8 @@ import * as pipeline from "./agent-launch-pipeline.js";
 import * as claudeSettingsLocal from "./claude-settings-local.js";
 
 // The dispatch seam (issue #514, AP-FR-016, AP-FR-018): one stored model, mapped
-// by whichever agent plugin the project resolves to, or by the built-in carrier
-// when none does.
+// by whichever agent plugin the project resolves to. Since #521 there is no
+// second carrier: with no agent plugin, nothing carries the rules.
 
 const SETTINGS_WRITE = {
   relPath: ".claude/settings.local.json",
@@ -129,7 +129,7 @@ describe("toLaunchPermissions", () => {
 });
 
 describe("applyProjectPermissions", () => {
-  it("falls back to the built-in carrier when no agent plugin resolves", async () => {
+  it("writes nothing at all when no agent plugin resolves (#521)", async () => {
     vi.mocked(pipeline.resolveLaunchAgentId).mockReturnValue(undefined);
 
     const result = await applyProjectPermissions({
@@ -139,12 +139,10 @@ describe("applyProjectPermissions", () => {
       permissions: { allow: ["Bash(*)"], deny: [], ask: [] },
     });
 
-    expect(result.carrier).toBe("built-in");
-    expect(claudeSettingsLocal.injectPermissions).toHaveBeenCalledWith(workspace, {
-      allow: ["Bash(*)"],
-      deny: [],
-      ask: [],
-    });
+    expect(result).toEqual({ carrier: "none", written: [] });
+    // The retired built-in carrier wrote an agent-specific settings file
+    // straight from core. Nothing does now (AP-TC-103).
+    expect(claudeSettingsLocal.injectPermissions).not.toHaveBeenCalled();
     expect(pipeline.prepareAgentLaunch).not.toHaveBeenCalled();
   });
 
@@ -237,15 +235,17 @@ describe("applyProjectPermissions", () => {
 });
 
 describe("describeAgentPermissions", () => {
-  it("reports the built-in carrier when no agent plugin resolves", async () => {
+  it("reports no carrier, and no resync, when no agent plugin resolves (#521)", async () => {
     vi.mocked(pipeline.resolveLaunchAgentId).mockReturnValue(undefined);
 
     expect(await describeAgentPermissions("p1", workspace)).toEqual({
       agentPluginId: null,
       agentName: null,
       postures: [],
+      // The model is core's own and stays editable, ready for whichever agent
+      // plugin gets installed; there is nothing to re-inject through yet.
       rules: true,
-      resync: true,
+      resync: false,
     });
   });
 

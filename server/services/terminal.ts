@@ -3,27 +3,14 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import * as pty from "node-pty";
 import type { WebSocket } from "ws";
-import { deriveClaudeCodeMode } from "@roubo/shared";
-import type {
-  TerminalSession,
-  PersistedTerminalSession,
-  ClaudeCodeSettings,
-  ProjectPermissions,
-  AgentLaunchFailure,
-} from "@roubo/shared";
+import type { TerminalSession, PersistedTerminalSession, AgentLaunchFailure } from "@roubo/shared";
 import type {
   AgentPosture,
   WaitingDetectionSpec,
 } from "@roubo/shared/agent-launch-descriptor-schema";
 import { AgentPostureSchema } from "@roubo/shared/agent-launch-descriptor-schema";
 import { atomicWrite, getRouboDir } from "./state.js";
-import {
-  AgentCommandNotFoundError,
-  getClaudeBinary,
-  getLoginShell,
-  resolveAgentCommand,
-} from "./env.js";
-import { writeClaudeSettingsLocal } from "./claude-settings-local.js";
+import { AgentCommandNotFoundError, getLoginShell, resolveAgentCommand } from "./env.js";
 import * as notificationService from "./notification.js";
 import * as benchManager from "./bench-manager.js";
 import { resolveTemplate, type ResolvedTemplateContext } from "./config-parser.js";
@@ -56,8 +43,8 @@ const FLUSH_DEBOUNCE_MS = 500;
 const QUIESCENCE_DEBOUNCE_MS = 2000;
 // An agent TUI redraws continuously while it's working, so a short debounce
 // would fire false positives between streamed chunks. The longer window is
-// purely a fallback for the waiting states a hook doesn't cover (e.g. Claude
-// Code's AskUserQuestion prompts in plan mode). A hook-driven agent plugin can
+// purely a fallback for the waiting states a hook doesn't cover (e.g. an
+// in-terminal question the agent never reports). A hook-driven agent plugin can
 // override it with `capabilities.waitingDetection.quiescenceFallbackMs`.
 const HOOK_QUIESCENCE_FALLBACK_MS = 8000;
 // Host-internal env vars that must not leak into bench sessions (issue #877).
@@ -68,8 +55,7 @@ const HOOK_QUIESCENCE_FALLBACK_MS = 8000;
 // only, so bench terminals never need them.
 const HOST_INTERNAL_ENV_KEYS = new Set(["ROUBO_PRODUCTION", "ROUBO_PORT"]);
 // The port `{{port}}` resolves to when the server has not published its bound
-// port yet. Matches the fallback claude-settings-local.ts uses for the same hook
-// URL, and is exactly why ROUBO_PORT is stripped from every child env above:
+// port yet. It is exactly why ROUBO_PORT is stripped from every child env above:
 // core tells the agent the port, the agent never inherits it.
 const DEFAULT_ROUBO_PORT = "3335";
 
@@ -140,9 +126,8 @@ interface InternalSession {
   // debounce is the agent's declared one.
   //
   // `hookNotification` is true when the agent POSTs waiting events to core's
-  // hook endpoint (`capabilities.notification.kind === "http-hook"`), and on the
-  // legacy built-in `command === "claude"` path until AP-WU-020 (#521) removes
-  // it. `waitingDetection` is the agent's declared detection spec, absent when
+  // hook endpoint (`capabilities.notification.kind === "http-hook"`).
+  // `waitingDetection` is the agent's declared detection spec, absent when
   // the agent declares none.
   hookNotification: boolean;
   waitingDetection?: WaitingDetectionSpec;
@@ -183,8 +168,7 @@ export function parseBenchKey(key: string): { projectId: string; benchId: number
 /**
  * `displayName` is the agent's own name, taken from its plugin manifest. When it
  * is supplied the label is generic: nothing here knows which agent it is
- * labelling (AP-FR-011). The `command === "claude"` branch below is the legacy
- * built-in path only, removed with the rest of it in AP-WU-020 (#521).
+ * labelling (AP-FR-011). Without one the session is a plain shell terminal.
  */
 function generateLabel(
   projectName: string,
@@ -198,9 +182,6 @@ function generateLabel(
   const index = benchSessions.length + 1;
   if (displayName) {
     return `${displayName} ${index} - ${projectName} #${benchId}`;
-  }
-  if (command === "claude") {
-    return `Claude ${index} - ${projectName} #${benchId}`;
   }
   return `Terminal ${index} - ${projectName} #${benchId}`;
 }
@@ -252,8 +233,8 @@ function cancelBufferFlush(id: string): void {
 }
 
 // Best-effort dismissal of session-scoped waiting notifications. Called from
-// onData whenever fresh PTY output arrives so a Claude tab indicator clears
-// the moment Claude resumes work, and an idle shell's indicator clears the
+// onData whenever fresh PTY output arrives so an agent tab indicator clears
+// the moment the agent resumes work, and an idle shell's indicator clears the
 // moment output starts flowing again.
 function dismissWaitingNotificationsForSession(internal: InternalSession): void {
   const parsed = parseBenchKey(internal.session.benchKey);
@@ -288,10 +269,9 @@ function dismissWaitingNotificationsForSession(internal: InternalSession): void 
  * Descriptor-driven first (AP-FR-013): a `quiescence-only` agent gets exactly
  * the debounce it declared, and a `hook-driven` one gets its declared fallback
  * (quiescence is only a safety net behind its hook). An agent declaring no
- * waiting detection falls back on its wiring: a hook-wired one gets the same
- * 8000ms fallback window (a plugin declaring `notification.kind === "http-hook"`,
- * or the legacy built-in Claude path until AP-WU-020 (#521) removes it), and
- * anything else gets the generic terminal debounce.
+ * waiting detection falls back on its wiring: a hook-wired one (a plugin
+ * declaring `notification.kind === "http-hook"`) gets the same 8000ms fallback
+ * window, and anything else gets the generic terminal debounce.
  */
 function resolveQuiescenceDebounce(internal: InternalSession): number {
   const spec = internal.waitingDetection;
@@ -301,7 +281,7 @@ function resolveQuiescenceDebounce(internal: InternalSession): number {
 }
 
 /**
- * Whether a quiescent session is an agent (`claude-waiting`) rather than a plain
+ * Whether a quiescent session is an agent (`agent-waiting`) rather than a plain
  * terminal (`terminal-waiting`). An agent that declares neither notification
  * wiring nor waiting detection launches as a plain terminal session, which is
  * exactly what the descriptor schema says absence means.
@@ -338,7 +318,7 @@ function scheduleQuiescenceCheck(id: string): void {
     try {
       const bench = benchManager.getBench(parsed.projectId, parsed.benchId);
       if (bench) {
-        const type = isAgentWaitingSession(internal) ? "claude-waiting" : "terminal-waiting";
+        const type = isAgentWaitingSession(internal) ? "agent-waiting" : "terminal-waiting";
         notificationService.createNotification(bench, type, internal.session.id, {
           label: internal.session.label,
         });
@@ -369,39 +349,29 @@ function clearTimers(internal: InternalSession): void {
   cancelQuiescenceCheck(internal);
 }
 
+/**
+ * Open a plain login-shell session in a bench workspace.
+ *
+ * This is the shell path and nothing else. Every agent launch goes through
+ * `createAgentSession`, which reads a plugin's launch descriptor: since #521
+ * core assembles no agent argv, resolves no agent binary, and writes no
+ * agent-specific settings file of its own.
+ */
 export function createSession(
   projectId: string,
   benchId: number,
   workspacePath: string,
   projectName: string,
-  command?: string,
-  initialInput?: string,
-  claudeCodeSettings?: ClaudeCodeSettings,
-  projectPermissions?: ProjectPermissions,
-  onClaudeExit?: (sessionId: string) => void,
 ): TerminalSession {
   const id = randomUUID();
   const key = benchKey(projectId, benchId);
-  const label = generateLabel(projectName, benchId, command);
+  const label = generateLabel(projectName, benchId);
 
-  const shell = command === "claude" ? getClaudeBinary() : getLoginShell();
-  const args: string[] = [];
-  if (command === "claude") {
-    if (claudeCodeSettings?.enableAutoMode) args.push("--enable-auto-mode");
-    if (claudeCodeSettings?.startInPlanMode) args.push("--permission-mode", "plan");
-    args.push("--session-id", id);
-    if (initialInput) args.push(initialInput.slice(0, MAX_CLI_PROMPT_LENGTH));
-    try {
-      writeClaudeSettingsLocal(workspacePath, claudeCodeSettings, projectPermissions);
-    } catch (err) {
-      // Best-effort: a failure here (e.g. disk full) should not prevent the session from starting
-      console.warn("Failed to write .claude/settings.local.json:", err);
-    }
-  }
+  const shell = getLoginShell();
 
   let ptyProcess;
   try {
-    ptyProcess = pty.spawn(shell, args, {
+    ptyProcess = pty.spawn(shell, [], {
       name: "xterm-256color",
       cols: 80,
       rows: 24,
@@ -423,26 +393,15 @@ export function createSession(
     );
   }
 
-  const claudeCodeMode =
-    command === "claude" ? deriveClaudeCodeMode(claudeCodeSettings) : undefined;
-
   const session: TerminalSession = {
     id,
     benchKey: key,
     label,
     createdAt: new Date().toISOString(),
-    command,
     status: "live",
-    ...(claudeCodeMode !== undefined && { claudeCodeMode }),
   };
 
-  registerSession(session, ptyProcess, {
-    // The built-in Claude path is hook-wired by claude-settings-local.ts rather
-    // than by a descriptor, so its eligibility is asserted here (AP-WU-020,
-    // #521, removes this alongside the rest of the built-in).
-    hookNotification: command === "claude",
-    ...(command === "claude" && onClaudeExit !== undefined && { onExit: onClaudeExit }),
-  });
+  registerSession(session, ptyProcess, {});
 
   return session;
 }
@@ -450,7 +409,7 @@ export function createSession(
 /**
  * Put a freshly spawned PTY under session management: buffering, debounced
  * persistence, waiting-notification dismissal, quiescence scheduling, and exit
- * tracking. Shared by the built-in `createSession` and the descriptor-driven
+ * tracking. Shared by the shell `createSession` and the descriptor-driven
  * `createAgentSession` so both get identical session semantics.
  */
 interface RegisterSessionOptions {
@@ -522,13 +481,13 @@ function registerSession(
     // Debounced flush: coalesces rapid output, also catches idle sessions
     scheduleBufferFlush(id);
     // Fresh output means this session is not currently waiting on the user.
-    // Clear any pending claude-waiting/terminal-waiting notification so the tab
+    // Clear any pending agent-waiting/terminal-waiting notification so the tab
     // indicator (and any OS notification state) tracks the live session state.
     dismissWaitingNotificationsForSession(internal);
     // Schedule a quiescence check: if no further output arrives within the
-    // debounce window the session is likely waiting for input. Claude sessions
-    // use a longer window as a fallback for Notification events the hook misses
-    // (e.g. AskUserQuestion); hook-driven notifications still fire immediately.
+    // debounce window the session is likely waiting for input. Agent sessions
+    // use a longer window as a fallback for waiting events the hook misses;
+    // hook-driven notifications still fire immediately.
     scheduleQuiescenceCheck(id);
   });
 
@@ -704,8 +663,8 @@ export async function createAgentSession(
   }
 
   // A descriptor's command is a bare name far more often than a path, so it is
-  // resolved through the same well-known-binary fallback the built-in Claude Code
-  // path uses before it reaches the PTY (#645). This runs OUTSIDE the try below
+  // resolved through the well-known-install-location fallback before it reaches
+  // the PTY (#645). This runs OUTSIDE the try below
   // so an unresolvable command surfaces its own error, which names every location
   // tried, instead of being rewrapped as an opaque spawn failure. The child's own
   // PATH is used for the probe, since descriptor env may have changed it.
@@ -831,9 +790,7 @@ export function isLiveSession(sessionId: string): boolean {
  * asking for attention (AP-TC-084). And its agent must actually be hook-wired:
  * for a plugin agent that is a property of the launch descriptor rather than of
  * the command name, so no plugin is privileged by what its binary happens to be
- * called. The legacy built-in Claude path has no descriptor, so `createSession`
- * asserts its eligibility directly; that is the last command-name gate, and it
- * goes with the rest of the built-in in AP-WU-020 (#521).
+ * called. A plain shell session has no descriptor and is never eligible.
  */
 export function isHookNotificationEligible(sessionId: string): boolean {
   const internal = sessions.get(sessionId);

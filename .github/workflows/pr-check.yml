@@ -29,6 +29,9 @@ jobs:
       # CP-NFR-006: fail the build if a component-type literal or a core
       # docker/compose field branch reappears in core (server/ + shared/).
       - run: npm run lint:component-guard
+      # AP-NFR-006: fail the build if core (server/ + shared/) regrows an
+      # agent-specific identifier or assembles an agent CLI flag itself.
+      - run: npm run lint:agent-guard
 
   format:
     runs-on: ubuntu-latest

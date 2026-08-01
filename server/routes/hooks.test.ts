@@ -42,7 +42,7 @@ describe("POST /claude-notification", () => {
     vi.mocked(benchManager.getBench).mockReturnValue(mockBench as any);
     vi.mocked(notificationService.createNotification).mockReturnValue({
       id: "notif-1",
-      type: "claude-waiting",
+      type: "agent-waiting",
       priority: "action-needed",
       sourceSessionId: sessionId,
       createdAt: new Date().toISOString(),
@@ -62,7 +62,7 @@ describe("POST /claude-notification", () => {
     expect(benchManager.getBench).toHaveBeenCalledWith("project1", 1);
     expect(notificationService.createNotification).toHaveBeenCalledWith(
       mockBench,
-      "claude-waiting",
+      "agent-waiting",
       sessionId,
     );
   });
@@ -164,7 +164,7 @@ describe("POST /claude-notification", () => {
     expect(res.status).toBe(200);
     expect(notificationService.createNotification).toHaveBeenCalledWith(
       mockBench,
-      "claude-waiting",
+      "agent-waiting",
       sessionId,
     );
   });
@@ -226,7 +226,7 @@ describe("POST /claude-notification", () => {
     const sessionId = "550e8400-e29b-41d4-a716-446655440000";
     const existingNotification = {
       id: "notif-1",
-      type: "claude-waiting",
+      type: "agent-waiting",
       priority: "action-needed",
       sourceSessionId: sessionId,
       createdAt: new Date().toISOString(),

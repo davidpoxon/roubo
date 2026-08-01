@@ -340,13 +340,16 @@ router.post("/:projectId/benches/:benchId/inject-jig", async (req, res) => {
     ...issueCtx,
   });
 
-  // Find an active Claude session for this bench
+  // Find a live agent session for this bench. Since #521 an agent session is
+  // identified by the plugin that launched it, never by its command name.
   const sessions = terminalService.getSessions(projectId, benchId);
-  const claudeSession = sessionId
-    ? sessions.find((s) => s.id === sessionId && s.command === "claude" && s.status === "live")
-    : sessions.find((s) => s.command === "claude" && s.status === "live");
-  if (!claudeSession) {
-    res.status(404).json({ error: "No active Claude session found for this bench" });
+  const agentSession = sessionId
+    ? sessions.find(
+        (s) => s.id === sessionId && s.agentPluginId !== undefined && s.status === "live",
+      )
+    : sessions.find((s) => s.agentPluginId !== undefined && s.status === "live");
+  if (!agentSession) {
+    res.status(404).json({ error: "No active agent session found for this bench" });
     return;
   }
 
@@ -354,7 +357,7 @@ router.post("/:projectId/benches/:benchId/inject-jig", async (req, res) => {
   const autoExecute = settings.jigs?.autoExecute ?? true;
   const textToWrite = autoExecute ? resolved + "\r" : resolved;
 
-  const written = terminalService.writeToSession(claudeSession.id, textToWrite);
+  const written = terminalService.writeToSession(agentSession.id, textToWrite);
   if (!written) {
     res.status(500).json({ error: "Failed to write to terminal session" });
     return;

@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../test/renderWithProviders";
 import ProjectSettings from "./ProjectSettings";
 import type { JigMeta } from "@roubo/shared";
-import { DEFAULT_JIG_SETTINGS, DEFAULT_CLAUDE_CODE_SETTINGS } from "@roubo/shared";
+import { DEFAULT_JIG_SETTINGS } from "@roubo/shared";
 
 vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(),
@@ -20,7 +20,6 @@ vi.mock("react-router-dom", () => ({
 
 vi.mock("../hooks/useSettings", () => ({
   useSettings: vi.fn(),
-  useRecheckClaudeCode: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
 vi.mock("../hooks/useJigs", () => ({
@@ -111,8 +110,7 @@ const mockedUsePlugins = vi.mocked(usePlugins);
 const defaultSettings = {
   theme: "dark" as const,
   jigs: DEFAULT_JIG_SETTINGS,
-  claudeCode: DEFAULT_CLAUDE_CODE_SETTINGS,
-  claudeCodeAutoModeAvailable: true,
+  legacyAgentSettingsPresent: false,
   contextWindow: 200_000,
 };
 
@@ -196,12 +194,16 @@ describe("ProjectSettings", () => {
       expect(screen.getByRole("tab", { name: "Jigs" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Plugins" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Marketplaces" })).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Claude Code" })).toBeInTheDocument();
     });
 
     it("no longer renders the legacy Integrations tab", () => {
       render();
       expect(screen.queryByRole("tab", { name: "Integrations" })).toBeNull();
+    });
+
+    it("no longer renders the retired built-in agent tab (#521)", () => {
+      render();
+      expect(screen.queryByRole("tab", { name: "Claude Code" })).toBeNull();
     });
 
     it("TC-010: top-level tab is labelled 'Benches', not 'Bench Defaults'", () => {
@@ -258,7 +260,7 @@ describe("ProjectSettings", () => {
         settings: {
           theme: "light",
           jigs: DEFAULT_JIG_SETTINGS,
-          claudeCodeAutoModeAvailable: true,
+          legacyAgentSettingsPresent: false,
           contextWindow: 200_000,
         },
         isLoading: false,
@@ -314,7 +316,7 @@ describe("ProjectSettings", () => {
             autoExecute: false,
             defaultJigId: "feature-dev",
           },
-          claudeCodeAutoModeAvailable: true,
+          legacyAgentSettingsPresent: false,
           contextWindow: 200_000,
         },
         isLoading: false,
@@ -378,7 +380,7 @@ describe("ProjectSettings", () => {
             autoExecute: true,
             defaultJigId: "some-bp",
           },
-          claudeCodeAutoModeAvailable: true,
+          legacyAgentSettingsPresent: false,
           contextWindow: 200_000,
         },
         isLoading: false,
@@ -756,155 +758,6 @@ describe("ProjectSettings", () => {
     });
   });
 
-  describe("Claude Code tab", () => {
-    async function openClaudeCodeTab() {
-      const user = userEvent.setup();
-      render();
-      await user.click(screen.getByRole("tab", { name: "Claude Code" }));
-      return user;
-    }
-
-    it("renders the enable auto mode toggle", async () => {
-      await openClaudeCodeTab();
-      expect(screen.getByRole("switch", { name: /enable auto mode/i })).toBeInTheDocument();
-    });
-
-    it("renders the start in plan mode toggle", async () => {
-      await openClaudeCodeTab();
-      expect(screen.getByRole("switch", { name: /start in plan mode/i })).toBeInTheDocument();
-    });
-
-    it("calls updateSettings when auto mode is toggled on", async () => {
-      const updateSettings = vi.fn();
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          claudeCode: { enableAutoMode: false, startInPlanMode: false },
-        },
-        isLoading: false,
-        updateSettings,
-      });
-      const user = await openClaudeCodeTab();
-      await user.click(screen.getByRole("switch", { name: /enable auto mode/i }));
-      expect(updateSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          claudeCode: expect.objectContaining({ enableAutoMode: true }),
-        }),
-      );
-    });
-
-    it("calls updateSettings when plan mode is toggled on", async () => {
-      const updateSettings = vi.fn();
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          claudeCode: { enableAutoMode: true, startInPlanMode: false },
-        },
-        isLoading: false,
-        updateSettings,
-      });
-      const user = await openClaudeCodeTab();
-      await user.click(screen.getByRole("switch", { name: /start in plan mode/i }));
-      expect(updateSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          claudeCode: expect.objectContaining({ startInPlanMode: true }),
-        }),
-      );
-    });
-
-    it("plan mode toggle is disabled when auto mode is off", async () => {
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          claudeCode: { enableAutoMode: false, startInPlanMode: false },
-        },
-        isLoading: false,
-        updateSettings: vi.fn(),
-      });
-      await openClaudeCodeTab();
-      expect(screen.getByRole("switch", { name: /start in plan mode/i })).toBeDisabled();
-    });
-
-    it("both toggles are disabled when claudeCodeAutoModeAvailable is false", async () => {
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          claudeCodeAutoModeAvailable: false,
-          claudeCodeAutoModeReason: "Claude Code version too old",
-        },
-        isLoading: false,
-        updateSettings: vi.fn(),
-      });
-      await openClaudeCodeTab();
-      expect(screen.getByRole("switch", { name: /enable auto mode/i })).toBeDisabled();
-      expect(screen.getByRole("switch", { name: /start in plan mode/i })).toBeDisabled();
-      expect(screen.getByText("Claude Code version too old")).toBeInTheDocument();
-    });
-
-    it("toggling auto mode off also clears plan mode", async () => {
-      const updateSettings = vi.fn();
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          claudeCode: { enableAutoMode: true, startInPlanMode: true },
-        },
-        isLoading: false,
-        updateSettings,
-      });
-      const user = await openClaudeCodeTab();
-      await user.click(screen.getByRole("switch", { name: /enable auto mode/i }));
-      expect(updateSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          claudeCode: { enableAutoMode: false, startInPlanMode: false },
-        }),
-      );
-    });
-
-    it("does not call updateSettings when settings is undefined", async () => {
-      const updateSettings = vi.fn();
-      mockedUseSettings.mockReturnValue({
-        settings: undefined,
-        isLoading: true,
-        updateSettings,
-      });
-      const user = await openClaudeCodeTab();
-      await user.click(screen.getByRole("switch", { name: /enable auto mode/i }));
-      expect(updateSettings).not.toHaveBeenCalled();
-    });
-
-    it("renders help text and documentation link", async () => {
-      await openClaudeCodeTab();
-      expect(
-        screen.getByText(/auto mode lets claude code make changes autonomously/i),
-      ).toBeInTheDocument();
-      const link = screen.getByRole("link", {
-        name: /learn about permission modes/i,
-      });
-      expect(link).toHaveAttribute(
-        "href",
-        "https://docs.anthropic.com/en/docs/claude-code/settings#permission-modes",
-      );
-    });
-
-    it("renders help text when toggles are disabled", async () => {
-      mockedUseSettings.mockReturnValue({
-        settings: {
-          ...defaultSettings,
-          claudeCodeAutoModeAvailable: false,
-          claudeCodeAutoModeReason: "Claude Code version too old",
-        },
-        isLoading: false,
-        updateSettings: vi.fn(),
-      });
-      await openClaudeCodeTab();
-      expect(
-        screen.getByText(/auto mode lets claude code make changes autonomously/i),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("link", { name: /learn about permission modes/i }),
-      ).toBeInTheDocument();
-    });
-  });
   describe("TestBench tab", () => {
     async function openTestBenchTab() {
       const user = userEvent.setup();

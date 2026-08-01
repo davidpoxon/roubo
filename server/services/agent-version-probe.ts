@@ -20,8 +20,9 @@ import { AgentCommandNotFoundError, resolveAgentCommand } from "./env.js";
 // from claude-version.ts, which spike #504 AC3 validated against both Claude Code
 // and Codex CLI output formats.
 //
-// claude-version.ts itself stays where it is: it serves auto-mode detection via
-// routes/settings.ts, which is a different concern from launch gating.
+// That module is now gone: #521 removed the built-in launch path along with the
+// auto-mode detection it also served, so this probe is the only version gate
+// left.
 //
 // Caching is keyed by RESOLVED BINARY plus probe argv, not by plugin, so two
 // plugins pointing at the same CLI probe it once and `GET /api/agents` can render

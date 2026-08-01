@@ -8,7 +8,7 @@ import type {
   RouboConfig,
   JigDefaultSource,
 } from "@roubo/shared";
-import { CLAUDE_STARTUP_DELAY_MS, DONE_STATUSES } from "@roubo/shared";
+import { AGENT_STARTUP_DELAY_MS, DONE_STATUSES, NO_AGENT_RESOLVED_MESSAGE } from "@roubo/shared";
 import { parseAlertExternalId, isAlertExternalId } from "./alert-external-id.js";
 import { formatAlertBody } from "./alert-formatting.js";
 import * as benchManager from "./bench-manager.js";
@@ -23,6 +23,8 @@ import { formatIssueBody, formatComments } from "./issue-formatting.js";
 import { ServiceError } from "./service-error.js";
 import { assertBenchOperable } from "./bench-operability.js";
 import { loadSettings } from "./state.js";
+import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
+import { toLaunchPermissions } from "./agent-permissions.js";
 
 /**
  * Persist a bench only if it is still tracked in the in-memory map. The
@@ -58,11 +60,11 @@ function toPersisted(bench: Bench): PersistedBench {
 
 /**
  * Shared tail for the create-and-assign flows once the bench exists and its
- * `assignedIssue` is set: persist, start the Claude session (injecting the
+ * `assignedIssue` is set: persist, start the agent session (injecting the
  * resolved jig), persist the injected jig, and return the success response.
  * Used by the alert and generic plugin-issue paths.
  */
-function finalizeAssignedBench(
+async function finalizeAssignedBench(
   projectId: string,
   bench: Bench,
   projectName: string,
@@ -76,7 +78,7 @@ function finalizeAssignedBench(
   },
   comments: Array<{ user: string; body: string }>,
   issueType: string | null,
-): CreateBenchWithIssueResponse {
+): Promise<CreateBenchWithIssueResponse> {
   // Persist before the network/session work so a failure can't orphan the bench.
   persistBenchIfLive(toPersisted(bench));
 
@@ -84,7 +86,8 @@ function finalizeAssignedBench(
     sessionId: terminalSessionId,
     jigId,
     jigSource,
-  } = buildAndStartClaudeSession(
+    launchWarning,
+  } = await buildAndStartAgentSession(
     projectId,
     bench.id,
     bench,
@@ -105,10 +108,26 @@ function finalizeAssignedBench(
     status: "success",
     bench,
     terminalSessionId,
+    ...(launchWarning !== undefined && { launchWarning }),
   };
 }
 
-function buildAndStartClaudeSession(
+/**
+ * Resolve the agent for a create-and-assign launch and open its session through
+ * the plugin runtime (AP-FR-019, #521). Core no longer has a built-in agent to
+ * fall back on, so an unresolved or unavailable agent leaves the bench created
+ * and assigned with no session rather than launching something else: the caller
+ * reports `terminalSessionId` as absent and the user launches from the bench
+ * once an agent plugin is installed.
+ *
+ * Whenever that happens it also returns a `launchWarning`, which the caller puts
+ * on the response so the user is told why no session opened. The assignment
+ * really did succeed, so this is not a failed request, but a missing session
+ * must not be silent (AP-NFR-003). Both call sites assign an issue (one to a
+ * bench it just created, one to an existing bench), so the text stays neutral
+ * about where the bench came from.
+ */
+async function buildAndStartAgentSession(
   projectId: string,
   benchId: number,
   bench: { workspacePath: string; branch: string },
@@ -125,9 +144,11 @@ function buildAndStartClaudeSession(
   },
   comments: Array<{ user: string; body: string }>,
   issueType?: string | null,
-): { sessionId?: string } & (
-  { jigId: string; jigSource: JigDefaultSource } | { jigId?: undefined; jigSource?: undefined }
-) {
+): Promise<
+  { sessionId?: string; launchWarning?: string } & (
+    { jigId: string; jigSource: JigDefaultSource } | { jigId?: undefined; jigSource?: undefined }
+  )
+> {
   const settings = loadSettings();
   const autoInject = settings.jigs?.autoInject ?? true;
   const autoExecute = settings.jigs?.autoExecute ?? true;
@@ -135,12 +156,16 @@ function buildAndStartClaudeSession(
   let jig: string | undefined;
   let jigId: string | undefined;
   let jigSource: JigDefaultSource | undefined;
+  // The agent the resolved jig binds to, when it binds one. Read before the
+  // agent is resolved because it is the highest-priority input to that choice.
+  let jigAgentPluginId: string | undefined;
 
   if (autoInject) {
     const resolved = jigManager.resolveJigForIssue(projectId, issueType ?? undefined, settings);
     jigId = resolved.jigId;
     jigSource = resolved.source;
     const jigDef = jigManager.getJig(projectId, jigId);
+    jigAgentPluginId = jigDef?.agentPluginId;
     const templateCtx = buildTemplateContext(config, benchId, bench.workspacePath);
     jig = jigManager.resolveJigContent(jigDef?.content ?? "", {
       ...templateCtx,
@@ -156,29 +181,54 @@ function buildAndStartClaudeSession(
     });
   }
 
-  let session;
-  try {
-    session = terminalService.createSession(
-      projectId,
-      benchId,
-      bench.workspacePath,
-      projectName,
-      "claude",
-      autoInject && autoExecute ? jig : undefined,
-      settings.claudeCode,
-    );
-  } catch (err) {
+  // Same precedence as the terminal route (AP-FR-006): the jig's own binding
+  // first, the app-level default agent second.
+  const agentPluginId = resolveLaunchAgentId({
+    ...(jigAgentPluginId !== undefined && { jigAgentPluginId }),
+    ...(settings.jigs?.defaultAgentPluginId !== undefined && {
+      defaultAgentPluginId: settings.jigs.defaultAgentPluginId,
+    }),
+  });
+  if (agentPluginId === undefined) {
     console.warn(
-      `Failed to start Claude terminal for bench ${benchId} (issue ${issue.externalId ?? `#${issue.number}`}):`,
-      err,
+      `No AI coding agent is available, so bench ${benchId} was created without a session ` +
+        `(issue ${issue.externalId ?? `#${issue.number}`}). Install an agent plugin from ` +
+        `Settings > AI Agents and launch from the bench.`,
     );
-    return {};
+    const launchWarning = `${NO_AGENT_RESOLVED_MESSAGE} The issue was assigned, so you can launch an agent from the bench once one is installed.`;
+    return jigId && jigSource ? { jigId, jigSource, launchWarning } : { launchWarning };
   }
 
-  if (autoInject && !autoExecute && jig) {
+  let launch;
+  try {
+    launch = await terminalService.createAgentSession({
+      projectId,
+      benchId,
+      workspacePath: bench.workspacePath,
+      projectName,
+      agentPluginId,
+      ...(autoInject && autoExecute && jig !== undefined && { initialInput: jig }),
+      permissions: toLaunchPermissions(stateService.getProjectPermissions(projectId)),
+    });
+  } catch (err) {
+    console.warn(
+      `Failed to start an agent session for bench ${benchId} (issue ${issue.externalId ?? `#${issue.number}`}):`,
+      err,
+    );
+    const reason = err instanceof Error && err.message ? err.message : "the agent failed to start";
+    const launchWarning = `The issue was assigned, but no agent session opened: ${reason}`;
+    return jigId && jigSource ? { jigId, jigSource, launchWarning } : { launchWarning };
+  }
+
+  const { session, promptInjection } = launch;
+
+  // The agent's DECLARED injection capability decides what happens to the jig
+  // (AP-FR-018): an agent that takes no prompt gets neither the positional
+  // prompt nor the delayed PTY write.
+  if (autoInject && !autoExecute && jig && promptInjection.mode !== "none") {
     setTimeout(() => {
       terminalService.writeToSession(session.id, jig);
-    }, CLAUDE_STARTUP_DELAY_MS);
+    }, AGENT_STARTUP_DELAY_MS);
   }
 
   if (jigId && jigSource) {
@@ -359,7 +409,7 @@ export async function createBenchAndAssignFromIssue(
     ...(persistRaw ? { raw: issue.raw } : {}),
   };
 
-  return finalizeAssignedBench(
+  return await finalizeAssignedBench(
     projectId,
     bench,
     projectName,
@@ -468,7 +518,8 @@ export async function assignIssue(
     sessionId: terminalSessionId,
     jigId,
     jigSource,
-  } = buildAndStartClaudeSession(
+    launchWarning,
+  } = await buildAndStartAgentSession(
     projectId,
     benchId,
     bench,
@@ -509,6 +560,7 @@ export async function assignIssue(
   return {
     bench,
     terminalSessionId,
+    ...(launchWarning !== undefined && { launchWarning }),
   };
 }
 

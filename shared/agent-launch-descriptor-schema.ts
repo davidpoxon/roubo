@@ -30,7 +30,7 @@ export const SUPPORTED_AGENT_LAUNCH_SCHEMA_VERSION = 1 as const;
 /**
  * One mutation applied to the parsed existing file, in declaration order.
  * Unknown keys survive because ops mutate the parsed file rather than replacing
- * it (the `writeClaudeSettingsLocal` preserve-unknown-keys precedent).
+ * it (the preserve-unknown-keys precedent the removed built-in writer set).
  *
  * - `unionArray`: union-merge string values into the array at `path`.
  * - `set`: overwrite the value at `path` (JSON-serializable values only).

@@ -57,11 +57,19 @@ Spin up a second bench from a different branch to run two streams of work in par
 
 Every bench operation Roubo exposes through its UI is also a JSON REST endpoint on `localhost`. The full integration surface (endpoints, request/response shapes, error codes, a worked end-to-end curl example) is in the [API Reference](./docs/api.md). Anything that can speak HTTP from the same machine can drive a bench.
 
-One tool has end-to-end integration today:
+Agents themselves arrive as **agent plugins**. Roubo has no agent of its own: it launches whichever agent plugins you install, from **Settings > AI Agents**, and a plugin's launch descriptor is what tells Roubo how to start that agent, how to hand it a jig, and how it reports being idle. Jig injection and the `permissions` API work the same way for every installed agent, so nothing is privileged by name.
 
-- **[Claude Code](https://www.anthropic.com/claude-code)**: Anthropic's command-line coding agent. First-class. Jigs inject Claude Code agent instructions directly into the bench workspace, and Roubo's `permissions` API is wired to Claude Code's tool permission model.
+Install the agent you use from the Marketplace tab, then set it as the default. Agents with no plugin installed can still drive Roubo through the [API](./docs/api.md) like any other HTTP client. If you have built a plugin worth upstreaming, [open an issue](https://github.com/davidpoxon/roubo/issues).
 
-Other tools (Cursor, Windsurf, Aider, OpenAI Codex CLI, and friends) can already drive Roubo via the [API](./docs/api.md). They do not yet have the first-class jig and permission integrations described above. If you've built a deeper integration worth upstreaming, [open an issue](https://github.com/davidpoxon/roubo/issues).
+### Upgrading from a build that launched Claude Code directly
+
+Earlier builds shipped a Claude Code launch path inside Roubo itself, configured under **Settings > Claude Code**. That path, and that settings tab, are gone: every launch now goes through an agent plugin.
+
+- **Nothing is migrated.** The old auto-mode and plan-mode preferences are not carried over into any plugin's configuration. They are left in `~/.roubo/settings.json` and ignored. Set the equivalents in **Settings > AI Agents** under the plugin you install.
+- **Install an agent before your first launch.** With no agent plugin installed there is nothing to launch: the bench's agent button is disabled, and a launch attempt is refused with a message pointing at the AI Agents screen rather than quietly opening a plain shell.
+- **Plain terminals are unaffected.** Opening a shell terminal in a bench needs no plugin.
+- **API callers: `command` is now an agent-launch carrier.** `POST /api/projects/:projectId/benches/:id/terminals` treats any request carrying `command` as an agent launch, so one that used to open a shell by naming a binary now resolves an agent instead, and is refused with a `409` when none resolves. Send no `command` (and no `jigId` or `agentPluginId`) to open a plain login shell. See the [API Reference](./docs/api.md).
+- **On first launch** the AI Agents screen shows a one-time notice saying the same thing. Dismiss it and it stays dismissed.
 
 ## Documentation
 

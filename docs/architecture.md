@@ -118,7 +118,7 @@ A bench terminal session is either working, waiting on you, or gone. Roubo turns
 
 ### Two waiting-detection mechanisms
 
-**Hook-driven.** The agent tells Roubo it is waiting. Roubo exposes a local endpoint, `POST /api/hooks/claude-notification`, and the agent is configured at launch to call it with its own session id. This is immediate and precise: it fires on a permission prompt or a finished turn rather than on a guess about idleness. An AI coding agent launched from a plugin declares this wiring in its launch descriptor (`capabilities.notification`, `kind: "http-hook"`); Roubo executes the declared workspace write that registers the hook, substituting the real session id and port so the plugin never learns either.
+**Hook-driven.** The agent tells Roubo it is waiting. Roubo exposes a local endpoint, `POST /api/hooks/claude-notification` (a historical path, kept because shipped plugin manifests point at it), and the agent is configured at launch to call it with its own session id. This is immediate and precise: it fires on a permission prompt or a finished turn rather than on a guess about idleness. An AI coding agent launched from a plugin declares this wiring in its launch descriptor (`capabilities.notification`, `kind: "http-hook"`); Roubo executes the declared workspace write that registers the hook, substituting the real session id and port so the plugin never learns either.
 
 **Quiescence.** No hook, so Roubo infers waiting from silence: if a session's PTY produces no output for a debounce window, it is treated as waiting. A plugin tunes its own window with `capabilities.waitingDetection`, either `quiescence-only` with a `debounceMs`, or `hook-driven` with a `quiescenceFallbackMs` used as a safety net behind its hook (an agent TUI redraws while it works, so the fallback window is deliberately long, defaulting to 8000ms). A session declaring nothing gets the generic 2000ms terminal window and a plain `terminal-waiting` notification.
 
@@ -128,7 +128,7 @@ The two compose: a hook-driven agent still arms the quiescence timer, because a 
 
 The session id is minted by Roubo before the agent is asked for anything, so the id in the agent's argv, the id written into its hook configuration, and the id on the session record are all the same value. A hook POST is honoured only when that id names a session that is **still live** and whose agent **declared hook wiring**. Both halves matter: for a plugin agent, eligibility is a property of the launch descriptor rather than of the command name, so no plugin is privileged by what its binary is called, and the live check is what expires a correlation token. An exited session, or one restored from disk after a restart, keeps its record so its scrollback survives, but a POST quoting it is rejected and logged rather than raising a notification.
 
-One exception is deliberate and temporary: the legacy built-in Claude Code path has no launch descriptor, so core hook-wires it directly (`writeClaudeSettingsLocal`) and marks it eligible on that basis. It is the last place a command name still confers eligibility, and it goes away with the rest of the built-in (#521).
+There is no exception. Roubo removed its own built-in agent launch path in #521, so a launch descriptor is the only thing that can confer hook eligibility and a command name confers nothing.
 
 ### Dismissal
 

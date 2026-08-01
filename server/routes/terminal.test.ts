@@ -45,7 +45,8 @@ vi.mock("../services/issue-formatting.js", () => ({
 // Partial mock: the error classes stay real (the route matches on them with
 // `instanceof`), only the launch-agent resolution is stubbed. Its own order
 // semantics are covered in agent-launch-pipeline.test.ts; what matters here is
-// the wiring, so the default is "no agent resolved" (the built-in path).
+// the wiring. The default is "no agent resolved", which since #521 is a launch
+// failure rather than a fall-through.
 const pipelineMocks = vi.hoisted(() => ({
   resolveLaunchAgentId: vi.fn<() => string | undefined>(() => undefined),
 }));
@@ -107,6 +108,16 @@ const MOCK_JIG = {
 
 type AgentSession = Awaited<ReturnType<typeof terminalService.createAgentSession>>["session"];
 
+const AGENT_SESSION: AgentSession = {
+  id: "term-agent-1",
+  benchKey: "project1:1",
+  label: "Acme 1 - My Project #1",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  command: "acme",
+  status: "live",
+  agentPluginId: "acme-agent",
+};
+
 /**
  * Prime `createAgentSession` the way a real launch behaves: an agent that
  * declares `argv-positional` injection reports the prompt as injected exactly
@@ -161,6 +172,11 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       status: "live",
     });
+    // Since #521 a jig only ever drives an agent launch, so these cases resolve
+    // an agent and go down the plugin path. The built-in they used to take is
+    // gone (AP-TC-103).
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue("acme-agent");
+    mockAgentLaunch(AGENT_SESSION);
     vi.mocked(terminalService.writeToSession).mockReturnValue(true);
     vi.mocked(state.loadSettings).mockReturnValue({
       jigs: {
@@ -186,18 +202,17 @@ describe("POST /:projectId/benches/:id/terminals", () => {
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude" });
+      .send({ agentPluginId: "acme-agent" });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/no valid workspace path/i);
-    // No shell may be spawned with cwd="" (the server's own working directory).
+    // Nothing may be spawned with cwd="" (the server's own working directory).
     expect(terminalService.createSession).not.toHaveBeenCalled();
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
   });
 
-  it("creates a terminal session", async () => {
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude" });
+  it("creates a plain shell terminal when nothing asks for an agent", async () => {
+    const res = await request(app).post("/project1/benches/1/terminals").send({});
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({
@@ -205,23 +220,49 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       label: "Terminal 1 - My Project #1",
       wsUrl: "/ws/terminal/term-1",
     });
+    // Four arguments and no more: core assembles no agent argv and passes no
+    // agent settings (AP-TC-103, AP-TC-104).
     expect(terminalService.createSession).toHaveBeenCalledWith(
       "project1",
       1,
       "/workspace",
       "My Project",
-      "claude",
-      undefined,
-      undefined,
-      { allow: [], deny: [] },
-      expect.any(Function),
     );
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
+  });
+
+  it("fails a legacy command-carrier launch with actionable guidance (AP-TC-103)", async () => {
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue(undefined);
+
+    const res = await request(app)
+      .post("/project1/benches/1/terminals")
+      .send({ command: "claude" });
+
+    // No silent fallback to a shell, and no built-in launch: a 409 naming the
+    // way out.
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no ai coding agent is available/i);
+    expect(res.body.error).toMatch(/ai agents/i);
+    expect(terminalService.createSession).not.toHaveBeenCalled();
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
+  });
+
+  it("fails a jig-driven launch that resolves no agent, rather than dropping the jig", async () => {
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue(undefined);
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Push feature/test to GitHub");
+
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no ai coding agent is available/i);
+    expect(terminalService.createSession).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid jigId", async () => {
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "../evil" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "../evil" });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/invalid jig id/i);
   });
@@ -235,7 +276,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "__global_default__" });
+      .send({ jigId: "__global_default__" });
 
     expect(res.status).toBe(201);
     expect(jigManager.getDefaultJigId).toHaveBeenCalledWith("project1");
@@ -251,7 +292,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
 
     const res = await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "__global_default__" });
+      .send({ jigId: "__global_default__" });
 
     expect(res.status).toBe(201);
     expect(jigManager.getJig).toHaveBeenCalledWith("project1", "__global_default__");
@@ -261,9 +302,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
   it("returns 404 when jigId is provided but jig not found", async () => {
     vi.mocked(jigManager.getJig).mockReturnValue(null);
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
     expect(res.status).toBe(404);
     expect(res.body.error).toMatch(/jig not found/i);
   });
@@ -274,22 +313,19 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     );
     vi.mocked(jigManager.resolveJigContent).mockReturnValue("Push feature/test to GitHub");
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(res.body.jigInjected).toBe(true);
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      "Push feature/test to GitHub",
-      undefined,
-      { allow: [], deny: [] },
-      expect.any(Function),
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project1",
+        benchId: 1,
+        workspacePath: "/workspace",
+        projectName: "My Project",
+        agentPluginId: "acme-agent",
+        initialInput: "Push feature/test to GitHub",
+      }),
     );
   });
 
@@ -317,9 +353,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     );
     vi.mocked(jigManager.resolveJigContent).mockReturnValue("resolved");
 
-    await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
     const ctx = vi.mocked(jigManager.resolveJigContent).mock.calls[0][1];
@@ -345,125 +379,22 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     );
     vi.mocked(jigManager.resolveJigContent).mockReturnValue("Push feature/test to GitHub");
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(res.body.jigScheduled).toBe(true);
     expect(res.body.jigInjected).toBeUndefined();
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      undefined,
-      undefined,
-      { allow: [], deny: [] },
-      expect.any(Function),
+    expect(vi.mocked(terminalService.createAgentSession).mock.calls[0][0]).not.toHaveProperty(
+      "initialInput",
     );
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
 
     vi.runAllTimers();
     expect(terminalService.writeToSession).toHaveBeenCalledWith(
-      "term-1",
+      "term-agent-1",
       "Push feature/test to GitHub",
     );
     vi.useRealTimers();
-  });
-
-  it("ignores jigId for non-claude commands", async () => {
-    vi.mocked(jigManager.getJig).mockReturnValue(
-      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
-    );
-
-    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
-
-    expect(res.status).toBe(201);
-    expect(jigManager.getJig).not.toHaveBeenCalled();
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-    );
-  });
-
-  it("forwards claudeCode settings from loadSettings to createSession", async () => {
-    vi.mocked(state.loadSettings).mockReturnValue({
-      jigs: {
-        autoInject: true,
-        autoExecute: true,
-        defaultJigId: "feature-dev",
-      },
-      claudeCode: { enableAutoMode: true, startInPlanMode: false },
-    });
-
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude" });
-
-    expect(res.status).toBe(201);
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      undefined,
-      { enableAutoMode: true, startInPlanMode: false },
-      { allow: [], deny: [] },
-      expect.any(Function),
-    );
-  });
-
-  it("fetches and passes project permissions to createSession for claude command", async () => {
-    vi.mocked(state.getProjectPermissions).mockReturnValue({
-      allow: ["Bash(npm test:*)", "Bash(npx vitest:*)"],
-      deny: [],
-    });
-
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude" });
-
-    expect(res.status).toBe(201);
-    expect(state.getProjectPermissions).toHaveBeenCalledWith("project1");
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      "claude",
-      undefined,
-      undefined,
-      { allow: ["Bash(npm test:*)", "Bash(npx vitest:*)"], deny: [] },
-      expect.any(Function),
-    );
-  });
-
-  it("does not fetch project permissions for non-claude commands", async () => {
-    const res = await request(app).post("/project1/benches/1/terminals").send({});
-
-    expect(res.status).toBe(201);
-    expect(state.getProjectPermissions).not.toHaveBeenCalled();
-    expect(terminalService.createSession).toHaveBeenCalledWith(
-      "project1",
-      1,
-      "/workspace",
-      "My Project",
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-    );
   });
 
   it("fetches issue context when bench has assigned issue", async () => {
@@ -482,9 +413,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       comments: "",
     });
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(issueFormatting.fetchIssueContext).toHaveBeenCalledWith("owner/repo", 42);
@@ -502,9 +431,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       config: undefined,
     } as unknown as ReturnType<typeof projectRegistry.getProject>);
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(res.body.jigInjected).toBeUndefined();
@@ -519,9 +446,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     } as unknown as ReturnType<typeof jigManager.getJig>);
     vi.mocked(jigManager.resolveJigContent).mockReturnValue("Very large jig content");
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(res.body.jigInjected).toBe(true);
@@ -539,9 +464,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     vi.mocked(issueFormatting.fetchIssueContext).mockRejectedValue(new Error("GitHub API error"));
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to fetch issue #42"));
@@ -555,18 +478,16 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     warnSpy.mockRestore();
   });
 
-  it("onClaudeExit callback calls createNotification with the bench and claude-exited type", async () => {
-    await request(app).post("/project1/benches/1/terminals").send({ command: "claude" });
+  it("wires the agent-exit notification through the plugin launch, not a command name", async () => {
+    await request(app).post("/project1/benches/1/terminals").send({ agentPluginId: "acme-agent" });
 
-    const onClaudeExit = vi.mocked(terminalService.createSession).mock.calls[0][8] as (
-      sessionId: string,
-    ) => void;
-    onClaudeExit("term-1");
+    const opts = vi.mocked(terminalService.createAgentSession).mock.calls[0][0];
+    opts.onAgentExit?.("term-agent-1");
 
     expect(notificationService.createNotification).toHaveBeenCalledWith(
       MOCK_BENCH,
-      "claude-exited",
-      "term-1",
+      "agent-exited",
+      "term-agent-1",
     );
   });
 });
@@ -610,6 +531,10 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       MOCK_PROJECT as unknown as ReturnType<typeof projectRegistry.getProject>,
     );
+    vi.mocked(state.getProjectPermissions).mockReturnValue({
+      allow: ["Bash(npm test:*)", "Bash(npx vitest:*)"],
+      deny: [],
+    });
     mockAgentLaunch(AGENT_SESSION);
   });
 
@@ -667,11 +592,13 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
     );
   });
 
-  it("leaves the built-in command path alone when no agentPluginId is supplied", async () => {
-    await request(app).post("/project1/benches/1/terminals").send({ command: "claude" });
+  it("still resolves an agent when no agentPluginId is supplied, never a built-in (#521)", async () => {
+    await request(app).post("/project1/benches/1/terminals").send({ command: "acme" });
 
-    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
-    expect(terminalService.createSession).toHaveBeenCalled();
+    expect(terminalService.createSession).not.toHaveBeenCalled();
+    expect(terminalService.createAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({ agentPluginId: "acme-agent" }),
+    );
   });
 
   it.each([
@@ -850,9 +777,7 @@ describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
       BOUND_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
 
-    await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(pipelineMocks.resolveLaunchAgentId).toHaveBeenCalledWith({
       jigAgentPluginId: "codex-cli",
@@ -866,9 +791,7 @@ describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
     );
     pipelineMocks.resolveLaunchAgentId.mockReturnValue("codex-cli");
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(res.body.sessionId).toBe("agent-2");
@@ -887,42 +810,39 @@ describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
       MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
 
-    await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(pipelineMocks.resolveLaunchAgentId).toHaveBeenCalledWith({
       defaultAgentPluginId: "claude-code",
     });
   });
 
-  it("stays on the built-in command path when nothing resolves an agent", async () => {
+  it("fails the launch when nothing resolves an agent, with no built-in left (AP-TC-103)", async () => {
     vi.mocked(jigManager.getJig).mockReturnValue(
       MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
+    pipelineMocks.resolveLaunchAgentId.mockReturnValue(undefined);
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/no ai coding agent is available/i);
     expect(terminalService.createAgentSession).not.toHaveBeenCalled();
-    expect(terminalService.createSession).toHaveBeenCalled();
+    expect(terminalService.createSession).not.toHaveBeenCalled();
   });
 
   it("lets an explicit agentPluginId win over the jig-driven resolution", async () => {
     vi.mocked(jigManager.getJig).mockReturnValue(
       BOUND_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
-    // `command: "claude"` keeps the jig-driven branch live, and the resolver is
-    // primed with a DIFFERENT agent, so the assertions below fail if the
-    // precedence is ever inverted rather than passing because the branch was
-    // never reached.
+    // The jig keeps the jig-driven branch live, and the resolver is primed with
+    // a DIFFERENT agent, so the assertions below fail if the precedence is ever
+    // inverted rather than passing because the branch was never reached.
     pipelineMocks.resolveLaunchAgentId.mockReturnValue("codex-cli");
 
     await request(app)
       .post("/project1/benches/1/terminals")
-      .send({ command: "claude", agentPluginId: "acme-agent", jigId: "push" });
+      .send({ agentPluginId: "acme-agent", jigId: "push" });
 
     expect(pipelineMocks.resolveLaunchAgentId).not.toHaveBeenCalled();
     expect(terminalService.createAgentSession).toHaveBeenCalledWith(
@@ -940,9 +860,7 @@ describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
     });
     pipelineMocks.resolveLaunchAgentId.mockReturnValue("codex-cli");
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.body.jigScheduled).toBe(true);
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
@@ -1028,9 +946,7 @@ describe("an agent that declares no injection capability (AP-FR-018, AP-TC-063)"
       jigs: { autoInject: true, autoExecute: true },
     });
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(res.body.sessionId).toBe("agent-3");
@@ -1047,9 +963,7 @@ describe("an agent that declares no injection capability (AP-FR-018, AP-TC-063)"
       jigs: { autoInject: true, autoExecute: false },
     });
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(res.body.jigScheduled).toBeUndefined();
@@ -1065,9 +979,7 @@ describe("an agent that declares no injection capability (AP-FR-018, AP-TC-063)"
       sizeWarning: true,
     } as unknown as ReturnType<typeof jigManager.getJig>);
 
-    const res = await request(app)
-      .post("/project1/benches/1/terminals")
-      .send({ command: "claude", jigId: "push" });
+    const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
     expect(res.body.sizeWarning).toBe(true);

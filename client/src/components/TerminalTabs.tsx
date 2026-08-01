@@ -33,7 +33,6 @@ import type {
   AgentLaunchFailure,
   JigMeta,
   BenchNotification,
-  ClaudeCodeMode,
   ProjectAgentState,
   ResolvedAgentPreset,
   TerminalSession,
@@ -42,34 +41,13 @@ import { ApiError } from "../lib/api";
 import { useBenchViewState } from "../hooks/useBenchViewState";
 import { useToast } from "../hooks/useToast";
 
-const modeLabelMap: Record<ClaudeCodeMode, string> = {
-  auto: "auto",
-  plan: "plan",
-  "plan-auto": "plan \u2192 auto",
-};
-
 /**
- * The session's launch mode, agent-generically. The badge names no agent and is
- * gated on nothing but the presence of a mode, so a plugin-launched session and
- * a built-in one read the same.
- */
-function ModeBadge({ mode }: { mode?: ClaudeCodeMode }) {
-  if (!mode) return null;
-  return (
-    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 bg-amber-500/15 text-amber-400">
-      {modeLabelMap[mode]}
-    </span>
-  );
-}
-
-/**
- * The agent a session tab belongs to. `agentPluginId` is the agent-generic
- * answer every launch from this component now carries; the `claude` command is
- * the legacy built-in carrier that predates it, mapped here so a session opened
- * on that path keeps its identity until #521 removes the path entirely.
+ * The agent a session tab belongs to. `agentPluginId` is the only carrier:
+ * since #521 every agent session is opened by an agent plugin, and a session
+ * without one is a plain shell terminal.
  */
 function sessionAgentId(session: TerminalSession): string | undefined {
-  return session.agentPluginId ?? (session.command === "claude" ? "claude-code" : undefined);
+  return session.agentPluginId;
 }
 
 function SourceBadge({ source }: { source: JigMeta["source"] }) {
@@ -268,8 +246,8 @@ export default function TerminalTabs({
   );
 
   /**
-   * Which jig an agent launch carries. Auto-inject decides the baseline exactly
-   * as it did for the built-in Claude button, and a preset's own `jig` field
+   * Which jig an agent launch carries. Auto-inject decides the baseline, and a
+   * preset's own `jig` field
    * then overrides it: the two `__inherit__` / `__none__` sentinels mean "keep
    * the baseline" and "explicitly none", and anything else names a jig.
    */
@@ -533,11 +511,11 @@ export default function TerminalTabs({
     [projectId, benchId, injectJig, activeTab],
   );
 
-  // Extract short label (e.g., "Terminal 1" or "Claude 1")
-  const shortLabel = (label: string) => {
-    const match = label.match(/^(Terminal|Claude)\s+\d+/);
-    return match ? match[0] : label.split(" - ")[0];
-  };
+  // Extract the short label: "Terminal 1", or "<Agent name> 1" for an agent
+  // session, whose label the server builds from the plugin's own manifest name.
+  // The server's label format is `<name> <index> - <project> #<bench>`, so the
+  // leading segment is the whole answer and no name needs to be known here.
+  const shortLabel = (label: string) => label.split(" - ")[0];
 
   void projectName; // Used by server to generate labels
 
@@ -609,7 +587,6 @@ export default function TerminalTabs({
                 />
               )}
               <span className="whitespace-nowrap">{shortLabel(session.label)}</span>
-              <ModeBadge mode={session.claudeCodeMode} />
               {activeTab !== session.id && (
                 <NotificationIndicator
                   notifications={notifications.filter((n) => n.sourceSessionId === session.id)}

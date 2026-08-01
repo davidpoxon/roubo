@@ -225,9 +225,10 @@ describe("GET /:projectId/jigs/:jigId", () => {
 describe("POST /:projectId/benches/:benchId/inject-jig", () => {
   const MOCK_SESSION = {
     id: "session-abc",
-    command: "claude",
+    command: "acme",
+    agentPluginId: "acme-agent",
     status: "live",
-    label: "Claude 1",
+    label: "Acme 1",
   };
 
   beforeEach(() => {
@@ -252,7 +253,7 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
     });
   });
 
-  it("injects jig into active Claude session", async () => {
+  it("injects jig into a live agent session", async () => {
     const res = await request(app)
       .post("/project-1/benches/1/inject-jig")
       .send({ jigId: "feature-dev" });
@@ -384,7 +385,7 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
     expect(res.body.error).toMatch(/jig not found/i);
   });
 
-  it("returns 404 when no active Claude session", async () => {
+  it("returns 404 when there is no live agent session", async () => {
     vi.mocked(terminalService.getSessions).mockReturnValue([
       {
         id: "session-1",
@@ -398,16 +399,17 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
       .post("/project-1/benches/1/inject-jig")
       .send({ jigId: "feature-dev" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/no active claude session/i);
+    expect(res.body.error).toMatch(/no active agent session/i);
   });
 
-  it("returns 404 when Claude session is not live", async () => {
+  it("returns 404 when the agent session is not live", async () => {
     vi.mocked(terminalService.getSessions).mockReturnValue([
       {
         id: "session-1",
-        command: "claude",
+        command: "acme",
+        agentPluginId: "acme-agent",
         status: "ended",
-        label: "Claude 1",
+        label: "Acme 1",
       } as unknown as ReturnType<typeof terminalService.getSessions>[0],
     ]);
 
@@ -415,7 +417,7 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
       .post("/project-1/benches/1/inject-jig")
       .send({ jigId: "feature-dev" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/no active claude session/i);
+    expect(res.body.error).toMatch(/no active agent session/i);
   });
 
   it("returns 500 when writeToSession fails", async () => {
@@ -429,7 +431,13 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
   });
 
   it("injects into specified sessionId when provided", async () => {
-    const session2 = { id: "session-new", command: "claude", status: "live", label: "Claude 2" };
+    const session2 = {
+      id: "session-new",
+      command: "acme",
+      agentPluginId: "acme-agent",
+      status: "live",
+      label: "Acme 2",
+    };
     vi.mocked(terminalService.getSessions).mockReturnValue([
       MOCK_SESSION as unknown as ReturnType<typeof terminalService.getSessions>[0],
       session2 as unknown as ReturnType<typeof terminalService.getSessions>[0],
@@ -443,17 +451,23 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
     expect(terminalService.writeToSession).toHaveBeenCalledWith("session-new", expect.any(String));
   });
 
-  it("returns 404 when specified sessionId does not match any live Claude session", async () => {
+  it("returns 404 when specified sessionId does not match any live agent session", async () => {
     const res = await request(app)
       .post("/project-1/benches/1/inject-jig")
       .send({ jigId: "feature-dev", sessionId: "session-nonexistent" });
 
     expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/no active claude session/i);
+    expect(res.body.error).toMatch(/no active agent session/i);
   });
 
-  it("falls back to first live Claude session when sessionId is omitted", async () => {
-    const session2 = { id: "session-new", command: "claude", status: "live", label: "Claude 2" };
+  it("falls back to the first live agent session when sessionId is omitted", async () => {
+    const session2 = {
+      id: "session-new",
+      command: "acme",
+      agentPluginId: "acme-agent",
+      status: "live",
+      label: "Acme 2",
+    };
     vi.mocked(terminalService.getSessions).mockReturnValue([
       MOCK_SESSION as unknown as ReturnType<typeof terminalService.getSessions>[0],
       session2 as unknown as ReturnType<typeof terminalService.getSessions>[0],

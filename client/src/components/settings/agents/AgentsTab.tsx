@@ -1,6 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useAgentPlugins } from "../../../hooks/useAgentPlugins";
 import AgentPluginCard from "./AgentPluginCard";
+import AgentMigrationNotice from "./AgentMigrationNotice";
 
 const STRINGS = {
   heading: "AI Agents",
@@ -42,6 +43,8 @@ export default function AgentsTab() {
           {STRINGS.descriptionSuffix}
         </p>
       </header>
+
+      <AgentMigrationNotice />
 
       {isLoading && (
         <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">

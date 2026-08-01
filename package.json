@@ -49,6 +49,7 @@
     "lint:fix": "eslint . --fix --max-warnings 0",
     "lint:em-dash": "node scripts/check-em-dashes.mjs",
     "lint:component-guard": "node scripts/component-type-knowledge-guard.mjs",
+    "lint:agent-guard": "node scripts/agent-identifier-guard.mjs",
     "lint:no-ai-coauthor": "node scripts/check-ai-coauthorship.mjs",
     "generate:schema": "tsx scripts/generate-schema.ts",
     "generate:routes": "tsx scripts/generate-route-inventory.ts",

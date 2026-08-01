@@ -229,7 +229,7 @@ function readJsonObject(filePath: string): Record<string, unknown> {
       ? (parsed as Record<string, unknown>)
       : {};
   } catch {
-    // An unparseable file is treated as empty, matching writeClaudeSettingsLocal.
+    // An unparseable file is treated as empty, matching the removed built-in writer.
     return {};
   }
 }
@@ -257,7 +257,7 @@ function containerFor(
 /**
  * Apply ops in order against the PARSED existing file, so unknown keys the user
  * (or another tool) put there survive. This is the same preserve-unknown-keys
- * contract `writeClaudeSettingsLocal` honours today.
+ * contract the removed built-in writer honoured.
  */
 function applyJsonWrite(filePath: string, ops: WriteOp[]): void {
   const doc = readJsonObject(filePath);

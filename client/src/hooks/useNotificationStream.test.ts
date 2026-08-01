@@ -35,7 +35,7 @@ const MockEventSource = vi.fn(function MockEventSourceCtor() {
 const showNotification = vi.fn();
 
 function makeNotification(priority: "action-needed" | "info", id = "n1"): BenchNotification {
-  return { id, type: "claude-waiting", priority, createdAt: "2024-01-01" };
+  return { id, type: "agent-waiting", priority, createdAt: "2024-01-01" };
 }
 
 function makeClientBench(overrides?: Partial<Bench>): Bench {

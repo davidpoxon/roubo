@@ -1570,9 +1570,8 @@ export interface DirtyState {
 // ── Notification types ──
 
 export type NotificationType =
-  | "claude-exited"
   | "agent-exited"
-  | "claude-waiting"
+  | "agent-waiting"
   | "terminal-waiting"
   | "bench-ready"
   | "bench-error"
@@ -1936,7 +1935,7 @@ export interface PermissionsResyncResult {
  * gets no rules editor and no re-sync control).
  */
 export interface AgentPermissionsCapabilities {
-  /** `null` when no agent plugin resolves and the built-in carrier is in use. */
+  /** `null` when no agent plugin resolves, so nothing carries the rules. */
   agentPluginId: string | null;
   agentName: string | null;
   /** The postures the agent binds. Empty means the posture control is hidden. */
@@ -2052,17 +2051,6 @@ export interface CheckConfigResult {
 
 // ── Terminal types ──
 
-export type ClaudeCodeMode = "auto" | "plan" | "plan-auto";
-
-export function deriveClaudeCodeMode(settings?: ClaudeCodeSettings): ClaudeCodeMode | undefined {
-  if (!settings) return undefined;
-  const { enableAutoMode, startInPlanMode } = settings;
-  if (enableAutoMode && startInPlanMode) return "plan-auto";
-  if (enableAutoMode) return "auto";
-  if (startInPlanMode) return "plan";
-  return undefined;
-}
-
 export interface TerminalSession {
   id: string;
   benchKey: string;
@@ -2071,11 +2059,10 @@ export interface TerminalSession {
   command?: string;
   status: "live" | "ended";
   exitCode?: number;
-  claudeCodeMode?: ClaudeCodeMode;
   /**
    * The `agent`-kind plugin whose launch descriptor opened this session
-   * (AP-FR-011). Absent for the built-in shell and Claude paths, so an agent
-   * session is identifiable without an agent-specific field per agent.
+   * (AP-FR-011). Absent for a plain shell terminal, so an agent session is
+   * identifiable without an agent-specific field per agent.
    */
   agentPluginId?: string;
 }
@@ -2447,6 +2434,13 @@ export interface AssignIssueRequest {
 export interface AssignIssueResponse {
   bench: Bench;
   terminalSessionId: string | undefined;
+  /**
+   * Set when the issue was assigned but no agent session opened, for the same
+   * reason and with the same contract as on `CreateBenchWithIssueResponse`
+   * (AP-NFR-003): the assignment succeeded, but a missing session is never
+   * silent.
+   */
+  launchWarning?: string;
 }
 
 // ── GitHub project types ──
@@ -2519,13 +2513,13 @@ export const DEFAULT_CONTEXT_WINDOW = 200_000;
 export const COMPONENT_STEP_PREFIX = "component:";
 
 /**
- * Delay (ms) between creating a Claude terminal session and writing to it.
- * Claude Code needs time to start and begin accepting stdin; writing too early
- * causes the jig to be silently dropped. If Claude starts slowly (e.g. slow
+ * Delay (ms) between creating an agent terminal session and writing to it.
+ * An agent CLI needs time to start and begin accepting stdin; writing too early
+ * causes the jig to be silently dropped. If the agent starts slowly (e.g. slow
  * machine, heavy load), this delay may still not be enough; the injection will
  * fail without any error signal.
  */
-export const CLAUDE_STARTUP_DELAY_MS = 1500;
+export const AGENT_STARTUP_DELAY_MS = 1500;
 
 export const DEFAULT_JIG_SETTINGS: JigSettings = {
   autoInject: true,
@@ -2635,16 +2629,6 @@ export const DEFAULT_TESTBENCH_SETTINGS: TestBenchSettings = {
   enabled: true,
 };
 
-export interface ClaudeCodeSettings {
-  enableAutoMode: boolean;
-  startInPlanMode: boolean;
-}
-
-export const DEFAULT_CLAUDE_CODE_SETTINGS: ClaudeCodeSettings = {
-  enableAutoMode: false,
-  startInPlanMode: false,
-};
-
 export interface GitHubSettings {
   issueTypesCacheTtlSeconds: number;
 }
@@ -2663,13 +2647,18 @@ export interface UserPreferences {
   agentTools?: AgentToolPreset[];
   benches?: BenchSettings;
   testBench?: TestBenchSettings;
-  claudeCode?: ClaudeCodeSettings;
   github?: GitHubSettings;
 }
 
 export interface SettingsResponse extends UserPreferences {
-  claudeCodeAutoModeAvailable: boolean;
-  claudeCodeAutoModeReason?: string;
+  /**
+   * True when `~/.roubo/settings.json` still carries the retired built-in agent
+   * preferences block (AP-FR-021, issue #521). Read from the RAW file rather
+   * than the defaults-merged settings, so a fresh install reports `false` and
+   * never sees the upgrade notice. Nothing is migrated from it; the flag exists
+   * only so the AI Agents screen can say so once.
+   */
+  legacyAgentSettingsPresent: boolean;
   contextWindow: number;
 }
 
@@ -2681,8 +2670,33 @@ export interface BranchConflictInfo {
   branchName: string;
 }
 
+/**
+ * What a user is told when a launch resolves no agent. Core stopped launching an
+ * agent CLI of its own in #521, so this has to name the way out: agents arrive as
+ * plugins, and the AI Agents screen is where they are installed and made the
+ * default (AP-FR-019, AP-TC-103).
+ *
+ * Shared rather than route-local because two paths refuse for this reason: the
+ * terminal route (as a 409) and create-and-assign (as `launchWarning` below).
+ * Both must say the same thing.
+ */
+export const NO_AGENT_RESOLVED_MESSAGE =
+  "No AI coding agent is available to launch. Agents are installed as plugins: " +
+  "open Settings, then AI Agents, to install one and set it as the default.";
+
 export type CreateBenchWithIssueResponse =
-  | { status: "success"; bench: Bench; terminalSessionId: string | undefined }
+  | {
+      status: "success";
+      bench: Bench;
+      terminalSessionId: string | undefined;
+      /**
+       * Set when the bench was created and assigned but no agent session opened.
+       * The bench itself succeeded, so this is not an error status, but the
+       * absence of a session must never be silent (AP-NFR-003): the client
+       * surfaces this text so the user learns why and what to do.
+       */
+      launchWarning?: string;
+    }
   | { status: "conflict"; branchConflict: BranchConflictInfo };
 
 export type GitHubErrorCode =

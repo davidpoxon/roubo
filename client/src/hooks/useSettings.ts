@@ -71,15 +71,3 @@ export function useSettings() {
     updateSettings: mutation.mutate,
   };
 }
-
-export function useRecheckClaudeCode() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: api.recheckClaudeCode,
-    onSuccess: (data) => {
-      queryClient.setQueryData<SettingsResponse>(["settings"], (old) =>
-        old ? { ...old, claudeCodeAutoModeReason: undefined, ...data } : old,
-      );
-    },
-  });
-}

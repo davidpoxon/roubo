@@ -6,10 +6,9 @@ import type { AddressInfo } from "node:net";
 import type * as http from "node:http";
 
 import { WebSocketServer } from "ws";
-import { loadEnvFile, resolveShellPath, resolveClaudeBinary } from "./services/env.js";
+import { loadEnvFile, resolveShellPath } from "./services/env.js";
 import { describeSpawnHelperProblem } from "./services/pty-preflight.js";
 import { checkForUpdate } from "./services/version-check.js";
-import { detectClaudeAutoMode } from "./services/claude-version.js";
 import { warmAgentVersion } from "./services/agent-version-probe.js";
 import { isAgentNotAvailable, listAgents, resolveAgent } from "./services/agent-plugin-registry.js";
 import * as projectRegistry from "./services/project-registry.js";
@@ -74,7 +73,6 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   if (!envInitialized) {
     loadEnvFile();
     resolveShellPath();
-    resolveClaudeBinary();
     initialEnvPort = process.env.ROUBO_PORT;
     envInitialized = true;
     // A non-executable node-pty spawn-helper breaks every terminal, but stays
@@ -257,8 +255,8 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   }
 
   const boundPort = (server.address() as AddressInfo).port;
-  // Publish the actually-bound port so downstream code (e.g. the Claude Code
-  // notification hook URL written into each bench's .claude/settings.local.json)
+  // Publish the actually-bound port so downstream code (e.g. the notification
+  // hook URL an agent plugin's descriptor writes into its bench workspace)
   // resolves to a port that's actually listening, even when the server was
   // started with port: 0 (Electron production build).
   process.env.ROUBO_PORT = String(boundPort);
@@ -316,10 +314,8 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     void checkForUpdate(process.env.ROUBO_VERSION);
   }
 
-  void detectClaudeAutoMode();
-
-  // Warm each agent plugin's declared version probe, the same fire-and-forget
-  // shape as the auto-mode detection above. By the time the user opens the AI
+  // Warm each agent plugin's declared version probe, fire-and-forget. By the
+  // time the user opens the AI
   // Agents screen the detected CLI version is already cached, so the card renders
   // its compatibility verdict without a launch and without probing per request
   // (AP-TC-113, AP-TC-114).

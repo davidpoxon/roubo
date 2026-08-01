@@ -30,7 +30,7 @@ let notifCounter = 0;
 function makeNotification(priority: "action-needed" | "info"): Bench["notifications"][number] {
   return {
     id: `n${++notifCounter}`,
-    type: "claude-waiting",
+    type: "agent-waiting",
     priority,
     createdAt: "2024-01-01",
   };

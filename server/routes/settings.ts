@@ -1,12 +1,6 @@
 import { Router } from "express";
-import { loadSettings, saveSettings } from "../services/state.js";
+import { hasLegacyAgentSettings, loadSettings, saveSettings } from "../services/state.js";
 import { getEnvFileKeys, getContextWindow } from "../services/env.js";
-import {
-  getClaudeAutoModeInfo,
-  detectClaudeAutoMode,
-  resetCache,
-  type ClaudeCodeVersionInfo,
-} from "../services/claude-version.js";
 import { AGENT_TOOL_DEFAULT_AGENT, THEME_MODES } from "@roubo/shared";
 import type { UserPreferences } from "@roubo/shared";
 import { VALID_JIG_ID } from "./helpers.js";
@@ -71,17 +65,13 @@ function validateAgentTools(agentTools: unknown): string | undefined {
 
 const router = Router();
 
-router.get("/", async (_req, res) => {
-  let autoModeInfo: ClaudeCodeVersionInfo;
-  try {
-    autoModeInfo = await getClaudeAutoModeInfo();
-  } catch {
-    autoModeInfo = { available: false, reason: "Version check failed" };
-  }
+router.get("/", (_req, res) => {
   res.json({
     ...loadSettings(),
-    claudeCodeAutoModeAvailable: autoModeInfo.available,
-    ...(autoModeInfo.reason !== undefined && { claudeCodeAutoModeReason: autoModeInfo.reason }),
+    // Read from the RAW settings file, never from the defaults-merged result:
+    // `loadSettings` fills in defaults, so a merged read would report every
+    // install as an upgrade and show a fresh one the notice (AP-TC-110).
+    legacyAgentSettingsPresent: hasLegacyAgentSettings(),
     contextWindow: getContextWindow(),
   });
 });
@@ -167,25 +157,6 @@ router.put("/", (req, res) => {
       return;
     }
   }
-  if (body.claudeCode !== undefined) {
-    const cc = body.claudeCode;
-    if (
-      cc === null ||
-      typeof cc.enableAutoMode !== "boolean" ||
-      typeof cc.startInPlanMode !== "boolean"
-    ) {
-      res.status(400).json({
-        error: "Invalid claudeCode settings: enableAutoMode and startInPlanMode must be booleans",
-      });
-      return;
-    }
-    if (cc.startInPlanMode && !cc.enableAutoMode) {
-      res
-        .status(400)
-        .json({ error: "Invalid claudeCode settings: startInPlanMode requires enableAutoMode" });
-      return;
-    }
-  }
   if (body.github !== undefined) {
     const g = body.github;
     if (
@@ -225,7 +196,6 @@ router.put("/", (req, res) => {
       agentTools: body.agentTools ?? current.agentTools,
       benches,
       testBench: body.testBench ?? current.testBench,
-      claudeCode: body.claudeCode ?? current.claudeCode,
       github: body.github ?? current.github,
     };
     saveSettings(updated);
@@ -233,20 +203,6 @@ router.put("/", (req, res) => {
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
-});
-
-router.post("/claude-code/recheck", async (_req, res) => {
-  resetCache();
-  let autoModeInfo: ClaudeCodeVersionInfo;
-  try {
-    autoModeInfo = await detectClaudeAutoMode();
-  } catch {
-    autoModeInfo = { available: false, reason: "Version check failed" };
-  }
-  res.json({
-    claudeCodeAutoModeAvailable: autoModeInfo.available,
-    ...(autoModeInfo.reason !== undefined && { claudeCodeAutoModeReason: autoModeInfo.reason }),
-  });
 });
 
 router.get("/env-keys", (_req, res) => {

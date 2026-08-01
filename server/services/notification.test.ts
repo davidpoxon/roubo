@@ -65,9 +65,9 @@ describe("createNotification", () => {
     );
   });
 
-  it("assigns action-needed priority for claude-waiting", () => {
+  it("assigns action-needed priority for agent-waiting", () => {
     const bench = makeBench();
-    const result = createNotification(bench, "claude-waiting", "session-1");
+    const result = createNotification(bench, "agent-waiting", "session-1");
     expect(result.priority).toBe("action-needed");
   });
 
@@ -80,12 +80,6 @@ describe("createNotification", () => {
   it("assigns action-needed priority for component-error", () => {
     const bench = makeBench();
     const result = createNotification(bench, "component-error");
-    expect(result.priority).toBe("action-needed");
-  });
-
-  it("assigns action-needed priority for claude-exited", () => {
-    const bench = makeBench();
-    const result = createNotification(bench, "claude-exited", "session-1");
     expect(result.priority).toBe("action-needed");
   });
 
@@ -136,10 +130,10 @@ describe("createNotification", () => {
   it("deduplicates when same type and sourceSessionId exist", () => {
     const bench = makeBench();
 
-    const first = createNotification(bench, "claude-waiting", "session-1");
+    const first = createNotification(bench, "agent-waiting", "session-1");
     vi.clearAllMocks();
 
-    const second = createNotification(bench, "claude-waiting", "session-1");
+    const second = createNotification(bench, "agent-waiting", "session-1");
 
     expect(second).toBe(first);
     expect(bench.notifications).toHaveLength(1);
@@ -163,8 +157,8 @@ describe("createNotification", () => {
   it("does not deduplicate when type differs", () => {
     const bench = makeBench();
 
-    createNotification(bench, "claude-exited", "session-1");
-    createNotification(bench, "claude-waiting", "session-1");
+    createNotification(bench, "agent-exited", "session-1");
+    createNotification(bench, "agent-waiting", "session-1");
 
     expect(bench.notifications).toHaveLength(2);
   });
@@ -172,8 +166,8 @@ describe("createNotification", () => {
   it("does not deduplicate when sourceSessionId differs", () => {
     const bench = makeBench();
 
-    createNotification(bench, "claude-exited", "session-1");
-    createNotification(bench, "claude-exited", "session-2");
+    createNotification(bench, "agent-exited", "session-1");
+    createNotification(bench, "agent-exited", "session-2");
 
     expect(bench.notifications).toHaveLength(2);
   });
@@ -181,14 +175,14 @@ describe("createNotification", () => {
   it("stores sourceSessionId on the notification", () => {
     const bench = makeBench();
 
-    const result = createNotification(bench, "claude-waiting", "session-abc");
+    const result = createNotification(bench, "agent-waiting", "session-abc");
 
     expect(result.sourceSessionId).toBe("session-abc");
   });
 
   it("generates unique IDs for each notification", () => {
     const bench = makeBench();
-    const first = createNotification(bench, "claude-exited", "session-1");
+    const first = createNotification(bench, "agent-exited", "session-1");
     const second = createNotification(bench, "bench-ready");
 
     expect(first.id).not.toBe(second.id);
@@ -225,7 +219,7 @@ describe("dismissBenchLevelForBench", () => {
       { id: "n1", type: "bench-ready", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
       {
         id: "n2",
-        type: "claude-waiting",
+        type: "agent-waiting",
         priority: "action-needed",
         sourceSessionId: "s1",
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -252,7 +246,7 @@ describe("dismissBenchLevelForBench", () => {
     bench.notifications = [
       {
         id: "n1",
-        type: "claude-waiting",
+        type: "agent-waiting",
         priority: "action-needed",
         sourceSessionId: "s1",
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -302,7 +296,7 @@ describe("dismissOne", () => {
       { id: "n1", type: "bench-ready", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
       {
         id: "n2",
-        type: "claude-waiting",
+        type: "agent-waiting",
         priority: "action-needed",
         sourceSessionId: "s1",
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -342,14 +336,14 @@ describe("dismissBySession", () => {
     bench.notifications = [
       {
         id: "n1",
-        type: "claude-exited",
+        type: "agent-exited",
         priority: "action-needed",
         sourceSessionId: "session-1",
         createdAt: "2026-01-01T00:00:00.000Z",
       },
       {
         id: "n2",
-        type: "claude-waiting",
+        type: "agent-waiting",
         priority: "action-needed",
         sourceSessionId: "session-1",
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -394,12 +388,12 @@ describe("dismissBySession", () => {
 });
 
 describe("dismissWaitingForSession", () => {
-  it("removes only terminal-waiting and claude-waiting notifications for the session", () => {
+  it("removes only terminal-waiting and agent-waiting notifications for the session", () => {
     const bench = makeBench();
     bench.notifications = [
       {
         id: "n1",
-        type: "claude-waiting",
+        type: "agent-waiting",
         priority: "action-needed",
         sourceSessionId: "session-1",
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -413,7 +407,7 @@ describe("dismissWaitingForSession", () => {
       },
       {
         id: "n3",
-        type: "claude-exited",
+        type: "agent-exited",
         priority: "action-needed",
         sourceSessionId: "session-1",
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -439,14 +433,14 @@ describe("dismissWaitingForSession", () => {
     bench.notifications = [
       {
         id: "n1",
-        type: "claude-waiting",
+        type: "agent-waiting",
         priority: "action-needed",
         sourceSessionId: "session-1",
         createdAt: "2026-01-01T00:00:00.000Z",
       },
       {
         id: "n2",
-        type: "claude-waiting",
+        type: "agent-waiting",
         priority: "action-needed",
         sourceSessionId: "session-2",
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -465,7 +459,7 @@ describe("dismissWaitingForSession", () => {
     bench.notifications = [
       {
         id: "n1",
-        type: "claude-exited",
+        type: "agent-exited",
         priority: "action-needed",
         sourceSessionId: "session-1",
         createdAt: "2026-01-01T00:00:00.000Z",
