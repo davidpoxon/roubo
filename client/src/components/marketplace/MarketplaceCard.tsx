@@ -18,6 +18,15 @@ const STRINGS = {
   install: "Install",
   update: "Update",
   installed: "Installed",
+  // The agent-CLI compatibility window an agent listing declares (AP-FR-022,
+  // issue #522). The `floor x · tested <= y` phrasing is lifted verbatim from
+  // the AI Agents card's CompatibilityLine, so the pre-install listing and the
+  // post-install card read as one system rather than two vocabularies for the
+  // same window.
+  compatibilityLabel: "Agent CLI",
+  floorPrefix: "floor",
+  ceilingPrefix: "tested <=",
+  compatibilityUndeclared: "compatibility not declared",
   collisionPill: (count: number) => `Served by ${count} sources`,
   // Names every contributing source, so the collision is legible from the card
   // without opening anything (CPHMTP-TC-033 S001-O02).
@@ -51,17 +60,61 @@ function CollisionPill({ sourceLabels }: { sourceLabels: string[] }) {
 }
 
 function KindPill({ kind }: { kind: MarketplaceListing["kind"] }) {
+  // Each kind gets its own treatment rather than "component versus everything
+  // else": with three kinds the generic grey no longer identifies one thing
+  // (AP-TC-125 asks an agent listing to be identifiable at a glance).
   const cls =
     kind === "component"
       ? "border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200"
-      : "border-stone-200 dark:border-stone-700 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300";
+      : kind === "agent"
+        ? "border-sky-200 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-950/20 text-sky-800 dark:text-sky-200"
+        : "border-stone-200 dark:border-stone-700 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300";
   return (
     <span
       data-testid="marketplace-card-kind"
+      data-kind={kind}
       className={`inline-flex items-center rounded-full border ${cls} px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide`}
     >
       {kind}
     </span>
+  );
+}
+
+/**
+ * The agent-CLI compatibility window on an AGENT listing (AP-FR-022, AP-TC-116).
+ *
+ * Rendered from the server-derived `agentCompatibility`, which is null for every
+ * non-agent kind, so this component is only ever mounted for an agent listing and
+ * carries no kind branch of its own (AP-TC-125 holds by construction, server-side).
+ *
+ * A null window is a REAL state, not an error: an agent manifest need not declare
+ * bounds, and a not-yet-installed, non-bundled entry may have no readable manifest
+ * at all. Both render the same plain "compatibility not declared" line rather than
+ * an empty row or a broken one (AP-TC-121).
+ */
+function AgentCompatibilityLine({
+  compatibility,
+}: {
+  compatibility: MarketplaceListing["agentCompatibility"];
+}) {
+  const bounds = [
+    compatibility?.minVersion && `${STRINGS.floorPrefix} ${compatibility.minVersion}`,
+    compatibility?.testedCeiling && `${STRINGS.ceilingPrefix} ${compatibility.testedCeiling}`,
+  ].filter(Boolean);
+
+  return (
+    <p
+      data-testid="marketplace-card-agent-compatibility"
+      data-declared={bounds.length > 0}
+      className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500 dark:text-stone-400"
+    >
+      <span className="text-stone-400 dark:text-stone-500">{STRINGS.compatibilityLabel}</span>
+      {bounds.length > 0 ? (
+        <span className="font-mono">{bounds.join(" · ")}</span>
+      ) : (
+        <span className="italic">{STRINGS.compatibilityUndeclared}</span>
+      )}
+    </p>
   );
 }
 
@@ -132,6 +185,10 @@ export default function MarketplaceCard({
       <p className="mt-3 flex-1 text-[12.5px] leading-relaxed text-stone-600 dark:text-stone-400">
         {listing.summary}
       </p>
+
+      {listing.kind === "agent" && (
+        <AgentCompatibilityLine compatibility={listing.agentCompatibility} />
+      )}
 
       <div className="mt-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-[11px]">

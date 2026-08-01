@@ -60,6 +60,7 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     updateAvailable: false,
     declaredPermissions: null,
     lifecycle: null,
+    agentCompatibility: null,
     sourceId: FIRST_PARTY_SOURCE_ID,
     ...over,
   };
@@ -431,6 +432,131 @@ describe("Marketplace catalog", () => {
     it("omits the Declared permissions section when declaredPermissions is null", async () => {
       await openDrawer({ declaredPermissions: null });
       expect(screen.queryByTestId("marketplace-drawer-permissions")).not.toBeInTheDocument();
+    });
+  });
+
+  // Issue #522 (AP-FR-022 / AP-NFR-006 / AP-US-011): the third kind is
+  // discoverable and installable from the marketplace. AP-TC-116 asks an agent
+  // listing to carry a kind chip, a source chip, compatibility metadata and an
+  // install affordance; AP-TC-121 asks for a graceful fallback when the window
+  // was never declared; AP-TC-125 asks that ONLY agent listings show it.
+  describe("agent-kind listings (AP-TC-116 / AP-TC-121 / AP-TC-125)", () => {
+    const AGENT: MarketplaceListing = listing({
+      id: "codex-cli",
+      name: "Codex CLI",
+      kind: "agent",
+      version: "0.1.0",
+      summary: "Run benches on an AI coding agent.",
+      agentCompatibility: { minVersion: "0.144.0", testedCeiling: "0.144.1" },
+    });
+
+    async function openDrawerFor(over: Partial<MarketplaceListing>) {
+      setCatalog([listing(over)]);
+      const user = userEvent.setup();
+      render(<Marketplace />);
+      await user.click(screen.getByTestId("marketplace-card-detail"));
+      await waitFor(() => {
+        expect(screen.getByTestId("marketplace-drawer")).toBeInTheDocument();
+      });
+    }
+
+    // AP-TC-116 S002-O01/O02 + S003-O01 + S004-O01, on one card.
+    it("renders the agent kind chip, a source chip, the compatibility window and an Install button", () => {
+      setCatalog([AGENT]);
+      render(<Marketplace />);
+      const card = screen.getByTestId("marketplace-card");
+      expect(within(card).getByTestId("marketplace-card-kind")).toHaveTextContent("agent");
+      // The source chip: exactly one provenance chip naming where the entry came
+      // from (the shared badge every kind already renders).
+      expect(within(card).getByTestId("provenance-source")).toBeInTheDocument();
+      const compat = within(card).getByTestId("marketplace-card-agent-compatibility");
+      expect(compat).toHaveTextContent("floor 0.144.0");
+      expect(compat).toHaveTextContent("tested <= 0.144.1");
+      expect(within(card).getByTestId("marketplace-card-install")).toBeInTheDocument();
+    });
+
+    // AP-TC-121 S001-O01/S002-O01: the listing still renders, with a readable
+    // fallback in place of blank or broken metadata.
+    it("renders a 'compatibility not declared' fallback when no window is declared", () => {
+      setCatalog([listing({ ...AGENT, agentCompatibility: null })]);
+      render(<Marketplace />);
+      const card = screen.getByTestId("marketplace-card");
+      expect(within(card).getByTestId("marketplace-card-kind")).toHaveTextContent("agent");
+      expect(within(card).getByText("Codex CLI")).toBeInTheDocument();
+      const compat = within(card).getByTestId("marketplace-card-agent-compatibility");
+      expect(compat).toHaveTextContent("compatibility not declared");
+      expect(compat).toHaveAttribute("data-declared", "false");
+    });
+
+    // A half-declared window is not a fallback: what IS declared still renders.
+    it("renders only the bound that was declared when one half is missing", () => {
+      setCatalog([listing({ ...AGENT, agentCompatibility: { minVersion: "0.144.0" } })]);
+      render(<Marketplace />);
+      const compat = screen.getByTestId("marketplace-card-agent-compatibility");
+      expect(compat).toHaveTextContent("floor 0.144.0");
+      expect(compat).not.toHaveTextContent("tested <=");
+      expect(compat).not.toHaveTextContent("compatibility not declared");
+    });
+
+    // AP-TC-125 S002-O01: comparing an agent listing against component and
+    // integration listings, only the agent one shows CLI compatibility metadata.
+    it("shows CLI compatibility metadata on the agent listing and on no other kind", () => {
+      setCatalog([...CATALOG, AGENT]);
+      render(<Marketplace />);
+      const cards = screen.getAllByTestId("marketplace-card");
+      for (const card of cards) {
+        const kind = within(card).getByTestId("marketplace-card-kind").textContent;
+        const compat = within(card).queryByTestId("marketplace-card-agent-compatibility");
+        if (kind === "agent") {
+          expect(compat).toBeInTheDocument();
+        } else {
+          expect(compat, `${kind} listing must not show CLI compatibility`).not.toBeInTheDocument();
+        }
+      }
+    });
+
+    // AP-TC-125 S003-O01: every agent listing offers install.
+    it("offers install on an agent listing that is not yet installed", async () => {
+      const mutate = vi.fn();
+      mockedInstallPreview.mockReturnValue(mutationStub({ mutate }));
+      setCatalog([AGENT]);
+      const user = userEvent.setup();
+      render(<Marketplace />);
+      await user.click(screen.getByTestId("marketplace-card-install"));
+      expect(mutate).toHaveBeenCalledWith(
+        { id: "codex-cli", sourceId: undefined },
+        expect.anything(),
+      );
+    });
+
+    it("scopes the catalog query to the agent kind when the Agent tab is selected", async () => {
+      const user = userEvent.setup();
+      render(<Marketplace />);
+      await user.click(screen.getByTestId("marketplace-filter-agent"));
+      await waitFor(() => {
+        expect(mockedCatalog).toHaveBeenCalledWith(expect.objectContaining({ kind: "agent" }));
+      });
+    });
+
+    it("shows the compatibility window in the detail drawer for an agent entry", async () => {
+      await openDrawerFor(AGENT);
+      const row = screen.getByTestId("marketplace-drawer-agent-compatibility");
+      expect(row).toHaveTextContent("floor 0.144.0");
+      expect(row).toHaveTextContent("tested <= 0.144.1");
+    });
+
+    it("shows the drawer fallback when an agent entry declares no window", async () => {
+      await openDrawerFor({ ...AGENT, agentCompatibility: null });
+      expect(screen.getByTestId("marketplace-drawer-agent-compatibility")).toHaveTextContent(
+        "compatibility not declared",
+      );
+    });
+
+    it("omits the drawer compatibility row entirely for a non-agent entry", async () => {
+      await openDrawerFor({ kind: "component", agentCompatibility: null });
+      expect(
+        screen.queryByTestId("marketplace-drawer-agent-compatibility"),
+      ).not.toBeInTheDocument();
     });
   });
 

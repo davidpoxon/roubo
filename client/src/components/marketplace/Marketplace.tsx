@@ -53,7 +53,7 @@ import MarketplaceOfflineBanner from "./MarketplaceOfflineBanner";
 const STRINGS = {
   heading: "Plugin Marketplace",
   description:
-    "Browse, install, and update Roubo plugins. Component plugins define what a bench runs; integration plugins connect issue trackers.",
+    "Browse, install, and update Roubo plugins. Component plugins define what a bench runs; integration plugins connect issue trackers; agent plugins bring an AI coding agent.",
   curatedBadge: "First-party curated",
   searchLabel: "Search plugins",
   searchPlaceholder: "Search plugins",
@@ -93,6 +93,10 @@ const KIND_TABS: { id: "all" | MarketplaceKind; label: string }[] = [
   { id: "all", label: "All" },
   { id: "component", label: "Component" },
   { id: "integration", label: "Integration" },
+  // The third kind (AP-FR-022, issue #522). Listed last so the two kinds that
+  // shipped first keep their positions rather than shuffling under an
+  // alphabetical sort.
+  { id: "agent", label: "Agent" },
 ];
 
 // Sentinel for the unscoped source filter. Safe against collision with a real

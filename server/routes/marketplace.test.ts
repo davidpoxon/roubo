@@ -88,6 +88,7 @@ const LISTING: MarketplaceListing = {
   updateAvailable: false,
   declaredPermissions: null,
   lifecycle: null,
+  agentCompatibility: null,
   sourceId: FIRST_PARTY_SOURCE_ID,
 };
 
@@ -178,6 +179,24 @@ describe("GET /api/marketplace/plugins", () => {
       sourceId: undefined,
     });
   });
+
+  // One case per MarketplaceKind, because an unrecognised kind is dropped
+  // SILENTLY (it becomes `undefined`, i.e. no filter, so the chip renders the
+  // whole catalog rather than erroring). A kind added to the union and to the
+  // client's filter tabs but missed in `parseKind` is invisible without this
+  // (AP-FR-022, issue #522).
+  it.each(["component", "integration", "agent"] as const)(
+    "passes the %s kind through to the service",
+    async (kind) => {
+      listCatalog.mockResolvedValue(catalogResult([]));
+      await request(makeApp()).get(`/api/marketplace/plugins?kind=${kind}`);
+      expect(listCatalog).toHaveBeenCalledWith({
+        q: undefined,
+        kind,
+        sourceId: undefined,
+      });
+    },
+  );
 
   it("ignores an invalid kind", async () => {
     listCatalog.mockResolvedValue(catalogResult([]));

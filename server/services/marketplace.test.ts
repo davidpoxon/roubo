@@ -418,6 +418,159 @@ describe("annotate enrichment: declared permissions + lifecycle (issue #401)", (
   });
 });
 
+// Issue #522 (AP-FR-022 / AP-NFR-006): annotate() derives the agent-CLI
+// compatibility window an AGENT listing renders pre-install, from the same
+// declared-manifest seam declaredPermissions / lifecycle already use. It is
+// deliberately NOT a field of the signed MarketplaceCatalogEntry: widening that
+// payload needs the out-of-band signing key and would trip the marketplace drift
+// guard.
+//
+// The kind gate lives HERE, on the server, which is what makes AP-TC-125 ("only
+// agent listings show CLI compat metadata") true by construction rather than by a
+// client-side branch that could be forgotten.
+describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
+  // The one agent-kind manifest in this repo that declares a compatibility
+  // window. Real, on-disk, and read through the same git+directory seam the
+  // CP-TC-097 one-shot test uses, so the derivation is proven against a genuine
+  // declaration rather than a hand-built object.
+  const AGENT_WITH_WINDOW: MarketplaceCatalogEntry = {
+    id: "codex-cli",
+    name: "Codex CLI",
+    kind: "agent",
+    version: "0.1.0",
+    summary: "Run benches on an AI coding agent",
+    source: {
+      type: "git",
+      url: "https://example.invalid/r.git",
+      directory: "e2e/fixtures/bundled-overlays/codex-cli",
+    },
+    provenance: "roubo/plugins@codex-cli",
+    integrity: "sha256-codex",
+    verified: true,
+  };
+
+  // An agent manifest that declares NO agentCompatibility block at all: the
+  // graceful-fallback precondition (AP-TC-121).
+  const AGENT_WITHOUT_WINDOW: MarketplaceCatalogEntry = {
+    id: "agent-echo",
+    name: "Agent Echo Fixture",
+    kind: "agent",
+    version: "0.0.0",
+    summary: "An agent fixture that declares no compatibility window",
+    source: {
+      type: "git",
+      url: "https://example.invalid/r.git",
+      directory: "server/services/__fixtures__/plugins/agent-echo",
+    },
+    provenance: "roubo/plugins@agent-echo",
+    integrity: "sha256-agent-echo",
+    verified: true,
+  };
+
+  // An agent entry whose manifest cannot be read at all: not installed, and its
+  // `directory` names nothing on disk. The other half of AP-TC-121.
+  const AGENT_UNREADABLE_MANIFEST: MarketplaceCatalogEntry = {
+    ...AGENT_WITHOUT_WINDOW,
+    id: "agent-ghost",
+    name: "Agent Ghost",
+    source: {
+      type: "git",
+      url: "https://example.invalid/r.git",
+      directory: "server/services/__fixtures__/plugins/does-not-exist",
+    },
+  };
+
+  it("derives the declared floor and tested ceiling for a NOT-installed agent listing (AP-TC-116)", async () => {
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [...ENTRIES, AGENT_WITH_WINDOW]);
+    const annotated = await annotatedById("codex-cli");
+    expect(annotated.agentCompatibility).toEqual({
+      minVersion: "0.144.0",
+      testedCeiling: "0.144.1",
+    });
+  });
+
+  it("drops the manifest's probe directive: a listing renders the window, not how to detect it", async () => {
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [...ENTRIES, AGENT_WITH_WINDOW]);
+    const annotated = await annotatedById("codex-cli");
+    expect(annotated.agentCompatibility).not.toHaveProperty("probe");
+    // And nothing probe-derived leaks in either: the marketplace lists
+    // pre-install, so there is no detected version and no verdict to report.
+    expect(annotated.agentCompatibility).not.toHaveProperty("detectedVersion");
+    expect(annotated.agentCompatibility).not.toHaveProperty("status");
+  });
+
+  it("falls back to null for an agent whose manifest declares no window (AP-TC-121)", async () => {
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [...ENTRIES, AGENT_WITHOUT_WINDOW]);
+    const annotated = await annotatedById("agent-echo");
+    // Still a fully-rendered listing: only the window is absent.
+    expect(annotated.kind).toBe("agent");
+    expect(annotated.declaredPermissions).not.toBeNull();
+    expect(annotated.agentCompatibility).toBeNull();
+  });
+
+  it("falls back to null for an agent whose manifest cannot be read (AP-TC-121)", async () => {
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [...ENTRIES, AGENT_UNREADABLE_MANIFEST]);
+    const annotated = await annotatedById("agent-ghost");
+    expect(annotated.kind).toBe("agent");
+    expect(annotated.declaredPermissions).toBeNull();
+    // The SAME null an undeclared window produces, so the card has one fallback
+    // branch to render rather than two indistinguishable empty states.
+    expect(annotated.agentCompatibility).toBeNull();
+  });
+
+  it("gives component and integration listings no compatibility window at all (AP-TC-125)", async () => {
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [...ENTRIES, AGENT_WITH_WINDOW]);
+    const { listings } = await marketplace.listCatalog();
+    for (const listing of listings.filter((l) => l.kind !== "agent")) {
+      expect(listing.agentCompatibility, `${listing.id} (${listing.kind})`).toBeNull();
+    }
+    // The agent listing in the same response DOES carry one, so the assertion
+    // above is discriminating rather than vacuously true.
+    expect(listings.find((l) => l.id === "codex-cli")?.agentCompatibility).not.toBeNull();
+  });
+
+  it("ignores a compatibility block declared by a non-agent manifest (AP-TC-125)", async () => {
+    // The kind gate is on the ENTRY kind, not on whether a manifest happens to
+    // carry the block, so a component that declared one could not smuggle CLI
+    // metadata onto its card.
+    listInstalled.mockReturnValue([
+      {
+        ...installedRecord("database", "0.1.0"),
+        manifest: {
+          ...installedRecord("database", "0.1.0").manifest,
+          agentCompatibility: { minVersion: "1.0.0", testedCeiling: "2.0.0" },
+        },
+      } as PluginRecord,
+    ]);
+    const annotated = await annotatedById("database");
+    expect(annotated.kind).toBe("component");
+    expect(annotated.agentCompatibility).toBeNull();
+  });
+
+  it("surfaces the INSTALLED record's window in preference to the on-disk source", async () => {
+    // Same precedence as declaredPermissions / lifecycle: the installed manifest
+    // is authoritative for what is actually on the machine.
+    listInstalled.mockReturnValue([
+      {
+        ...installedRecord("codex-cli", "0.1.0"),
+        manifest: {
+          ...installedRecord("codex-cli", "0.1.0").manifest,
+          kind: "agent",
+          agentCompatibility: { minVersion: "9.9.9" },
+        },
+      } as PluginRecord,
+    ]);
+    setCatalog("network", [...ENTRIES, AGENT_WITH_WINDOW]);
+    const annotated = await annotatedById("codex-cli");
+    expect(annotated.agentCompatibility).toEqual({ minVersion: "9.9.9" });
+  });
+});
+
 // Issue #557 (CPHMTP-FR-004 / NFR-006 / NFR-007): listCatalog fans out over the
 // first-party catalog AND every registered source concurrently, merges the
 // results with per-entry provenance, and reports each source's health on its own

@@ -103,8 +103,15 @@ function sendInstallError(
   res.status(500).json({ error: (err as Error).message, code: "internal" });
 }
 
+// Widens in lockstep with `MarketplaceKind` (shared/types.ts), which is the whole
+// point of the narrowing: an unrecognised value falls through to `undefined`, and
+// `listCatalog` reads that as "no kind filter" rather than as an error. So a kind
+// missing from this list is silent, not loud, and the client's filter chip for it
+// renders the ENTIRE catalog. `agent` is listed here for exactly that reason
+// (AP-FR-022, issue #522); the union is not enumerable at runtime, so this stays
+// a hand-maintained list with a route test per kind.
 function parseKind(raw: unknown): MarketplaceKind | undefined {
-  return raw === "component" || raw === "integration" ? raw : undefined;
+  return raw === "component" || raw === "integration" || raw === "agent" ? raw : undefined;
 }
 
 /**

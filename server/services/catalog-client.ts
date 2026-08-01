@@ -656,9 +656,18 @@ export function prefetch(): Promise<void> {
 
 // A small, self-contained catalog fixture the offline-journey seam serves when
 // reachable (replacing the retired committed seed catalog it used to re-sign,
-// davidpoxon/roubo-development#621). Two well-formed entries are enough to walk
+// davidpoxon/roubo-development#621). Three well-formed entries are enough to walk
 // the degrade journey; the digests are placeholders (the offline journey lists
 // and pauses, it never installs).
+//
+// One entry per kind, deliberately (AP-FR-022, issue #522): the agent entry is
+// what gives an e2e run an agent-kind listing to render, and having all three
+// kinds side by side is what makes the kind-gated compatibility metadata
+// observable (only the agent card shows a CLI window, AP-TC-125). Its
+// `directory` points at the codex-cli e2e overlay because that is the one
+// agent-kind manifest in this repo, so `annotate()` derives the listing's
+// compatibility window from a REAL declared `agentCompatibility` block rather
+// than from an invented one.
 const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
   {
     id: "github-com",
@@ -688,6 +697,21 @@ const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
       directory: "plugins/database",
     },
     provenance: "roubo/plugins@database",
+    integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+    verified: true,
+  },
+  {
+    id: "codex-cli",
+    name: "Codex CLI",
+    kind: "agent",
+    version: "0.1.0",
+    summary: "Run benches on the Codex AI coding agent.",
+    source: {
+      type: "git",
+      url: "https://github.com/davidpoxon/roubo.git",
+      directory: "e2e/fixtures/bundled-overlays/codex-cli",
+    },
+    provenance: "roubo/plugins@codex-cli",
     integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
     verified: true,
   },

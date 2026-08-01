@@ -56,6 +56,7 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     updateAvailable: false,
     declaredPermissions: null,
     lifecycle: null,
+    agentCompatibility: null,
     sourceId: ACME_SOURCE_ID,
     ...over,
   };
