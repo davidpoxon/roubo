@@ -51,6 +51,13 @@
 // survivor `CLAUDE.md` names. Allowlisting one file mirrors the component guard,
 // whose own rule 1 allowlists exactly one file for the same reason.
 //
+// That allowlist is a fixed size, not a growing one (#712). Per-agent candidate
+// locations now live on an agent plugin's manifest (`agentInstallLocations`),
+// which the host reads and probes, so the switch is frozen at the one base name
+// that predates the field and every other agent extends through its own
+// manifest. Core therefore grows no further per-agent knowledge, which is what
+// AP-NFR-006 is for, and this allowlist never needs a second entry.
+//
 // Every rule ignores comments, so prose documenting the forbidden patterns (this
 // header included) is never itself a violation. Stripping a comment can only
 // ever remove a would-be violation from prose, never hide real code, so the

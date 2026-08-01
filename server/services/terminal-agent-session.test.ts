@@ -710,8 +710,40 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     await launch();
 
     // Resolution runs on the templated command, against the child's own PATH.
-    expect(envMocks.resolveAgentCommand).toHaveBeenCalledWith("claude", "/child/bin");
+    // The manifest declares no install locations, so nothing overrides the host's
+    // own candidate list.
+    expect(envMocks.resolveAgentCommand).toHaveBeenCalledWith("claude", "/child/bin", undefined);
     expect(spawnCall().command).toBe("/home/dev/.claude/local/claude");
+  });
+
+  it("resolves a non-claude CLI from the manifest's declared install locations (#712)", async () => {
+    const declared = ["~/.local/bin/codex", "/opt/homebrew/bin/codex"];
+    pipelineMocks.prepareAgentLaunch.mockResolvedValue({
+      pluginId: "codex",
+      manifest: {
+        id: "codex",
+        name: "Codex CLI",
+        kind: "agent",
+        agentInstallLocations: declared,
+      } as PluginManifest,
+      effectiveConfig: {},
+      descriptor: {
+        schemaVersion: 1,
+        kind: "agent-launch",
+        command: "codex",
+        args: [],
+        env: { PATH: "/child/bin" },
+      } as AgentLaunchDescriptor,
+    });
+    envMocks.resolveAgentCommand.mockReturnValue("/opt/homebrew/bin/codex");
+
+    await launch({ agentPluginId: "codex" });
+
+    // The candidate list is the launching plugin's own, not the host's frozen
+    // basename table, which is what lets an agent CLI other than `claude`
+    // resolve on an install whose PATH the server never inherits.
+    expect(envMocks.resolveAgentCommand).toHaveBeenCalledWith("codex", "/child/bin", declared);
+    expect(spawnCall().command).toBe("/opt/homebrew/bin/codex");
   });
 
   it("turns an unresolvable command into an actionable missing-binary failure (#645, AP-TC-058)", async () => {

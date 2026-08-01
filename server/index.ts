@@ -325,7 +325,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   // to run must not have a manifest-declared command spawned on its behalf.
   for (const manifest of listAgents()) {
     if (!isAgentNotAvailable(resolveAgent(manifest.id))) {
-      warmAgentVersion(manifest.id, manifest.agentCompatibility);
+      warmAgentVersion(manifest.id, manifest.agentCompatibility, manifest.agentInstallLocations);
     }
   }
 

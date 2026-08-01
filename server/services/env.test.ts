@@ -678,6 +678,117 @@ describe("resolveAgentCommand well-known install locations (#645, #651)", () => 
   });
 });
 
+// The per-agent half of the same fallback (#712): the candidate list comes from
+// the launching agent plugin's manifest (`agentInstallLocations`), so a CLI
+// other than `claude` resolves on an install whose PATH the server never
+// inherits. The host keeps doing the probing throughout, so nothing here lets a
+// plugin name a path and have it spawned unconditionally.
+describe("resolveAgentCommand manifest-declared install locations (#712)", () => {
+  const originalEnv = { ...process.env };
+  const CODEX_LOCATIONS = ["~/.local/bin/codex", "/opt/homebrew/bin/codex", "/usr/local/bin/codex"];
+  const expandedCodexLocations = (): string[] => [
+    `${process.env.HOME}/.local/bin/codex`,
+    "/opt/homebrew/bin/codex",
+    "/usr/local/bin/codex",
+  ];
+
+  beforeEach(() => {
+    process.env = { ...originalEnv, SHELL: "/usr/local/bin/fish", PATH: "/usr/bin:/bin" };
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("expands ~/ against the home directory and keeps the declared order", async () => {
+    const { wellKnownPathsFor } = await import("./env.js");
+    expect(wellKnownPathsFor("codex", CODEX_LOCATIONS)).toEqual(expandedCodexLocations());
+  });
+
+  it("resolves a non-claude CLI from every location its manifest declares", async () => {
+    const { resolveAgentCommand } = await import("./env.js");
+
+    for (const installed of expandedCodexLocations()) {
+      mockFs({ files: [installed] });
+      expect(resolveAgentCommand("codex", process.env.PATH, CODEX_LOCATIONS)).toBe(installed);
+    }
+  });
+
+  it("prefers the PATH hit over a declared location, as it does for the host table", async () => {
+    mockFs({ files: ["/usr/bin/codex", "/opt/homebrew/bin/codex"] });
+    const { resolveAgentCommand } = await import("./env.js");
+    // The bare name is deliberate: PATH resolution stays the exec call's job.
+    expect(resolveAgentCommand("codex", process.env.PATH, CODEX_LOCATIONS)).toBe("codex");
+  });
+
+  it("falls through a declared candidate that is not an executable file (#651)", async () => {
+    const declared = expandedCodexLocations();
+    mockFs({
+      dirs: [declared[0]],
+      files: [declared[1], declared[2]],
+      executable: [declared[2]],
+    });
+    const { resolveAgentCommand } = await import("./env.js");
+    // A directory, then a real-but-unchmodded file: neither may shadow the
+    // working install further down the declared list.
+    expect(resolveAgentCommand("codex", process.env.PATH, CODEX_LOCATIONS)).toBe(declared[2]);
+  });
+
+  it("throws naming every PATH entry and every declared location on a total miss", async () => {
+    mockFs({});
+    const { resolveAgentCommand, AgentCommandNotFoundError } = await import("./env.js");
+    let thrown: unknown;
+    try {
+      resolveAgentCommand("codex", process.env.PATH, CODEX_LOCATIONS);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(AgentCommandNotFoundError);
+    const err = thrown as InstanceType<typeof AgentCommandNotFoundError>;
+    expect(err.tried).toEqual(["/usr/bin/codex", "/bin/codex", ...expandedCodexLocations()]);
+    for (const location of err.tried) expect(err.message).toContain(location);
+  });
+
+  it("replaces the host table rather than merging with it", async () => {
+    const { wellKnownPathsFor } = await import("./env.js");
+    // A plugin that says where its own claude installs has given the whole
+    // answer for it, so the legacy table contributes nothing alongside it.
+    expect(wellKnownPathsFor("claude", ["/opt/acme/bin/claude"])).toEqual(["/opt/acme/bin/claude"]);
+  });
+
+  it("keeps the host table for an agent that declares nothing", async () => {
+    const { wellKnownPathsFor } = await import("./env.js");
+    expect(wellKnownPathsFor("claude")).toEqual([
+      `${process.env.HOME}/.local/bin/claude`,
+      `${process.env.HOME}/.claude/local/claude`,
+      "/opt/homebrew/bin/claude",
+      "/usr/local/bin/claude",
+    ]);
+    expect(wellKnownPathsFor("claude", [])).toEqual(wellKnownPathsFor("claude"));
+  });
+
+  // AC4: a declared location is data, not a spawn instruction. The schema
+  // rejects these shapes at manifest load; the resolver drops them again here,
+  // so the guarantee does not rest on a caller having validated first.
+  it.each([
+    ["a relative path", "bin/codex"],
+    ["a bare name", "codex"],
+    ["a parent-directory escape", "/opt/homebrew/bin/../../../etc/codex"],
+    ["a ~/ parent-directory escape", "~/../../etc/codex"],
+    ["an unresolved template", "{{workspace}}/codex"],
+  ])("never probes %s a plugin declared", async (_label, location) => {
+    const { wellKnownPathsFor, resolveAgentCommand, AgentCommandNotFoundError } =
+      await import("./env.js");
+    expect(wellKnownPathsFor("codex", [location])).toEqual([]);
+
+    mockFs({ files: ["/etc/codex", "bin/codex", "codex"] });
+    expect(() => resolveAgentCommand("codex", process.env.PATH, [location])).toThrow(
+      AgentCommandNotFoundError,
+    );
+  });
+});
+
 describe("getLoginShell", () => {
   const originalEnv = { ...process.env };
 

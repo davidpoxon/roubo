@@ -215,6 +215,46 @@ export const AgentVersionProbeDirectiveSchema = z
   .strict();
 export type AgentVersionProbeDirective = z.infer<typeof AgentVersionProbeDirectiveSchema>;
 
+// ── Agent install locations ──
+
+// Where an agent plugin's own CLI installs itself when it is not on the PATH the
+// server process inherits (#712). The host probes these as CANDIDATES, in the
+// declared order, exactly as it probes its own legacy table: each one still has
+// to be a regular file the host may execute before it is spawned, and a total
+// miss still fails the launch with an error naming every location tried. That is
+// what keeps a declared location from being a spawn instruction.
+//
+// The shape is deliberately the smallest thing that can name an install:
+//
+//   - absolute, or `~/`-prefixed and expanded against the server user's home,
+//     because a relative path would resolve against whatever cwd the server
+//     happens to have;
+//   - no `..` segment, so a declared location cannot walk out of the prefix it
+//     appears to name;
+//   - no `{{ }}` template, because a manifest is read at install time, long
+//     before any launch context exists to resolve one against.
+//
+// Rejecting rather than silently dropping a malformed entry: a candidate list
+// that quietly loses an entry is a launch that fails for no legible reason.
+export function isValidAgentInstallLocation(location: string): boolean {
+  if (!location.startsWith("/") && !location.startsWith("~/")) return false;
+  if (location.includes("{{")) return false;
+  return !location.split("/").includes("..");
+}
+
+export const AgentInstallLocationsSchema = z
+  .array(
+    z
+      .string()
+      .min(1, "Required")
+      .refine(
+        isValidAgentInstallLocation,
+        "Must be an absolute or ~/-prefixed path, with no `..` segment and no {{ }} template",
+      ),
+  )
+  .min(1, "Must name at least one location");
+export type AgentInstallLocations = z.infer<typeof AgentInstallLocationsSchema>;
+
 export const AgentCompatibilitySchema = z
   .object({
     minVersion: z
@@ -278,6 +318,14 @@ export const PluginManifestSchema = z
     // so existing integration and component manifests validate unchanged
     // (AP-NFR-004).
     agentCompatibility: AgentCompatibilitySchema.optional(),
+    // Where THIS plugin's agent CLI installs itself, probed by the host when the
+    // CLI is not on the server's PATH (#712). The candidate list lives here, on
+    // install-time metadata, rather than on the per-launch descriptor (which
+    // stays declarative and host-agnostic) or in core (which would keep
+    // accreting per-agent knowledge the `lint:agent-guard` gate exists to stop).
+    // Optional, so every existing manifest validates unchanged; a plugin that
+    // declares nothing resolves through PATH alone, as it does today.
+    agentInstallLocations: AgentInstallLocationsSchema.optional(),
   })
   .strict()
   // An agent plugin may not declare a `processes` permission (issue #632,
@@ -304,8 +352,23 @@ export const PluginManifestSchema = z
   // (which has no view of `kind`) so every consumer goes through it;
   // `parseManifest` surfaces it as a normal schema error at
   // `permissions.processes`.
+  //
+  // The second rule is the mirror image and lands for the same reason:
+  // `agentInstallLocations` says where an agent CLI installs itself, so it means
+  // nothing on an integration or component manifest, and a silently-ignored
+  // field is exactly the ambiguity the rule above exists to avoid (#712).
   .superRefine((manifest, ctx) => {
-    if (manifest.kind !== "agent") return;
+    if (manifest.kind !== "agent") {
+      if (manifest.agentInstallLocations !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["agentInstallLocations"],
+          message:
+            "`agentInstallLocations` is an agent-plugin field: only a `kind: agent` manifest declares where its own agent CLI installs.",
+        });
+      }
+      return;
+    }
     if (manifest.permissions.processes === false) return;
     ctx.addIssue({
       code: "custom",

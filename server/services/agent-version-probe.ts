@@ -170,6 +170,13 @@ function cacheKey(binary: string, spec: VersionProbeSpec, searchPath: string | u
  * to the server's own PATH for callers with no launch environment to speak of,
  * such as the manifest-declared warm probe.
  *
+ * `installLocations` is the launching plugin's manifest-declared
+ * `agentInstallLocations` (#712), passed for the same reason `searchPath` is:
+ * the resolution below has to land on the binary the launch will spawn, and
+ * `createAgentSession` passes the same list. Omitting it here would leave the
+ * probe resolving through PATH and the legacy table alone, so a CLI found only
+ * in a declared location would be reported "not detected" and then launch fine.
+ *
  * Never throws: an unresolvable command, a nonzero probe exit and unparseable
  * output all report `probe-failed` with a reason, because a probe that cannot
  * decide must not block a launch on its own (AP-TC-074). The authoritative
@@ -181,6 +188,7 @@ export async function probeAgentVersion(
   command: string,
   spec: VersionProbeSpec,
   searchPath: string | undefined = process.env.PATH,
+  installLocations?: readonly string[],
 ): Promise<AgentVersionProbeResult> {
   // A templated command cannot be resolved before the launch context exists, so
   // there is nothing to probe. Reported honestly rather than probed blind.
@@ -208,7 +216,7 @@ export async function probeAgentVersion(
     // install locations. That chain already covers what claude-version.ts hedged
     // with an `sh -lc` retry, and resolving here means the probe and the spawn
     // agree on which binary they are talking about.
-    binary = resolveAgentCommand(command, searchPath);
+    binary = resolveAgentCommand(command, searchPath, installLocations);
   } catch (err) {
     if (err instanceof AgentCommandNotFoundError) {
       // Cache the miss before returning (AP-TC-122, issue #522). This branch used
@@ -320,10 +328,13 @@ export function invalidateAgentVersionProbe(pluginId: string): void {
  * that declares `agentCompatibility.probe` can, and it feeds the same per-binary
  * cache, so a launch that follows reuses this spawn instead of adding one.
  *
- * It passes no search path, so it probes against the server's own PATH. That is
- * the only PATH available without a launch descriptor, and this probe gates
- * nothing, so it is the honest choice. The PATH-scoped cache key then correctly
- * keeps a launch that overrides `env.PATH` from reusing this detection (#660).
+ * It probes against the server's own PATH. That is the only PATH available
+ * without a launch descriptor, and this probe gates nothing, so it is the honest
+ * choice. The PATH-scoped cache key then correctly keeps a launch that overrides
+ * `env.PATH` from reusing this detection (#660). `installLocations`, by
+ * contrast, comes off the same manifest as `declared` and is available here, so
+ * it is passed through: without it this screen would report "CLI not detected"
+ * for an agent installed only where its manifest says it installs (#712).
  *
  * Resolves to `undefined` when the manifest declares no probe, which is the
  * honest answer for a plugin that opted out: the card then shows the declared
@@ -332,14 +343,21 @@ export function invalidateAgentVersionProbe(pluginId: string): void {
 export async function probeDeclaredAgentVersion(
   pluginId: string,
   declared: AgentCompatibility | undefined,
+  installLocations?: readonly string[],
 ): Promise<AgentVersionProbeResult | undefined> {
   if (!declared?.probe) return undefined;
-  return probeAgentVersion(pluginId, declared.probe.command, {
-    args: declared.probe.args,
-    parse: declared.probe.parse,
-    ...(declared.minVersion !== undefined && { minVersion: declared.minVersion }),
-    ...(declared.testedCeiling !== undefined && { testedCeiling: declared.testedCeiling }),
-  });
+  return probeAgentVersion(
+    pluginId,
+    declared.probe.command,
+    {
+      args: declared.probe.args,
+      parse: declared.probe.parse,
+      ...(declared.minVersion !== undefined && { minVersion: declared.minVersion }),
+      ...(declared.testedCeiling !== undefined && { testedCeiling: declared.testedCeiling }),
+    },
+    process.env.PATH,
+    installLocations,
+  );
 }
 
 /** Plugin ids with a manifest-declared warm probe currently in flight. */
@@ -368,13 +386,17 @@ const warming = new Set<string>();
  * server boot and from a polled route, where an unhandled rejection would take the
  * process down. `.finally()` alone would re-propagate it.
  */
-export function warmAgentVersion(pluginId: string, declared: AgentCompatibility | undefined): void {
+export function warmAgentVersion(
+  pluginId: string,
+  declared: AgentCompatibility | undefined,
+  installLocations?: readonly string[],
+): void {
   if (!declared?.probe) return;
   const cached = getCachedAgentVersion(pluginId);
   if (cached !== undefined && cached.cause !== "command-not-found") return;
   if (warming.has(pluginId)) return;
   warming.add(pluginId);
-  void probeDeclaredAgentVersion(pluginId, declared)
+  void probeDeclaredAgentVersion(pluginId, declared, installLocations)
     .catch(() => undefined)
     .finally(() => warming.delete(pluginId));
 }

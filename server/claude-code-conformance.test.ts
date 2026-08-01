@@ -1226,6 +1226,44 @@ describe("agent CLI discovery (#645)", () => {
       rmSync(shim, { force: true });
     }
   });
+
+  // The same install shape, for a CLI the host's own table has never heard of
+  // (#712). This is what the manifest field buys: a base name other than
+  // `claude` resolving on an install whose PATH the server never inherits,
+  // against the shipping resolver and real files on disk.
+  it("a non-claude CLI resolves from its plugin manifest's declared locations", async () => {
+    const env = await vi.importActual<typeof import("./services/env.js")>("./services/env.js");
+    // Nothing host-side knows this base name, so PATH is all it would have had.
+    expect(env.wellKnownPathsFor("acme")).toEqual([]);
+
+    const installDir = join(isolation.tmpHome, ".acme", "bin");
+    const installed = join(installDir, "acme");
+    mkdirSync(installDir, { recursive: true });
+    // 0o644 on the first candidate, 0o755 on the second: the executability gate
+    // still applies to a declared location, so the broken one must not shadow
+    // the working one (#651).
+    const broken = join(isolation.tmpHome, "acme-broken");
+    writeFileSync(broken, "#!/bin/sh\nexec true\n", { mode: 0o644 });
+    writeFileSync(installed, "#!/bin/sh\nexec true\n", { mode: 0o755 });
+    const declared = ["~/acme-broken", "~/.acme/bin/acme"];
+
+    const original = { PATH: process.env.PATH, SHELL: process.env.SHELL };
+    process.env.PATH = "";
+    process.env.SHELL = "/usr/local/bin/fish";
+    try {
+      expect(env.resolveAgentCommand("acme", process.env.PATH, declared)).toBe(installed);
+
+      // And a total miss still names every location tried, declared ones
+      // included, rather than leaving an opaque ENOENT to the PTY.
+      rmSync(installed, { force: true });
+      expect(() => env.resolveAgentCommand("acme", process.env.PATH, declared)).toThrow(installed);
+    } finally {
+      process.env.PATH = original.PATH;
+      process.env.SHELL = original.SHELL;
+      rmSync(broken, { force: true });
+      rmSync(installed, { force: true });
+    }
+  });
 });
 
 // ── Plugin-descriptor parity (CC-PERM-08, AP-TC-097, AP-TC-098, AP-TC-101) ──

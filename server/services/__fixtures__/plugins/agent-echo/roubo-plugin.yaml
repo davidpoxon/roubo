@@ -6,6 +6,14 @@ kind: agent
 roubo: ^1.4.0
 entry: ./index.cjs
 contractVersion: 1
+# Where this fixture's CLI would install itself (#712). The base name is
+# deliberately NOT `claude`: the host's own legacy table knows one base name, so
+# a fixture declaring candidates for any other CLI is what proves the manifest,
+# and not the host table, is the extension point for every other agent.
+agentInstallLocations:
+  - ~/.local/bin/echo-agent
+  - /opt/homebrew/bin/echo-agent
+  - /usr/local/bin/echo-agent
 permissions:
   network:
     hosts: []

@@ -134,17 +134,64 @@ export function resolveShellPath(): void {
 }
 
 /**
- * Well-known install locations for an agent CLI, keyed by the command's base name.
+ * Expands one manifest-declared install location to an absolute path, or returns
+ * undefined when it is not a shape the host is willing to probe.
  *
- * The list is host-side rather than descriptor-side on purpose: an agent plugin
- * returns a declarative, host-agnostic launch descriptor and has no business
- * hardcoding absolute install paths for the machine it happens to run on. Making
- * the candidate list per-agent data (carried on the descriptor or the plugin
- * manifest) is deferred to #712; until then an agent whose basename is not known
- * here resolves through PATH only, which is exactly the behaviour it had before,
- * plus an actionable error on a miss.
+ * `~/` expands against the server user's home. A relative path, a path carrying
+ * a `..` segment, and a path still holding a `{{ }}` template are all dropped
+ * rather than probed. `AgentInstallLocationsSchema` already rejects all three at
+ * manifest-load time; re-checking here is deliberate, because this is the last
+ * point before a plugin-supplied string can become a spawn target, and the
+ * guarantee "a path outside the declared list is never spawned" should not rest
+ * on a caller having validated first.
  */
-export function wellKnownPathsFor(command: string): string[] {
+function resolveDeclaredLocation(location: string): string | undefined {
+  if (location.includes("{{")) return undefined;
+  if (location.split("/").includes("..")) return undefined;
+  const expanded = location.startsWith("~/")
+    ? path.join(os.homedir(), location.slice(2))
+    : location;
+  return path.isAbsolute(expanded) ? expanded : undefined;
+}
+
+/**
+ * Well-known install locations to probe for an agent CLI.
+ *
+ * `declared` is the `agentInstallLocations` list from the agent plugin's own
+ * manifest (#712), and it is where per-agent candidates now live. The manifest
+ * won that decision over the two alternatives: a host-side table keyed on more
+ * base names would leave core accreting per-agent knowledge (the exact growth
+ * `lint:agent-guard` / AP-NFR-006 exists to stop) and would never cover a
+ * third-party agent, while carrying the list on the launch descriptor would put
+ * machine-specific absolute paths on a per-launch contract that is meant to stay
+ * declarative and host-agnostic. A manifest is install-time metadata, not a
+ * per-launch instruction, so it carries neither objection, and it adds no spawn
+ * capability a plugin did not already have: `resolveAgentCommand` returns any
+ * `command` containing a path separator as-is, so a descriptor can already name
+ * an absolute path today.
+ *
+ * A declared list REPLACES the table below rather than merging with it: a plugin
+ * that says where its own CLI installs has given the whole answer for that CLI,
+ * and merging would hand a third-party agent candidates belonging to somebody
+ * else's binary.
+ *
+ * The switch below is the LEGACY DEFAULT, frozen at one base name. It exists
+ * only because the bundled Claude Code plugin predates the manifest field. Every
+ * other agent extends through its manifest, so this switch never grows another
+ * arm and the guard's single-file allowlist never widens. An agent that is
+ * neither known here nor declares anything resolves through PATH only, which is
+ * exactly the behaviour it had before, plus an actionable error on a miss.
+ *
+ * Either way the host keeps doing the probing: every entry returned here is a
+ * CANDIDATE, still gated on `isExecutableFile` and still first-match-wins, so a
+ * plugin cannot cause an arbitrary path to be spawned.
+ */
+export function wellKnownPathsFor(command: string, declared?: readonly string[]): string[] {
+  if (declared !== undefined && declared.length > 0) {
+    return declared
+      .map(resolveDeclaredLocation)
+      .filter((location): location is string => location !== undefined);
+  }
   switch (path.basename(command)) {
     case "claude":
       return [
@@ -176,11 +223,6 @@ function isExecutableFile(p: string): boolean {
   }
 }
 
-/** The first well-known install location for `command` that is an executable file. */
-function findWellKnownPath(command: string): string | undefined {
-  return wellKnownPathsFor(command).find(isExecutableFile);
-}
-
 /** Thrown by resolveAgentCommand when an agent CLI is found nowhere. */
 export class AgentCommandNotFoundError extends Error {
   readonly command: string;
@@ -205,19 +247,23 @@ export class AgentCommandNotFoundError extends Error {
  *    so the exec call resolves it exactly as it does today. Returning the bare
  *    name (rather than the first matching directory entry) keeps this step a
  *    probe, not a reimplementation of execvp's own search.
- * 3. Otherwise the first well-known install location holding an executable file.
- *    The table below is keyed on the CLI's own basename, so a session launched
- *    from an agent plugin finds the CLI on installs whose PATH the server process
- *    never inherits (notably per-user shims, and fish or GUI launches).
+ * 3. Otherwise the first well-known install location holding an executable file,
+ *    so a session launched from an agent plugin finds the CLI on installs whose
+ *    PATH the server process never inherits (notably per-user shims, and fish or
+ *    GUI launches). The candidates come from the agent plugin's own manifest
+ *    when it declares `agentInstallLocations` (#712), and otherwise from the
+ *    legacy basename table in `wellKnownPathsFor`.
  * 4. On a total miss, throws AgentCommandNotFoundError naming every location
  *    tried, rather than leaving an opaque ENOENT to surface from the PTY.
  *
  * `searchPath` defaults to the server's own PATH; callers spawning with a
- * modified PATH should pass the child's.
+ * modified PATH should pass the child's. `declaredLocations` is the launching
+ * plugin's manifest-declared candidate list, if it declared one.
  */
 export function resolveAgentCommand(
   command: string,
   searchPath: string | undefined = process.env.PATH,
+  declaredLocations?: readonly string[],
 ): string {
   if (command.includes(path.sep) || command.includes("/")) return command;
 
@@ -229,9 +275,12 @@ export function resolveAgentCommand(
     if (isExecutableFile(candidate)) return command;
   }
 
-  const wellKnown = findWellKnownPath(command);
-  if (wellKnown) return wellKnown;
-  tried.push(...wellKnownPathsFor(command));
+  // Resolved once and then reused for both the probe and the error, so the
+  // locations the miss reports are exactly the ones that were tried.
+  const wellKnown = wellKnownPathsFor(command, declaredLocations);
+  const found = wellKnown.find(isExecutableFile);
+  if (found !== undefined) return found;
+  tried.push(...wellKnown);
 
   throw new AgentCommandNotFoundError(command, tried);
 }

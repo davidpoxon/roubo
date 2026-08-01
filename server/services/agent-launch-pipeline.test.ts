@@ -459,6 +459,7 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
       "claude",
       VERSION_PROBE,
       process.env.PATH,
+      undefined,
     );
     expect(prepared.compatibility?.status).toBe("within-tested-range");
   });
@@ -484,6 +485,32 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
       "claude",
       VERSION_PROBE,
       "/opt/agent/bin",
+      undefined,
+    );
+  });
+
+  it("probes with the manifest's declared install locations too (#712)", async () => {
+    const declared = ["~/.local/bin/codex", "/opt/homebrew/bin/codex"];
+    pluginManagerMocks.getRecord.mockReturnValue(
+      makeRecord({ manifest: makeManifest({ agentInstallLocations: declared }) }),
+    );
+    descriptorWithProbe();
+    probeMocks.probeAgentVersion.mockResolvedValue({
+      status: "within-tested-range",
+      detectedVersion: "2.1.180",
+    });
+
+    await prepareAgentLaunch(launchParams);
+
+    // The same list `createAgentSession` resolves the spawn with, so the gate
+    // reads the binary the launch will run rather than reporting a CLI it cannot
+    // find that then launches fine.
+    expect(probeMocks.probeAgentVersion).toHaveBeenCalledWith(
+      "claude-code",
+      "claude",
+      VERSION_PROBE,
+      process.env.PATH,
+      declared,
     );
   });
 
@@ -508,6 +535,7 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
       "claude",
       VERSION_PROBE,
       "/workspaces/bench-3/node_modules/.bin:/usr/bin",
+      undefined,
     );
   });
 
@@ -537,6 +565,7 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
       "claude",
       VERSION_PROBE,
       `/opt/${launchParams.sessionId}/bin:/opt/4444/bin`,
+      undefined,
     );
   });
 

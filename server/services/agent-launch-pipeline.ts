@@ -274,6 +274,10 @@ export async function prepareAgentLaunch(
       descriptor.env?.PATH !== undefined
         ? resolveTemplate(descriptor.env.PATH, ctx)
         : process.env.PATH,
+      // The same manifest-declared candidates `createAgentSession` resolves the
+      // spawn with (#712), so the gate reads the binary the launch will run
+      // rather than reporting an unfindable CLI that then launches fine.
+      resolved.manifest.agentInstallLocations,
     );
     if (compatibility.status === "below-floor") {
       // The refusal tells the user to update the CLI and launch again, and the
