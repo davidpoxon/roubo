@@ -72,7 +72,7 @@ export default function AgentsTab() {
               className="rounded-xl border border-dashed border-stone-200 dark:border-stone-800 px-4 py-6 text-center"
             >
               <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.emptyTitle}</p>
-              <p className="mt-1 text-[11px] text-stone-400 dark:text-stone-600">
+              <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
                 {STRINGS.emptyBodyPrefix}
                 <span className="font-medium">{STRINGS.emptyBodyLink}</span>
                 {STRINGS.emptyBodySuffix}

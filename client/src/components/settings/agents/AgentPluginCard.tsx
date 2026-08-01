@@ -83,7 +83,7 @@ function CompatibilityLine({
           : STRINGS.versionUndetected}
       </span>
       {bounds.length > 0 && (
-        <span className="text-[11px] font-mono text-stone-400 dark:text-stone-600">
+        <span className="text-[11px] font-mono text-stone-500 dark:text-stone-400">
           {bounds.join(" · ")}
         </span>
       )}
@@ -92,7 +92,10 @@ function CompatibilityLine({
           className={`${CHIP_CLASS} ${
             chip.warn
               ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-              : "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+              : // stone-600, not the muted stone-500 the rest of this card uses: the
+                // chip sits on stone-100 rather than the card's white, where
+                // stone-500 measures 4.38:1 and misses AA body (#703).
+                "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400"
           }`}
         >
           {chip.warn ? (
@@ -185,13 +188,13 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
               {agent.name}
             </h4>
             {agent.version && (
-              <span className="text-[11px] text-stone-400 dark:text-stone-600 font-mono shrink-0">
+              <span className="text-[11px] text-stone-500 dark:text-stone-400 font-mono shrink-0">
                 {STRINGS.versionPrefix}
                 {agent.version}
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-[11px] text-stone-400 dark:text-stone-600 font-mono">
+          <p className="mt-0.5 text-[11px] text-stone-500 dark:text-stone-400 font-mono">
             {agent.id}
           </p>
           {agent.description && (

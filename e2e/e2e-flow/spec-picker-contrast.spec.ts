@@ -1,5 +1,5 @@
-import { createRequire } from "node:module";
-import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { injectAxe, scanBothThemes } from "./_support/axe-contrast.js";
 import { loadAppShell, registerFixtureProject, resetWithScenario } from "./_support/scenario.js";
 import {
   TSPF_TC_010_ALL_PASSED_PLAN,
@@ -20,17 +20,12 @@ import {
 // disclosure expanded, plus the all-passed-only empty state). It reproduces
 // TSPF-TC-015's S003 observations: before the #493 fix, dark-theme de-emphasized
 // rows measured as low as 2.28:1; every scan below must now report zero violations.
+//
+// The injection, theme-flip and scan helpers live in _support/axe-contrast.ts,
+// shared with the agent-surface contrast guard (#703).
 
 const SCENARIO = "default";
 const NOW = "2026-07-10T09:00:00.000Z";
-
-// The bundled axe-core dist (axe-core/axe.js). Injected verbatim into the page so
-// `window.axe` is available; @axe-core/playwright is not a dependency, so we wire
-// the injection + scoped run by hand.
-const require = createRequire(import.meta.url);
-const AXE_PATH = require.resolve("axe-core");
-
-type Theme = "light" | "dark";
 
 async function enableTestBench(request: APIRequestContext): Promise<void> {
   // PUT /api/settings replaces the whole preferences object and validates a
@@ -48,79 +43,6 @@ async function enableTestBench(request: APIRequestContext): Promise<void> {
 async function gotoBenchList(page: Page, projectId: string): Promise<void> {
   const res = await page.goto(`/projects/${projectId}`);
   expect(res?.status()).toBe(200);
-}
-
-// Toggle the app's dark-mode class on <html>, matching what useSettings.applyTheme
-// does (the class-based `dark` variant, see client/src/globals.css). The settings
-// query has staleTime Infinity and never refetches mid-test, so nothing re-runs
-// applyTheme to clobber this. Transitions are frozen (see injectAxe), so the new
-// theme's colours resolve instantly; wait two animation frames for the style recalc
-// + paint to settle before the caller runs axe, otherwise a mid-flip intermediate
-// colour would be measured instead of the settled one.
-async function setTheme(page: Page, theme: Theme): Promise<void> {
-  await page.evaluate(async (t) => {
-    document.documentElement.classList.toggle("dark", t === "dark");
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-    );
-  }, theme);
-}
-
-// Run axe's color-contrast rule scoped to the given dialog subtree and assert zero
-// violations. Scoping to the dialog element (not the whole page) keeps the check on
-// the picker itself; `violations` holds only definite AA failures (axe puts
-// can't-determine-background cases in `incomplete`, which we intentionally ignore).
-// Each node's `html` is captured so a failure names the exact offending element.
-async function expectNoContrastViolations(
-  page: Page,
-  dialog: Locator,
-  label: string,
-): Promise<void> {
-  const handle = await dialog.elementHandle();
-  expect(handle, `${label}: dialog element resolved`).not.toBeNull();
-  const violations = await page.evaluate(async (el) => {
-    const globalAxe = (
-      window as unknown as { axe: { run: (...args: unknown[]) => Promise<unknown> } }
-    ).axe;
-    const results = (await globalAxe.run(el as Element, {
-      runOnly: { type: "rule", values: ["color-contrast"] },
-    })) as {
-      violations: Array<{
-        id: string;
-        nodes: Array<{ target: unknown[]; html?: string; failureSummary?: string }>;
-      }>;
-    };
-    return results.violations.map((v) => ({
-      id: v.id,
-      nodes: v.nodes.map((n) => ({ target: n.target, html: n.html, summary: n.failureSummary })),
-    }));
-  }, handle);
-  expect(violations, `${label}: axe color-contrast violations`).toEqual([]);
-}
-
-// Scan a dialog in both themes and assert zero color-contrast violations in each,
-// then restore the light default. axe must already be injected on the page.
-async function scanBothThemes(page: Page, dialog: Locator, state: string): Promise<void> {
-  for (const theme of ["light", "dark"] as const) {
-    await setTheme(page, theme);
-    await expectNoContrastViolations(page, dialog, `${state} (${theme})`);
-  }
-  await setTheme(page, "light");
-}
-
-async function injectAxe(page: Page): Promise<void> {
-  await page.addScriptTag({ path: AXE_PATH });
-  await page.waitForFunction(() => "axe" in window);
-  // Freeze CSS transitions/animations. Many picker elements carry
-  // `transition-colors`, so a live theme flip animates each one from its dark to
-  // its light colour over ~150ms; an axe run fired mid-flip would measure a
-  // transient intermediate colour (a false-positive contrast failure), not the
-  // settled AA-compliant value. Killing transition/animation durations makes the
-  // theme change instantaneous and the measurement deterministic.
-  await page.addStyleTag({
-    content:
-      "*, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; animation-delay: 0s !important; }",
-  });
 }
 
 test.beforeEach(async ({ request }) => {
