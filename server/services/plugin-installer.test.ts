@@ -222,6 +222,65 @@ describe("previewFromGitUrl", () => {
   });
 });
 
+describe("an unknown manifest key is reported against the declared roubo range (issue #719)", () => {
+  const UNKNOWN_KEY = "somethingThisHostDoesNotKnow";
+
+  function manifestWithUnknownKey(roubo: string): string {
+    return `id: future
+name: Future
+version: 0.0.0
+description: Declares a field this host does not know
+kind: integration
+roubo: ${roubo}
+entry: ./index.js
+${UNKNOWN_KEY}:
+  - /opt/thing
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+`;
+  }
+
+  it("rejects with incompatible-host naming the required Roubo version, not a zod error", async () => {
+    fakeClone(manifestWithUnknownKey("^9.0.0"));
+    await expect(
+      pluginInstaller.previewFromGitUrl("https://github.com/example/future.git"),
+    ).rejects.toMatchObject({
+      code: "incompatible-host",
+      message: `Plugin requires roubo "^9.0.0" but host is ${pluginManager.HOST_API_VERSION}`,
+    });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("still fails the strict parse when the host IS in the declared range", async () => {
+    // The range check must not become a way to smuggle an unknown key past
+    // validation: a manifest this host satisfies is rejected exactly as before.
+    fakeClone(manifestWithUnknownKey("^1.0.0"));
+    await expect(
+      pluginInstaller.previewFromGitUrl("https://github.com/example/in-range.git"),
+    ).rejects.toMatchObject({
+      code: "invalid-manifest",
+      message: expect.stringContaining(UNKNOWN_KEY),
+    });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("leaves the incompatible-host message unchanged for a manifest that already parses", async () => {
+    fakeClone(INCOMPATIBLE_MANIFEST);
+    await expect(
+      pluginInstaller.previewFromGitUrl("https://github.com/example/incompatible.git"),
+    ).rejects.toMatchObject({
+      code: "incompatible-host",
+      message: `Plugin requires roubo "^9.0.0" but host is ${pluginManager.HOST_API_VERSION}`,
+    });
+  });
+});
+
 describe("previewFromGitUrl with a source subdirectory (issue #750)", () => {
   // Pretend `git clone <url> <cloneDest>` succeeded by writing the manifest into
   // `<cloneDest>/<directory>`, the monorepo-subdir layout the installer extracts.
