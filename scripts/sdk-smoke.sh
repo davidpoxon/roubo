@@ -49,7 +49,8 @@ VITEST_VERSION="4.1.9"
 case "${PLUGIN}" in
   github-com)
     EXTRA_DEPS='"octokit": "5.0.5",'
-    SMOKE_TEST_FILTER="src/__tests__/"
+    # Matches both src/__tests__/ and the absorbed helpers' src/shared/__tests__/.
+    SMOKE_TEST_FILTER="__tests__/"
     ;;
   *)
     EXTRA_DEPS=''

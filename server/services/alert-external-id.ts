@@ -2,9 +2,8 @@
 // `<owner>/<repo>#<category>-<positive-int>` (e.g. `owner/repo#code-scanning-117`).
 // The plugin owns the canonical parser (`plugins/github-com/src/shared/
 // external-id.ts`); the host keeps its own minimal copy so it never has to reach
-// into plugin-internal source. The
-// category prefix guarantees an alert id can never collide with a plain issue
-// number on the same repo.
+// into plugin-internal source. The category prefix guarantees an alert id can
+// never collide with a plain issue number on the same repo.
 
 export const ALERT_CATEGORIES = ["code-scanning", "secret-scanning", "dependabot"] as const;
 export type AlertCategory = (typeof ALERT_CATEGORIES)[number];
