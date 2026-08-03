@@ -25,8 +25,17 @@ interface Props {
   jigs: JigMeta[];
 }
 
-/** The subtitle line: how the preset binds, and what it overrides. */
-function describeParams(preset: AgentToolPreset): string {
+/**
+ * The subtitle line: how the preset binds, and what it overrides.
+ *
+ * A named jig is described by its DISPLAY NAME, unprefixed, so the line reads as
+ * the user's own vocabulary ("opus · max · plan · Refactor pass") rather than as
+ * a stored field ("... · jig: refactor-pass"). AP-TC-024 S003-O02 scripts that
+ * wording, and issue #690 already settled this class of gap in favour of the
+ * case. The id is the fallback for a jig that no longer resolves, which is
+ * better than showing nothing at all where a jig is still pinned.
+ */
+function describeParams(preset: AgentToolPreset, jigs: JigMeta[]): string {
   const values = Object.values(preset.params ?? {})
     .filter(
       (value): value is string | number | boolean =>
@@ -39,7 +48,7 @@ function describeParams(preset: AgentToolPreset): string {
       ? undefined
       : preset.jig === AGENT_TOOL_JIG_NONE
         ? "no jig"
-        : `jig: ${preset.jig}`;
+        : (jigs.find((candidate) => candidate.id === preset.jig)?.name ?? preset.jig);
   const parts = [...values, ...(jig ? [jig] : [])];
   return parts.length > 0 ? parts.join(" · ") : "no overrides";
 }
@@ -49,6 +58,7 @@ function AgentToolRow({
   builtin,
   agents,
   defaultAgent,
+  jigs,
   degraded,
   onEdit,
   onDelete,
@@ -57,6 +67,8 @@ function AgentToolRow({
   builtin: boolean;
   agents: AgentPluginState[];
   defaultAgent?: AgentPluginState;
+  /** Every jig the app knows about, so a pinned jig is named rather than slugged. */
+  jigs: JigMeta[];
   /** The server's advisory drop notice for this preset, if it reported one. */
   degraded?: ResolvedAgentPreset["degraded"];
   onEdit?: () => void;
@@ -94,7 +106,7 @@ function AgentToolRow({
               it apart from the params that follow it (AP-TC-025 S003-O02, which
               is specifically about the "default agent → <current default>"
               form). The rendered text is unchanged. */}
-          <span data-testid="agent-tool-binding">{binding}</span> · {describeParams(preset)}
+          <span data-testid="agent-tool-binding">{binding}</span> · {describeParams(preset, jigs)}
         </div>
         {unresolved && (
           <div
@@ -216,6 +228,7 @@ export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props)
             builtin
             agents={agents}
             defaultAgent={defaultAgent}
+            jigs={jigs}
             degraded={degradedById.get(preset.id)}
           />
         ))}
@@ -226,6 +239,7 @@ export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props)
             builtin={false}
             agents={agents}
             defaultAgent={defaultAgent}
+            jigs={jigs}
             degraded={degradedById.get(preset.id)}
             onEdit={() => setEditing({ preset })}
             onDelete={() => {
