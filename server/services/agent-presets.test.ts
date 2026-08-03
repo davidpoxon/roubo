@@ -384,25 +384,64 @@ describe("preset resolution", () => {
       expect(agent?.unresolved).toBeUndefined();
     });
 
-    it("still hard-rejects the omitted param on a project preset", () => {
+    // Carve-out 3 routes the undeclared-key case by BINDING, not by source: a
+    // `roubo.yaml` tool that follows the default agent broke because the default
+    // moved under it, so disabling it (`tool-launcher` derives `enabled` from
+    // `unresolved`) would punish its author for a change they never made.
+    it("degrades rather than disabling a default-bound project preset", () => {
       const resolved = resolveAgentPreset(
         { id: "project:Plan", name: "Plan", agent: "default", params: { mode: "plan" } },
         "project",
         { defaultAgentPluginId: "posture-agent" },
       );
-      expect(resolved.unresolved?.reason).toBe("invalid-params");
-      expect(resolved.unresolved?.message).toContain("Plan");
-      expect(resolved.unresolved?.message).toContain("mode");
-      expect(resolved.degraded).toBeUndefined();
+      expect(resolved.unresolved).toBeUndefined();
+      expect(resolved.degraded?.droppedParams).toEqual(["mode"]);
+      expect(resolved.degraded?.message).toContain("Plan");
+      expect(resolved.degraded?.message).toContain("mode");
+      expect(resolved.degraded?.message).toContain("Posture Agent");
+      expect(resolved.params).toEqual({});
     });
 
-    it("still hard-rejects the omitted param on an app preset", () => {
+    it("degrades rather than disabling a default-bound app preset", () => {
+      const resolved = resolveAgentPreset(
+        { id: "at-1", name: "Deep work", agent: "default", params: { mode: "plan" } },
+        "app",
+        { defaultAgentPluginId: "posture-agent" },
+      );
+      expect(resolved.unresolved).toBeUndefined();
+      expect(resolved.degraded?.droppedParams).toEqual(["mode"]);
+    });
+
+    // Keeps the params the agent DOES accept, so the advisory says the dropped
+    // part stopped applying rather than claiming a plain-agent launch.
+    it("keeps the accepted params of a degraded preset and says so", () => {
+      const resolved = resolveAgentPreset(
+        {
+          id: "project:Plan",
+          name: "Plan",
+          agent: "default",
+          params: { mode: "plan", posture: "write" },
+        },
+        "project",
+        { defaultAgentPluginId: "posture-agent" },
+      );
+      expect(resolved.unresolved).toBeUndefined();
+      expect(resolved.degraded?.droppedParams).toEqual(["mode"]);
+      expect(resolved.params).toEqual({ posture: "write" });
+      expect(resolved.degraded?.message).toContain("does not apply");
+      expect(resolved.degraded?.message).not.toContain("plain agent");
+    });
+
+    // The widening is binding-scoped. A preset pinned to a named agent had both
+    // halves chosen by its author, so it stays surfaced and editable.
+    it("still hard-rejects the omitted param on a preset pinned to the agent", () => {
       const resolved = resolveAgentPreset(
         { id: "at-1", name: "Deep work", agent: "posture-agent", params: { mode: "plan" } },
         "app",
         { defaultAgentPluginId: "posture-agent" },
       );
       expect(resolved.unresolved?.reason).toBe("invalid-params");
+      expect(resolved.unresolved?.message).toContain("mode");
       expect(resolved.degraded).toBeUndefined();
     });
   });

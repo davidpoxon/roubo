@@ -152,17 +152,34 @@ function unavailable(
  *    That case is an error on a key the preset does NOT set, which is why the
  *    filter below drops it.
  * 2. The built-ins hardcode `mode`, which is a per-plugin `configSchema` key
- *    rather than a host concept, so an agent that never declares `mode` will
- *    not honour a key the preset DOES set. That covers both a schema which
- *    closes `additionalProperties` and so refuses the key outright, and one
- *    which simply omits it and would drop it on the floor at launch (issue
- *    #743); `presetParamErrors` reports the two identically. The filter cannot
- *    help there, and a built-in can be neither edited nor deleted, so a hard
- *    rejection would leave two of the three built-ins permanently unlaunchable.
- *    Built-ins therefore degrade: the rejected keys are dropped from the
- *    resolved params (`Agent (Plan)` becomes plain `Agent`) and the reduced
- *    overlay is revalidated (issue #654). `app` and `project` presets keep the
- *    hard rejection, because a user can actually edit those.
+ *    rather than a host concept, so an agent whose schema closes
+ *    `additionalProperties` and never declares `mode` rejects a key the preset
+ *    DOES set. The filter cannot help there, and a built-in can be neither
+ *    edited nor deleted, so a hard rejection would leave two of the three
+ *    built-ins permanently unlaunchable. Built-ins therefore degrade: the
+ *    rejected keys are dropped from the resolved params (`Agent (Plan)` becomes
+ *    plain `Agent`) and the reduced overlay is revalidated (issue #654). `app`
+ *    and `project` presets keep the hard rejection, because a user can actually
+ *    edit those.
+ *
+ * 3. A key the agent's schema never DECLARES is a third case, and it is routed
+ *    by binding rather than by source (issue #743). Such a key raises no Ajv
+ *    error at all on the shipped manifests, which set no `additionalProperties`,
+ *    so it used to survive validation and reach an agent that drops it on the
+ *    floor, unreported. It is now reported like any other rejected key, but a
+ *    preset that binds `default` degrades on it WHATEVER its source, rather than
+ *    only when it is a built-in. The mismatch there was caused by switching the
+ *    default agent, an action taken elsewhere, not by the preset author writing
+ *    something wrong, so hard-rejecting would disable a `roubo.yaml` tool that
+ *    launches today over a change its author never made. A preset pinned to a
+ *    named agent keeps the hard rejection: its author chose the agent and the
+ *    param together, so the pair is theirs to fix.
+ *
+ *    This widening is deliberately confined to the undeclared-key case. A key
+ *    the schema refuses OUTRIGHT (a bad value, or an unknown key under
+ *    `additionalProperties: false`) still routes by source exactly as carve-out
+ *    2 describes, because there the plugin author stated a rule and the preset
+ *    author broke it.
  *
  *    Degrading deliberately stops at the dropped keys: an error the drop leaves
  *    behind ON one of them is swallowed, because plain `Agent` sets no params at
@@ -182,24 +199,38 @@ function withValidatedParams(
   preset: AgentToolPreset,
   agent: ResolvedAgent,
 ): ResolvedAgentPreset {
+  // Held as a local as well as on `resolved`, where the field is optional and so
+  // reads back as `string | undefined` however it was assigned.
+  const agentName = agent.manifest.name ?? agent.pluginId;
   const resolved: ResolvedAgentPreset = {
     ...base,
     agentPluginId: agent.pluginId,
-    resolvedAgentName: agent.manifest.name ?? agent.pluginId,
+    resolvedAgentName: agentName,
   };
 
   const params = preset.params ?? {};
   if (Object.keys(params).length === 0) return resolved;
 
+  // Which keys this preset may degrade on rather than die for, per carve-outs 2
+  // and 3 above: everything for a built-in, plus any key the agent's schema
+  // never declares when the preset binds `default`, whatever its source.
+  const undeclared = new Set(unknownConfigKeys(agent.manifest, Object.keys(params)));
+  const isDroppable = (key: string): boolean =>
+    base.source === "builtin" || (base.bindsDefaultAgent && undeclared.has(key));
+
   let overlay = params;
   let errors = presetParamErrors(agent, overlay);
   let droppedParams: string[] = [];
 
-  if (errors.length > 0 && base.source === "builtin") {
+  if (errors.length > 0) {
     // A root-level error (`path === ""`) names no key, so there is nothing to
-    // drop for it; such a built-in stays surfaced rather than degrading.
+    // drop for it; such a preset stays surfaced rather than degrading. A key
+    // this preset may not degrade on is left in place for the same reason: it
+    // falls through to the hard rejection below.
     const rejected = new Set(
-      errors.map((err) => err.path.split(".")[0] ?? "").filter((key) => key !== ""),
+      errors
+        .map((err) => err.path.split(".")[0] ?? "")
+        .filter((key) => key !== "" && isDroppable(key)),
     );
     if (rejected.size > 0) {
       overlay = Object.fromEntries(Object.entries(params).filter(([key]) => !rejected.has(key)));
@@ -222,7 +253,7 @@ function withValidatedParams(
       ...(droppedParams.length > 0 && {
         degraded: {
           droppedParams,
-          message: `Agent tool "${preset.name}" drops ${droppedParams.join(", ")}, which ${resolved.resolvedAgentName} does not accept, so it launches as a plain agent.`,
+          message: degradedMessage(preset.name, agentName, droppedParams, overlay),
         },
       }),
     };
@@ -236,6 +267,27 @@ function withValidatedParams(
       message: `Agent tool "${preset.name}" has invalid parameters for ${resolved.resolvedAgentName} (${detail}).`,
     },
   };
+}
+
+/**
+ * The advisory a degraded preset carries.
+ *
+ * A built-in only ever carries the params it hardcodes, so dropping them leaves
+ * nothing behind and "launches as a plain agent" says exactly what happened
+ * (issue #665). A user-authored preset that degrades on an undeclared key can
+ * keep other params the agent does accept (issue #743), and calling that a plain
+ * agent would understate what still applies, so it reports the drop alone.
+ */
+function degradedMessage(
+  presetName: string,
+  agentName: string,
+  droppedParams: string[],
+  remaining: Record<string, unknown>,
+): string {
+  const dropped = `Agent tool "${presetName}" drops ${droppedParams.join(", ")}, which ${agentName} does not accept,`;
+  return Object.keys(remaining).length === 0
+    ? `${dropped} so it launches as a plain agent.`
+    : `${dropped} so that part of its configuration does not apply.`;
 }
 
 /**
