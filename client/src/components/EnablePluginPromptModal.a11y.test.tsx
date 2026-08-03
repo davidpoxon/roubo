@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// TC-152 (WCAG 2.1 AA): the Enable-plugin prompt modal must pass an axe-core
+// IP-TC-152 (WCAG 2.1 AA): the Enable-plugin prompt modal must pass an axe-core
 // scan. We render the idle state (initial focus on the Enable confirm button)
 // and the error state (after a failed enable attempt surfaces the inline
 // error banner), since these are the two visually distinct trees the user can
@@ -43,7 +43,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("EnablePluginPromptModal: axe-core (TC-152, WCAG 2.1 AA)", () => {
+describe("EnablePluginPromptModal: axe-core (IP-TC-152, WCAG 2.1 AA)", () => {
   it("has no axe violations in the idle state", async () => {
     const { baseElement } = renderWithClient(
       <EnablePluginPromptModal

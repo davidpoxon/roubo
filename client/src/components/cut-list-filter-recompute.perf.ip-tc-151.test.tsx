@@ -4,15 +4,15 @@
 // the client tsconfig pins `types: ["vite/client"]`, so @types/node is not
 // otherwise in scope for this file.
 /**
- * TC-151: Cut-list filter recompute + re-render budget.
+ * IP-TC-151: Cut-list filter recompute + re-render budget.
  *
  * Spec (.specifications/integration-plugins/test-cases.json):
  *   - Load 500 issues into the cut list
  *   - Toggle a filter facet 50 times
- *   - p95 recompute + re-render latency < 50ms (NFR-021)
- *   - No additional server fetches triggered by toggle (FR-065)
+ *   - p95 recompute + re-render latency < 50ms (IP-NFR-021)
+ *   - No additional server fetches triggered by toggle (IP-FR-065)
  *
- * Pattern mirrors TC-098 in plugins/github-com/src/__tests__/list-issues.perf.tc-098.test.ts:
+ * Pattern mirrors IP-TC-098 in plugins/github-com/src/__tests__/list-issues.perf.ip-tc-098.test.ts:
  * RUN_PERF_HARNESS=1 gating for the latency assertion, inline p95 helper,
  * warmup + measured iterations, structured perf-evidence JSON log, and a
  * sentinel test so the file always contributes one passing assertion under
@@ -22,7 +22,7 @@
  * runs in every CI build. It pins the architectural property that toggling
  * cut-list filter state does not invalidate useIssues' React Query key, so a
  * future refactor that couples filter state into the issues fetch (e.g.
- * moving filters server-side) cannot silently regress NFR-021/FR-065.
+ * moving filters server-side) cannot silently regress IP-NFR-021/IP-FR-065.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -131,7 +131,7 @@ afterEach(() => {
 });
 
 test.runIf(RUN)(
-  "TC-151: filter recompute + re-render p95 < 50ms across 50 toggles on 500 issues",
+  "IP-TC-151: filter recompute + re-render p95 < 50ms across 50 toggles on 500 issues",
   async () => {
     const issues = buildIssues(ITEM_COUNT);
     let setter: SetFilters | null = null;
@@ -177,12 +177,12 @@ test.runIf(RUN)(
     const maxMs = Math.max(...samples);
 
     // Surface the measurement so engineers running with RUN_PERF_HARNESS=1
-    // can paste it into evidence comments (same shape as TC-098).
+    // can paste it into evidence comments (same shape as IP-TC-098).
     console.log(
       JSON.stringify(
         {
           kind: "perf-evidence",
-          tc: "TC-151",
+          tc: "IP-TC-151",
           iterations: TOGGLE_ITERATIONS,
           itemCount: ITEM_COUNT,
           p95Ms,
@@ -198,7 +198,7 @@ test.runIf(RUN)(
   120_000,
 );
 
-describe("TC-151 harness (smoke)", () => {
+describe("IP-TC-151 harness (smoke)", () => {
   // Sentinel so the file always contributes one passing assertion under the
   // default coverage run (vitest fails files with zero discovered tests).
   test.runIf(!RUN)("perf assertion is skipped unless RUN_PERF_HARNESS=1", () => {
@@ -206,7 +206,7 @@ describe("TC-151 harness (smoke)", () => {
   });
 });
 
-describe("TC-151: filter toggles do not trigger additional server fetches", () => {
+describe("IP-TC-151: filter toggles do not trigger additional server fetches", () => {
   test("fetchIssuesPage call count is stable across 50 facet toggles", async () => {
     mockedFetch.mockResolvedValue({
       items: buildIssues(ITEM_COUNT),

@@ -198,7 +198,7 @@ describe("migrate.run: integration (TC-031, TC-049)", () => {
     expect(fs.existsSync(path.join(fx.rouboDir, "plugins-state.json"))).toBe(false);
   });
 
-  it("seeds plugins-state.json with all bundled plugins disabled on a greenfield install (WU-046)", async () => {
+  it("seeds plugins-state.json with all bundled plugins disabled on a greenfield install (IP-WU-046)", async () => {
     // Greenfield = no auth.json, no projects.json, no state.json schemaVersion.
     const rouboDir = path.join(homeDir, ".roubo");
     fs.mkdirSync(rouboDir, { recursive: true });
@@ -224,7 +224,7 @@ describe("migrate.run: integration (TC-031, TC-049)", () => {
     expect(stateAfter.schemaVersion).toBe(1);
   });
 
-  it("preserves a pre-existing plugins-state.json across migration (WU-047 / TC-118)", async () => {
+  it("preserves a pre-existing plugins-state.json across migration (IP-WU-047 / IP-TC-118)", async () => {
     // Existing install upgrading from pre-migration to post-migration. The
     // user already toggled github-com to disabled via the regular RPC, so
     // plugins-state.json sits next to auth.json + projects.json. FR-059

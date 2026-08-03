@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #706 (FR-009/FR-010, US-006; verify-gate TC-045 / TC-052 / TC-053): the
+// #706 (VG-FR-009/VG-FR-010, VG-US-006; verify-gate VG-TC-045 / VG-TC-052 / VG-TC-053): the
 // fix-issue panel captures failure notes and files a tracker issue wired to block
 // the gate. A 201 complete confirms the filed refs; a 207 link_pending surfaces an
 // amber "Link step failed" warning plus a "Retry link only" action that re-files
@@ -54,7 +54,7 @@ beforeEach(() => {
   mockUseFileFixIssue.mockReturnValue(makeMutationMock());
 });
 
-describe("FileFixIssuePanel (TC-045: file a fix issue that blocks the gate)", () => {
+describe("FileFixIssuePanel (VG-TC-045: file a fix issue that blocks the gate)", () => {
   it("files with the entered notes and confirms the blocked refs on a complete filing", async () => {
     const user = userEvent.setup();
     const mutate = vi.fn(
@@ -86,7 +86,7 @@ describe("FileFixIssuePanel (TC-045: file a fix issue that blocks the gate)", ()
   });
 });
 
-describe("FileFixIssuePanel (TC-052: link_pending partial failure + link-only retry)", () => {
+describe("FileFixIssuePanel (VG-TC-052: link_pending partial failure + link-only retry)", () => {
   it("surfaces the link-step warning and retries with existingFixRef, then clears on success", async () => {
     const user = userEvent.setup();
     const mutate = vi.fn(
@@ -129,7 +129,7 @@ describe("FileFixIssuePanel (TC-052: link_pending partial failure + link-only re
   });
 });
 
-describe("FileFixIssuePanel (TC-053: empty notes rejected client-side)", () => {
+describe("FileFixIssuePanel (VG-TC-053: empty notes rejected client-side)", () => {
   it("blocks submission with an inline required message and makes no tracker call", async () => {
     const user = userEvent.setup();
     const mutate = vi.fn();
@@ -168,7 +168,7 @@ describe("FileFixIssuePanel (TC-053: empty notes rejected client-side)", () => {
   });
 });
 
-describe("FileFixIssuePanel (FR-011: degrade loudly)", () => {
+describe("FileFixIssuePanel (VG-FR-011: degrade loudly)", () => {
   it("surfaces a server failure inline and keeps the form", () => {
     mockUseFileFixIssue.mockReturnValue(
       makeMutationMock({

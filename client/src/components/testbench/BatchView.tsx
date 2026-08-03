@@ -12,13 +12,13 @@ import GateStatePanel from "./GateStatePanel";
 import FileFixIssuePanel from "./FileFixIssuePanel";
 import Spinner from "../Spinner";
 
-// Batch view (#702, FR-008, AC2/AC3). Opening a gate shows only its gating
+// Batch view (#702, VG-FR-008, AC2/AC3). Opening a gate shows only its gating
 // subset: the plan is fetched with the ?gateIds= filter so the case list is
 // narrowed to the gate's declared test_case_ids. The gate-state panel sits above
 // the list and live-updates as cases are marked (AC2), driven by re-fetching the
 // gate via React Query after each mark settle (SSE push is out of scope).
 //
-// Sign-off (AC3, FR-007/FR-008, issue #830) is now a real, persisted action: it
+// Sign-off (AC3, VG-FR-007/VG-FR-008, issue #830) is now a real, persisted action: it
 // closes the gate's tracker issue through the active integration plugin (the
 // server enforces the same load-bearing guard, rejecting sign-off whenever the
 // gate's evaluated status is anything other than `passed`). The button's state is
@@ -177,8 +177,8 @@ export default function BatchView({
   // (issue #436).
   const noGatingCases = gate.status === "no_gating_cases" || planQuery.data.plan.cases.length === 0;
 
-  // The fix-issue panel opens when the selected gating case is FAILED (US-006,
-  // TC-045 S001): the operator captures notes and files a tracker issue that
+  // The fix-issue panel opens when the selected gating case is FAILED (VG-US-006,
+  // VG-TC-045 S001): the operator captures notes and files a tracker issue that
   // blocks the gate. Effective status resolves an override over the derived mark,
   // via the same helper the rollup uses.
   const selectedCaseFailed =

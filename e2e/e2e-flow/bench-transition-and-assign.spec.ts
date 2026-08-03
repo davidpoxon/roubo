@@ -1,15 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { registerFixtureProject, resetWithScenario } from "./_support/scenario.js";
 
-// TC-162 (US-008/US-025, FR-035/036/037/077/078/080, NFR-018): from the bench
+// IP-TC-162 (IP-US-008/IP-US-025, IP-FR-035/036/037/077/078/080, IP-NFR-018): from the bench
 // detail view, a user transitions the attached issue's status (Open -> In
 // review), then assigns the issue to themself. Both writes round-trip through
-// the stubbed-plugin journal and survive a page reload. WU-064 (#155) shipped
-// TC-168 and TC-169 but never automated TC-162; #239 closes that gap.
+// the stubbed-plugin journal and survive a page reload. IP-WU-064 (#155) shipped
+// IP-TC-168 and IP-TC-169 but never automated IP-TC-162; #239 closes that gap.
 //
 // The bench is seeded directly into state via `registerFixtureProject`'s
-// `seedBenches` option (TC-161 pattern). Driving real bench provisioning is
-// too expensive for NFR-018; the seed shortcut mirrors the trade-off already
+// `seedBenches` option (IP-TC-161 pattern). Driving real bench provisioning is
+// too expensive for IP-NFR-018; the seed shortcut mirrors the trade-off already
 // made for project registration (#232).
 
 const SCENARIO = "bench-transition-and-assign";
@@ -21,7 +21,7 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("user transitions issue status from Open to In review and assigns to self (TC-162)", async ({
+test("user transitions issue status from Open to In review and assigns to self (IP-TC-162)", async ({
   page,
   request,
 }) => {

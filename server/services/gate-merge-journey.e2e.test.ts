@@ -1,4 +1,4 @@
-// TC-025 (e2e_flow, level 2): the merge-then-verify-then-sign-off journey end to
+// VG-TC-025 (e2e_flow, level 2): the merge-then-verify-then-sign-off journey end to
 // end. An operator merges the Phase 2 and Phase 3 gates into one combined gate,
 // marks all four gating cases passed, and signs off, with no separate Phase 2 /
 // Phase 3 gate cards remaining.
@@ -22,8 +22,8 @@
 // coordinator's existing injectable hooks (GateLifecycleDeps.invoke/recordAudit/
 // now). The gate functions themselves are the real production functions.
 //
-// Drift guard (AC-2): each it() is named after its TC-025 step id and the step's
-// expected observation is kept explicit, so a change to the authoritative TC-025
+// Drift guard (AC-2): each it() is named after its VG-TC-025 step id and the step's
+// expected observation is kept explicit, so a change to the authoritative VG-TC-025
 // in .specifications/verify-gate/test-cases.json forces this test to be updated.
 //
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
@@ -55,7 +55,7 @@ const SLICE_S001 = "#703 (batch merge/split, operator override)";
 const SLICE_S002 = "#701 (gate API routes + batch-subset)";
 const SLICE_S003 = "#701/#702 (sign-off: close on pass + TestBench batch UI)";
 
-// ── Fixture identifiers (TC-025 preconditions) ──
+// ── Fixture identifiers (VG-TC-025 preconditions) ──
 const PROJECT_ID = "proj-verify-gate";
 const PLUGIN_ID = "github-com";
 const PLAN_HASH = "sha256-plan-v1";
@@ -139,7 +139,7 @@ function makeIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
 // an empty map suffices for the merge journey.
 const caseMap: WorkUnitCaseMap = new Map<string, readonly string[]>();
 
-// The two source gates (TC-025 precondition: Phase 2 + Phase 3, both pending).
+// The two source gates (VG-TC-025 precondition: Phase 2 + Phase 3, both pending).
 const phase2 = makeGate(PHASE2_GATE_ID, "Verify batch Phase 2", PHASE2_CASES);
 const phase3 = makeGate(PHASE3_GATE_ID, "Verify batch Phase 3", PHASE3_CASES);
 const loaded: LoadedVerifyUnit[] = [phase2, phase3];
@@ -178,7 +178,7 @@ const deps: GateLifecycleDeps = {
   now: () => "2026-06-23T00:00:00.000Z",
 };
 
-describe("TC-025: operator merges two batches then verifies and signs off the combined gate", () => {
+describe("VG-TC-025: operator merges two batches then verifies and signs off the combined gate", () => {
   it("S001: merge the Phase 2 and Phase 3 gates -> one combined gate replaces the two; gating set is TC-019, TC-020, TC-024, TC-030 (S001-O01)", () => {
     // S001: open the batches overview and merge the Phase 2 and Phase 3 gates;
     // confirm. Drive the REAL applyGateOverrides (#703) with the recorded merge op.
@@ -249,7 +249,7 @@ describe("TC-025: operator merges two batches then verifies and signs off the co
   it("S003: sign off the combined batch -> sign-off succeeds, the combined gate shows passed/closed, and no separate Phase 2 / Phase 3 gate cards remain (S003-O01, S003-O02)", async () => {
     // Resolve the combined gate and attach its tracker ref, then sign off. The
     // sign-off path is modelled as evaluateGate (passed) -> onGatePassed, exactly
-    // as the TC-040 sibling and architecture.md "TestBench sign-off path" describe.
+    // as the VG-TC-040 sibling and architecture.md "TestBench sign-off path" describe.
     const combinedUnit = applyGateOverrides(loaded, overrides, caseMap).gates[0].unit;
     const tracker: Tracker = {
       system: "github",

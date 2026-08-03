@@ -4,7 +4,7 @@ import { parseSourcesConfig } from "../parse-sources.js";
 // Canonical input/output shared with the GHE counterpart test
 // (`plugins/ghe/src/__tests__/parse-sources.test.ts`). Both plugins must
 // return the same parsed shape so the host can treat their source-config
-// payloads identically (WU-037 acceptance criterion 3).
+// payloads identically (IP-WU-037 acceptance criterion 3).
 const CANONICAL_ALERTS_INPUT = {
   sources: [
     {
@@ -29,7 +29,7 @@ const CANONICAL_ALERTS_PARSED = {
   ],
 };
 
-describe("github-com parseSourcesConfig: per-source alert booleans (FR-074)", () => {
+describe("github-com parseSourcesConfig: per-source alert booleans (IP-FR-074)", () => {
   it("parses a source with all three alert booleans set into the canonical shape", () => {
     const { config, errors } = parseSourcesConfig(CANONICAL_ALERTS_INPUT);
     expect(errors).toEqual([]);

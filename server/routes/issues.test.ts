@@ -426,7 +426,7 @@ describe("GET /:projectId/issues", () => {
     expect(res.status).toBe(502);
   });
 
-  describe("FR-014: last-good in-memory snapshot fallback (TC-163, TC-016)", () => {
+  describe("IP-FR-014: last-good in-memory snapshot fallback (IP-TC-163, IP-TC-016)", () => {
     // The stale-serve path logs an NFR-009 console.warn line. Spy on it for the
     // whole block so the intentional log never leaks into test stdout (repo
     // testing rule); the dedicated NFR-009 test below asserts against this spy.
@@ -682,7 +682,7 @@ describe("POST /:projectId/issues/:externalId/transitions", () => {
     expect(res.status).toBe(400);
   });
 
-  it("invokes applyTransition with externalId + transition and returns the refreshed issue (TC-054)", async () => {
+  it("invokes applyTransition with externalId + transition and returns the refreshed issue (IP-TC-054)", async () => {
     const refreshed = makeIssue({
       externalId: "ROUBO-42",
       currentState: "In Review",
@@ -711,7 +711,7 @@ describe("POST /:projectId/issues/:externalId/transitions", () => {
     expect(res.body).toEqual(refreshed);
   });
 
-  it("forwards a structured plugin error verbatim with 502 (TC-063)", async () => {
+  it("forwards a structured plugin error verbatim with 502 (IP-TC-063)", async () => {
     vi.mocked(pluginManager.invoke).mockRejectedValue(
       Object.assign(new Error("Your token lacks permission to transition this workflow."), {
         code: "rpc-error",
@@ -768,7 +768,7 @@ describe("POST /:projectId/issues/:externalId/assign", () => {
     expect(res.status).toBe(400);
   });
 
-  it("invokes plugin.assignIssue with externalId + assigneeExternalId and returns 204 (TC-040)", async () => {
+  it("invokes plugin.assignIssue with externalId + assigneeExternalId and returns 204 (IP-TC-040)", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue(undefined);
     const res = await request(app)
       .post("/p1/issues/ROUBO-42/assign")

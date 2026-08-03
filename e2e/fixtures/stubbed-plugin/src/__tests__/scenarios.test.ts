@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadScenario } from "../scenario.js";
 
-// WU-063: the five scenario packs that back the e2e-flow specs must parse and
+// IP-WU-063: the five scenario packs that back the e2e-flow specs must parse and
 // expose the source-picker shape each spec relies on. Catching a typo or
 // dropped field here is much cheaper than catching it in a flaky Playwright
 // run.
@@ -13,7 +13,7 @@ const EXPECTATIONS: Array<{ name: string; shape: "multi-list" | "categorized-mul
   { name: "missing-plugin-prompt", shape: "multi-list" },
 ];
 
-describe("WU-063 scenario packs", () => {
+describe("IP-WU-063 scenario packs", () => {
   for (const { name, shape } of EXPECTATIONS) {
     it(`${name} loads and exposes the ${shape} source-picker shape`, () => {
       const scenario = loadScenario(name);
@@ -30,11 +30,11 @@ describe("WU-063 scenario packs", () => {
   }
 });
 
-// WU-064: two new scenario packs back the connection-status surfacing and
+// IP-WU-064: two new scenario packs back the connection-status surfacing and
 // auth-problem-flip specs. The flip pack also exercises the new
 // `connectionStatusSequence` field; keep the loader assertion here so a
 // missing or mistyped pack fails before Playwright spins up.
-describe("WU-064 scenario packs", () => {
+describe("IP-WU-064 scenario packs", () => {
   it("status-surfacing-three-placements loads with a connected baseline", () => {
     const scenario = loadScenario("status-surfacing-three-placements");
     expect(scenario.connectionStatus.state).toBe("connected");
@@ -50,11 +50,11 @@ describe("WU-064 scenario packs", () => {
   });
 });
 
-// WU-066: two scenario packs back the project-load Enable-plugin prompt
-// modal specs (TC-171, TC-172). The greenfield pack keeps the stub healthy
+// IP-WU-066: two scenario packs back the project-load Enable-plugin prompt
+// modal specs (IP-TC-171, IP-TC-172). The greenfield pack keeps the stub healthy
 // so the Enable click succeeds; the edges pack carries `failOnStart` so the
 // stub exits non-zero on the failure arm.
-describe("WU-066 scenario packs", () => {
+describe("IP-WU-066 scenario packs", () => {
   it("greenfield-and-enable-prompt loads with a connected baseline and no failOnStart", () => {
     const scenario = loadScenario("greenfield-and-enable-prompt");
     expect(scenario.connectionStatus.state).toBe("connected");
@@ -68,12 +68,12 @@ describe("WU-066 scenario packs", () => {
   });
 });
 
-// TC-167: the alerts-test-connection-scope-missing pack drives the e2e spec
+// IP-TC-167: the alerts-test-connection-scope-missing pack drives the e2e spec
 // for the per-category Test connection strip. The scenario must declare a
 // `probeAlertCategoriesSequence` (scope-missing → ok) and a `listIssuesSequence`
 // that surfaces the matching missing-scope warning so the Re-consent chip
 // renders in the alerts checkbox row alongside the strip.
-describe("TC-167 scenario pack", () => {
+describe("IP-TC-167 scenario pack", () => {
   it("alerts-test-connection-scope-missing carries the probe sequence and matching warning", () => {
     const scenario = loadScenario("alerts-test-connection-scope-missing");
     expect(scenario.probeAlertCategoriesSequence).toBeDefined();
@@ -94,11 +94,11 @@ describe("TC-167 scenario pack", () => {
   });
 });
 
-// WU-068: four scenario packs back the per-project Settings specs that drive
-// the github-com/ghe/jira-self-hosted overlay stubs (TC-177, TC-178, TC-179,
-// TC-182). Each is shaped by the per-spec assertions; the loader sanity
+// IP-WU-068: four scenario packs back the per-project Settings specs that drive
+// the github-com/ghe/jira-self-hosted overlay stubs (IP-TC-177, IP-TC-178, IP-TC-179,
+// IP-TC-182). Each is shaped by the per-spec assertions; the loader sanity
 // check here catches typos before Playwright spawns the server.
-describe("WU-068 scenario packs", () => {
+describe("IP-WU-068 scenario packs", () => {
   it("github-tab-consolidation loads with a connected baseline", () => {
     const scenario = loadScenario("github-tab-consolidation");
     expect(scenario.connectionStatus.state).toBe("connected");

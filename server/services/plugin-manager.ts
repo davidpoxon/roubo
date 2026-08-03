@@ -92,7 +92,7 @@ export const SHUTDOWN_GRACE_MS = 5000;
 export const DEFAULT_RPC_TIMEOUT_MS = 30_000;
 export const BACKOFF_SCHEDULE_MS = [500, 1000, 2000];
 
-// WU-044: getConnectionStatus is polled by the UI; cache per plugin for 30s
+// IP-WU-044: getConnectionStatus is polled by the UI; cache per plugin for 30s
 // and de-dup concurrent in-flight calls so UI fan-out doesn't thunder against
 // the plugin process. RPC timeout is tighter than DEFAULT_RPC_TIMEOUT_MS so a
 // hung plugin can't stall the status indicator for half a minute.
@@ -359,27 +359,27 @@ type ConnectionStatusInvoker = <T>(
 ) => Promise<T>;
 let connectionStatusInvoker: ConnectionStatusInvoker = (pluginId, method, params, opts) =>
   invoke(pluginId, method, params, opts);
-// WU-046: enable-state snapshot loaded once at initialize() and kept in sync
+// IP-WU-046: enable-state snapshot loaded once at initialize() and kept in sync
 // via setPluginEnabled/removePlugin write-throughs. `null` means the file
 // did not exist on boot (legacy install), in which case every discovered
 // plugin is treated as implicitly "enabled" per architecture.md:1097.
 let enableStateCache: PluginEnableState | null = null;
 
-// WU-063: when ROUBO_E2E=1, Playwright specs can pin the stubbed plugin to a
+// IP-WU-063: when ROUBO_E2E=1, Playwright specs can pin the stubbed plugin to a
 // specific scenario pack and frozen-now ISO. POST /test/__reset writes these
 // via __test.setE2EConfig; spawnPlugin appends them to argv. Outside the e2e
 // harness they are always null and the spawn argv is unchanged.
 let e2eScenario: string | null = null;
 let e2eNow: string | null = null;
 
-// TC-153 / NFR-023: every plugin connection-status transition is written to
+// IP-TC-153 / IP-NFR-023: every plugin connection-status transition is written to
 // the host's existing log destination (process stdout via console.info) as a
 // single JSON line tagged with `event: "plugin.connection-state.changed"`. No
 // new logging infrastructure is introduced; sister host-side log calls live
 // at `plugin-discovery (bundled)` / `(user)` warnings below.
 //
 // A second, ROUBO_E2E=1-only buffer mirrors emissions so the Playwright
-// harness (TC-169) can poll a deterministic surface instead of scraping the
+// harness (IP-TC-169) can poll a deterministic surface instead of scraping the
 // running server's stdout. The buffer is empty in production builds because
 // nothing writes to it when ROUBO_E2E is unset.
 export const CONNECTION_STATE_CHANGED_EVENT = "plugin.connection-state.changed";
@@ -923,7 +923,7 @@ function attachStdioLogging(entry: PluginEntry, proc: ChildProcess): void {
 // agent plugin is distributed the same way (#507), so it shares that guidance.
 // Every other kind (integration, and any future kind) keeps the build-output
 // guidance. The banner renders this message verbatim (ErroredBanner), so the
-// marketplace-recovery guidance TC-082 requires has to live in the host-produced
+// marketplace-recovery guidance IP-TC-082 requires has to live in the host-produced
 // message here.
 function missingEntryMessage(
   entryRel: string,
@@ -1536,7 +1536,7 @@ export async function initialize(): Promise<void> {
     isolationProbes = defaultIsolationProbes();
   }
 
-  // WU-046: load the persisted enable-state once at boot. The migrate.run()
+  // IP-WU-046: load the persisted enable-state once at boot. The migrate.run()
   // pass that ran moments earlier seeds this file; a missing file means
   // legacy install (pre-WU-046), and isPluginEnabled() preserves the prior
   // behaviour by defaulting everything to enabled.
@@ -1596,7 +1596,7 @@ export async function shutdown(): Promise<void> {
   }
   plugins.clear();
   enableStateCache = null;
-  // FR-014: snapshots are in-process and tied to the running plugin set; drop
+  // IP-FR-014: snapshots are in-process and tied to the running plugin set; drop
   // them on shutdown so a subsequent initialize() starts from a clean cache.
   issueSnapshotCache.clearAll();
   initialized = false;
@@ -1684,7 +1684,7 @@ export function getConnection(pluginId: string): JsonRpcConnection | null {
   return entry.connection;
 }
 
-// TC-154 (NFR-024): how long enable() waits after spawnPlugin returns before
+// IP-TC-154 (IP-NFR-024): how long enable() waits after spawnPlugin returns before
 // declaring the child "alive enough." Short enough that the happy-path UI
 // click stays snappy, long enough to catch entry scripts that crash on
 // first-line (Node's spawn() resolves before the child has had a chance to
@@ -1776,7 +1776,7 @@ export async function enable(pluginId: string): Promise<void> {
   } catch (err) {
     // Disk-write failed after a successful spawn. Roll back the spawn so
     // disk ("disabled") and runtime ("disabled") stay consistent. Preserves
-    // WU-046's original concern about FS-write failures.
+    // IP-WU-046's original concern about FS-write failures.
     await stopPluginProcess(entry);
     entry.record.status = "disabled";
     throw err;
@@ -1790,7 +1790,7 @@ export async function disable(pluginId: string): Promise<void> {
   // FR-004 / NFR-001 (per Spike 553, #553): disable EVICTS the persistent disk
   // snapshots. This is deliberately distinct from the in-memory
   // issue-snapshot-cache, which is kept warm on disable so the route's
-  // errored/disabled stale fallback (FR-014) still has something to serve. The
+  // errored/disabled stale fallback (IP-FR-014) still has something to serve. The
   // disk cache is the stale-while-revalidate warm path for a *healthy* plugin
   // and must not be served once the plugin is disabled.
   cutListQueryService.evictPlugin(pluginId);
@@ -1824,7 +1824,7 @@ export async function restart(pluginId: string): Promise<void> {
  *
  * Throws when:
  *  - the plugin is unknown,
- *  - the plugin is bundled (FR-016: bundled plugins are not uninstallable),
+ *  - the plugin is bundled (IP-FR-016: bundled plugins are not uninstallable),
  *  - any project's effective integration config still references the plugin.
  *    The user must clear or reassign each project's integration plugin
  *    before retrying, mirroring the jig-delete-when-referenced rule.
@@ -1857,7 +1857,7 @@ export async function uninstall(pluginId: string): Promise<void> {
 
   await rm(entry.record.pluginDir, { recursive: true, force: true });
   plugins.delete(pluginId);
-  // WU-046: keep plugins-state.json in sync so a re-installed plugin id
+  // IP-WU-046: keep plugins-state.json in sync so a re-installed plugin id
   // doesn't carry the prior install's enable bit by accident.
   pluginEnableState.removePlugin(pluginId);
   // Issue #399 (CP-TC-096): drop the plugin's ConsentRecord so a stale consent
@@ -1871,9 +1871,9 @@ export async function uninstall(pluginId: string): Promise<void> {
   // it look like it still came from the previously chosen source. Also NOT done in
   // uninstallForUpdate: an in-place update re-stamps the row itself.
   pluginProvenanceState.removeProvenance(pluginId);
-  // FR-014: a re-installed plugin id is a different deployment; previously
+  // IP-FR-014: a re-installed plugin id is a different deployment; previously
   // cached issues should not bleed across the uninstall boundary. Note that
-  // we deliberately do *not* clear the snapshot on disable(): FR-014 calls
+  // we deliberately do *not* clear the snapshot on disable(): IP-FR-014 calls
   // for serving the last-good snapshot while a plugin is `disabled`.
   issueSnapshotCache.clearSnapshot(pluginId);
   // FR-004 / NFR-001: additionally drop the persistent disk snapshots for this
@@ -1904,7 +1904,7 @@ export async function uninstall(pluginId: string): Promise<void> {
  * Bookkeeping otherwise mirrors `uninstall`: stop the process, close the log
  * stream, drop the registry entry, and clear the enable bit and issue caches so
  * the freshly-registered copy starts clean (an updated id is a new deployment,
- * FR-014). Throws when the plugin is unknown or bundled (bundled plugins are
+ * IP-FR-014). Throws when the plugin is unknown or bundled (bundled plugins are
  * not updatable in place; the installer guards this too).
  */
 export async function uninstallForUpdate(pluginId: string): Promise<void> {
@@ -2200,11 +2200,11 @@ function parseLogLine(raw: string): LogLine {
 }
 
 /**
- * WU-044: cached, de-duped wrapper around the plugin's `getConnectionStatus`
- * RPC (host-API 1.1.0+, FR-054/FR-055). Plugins built against 1.0.0 don't
+ * IP-WU-044: cached, de-duped wrapper around the plugin's `getConnectionStatus`
+ * RPC (host-API 1.1.0+, IP-FR-054/IP-FR-055). Plugins built against 1.0.0 don't
  * implement `getConnectionStatus`; the host catches the `MethodNotFound` and
  * falls back to invoking `validateConfig`, inferring `connected` vs
- * `auth-problem` from the result (TC-113).
+ * `auth-problem` from the result (IP-TC-113).
  *
  * Results are cached for 30 seconds per `pluginId`; concurrent calls within
  * the in-flight window share a single RPC invocation. Callers resolve the
@@ -2224,7 +2224,7 @@ export async function getConnectionStatus(
   }
 
   // Always consult the in-flight map, even when `force` is set: this is what
-  // gives the WU-050 opportunistic re-check its per-plugin dedup. Two
+  // gives the IP-WU-050 opportunistic re-check its per-plugin dedup. Two
   // concurrent forced calls share one RPC; a forced call piggy-backs on an
   // in-flight non-forced call (and vice versa).
   const inFlight = inFlightConnectionStatusRequests.get(pluginId);
@@ -2270,7 +2270,7 @@ function recordConnectionStateTransition(
     trigger,
     at: nowIso(),
   };
-  // NFR-023: durable host-side structured log. Single JSON line on stdout via
+  // IP-NFR-023: durable host-side structured log. Single JSON line on stdout via
   // the existing log destination. The payload intentionally carries only
   // pluginId + states + trigger + ISO timestamp; no detail / credentials / PII.
   console.info(JSON.stringify(entry));
@@ -2487,7 +2487,7 @@ export const __test = {
     connectionStatusCache.clear();
     inFlightConnectionStatusRequests.clear();
   },
-  // TC-153 e2e tap accessors. The tap is only populated when ROUBO_E2E=1
+  // IP-TC-153 e2e tap accessors. The tap is only populated when ROUBO_E2E=1
   // (see `recordConnectionStateTransition`); in production both helpers return
   // an empty buffer. These exist so the Playwright harness can poll a
   // deterministic surface without scraping the running server's stdout.
@@ -2513,7 +2513,7 @@ export const __test = {
   getEntry(pluginId: string): PluginEntry | undefined {
     return plugins.get(pluginId);
   },
-  // TC-163 (#240): SIGKILL the live child of `pluginId` so the supervisor sees
+  // IP-TC-163 (#240): SIGKILL the live child of `pluginId` so the supervisor sees
   // a genuine `unexpected-exit` and runs the full restart-budget path in
   // `handleChildExit`. Gated by ROUBO_E2E so production builds can't trigger
   // it. We intentionally do not flip `intentionalStop`: the goal is to

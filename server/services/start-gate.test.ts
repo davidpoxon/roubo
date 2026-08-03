@@ -194,7 +194,7 @@ describe("fetchIssueForStart", () => {
     try {
       vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
       // A getIssue that never settles must be bounded by the 3s gate timer, not
-      // the plugin manager's 30s RPC default (#438, NFR-002).
+      // the plugin manager's 30s RPC default (#438, VG-NFR-002).
       vi.mocked(pluginManager.invoke).mockReturnValue(new Promise<never>(() => {}));
 
       const pending = fetchIssueForStart("proj", "owner/repo#42", "github-com");
@@ -212,7 +212,7 @@ describe("fetchIssueForStart", () => {
         expect(outcome.err.statusCode).toBe(409);
         expect(outcome.err.data).toMatchObject({ code: "GATE_INDETERMINATE" });
       }
-      // Exactly one getIssue RPC per start request (NFR-002, the one-RPC half).
+      // Exactly one getIssue RPC per start request (VG-NFR-002, the one-RPC half).
       expect(pluginManager.invoke).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();

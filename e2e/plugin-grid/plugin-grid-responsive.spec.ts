@@ -5,7 +5,7 @@ import {
   resetWithScenario,
 } from "../e2e-flow/_support/scenario.js";
 
-// TC-170 (US-025, FR-056/057/058, NFR-018): the Settings > Plugins grid uses
+// IP-TC-170 (IP-US-025, IP-FR-056/057/058, IP-NFR-018): the Settings > Plugins grid uses
 // CSS Grid `auto-fit minmax(360px, 1fr)` so tiles wrap based on available
 // width with no JS-driven breakpoints, and the Settings page wrapper fills
 // the available container at every viewport width.
@@ -58,7 +58,7 @@ test("the five stub plugins are discovered and enabled under this scenario", asy
 // are subtracted from the viewport. With `minmax(360px, 1fr)` and a 16px gap,
 // the breakpoints land around viewport widths of 360+304 (1 col), 736+304
 // (2 col), 1112+304 (3 col), and 1488+304 (4 col); the values below sit
-// comfortably inside each band. TC-170's literal 600/1200/1700 widths predate
+// comfortably inside each band. IP-TC-170's literal 600/1200/1700 widths predate
 // the sidebar layout and would land on 1/2/3 columns today, which would only
 // exercise three of the four wrap states the issue's acceptance criteria
 // call for.
@@ -110,7 +110,7 @@ test("third-party plugins grid wraps through 1/2/3/4 columns and Settings wrappe
       `expected ${expectedCols} columns at ${width}px viewport, computed grid had ${trackCount}`,
     ).toBe(expectedCols);
 
-    // FR-058: the Settings wrapper has no max-width constraint and fills the
+    // IP-FR-058: the Settings wrapper has no max-width constraint and fills the
     // width of its <main> container at every viewport.
     const wrapperMaxWidth = await settingsWrapper.evaluate(
       (el) => getComputedStyle(el as HTMLElement).maxWidth,

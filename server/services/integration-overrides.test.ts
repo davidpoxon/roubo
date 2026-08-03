@@ -119,7 +119,7 @@ describe("saveOverride", () => {
 });
 
 describe("getEffectiveIntegrationConfig", () => {
-  it("TC-026: merges committed plugin/instance with override sources", () => {
+  it("IP-TC-026: merges committed plugin/instance with override sources", () => {
     const effective = mod.getEffectiveIntegrationConfig(
       { plugin: "jira-self-hosted", instance: "https://jira.acme.com" },
       null,
@@ -132,7 +132,7 @@ describe("getEffectiveIntegrationConfig", () => {
     });
   });
 
-  it("TC-027: arrays REPLACE rather than concat", () => {
+  it("IP-TC-027: arrays REPLACE rather than concat", () => {
     const effective = mod.getEffectiveIntegrationConfig({ sources: { boards: [12, 34] } }, null, {
       schemaVersion: 1,
       integration: { sources: { boards: [99] } },
@@ -140,7 +140,7 @@ describe("getEffectiveIntegrationConfig", () => {
     expect(effective.sources?.boards).toEqual([99]);
   });
 
-  it("TC-065: empty array in override REPLACES non-empty committed array", () => {
+  it("IP-TC-065: empty array in override REPLACES non-empty committed array", () => {
     const effective = mod.getEffectiveIntegrationConfig({ sources: { boards: [12] } }, null, {
       schemaVersion: 1,
       integration: { sources: { boards: [] } },
@@ -389,8 +389,8 @@ describe("getEffectiveWithGlobal", () => {
 
 const GH_DEFAULTS = ["Closed", "Done", "Resolved", "In review", "PR open", "Waiting on reviewer"];
 
-describe("excludedStatuses three-layer merge (FR-062, FR-063)", () => {
-  it("TC-122: per-source override beats per-project beats plugin-global", () => {
+describe("excludedStatuses three-layer merge (IP-FR-062, IP-FR-063)", () => {
+  it("IP-TC-122: per-source override beats per-project beats plugin-global", () => {
     const projectLevel: import("@roubo/shared").IntegrationOverride = {
       schemaVersion: 1,
       integration: {
@@ -444,7 +444,7 @@ describe("excludedStatuses three-layer merge (FR-062, FR-063)", () => {
     expect(applied.sources?.repos[0]).toBe("repo-a");
   });
 
-  it("TC-123: post-merge pass walks every source entry and is idempotent", () => {
+  it("IP-TC-123: post-merge pass walks every source entry and is idempotent", () => {
     const projectLevel: import("@roubo/shared").IntegrationOverride = {
       schemaVersion: 1,
       integration: {

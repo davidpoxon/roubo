@@ -5,7 +5,7 @@ import {
   resetWithScenario,
 } from "./_support/scenario.js";
 
-// TC-154 (#222, US-017, FR-061, NFR-024): the project-load Enable prompt's
+// IP-TC-154 (#222, IP-US-017, IP-FR-061, IP-NFR-024): the project-load Enable prompt's
 // failure recovery path. When the plugin a project needs is disabled and its
 // process refuses to start, clicking Enable must surface the failure inline,
 // leave plugins-state.json in its previous disabled state, keep the project
@@ -19,7 +19,7 @@ import {
 // Companion coverage:
 //  - EnablePluginPromptModal.test.tsx asserts inline-error rendering given a
 //    rejected enable mutation (unit-level).
-//  - plugin-manager.test.ts pins the NFR-024 invariant at the server level
+//  - plugin-manager.test.ts pins the IP-NFR-024 invariant at the server level
 //    (enable() throws on spawn failure and does not mutate plugins-state.json).
 //  This spec is the end-to-end glue: real browser, real server, real fixture.
 
@@ -59,7 +59,7 @@ test("Enable click surfaces spawn failure inline and leaves plugins-state.json u
   await expect(page.getByTestId("enable-plugin-confirm")).toBeEnabled();
   await expect(page.getByTestId("enable-plugin-cancel")).toBeEnabled();
 
-  // NFR-024: the on-disk file must remain in its previous (disabled) state.
+  // IP-NFR-024: the on-disk file must remain in its previous (disabled) state.
   const after = await fetchPluginEnableState(request);
   expect(after[PLUGIN_ID]).toBe("disabled");
 

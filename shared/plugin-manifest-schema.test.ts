@@ -900,7 +900,7 @@ describe("PluginManifestSchema: forward-compat passthrough", () => {
   });
 });
 
-describe("Bundled plugin manifests ship default excludedStatuses (TC-124, FR-064)", () => {
+describe("Bundled plugin manifests ship default excludedStatuses (IP-TC-124, IP-FR-064)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const pluginsDir = resolve(here, "..", "plugins");
 
@@ -942,7 +942,7 @@ describe("PluginDefaultIntegrationConfigSchema excludedStatusCategories (JSS-FR-
   });
 });
 
-describe("Bundled github.com plugin manifest declares per-source alert booleans (TC-135, FR-074)", () => {
+describe("Bundled github.com plugin manifest declares per-source alert booleans (IP-TC-135, IP-FR-074)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const pluginsDir = resolve(here, "..", "plugins");
 

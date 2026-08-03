@@ -253,7 +253,7 @@ describe("getSourceOptions pagination (JSS-WU-008, JSS-TC-022)", () => {
   });
 });
 
-describe("probeAlertCategoriesSequence (TC-167)", () => {
+describe("probeAlertCategoriesSequence (IP-TC-167)", () => {
   const PROBE_PARAMS = { sources: [], enabledCategories: ["dependabot"] as const };
 
   it("advances through the sequence on successive calls and clamps at the last entry", () => {

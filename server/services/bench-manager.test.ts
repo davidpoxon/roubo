@@ -593,7 +593,7 @@ describe("initialize", () => {
     expect(bench.injectedJigSource).toBe("issue-type-mapping");
   });
 
-  it("preserves assignedIssue.issueType even when the category is no longer enabled (TC-097, frozen snapshot)", () => {
+  it("preserves assignedIssue.issueType even when the category is no longer enabled (IP-TC-097, frozen snapshot)", () => {
     // The snapshot-read path must not validate issueType against the current
     // listIssueTypes catalog: an alert-backed bench whose source has since
     // toggled its category off should still render with its original frozen

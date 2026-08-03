@@ -44,7 +44,7 @@ function makeDeps(overrides: Partial<FixIssueFilerDeps> = {}): {
   return { deps, createIssue, addBlockedBy };
 }
 
-describe("FixIssueFiler: success creates the issue and links it (TC-045, TC-046)", () => {
+describe("FixIssueFiler: success creates the issue and links it (VG-TC-045, VG-TC-046)", () => {
   it("creates the fix issue then registers it as a gate blocker, returning complete", async () => {
     const { deps, createIssue, addBlockedBy } = makeDeps();
 
@@ -73,7 +73,7 @@ describe("FixIssueFiler: success creates the issue and links it (TC-045, TC-046)
   });
 });
 
-describe("FixIssueFiler: post-create link failure surfaces link_pending (TC-052)", () => {
+describe("FixIssueFiler: post-create link failure surfaces link_pending (VG-TC-052)", () => {
   it("returns link_pending with the created ref when addBlockedBy fails after create", async () => {
     const addBlockedBy = vi.fn(async () => {
       throw new Error("transient tracker error");
@@ -111,7 +111,7 @@ describe("FixIssueFiler: post-create link failure surfaces link_pending (TC-052)
   });
 });
 
-describe("FixIssueFiler: link-only retry via existingFixRef (TC-052)", () => {
+describe("FixIssueFiler: link-only retry via existingFixRef (VG-TC-052)", () => {
   it("runs only the link step against the existing ref and returns complete", async () => {
     const { deps, createIssue, addBlockedBy } = makeDeps();
 
@@ -148,7 +148,7 @@ describe("FixIssueFiler: link-only retry via existingFixRef (TC-052)", () => {
   });
 });
 
-describe("FixIssueFiler: empty notes are rejected before any tracker call (TC-053)", () => {
+describe("FixIssueFiler: empty notes are rejected before any tracker call (VG-TC-053)", () => {
   it.each([
     ["empty string", ""],
     ["whitespace only", "   \n\t  "],
@@ -163,7 +163,7 @@ describe("FixIssueFiler: empty notes are rejected before any tracker call (TC-05
   });
 });
 
-describe("FixIssueFiler: capability-absent degrades up front, never an orphan issue (TC-049 degrade)", () => {
+describe("FixIssueFiler: capability-absent degrades up front, never an orphan issue (VG-TC-049 degrade)", () => {
   it("throws capability-absent and creates nothing when supportsBlockingLinks is absent", async () => {
     const { deps, createIssue, addBlockedBy } = makeDeps({
       getCapabilities: () => ({ supportsCreateIssue: true, supportsBlockingLinks: false }),

@@ -1,4 +1,4 @@
-// The pure, deterministic gate-override transform (#703, FR-002, US-007).
+// The pure, deterministic gate-override transform (#703, VG-FR-002, VG-US-007).
 //
 // `applyGateOverrides` rewrites the loaded verify units (gates) according to the
 // operator's recorded merge / split operations, producing the EFFECTIVE gate

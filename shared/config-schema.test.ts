@@ -675,7 +675,7 @@ describe("integration block", () => {
   });
 });
 
-describe("SourceEntrySchema per-source alert booleans (FR-074, TC-135)", () => {
+describe("SourceEntrySchema per-source alert booleans (IP-FR-074, IP-TC-135)", () => {
   it("accepts an object entry with all three booleans set to true", () => {
     const result = SourceEntrySchema.safeParse({
       externalId: "owner/repo",

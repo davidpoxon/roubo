@@ -187,12 +187,12 @@ describe("loadVerifyUnits", () => {
     }
   });
 
-  it("still throws on the single-slug path for that same malformed spec (NFR-007)", () => {
+  it("still throws on the single-slug path for that same malformed spec (VG-NFR-007)", () => {
     writeWorkUnits("legacy", JSON.stringify([{ id: "WU-001" }]));
     expect(() => loadVerifyUnits(repoPath, "legacy")).toThrow(WorkUnitsValidationError);
   });
 
-  // #427 (mirrors TC-052): a valid-slug `.specifications/<slug>` symlink pointing
+  // #427 (mirrors VG-TC-052): a valid-slug `.specifications/<slug>` symlink pointing
   // outside the repo passes the lexical resolveWithin check. The realpath barrier
   // now rejects it before the readFileSync. The single-slug path is fail-closed:
   // it throws UnsafePathError rather than reading a work-units.json outside the repo.

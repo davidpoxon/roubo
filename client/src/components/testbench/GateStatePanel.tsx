@@ -1,7 +1,7 @@
 import type { GateState } from "../../lib/api";
 import GateStateIndicator from "./GateStateIndicator";
 
-// Gate-state panel (#702, FR-012): for any gate, the operator sees its current
+// Gate-state panel (#702, VG-FR-012): for any gate, the operator sees its current
 // state (passed / failed / pending / stale) and, for a non-passed gate, the
 // unresolved gating cases and the slice unit(s) they trace to (the gate's
 // `covers`). Reuses the DESIGN.md status-dot vocabulary via GateStateIndicator;

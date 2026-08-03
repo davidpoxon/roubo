@@ -122,7 +122,7 @@ describe("useIssues", () => {
     expect(result.current.stalled).toBe(true);
   });
 
-  it("exposes stale and snapshotCapturedAt from the page (FR-014)", async () => {
+  it("exposes stale and snapshotCapturedAt from the page (IP-FR-014)", async () => {
     mockedFetch.mockResolvedValueOnce({
       items: [makeIssue("1")],
       nextCursor: null,

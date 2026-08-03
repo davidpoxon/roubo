@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// WU-036 / TC-099: zero serious axe violations on the Test Connection
+// IP-WU-036 / IP-TC-099: zero serious axe violations on the Test Connection
 // per-category result rows. Renders each `CategoryRow` status variant inside
 // a `<ul>` (the parent ResultStrip renders an unordered list, so the row's
 // `<li>` is wrapped accordingly here to keep axe happy).
@@ -31,7 +31,7 @@ const STATUSES: { status: IntegrationCategoryStatus; detail?: string }[] = [
   { status: "error", detail: "GitHub returned HTTP 502." },
 ];
 
-describe("PluginConfigureDialog CategoryRow: axe-core (WU-036)", () => {
+describe("PluginConfigureDialog CategoryRow: axe-core (IP-WU-036)", () => {
   for (const { category, label } of CATEGORIES) {
     for (const { status, detail } of STATUSES) {
       it(`has no axe violations for ${category} / ${status}`, async () => {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// WU-036 / TC-099: zero serious axe violations on the issues-list
+// IP-WU-036 / IP-TC-099: zero serious axe violations on the issues-list
 // `security-category` chip variant across all three SecurityCategory values.
 
 import { describe, it } from "vitest";
@@ -16,7 +16,7 @@ const CATEGORIES: { value: SecurityCategory; label: string }[] = [
   { value: "dependabot", label: "Dependabot" },
 ];
 
-describe("IssueChip security-category: axe-core (WU-036)", () => {
+describe("IssueChip security-category: axe-core (IP-WU-036)", () => {
   for (const { value, label } of CATEGORIES) {
     it(`has no axe violations on the ${value} variant`, async () => {
       const { container } = render(

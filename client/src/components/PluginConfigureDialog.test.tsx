@@ -216,7 +216,7 @@ beforeEach(() => {
 });
 
 describe("PluginConfigureDialog", () => {
-  it("renders the connection-status chip in the dialog header (WU-064, TC-168)", () => {
+  it("renders the connection-status chip in the dialog header (IP-WU-064, IP-TC-168)", () => {
     installMocks({ test: vi.fn(), save: vi.fn() });
     renderDialog();
     const header = screen.getByTestId("plugin-configure-dialog-header");
@@ -245,7 +245,7 @@ describe("PluginConfigureDialog", () => {
     }
   });
 
-  it("renders the declarative source picker for a non-GitHub plugin when connected (FR-019)", () => {
+  it("renders the declarative source picker for a non-GitHub plugin when connected (IP-FR-019)", () => {
     installMocks({ test: vi.fn(), save: vi.fn() });
     mockedUseSourceCandidates.mockReturnValue({
       data: {
@@ -680,7 +680,7 @@ describe("PluginConfigureDialog", () => {
     expect(screen.getByTestId("save-config")).not.toBeDisabled();
   });
 
-  describe("per-category result strip (WU-041, FR-047)", () => {
+  describe("per-category result strip (IP-WU-041, IP-FR-047)", () => {
     it("renders one row per category returned by the test (Issues always; alert categories when enabled)", async () => {
       const user = userEvent.setup();
       const test = vi.fn().mockResolvedValue({
@@ -749,7 +749,7 @@ describe("PluginConfigureDialog", () => {
   // FR-070 (WU-057): the github-com Configure modal hosts the Identity-resident
   // fields (Repository / Submodules). The GitHub Project picker is gone; the
   // server infers projects from the chosen repo.
-  describe("integration fields section (WU-057)", () => {
+  describe("integration fields section (IP-WU-057)", () => {
     function githubPlugin(): Plugin {
       return {
         id: "github-com",

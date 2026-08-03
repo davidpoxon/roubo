@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 //
-// #702 (FR-008, AC2/AC3): the batch view fetches the plan filtered to the gate's
+// #702 (VG-FR-008, AC2/AC3): the batch view fetches the plan filtered to the gate's
 // gating subset, elides a phase with no gating cases with a clear label (not an
 // unlabelled empty card), and guards sign-off (the action is disabled whenever the
 // gate's evaluated status is not `passed`).
 //
-// #830 (FR-007/FR-008, AC5/AC6): sign-off is now a real, persisted server action.
+// #830 (VG-FR-007/VG-FR-008, AC5/AC6): sign-off is now a real, persisted server action.
 // The button's state is sourced from the SERVER (`gate.signedOff`), not local
 // React state, so a signed-off batch reads back as signed off (the button shows
 // "Reopen") after navigating away and back. A signed-off gate can be reopened.
@@ -76,7 +76,7 @@ function gateState(overrides: Record<string, unknown>) {
 }
 
 // A subset plan with one gating case plus a recorded result at the given effective
-// status, so the batch view can render and select the case (#706, US-006).
+// status, so the batch view can render and select the case (#706, VG-US-006).
 function planWithCaseStatus(derivedStatus: string) {
   return {
     plan: {
@@ -223,7 +223,7 @@ describe("BatchView", () => {
     await waitFor(() => expect(mockedApi.reopenGate).toHaveBeenCalledWith("p1", "WU-099"));
   });
 
-  it("surfaces a clear error when sign-off fails (NFR-005, loud degrade)", async () => {
+  it("surfaces a clear error when sign-off fails (VG-NFR-005, loud degrade)", async () => {
     mockedApi.fetchGate.mockResolvedValue(
       gateState({ status: "passed", signedOff: false }) as never,
     );
@@ -239,7 +239,7 @@ describe("BatchView", () => {
     await screen.findByText(/no tracker issue/);
   });
 
-  it("opens the fix-issue panel when the selected gating case is failed (US-006, TC-045 S001)", async () => {
+  it("opens the fix-issue panel when the selected gating case is failed (VG-US-006, VG-TC-045 S001)", async () => {
     mockedApi.fetchGate.mockResolvedValue(
       gateState({ status: "failed", unresolvedCaseIds: ["TC-024"] }) as never,
     );

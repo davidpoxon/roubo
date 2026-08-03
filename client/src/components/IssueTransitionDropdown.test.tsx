@@ -27,7 +27,7 @@ function renderWithClient(ui: React.ReactElement) {
 }
 
 describe("IssueTransitionDropdown", () => {
-  it("TC-039: lists exactly the issue's allowedTransitions and nothing else", async () => {
+  it("IP-TC-039: lists exactly the issue's allowedTransitions and nothing else", async () => {
     const user = userEvent.setup();
     renderWithClient(
       <IssueTransitionDropdown
@@ -44,12 +44,12 @@ describe("IssueTransitionDropdown", () => {
     const options = listbox.querySelectorAll('[role="option"]');
     const labels = Array.from(options).map((el) => el.textContent);
     expect(labels).toEqual(["In Review", "Blocked"]);
-    // No other states (TC-039 explicit negative assertion)
+    // No other states (IP-TC-039 explicit negative assertion)
     expect(labels).not.toContain("Done");
     expect(labels).not.toContain("To Do");
   });
 
-  it("TC-039 (empty): renders no-transitions message and a non-interactive pill when allowedTransitions is empty", () => {
+  it("IP-TC-039 (empty): renders no-transitions message and a non-interactive pill when allowedTransitions is empty", () => {
     renderWithClient(
       <IssueTransitionDropdown
         projectId="p1"
@@ -66,7 +66,7 @@ describe("IssueTransitionDropdown", () => {
     expect(screen.queryByTestId("transition-trigger")).not.toBeInTheDocument();
   });
 
-  it("TC-054: selecting a transition optimistically flips the pill and calls applyTransition", async () => {
+  it("IP-TC-054: selecting a transition optimistically flips the pill and calls applyTransition", async () => {
     const user = userEvent.setup();
     // Keep the mutation pending so we can observe the optimistic state before resolve.
     let resolvePromise: (value: Awaited<ReturnType<typeof api.applyTransition>>) => void = () => {};
@@ -112,7 +112,7 @@ describe("IssueTransitionDropdown", () => {
     });
   });
 
-  it("TC-063: on plugin error, reverts the optimistic update and surfaces the verbatim error in an inline banner", async () => {
+  it("IP-TC-063: on plugin error, reverts the optimistic update and surfaces the verbatim error in an inline banner", async () => {
     const user = userEvent.setup();
     const verbatim = "Your token lacks permission to transition this workflow.";
     mockedApplyTransition.mockRejectedValue(
@@ -140,7 +140,7 @@ describe("IssueTransitionDropdown", () => {
     });
   });
 
-  it("TC-064: applyTransition is not called on mount, re-render, or without user interaction (lifecycle events)", () => {
+  it("IP-TC-064: applyTransition is not called on mount, re-render, or without user interaction (lifecycle events)", () => {
     // Bench lifecycle events (create / start / clear / PR merge) deliberately
     // do not call applyTransition anywhere in the codebase. This test guards
     // the component itself: mounting and re-rendering with the same props

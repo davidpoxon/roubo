@@ -58,14 +58,14 @@ import ConnectionStatusPill from "./settings/plugins/ConnectionStatusPill";
 import { derivePluginConnectionState } from "./settings/plugins/derivePluginConnectionState";
 import SourcePicker from "./SourcePicker";
 
-// FR-070 (WU-057): plugins listed here host the Repository / GitHub Project /
+// IP-FR-070 (IP-WU-057): plugins listed here host the Repository / GitHub Project /
 // Submodules controls inside their Configure modal. The GitHub family
 // (github-com, ghe) derives its sources from the repo entered here on save.
 // Other plugins continue to surface the controls elsewhere (or not at all)
 // until their own WU lands.
 const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com", "ghe"]);
 
-// FR-019: the GitHub family derives its sources from the repo (the
+// IP-FR-019: the GitHub family derives its sources from the repo (the
 // derived-sources preview), so it does not render the declarative source
 // picker. Every other plugin (Jira, third-party) selects sources through the
 // host-rendered picker. GHE's own consolidation onto the picker is deferred to
@@ -385,18 +385,18 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   const { mode, plugin, effective, close, testMutation, saveMutation } = props;
   const manifest = plugin.manifest;
 
-  // WU-050: opening the Configure modal triggers a fresh connection-status
+  // IP-WU-050: opening the Configure modal triggers a fresh connection-status
   // re-check for this plugin if it is enabled. Skipped for any other status
-  // (disabled, errored, incompatible, invalid) per FR-054.
+  // (disabled, errored, incompatible, invalid) per IP-FR-054.
   const recheckIds = useMemo(
     () => (plugin.status === "enabled" ? [plugin.id] : []),
     [plugin.status, plugin.id],
   );
   useOpportunisticRecheckOnMount(recheckIds);
 
-  // WU-064 (FR-052): surface the same connection-status chip the
+  // IP-WU-064 (IP-FR-052): surface the same connection-status chip the
   // PluginCard renders, in the modal header. The header is one of the
-  // three placements TC-168 asserts on.
+  // three placements IP-TC-168 asserts on.
   const connectionQuery = useConnectionStatus(plugin.id, plugin.status === "enabled");
   const pillState = derivePluginConnectionState(plugin.status, effective, connectionQuery.data);
   const pillStatus = {
@@ -414,7 +414,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   const [testResult, setTestResult] = useState<IntegrationTestResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // FR-070: repo / linked GitHub Project / submodules are now edited inside
+  // IP-FR-070: repo / linked GitHub Project / submodules are now edited inside
   // the plugin Configure modal. Server values arrive via /integration/fields
   // and the user's pending edits are tracked as a partial overlay so we can
   // diff against the original on Save without an effect-based seed.
@@ -507,7 +507,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   const isOauthPlugin = plugin.id === "github-com";
   const showForm = connected || !isOauthPlugin;
 
-  // FR-019: the declarative source picker renders for project-scoped plugins
+  // IP-FR-019: the declarative source picker renders for project-scoped plugins
   // that are NOT in the GitHub-specific integration-fields set (GitHub.com /
   // GHE drive sources from the repo via the derived-sources preview instead).
   // It needs a live connection because `listSourceCandidates` runs server-side
@@ -533,7 +533,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   ): IntegrationConfigUpdate {
     // Split form values: password keys live in the credential store, `instance`
     // is a top-level override key, everything else goes under `advanced`
-    // (opaque-to-roubo per FR-023).
+    // (opaque-to-roubo per IP-FR-023).
     const advanced: Record<string, unknown> = {};
     let instance: string | undefined;
     for (const [key, value] of Object.entries(snapshot)) {

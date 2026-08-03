@@ -5,7 +5,7 @@ import {
   resetWithScenario,
 } from "../e2e-flow/_support/scenario.js";
 
-// TC-167 (US-013, FR-047/077/078/080, NFR-018): the Test connection per-category
+// IP-TC-167 (IP-US-013, IP-FR-047/077/078/080, IP-NFR-018): the Test connection per-category
 // result strip surfaces alert-feed errors distinctly from issues. The spec
 // drives a github.com source whose stored OAuth token lacks `security_events`,
 // clicks Test connection, and asserts the per-category strip shows Issues OK +

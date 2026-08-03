@@ -93,10 +93,10 @@ function makeDeps(opts: {
   return { deps, audit, invoke, applyTransitionCalls };
 }
 
-// ── AC1 + AC2 + NFR-001: close-on-pass routes through applyTransition and is
-// audit-logged (TC-038, TC-041) ──
+// ── AC1 + AC2 + VG-NFR-001: close-on-pass routes through applyTransition and is
+// audit-logged (VG-TC-038, VG-TC-041) ──
 
-describe("onGatePassed: closes a passed gate via the plugin transition (FR-007, TC-038, TC-041)", () => {
+describe("onGatePassed: closes a passed gate via the plugin transition (VG-FR-007, VG-TC-038, VG-TC-041)", () => {
   it("applies a done-bound transition through the plugin and audit-logs the close", async () => {
     const { deps, audit, applyTransitionCalls, invoke } = makeDeps({ issue: makeIssue() });
 
@@ -108,7 +108,7 @@ describe("onGatePassed: closes a passed gate via the plugin transition (FR-007, 
     expect(applyTransitionCalls).toEqual([{ externalId: "o/r#451", transition: "close" }]);
     expect(invoke).toHaveBeenCalledWith("github-com", "getIssue", { externalId: "o/r#451" });
 
-    // Audit-logged with the gate, plugin, tracker ref and transition (NFR-001).
+    // Audit-logged with the gate, plugin, tracker ref and transition (VG-NFR-001).
     const entries = audit.query();
     expect(entries).toEqual<GateAuditEntry[]>([
       {
@@ -222,18 +222,18 @@ describe("onGatePassed / onGateReopened: qualify a bare tracker.ref (issue #1006
   });
 });
 
-// ── AC3: idempotent no-op when the gate issue is already done (TC-042) ──
+// ── AC3: idempotent no-op when the gate issue is already done (VG-TC-042) ──
 
-describe("onGatePassed: idempotent on an already-closed gate (FR-007, TC-042)", () => {
+describe("onGatePassed: idempotent on an already-closed gate (VG-FR-007, VG-TC-042)", () => {
   it("does not apply a transition when the tracker issue is already done", async () => {
     const closedIssue = makeIssue({ currentState: "closed", allowedTransitions: ["reopen"] });
     const { deps, audit, applyTransitionCalls } = makeDeps({ issue: closedIssue });
 
     await onGatePassed("proj-1", makeGate("451"), "github-com", deps);
 
-    // No duplicate transition applied (TC-042 S001-O02).
+    // No duplicate transition applied (VG-TC-042 S001-O02).
     expect(applyTransitionCalls).toEqual([]);
-    // No second `closed` entry: the only record is the idempotent skip marker (TC-042 S001-O03).
+    // No second `closed` entry: the only record is the idempotent skip marker (VG-TC-042 S001-O03).
     const closedEntries = audit.query().filter((e) => e.outcome === "closed");
     expect(closedEntries).toEqual([]);
     expect(audit.query()[0]?.outcome).toBe("already-done");
@@ -251,9 +251,9 @@ describe("onGatePassed: idempotent on an already-closed gate (FR-007, TC-042)", 
 });
 
 // ── AC4: a plugin-rejected close throws and leaves the gate not half-closed
-// (TC-043) ──
+// (VG-TC-043) ──
 
-describe("onGatePassed: a rejected close surfaces an error and leaves the issue open (FR-007, TC-043)", () => {
+describe("onGatePassed: a rejected close surfaces an error and leaves the issue open (VG-FR-007, VG-TC-043)", () => {
   it("propagates an applyTransition rejection and records no audit entry", async () => {
     const rejection = new Error("permission denied");
     const { deps, audit, invoke } = makeDeps({
@@ -300,7 +300,7 @@ describe("onGatePassed: a rejected close surfaces an error and leaves the issue 
 // is handed; the caller gates on `evaluateGate === passed`. Here we assert the
 // no-tracker guard, the only path by which the coordinator itself can refuse. ──
 
-describe("onGatePassed: a gate with no filed tracker is a no-op (FR-007)", () => {
+describe("onGatePassed: a gate with no filed tracker is a no-op (VG-FR-007)", () => {
   it("does nothing when the gate has no tracker.ref", async () => {
     const { deps, audit, invoke } = makeDeps({ issue: makeIssue() });
 

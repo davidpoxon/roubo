@@ -5,7 +5,7 @@ import {
   resetWithScenario,
 } from "./_support/scenario.js";
 
-// TC-156 (US-001, FR-001/005/019/021/034/039): the github.com baseline source
+// IP-TC-156 (IP-US-001, IP-FR-001/005/019/021/034/039): the github.com baseline source
 // config flow. The full user journey (OAuth, repo picker, cut list, bench
 // creation) requires a registered-project fixture wired to the stubbed
 // integration. That fixture lands with the deeper drilldown of this TC

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #702 (FR-012): the gate-state hooks fetch project-level gate state, do not
+// #702 (VG-FR-012): the gate-state hooks fetch project-level gate state, do not
 // retry on failure, gate the fetch on `enabled`, and expose an invalidation
 // helper the batch view uses to live-update after a mark (AC2).
 
@@ -169,7 +169,7 @@ describe("useResetGateOverrides", () => {
   });
 });
 
-// #830 (FR-007/FR-008): sign-off closes the gate's tracker issue; reopen reopens
+// #830 (VG-FR-007/VG-FR-008): sign-off closes the gate's tracker issue; reopen reopens
 // it. Both invalidate the open gate AND the overview list so the button re-reads
 // the server's `signedOff` signal.
 describe("useSignOffGate", () => {
@@ -206,7 +206,7 @@ describe("useReopenGate", () => {
   });
 });
 
-// #706 (FR-009/FR-010): filing a fix issue resolves a FixIssueRecord for BOTH a
+// #706 (VG-FR-009/VG-FR-010): filing a fix issue resolves a FixIssueRecord for BOTH a
 // 201 complete and a 207 link_pending outcome (the api call does not throw on
 // 207), and on success invalidates the gate + gates + the bench's testbench plan
 // so the still-blocked state re-reads.

@@ -2,8 +2,8 @@
  * CLI-TC-012 / CLI-NFR-003: cache read+write overhead is under 50ms per request
  * and cold first-load is no worse than baseline beyond the snapshot write.
  *
- * The budget assertion is gated behind RUN_PERF_HARNESS=1 (mirrors TC-098 /
- * TC-151): it warms up, measures `DiskSnapshotStore.put` (cache write) and
+ * The budget assertion is gated behind RUN_PERF_HARNESS=1 (mirrors IP-TC-098 /
+ * IP-TC-151): it warms up, measures `DiskSnapshotStore.put` (cache write) and
  * `get` (cache read) over many iterations against a temp directory, computes
  * p95, and emits a structured perf-evidence line. A sentinel test keeps the file
  * contributing a passing assertion under the default coverage run.

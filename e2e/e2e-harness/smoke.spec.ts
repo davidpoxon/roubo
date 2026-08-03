@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-// Proves the WU-062 harness is wired end-to-end before WU-064 lands the real
-// TC-175 spec under this same directory:
-//   - POST /test/__reset (WU-061, FR-079) responds 200, which can only happen
+// Proves the IP-WU-062 harness is wired end-to-end before IP-WU-064 lands the real
+// IP-TC-175 spec under this same directory:
+//   - POST /test/__reset (IP-WU-061, IP-FR-079) responds 200, which can only happen
 //     when the built server is up and ROUBO_E2E=1 is in scope.
 //   - The built server serves the built client shell via express.static.
 

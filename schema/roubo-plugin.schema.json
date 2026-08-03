@@ -87,7 +87,7 @@
     "capabilities": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Per-capability flags for the privileged tracker-action ops the TrackerActionGateway gates (verify-gate FR-011, NFR-005). A flag is true only when the plugin implements the op for the connected instance; an absent or false flag degrades with a legible error, never a silent no-op.",
+      "description": "Per-capability flags for the privileged tracker-action ops the TrackerActionGateway gates (verify-gate VG-FR-011, VG-NFR-005). A flag is true only when the plugin implements the op for the connected instance; an absent or false flag degrades with a legible error, never a silent no-op.",
       "properties": {
         "supportsCreateIssue": {
           "type": "boolean",

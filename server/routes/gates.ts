@@ -1,4 +1,4 @@
-// REST surface for verify gates (#701, #703, FR-008, FR-012, FR-002, NFR-004;
+// REST surface for verify gates (#701, #703, VG-FR-008, VG-FR-012, VG-FR-002, VG-NFR-004;
 // architecture.md "Gate API routes" row). Thin handlers in the testbench.ts mold:
 // resolve the project repoPath, load the validated verify units (gates) via the
 // work-unit-loader, apply the operator's recorded merge / split overrides as a
@@ -28,7 +28,7 @@
 // TestBench focused on the gate's slug when one exists (resolveResultsRoot), and
 // otherwise from the registered project's repoPath. Either way, when no
 // plan/results exist at the resolved root yet, the gate reads as `stale`, never
-// `passed` (NFR-007 fail-closed): an unverified gate must never look passable.
+// `passed` (VG-NFR-007 fail-closed): an unverified gate must never look passable.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -140,7 +140,7 @@ function handleError(res: Response, err: unknown): void {
     res.status(400).json({ error: err.message });
     return;
   }
-  // Filing a fix issue with empty notes is a validation failure (FR-009): 422
+  // Filing a fix issue with empty notes is a validation failure (VG-FR-009): 422
   // Unprocessable Entity, mirroring the capability-absent mapping below.
   if (err instanceof EmptyNotesError) {
     res.status(422).json({ error: err.message });
@@ -169,7 +169,7 @@ function handleError(res: Response, err: unknown): void {
 // (issue #432). So when a live TestBench is focused on this gate's slug, read from
 // that bench's worktree; otherwise fall back to the project repoPath.
 //
-// The fallback is fail-closed (NFR-007): a project with no focused TestBench (or a
+// The fallback is fail-closed (VG-NFR-007): a project with no focused TestBench (or a
 // worktree that was later cleared) reads the project repo copy, which reads
 // `stale` when no results exist there, never `passed`. Both the plan and the
 // results are read from the SAME resolved root by the caller, so the
@@ -205,10 +205,10 @@ function resolveResultsRoot(projectId: string, repoPath: string, slug: string): 
 // The plan + results are read from the root resolved by `resolveResultsRoot`: the
 // worktree of a TestBench focused on the gate's slug when one exists, else the
 // project repoPath (#432). When the spec has no plan (or it is unreadable/invalid),
-// `readPlanAndResults` throws MissingPlanError; per NFR-007 the gate is then read
+// `readPlanAndResults` throws MissingPlanError; per VG-NFR-007 the gate is then read
 // as `stale` with the gate's declared gating set unresolved, NEVER passed. When the
 // plan exists, the pure `evaluateGate` decides: the plan is threaded in so the
-// L3/L4 default-policy narrowing applies (FR-005, AC3).
+// L3/L4 default-policy narrowing applies (VG-FR-005, AC3).
 function evaluateLoadedGate(
   projectId: string,
   repoPath: string,
@@ -227,7 +227,7 @@ function evaluateLoadedGate(
     // guaranteed-mismatching sentinel when stale. Passing the live hash on both
     // sides would leave the staleness rung unreachable for a results-present gate,
     // letting stale (plan-changed) all-passed results read as `passed`, a
-    // fail-closed regression (NFR-007). A null results view models "no results
+    // fail-closed regression (VG-NFR-007). A null results view models "no results
     // recorded yet" and reads as stale.
     const gateResults =
       results === null ? null : { ...results, planHash: stale ? `${planHash}::stale` : planHash };
@@ -266,14 +266,14 @@ function signOffTargets(loaded: LoadedVerifyUnit): readonly VerifyUnit[] {
 }
 
 // Derive the `signedOff` signal for a gate from its tracker-issue state and
-// attach it to the projected response (issue #830, FR-007 AC). To bound plugin
+// attach it to the projected response (issue #830, VG-FR-007 AC). To bound plugin
 // RPCs, only a `passed` gate is ever checked: a non-passed gate is signed-off =
 // false by definition, and a gate with any target lacking a filed tracker issue
 // (or no active integration) is likewise false. For a passed, fully-filed gate
 // every target's tracker issue is fetched and `signedOff` is whether ALL of them
 // are done (a merged gate is signed off only when every source issue is: issue
 // #435). The `getIssue` RPC is fail-closed: a tracker hiccup yields
-// `signedOff = false` rather than 500-ing a read (NFR-005, fail-closed: never
+// `signedOff = false` rather than 500-ing a read (VG-NFR-005, fail-closed: never
 // report a gate as signed off on uncertain state).
 async function withSignedOff(
   projectId: string,
@@ -293,7 +293,7 @@ async function withSignedOff(
     // The contract's `tracker.ref` is a BARE issue id; the bundled GitHub plugins
     // key on a qualified `owner/repo#<n>` externalId (issue #1006). Qualify each
     // target's tracker before the getIssue RPC. Any qualification/RPC failure is
-    // fail-closed (signedOff = false), never a 500 on a read (NFR-005).
+    // fail-closed (signedOff = false), never a 500 on a read (VG-NFR-005).
     const issues = await Promise.all(
       (trackers as Tracker[]).map((tr) =>
         pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", {
@@ -308,12 +308,12 @@ async function withSignedOff(
 }
 
 // The fully projected gate response the overview consumes: the signed-off gate
-// state plus its derived upstream `blockedBy` list (issue #433, FR-001).
+// state plus its derived upstream `blockedBy` list (issue #433, VG-FR-001).
 type ProjectedGateStateResponse = SignedOffGateStateResponse & { blockedBy: string[] };
 
 // Derive each effective gate's upstream blockers: the ids of verify gates in the
 // same spec that this gate's phase depends on and that are NOT yet signed off
-// (issue #433, FR-001). Offline and deterministic: the dependency source is the
+// (issue #433, VG-FR-001). Offline and deterministic: the dependency source is the
 // LOCAL work-unit graph, computed from the gate's own `depends_on` plus the
 // `depends_on` of each work unit the gate `covers` (no extra tracker RPCs). A
 // candidate counts as an upstream blocker only when it is itself an effective
@@ -504,7 +504,7 @@ router.get(
 
 // GET /:projectId/gates/:gateId -> 200 GateState / 404 when no effective gate has
 // that id. For a non-passed gate the payload carries the unresolved TC- ids and
-// the covering slice unit ids (FR-012, NFR-004).
+// the covering slice unit ids (VG-FR-012, VG-NFR-004).
 router.get(
   "/:projectId/gates/:gateId",
   gateReadRateLimiter,
@@ -646,7 +646,7 @@ function repoFullNameFromRef(ref: string): string | null {
 }
 
 // Write the verifier's optional evidence artifact, path-confined to the gate's
-// spec folder (NFR-001, TC-049). The evidence value is a caller-supplied relative
+// spec folder (VG-NFR-001, VG-TC-049). The evidence value is a caller-supplied relative
 // path. The spec folder `.specifications/<slug>/` is resolved as the fixed
 // confinement root FIRST (slug re-validated through SPEC_SLUG_RE), then the
 // evidence path is joined under it with a SECOND resolveWithin so any traversal
@@ -677,7 +677,7 @@ function writeEvidence(repoPath: string, slug: string, evidence: string, notes: 
 }
 
 // POST /:projectId/gates/:gateId/fix-issues -> file a fix issue for a failed
-// gating case and wire it to block the gate (FR-009, FR-010, NFR-003; #706).
+// gating case and wire it to block the gate (VG-FR-009, VG-FR-010, VG-NFR-003; #706).
 //
 // Body: { failedCaseId, notes, evidence?, existingFixRef? }. Empty notes -> 422.
 // An evidence path that escapes the workspace -> 400 (UnsafePathError). On
@@ -718,7 +718,7 @@ router.post(
       // has no filed issue of its own, so it blocks its source gate(s)' issues
       // (issue #435 for merges, issue #445 for splits). One fix issue blocks every
       // target (mirroring "sign-off closes every source"). A target with no filed
-      // tracker issue has no block target, so degrade loudly (FR-011) rather than a
+      // tracker issue has no block target, so degrade loudly (VG-FR-011) rather than a
       // silent no-op; guard before filing so a partly-tracked merge never files an
       // issue that can only block some sources.
       const targets = signOffTargets(loaded);
@@ -751,7 +751,7 @@ router.post(
         );
       }
 
-      // Reject empty notes BEFORE any write or tracker call (TC-053). The filer
+      // Reject empty notes BEFORE any write or tracker call (VG-TC-053). The filer
       // also guards this; checking here keeps the path-confined write below from
       // running for an empty-notes request.
       if (notes.trim().length === 0) {
@@ -761,8 +761,8 @@ router.post(
       }
 
       // Persist the verifier's notes, path-confined to the gate's spec folder
-      // (NFR-001). The optional evidence artifact is written through the
-      // resolveWithin barrier (TC-049): a path-escaping value throws here, before
+      // (VG-NFR-001). The optional evidence artifact is written through the
+      // resolveWithin barrier (VG-TC-049): a path-escaping value throws here, before
       // any tracker call, so no issue is created for a rejected write. On a
       // link-only retry (existingFixRef set) the notes were already captured on
       // the first attempt, so skip the append: the retry runs only the link step.
@@ -792,14 +792,14 @@ router.post(
 
 // POST /:projectId/gates/:gateId/sign-off -> sign off a passed batch by closing
 // the gate's tracker issue through the active integration plugin (issue #830,
-// FR-007/FR-008, US-005, NFR-001). Returns the updated GateState with
+// VG-FR-007/VG-FR-008, VG-US-005, VG-NFR-001). Returns the updated GateState with
 // `signedOff: true`.
 //
 // Fail-closed (AC): the close runs ONLY when the gate's evaluated status is
 // `passed`; any other status is a 409 (the guard is load-bearing server-side,
 // not just a disabled button). When the gate has no filed tracker issue the
 // request degrades loudly with a 409 rather than a silent no-op that appears to
-// succeed (FR-011, NFR-005). The privileged close is audit-logged by the
+// succeed (VG-FR-011, VG-NFR-005). The privileged close is audit-logged by the
 // gateway. TrackerActionError from the gateway maps via handleError (422
 // capability-absent, 409 no-active-integration / not-consented).
 router.post(
@@ -827,7 +827,7 @@ router.post(
       // Sign-off closes each target's tracker issue. A normal gate has one target
       // (itself); a merged gate fans out over its source gates, each carrying its
       // own filed issue (issue #435). A target with no filed tracker issue has no
-      // close target, so degrade loudly (FR-011) rather than a silent no-op that
+      // close target, so degrade loudly (VG-FR-011) rather than a silent no-op that
       // would appear to succeed. Guarding before any close keeps a partly-filed
       // merge from closing some source issues before hitting the missing one.
       const targets = signOffTargets(loaded);
@@ -861,7 +861,7 @@ router.post(
 
 // DELETE /:projectId/gates/:gateId/sign-off -> reopen a signed-off gate by
 // reopening its tracker issue through the active integration plugin (issue #830,
-// US-005). Returns the updated GateState with `signedOff: false`. Reopen does
+// VG-US-005). Returns the updated GateState with `signedOff: false`. Reopen does
 // NOT require status === passed (a signed-off gate whose plan later changed may
 // no longer evaluate passed yet must still be reopenable). When the gate has no
 // filed tracker issue the request degrades loudly with a 409.

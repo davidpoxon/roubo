@@ -293,14 +293,14 @@ describe("ProjectSettingsTab", () => {
     expect(screen.getByRole("heading", { name: "Setup" })).toBeInTheDocument();
   });
 
-  it('renders the source section heading as "Source" when no integration is configured (FR-069 fallback)', () => {
+  it('renders the source section heading as "Source" when no integration is configured (IP-FR-069 fallback)', () => {
     withIntegration(null);
     renderTab();
     expect(screen.getByRole("heading", { name: "Source" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Issue source" })).not.toBeInTheDocument();
   });
 
-  it("renders the source section heading as the active plugin display name (FR-069)", () => {
+  it("renders the source section heading as the active plugin display name (IP-FR-069)", () => {
     withIntegration({ id: "github-com", name: "GitHub.com" });
     renderTab();
     expect(screen.getByRole("heading", { name: "GitHub.com" })).toBeInTheDocument();

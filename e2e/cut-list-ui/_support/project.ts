@@ -4,11 +4,11 @@ import { expect, type APIRequestContext } from "@playwright/test";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// WU-067: the fixture project holds the minimal valid roubo.yaml the cut-list
+// IP-WU-067: the fixture project holds the minimal valid roubo.yaml the cut-list
 // UI specs need to render against. `/test/__reset` clears the in-memory
 // project registry, so every spec re-registers the project after the reset.
 // The fixture is shared because the cut-list specs all need an e2e-stub
-// integration with a known root-level `excludedStatuses` baseline (TC-173).
+// integration with a known root-level `excludedStatuses` baseline (IP-TC-173).
 export const TEST_PROJECT_REPO_PATH = path.resolve(
   __dirname,
   "..",

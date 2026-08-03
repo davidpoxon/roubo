@@ -73,7 +73,7 @@ function mockAuth(token: string | null): void {
   }
 }
 
-describe("migrate.run: idempotency (TC-068)", () => {
+describe("migrate.run: idempotency (IP-TC-068)", () => {
   it("returns noop and does no I/O when schemaVersion is already bumped", async () => {
     mockState({ benches: [], schemaVersion: 1 });
 
@@ -108,7 +108,7 @@ describe("migrate.run: empty migration", () => {
   });
 });
 
-describe("migrate.run: success path (TC-031)", () => {
+describe("migrate.run: success path (IP-TC-031)", () => {
   it("migrates the token to the keyring, writes an override per project, bumps schemaVersion, then deletes auth.json", async () => {
     mockState({ benches: [] });
     mockProjects({
@@ -233,7 +233,7 @@ describe("migrate.run: success path (TC-031)", () => {
   });
 });
 
-describe("migrate.run: rollback path (TC-069)", () => {
+describe("migrate.run: rollback path (IP-TC-069)", () => {
   it("rolls back keyring write and leaves auth.json untouched when saveOverride throws", async () => {
     mockState({ benches: [] });
     mockProjects({
@@ -323,7 +323,7 @@ describe("migrate.run: rollback path (TC-069)", () => {
   });
 });
 
-describe("migrate.run: plugins-state.json seed (WU-046 / WU-047)", () => {
+describe("migrate.run: plugins-state.json seed (IP-WU-046 / IP-WU-047)", () => {
   it("seeds all bundled plugins as disabled before bumping schemaVersion on greenfield install", async () => {
     mockState({ benches: [] });
     mockProjects({ projects: [] });
@@ -345,7 +345,7 @@ describe("migrate.run: plugins-state.json seed (WU-046 / WU-047)", () => {
     expect(seedOrder).toBeLessThan(stateOrder);
   });
 
-  it("does not touch plugins-state.json on existing install (auth present): FR-059 / TC-118", async () => {
+  it("does not touch plugins-state.json on existing install (auth present): IP-FR-059 / IP-TC-118", async () => {
     mockState({ benches: [] });
     mockProjects({ projects: [] });
     mockAuth("ghp_secret_token");

@@ -326,10 +326,10 @@ describe("GET /:projectId/gates", () => {
     expect(workUnitLoader.loadVerifyUnitsWithDiagnostics).toHaveBeenCalledWith(REPO, undefined);
   });
 
-  // #549 / NFR-001: the single-slug loader path skips the per-entry
+  // #549 / VG-NFR-001: the single-slug loader path skips the per-entry
   // assertSafeIdentifier guard the all-specs enumeration applies, so an unsafe slug
   // must be rejected at the HTTP boundary before it reaches the loader.
-  it("400 for a path-traversal ?slug (#549, NFR-001)", async () => {
+  it("400 for a path-traversal ?slug (#549, VG-NFR-001)", async () => {
     vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([]);
     const res = await request(app).get("/p1/gates?slug=..%2F..%2Fetc");
     expect(res.status).toBe(400);
@@ -411,7 +411,7 @@ describe("GET /:projectId/gates/:gateId", () => {
     // Every gating case is passed in the recorded results, but the stored plan
     // hash no longer matches the live plan, so the store flags it stale. The gate
     // must read stale, not passed: a batch verified against an out-of-date plan
-    // is unverified against the current one (NFR-007 fail-closed, never a
+    // is unverified against the current one (VG-NFR-007 fail-closed, never a
     // false-pass). This is the regression the route's planHash handling guards.
     vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
       ...planAndResults([planCase("TC-001", 1), planCase("TC-002", 1)], {
@@ -455,7 +455,7 @@ describe("rate limiting", () => {
 });
 
 describe("POST /:projectId/gates/merge", () => {
-  // Two pending gates ready to merge (TC-022 shape).
+  // Two pending gates ready to merge (VG-TC-022 shape).
   beforeEach(() => {
     vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
       loaded("alpha", gate("PHASE-2", ["TC-019", "TC-020"], ["WU-031", "WU-032"])),
@@ -469,7 +469,7 @@ describe("POST /:projectId/gates/merge", () => {
     );
   });
 
-  it("merges two pending gates and persists the op (AC1, TC-022)", async () => {
+  it("merges two pending gates and persists the op (AC1, VG-TC-022)", async () => {
     const res = await request(app)
       .post("/p1/gates/merge")
       .send({ gateIds: ["PHASE-2", "PHASE-3"] });
@@ -519,7 +519,7 @@ describe("POST /:projectId/gates/merge", () => {
 });
 
 describe("POST /:projectId/gates/split", () => {
-  // One pending gate covering WU-031..034 (TC-023 shape).
+  // One pending gate covering WU-031..034 (VG-TC-023 shape).
   beforeEach(() => {
     vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
       loaded(
@@ -553,7 +553,7 @@ describe("POST /:projectId/gates/split", () => {
     );
   });
 
-  it("splits a pending gate into two and persists the op (AC2, TC-023)", async () => {
+  it("splits a pending gate into two and persists the op (AC2, VG-TC-023)", async () => {
     const res = await request(app)
       .post("/p1/gates/split")
       .send({
@@ -648,7 +648,7 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     );
   });
 
-  it("201 with a complete record on full success, recording the note (TC-045, TC-046)", async () => {
+  it("201 with a complete record on full success, recording the note (VG-TC-045, VG-TC-046)", async () => {
     vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockResolvedValue({
       fixIssueRef: "o/r#452",
       gateRef: "o/r#451",
@@ -709,7 +709,7 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     );
   });
 
-  it("207 with link_pending when the link step failed after create (TC-052)", async () => {
+  it("207 with link_pending when the link step failed after create (VG-TC-052)", async () => {
     vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockResolvedValue({
       fixIssueRef: "o/r#452",
       gateRef: "o/r#451",
@@ -726,7 +726,7 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     expect(res.body).toMatchObject({ fixIssueRef: "o/r#452", linkStatus: "link_pending" });
   });
 
-  it("a link-only retry (existingFixRef) skips the note append and returns 201 (TC-052)", async () => {
+  it("a link-only retry (existingFixRef) skips the note append and returns 201 (VG-TC-052)", async () => {
     vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockResolvedValue({
       fixIssueRef: "o/r#452",
       gateRef: "o/r#451",
@@ -747,7 +747,7 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     );
   });
 
-  it("422 and no tracker call when notes are empty (TC-053)", async () => {
+  it("422 and no tracker call when notes are empty (VG-TC-053)", async () => {
     const res = await request(app)
       .post("/p1/gates/WU-040/fix-issues")
       .send({ failedCaseId: "TC-024", notes: "   " });
@@ -757,7 +757,7 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     expect(testbenchStore.appendNote).not.toHaveBeenCalled();
   });
 
-  it("rejects a path-escaping evidence write before any tracker call (TC-049)", async () => {
+  it("rejects a path-escaping evidence write before any tracker call (VG-TC-049)", async () => {
     const res = await request(app).post("/p1/gates/WU-040/fix-issues").send({
       failedCaseId: "TC-024",
       notes: "Login button is inert.",
@@ -770,7 +770,7 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     expect(fixIssueFiler.fileFixIssueAndBlock).not.toHaveBeenCalled();
   });
 
-  // #427 (mirrors TC-052): a valid-slug `.specifications/<slug>` symlink that
+  // #427 (mirrors VG-TC-052): a valid-slug `.specifications/<slug>` symlink that
   // points outside the repo passes the lexical resolveWithin check but is caught
   // by the realpath barrier at the evidence sink, so nothing is written into the
   // outside dir and no issue is filed for the rejected write. The evidence value
@@ -854,7 +854,7 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     }
   });
 
-  it("422 when the active integration plugin lacks the capability (TC-049 degrade)", async () => {
+  it("422 when the active integration plugin lacks the capability (VG-TC-049 degrade)", async () => {
     vi.mocked(fixIssueFiler.fileFixIssueAndBlock).mockRejectedValue(
       new TrackerActionError("no supportsBlockingLinks", "capability-absent"),
     );
@@ -1100,7 +1100,7 @@ describe("GET /:projectId/gates milestone + gatingCaseIds projection (#433)", ()
   });
 });
 
-describe("GET /:projectId/gates blockedBy derivation (#433, FR-001)", () => {
+describe("GET /:projectId/gates blockedBy derivation (#433, VG-FR-001)", () => {
   // Two verify gates in one spec: the downstream gate's own depends_on names the
   // upstream gate, so the derivation resolves WU-GATE-1 as its upstream blocker.
   const upstream = gateWithTracker("WU-GATE-1", "o/r#10", ["TC-UP"]);

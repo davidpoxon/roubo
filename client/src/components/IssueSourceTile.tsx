@@ -146,7 +146,7 @@ function ConfiguredBody({
   const [switchOpen, setSwitchOpen] = useState(false);
   const [configureOpen, setConfigureOpen] = useState(false);
 
-  // WU-058 (FR-072): the per-project tile shows one context-aware primary
+  // IP-WU-058 (IP-FR-072): the per-project tile shows one context-aware primary
   // action that flips Connect / Configure / Sign in again with the plugin's
   // connection state. The same modal opens in every case; source selection
   // lives inside it, so the legacy "Choose sources" button is gone.

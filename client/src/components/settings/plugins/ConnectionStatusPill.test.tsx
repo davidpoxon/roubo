@@ -24,7 +24,7 @@ const VARIANTS: VariantCase[] = [
   { state: "disabled", label: "Disabled", wrapToken: "bg-stone-200" },
 ];
 
-describe("ConnectionStatusPill: five-variant taxonomy (TC-108)", () => {
+describe("ConnectionStatusPill: five-variant taxonomy (IP-TC-108)", () => {
   for (const variant of VARIANTS) {
     it(`renders the ${variant.state} variant with label "${variant.label}" and its colour token`, () => {
       render(
@@ -57,7 +57,7 @@ describe("ConnectionStatusPill: five-variant taxonomy (TC-108)", () => {
   });
 });
 
-describe("ConnectionStatusPill: WCAG 2.1 AA contrast (TC-142, NFR-016)", () => {
+describe("ConnectionStatusPill: WCAG 2.1 AA contrast (IP-TC-142, IP-NFR-016)", () => {
   // Tailwind v4 default palette (sRGB). emerald-500/#00bc7d and emerald-50/#ecfdf5
   // are the exact values axe-core resolved on the plugin grid when it flagged the
   // 'Connected' pill at 2.34:1 (issue #448). At 12px/normal these pills are not
@@ -157,7 +157,7 @@ describe("ConnectionStatusPill: timestamp behaviour", () => {
   });
 });
 
-describe("ConnectionStatusPill: rechecking state (TC-111)", () => {
+describe("ConnectionStatusPill: rechecking state (IP-TC-111)", () => {
   it("replaces the timestamp with a pulsing 'rechecking...' when rechecking is true", () => {
     render(
       <ConnectionStatusPill
@@ -177,7 +177,7 @@ describe("ConnectionStatusPill: rechecking state (TC-111)", () => {
   });
 });
 
-describe("ConnectionStatusPill: tooltip surfaces detail (TC-109)", () => {
+describe("ConnectionStatusPill: tooltip surfaces detail (IP-TC-109)", () => {
   it("attaches an accessible name combining label + detail on auth-problem", async () => {
     render(
       <ConnectionStatusPill

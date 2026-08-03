@@ -79,7 +79,7 @@ export function errorMessage(err: unknown): string {
   return "Unknown error";
 }
 
-// Host-side budgets for the per-category probe (FR-047, WU-034). The per-probe
+// Host-side budgets for the per-category probe (IP-FR-047, IP-WU-034). The per-probe
 // value is what gets handed to the plugin so it can race each individual HTTP
 // probe (5s per-probe cap); the invoke timeout caps the whole RPC round-trip
 // (12s overall budget). Probes run in parallel inside the plugin via
@@ -208,7 +208,7 @@ async function runCategoryProbes(
   } catch (err) {
     if (isMethodNotFound(err)) {
       // Plugin doesn't implement the optional method: surface no category
-      // rows beyond Issues, leaving the test "ok" per FR-047.
+      // rows beyond Issues, leaving the test "ok" per IP-FR-047.
       return [];
     }
     return buildErrorReports(enabledCategories, errorMessage(err));

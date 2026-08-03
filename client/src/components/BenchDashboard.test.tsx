@@ -1415,7 +1415,7 @@ describe("BenchDashboard", () => {
     });
   });
 
-  describe("enable-plugin prompt (WU-053)", () => {
+  describe("enable-plugin prompt (IP-WU-053)", () => {
     const disabledPlugin: NonNullable<ProjectIntegrationState["plugin"]> = {
       id: "github-com",
       installed: true,
@@ -1430,7 +1430,7 @@ describe("BenchDashboard", () => {
       captionKey: "yaml-only",
     };
 
-    it("renders EnablePluginPromptModal when integration plugin is installed-but-disabled (TC-120)", () => {
+    it("renders EnablePluginPromptModal when integration plugin is installed-but-disabled (IP-TC-120)", () => {
       stubDefaults({
         projects: [makeProject()],
         benches: [],
@@ -1485,7 +1485,7 @@ describe("BenchDashboard", () => {
       expect(screen.queryByTestId("enable-plugin-modal")).toBeNull();
     });
 
-    it("renders MissingPluginDialog (not EnablePluginPromptModal) when plugin is not installed (TC-192)", () => {
+    it("renders MissingPluginDialog (not EnablePluginPromptModal) when plugin is not installed (IP-TC-192)", () => {
       stubDefaults({
         projects: [makeProject()],
         benches: [],
@@ -1502,7 +1502,7 @@ describe("BenchDashboard", () => {
       expect(screen.queryByTestId("enable-plugin-modal")).toBeNull();
     });
 
-    it("dismisses the prompt after Cancel and stays dismissed for the session (TC-121)", async () => {
+    it("dismisses the prompt after Cancel and stays dismissed for the session (IP-TC-121)", async () => {
       const user = userEvent.setup();
       stubDefaults({
         projects: [makeProject()],

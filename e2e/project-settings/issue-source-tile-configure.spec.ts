@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject } from "./_support/test-project.js";
 
-// TC-164 (US-010/US-025, FR-018/023/069/077/078, NFR-018): a project registered
+// IP-TC-164 (IP-US-010/IP-US-025, IP-FR-018/023/069/077/078, IP-NFR-018): a project registered
 // without an integration override renders the IssueSourceTile in its
 // UnconfiguredBody variant. The user clicks "Choose integration", picks
 // github-com via the SwitchIntegrationDialog, opens the now-visible Configure
@@ -33,7 +33,7 @@ test("unconfigured tile -> choose integration -> configure -> derived sources ->
   // Register the fixture project with no plugin so the tile starts in its
   // UnconfiguredBody variant, and seed `project.repo` so the Configure modal's
   // derived-sources preview can reach its success state. The optional-`plugin`
-  // contract on /test/__register-fixture-project (TC-164) is what lets the
+  // contract on /test/__register-fixture-project (IP-TC-164) is what lets the
   // project be registered without an integration override.
   const { projectId } = await registerTestProject(request, {
     projectName: "tc-164",
@@ -57,7 +57,7 @@ test("unconfigured tile -> choose integration -> configure -> derived sources ->
 
   // Pick github-com via its manifest name. The bundled-overlays swap keeps
   // the plugin id `github-com` but the visible name is "GitHub.com" (the
-  // manifest name TC-177 pins on at github-tab-consolidation.spec.ts).
+  // manifest name IP-TC-177 pins on at github-tab-consolidation.spec.ts).
   // Click the wrapping <label> (the React Aria Radio renders a label whose
   // inner card div otherwise intercepts pointer events); switch-integration-
   // mid-flight.spec.ts uses the same pattern.

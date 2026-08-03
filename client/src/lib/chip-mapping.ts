@@ -87,7 +87,7 @@ interface IssueTypeEntry {
   label?: string;
 }
 
-// FR-075: alerts render with the friendly chip labels "CodeQL",
+// IP-FR-075: alerts render with the friendly chip labels "CodeQL",
 // "Secret scanning", and "Dependabot". The github plugin mapper emits the
 // `security-*` keys (plugins/github-com/src/shared/mapper.ts).
 const ISSUE_TYPE_ENTRIES: Record<string, IssueTypeEntry> = {
@@ -101,7 +101,7 @@ const ISSUE_TYPE_ENTRIES: Record<string, IssueTypeEntry> = {
   "security-dependabot": { icon: Package, label: "Dependabot" },
 };
 
-// FR-043: alert severity (and the closest secret-scanning analogue) lives on
+// IP-FR-043: alert severity (and the closest secret-scanning analogue) lives on
 // the opaque plugin `raw` payload. Narrow defensively rather than importing
 // the plugin types across the client/plugin boundary.
 export function alertSeverityTooltip(issue: NormalizedIssue): string | null {

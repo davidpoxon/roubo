@@ -1,4 +1,4 @@
-// TC-019 (e2e_flow, level 1): marking all gating cases passed transitions the gate
+// VG-TC-019 (e2e_flow, level 1): marking all gating cases passed transitions the gate
 // from PENDING to PASSED. The journey opens the gate-state panel for WU-040, then
 // marks each of its three gating cases passed in order, watching the gate hold
 // PENDING until the last one flips and then read PASSED with no stale banner.
@@ -12,8 +12,8 @@
 // "mark passed", modelled by flipping a case's recorded status in the results body
 // the surface would have persisted.
 //
-// Drift guard (AC-2): each it() is named after its TC-019 step id and the step's
-// expected observation is kept explicit, so a change to the authoritative TC-019 in
+// Drift guard (AC-2): each it() is named after its VG-TC-019 step id and the step's
+// expected observation is kept explicit, so a change to the authoritative VG-TC-019 in
 // .specifications/verify-gate/test-cases.json forces this test to be updated.
 //
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
@@ -38,7 +38,7 @@ const SLICE_GATE_STATE = "#698 (deterministic gate evaluator)";
 const SLICE_PANEL =
   "#702 (TestBench batch UI / gate-state panel), #701 (gate API routes + batch-subset)";
 
-// ── Fixture identifiers (TC-019 preconditions) ──
+// ── Fixture identifiers (VG-TC-019 preconditions) ──
 // Gate WU-040 covers WU-031, WU-032, WU-033; gating set is TC-019, TC-020, TC-024.
 // planHash matches throughout (no stale banner); all three cases start not_started.
 const PLAN_HASH = "sha256-plan-v1";
@@ -106,7 +106,7 @@ const recorded: Record<string, CaseStatus> = {
   "TC-024": "not_started",
 };
 
-describe("TC-019: marking all gating cases passed transitions WU-040 from PENDING to PASSED", () => {
+describe("VG-TC-019: marking all gating cases passed transitions WU-040 from PENDING to PASSED", () => {
   it("S001: open the gate-state panel for WU-040 -> badge PENDING, unresolved list shows all three gating cases (S001-O01, S001-O02)", () => {
     // S001: open the batch detail and locate the gate-state panel. Drive the REAL
     // evaluateGate (#698) over the recorded results with all three cases not_started.

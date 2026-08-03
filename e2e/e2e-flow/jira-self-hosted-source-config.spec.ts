@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "./_support/scenario.js";
 import { registerTestProject } from "../project-settings/_support/test-project.js";
 
-// TC-157 (US-002, FR-019): the self-hosted Jira flow exercises the
+// IP-TC-157 (IP-US-002, IP-FR-019): the self-hosted Jira flow exercises the
 // categorized-multi-list source-picker shape. A fixture project pinned to the
 // stub (routed via the jira-self-hosted-categorized scenario) renders the
 // IssueSourceTile in its configured variant; opening Configure surfaces the
@@ -45,7 +45,7 @@ test("Configure surfaces the categorized source picker and persists a selection"
   const dialog = page.getByRole("dialog", { name: /Configure Self-hosted Jira|Roubo E2E Stub/ });
   await expect(dialog.getByTestId("plugin-configure-dialog-header")).toBeVisible();
 
-  // FR-019: the declarative picker renders one tab per category returned by
+  // IP-FR-019: the declarative picker renders one tab per category returned by
   // the stub's listSourceCandidates (Projects / Filters in this scenario).
   const picker = dialog.getByTestId("source-picker");
   await expect(picker).toBeVisible();

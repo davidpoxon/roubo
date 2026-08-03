@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// Covers TC-152 at the browser level. The spec drives the real
+// Covers IP-TC-152 at the browser level. The spec drives the real
 // EnablePluginPromptModal (built on React Aria's ModalOverlay/Modal/Dialog)
 // against a Vite-served dev fixture (`client/enable-plugin-prompt-fixture.html`)
 // so it doesn't need a running server. The fixture exposes a trigger button
@@ -11,7 +11,7 @@ import { expect, test } from "@playwright/test";
 
 const FIXTURE = "/enable-plugin-prompt-fixture.html";
 
-test.describe("EnablePluginPromptModal — accessibility (TC-152)", () => {
+test.describe("EnablePluginPromptModal — accessibility (IP-TC-152)", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/api/plugins/github-com/enable", (route) =>
       route.fulfill({ status: 204, body: "" }),

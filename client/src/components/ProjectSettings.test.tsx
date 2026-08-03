@@ -176,7 +176,7 @@ describe("ProjectSettings", () => {
       expect(screen.getByText("Settings")).toBeInTheDocument();
     });
 
-    it("WU-051 / TC-116: outer wrapper uses w-full with no max-w constraint", () => {
+    it("IP-WU-051 / IP-TC-116: outer wrapper uses w-full with no max-w constraint", () => {
       render();
       // The Settings <h2> is the first child of the page wrapper, so walking
       // up one level gives us the wrapper element under test.

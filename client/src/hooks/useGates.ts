@@ -4,7 +4,7 @@ import * as api from "../lib/api";
 import type { GateSplitPart } from "../lib/api";
 import { testbenchPlanQueryKey } from "./useTestbenchPlan";
 
-// React Query hooks for the verify-gate state (#702, FR-012). Gates are
+// React Query hooks for the verify-gate state (#702, VG-FR-012). Gates are
 // PROJECT-level (their plan + results are read from the registered project's
 // repoPath under each gate's own spec slug), so the query keys are namespaced by
 // projectId. When the caller scopes the list to a bench's focused spec (issue
@@ -29,7 +29,7 @@ export function gateQueryKey(projectId: string, gateId: string) {
   return ["gate", projectId, gateId] as const;
 }
 
-// List one GateState per verify unit (FR-001: one gate per phase). When `slug` is
+// List one GateState per verify unit (VG-FR-001: one gate per phase). When `slug` is
 // given the list is scoped to that focused spec's gates (issue #549); omitted, it
 // returns every spec's gates project-wide. An empty array is a normal response (no
 // gates yet).
@@ -75,7 +75,7 @@ export function useInvalidateGates() {
   };
 }
 
-// Operator merge (#703, FR-002, AC1). On success the combined gate replaces its
+// Operator merge (#703, VG-FR-002, AC1). On success the combined gate replaces its
 // sources, so the gates list is invalidated to re-render the overview. The
 // server rejects a signed-off (passed) gate with a 409 ApiError (AC3), which the
 // caller surfaces.
@@ -89,7 +89,7 @@ export function useMergeGates(projectId: string) {
   });
 }
 
-// Operator split (#703, FR-002, AC2). On success two or more parts replace the
+// Operator split (#703, VG-FR-002, AC2). On success two or more parts replace the
 // source gate; the gates list is invalidated. The server rejects a signed-off
 // gate (409) and a non-partitioning assignment (400).
 export function useSplitGate(projectId: string) {
@@ -103,7 +103,7 @@ export function useSplitGate(projectId: string) {
   });
 }
 
-// Sign off a passed batch (#830, FR-007/FR-008). On success the gate's tracker
+// Sign off a passed batch (#830, VG-FR-007/VG-FR-008). On success the gate's tracker
 // issue is closed, so both the open gate's state and the overview list are
 // invalidated to re-read the server's `signedOff` signal. The server rejects a
 // non-passed gate (409, fail-closed) and a gate with no tracker / no active
@@ -120,7 +120,7 @@ export function useSignOffGate(projectId: string) {
   });
 }
 
-// Reopen a signed-off batch (#830, US-005). On success the gate's tracker issue
+// Reopen a signed-off batch (#830, VG-US-005). On success the gate's tracker issue
 // is reopened; both the gate and the overview list are invalidated so the button
 // re-reads `signedOff: false` from the server.
 export function useReopenGate(projectId: string) {
@@ -135,7 +135,7 @@ export function useReopenGate(projectId: string) {
 }
 
 // File a fix issue for a failed gating case and block the gate (#706,
-// FR-009/FR-010, US-006), mirroring useSignOffGate. The mutation resolves the
+// VG-FR-009/VG-FR-010, VG-US-006), mirroring useSignOffGate. The mutation resolves the
 // FixIssueRecord for BOTH a 201 complete and a 207 link_pending outcome (the api
 // call does not throw on 207), so the panel branches on `record.linkStatus`. On
 // success (either outcome) the gate + gates queries are invalidated so the

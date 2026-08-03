@@ -126,7 +126,7 @@ describe("IssueChip", () => {
     expect(textSpan.textContent).toBe(longLabel);
   });
 
-  describe("interactive mode (WU-031)", () => {
+  describe("interactive mode (IP-WU-031)", () => {
     it("renders as a non-interactive span when onPress is omitted", () => {
       const { container } = render(
         <IssueChip variant="status" tone="warning">
@@ -200,7 +200,7 @@ describe("IssueChip", () => {
     });
   });
 
-  describe("security-category variant (WU-033)", () => {
+  describe("security-category variant (IP-WU-033)", () => {
     it("uses slate family for codeql", () => {
       const { container } = render(
         <IssueChip variant="security-category" securityCategory="codeql" icon={Shield}>
@@ -258,7 +258,7 @@ describe("IssueChip", () => {
     });
   });
 
-  describe("tooltip mode (WU-042)", () => {
+  describe("tooltip mode (IP-WU-042)", () => {
     it("renders a keyboard-focusable Button when a tooltip is provided", () => {
       const { container } = render(
         <IssueChip variant="issue-type" icon={Bug} tooltip="Severity: High">

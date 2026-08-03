@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #702 (FR-001/FR-012, AC1, TC-020/TC-026): the overview lists one card per gate
+// #702 (VG-FR-001/VG-FR-012, AC1, VG-TC-020/VG-TC-026): the overview lists one card per gate
 // with its status; a blocked (non-passed) card names its blocking unit and that
 // line is absent once the gate passes (the evaluator clears coveringUnitIds on
 // pass). Opening a card invokes onOpenGate. axe-clean.
@@ -54,7 +54,7 @@ const phasedGate = {
   signedOff: false,
 };
 
-// A downstream phase blocked by an upstream verify gate (#433, FR-001).
+// A downstream phase blocked by an upstream verify gate (#433, VG-FR-001).
 const upstreamBlockedGate = {
   gateId: "WU-400",
   status: "pending" as const,
@@ -118,7 +118,7 @@ describe("GatesOverview", () => {
     expect(screen.getByTestId("gate-gating-count").textContent).toBe("3 gating cases");
   });
 
-  it("shows an upstream Blocked by line naming the blocking gate (#433, FR-001)", async () => {
+  it("shows an upstream Blocked by line naming the blocking gate (#433, VG-FR-001)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([upstreamBlockedGate]) as never);
     renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByTestId("gate-blocked-by")).toBeTruthy());
@@ -272,7 +272,7 @@ describe("GatesOverview", () => {
   });
 });
 
-// Two pending gates ready to merge (TC-022).
+// Two pending gates ready to merge (VG-TC-022).
 const phase2 = {
   gateId: "PHASE-2",
   status: "pending" as const,
@@ -286,7 +286,7 @@ const phase3 = {
   coveringUnitIds: ["WU-050"],
 };
 
-describe("GatesOverview - operator merge (TC-022)", () => {
+describe("GatesOverview - operator merge (VG-TC-022)", () => {
   it("merges two selected gates and replaces them with the combined card (S001-O01)", async () => {
     mockedApi.fetchGates
       .mockResolvedValueOnce(gatesData([phase2, phase3]) as never)
@@ -346,7 +346,7 @@ const bigPhase = {
   coveringUnitIds: ["WU-031", "WU-032", "WU-033", "WU-034"],
 };
 
-describe("GatesOverview - operator split (TC-023)", () => {
+describe("GatesOverview - operator split (VG-TC-023)", () => {
   it("splits a gate by assigning covering units to two parts (S001-O01/O02)", async () => {
     mockedApi.fetchGates.mockResolvedValueOnce(gatesData([bigPhase]) as never).mockResolvedValue(
       gatesData([

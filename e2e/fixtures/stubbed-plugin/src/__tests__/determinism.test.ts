@@ -113,7 +113,7 @@ afterEach(() => {
   toDispose = [];
 });
 
-describe("stubbed plugin determinism (TC-176)", () => {
+describe("stubbed plugin determinism (IP-TC-176)", () => {
   it("produces byte-identical transcripts across two runs with the same --scenario + --now", async () => {
     const first = startStub("default", "2026-03-15T12:00:00.000Z");
     toDispose.push(first.dispose);

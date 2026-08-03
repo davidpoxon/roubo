@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject, unregisterTestProject } from "./_support/project.js";
 
-// TC-173 (US-018/US-019, FR-062/063/064): the root-level `excludedStatuses`
+// IP-TC-173 (IP-US-018/IP-US-019, IP-FR-062/063/064): the root-level `excludedStatuses`
 // (here "Closed" + "In review", set by the fixture project's roubo.yaml)
 // resolves through the three-layer merge and flows back through the
 // integration endpoint. Rewriting it via PUT /config/raw re-flows the new
@@ -73,7 +73,7 @@ integration:
     - "Closed"
 `;
 
-test.describe("TC-173: cut-list default exclusions + override", () => {
+test.describe("IP-TC-173: cut-list default exclusions + override", () => {
   let projectId: string;
 
   test.beforeEach(async ({ request }) => {

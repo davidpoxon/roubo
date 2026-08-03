@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { describe, it } from "vitest";
 import ts from "typescript";
 
-// NFR-025 / TC-155: user-facing copy in integration-plugin components must be
+// IP-NFR-025 / IP-TC-155: user-facing copy in integration-plugin components must be
 // hoisted into a module-scope STRINGS or LABELS record (see EnablePluginPromptModal
 // or docs/plugin-sdk.md for the convention). This scan walks each opted-in file's
 // JSX and fails on inline English text or English string literals in user-visible
@@ -161,7 +161,7 @@ function scan(relPath: string): Violation[] {
   return violations;
 }
 
-describe("integration-plugins string-key compliance (NFR-025 / TC-155)", () => {
+describe("integration-plugins string-key compliance (IP-NFR-025 / IP-TC-155)", () => {
   for (const relPath of OPTED_IN) {
     it(`${relPath} contains no inline English in JSX`, () => {
       const violations = scan(relPath);

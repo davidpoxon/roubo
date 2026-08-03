@@ -36,7 +36,7 @@ beforeEach(() => {
 });
 
 describe("EnablePluginPromptModal", () => {
-  it("renders the prompt with the plugin name and id (TC-120)", () => {
+  it("renders the prompt with the plugin name and id (IP-TC-120)", () => {
     renderModal();
     expect(
       screen.getByRole("heading", { name: /Enable GitHub\.com to load this project\?/i }),
@@ -46,12 +46,12 @@ describe("EnablePluginPromptModal", () => {
     expect(screen.getByTestId("enable-plugin-confirm")).toBeInTheDocument();
   });
 
-  it("focuses the primary confirm button on open (TC-152)", () => {
+  it("focuses the primary confirm button on open (IP-TC-152)", () => {
     renderModal();
     expect(screen.getByTestId("enable-plugin-confirm")).toHaveFocus();
   });
 
-  it("Enter on the focused primary button confirms (TC-152)", async () => {
+  it("Enter on the focused primary button confirms (IP-TC-152)", async () => {
     const user = userEvent.setup();
     mockedApi.enablePlugin.mockResolvedValue(undefined);
     const onEnabled = vi.fn();
@@ -64,7 +64,7 @@ describe("EnablePluginPromptModal", () => {
     await waitFor(() => expect(onEnabled).toHaveBeenCalled());
   });
 
-  it("Esc cancels without calling the enable RPC (TC-152, TC-121)", async () => {
+  it("Esc cancels without calling the enable RPC (IP-TC-152, IP-TC-121)", async () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
     renderModal({ onCancel });
@@ -75,7 +75,7 @@ describe("EnablePluginPromptModal", () => {
     expect(mockedApi.enablePlugin).not.toHaveBeenCalled();
   });
 
-  it("Cancel click triggers onCancel and does not call enable (TC-121)", async () => {
+  it("Cancel click triggers onCancel and does not call enable (IP-TC-121)", async () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
     renderModal({ onCancel });
@@ -98,7 +98,7 @@ describe("EnablePluginPromptModal", () => {
     await waitFor(() => expect(onEnabled).toHaveBeenCalled());
   });
 
-  it("displays an inline error on enable failure and keeps the modal open (TC-154)", async () => {
+  it("displays an inline error on enable failure and keeps the modal open (IP-TC-154)", async () => {
     const user = userEvent.setup();
     mockedApi.enablePlugin.mockRejectedValue(new Error("plugin process refused to start"));
     const onEnabled = vi.fn();

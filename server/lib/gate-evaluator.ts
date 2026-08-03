@@ -1,4 +1,4 @@
-// The pure, deterministic verify-gate evaluator (#698, FR-004, FR-005, NFR-007).
+// The pure, deterministic verify-gate evaluator (#698, VG-FR-004, VG-FR-005, VG-NFR-007).
 //
 // `evaluateGate` computes a gate's passed / failed / pending / stale /
 // no_gating_cases state from a worktree's recorded results over the gate's gating
@@ -6,23 +6,23 @@
 // two already-merged contracts:
 //   - the gate is a `kind: "verify"` work unit (VerifyUnit) from
 //     `@roubo/shared/work-units-contract`, whose `implements.test_case_ids` IS the
-//     pre-resolved gating set (architecture.md Data model, FR-004) and whose
+//     pre-resolved gating set (architecture.md Data model, VG-FR-004) and whose
 //     `covers` lists the WU- ids that deliver those cases;
 //   - the results are the `{ caseResults }` body produced by
 //     `readPlanAndResults` in `testbench-store.ts`, each `CaseResult` carrying a
 //     `derivedStatus`, an optional `statusOverride`, and an optional `orphaned`
 //     marker (testbench-contracts.ts).
 //
-// Purity (NFR-007): this function does NO I/O. It never calls
+// Purity (VG-NFR-007): this function does NO I/O. It never calls
 // `readPlanAndResults` itself; the caller threads loaded inputs in. It reads no
 // clock and mutates none of its inputs, so identical inputs yield a deep-equal
-// `GateState`. The decision is therefore deterministic and, per NFR-007, can
+// `GateState`. The decision is therefore deterministic and, per VG-NFR-007, can
 // never false-pass: an absent, orphaned, or stale case is read as pending/stale,
 // never as passed.
 //
 // The evaluation rule is encoded as an explicit, auditable precedence ladder
 // (the truth table fixed in .specifications/verify-gate/verify-gate.md, the
-// "results-to-passed rule" section, and FR-004 / FR-005). The module is kept pure
+// "results-to-passed rule" section, and VG-FR-004 / VG-FR-005). The module is kept pure
 // so it can move to `shared/` for client reuse if needed (issue #698 technical
 // note).
 
@@ -44,7 +44,7 @@ export type VerifyUnit = Unit & { kind: "verify" };
 // `no_gating_cases` is the structural state for a gate whose (possibly narrowed)
 // gating set is empty: it is not a pass (nothing was verified), and its guard
 // precedes every results-driven rung so an all-L3/L4 gate never vacuously passes
-// (issue #436, NFR-007 fail-closed).
+// (issue #436, VG-NFR-007 fail-closed).
 export type GateStatus = "passed" | "failed" | "pending" | "stale" | "no_gating_cases";
 
 // The computed projection returned by `evaluateGate`. Never persisted.
@@ -52,12 +52,12 @@ export type GateStatus = "passed" | "failed" | "pending" | "stale" | "no_gating_
 // Kept to the issue #698 technical note shape `{ status, unresolvedCaseIds,
 // coveringUnitIds }`. The architecture.md Data model row additionally lists
 // `gateId` and `evaluatedAt`, but `evaluatedAt` is deliberately omitted here: a
-// clock read would break determinism and purity (NFR-007), the property the issue
+// clock read would break determinism and purity (VG-NFR-007), the property the issue
 // and FR rule pin down. A caller that needs an identity or a timestamp can stamp
 // them from outside; the pure core stays free of both.
 export interface GateState {
   status: GateStatus;
-  // The gating case ids whose effective status is not `passed` (FR-004): the
+  // The gating case ids whose effective status is not `passed` (VG-FR-004): the
   // remaining human-verification work. Empty exactly when the gate is passed.
   unresolvedCaseIds: string[];
   // The full narrowed gating set: every case this gate evaluates over, after the
@@ -67,7 +67,7 @@ export interface GateState {
   // count always traces to the same set the evaluator gates on.
   gatingCaseIds: string[];
   // The gate's `covers` WU- ids, surfaced as the units a verifier follows up on
-  // for the unresolved cases (NFR-004 observability). Empty when nothing is
+  // for the unresolved cases (VG-NFR-004 observability). Empty when nothing is
   // unresolved or the gate covers nothing.
   coveringUnitIds: string[];
 }
@@ -80,7 +80,7 @@ export interface GateState {
 // pre-computed `stale` flag. Passing `null` models "no results recorded yet".
 export type GateResults = (BenchResults & { planHash: string }) | null;
 
-// The default gating policy (FR-005): a case gates when its level is L1 or L2, OR
+// The default gating policy (VG-FR-005): a case gates when its level is L1 or L2, OR
 // its category (the case `type` field) is `e2e_flow`. L3 and L4 cases are tracked
 // but excluded; they belong in an automation / regression backlog, not a human's
 // blocking queue. This narrowing only applies when the plan is threaded in (see
@@ -94,14 +94,14 @@ function caseGatesByDefaultPolicy(level: number, category: string): boolean {
   return GATING_LEVELS.has(level) || category === GATING_CATEGORY;
 }
 
-// Effective status = the override when present, else the derived status (FR-005,
-// NFR-007). An override always wins over the derived value.
+// Effective status = the override when present, else the derived status (VG-FR-005,
+// VG-NFR-007). An override always wins over the derived value.
 function effectiveStatus(result: CaseResult): CaseStatus {
   return result.statusOverride?.status ?? result.derivedStatus;
 }
 
 // Evaluate a verify gate's state. Pure and synchronous: no I/O, no clock, no
-// input mutation (NFR-007).
+// input mutation (VG-NFR-007).
 //
 // `gate`            the VerifyUnit; `implements.test_case_ids` is the gating set,
 //                   `covers` the WU- ids it spans.
@@ -136,7 +136,7 @@ export function evaluateGate(
       // A declared id with no matching plan case cannot be classified by level,
       // so it stays in the gating set and is resolved by status below (it will
       // read as pending when absent from results). Dropping it could mask an
-      // unverified case, which NFR-007 forbids.
+      // unverified case, which VG-NFR-007 forbids.
       if (!planCase) return true;
       return caseGatesByDefaultPolicy(planCase.level, planCase.type);
     });
@@ -152,7 +152,7 @@ export function evaluateGate(
   // "must be re-verified", it is "there is nothing to gate on". Crucially it must
   // never fall through to the PASSED rung, where an empty unresolved set would
   // read as a vacuous pass (an all-L3/L4 gate narrows to `[]`), violating
-  // NFR-007's fail-closed intent (issue #436). Sign-off stays gated on `passed`,
+  // VG-NFR-007's fail-closed intent (issue #436). Sign-off stays gated on `passed`,
   // so a no-gating-cases phase is correctly non-signable.
   if (gatingCaseIds.length === 0) {
     return {
@@ -186,7 +186,7 @@ export function evaluateGate(
     const result = caseResults[id];
 
     // Absent from results, or retained-but-orphaned, reads as pending: the case
-    // is unverified, never passed (FR-004, NFR-007).
+    // is unverified, never passed (VG-FR-004, VG-NFR-007).
     if (result === undefined || result.orphaned === true) {
       anyPending = true;
       unresolvedCaseIds.push(id);

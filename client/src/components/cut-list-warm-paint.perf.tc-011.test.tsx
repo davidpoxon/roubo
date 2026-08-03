@@ -14,8 +14,8 @@
  * return a warm snapshot immediately (modelling that synchronous warm serve) and
  * measures mount -> first visible populated row.
  *
- * The budget assertion is gated behind RUN_PERF_HARNESS=1 (mirrors TC-098 /
- * TC-151): warmup + measured iterations, inline p95, structured perf-evidence
+ * The budget assertion is gated behind RUN_PERF_HARNESS=1 (mirrors IP-TC-098 /
+ * IP-TC-151): warmup + measured iterations, inline p95, structured perf-evidence
  * log. A sentinel test keeps the file contributing a passing assertion under the
  * default coverage run. The non-gated structural test pins that a warm snapshot
  * paints populated rows without a loading skeleton (no "Loading..." flash).

@@ -6,7 +6,7 @@ import {
 } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject } from "./_support/test-project.js";
 
-// TC-177 (US-022, FR-069/070/071): on a project configured against the
+// IP-TC-177 (IP-US-022, IP-FR-069/070/071): on a project configured against the
 // github.com plugin, the per-project Settings page surfaces the plugin's
 // manifest name as the Source section title. The Repository / Linked Project /
 // Submodules editors now live inside the plugin Configure modal rather than
@@ -35,7 +35,7 @@ test("scenario surfaces through the github-com overlay's connection-status endpo
   expect(body.checkedAt).toBe(NOW);
 
   // The canonical e2e-stub still listens on its own slot so the harness-shape
-  // assertion from WU-063 stays honest under the overlay setup.
+  // assertion from IP-WU-063 stays honest under the overlay setup.
   await expectStubConnectionStatus(request, {
     detail: "github-tab-consolidation stub",
     checkedAt: NOW,
@@ -55,13 +55,13 @@ test("the Source section title reads the github-com manifest name", async ({ pag
 
   await page.goto(`/projects/${projectId}/settings`);
 
-  // FR-069: the Source section title is the plugin manifest name, not the
+  // IP-FR-069: the Source section title is the plugin manifest name, not the
   // hard-coded "Source" default.
   const sectionTitle = page.getByTestId("project-settings-source-section-title");
   await expect(sectionTitle).toHaveText("GitHub.com");
 
   // The IssueSourceTile renders the configured variant (live connection pill,
-  // single primary action). WU-058 collapsed the prior "Choose sources"
+  // single primary action). IP-WU-058 collapsed the prior "Choose sources"
   // button into this same primary action.
   const tile = page.getByTestId("issue-source-tile");
   await expect(tile).toBeVisible();
@@ -90,7 +90,7 @@ test("the integration-fields section moves into the github-com Configure modal",
 
   await page.goto(`/projects/${projectId}/settings`);
 
-  // FR-070: per-project Settings no longer hosts a separate "Identity" block
+  // IP-FR-070: per-project Settings no longer hosts a separate "Identity" block
   // for repository / linked project / submodules. Opening the plugin
   // Configure modal is what surfaces those fields now.
   await page.getByTestId("issue-source-primary-action").click();

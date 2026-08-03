@@ -1,4 +1,4 @@
-// TC-045 (e2e_flow, level 1): the failed-case fix-issue journey end to end. Mark a
+// VG-TC-045 (e2e_flow, level 1): the failed-case fix-issue journey end to end. Mark a
 // gating case failed, capture notes, file a fix issue that blocks the gate, and the
 // gate stays not-passable until the fix issue is resolved.
 //
@@ -31,10 +31,10 @@
 // install / consent / capability state are faked, unavoidable without a live
 // tracker).
 //
-// Drift guard (AC-2): each it() is named after its TC-045 step id and the step's
-// expected observation is kept explicit, so a change to the authoritative TC-045 in
+// Drift guard (AC-2): each it() is named after its VG-TC-045 step id and the step's
+// expected observation is kept explicit, so a change to the authoritative VG-TC-045 in
 // .specifications/verify-gate/test-cases.json forces this test to be updated. The
-// pinned refs (gate #451, fix issue #452) and gating case (TC-024) mirror TC-045
+// pinned refs (gate #451, fix issue #452) and gating case (TC-024) mirror VG-TC-045
 // step for step and are not generated.
 //
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
@@ -66,7 +66,7 @@ const SLICE_S003 = "#705 (tracker-action audit log)";
 const SLICE_S004 = "#698 (gate stays failed while the fix issue is open)";
 const SLICE_S005 = "#698 (gate passes once the case is re-verified passed)";
 
-// ── Fixture identifiers (TC-045 preconditions, verbatim) ──
+// ── Fixture identifiers (VG-TC-045 preconditions, verbatim) ──
 const PROJECT_ID = "proj-verify-gate";
 const PLUGIN_ID = "github-com";
 const PLAN_HASH = "sha256-plan-v1";
@@ -177,7 +177,7 @@ const filerDeps: FixIssueFilerDeps = {
   now: () => "2026-06-22T00:00:00.000Z",
 };
 
-describe("TC-045: mark TC-024 failed, file fix issue #452 that blocks gate #451, gate stays not-passable until #452 is resolved", () => {
+describe("VG-TC-045: mark TC-024 failed, file fix issue #452 that blocks gate #451, gate stays not-passable until #452 is resolved", () => {
   it("S001: mark TC-024 failed -> the gating case is failed and the gate is not passable (S001-O01)", () => {
     // S001: mark TC-024 failed. Drive the REAL evaluateGate (#698) over the recorded
     // results with TC-024 failed. The server-observable equivalent of "the panel

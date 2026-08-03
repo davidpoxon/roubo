@@ -11,7 +11,7 @@ interface Props {
   externalId: string;
   assignees: Array<{ externalId: string; displayName: string }>;
   capturedUserId: CapturedUserId | undefined;
-  // WU-033: alert-backed benches render the control disabled with a documented
+  // IP-WU-033: alert-backed benches render the control disabled with a documented
   // tooltip. The plugin guarantees `assignees: []` for these issues so write-
   // back would always fail; the disabled affordance tells the user why.
   isDisabled?: boolean;

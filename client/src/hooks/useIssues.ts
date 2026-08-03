@@ -24,11 +24,11 @@ export interface UseIssuesResult {
   /** The opaque cursor for the next page, or null when this is the last page. */
   nextCursor: string | null;
   error: Error | null;
-  /** True when the retrieved page reported `stalled` (TC-071). */
+  /** True when the retrieved page reported `stalled` (IP-TC-071). */
   stalled: boolean;
   /**
    * True when the response was served from the issue-snapshot cache because
-   * the active plugin is `errored` or `disabled` (FR-014 / TC-016). Surface
+   * the active plugin is `errored` or `disabled` (IP-FR-014 / IP-TC-016). Surface
    * the cut-list stale banner whenever this is true.
    */
   stale: boolean;

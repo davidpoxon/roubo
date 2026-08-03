@@ -7,11 +7,11 @@ import path from "node:path";
 import type { Express, Router } from "express";
 import type { PluginRecord } from "@roubo/shared";
 
-// TC-149 (security invariant from .specifications/integration-plugins/test-cases.json).
-// NFR-019 / FR-060 pin that ~/.roubo/plugins-state.json is never serialised by
+// IP-TC-149 (security invariant from .specifications/integration-plugins/test-cases.json).
+// IP-NFR-019 / IP-FR-060 pin that ~/.roubo/plugins-state.json is never serialised by
 // routes or telemetry. This test captures every outbound channel during
 // enable/disable and asserts no leak; it also inventories the plugins router
-// for state-snapshot endpoints. See parent WU-063 (#154) and issue #217.
+// for state-snapshot endpoints. See parent IP-WU-063 (#154) and issue #217.
 
 const MARKER_ID = "tc149-secret-marker";
 
@@ -213,7 +213,7 @@ afterEach(() => {
   rmSync(sandboxRoot, { recursive: true, force: true });
 });
 
-describe("TC-149: plugin enable state never appears in telemetry payloads", () => {
+describe("IP-TC-149: plugin enable state never appears in telemetry payloads", () => {
   it("HTTP enable/disable: response is 204 + empty body, no enable-state values leak to any channel", async () => {
     const app = mountApp();
     let enableRes!: Awaited<ReturnType<ReturnType<typeof request>["post"]>>;

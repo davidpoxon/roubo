@@ -113,7 +113,7 @@ describe("DraggableIssueCard", () => {
     expect(typeChip.querySelector("svg")).not.toBeNull();
   });
 
-  it("renders CodeQL, Secret scanning, and Dependabot alert rows as security-category chips (WU-033, FR-075)", () => {
+  it("renders CodeQL, Secret scanning, and Dependabot alert rows as security-category chips (IP-WU-033, IP-FR-075)", () => {
     const { container: codeqlContainer, getByText: getCodeQLText } = render(
       <DraggableIssueCard
         issue={makeIssue({
@@ -172,7 +172,7 @@ describe("DraggableIssueCard", () => {
     expect(secretContainer.querySelector('[data-chip-category="issue-type"]')).toBeNull();
   });
 
-  it("renders the security-category chip in the chips row, leading the status chip (WU-033)", () => {
+  it("renders the security-category chip in the chips row, leading the status chip (IP-WU-033)", () => {
     const { container } = render(
       <DraggableIssueCard
         issue={makeIssue({
@@ -201,7 +201,7 @@ describe("DraggableIssueCard", () => {
     );
   });
 
-  it("does not render a security-category chip for regular issueTypes (WU-033)", () => {
+  it("does not render a security-category chip for regular issueTypes (IP-WU-033)", () => {
     const { container } = render(<DraggableIssueCard issue={makeIssue({ issueType: "bug" })} />);
     expect(container.querySelector('[data-chip-category="security-category"]')).toBeNull();
   });
@@ -230,7 +230,7 @@ describe("DraggableIssueCard", () => {
     expect(container.querySelector('[data-chip-category="milestone"]')).toBeNull();
   });
 
-  it("renders alert rows with no transition or assign affordance (FR-075)", () => {
+  it("renders alert rows with no transition or assign affordance (IP-FR-075)", () => {
     const { container, queryByRole } = render(
       <DraggableIssueCard
         issue={makeIssue({

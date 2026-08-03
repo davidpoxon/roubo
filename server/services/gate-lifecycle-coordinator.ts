@@ -1,4 +1,4 @@
-// Gate lifecycle coordinator (#700, FR-007, US-005, NFR-001).
+// Gate lifecycle coordinator (#700, VG-FR-007, VG-US-005, VG-NFR-001).
 //
 // The impure, I/O side that complements the pure `evaluateGate`
 // (`server/lib/gate-evaluator.ts`, #698). When a verify gate's state has
@@ -16,7 +16,7 @@
 //
 // All plugin failures propagate as a thrown error so the gate is never left
 // half-closed: when `applyTransition` rejects, no audit entry is recorded and the
-// tracker issue stays open, leaving the downstream blocked (FR-007 AC-4).
+// tracker issue stays open, leaving the downstream blocked (VG-FR-007 AC-4).
 
 import { DONE_STATUSES, type GateAuditEntry, type NormalizedIssue } from "@roubo/shared";
 import type { VerifyUnit } from "../lib/gate-evaluator.js";
@@ -24,7 +24,7 @@ import { gateTrackerExternalId } from "./gate-external-id.js";
 import * as pluginManager from "./plugin-manager.js";
 
 /**
- * In-memory record of every privileged gate-lifecycle plugin call (NFR-001),
+ * In-memory record of every privileged gate-lifecycle plugin call (VG-NFR-001),
  * mirroring the per-bench broker `AuditLog` (`audit-log.ts`) but scoped to a
  * project + gate rather than a bench. Entries are appended in call order and
  * queried, optionally filtered by `pluginId`, in that same chronological order.
@@ -97,7 +97,7 @@ export function isDone(issue: NormalizedIssue): boolean {
 }
 
 /**
- * Pick a done-bound transition from an issue's `allowedTransitions` (FR-007
+ * Pick a done-bound transition from an issue's `allowedTransitions` (VG-FR-007
  * AC-2). The GitHub / GHE plugins expose exactly `["close"]` for an open issue
  * (`plugins/github-com/src/normalize.ts`), so the common case is direct. The
  * selection is tolerant of casing and of trackers (e.g. Jira) whose transition
@@ -148,8 +148,8 @@ export function pickReopenTransition(issue: NormalizedIssue): string | undefined
 }
 
 /**
- * Close a passed gate's tracker issue so the downstream batch unblocks (FR-007,
- * NFR-001).
+ * Close a passed gate's tracker issue so the downstream batch unblocks (VG-FR-007,
+ * VG-NFR-001).
  *
  * Hand this ONLY a gate the caller has confirmed is `passed` via `evaluateGate`;
  * the coordinator does not re-evaluate gate state, so a failed / pending gate
@@ -196,7 +196,7 @@ export async function onGatePassed(
   });
 
   // Idempotent no-op: an already-done gate issue is left untouched (AC-3). The
-  // skip is still audit-logged so the privileged check is observable (NFR-001).
+  // skip is still audit-logged so the privileged check is observable (VG-NFR-001).
   if (isDone(issue)) {
     deps.recordAudit({
       ts: deps.now(),
@@ -277,7 +277,7 @@ export async function onGateReopened(
   });
 
   // Idempotent no-op: an already-open gate issue is left untouched. The skip is
-  // still audit-logged so the privileged check is observable (NFR-001).
+  // still audit-logged so the privileged check is observable (VG-NFR-001).
   if (!isDone(issue)) {
     deps.recordAudit({
       ts: deps.now(),

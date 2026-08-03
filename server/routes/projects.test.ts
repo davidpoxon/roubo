@@ -776,12 +776,12 @@ describe("GET /:projectId/issue-types", () => {
     expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 
-  it("returns the active plugin's listIssueTypes output mapped to a string list of names, with security categories appended for github-family plugins (TC-033, TC-096)", async () => {
+  it("returns the active plugin's listIssueTypes output mapped to a string list of names, with security categories appended for github-family plugins (IP-TC-033, IP-TC-096)", async () => {
     // The plugin returns IssueTypeOption[] ({id, name}); the host flattens to
     // names before responding so the client sees `types: string[]` per the
     // declared ProjectIssueTypesV2Response contract. For github-com / ghe the
     // host also appends the three alert-category issue types so the
-    // blueprint-by-issue-type UI can target them (WU-035 / FR-049).
+    // blueprint-by-issue-type UI can target them (IP-WU-035 / IP-FR-049).
     vi.mocked(pluginManager.invoke).mockResolvedValue([
       { id: "T_1", name: "Bug" },
       { id: "T_2", name: "Feature" },
@@ -805,7 +805,7 @@ describe("GET /:projectId/issue-types", () => {
     });
   });
 
-  it("appends security categories for the ghe plugin (TC-096)", async () => {
+  it("appends security categories for the ghe plugin (IP-TC-096)", async () => {
     vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue({
       pluginId: "ghe",
       integrationId: "ghe",
@@ -822,7 +822,7 @@ describe("GET /:projectId/issue-types", () => {
     ]);
   });
 
-  it("does NOT append security categories for non-github-family plugins (TC-096)", async () => {
+  it("does NOT append security categories for non-github-family plugins (IP-TC-096)", async () => {
     vi.mocked(activePlugin.resolveActivePlugin).mockReturnValue({
       pluginId: "jira-self-hosted",
       integrationId: "jira-self-hosted",
@@ -834,7 +834,7 @@ describe("GET /:projectId/issue-types", () => {
     expect(res.body.types).toEqual(["Story"]);
   });
 
-  it("dedupes when listIssueTypes already includes a security category name (TC-096)", async () => {
+  it("dedupes when listIssueTypes already includes a security category name (IP-TC-096)", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue([
       { id: "T_1", name: "Bug" },
       { id: "T_2", name: "security-dependabot" },
@@ -1009,7 +1009,7 @@ describe("PUT /:projectId/config/raw", () => {
   });
 });
 
-// WU-057: the three fields move to the plugin tab. These tests cover the
+// IP-WU-057: the three fields move to the plugin tab. These tests cover the
 // new GET/PUT /integration/fields routes plus the deprecation-warning shim
 // on the legacy /config/raw PUT.
 describe("GET /:projectId/integration/fields", () => {
@@ -1206,7 +1206,7 @@ describe("GET /:projectId/integration/derived-sources", () => {
   });
 });
 
-describe("PUT /:projectId/config/raw deprecation shim (WU-057)", () => {
+describe("PUT /:projectId/config/raw deprecation shim (IP-WU-057)", () => {
   const PLUGIN_FIELDS_YAML = [
     "project:",
     '  name: "x"',

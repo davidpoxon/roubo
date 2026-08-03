@@ -3,7 +3,7 @@ import type { IssueContext } from "./issue-formatting.js";
 
 // Builds the prompt body injected into a jig for an alert-backed bench. Reads
 // ONLY from the already-redacted NormalizedIssue produced by the plugin's
-// getIssue (FR-043, NFR-012): the literal secret has already been stripped, and
+// getIssue (IP-FR-043, IP-NFR-012): the literal secret has already been stripped, and
 // this formatter never re-fetches or echoes any field that could carry it. The
 // `raw` payload is the redacted clone, so reading it here is safe.
 

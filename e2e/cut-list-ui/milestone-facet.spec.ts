@@ -3,8 +3,8 @@ import type { FilterFacet, FilterFacetOption } from "@roubo/shared";
 import { loadAppShell, resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject, unregisterTestProject } from "./_support/project.js";
 
-// TC-174 (US-020, FR-065/066/067, NFR-018): the stubbed plugin declares a
-// `milestone` facet via the `filterFacets` RPC (WU-045). The host's filter-
+// IP-TC-174 (IP-US-020, IP-FR-065/066/067, IP-NFR-018): the stubbed plugin declares a
+// `milestone` facet via the `filterFacets` RPC (IP-WU-045). The host's filter-
 // facets endpoint returns it alongside the inline `status` facet, and the
 // cut-list fetches options for `enum-async` facets via `getFacetOptions`.
 // Options are prefetched on load and the section fetches them as soon as the
@@ -13,7 +13,7 @@ import { registerTestProject, unregisterTestProject } from "./_support/project.j
 const SCENARIO = "filter-facets-milestone";
 const NOW = "2026-05-26T10:00:00.000Z";
 
-test.describe("TC-174: milestone facet via filterFacets RPC", () => {
+test.describe("IP-TC-174: milestone facet via filterFacets RPC", () => {
   let projectId: string;
 
   test.beforeEach(async ({ request }) => {

@@ -96,7 +96,7 @@ describe("applyFilters", () => {
     expect(applyFilters(issues, createEmptyFilters())).toHaveLength(4);
   });
 
-  it("matches a facet selection against issue.facetValues when present (TC-127)", () => {
+  it("matches a facet selection against issue.facetValues when present (IP-TC-127)", () => {
     const withMilestone = [
       makeIssue("10", { facetValues: { milestone: "v1.0" } }),
       makeIssue("11", { facetValues: { milestone: "v2.0" } }),
@@ -139,7 +139,7 @@ describe("applyFilters", () => {
     expect(out.map((i) => i.externalId)).toEqual(["1"]);
   });
 
-  it("recompute over 500 issues finishes well under the 50ms p95 budget (TC-139)", () => {
+  it("recompute over 500 issues finishes well under the 50ms p95 budget (IP-TC-139)", () => {
     const big: NormalizedIssue[] = [];
     for (let i = 0; i < 500; i++) {
       big.push(

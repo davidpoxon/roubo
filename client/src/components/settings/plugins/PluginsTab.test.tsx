@@ -129,7 +129,7 @@ beforeEach(() => {
   } as unknown as ReturnType<typeof _useConsentStatus>);
 });
 
-describe("PluginsTab (TC-001, TC-018)", () => {
+describe("PluginsTab (IP-TC-001, IP-TC-018)", () => {
   it("renders bundled and third-party sections with the Install plugin CTA", () => {
     mockedUsePlugins.mockReturnValue({
       data: {
@@ -153,7 +153,7 @@ describe("PluginsTab (TC-001, TC-018)", () => {
     expect(cards).toHaveLength(2);
   });
 
-  it("WU-051 / TC-114: card containers use CSS Grid auto-fit minmax(360px, 1fr)", () => {
+  it("IP-WU-051 / IP-TC-114: card containers use CSS Grid auto-fit minmax(360px, 1fr)", () => {
     mockedUsePlugins.mockReturnValue({
       data: {
         hostApiVersion: "1.0.0",
@@ -213,7 +213,7 @@ describe("PluginsTab (TC-001, TC-018)", () => {
     expect(screen.getByRole("alert").textContent).toContain("offline");
   });
 
-  it("WU-050 / TC-111: opening the tab fires opportunistic re-check for enabled plugins only", () => {
+  it("IP-WU-050 / IP-TC-111: opening the tab fires opportunistic re-check for enabled plugins only", () => {
     mockedUsePlugins.mockReturnValue({
       data: {
         hostApiVersion: "1.1.0",
@@ -237,11 +237,11 @@ describe("PluginsTab (TC-001, TC-018)", () => {
     );
 
     // Disabled and errored plugins must be excluded: only "enabled" plugins
-    // participate in opportunistic re-check (FR-054 acceptance criterion).
+    // participate in opportunistic re-check (IP-FR-054 acceptance criterion).
     expect(mockedRecheck).toHaveBeenCalledWith(["github-com", "jira"]);
   });
 
-  it("WU-050: passes an empty list while the plugin list is still loading", () => {
+  it("IP-WU-050: passes an empty list while the plugin list is still loading", () => {
     mockedUsePlugins.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -253,7 +253,7 @@ describe("PluginsTab (TC-001, TC-018)", () => {
     expect(mockedRecheck).toHaveBeenCalledWith([]);
   });
 
-  it("WU-027 / TC-046: Escape closes the Install dialog and restores focus to the Install button", async () => {
+  it("IP-WU-027 / IP-TC-046: Escape closes the Install dialog and restores focus to the Install button", async () => {
     const user = userEvent.setup();
     mockedUsePlugins.mockReturnValue({
       data: { hostApiVersion: "1.0.0", plugins: [record()] },
@@ -276,7 +276,7 @@ describe("PluginsTab (TC-001, TC-018)", () => {
     await user.keyboard("{Escape}");
 
     // React Aria's DialogTrigger restores focus to the originating trigger
-    // button (TC-046). After the modal unmounts, the Install button regains
+    // button (IP-TC-046). After the modal unmounts, the Install button regains
     // focus so the user can re-trigger or tab onward without losing context.
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: /install plugin/i })).not.toBeInTheDocument();

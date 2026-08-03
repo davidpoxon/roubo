@@ -3,7 +3,7 @@ import type { FilterFacet } from "@roubo/shared";
 import { loadAppShell, resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject, unregisterTestProject } from "./_support/project.js";
 
-// TC-175 (US-020, FR-067, NFR-018): a plugin built against host-API 1.0.0
+// IP-TC-175 (IP-US-020, IP-FR-067, IP-NFR-018): a plugin built against host-API 1.0.0
 // omits the `filterFacets` method. The host's RPC layer rejects with
 // MethodNotFound, which `plugin-filter-facets.ts` maps to the fixed
 // COMMON_FACET_FALLBACK set (Status, Label, Assignee, Type). The MethodNotFound
@@ -21,7 +21,7 @@ const COMMON_FACET_FALLBACK: ReadonlyArray<FilterFacet> = [
   { id: "type", label: "Type", type: "enum" },
 ];
 
-test.describe("TC-175: common-facet fallback when filterFacets is absent", () => {
+test.describe("IP-TC-175: common-facet fallback when filterFacets is absent", () => {
   let projectId: string;
 
   test.beforeEach(async ({ request }) => {

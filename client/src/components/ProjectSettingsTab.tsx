@@ -165,7 +165,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
   const jigsTileOverridden = isJigOverridden || hasIssueTypeOverrides;
   const jigsTileDirty = Boolean(isJigDirty || isIssueTypeMappingsDirty);
 
-  // FR-069: section title reflects the active plugin's display name; falls
+  // IP-FR-069: section title reflects the active plugin's display name; falls
   // back to "Source" when none is configured.
   const { data: integration } = useProjectIntegration(project.id);
   const sourceSectionTitle = integration?.plugin?.manifest?.name ?? "Source";

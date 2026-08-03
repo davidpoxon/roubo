@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject } from "./_support/test-project.js";
 
-// TC-178 (US-023, FR-072/073): the per-project Source tile collapses the
+// IP-TC-178 (IP-US-023, IP-FR-072/073): the per-project Source tile collapses the
 // legacy Connect / Configure / Choose sources buttons into a single primary
 // action whose label is driven by `derivePluginConnectionState`. The same
 // modal opens for every state. The label flip is exercised by walking the
@@ -28,12 +28,12 @@ test("the single primary action flips Connect → Configure → Sign in again wi
     pluginId: "github-com",
   });
 
-  // Sequence[0] = disconnected → primary button reads "Connect" (FR-072).
+  // Sequence[0] = disconnected → primary button reads "Connect" (IP-FR-072).
   await page.goto(`/projects/${projectId}/settings`);
   const primary = page.getByTestId("issue-source-primary-action");
   await expect(primary).toHaveText("Connect");
 
-  // FR-073: the legacy "Choose sources" button is gone. Same modal opens
+  // IP-FR-073: the legacy "Choose sources" button is gone. Same modal opens
   // for every label. Clicking the primary action mounts
   // PluginConfigureDialog regardless of state.
   await expect(page.getByRole("button", { name: "Choose sources" })).toHaveCount(0);

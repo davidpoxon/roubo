@@ -1,9 +1,9 @@
 import type { ListIssuesParams, PaginatedIssues } from "@roubo/shared";
 
-// FR-014: when a plugin is `errored` or `disabled` and the host can't reach it,
+// IP-FR-014: when a plugin is `errored` or `disabled` and the host can't reach it,
 // the routes layer falls back to the last successful first-page `listIssues`
 // response from this cache so the cut-list keeps rendering instead of going
-// blank on 502. The cache is intentionally first-page-only: TC-016's banner
+// blank on 502. The cache is intentionally first-page-only: IP-TC-016's banner
 // copy ("Showing the last successful issue snapshot...") talks about one
 // snapshot, not paginated state, and serving a stale page 2 with no fresh
 // page 1 would mislead the user. Paginated requests still 502 when the plugin

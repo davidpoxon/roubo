@@ -5,7 +5,7 @@ import {
   resetWithScenario,
 } from "./_support/scenario.js";
 
-// TC-159 (US-004/US-007, FR-004/008/009/010/016): community plugin install
+// IP-TC-159 (IP-US-004/IP-US-007, IP-FR-004/008/009/010/016): community plugin install
 // from a git URL. Driving the full Settings > Plugins > Install > git URL >
 // permissions-dialog flow requires an offline git-server stub and a clone
 // target the host can resolve without network. That harness lands with the

@@ -58,9 +58,9 @@ describe("applyGateOverrides - passthrough", () => {
   });
 });
 
-describe("applyGateOverrides - merge (AC1, TC-022)", () => {
+describe("applyGateOverrides - merge (AC1, VG-TC-022)", () => {
   it("merges two phase gates into one whose gating set is the deduped union", () => {
-    // TC-022: Phase 2 covers TC-019/020/024; Phase 3 covers TC-030/031.
+    // VG-TC-022: Phase 2 covers TC-019/020/024; Phase 3 covers TC-030/031.
     const loaded = [
       gate("PHASE-2", ["TC-019", "TC-020", "TC-024"], ["WU-031", "WU-032", "WU-033"]),
       gate("PHASE-3", ["TC-030", "TC-031"], ["WU-050", "WU-051"]),
@@ -166,8 +166,8 @@ describe("applyGateOverrides - merge (AC1, TC-022)", () => {
   });
 });
 
-describe("applyGateOverrides - split (AC2, TC-023)", () => {
-  // TC-023: Phase 2 covers WU-031..034 (TC-019/020/024/025).
+describe("applyGateOverrides - split (AC2, VG-TC-023)", () => {
+  // VG-TC-023: Phase 2 covers WU-031..034 (TC-019/020/024/025).
   const caseMap: WorkUnitCaseMap = new Map([
     ["WU-031", ["TC-019"]],
     ["WU-032", ["TC-020"]],

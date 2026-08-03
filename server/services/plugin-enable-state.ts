@@ -8,15 +8,15 @@ import {
 } from "@roubo/shared";
 import { atomicWrite, ensureDirs, getRouboDir } from "./state.js";
 
-// WU-046 / issue #137: persistent per-plugin enable state. See:
-//   .specifications/integration-plugins/prd.md (FR-059, FR-060, NFR-019)
+// IP-WU-046 / issue #137: persistent per-plugin enable state. See:
+//   .specifications/integration-plugins/prd.md (IP-FR-059, IP-FR-060, IP-NFR-019)
 //   .specifications/integration-plugins/architecture.md (lines 1027, 1064-1097, 1218)
 //
 // Pure persistence module. Reads/writes ~/.roubo/plugins-state.json via the
 // same atomicWrite discipline used by state.json, projects.json, and the
 // permissions/<id>.json files. Never serialised by routes or telemetry:
 // living outside state.json keeps it structurally absent from any future
-// state-snapshot endpoint (NFR-019).
+// state-snapshot endpoint (IP-NFR-019).
 
 const FILE_NAME = "plugins-state.json";
 

@@ -192,7 +192,7 @@ describe("CutListFilterBar", () => {
     });
   });
 
-  describe("COMMON_FACET_FALLBACK (TC-126)", () => {
+  describe("COMMON_FACET_FALLBACK (IP-TC-126)", () => {
     it("renders Status, Label, Assignee, Type sections when given the fallback set", async () => {
       const fallback: FilterFacet[] = [
         { id: "status", label: "Status", type: "enum" },

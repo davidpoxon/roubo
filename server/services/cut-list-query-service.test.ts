@@ -297,7 +297,7 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
     expect(hit.items[0].externalId).toBe("persisted");
   });
 
-  // FR-014 regression: the disk cache must not shadow the route's in-memory
+  // IP-FR-014 regression: the disk cache must not shadow the route's in-memory
   // errored/disabled stale-fallback. When the plugin is not `enabled`, a
   // first-page request must skip the disk read and run the live RPC (which on a
   // real errored plugin throws, so the route's catch serves the in-memory
@@ -529,7 +529,7 @@ describe("runtime disk-cache toggle (setDiskCacheEnabled / restoreBypassDefault)
 });
 
 describe("dedup + stall-detection parity with prior route behaviour", () => {
-  it("dedupes items within a page by (integrationId, externalId) (TC-023)", async () => {
+  it("dedupes items within a page by (integrationId, externalId) (IP-TC-023)", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue({
       items: [
         makeIssue({ externalId: "10" }),
@@ -546,7 +546,7 @@ describe("dedup + stall-detection parity with prior route behaviour", () => {
     expect(result.items.map((i) => i.externalId)).toEqual(["10", "11"]);
   });
 
-  it("marks stalled and nulls nextCursor when the plugin echoes the request cursor (TC-071)", async () => {
+  it("marks stalled and nulls nextCursor when the plugin echoes the request cursor (IP-TC-071)", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue({
       items: [makeIssue({ externalId: "1" })],
       nextCursor: "same",
