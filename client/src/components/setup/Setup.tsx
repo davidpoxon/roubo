@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useRef, useCallback, useState, useMemo } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import * as YAML from "yaml";
 import type { Diagnostic } from "@codemirror/lint";
 import type { RouboConfig } from "@roubo/shared";

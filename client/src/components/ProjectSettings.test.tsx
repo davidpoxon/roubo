@@ -8,7 +8,7 @@ import ProjectSettings from "./ProjectSettings";
 import type { JigMeta } from "@roubo/shared";
 import { DEFAULT_JIG_SETTINGS } from "@roubo/shared";
 
-vi.mock("react-router-dom", () => ({
+vi.mock("react-router", () => ({
   useNavigate: vi.fn(),
   useLocation: vi.fn(() => ({ hash: "" })),
   Link: ({ to, children, className }: { to: string; children: ReactNode; className?: string }) => (
@@ -80,7 +80,7 @@ vi.mock("./DirectoryPicker", () => ({
   ),
 }));
 
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router";
 import { useSettings } from "../hooks/useSettings";
 import {
   useGlobalJigs,

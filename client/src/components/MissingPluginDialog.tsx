@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { stampAriaModal } from "../lib/aria-modal";
 import { AlertTriangle, Download, Store } from "lucide-react";

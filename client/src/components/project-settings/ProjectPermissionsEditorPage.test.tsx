@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { ProjectPermissionsEditorPage } from "./ProjectPermissionsEditorPage";
 import { useProjectPermissions } from "../../hooks/useProjectPermissions";

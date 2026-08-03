@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { AlertCircle } from "lucide-react";
 
 // FR-014 / TC-016: cut-list banner shown when /api/projects/:id/issues is

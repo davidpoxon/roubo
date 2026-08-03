@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router";
 import { renderWithProviders } from "../test/renderWithProviders";
 import ProjectSettingsTab from "./ProjectSettingsTab";
 import type { RegisteredProject } from "@roubo/shared";
@@ -125,8 +125,8 @@ let mockBlocker = {
   proceed: vi.fn(),
   reset: vi.fn(),
 };
-vi.mock("react-router-dom", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("react-router-dom")>();
+vi.mock("react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router")>();
   return {
     ...actual,
     useBlocker: () => mockBlocker,

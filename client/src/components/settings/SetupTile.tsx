@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button } from "react-aria-components";
 import { FileCode, AlertCircle } from "lucide-react";
 import type { RouboConfig } from "@roubo/shared";

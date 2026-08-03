@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { ChevronLeft } from "lucide-react";
 import { Button, TextField, Input } from "react-aria-components";
 import Spinner from "../Spinner";

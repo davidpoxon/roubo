@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button } from "react-aria-components";
 import type { RegisteredProject, Bench } from "@roubo/shared";
 

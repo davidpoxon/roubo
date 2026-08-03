@@ -10,7 +10,7 @@ import {
 } from "react-aria-components";
 import { stampAriaModal } from "../lib/aria-modal";
 import { GitBranch, Play, Square, Trash2, X, RotateCcw } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import type { Bench, DirtyReason } from "@roubo/shared";
 import ComponentStatusDot from "./ComponentStatusDot";
 import NotificationIndicator from "./NotificationIndicator";

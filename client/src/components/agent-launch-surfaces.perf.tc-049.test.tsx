@@ -82,7 +82,7 @@ vi.mock("../hooks/useSettings", async () => {
   };
 });
 
-vi.mock("react-router-dom", () => ({
+vi.mock("react-router", () => ({
   useNavigate: () => vi.fn(),
   // Deep-links the settings page straight onto the Jigs tab, which is where the
   // default-agent picker and the Agent tools list live.

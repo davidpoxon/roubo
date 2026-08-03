@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { ChevronLeft } from "lucide-react";
 import { TextField, Label, Input } from "react-aria-components";
 import * as YAML from "yaml";

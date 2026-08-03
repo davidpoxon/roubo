@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router";
 import { Button } from "react-aria-components";
 import { GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
 import { useGlobalJig, useProjectJig } from "../../hooks/useJigs";

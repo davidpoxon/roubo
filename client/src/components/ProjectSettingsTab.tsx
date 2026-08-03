@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "react-aria-components";
-import { useParams, Routes, Route, useBlocker, useNavigate, Link } from "react-router-dom";
+import { useParams, Routes, Route, useBlocker, useNavigate, Link } from "react-router";
 import { Plus, Zap } from "lucide-react";
 import type { JigMeta, JigReference } from "@roubo/shared";
 import { useProjects } from "../hooks/useProjects";

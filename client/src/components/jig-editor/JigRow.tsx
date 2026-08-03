@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Button } from "react-aria-components";
 import { Trash2, Pencil, Loader2, FileText, Copy } from "lucide-react";
 import { GLOBAL_DEFAULT_JIG_ID } from "@roubo/shared";
