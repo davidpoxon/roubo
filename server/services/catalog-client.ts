@@ -656,18 +656,22 @@ export function prefetch(): Promise<void> {
 
 // A small, self-contained catalog fixture the offline-journey seam serves when
 // reachable (replacing the retired committed seed catalog it used to re-sign,
-// davidpoxon/roubo-development#621). Three well-formed entries are enough to walk
+// davidpoxon/roubo-development#621). Four well-formed entries are enough to walk
 // the degrade journey; the digests are placeholders (the offline journey lists
 // and pauses, it never installs).
 //
-// One entry per kind, deliberately (AP-FR-022, issue #522): the agent entry is
-// what gives an e2e run an agent-kind listing to render, and having all three
-// kinds side by side is what makes the kind-gated compatibility metadata
-// observable (only the agent card shows a CLI window, AP-TC-125). Its
-// `directory` points at the codex-cli e2e overlay because that is the one
-// agent-kind manifest in this repo, so `annotate()` derives the listing's
-// compatibility window from a REAL declared `agentCompatibility` block rather
-// than from an invented one.
+// Every kind is represented, deliberately (AP-FR-022, issue #522): the agent
+// entries are what give an e2e run an agent-kind listing to render, and having
+// all three kinds side by side is what makes the kind-gated compatibility
+// metadata observable (only an agent card shows a CLI window, AP-TC-125).
+//
+// TWO of them are agent-kind: `codex-cli` for the compatibility-line guards, and
+// `gemini-cli` for the AP-TC-115 marketplace-install-to-launch guard (#534),
+// which needs a listing of its own to read. Both point `directory` at a real
+// agent-kind overlay manifest in this repo
+// (e2e/fixtures/bundled-overlays/{codex-cli,gemini-cli}/), so `annotate()`
+// derives each listing's compatibility window from a REAL declared
+// `agentCompatibility` block rather than from an invented one.
 const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
   {
     id: "github-com",
@@ -712,6 +716,26 @@ const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
       directory: "e2e/fixtures/bundled-overlays/codex-cli",
     },
     provenance: "roubo/plugins@codex-cli",
+    integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+    verified: true,
+  },
+  {
+    // AP-TC-115 (#534): the agent-kind listing the marketplace-install-to-launch
+    // drift guard reads. Its `directory` points at the bundled overlay, so
+    // `readEntryManifest` enriches the listing with that manifest's declared
+    // compatibility window (floor 0.9.0, tested <= 1.2.3), which is the line
+    // S002 observes on the card.
+    id: "gemini-cli",
+    name: "Gemini CLI",
+    kind: "agent",
+    version: "0.1.0",
+    summary: "Run benches on the Gemini AI coding agent.",
+    source: {
+      type: "git",
+      url: "https://github.com/davidpoxon/roubo.git",
+      directory: "e2e/fixtures/bundled-overlays/gemini-cli",
+    },
+    provenance: "roubo/plugins@gemini-cli",
     integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
     verified: true,
   },

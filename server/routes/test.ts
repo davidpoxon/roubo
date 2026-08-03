@@ -476,7 +476,13 @@ function disableFailureFixturePlugins(): void {
 // ledger is the lever: forcing these disabled at every reset makes a second agent
 // something a spec asks for (POST /api/plugins/codex-cli/enable) and cannot leak
 // (NFR-018), even if an earlier run was interrupted mid-spec.
-const OPT_IN_AGENT_FIXTURE_PLUGIN_IDS = ["codex-cli"] as const;
+//
+// AP-TC-115 (#534) adds a third agent-kind fixture (gemini-cli) on the same
+// terms, for the marketplace-install-to-launch journey. Its overlay declares a
+// configSchema, which the other two deliberately do not, so leaving it enabled
+// would also add config controls to every page that renders the AI Agents
+// screen; the force-disable keeps that opt-in too.
+const OPT_IN_AGENT_FIXTURE_PLUGIN_IDS = ["codex-cli", "gemini-cli"] as const;
 function disableOptInAgentFixturePlugins(): void {
   for (const id of OPT_IN_AGENT_FIXTURE_PLUGIN_IDS) {
     pluginEnableState.setPluginEnabled(id, false);

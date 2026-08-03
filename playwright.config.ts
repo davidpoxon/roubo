@@ -25,8 +25,9 @@ const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bund
 // `resolveAgentCommand` (and to the probe) without installing anything. The stub
 // is deliberately NOT named `claude`, so prepending cannot shadow a real CLI.
 // AP-TC-113 (#683) adds a second pair on the same wiring: the `codex-cli`
-// overlay and `roubo-e2e-codex-stub`. Both hooks are directory walks, so a new
-// overlay directory and a new stub file are picked up with no config change.
+// overlay and `roubo-e2e-codex-stub`, and AP-TC-115 (#534) a third, `gemini-cli`
+// and `roubo-e2e-gemini-stub`. Both hooks are directory walks, so a new overlay
+// directory and a new stub file are picked up with no config change.
 const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 
 // Four surfaces share one config:
@@ -68,6 +69,14 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     writes the argv log, so neither half of the AP-TC-087 guard moves. It is
 //     installed but UNCONSENTED unless a spec consents it, which keeps
 //     `resolveLaunchAgentId`'s lone-available-agent fallback on Claude Code.
+//     A third agent-kind overlay, `gemini-cli` with `roubo-e2e-gemini-stub`
+//     (#534), sits alongside both for the AP-TC-115 marketplace-install-to-
+//     launch guard. It is the only one of the three declaring a configSchema
+//     (S005 asks for a schema-rendered form), and its property keys deliberately
+//     avoid the claude-code overlay's model / effort / mode / extraArgs so the
+//     page-wide `config-field-*` count AP-TC-087 reads cannot move. Like
+//     `codex-cli` it is force-disabled by every /test/__reset and its stub never
+//     writes the argv log.
 //   - project-settings: same built-app surface, holds the WU-068 specs
 //     (TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under

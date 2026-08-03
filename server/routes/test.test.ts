@@ -325,8 +325,9 @@ describe("POST /test/__reset", () => {
     // force-disabled so they don't auto-spawn and crash on every reset.
     // AP-TC-018 (#681): the second-agent fixture is force-disabled too, so a
     // spec that consented it cannot leave a second available agent behind.
+    // AP-TC-115 (#534) adds a third (gemini-cli) on the same terms.
     const FAILURE_FIXTURE_IDS = ["broken-plugin", "errored-component-stub"];
-    const OPT_IN_AGENT_FIXTURE_IDS = ["codex-cli"];
+    const OPT_IN_AGENT_FIXTURE_IDS = ["codex-cli", "gemini-cli"];
     expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(
       BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length + OPT_IN_AGENT_FIXTURE_IDS.length,
     );
@@ -463,10 +464,16 @@ describe("POST /test/__reset", () => {
   // the next spec. TC-154 (#222): disableFailureFixturePlugins() also fires
   // regardless of the bundledPluginsDisabled flag, so the call count includes
   // those ids (broken-plugin, errored-component-stub) as well, and AP-TC-018
-  // (#681) adds the opt-in second-agent fixture (codex-cli) to the same set.
+  // (#681) plus AP-TC-115 (#534) add the opt-in agent fixtures (codex-cli,
+  // gemini-cli) to the same set.
   it("writes every bundled plugin id as disabled when bundledPluginsDisabled: true", async () => {
     process.env.ROUBO_E2E = "1";
-    const FORCED_DISABLED_IDS = ["broken-plugin", "errored-component-stub", "codex-cli"];
+    const FORCED_DISABLED_IDS = [
+      "broken-plugin",
+      "errored-component-stub",
+      "codex-cli",
+      "gemini-cli",
+    ];
 
     const res = await request(app).post("/test/__reset").send({ bundledPluginsDisabled: true });
 
