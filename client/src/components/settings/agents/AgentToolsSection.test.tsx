@@ -184,13 +184,31 @@ describe("AgentToolsSection", () => {
     expect(screen.getAllByTestId("agent-tool-unresolved")).toHaveLength(3);
   });
 
+  // AP-TC-024 S003-O02: a pinned jig reads as its display name, unprefixed.
   it("summarises a preset's parameter overrides and jig behavior", () => {
+    setPresets([
+      {
+        id: "at-1",
+        name: "Deep work",
+        agent: "claude-code",
+        params: { mode: "plan" },
+        jig: "refactor-pass",
+      },
+    ]);
+    render(<AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />);
+    const row = screen.getAllByTestId("agent-tool-row").at(-1) as HTMLElement;
+    expect(within(row).getByText(/plan · Refactor pass/)).toBeTruthy();
+  });
+
+  // A jig that no longer resolves still shows, by id: better a stale id than a
+  // row that silently stops mentioning the jig it is still pinned to.
+  it("falls back to the jig id when the pinned jig is gone", () => {
     setPresets([
       { id: "at-1", name: "Deep work", agent: "claude-code", params: { mode: "plan" }, jig: "r1" },
     ]);
     render(<AgentToolsSection agents={[CLAUDE]} defaultAgent={CLAUDE} jigs={JIGS} />);
     const row = screen.getAllByTestId("agent-tool-row").at(-1) as HTMLElement;
-    expect(within(row).getByText(/plan · jig: r1/)).toBeTruthy();
+    expect(within(row).getByText(/plan · r1/)).toBeTruthy();
   });
 
   // AP-TC-025: the editor records binding, params and jig behavior.
