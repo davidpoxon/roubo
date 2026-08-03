@@ -6,8 +6,8 @@ import type { ReactNode } from "react";
 import { useDeepLink } from "./useDeepLink";
 
 const mockNavigate = vi.fn();
-vi.mock("react-router-dom", async () => {
-  const actual = await import("react-router-dom");
+vi.mock("react-router", async () => {
+  const actual = await import("react-router");
   return { ...actual, useNavigate: () => mockNavigate };
 });
 

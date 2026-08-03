@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Button, DialogTrigger } from "react-aria-components";
 import { Plug, AlertTriangle, Download } from "lucide-react";
 import type { IntegrationCaptionKey, ProjectIntegrationState } from "@roubo/shared";

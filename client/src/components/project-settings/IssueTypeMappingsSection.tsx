@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { useIssueTypes } from "../../hooks/useIssueTypes";
 import { useJigs } from "../../hooks/useJigs";
 import Spinner from "../Spinner";

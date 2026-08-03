@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button, DialogTrigger, Popover } from "react-aria-components";
 import { ArrowLeft, Plus, Database, Server, Globe, Users } from "lucide-react";
 import type { ComponentConfig, ComponentType, ToolConfig, UserConfig } from "@roubo/shared";

@@ -1,5 +1,5 @@
 import { Button } from "react-aria-components";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { OctagonAlert } from "lucide-react";
 import type { AgentLaunchFailure } from "@roubo/shared";
 

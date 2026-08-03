@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 const MENU_NAV_ALLOWLIST = new Set(["/settings", "/updates"]);
 

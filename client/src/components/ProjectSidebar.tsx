@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import { Button } from "react-aria-components";
 import { Layers, Settings, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useProjects } from "../hooks/useProjects";

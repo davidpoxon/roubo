@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { ProjectPermissionsInlineSection } from "./ProjectPermissionsInlineSection";
 import { useProjectPermissions } from "../../hooks/useProjectPermissions";

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { ModalOverlay, Modal, Dialog, Heading, Button } from "react-aria-components";
 import { stampAriaModal } from "../lib/aria-modal";
 import { FolderOpen, Check, AlertCircle, Loader2 } from "lucide-react";

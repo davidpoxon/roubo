@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { renderWithProviders } from "../test/renderWithProviders";
 import IssueQueuePanel from "./IssueQueuePanel";
 import { ApiError } from "../lib/api";

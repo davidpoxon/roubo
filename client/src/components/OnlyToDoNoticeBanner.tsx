@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "react-aria-components";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { X } from "lucide-react";
 import { ONLY_TO_DO_NOTICE_MARKER } from "@roubo/shared";
 import { useMigrationStatus } from "../hooks/useMigrationStatus";

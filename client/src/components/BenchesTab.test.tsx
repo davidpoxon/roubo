@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route, Outlet } from "react-router-dom";
+import { MemoryRouter, Routes, Route, Outlet } from "react-router";
 import type { Bench, RouboConfig } from "@roubo/shared";
 import type { ProjectOutletContext } from "./BenchDashboard";
 import { createEmptyFilters } from "../lib/cut-list-filters";
