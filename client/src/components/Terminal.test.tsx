@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import Terminal from "./Terminal";
 
 const mockTerminalInstance = {
@@ -232,5 +232,87 @@ describe("Terminal", () => {
       JSON.stringify({ type: "resize", cols: 80, rows: 24 }),
     );
     restore();
+  });
+});
+
+describe("Terminal: waiting affordance (#1119)", () => {
+  /** Capture the connection callbacks so live frames can be driven by hand. */
+  function captureConnection() {
+    const captured: {
+      onReplay: (lines: string[], exitCode?: number) => void;
+      onMessage: (msg: { type: string; data?: string; code?: number }) => void;
+    } = { onReplay: () => {}, onMessage: () => {} };
+    mockUseTerminalConnection.mockImplementation(
+      ({
+        onReplay,
+        onMessage,
+      }: {
+        onReplay: (lines: string[], exitCode?: number) => void;
+        onMessage: (msg: { type: string; data?: string; code?: number }) => void;
+      }) => {
+        captured.onReplay = onReplay;
+        captured.onMessage = onMessage;
+        return { wsRef: { current: null }, state: "connected", attempt: 0, retry: vi.fn() };
+      },
+    );
+    return captured;
+  }
+
+  it("shows no waiting strip when the session is not waiting", () => {
+    render(<Terminal sessionId="sess-1" active />);
+    expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
+  });
+
+  it("shows the waiting strip for the active session when it is waiting", () => {
+    render(<Terminal sessionId="sess-1" active waiting />);
+    expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
+  });
+
+  it("keeps the strip after the waiting prop drops, since the active tab's notification is dismissed on poll", () => {
+    const { rerender } = render(<Terminal sessionId="sess-1" active waiting />);
+    rerender(<Terminal sessionId="sess-1" active waiting={false} />);
+    expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
+  });
+
+  it("clears the strip when the user types", () => {
+    let capturedDataCallback: (data: string) => void = () => {};
+    mockTerminalInstance.onData.mockImplementation(((cb: (data: string) => void) => {
+      capturedDataCallback = cb;
+      return { dispose: vi.fn() };
+    }) as never);
+    render(<Terminal sessionId="sess-1" active waiting />);
+    expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
+
+    act(() => capturedDataCallback("y"));
+    expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
+  });
+
+  it("clears the strip on fresh live output, mirroring the server-side dismissal", () => {
+    const captured = captureConnection();
+    render(<Terminal sessionId="sess-1" active waiting />);
+    expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
+
+    act(() => captured.onMessage({ type: "output", data: "thinking...\r\n" }));
+    expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
+  });
+
+  it("does not clear the strip on a replay, which fires again on every reconnect", () => {
+    const captured = captureConnection();
+    render(<Terminal sessionId="sess-1" active waiting />);
+
+    act(() => captured.onReplay(["scrollback\r\n"]));
+    expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
+  });
+
+  it("yields the top of the pane to the reconnect banner", () => {
+    mockUseTerminalConnection.mockReturnValue({
+      wsRef: { current: null },
+      state: "reconnecting",
+      attempt: 1,
+      retry: vi.fn(),
+    } as never);
+    render(<Terminal sessionId="sess-1" active waiting />);
+    expect(screen.getByTestId("reconnect-banner")).toBeInTheDocument();
+    expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
   });
 });

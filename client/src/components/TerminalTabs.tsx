@@ -195,6 +195,23 @@ export default function TerminalTabs({
     }
   }, [activeTab, projectId, benchId, dismissNotification, notifications]);
 
+  /**
+   * Whether a session is waiting on the user, for the pane strip (#1119). The
+   * tab dot is suppressed on the active tab and the effect above dismisses that
+   * tab's notifications on the next poll, so the pane is the only surface left
+   * for the session the user is actually looking at. `Terminal` latches this,
+   * which is what survives that dismissal.
+   */
+  const isSessionWaiting = useCallback(
+    (sessionId: string) =>
+      notifications.some(
+        (n) =>
+          n.sourceSessionId === sessionId &&
+          (n.type === "agent-waiting" || n.type === "terminal-waiting"),
+      ),
+    [notifications],
+  );
+
   /** The structured failure a refused launch carries, when it carries one. */
   const readLaunchFailure = (err: unknown): AgentLaunchFailure | null => {
     if (!(err instanceof ApiError) || !err.details || typeof err.details !== "object") return null;
@@ -721,6 +738,7 @@ export default function TerminalTabs({
               <Terminal
                 sessionId={session.id}
                 active={activeTab === session.id}
+                waiting={isSessionWaiting(session.id)}
                 onRetry={() => handleRetrySession(session)}
               />
             </div>

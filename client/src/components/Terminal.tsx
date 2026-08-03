@@ -6,16 +6,26 @@ import "@xterm/xterm/css/xterm.css";
 import type { AgentLaunchFailure } from "@roubo/shared";
 import { useTerminalConnection } from "../hooks/useTerminalConnection";
 import ReconnectBanner from "./ReconnectBanner";
+import WaitingBanner from "./WaitingBanner";
 import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
 
 export default function Terminal({
   sessionId,
   active,
+  waiting = false,
   launchFailure: initialLaunchFailure,
   onRetry,
 }: {
   sessionId: string;
   active: boolean;
+  /**
+   * The session carries an agent-waiting/terminal-waiting notification. Latched
+   * rather than read straight through: the tabs view dismisses the active tab's
+   * notifications as soon as it polls them, so a strip driven directly off this
+   * prop would flash for a single poll on the one session the user is looking
+   * at (#1119).
+   */
+  waiting?: boolean;
   /**
    * A failure that happened before any session existed (a blocked below-floor
    * launch, a missing binary), so there is no socket to learn it from. A failure
@@ -26,6 +36,19 @@ export default function Terminal({
 }) {
   const [socketFailure, setSocketFailure] = useState<AgentLaunchFailure | null>(null);
   const launchFailure = socketFailure ?? initialLaunchFailure;
+  // Latched on the rising edge of `waiting`, cleared only by the two signals
+  // that mean the session is no longer waiting on the user: the user typing,
+  // and fresh live output. That mirrors the server, which dismisses waiting
+  // notifications the moment fresh PTY output arrives. The rising edge is
+  // detected during render (React's "adjust state when a prop changes" pattern)
+  // rather than in an effect, so the strip appears in the same commit as the
+  // prop and never costs a second paint.
+  const [waitingLatched, setWaitingLatched] = useState(waiting);
+  const [lastWaiting, setLastWaiting] = useState(waiting);
+  if (waiting !== lastWaiting) {
+    setLastWaiting(waiting);
+    if (waiting) setWaitingLatched(true);
+  }
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -141,6 +164,10 @@ export default function Terminal({
       const term = termRef.current;
       if (!term) return;
       if (msg.type === "output" && msg.data) {
+        // Live output only: `onReplay` deliberately does not clear the latch,
+        // since a replay fires again on every WS reconnect and would otherwise
+        // erase a legitimate waiting strip.
+        setWaitingLatched(false);
         term.write(msg.data);
       } else if (msg.type === "exit") {
         term.write(`\r\n\x1b[90m[Process exited with code ${msg.code}]\x1b[0m\r\n`);
@@ -162,6 +189,8 @@ export default function Terminal({
     if (!term) return;
 
     const inputDisposable = term.onData((data) => {
+      // The user replying is the other end of "waiting for your input".
+      setWaitingLatched(false);
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "input", data }));
@@ -198,14 +227,19 @@ export default function Terminal({
   }, [state, wsRef]);
 
   const showBanner = state === "reconnecting" || state === "ended";
+  // Both strips are absolutely positioned at the top of the pane, so the
+  // connection state wins and they never stack.
+  const showWaiting = waitingLatched && !showBanner;
+  const topStrip = showBanner || showWaiting;
 
   return (
     <div className="relative h-full w-full min-h-[300px]">
       <ReconnectBanner state={state} attempt={attempt} onRetry={retry} />
+      {showWaiting && <WaitingBanner />}
       <div
         ref={containerRef}
-        className={`h-full w-full ${showBanner ? "pt-8" : ""}`}
-        style={{ padding: showBanner ? undefined : "4px" }}
+        className={`h-full w-full ${topStrip ? "pt-8" : ""}`}
+        style={{ padding: topStrip ? undefined : "4px" }}
       />
       {launchFailure && (
         <AgentLaunchFailurePanel
