@@ -151,40 +151,6 @@ export async function readAppAgentTools(
   return body.agentTools ?? [];
 }
 
-/** One app-level jig, as `POST /api/jigs` accepts it. */
-export interface AppJigInput {
-  name: string;
-  description: string;
-  content: string;
-}
-
-/**
- * Create an app-level jig through the real route, and answer the id the server
- * minted for it (`slugify(name)`, jig-manager.ts).
- *
- * App jigs live in `~/.roubo-dev/<checkout>/jigs/*.md`, which `/test/__reset`
- * does not clear, so a jig created here has to be removed by the spec that
- * created it (see {@link deleteAppJig}) or the next run's create fails as a
- * duplicate name and the leftover shows up in every other spec's jig picker
- * (NFR-018).
- */
-export async function createAppJig(request: APIRequestContext, jig: AppJigInput): Promise<string> {
-  const res = await request.post("/api/jigs", { data: jig });
-  expect(res.status(), `POST /api/jigs (${jig.name})`).toBe(201);
-  const body = (await res.json()) as { id: string };
-  return body.id;
-}
-
-/**
- * Remove an app-level jig. A 404 is success: the point is that the jig is gone,
- * and a teardown that throws on an already-absent jig would mask the failure the
- * test itself is reporting.
- */
-export async function deleteAppJig(request: APIRequestContext, jigId: string): Promise<void> {
-  const res = await request.delete(`/api/jigs/${jigId}`);
-  expect([204, 404], `DELETE /api/jigs/${jigId}`).toContain(res.status());
-}
-
 /**
  * Acknowledge an agent overlay's declared permissions. All of them declare an
  * empty permission set (no hosts, no credential slots, no filesystem paths,
