@@ -89,7 +89,7 @@ interface IssueTypeEntry {
 
 // FR-075: alerts render with the friendly chip labels "CodeQL",
 // "Secret scanning", and "Dependabot". The github plugin mapper emits the
-// `security-*` keys (plugins/_shared-github/src/mapper.ts).
+// `security-*` keys (plugins/github-com/src/shared/mapper.ts).
 const ISSUE_TYPE_ENTRIES: Record<string, IssueTypeEntry> = {
   bug: { icon: Bug },
   feature: { icon: Sparkles },

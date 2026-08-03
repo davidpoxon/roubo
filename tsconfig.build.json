@@ -1,4 +1,4 @@
 {
   "files": [],
-  "references": [{ "path": "./plugins/_shared-github" }, { "path": "./plugins/github-com" }]
+  "references": [{ "path": "./plugins/github-com" }]
 }

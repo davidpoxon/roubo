@@ -48,14 +48,12 @@ VITEST_VERSION="4.1.9"
 
 case "${PLUGIN}" in
   github-com)
-    EXTRA_DEPS='"@roubo/shared-github": "file:./vendor/shared-github", "octokit": "5.0.5",'
+    EXTRA_DEPS='"octokit": "5.0.5",'
     SMOKE_TEST_FILTER="src/__tests__/"
-    VENDOR_SHARED_GITHUB=1
     ;;
   *)
     EXTRA_DEPS=''
     SMOKE_TEST_FILTER="src/translate.test.ts"
-    VENDOR_SHARED_GITHUB=0
     ;;
 esac
 
@@ -71,7 +69,8 @@ fi
 # Self-contained tsconfig: the in-repo plugin tsconfigs extend
 # ../../tsconfig.json, which does not exist standalone, so inline the merged
 # compiler options here (root + plugin, plugin wins on conflict). Project
-# references are dropped: the vendored package below ships prebuilt types.
+# references are dropped: every helper the plugin needs now lives under its own
+# src/, so there is nothing left to reference.
 write_tsconfig() {
   cat > "$1/tsconfig.json" <<'JSON'
 {
@@ -93,43 +92,12 @@ write_tsconfig() {
     "types": ["node"]
   },
   "include": ["./src/**/*.ts"],
-  "exclude": ["dist", "./src/**/*.test.ts", "./src/__tests__/**"]
+  "exclude": ["dist", "./src/**/*.test.ts", "./src/**/__tests__/**"]
 }
 JSON
 }
 
 write_tsconfig "${SMOKE_DIR}"
-
-# `@roubo/shared-github` is an internal helper deliberately NOT published (it is
-# not part of the public SDK surface), so github-com cannot resolve it from the
-# registry. Vendor and build it from source against the SAME published SDK, then
-# depend on it by file:. Only the @roubo/plugin-sdk and @roubo/shared links are
-# asserted registry-resolved below; this one is expected to stay local.
-if [[ "${VENDOR_SHARED_GITHUB}" == "1" ]]; then
-  VENDOR_DIR="${SMOKE_DIR}/vendor/shared-github"
-  mkdir -p "${VENDOR_DIR}"
-  cp -R "${REPO_ROOT}/plugins/_shared-github/src" "${VENDOR_DIR}/src"
-  cp "${REPO_ROOT}/plugins/_shared-github/tsup.config.ts" "${VENDOR_DIR}/tsup.config.ts"
-  write_tsconfig "${VENDOR_DIR}"
-  cat > "${VENDOR_DIR}/package.json" <<JSON
-{
-  "name": "@roubo/shared-github",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "dependencies": {
-    "@roubo/plugin-sdk": "${VERSION}"
-  },
-  "devDependencies": {
-    "@types/node": "${TYPES_NODE_VERSION}",
-    "tsup": "${TSUP_VERSION}",
-    "typescript": "${TYPESCRIPT_VERSION}"
-  }
-}
-JSON
-fi
 
 # Standalone package.json: pin both published packages at the release version so
 # install can only succeed from the live registry.
@@ -169,10 +137,6 @@ install_with_retry() {
     sleep 15
   done
 }
-
-if [[ "${VENDOR_SHARED_GITHUB}" == "1" ]]; then
-  ( cd "${VENDOR_DIR}" && install_with_retry && npx tsup && npx tsc --emitDeclarationOnly )
-fi
 
 cd "${SMOKE_DIR}"
 install_with_retry
