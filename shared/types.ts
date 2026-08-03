@@ -399,8 +399,11 @@ export interface SignedKeyRing {
 
 /**
  * The agent-CLI compatibility window a marketplace listing renders PRE-INSTALL
- * (AP-FR-022, issue #522): the manifest-declared version floor and tested
- * ceiling, and nothing else.
+ * (AP-FR-022, issue #522): the declared version floor and tested ceiling, and
+ * nothing else. Since issue #722 the same shape types both sources of that
+ * window, the manifest-derived one and the author-declared one a catalog entry
+ * may carry, so a not-yet-installed release listing can render bounds before any
+ * manifest is in reach.
  *
  * Deliberately NOT `AgentCompatibilityState` (the AI Agents screen's shape): a
  * marketplace listing describes a plugin that has not been installed, so nothing
@@ -445,12 +448,14 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // or integration listing can never render CLI compatibility metadata
   // (AP-TC-125). It narrows the OPTIONAL entry field of the same name to a
   // required, always-present projection, and it is the one field here with two
-  // sources: `annotate()` prefers the manifest-derived window (authoritative for
-  // what is on the machine) and falls back to the entry's own declaration, so a
+  // sources: `annotate()` answers from the MANIFEST whenever one is readable
+  // (authoritative for what is on the machine, empty answer included) and only
+  // falls back to the entry's own declaration when no manifest is in reach, so a
   // not-yet-installed release listing still shows what its author declared
-  // (issue #722). `null` for every other kind, and when neither source yields a
-  // bound (no readable manifest and no entry declaration, or a manifest that
-  // declares no bounds at all): the one null branch the card renders its
+  // (issue #722) while an installed plugin's card can never contradict its own
+  // on-disk manifest. `null` for every other kind, and whenever the answering
+  // source yields no bound (a readable manifest declaring none, or no readable
+  // manifest and no entry declaration): the one null branch the card renders its
   // "compatibility not declared" fallback from (AP-TC-121), so an unreachable
   // manifest and an undeclared window read the same rather than one of them
   // rendering an empty row.

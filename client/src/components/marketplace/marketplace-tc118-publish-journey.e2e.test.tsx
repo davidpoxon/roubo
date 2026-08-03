@@ -20,25 +20,24 @@
 // boundary mocked. useToast is mocked so addToast can be captured and no console
 // noise escapes.
 //
-// ── Reconciliation of S005-O02 ──
+// ── S005-O02 and where it is pinned ──
 //
-// "Its declared compatibility metadata is displayed on the listing" is not
-// satisfiable as shipped for a GENUINELY PUBLISHED plugin. The server derives
+// "Its declared compatibility metadata is displayed on the listing" was once not
+// satisfiable as shipped for a GENUINELY PUBLISHED plugin: the server derived
 // `agentCompatibility` from the entry's declared manifest, and that manifest is
-// only in reach for an installed record or a `git` source with a local directory;
-// a published third-party plugin is a `source.type: "release"` entry that is not
-// installed yet, and `MarketplaceCatalogEntry` carries no compatibility field. So
-// the projection is null and the card renders its "compatibility not declared"
-// fallback (AP-TC-121). Both halves of the CARD's behaviour are asserted below:
-// it renders the declared floor and ceiling the moment the projection supplies
-// them, and it renders the fallback when the projection is null. Both fixtures
-// are hand-built listings, so neither exercises the server projection and neither
-// changes when the gap closes. The assertion that genuinely pins the shipped
-// release-entry projection (and that will fail when the gap closes) is the server
-// half, server/services/marketplace-third-party-publish-tc118-journey.e2e.test.ts
-// ("S005-O02 (reconciled)"), which drives the real `listCatalog()`. Closing the
-// gap means widening the catalog entry, which is product work owned by #522 and
-// filed as davidpoxon/roubo-development#722.
+// only in reach for an installed record or a `git` source with a local directory,
+// while a published third-party plugin is a `source.type: "release"` entry that is
+// not installed yet. davidpoxon/roubo-development#722 closed that gap by carrying
+// the author-declared window on `MarketplaceCatalogEntry` itself, with `annotate()`
+// preferring the manifest and falling back to the entry, so the "compatibility not
+// declared" fallback (AP-TC-121) is now reserved for a window neither source
+// declares. Both halves of the CARD's behaviour are asserted below: it renders the
+// declared floor and ceiling the moment the projection supplies them, and it
+// renders the fallback when the projection is null. Both fixtures are hand-built
+// listings, so neither exercises the server projection; what pins the shipped
+// release-entry projection is the server half,
+// server/services/marketplace-third-party-publish-tc118-journey.e2e.test.ts
+// ("S005-O02"), which drives the real `listCatalog()`.
 //
 // Failure-output contract (AP-FR-020): every assertion carries an
 // expected-vs-actual message naming the diverged step (and its observation id)
@@ -119,7 +118,8 @@ const FIRST_PARTY_STATUS: MarketplaceSourceStatus = {
  * The newly published agent listing as the server projects it. `verified: false`
  * because a third-party submission is not first-party curated, so it wears the
  * Unverified treatment; `agentCompatibility` is the derived pre-install window,
- * which is null for a release entry today (see the S005-O02 reconciliation above).
+ * left null in this fixture only so the fallback branch below has something to
+ * exercise (the server projects a real window for a release entry, see above).
  */
 function agentListing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
   return {
@@ -289,14 +289,13 @@ describe("AP-TC-118 S005/S006: the published agent plugin's marketplace listing 
     expect(compatibility.textContent).toContain(TESTED_CEILING);
   });
 
-  it("S005-O02 (reconciled): a listing whose projected window is null renders the undeclared fallback", async () => {
-    // The card half of the reconciliation, and only that. A genuinely published
-    // plugin projects a null window today (the server cannot read a release
-    // entry's manifest pre-install), and this pins what the card does with a null:
-    // the "compatibility not declared" fallback (AP-TC-121). The fixture hardcodes
-    // the null, so this test does NOT observe the projection and will keep passing
-    // after davidpoxon/roubo-development#722 widens it. The assertion that fails
-    // when #722 lands is the server one, over the real `listCatalog()` result.
+  it("S005-O02: a listing whose projected window is null renders the undeclared fallback", async () => {
+    // The card half, and only that: what the card does with a null projection,
+    // which is the "compatibility not declared" fallback (AP-TC-121). Since #722
+    // that fallback is reserved for a window NEITHER the manifest nor the catalog
+    // entry declares. The fixture hardcodes the null, so this test does not observe
+    // the projection at all; the server half pins that, over the real
+    // `listCatalog()` result.
     setCatalog([agentListing()]);
     const { findByTestId, getAllByTestId } = renderMarketplace();
     await findByTestId("marketplace-grid");

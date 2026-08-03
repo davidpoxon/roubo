@@ -194,11 +194,14 @@ function readEntryManifest(
  * issue #522), read off the entry's declared manifest through the same
  * `readEntryManifest()` seam `declaredPermissions` / `lifecycle` already use.
  *
- * Returns null when the manifest is unavailable AND when it declares no bounds
- * at all, so "we could not read it" and "the author declared nothing" collapse
- * into the single state the card has a fallback for (AP-TC-121). The manifest's
- * `probe` directive is deliberately dropped: it tells the host how to detect a
- * version, which is not something a consumer browsing the catalog reads.
+ * Returns null both when the manifest is unavailable and when it declares no
+ * bounds at all. `annotate()` deliberately does NOT rely on those two collapsing
+ * (issue #722): it calls this helper only once a manifest is READABLE, so a null
+ * from here means a readable manifest declaring nothing, which is the state the
+ * card has its fallback for (AP-TC-121). An unreachable manifest is answered by
+ * `entryAgentWindow()` below instead. The manifest's `probe` directive is
+ * deliberately dropped: it tells the host how to detect a version, which is not
+ * something a consumer browsing the catalog reads.
  *
  * This seam only reaches a manifest for an installed record or a `git` source
  * carrying a local `directory`, which a genuinely published third-party plugin
@@ -287,8 +290,20 @@ function annotate(
   // release-sourced agent show its floor and ceiling at all, since
   // `readEntryManifest()` cannot reach that plugin's manifest pre-install. Both
   // collapse to the same single null (AP-TC-121) when neither declares a bound.
+  //
+  // The branch is on whether a manifest was READABLE, deliberately, not on
+  // whether it yielded a window. `declaredAgentWindow()` returns null both for
+  // "no manifest in reach" and for "a manifest that declares no bounds", so
+  // falling back on its null would let a stale catalog entry supply a window for
+  // an installed plugin whose own manifest declares none, which is exactly the
+  // disagreement with what is on disk that preferring the manifest exists to
+  // prevent. Once a manifest is in reach it answers on its own, empty included.
   const agentCompatibility =
-    entry.kind === "agent" ? (declaredAgentWindow(manifest) ?? entryAgentWindow(entry)) : null;
+    entry.kind !== "agent"
+      ? null
+      : manifest !== null
+        ? declaredAgentWindow(manifest)
+        : entryAgentWindow(entry);
   return {
     ...entry,
     installed,
