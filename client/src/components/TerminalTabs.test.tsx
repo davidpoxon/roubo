@@ -13,7 +13,14 @@ vi.mock("../hooks/useToast");
 vi.mock("../hooks/useAgentTools");
 vi.mock("../hooks/useProjectAgents");
 vi.mock("../hooks/useProjectDefaultJig");
-vi.mock("./Terminal", () => ({ default: () => null }));
+// Stands in for the real pane, surfacing only the `waitingNotificationId` prop
+// the pane strip is driven by (#1119).
+vi.mock("./Terminal", () => ({
+  default: ({ waitingNotificationId }: { waitingNotificationId?: string }) =>
+    waitingNotificationId !== undefined ? (
+      <div data-testid="pane-waiting" data-notification-id={waitingNotificationId} />
+    ) : null,
+}));
 
 import type {
   AgentLaunchFailure,
@@ -966,6 +973,114 @@ describe("TerminalTabs: notification indicators", () => {
 
     const agentTab = screen.getByText("Acme Agent 1").closest("div");
     expect(agentTab?.querySelector('[role="img"]')).not.toBeNull();
+  });
+
+  it("marks the ACTIVE session's pane as waiting, where the tab dot is suppressed (#1119)", () => {
+    vi.mocked(useTerminalSessions).mockReturnValue({
+      data: [
+        {
+          id: "session-1",
+          benchKey: "p:1",
+          label: "Terminal 1",
+          createdAt: "2024-01-01",
+          command: "bash",
+          status: "live",
+        },
+      ],
+    } as unknown as ReturnType<typeof useTerminalSessions>);
+
+    const notifications = [
+      {
+        id: "n1",
+        type: "agent-waiting" as const,
+        priority: "action-needed" as const,
+        sourceSessionId: "session-1",
+        createdAt: "2024-01-01T00:00:00Z",
+      },
+    ];
+    renderWithProviders(
+      <TerminalTabs
+        projectId="proj"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+        notifications={notifications}
+      />,
+    );
+
+    expect(screen.getByTestId("pane-waiting")).toHaveAttribute("data-notification-id", "n1");
+  });
+
+  it("does not mark a pane as waiting for a notification that is not a waiting one", () => {
+    vi.mocked(useTerminalSessions).mockReturnValue({
+      data: [
+        {
+          id: "session-1",
+          benchKey: "p:1",
+          label: "Terminal 1",
+          createdAt: "2024-01-01",
+          command: "bash",
+          status: "live",
+        },
+      ],
+    } as unknown as ReturnType<typeof useTerminalSessions>);
+
+    const notifications = [
+      {
+        id: "n1",
+        type: "agent-exited" as const,
+        priority: "info" as const,
+        sourceSessionId: "session-1",
+        createdAt: "2024-01-01T00:00:00Z",
+      },
+    ];
+    renderWithProviders(
+      <TerminalTabs
+        projectId="proj"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+        notifications={notifications}
+      />,
+    );
+
+    expect(screen.queryByTestId("pane-waiting")).not.toBeInTheDocument();
+  });
+
+  it("does not mark a pane as waiting for another session's notification", () => {
+    vi.mocked(useTerminalSessions).mockReturnValue({
+      data: [
+        {
+          id: "session-1",
+          benchKey: "p:1",
+          label: "Terminal 1",
+          createdAt: "2024-01-01",
+          command: "bash",
+          status: "live",
+        },
+      ],
+    } as unknown as ReturnType<typeof useTerminalSessions>);
+
+    const notifications = [
+      {
+        id: "n1",
+        type: "terminal-waiting" as const,
+        priority: "action-needed" as const,
+        sourceSessionId: "session-other",
+        createdAt: "2024-01-01T00:00:00Z",
+      },
+    ];
+    renderWithProviders(
+      <TerminalTabs
+        projectId="proj"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+        notifications={notifications}
+      />,
+    );
+
+    expect(screen.queryByTestId("pane-waiting")).not.toBeInTheDocument();
   });
 
   it("does not show notification indicator on the active tab", () => {

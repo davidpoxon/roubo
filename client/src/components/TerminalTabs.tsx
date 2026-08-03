@@ -195,6 +195,27 @@ export default function TerminalTabs({
     }
   }, [activeTab, projectId, benchId, dismissNotification, notifications]);
 
+  /**
+   * The id of the waiting notification a session carries, for the pane strip
+   * (#1119). The tab dot is suppressed on the active tab and the effect above
+   * dismisses that tab's notifications on the next poll, so the pane is the
+   * only surface left for the session the user is actually looking at.
+   * `Terminal` latches this, which is what survives that dismissal.
+   *
+   * The id rather than a boolean, so a dismissal and a fresh waiting
+   * notification that both land inside one poll gap still read as a change and
+   * re-arm the latch.
+   */
+  const waitingNotificationId = useCallback(
+    (sessionId: string) =>
+      notifications.find(
+        (n) =>
+          n.sourceSessionId === sessionId &&
+          (n.type === "agent-waiting" || n.type === "terminal-waiting"),
+      )?.id,
+    [notifications],
+  );
+
   /** The structured failure a refused launch carries, when it carries one. */
   const readLaunchFailure = (err: unknown): AgentLaunchFailure | null => {
     if (!(err instanceof ApiError) || !err.details || typeof err.details !== "object") return null;
@@ -721,6 +742,7 @@ export default function TerminalTabs({
               <Terminal
                 sessionId={session.id}
                 active={activeTab === session.id}
+                waitingNotificationId={waitingNotificationId(session.id)}
                 onRetry={() => handleRetrySession(session)}
               />
             </div>
