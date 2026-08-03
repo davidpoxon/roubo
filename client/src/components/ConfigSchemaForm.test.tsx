@@ -21,6 +21,21 @@ function triggerIn(testId: string): HTMLButtonElement {
   return button as HTMLButtonElement;
 }
 
+/**
+ * The value a select is actually SHOWING. `config-field-*` also contains
+ * react-aria's hidden native <select>, which carries every option in the schema,
+ * so asserting text content over the whole container matches any option label
+ * whether or not it is the selected one. This reads the selection itself.
+ */
+function selectedValueIn(testId: string): string {
+  const wrapper = screen.getByTestId(testId);
+  const select = wrapper.querySelector<HTMLSelectElement>(
+    '[data-testid="hidden-select-container"] select',
+  );
+  if (!select) throw new Error(`No hidden <select> inside ${testId}`);
+  return select.value;
+}
+
 const permissions: PluginPermissions = {
   network: { hosts: [] },
   credentials: {
@@ -146,7 +161,7 @@ describe("ConfigSchemaForm", () => {
       />,
     );
 
-    expect(screen.getByTestId("config-field-model")).toHaveTextContent("sonnet");
+    expect(selectedValueIn("config-field-model")).toBe("sonnet");
     await user.click(triggerIn("config-field-model"));
     expect((await screen.findAllByRole("option")).map((o) => o.textContent)).toEqual([
       "sonnet",

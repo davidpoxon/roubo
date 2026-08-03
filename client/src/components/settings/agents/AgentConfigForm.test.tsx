@@ -171,10 +171,10 @@ describe("AgentConfigForm", () => {
     render(<AgentConfigForm agent={agent({ config: { model: "sonnet" } })} />);
 
     await pickModel(user, "opus");
-    expect(screen.getByTestId("config-field-model")).toHaveTextContent("opus");
+    expect(selectedValue("model")).toBe("opus");
 
     await user.click(screen.getByTestId("agent-config-reset-claude-code"));
-    expect(screen.getByTestId("config-field-model")).toHaveTextContent("sonnet");
+    expect(selectedValue("model")).toBe("sonnet");
     expect(screen.getByTestId("agent-config-reset-claude-code")).toBeDisabled();
   });
 
@@ -187,7 +187,7 @@ describe("AgentConfigForm", () => {
     await pickModel(user, "sonnet");
     await user.click(screen.getByTestId("agent-config-reset-claude-code"));
 
-    expect(screen.getByTestId("config-field-model")).toHaveTextContent("opus");
+    expect(selectedValue("model")).toBe("opus");
   });
 
   it("renders a server field error inline against the offending control (AP-TC-011)", async () => {
