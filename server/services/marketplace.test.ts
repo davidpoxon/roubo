@@ -420,10 +420,12 @@ describe("annotate enrichment: declared permissions + lifecycle (issue #401)", (
 
 // Issue #522 (AP-FR-022 / AP-NFR-006): annotate() derives the agent-CLI
 // compatibility window an AGENT listing renders pre-install, from the same
-// declared-manifest seam declaredPermissions / lifecycle already use. It is
-// deliberately NOT a field of the signed MarketplaceCatalogEntry: widening that
-// payload needs the out-of-band signing key and would trip the marketplace drift
-// guard.
+// declared-manifest seam declaredPermissions / lifecycle already use. Unlike
+// those two it is ALSO carried on MarketplaceCatalogEntry itself (issue #722):
+// the first-party catalog build emits it for every kind: agent entry it packs,
+// which is the only way a not-yet-installed release listing can show a window at
+// all, since that seam cannot reach its manifest. annotate() answers from a
+// readable manifest first and falls back to the entry's own declaration.
 //
 // The kind gate lives HERE, on the server, which is what makes AP-TC-125 ("only
 // agent listings show CLI compat metadata") true by construction rather than by a
@@ -568,6 +570,123 @@ describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
     setCatalog("network", [...ENTRIES, AGENT_WITH_WINDOW]);
     const annotated = await annotatedById("codex-cli");
     expect(annotated.agentCompatibility).toEqual({ minVersion: "9.9.9" });
+  });
+
+  // Issue #722: a genuinely published third-party agent is `source.type:
+  // "release"` and not yet installed, so `readEntryManifest()` reaches no
+  // manifest at all. The window the author declared on the CATALOG ENTRY is the
+  // fallback that lets such a listing render its bounds pre-install.
+  //
+  // Shares AGENT_WITH_WINDOW's identity but not its readable source: the whole
+  // point is that nothing local can be read for this shape.
+  const RELEASE_AGENT_DECLARING_WINDOW: MarketplaceCatalogEntry = {
+    id: "acme-agent",
+    name: "ACME Agent",
+    kind: "agent",
+    version: "1.2.3",
+    summary: "A published third-party agent plugin",
+    source: { type: "release", assetUrl: "https://example.invalid/acme-agent-1.2.3.tgz" },
+    provenance: "acme/roubo-acme-agent@1.2.3",
+    integrity: "sha256-acme",
+    verified: false,
+    agentCompatibility: { minVersion: "3.0.0", testedCeiling: "3.4.0" },
+  };
+
+  it("renders a NOT-yet-installed release entry's own declared window (issue #722)", async () => {
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [...ENTRIES, RELEASE_AGENT_DECLARING_WINDOW]);
+    const annotated = await annotatedById("acme-agent");
+    // No installed record and no local directory, so the manifest seam yields
+    // nothing: this window can only have come off the catalog entry.
+    expect(annotated.installed).toBe(false);
+    expect(annotated.declaredPermissions).toBeNull();
+    expect(annotated.agentCompatibility).toEqual({
+      minVersion: "3.0.0",
+      testedCeiling: "3.4.0",
+    });
+  });
+
+  it("lets the MANIFEST window win over a conflicting entry-declared one (issue #722)", async () => {
+    // The manifest is authoritative for what is on the machine, so the card and
+    // the post-install state cannot disagree even when the catalog entry claims
+    // different bounds.
+    listInstalled.mockReturnValue([
+      {
+        ...installedRecord("codex-cli", "0.1.0"),
+        manifest: {
+          ...installedRecord("codex-cli", "0.1.0").manifest,
+          kind: "agent",
+          agentCompatibility: { minVersion: "9.9.9" },
+        },
+      } as PluginRecord,
+    ]);
+    setCatalog("network", [
+      ...ENTRIES,
+      {
+        ...AGENT_WITH_WINDOW,
+        agentCompatibility: { minVersion: "0.0.1", testedCeiling: "0.0.2" },
+      },
+    ]);
+    const annotated = await annotatedById("codex-cli");
+    expect(annotated.agentCompatibility).toEqual({ minVersion: "9.9.9" });
+  });
+
+  it("lets an INSTALLED manifest declaring NO window suppress the entry's (issue #722)", async () => {
+    // The sharp edge of preferring the manifest: "no bounds on disk" and "no
+    // manifest in reach" are different states, and only the second may fall back
+    // to the catalog. An installed plugin whose own manifest declares nothing
+    // must render the AP-TC-121 fallback rather than a stale entry's bounds,
+    // otherwise the card disagrees with what is actually installed.
+    listInstalled.mockReturnValue([
+      {
+        ...installedRecord("codex-cli", "0.1.0"),
+        manifest: {
+          ...installedRecord("codex-cli", "0.1.0").manifest,
+          kind: "agent",
+          agentCompatibility: undefined,
+        },
+      } as PluginRecord,
+    ]);
+    setCatalog("network", [
+      ...ENTRIES,
+      {
+        ...AGENT_WITH_WINDOW,
+        agentCompatibility: { minVersion: "0.0.1", testedCeiling: "0.0.2" },
+      },
+    ]);
+    const annotated = await annotatedById("codex-cli");
+    expect(annotated.installed).toBe(true);
+    expect(annotated.agentCompatibility).toBeNull();
+  });
+
+  it("still falls back to null for an entry declaring neither bound (AP-TC-121)", async () => {
+    // An empty declaration must not render a bare compatibility row: it collapses
+    // into the same single null an undeclared window produces.
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [
+      ...ENTRIES,
+      { ...RELEASE_AGENT_DECLARING_WINDOW, agentCompatibility: {} },
+    ]);
+    const annotated = await annotatedById("acme-agent");
+    expect(annotated.kind).toBe("agent");
+    expect(annotated.agentCompatibility).toBeNull();
+  });
+
+  it("ignores a window declared on a NON-agent entry (AP-TC-125)", async () => {
+    // The kind gate is still on the entry kind, so widening the entry shape gives
+    // a component no new route to smuggle CLI metadata onto its card.
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [
+      ...ENTRIES,
+      {
+        ...RELEASE_AGENT_DECLARING_WINDOW,
+        id: "acme-component",
+        kind: "component",
+      },
+    ]);
+    const annotated = await annotatedById("acme-component");
+    expect(annotated.kind).toBe("component");
+    expect(annotated.agentCompatibility).toBeNull();
   });
 });
 

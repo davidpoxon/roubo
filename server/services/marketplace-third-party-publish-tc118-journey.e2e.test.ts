@@ -51,19 +51,19 @@
 //    workspace: or portal: specifier that would build here and break for everyone
 //    else). That is the half a registry round trip would otherwise mask.
 //
-// 2. S005-O02 IS NOT SATISFIABLE AS SHIPPED, AND SAYING SO IS THIS GUARD'S MOST
-//    VALUABLE FINDING. For a genuinely third-party published plugin the catalog
-//    entry is `source.type: "release"`, and `readEntryManifest()` returns a manifest
-//    only for an INSTALLED record or a `git` source with a local `directory`;
-//    `MarketplaceCatalogEntry` carries no compatibility field at all. So a newly
-//    published, not-yet-installed agent listing renders the "compatibility not
-//    declared" fallback (AP-TC-121), never its declared floor and ceiling. S005
-//    below therefore asserts BOTH halves: that the derivation seam DOES produce the
-//    declared window the moment the manifest is readable (so the display path is
-//    proven, not assumed), and that the shipped pre-install projection for a release
-//    entry is null. Closing the gap means widening the catalog entry, which is
-//    product work owned by #522 and filed as
-//    davidpoxon/roubo-development#722; it is out of scope for an e2e work unit.
+// 2. S005-O02 REACHES A GENUINELY PUBLISHED PLUGIN THROUGH TWO SOURCES, AND S005
+//    EXERCISES BOTH. For a third-party published plugin the catalog entry is
+//    `source.type: "release"`, and `readEntryManifest()` returns a manifest only for
+//    an INSTALLED record or a `git` source with a local `directory`, so the manifest
+//    derivation seam cannot reach that plugin pre-install. This guard originally
+//    pinned that as an unsatisfiable gap; davidpoxon/roubo-development#722 closed it
+//    by carrying the author-declared window on `MarketplaceCatalogEntry` itself,
+//    with `annotate()` preferring the manifest and falling back to the entry. S005
+//    below asserts both routes: a readable-manifest entry declaring nothing at the
+//    entry level (the derivation seam alone), and the release shape a published
+//    plugin actually has (the entry-level fallback). The "compatibility not
+//    declared" fallback (AP-TC-121) is now reserved for a window neither source
+//    declares.
 //
 // 3. "AS A DIFFERENT USER" (S005) has no harness at this altitude, so it is met
 //    structurally, as the sibling guard meets it: a fresh sandbox state dir with no
@@ -350,7 +350,12 @@ function fakeDownload(tgzPath: string) {
   );
 }
 
-/** The published entry as the hosted marketplace serves it: a release artifact. */
+/**
+ * The published entry as the hosted marketplace serves it: a release artifact,
+ * carrying the compatibility window the author declared in the manifest at S003.
+ * That entry-level declaration (issue #722) is what makes the window reachable
+ * pre-install, since a release source has no local manifest to read.
+ */
 function releaseEntry(integrity: string): MarketplaceCatalogEntry {
   return {
     id: PLUGIN_ID,
@@ -362,18 +367,22 @@ function releaseEntry(integrity: string): MarketplaceCatalogEntry {
     provenance: PROVENANCE,
     integrity,
     verified: false,
+    agentCompatibility: { minVersion: MIN_VERSION, testedCeiling: TESTED_CEILING },
   };
 }
 
 /**
  * The SAME published plugin served through the one pre-install shape whose manifest
  * `readEntryManifest()` can actually read (a `git` source carrying a local
- * directory). Used only by S005's reconciliation half, to prove the derivation seam
- * produces the declared window whenever the manifest is in reach.
+ * directory), and deliberately carrying NO entry-level declaration. Used by S005 to
+ * prove the manifest derivation seam still produces the declared window on its own,
+ * independently of the entry-level fallback.
  */
 function readableManifestEntry(integrity: string): MarketplaceCatalogEntry {
+  const entry = releaseEntry(integrity);
+  delete entry.agentCompatibility;
   return {
-    ...releaseEntry(integrity),
+    ...entry,
     source: {
       type: "git",
       url: "https://github.com/acme/roubo-acme-agent.git",
@@ -659,11 +668,11 @@ describe("AP-TC-118: a third-party agent plugin is published, listed, and instal
     ).toBe(false);
   });
 
-  it("S005-O02 (reconciled): the derivation seam yields the declared window, but a not-yet-installed release listing renders the undeclared fallback", async () => {
-    // Half one: the display path WORKS. The moment the entry's manifest is readable
-    // pre-install, `annotate()` projects exactly the declared floor and ceiling onto
-    // the listing, which is what the card renders. Proving this is what makes the
-    // finding below a gap in reach rather than a missing feature.
+  it("S005-O02: the newly published, not-yet-installed listing displays its declared compatibility metadata", async () => {
+    // The manifest derivation seam on its own: the moment the entry's manifest is
+    // readable pre-install, `annotate()` projects exactly the declared floor and
+    // ceiling onto the listing. This entry carries no entry-level declaration, so
+    // the window here can only have come off the manifest.
     setCatalog(readableManifestEntry(publishedDigest));
     const readable = (await marketplace.listCatalog({ kind: "agent" })).listings.find(
       (l) => l.id === PLUGIN_ID,
@@ -673,14 +682,13 @@ describe("AP-TC-118: a third-party agent plugin is published, listed, and instal
       `AP-TC-118 step S005 (S005-O02) diverged: expected a pre-install agent listing whose manifest is readable to project the declared window {minVersion: ${MIN_VERSION}, testedCeiling: ${TESTED_CEILING}}, got ${JSON.stringify(readable?.agentCompatibility)}. Owning slice: ${SLICE_MARKETPLACE}.`,
     ).toEqual({ minVersion: MIN_VERSION, testedCeiling: TESTED_CEILING });
 
-    // Half two: THE SHIPPED BEHAVIOUR FOR A GENUINELY PUBLISHED PLUGIN. A release
-    // entry has no local manifest and `MarketplaceCatalogEntry` carries no
-    // compatibility field, so the declared window cannot reach the listing and the
-    // card falls back to "compatibility not declared" (AP-TC-121). AP-TC-118 S005-O02
-    // asks for the declared metadata here; it is not satisfiable as shipped. Closing
-    // it means widening the catalog entry, which is product work owned by #522 and
-    // filed as davidpoxon/roubo-development#722. This assertion PINS the gap: when
-    // #722 lands, it fails, and this reconciliation is deleted in the same change.
+    // And THE SHAPE A GENUINELY PUBLISHED PLUGIN ACTUALLY HAS: a release entry with
+    // no local manifest to read. The catalog entry now carries the author-declared
+    // window itself (issue #722), so `annotate()` falls back to it and the card
+    // renders the floor and ceiling before anything is installed, which is what
+    // S005-O02 asks for. Until #722 this projected null and the card showed the
+    // "compatibility not declared" fallback (AP-TC-121), which that fallback is now
+    // reserved for a genuinely undeclared window.
     marketplace.__test.resetSourceClients();
     setCatalog(releaseEntry(publishedDigest));
     const released = (await marketplace.listCatalog({ kind: "agent" })).listings.find(
@@ -688,8 +696,8 @@ describe("AP-TC-118: a third-party agent plugin is published, listed, and instal
     );
     expect(
       released?.agentCompatibility,
-      `AP-TC-118 step S005 (S005-O02) diverged: expected the shipped pre-install projection for a release-sourced agent entry to be null (the "compatibility not declared" fallback, pending davidpoxon/roubo-development#722), got ${JSON.stringify(released?.agentCompatibility)}. Owning slice: ${SLICE_MARKETPLACE}.`,
-    ).toBeNull();
+      `AP-TC-118 step S005 (S005-O02) diverged: expected a not-yet-installed, release-sourced agent listing to display the declared window {minVersion: ${MIN_VERSION}, testedCeiling: ${TESTED_CEILING}} carried on its catalog entry, got ${JSON.stringify(released?.agentCompatibility)}. Owning slice: ${SLICE_MARKETPLACE}.`,
+    ).toEqual({ minVersion: MIN_VERSION, testedCeiling: TESTED_CEILING });
   });
 
   it("S006: installing the published plugin verifies its integrity digest and completes", async () => {
@@ -755,9 +763,10 @@ describe("AP-TC-118: a third-party agent plugin is published, listed, and instal
     expect(pluginManager.registerInstalled).toHaveBeenCalledWith(target);
 
     // And the listing re-reads as Installed, which is the journey's terminal state:
-    // the plugin a third party published is now on this user's machine, with the
-    // declared window finally in reach of the listing (see the S005-O02
-    // reconciliation above for why that only happens post-install today).
+    // the plugin a third party published is now on this user's machine, and the
+    // window now comes off the INSTALLED MANIFEST rather than the catalog entry
+    // (`annotate()` prefers the manifest), so the post-install card cannot disagree
+    // with what is actually on disk.
     marketplace.__test.resetSourceClients();
     setCatalog(releaseEntry(publishedDigest));
     vi.mocked(pluginManager.listInstalled).mockReturnValue([installedRecord()]);

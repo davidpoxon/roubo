@@ -151,6 +151,8 @@ The host probes at most once per resolved binary and caches the result, so openi
 
 The declared window is also what a **marketplace listing** shows, before anything is installed. An `agent`-kind listing renders `minVersion` and `testedCeiling` on its card and in its detail drawer, so a user can see which CLI versions a plugin supports without installing it first. Only the two bounds are shown: nothing has been probed at that point, so there is no detected version and no verdict, and `probe` is a host instruction rather than something a consumer reads. Declare the bounds even if you omit `probe`, or your listing reads "compatibility not declared". Only `agent`-kind listings show this; a component or integration listing never does.
 
+The pre-install listing reads the bounds from the **catalog entry**, which carries them alongside the plugin's name, version, and summary. That is what makes them visible for a published plugin: a release-sourced entry has no manifest the host can read until it is installed. You do not author this separately, the catalog build copies the two bounds off your manifest when it packs an `agent`-kind plugin, so the manifest stays the single place you declare them. Once the plugin is installed the manifest wins, so the card can never disagree with what is on disk.
+
 ### Where your agent CLI installs
 
 Roubo's server does not always inherit the `PATH` a user's shell has. A per-user shim, a fish login, and a Finder or Dock launch all produce a server whose `PATH` is missing the directory your CLI lives in, and a descriptor declaring a bare `command` then fails to launch on exactly those installs. `agentInstallLocations` is how you fix that for your own CLI:
