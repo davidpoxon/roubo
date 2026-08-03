@@ -77,7 +77,7 @@ describe("translateSources", () => {
     ]);
   });
 
-  it("maps the new Jira singular source categories into plugin-internal kinds (WU-006)", () => {
+  it("maps the new Jira singular source categories into plugin-internal kinds (JSS-WU-006)", () => {
     const result = translateSources({
       project: ["PLAT"],
       board: ["board:482"],
@@ -121,7 +121,7 @@ describe("translateSources", () => {
     expect(Object.keys(result[0])).not.toContain("mineScope");
   });
 
-  it("drops legacy old-shape Jira categories rather than silently honoring them (WU-006 clean break)", () => {
+  it("drops legacy old-shape Jira categories rather than silently honoring them (JSS-WU-006 clean break)", () => {
     const onUnknownCategory = vi.fn();
     const result = translateSources(
       { boards: ["789"], epics: ["PROJ-100"], filters: ["456"] },

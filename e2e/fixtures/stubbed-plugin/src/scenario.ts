@@ -20,7 +20,7 @@ export interface ScenarioFacetOptions {
   [facetId: string]: FilterFacetOption[];
 }
 
-// WU-007 (TC-019..TC-029): one selectable option backing the searchable
+// JSS-WU-007 (JSS-TC-019..JSS-TC-029): one selectable option backing the searchable
 // project-first picker. Extends the host-visible `SourceCandidateItem` with an
 // internal `project` key so the stub can honor `scope.project` for the scoped
 // categories (board / filter / epic); `project` is stripped before the item is
@@ -33,11 +33,12 @@ export type ScenarioSourceOptions = Partial<
   Record<"project" | "board" | "filter" | "epic", ScenarioSourceOption[]>
 >;
 
-// TC-024/TC-025 (#358): a fixture-only status category attached to a scenario
-// issue so the stub's `listIssues` can mirror the real plugin's in-query
-// status-category exclusion (FR-009/FR-010). The host-visible `NormalizedIssue`
-// carries no category because the production plugin excludes server-side in JQL;
-// `statusCategory` is stripped before an issue is returned from the contract.
+// JSS-TC-024/JSS-TC-025 (#358): a fixture-only status category attached to a
+// scenario issue so the stub's `listIssues` can mirror the real plugin's
+// in-query status-category exclusion (JSS-FR-009/JSS-FR-010). The host-visible
+// `NormalizedIssue` carries no category because the production plugin excludes
+// server-side in JQL; `statusCategory` is stripped before an issue is returned
+// from the contract.
 export interface ScenarioIssue extends NormalizedIssue {
   statusCategory?: string;
 }
@@ -93,7 +94,7 @@ export interface Scenario {
   // entry. Drives the "plugin refuses to start" arm of the Enable-prompt
   // failure spec.
   failOnStart?: boolean;
-  // WU-007 (TC-019..TC-029): the result set the stub's `getSourceOptions`
+  // JSS-WU-007 (JSS-TC-019..JSS-TC-029): the result set the stub's `getSourceOptions`
   // pages through, keyed by searchable category. Present only on scenarios
   // that declare the `searchable-categorized` shape; the synthetic `mine`
   // category is inline (no search) so it has no entry here.

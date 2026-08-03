@@ -60,7 +60,7 @@ export const RESOLVE_DEFAULT_BRANCH_PHASE = "Resolving default branch";
 const benches = new Map<string, Bench>();
 
 // Guards the one-warning-per-process-load contract for a corrupt settings.json
-// when the global bench cap is evaluated (NFR-004). Reset only on process restart.
+// when the global bench cap is evaluated (GBL-NFR-004). Reset only on process restart.
 let corruptedSettingsWarned = false;
 
 // Reads the application-wide bench cap from settings.json. Returns null (unlimited)

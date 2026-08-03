@@ -72,7 +72,7 @@ const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com", "ghe"]);
 // its consolidation work unit.
 const PLUGINS_WITHOUT_SOURCE_PICKER = new Set(["github-com", "ghe"]);
 
-// FR-010 (issue #435): Jira's three system status categories. The Configure
+// JSS-FR-010 (issue #435): Jira's three system status categories. The Configure
 // dialog's exclusion toggle offers these by default; any category already
 // present in the saved/default set is unioned in so a custom value stays
 // visible and removable. A plugin opts in by declaring
@@ -434,7 +434,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   };
   const isMetaRepo = fields.layoutType === "meta-repo";
 
-  // FR-010 (issue #435): project-scoped status-category exclusion toggle. A
+  // JSS-FR-010 (issue #435): project-scoped status-category exclusion toggle. A
   // plugin opts in by declaring `defaultIntegrationConfig.excludedStatusCategories`.
   // Seed from the effective override if set, otherwise the manifest default, so
   // the checked state matches what the cut list actually excludes today.

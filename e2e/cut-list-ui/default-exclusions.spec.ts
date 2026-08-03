@@ -8,11 +8,11 @@ import { registerTestProject, unregisterTestProject } from "./_support/project.j
 // integration endpoint. Rewriting it via PUT /config/raw re-flows the new
 // effective list.
 //
-// NOTE (#354 / WU-005): status exclusion is no longer applied client-side. It
-// moved into the query (FR-009), so there is no "Include hidden statuses"
-// toggle and the cut-list UI no longer hides issues on its own. The
+// NOTE (#354 / JSS-WU-005): status exclusion is no longer applied client-side.
+// It moved into the query (JSS-FR-009), so there is no "Include hidden
+// statuses" toggle and the cut-list UI no longer hides issues on its own. The
 // server-side cut-list exclusion UI journeys (closed issues never appear,
-// editing the excluded categories) are covered by WU-009 (#358). The config
+// editing the excluded categories) are covered by JSS-WU-009 (#358). The config
 // resolution that this file still asserts remains valid and unchanged.
 
 const SCENARIO = "cut-list-exclusions";

@@ -112,7 +112,7 @@ export default function SourcePicker({
 }
 
 /**
- * The `searchable-categorized` arm (WU-003, #352): a project-first cascade. The
+ * The `searchable-categorized` arm (JSS-WU-003, #352): a project-first cascade. The
  * project type-ahead is always enabled; the board / filter / epic controls are
  * gated until at least one project is in scope. Removing a project prunes the
  * board / filter / epic sources scoped to it. The synthetic `mine` category is
@@ -140,7 +140,7 @@ function SearchableSourcePicker({
   const projectKeys = (value.project ?? []).map(entryExternalId);
   const scope = { project: projectKeys };
 
-  // Clean-break detection (WU-006, #355): a persisted source set whose keys are
+  // Clean-break detection (JSS-WU-006, #355): a persisted source set whose keys are
   // all legacy old-shape categories (e.g. `boards`/`epics`/`filters` from the
   // retired flat-tab picker) no longer translates host-side, so it would silently
   // yield an empty cut list. When the config has source keys but none survive the
@@ -153,7 +153,7 @@ function SearchableSourcePicker({
 
   // Apply a batch of additions / removals for the project scope in one update.
   // Removing a project also prunes every board / filter / epic source scoped to
-  // it (FR-001 / TC-039), rebuilding the record without empty categories.
+  // it (JSS-FR-001 / JSS-TC-039), rebuilding the record without empty categories.
   function changeProjects(added: SourceCandidateItem[], removed: string[]) {
     let projects = (value.project ?? []).filter((e) => !removed.includes(entryExternalId(e)));
     for (const item of added) {
@@ -172,7 +172,7 @@ function SearchableSourcePicker({
       // An in-project mine source has no scope left once the last project
       // leaves, so drop it (an anywhere mine carries no project dependency and
       // survives). Boards / filters / epics are already pruned above by their
-      // stamped project (TC-039).
+      // stamped project (JSS-TC-039).
       if (cat === "mine" && projects.length === 0) {
         kept = kept.filter((e) => !(typeof e === "object" && e.mineScope === "in-project"));
       }

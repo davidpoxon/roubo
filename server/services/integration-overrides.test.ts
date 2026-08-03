@@ -532,7 +532,7 @@ describe("excludedStatuses three-layer merge (FR-062, FR-063)", () => {
   });
 });
 
-describe("resolveRootExclusion (FR-009/FR-010)", () => {
+describe("resolveRootExclusion (JSS-FR-009/JSS-FR-010)", () => {
   const JIRA_DEFAULTS = {
     excludedStatusCategories: ["Done"],
     excludedStatuses: ["Closed", "Done", "Resolved"],

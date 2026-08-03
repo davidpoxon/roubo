@@ -145,7 +145,7 @@ describe("connectionStatusSequence", () => {
   });
 });
 
-describe("getSourceOptions (WU-007, TC-019..TC-029)", () => {
+describe("getSourceOptions (JSS-WU-007, JSS-TC-019..JSS-TC-029)", () => {
   function buildPickerContract() {
     const scenario = loadScenario("jira-sources-scale-picker");
     const clock = createClock(new Date("2026-05-21T13:00:00.000Z"));
@@ -182,7 +182,7 @@ describe("getSourceOptions (WU-007, TC-019..TC-029)", () => {
     const otherScope = getSourceOptions({ category: "board", scope: { project: ["PAY"] } });
     expect(otherScope.items).toEqual([]);
 
-    // Both near-identical filters match the shared fragment (TC-029).
+    // Both near-identical filters match the shared fragment (JSS-TC-029).
     const both = getSourceOptions({
       category: "filter",
       scope: { project: ["PLAT"] },
@@ -192,7 +192,7 @@ describe("getSourceOptions (WU-007, TC-019..TC-029)", () => {
   });
 });
 
-describe("getSourceOptions pagination (WU-008, TC-022)", () => {
+describe("getSourceOptions pagination (JSS-WU-008, JSS-TC-022)", () => {
   function buildSearchContract() {
     const scenario = loadScenario("jira-sources-scale-search");
     const clock = createClock(new Date("2026-05-21T13:00:00.000Z"));
@@ -304,7 +304,7 @@ describe("probeAlertCategoriesSequence (TC-167)", () => {
   });
 });
 
-describe("listIssues status exclusion (WU-009, TC-024/TC-025)", () => {
+describe("listIssues status exclusion (JSS-WU-009, JSS-TC-024/JSS-TC-025)", () => {
   function buildCutListContract() {
     const scenario = loadScenario("jira-sources-scale-cut-list");
     const clock = createClock(new Date("2026-05-21T13:00:00.000Z"));

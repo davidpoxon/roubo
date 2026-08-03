@@ -206,7 +206,7 @@ describe("ProjectSettings", () => {
       expect(screen.queryByRole("tab", { name: "Claude Code" })).toBeNull();
     });
 
-    it("TC-010: top-level tab is labelled 'Benches', not 'Bench Defaults'", () => {
+    it("GBL-TC-010: top-level tab is labelled 'Benches', not 'Bench Defaults'", () => {
       render();
       expect(screen.getByRole("tab", { name: "Benches" })).toBeInTheDocument();
       expect(screen.queryByRole("tab", { name: "Bench Defaults" })).toBeNull();
@@ -636,14 +636,14 @@ describe("ProjectSettings", () => {
         },
       });
 
-      it("TC-011: renders Unlimited (selected) with a disabled numeric field by default", async () => {
+      it("GBL-TC-011: renders Unlimited (selected) with a disabled numeric field by default", async () => {
         await openBenchesTab();
         expect(screen.getByRole("radio", { name: "Unlimited" })).toBeChecked();
         expect(screen.getByRole("radio", { name: "Limit" })).not.toBeChecked();
         expect(screen.getByRole("textbox", { name: "Maximum benches" })).toBeDisabled();
       });
 
-      it("TC-011: selecting Limit enables the field and prefills 5", async () => {
+      it("GBL-TC-011: selecting Limit enables the field and prefills 5", async () => {
         const updateSettings = vi.fn();
         mockedUseSettings.mockReturnValue({
           settings: defaultSettings,
@@ -671,7 +671,7 @@ describe("ProjectSettings", () => {
         expect(field).toHaveValue("5");
       });
 
-      it("TC-031: selecting Unlimited removes the cap and clears the field", async () => {
+      it("GBL-TC-031: selecting Unlimited removes the cap and clears the field", async () => {
         const updateSettings = vi.fn();
         mockedUseSettings.mockReturnValue({
           settings: cappedSettings(5),

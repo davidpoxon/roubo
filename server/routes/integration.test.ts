@@ -1052,7 +1052,7 @@ describe("PUT /:projectId/integration/config", () => {
     expect(saved.integration.sources).toEqual({ repos: ["org/c"] });
   });
 
-  it("persists excludedStatusCategories into the per-project override (FR-010, issue #435)", async () => {
+  it("persists excludedStatusCategories into the per-project override (JSS-FR-010, issue #435)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       makeProject({ plugin: "jira-self-hosted" }),
     );
@@ -1356,7 +1356,7 @@ describe("PUT /:projectId/integration/sources", () => {
     });
   });
 
-  it("preserves Jira project scope and per-kind modifiers on object entries (WU-003)", async () => {
+  it("preserves Jira project scope and per-kind modifiers on object entries (JSS-WU-003)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       makeProject({ plugin: "jira-self-hosted" }),
     );
@@ -1627,7 +1627,7 @@ describe("GET /:projectId/integration/source-options", () => {
     expect(res.body.error).toMatch(/no active/i);
   });
 
-  it("forwards category, scope, search, and cursor to the plugin (TC-002)", async () => {
+  it("forwards category, scope, search, and cursor to the plugin (JSS-TC-002)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       makeProject({ plugin: "jira-self-hosted" }),
     );

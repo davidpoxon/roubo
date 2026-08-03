@@ -363,7 +363,7 @@ describe("resolveSources", () => {
   });
 });
 
-describe("resolveExclusion (FR-009/FR-010)", () => {
+describe("resolveExclusion (JSS-FR-009/JSS-FR-010)", () => {
   const JIRA_PLUGIN = "jira-self-hosted";
   const JIRA_MANIFEST = {
     id: JIRA_PLUGIN,

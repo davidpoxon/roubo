@@ -777,7 +777,7 @@ describe("SourceEntrySchema per-source alert booleans (FR-074, TC-135)", () => {
   });
 });
 
-describe("SourceEntrySchema project-scoped Jira fields (FR-012, TC-012)", () => {
+describe("SourceEntrySchema project-scoped Jira fields (JSS-FR-012, JSS-TC-012)", () => {
   it("accepts an object entry with project, boardMode, and mineScope", () => {
     const result = SourceEntrySchema.safeParse({
       externalId: "board:482",
@@ -845,7 +845,7 @@ describe("SourceEntrySchema project-scoped Jira fields (FR-012, TC-012)", () => 
   });
 });
 
-describe("IntegrationConfigSchema excludedStatusCategories (FR-010)", () => {
+describe("IntegrationConfigSchema excludedStatusCategories (JSS-FR-010)", () => {
   it("accepts a root excludedStatusCategories list", () => {
     const config = makeConfig({ integration: { excludedStatusCategories: ["Done"] } });
     expect(RouboConfigSchema.safeParse(config).success).toBe(true);
@@ -915,7 +915,7 @@ describe("IntegrationOverrideSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("round-trips a per-user override carrying project-scoped mixed-type sources (TC-012)", () => {
+  it("round-trips a per-user override carrying project-scoped mixed-type sources (JSS-TC-012)", () => {
     const result = IntegrationOverrideSchema.safeParse({
       schemaVersion: 1,
       integration: {

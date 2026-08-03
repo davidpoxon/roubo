@@ -140,8 +140,8 @@ describe("SourcePicker", () => {
     expect(onChange).toHaveBeenCalledWith({ epics: ["PROJ-100"] });
   });
 
-  describe("searchable-categorized shape (WU-003)", () => {
-    it("gates board/filter/epic until a project is in scope, then enables them (TC-001)", () => {
+  describe("searchable-categorized shape (JSS-WU-003)", () => {
+    it("gates board/filter/epic until a project is in scope, then enables them (JSS-TC-001)", () => {
       const { rerender } = render(
         <SourcePicker candidates={SEARCHABLE} value={{}} onChange={vi.fn()} projectId="p1" />,
       );
@@ -213,7 +213,7 @@ describe("SourcePicker", () => {
       });
     });
 
-    it("drops a project's scoped sources when the project leaves scope (TC-039)", async () => {
+    it("drops a project's scoped sources when the project leaves scope (JSS-TC-039)", async () => {
       const user = userEvent.setup();
       const onChange = vi.fn<(next: SourceSelection) => void>();
       render(
@@ -283,7 +283,7 @@ describe("SourcePicker", () => {
       });
     });
 
-    it("prompts to re-pick when the saved config is entirely old-shape (TC-036, WU-006)", () => {
+    it("prompts to re-pick when the saved config is entirely old-shape (JSS-TC-036, JSS-WU-006)", () => {
       render(
         <SourcePicker
           candidates={SEARCHABLE}
@@ -414,7 +414,7 @@ describe("SourcePicker", () => {
         expect(onChange).toHaveBeenCalledWith({ project: ["PLAT"] });
       });
 
-      it("keeps the mine source when one of several projects leaves scope (TC-039)", async () => {
+      it("keeps the mine source when one of several projects leaves scope (JSS-TC-039)", async () => {
         const user = userEvent.setup();
         const onChange = vi.fn<(next: SourceSelection) => void>();
         render(
