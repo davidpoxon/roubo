@@ -17,6 +17,11 @@ import { expect, type APIRequestContext } from "@playwright/test";
 //     server process, which is why the second-agent fixture is gated on the
 //     ENABLE ledger instead: see `OPT_IN_AGENT_FIXTURE_PLUGIN_IDS` in
 //     server/routes/test.ts.
+//   - the app-level jig files under `<rouboDir>/jigs/*.md`. `/test/__reset`
+//     drops `projects.json`, `state.json`, the marketplace tree and the
+//     integration overrides, and nothing else; a custom jig created by a spec
+//     survives every reset and every server restart, so a spec that mints one
+//     has to delete it again (AP-TC-020, NFR-018).
 
 /** The argv-capturing agent overlay: the one these specs actually launch. */
 export const CLAUDE_PLUGIN_ID = "claude-code";
@@ -233,6 +238,53 @@ export async function enablePlugin(request: APIRequestContext, pluginId: string)
 export async function disablePlugin(request: APIRequestContext, pluginId: string): Promise<void> {
   const res = await request.post(`/api/plugins/${pluginId}/disable`);
   expect(res.status(), `POST /api/plugins/${pluginId}/disable`).toBe(204);
+}
+
+/** One custom jig as `POST /api/jigs` accepts it (`JigCreateRequest`). */
+export interface AppJigInput {
+  name: string;
+  description: string;
+  content: string;
+  /**
+   * The agent binding (AP-FR-006). Omitted leaves the jig unbound, which is how
+   * a jig follows whichever agent is currently the default.
+   */
+  agentPluginId?: string;
+}
+
+/**
+ * Create an app-level custom jig through the real route and answer its id.
+ *
+ * The id is read from the 201 body rather than assumed to be the name's slug,
+ * because the slug rule is `jig-manager`'s business and a spec that restated it
+ * would silently drift from it.
+ *
+ * Any jig already carrying this name is deleted first. Jigs outlive
+ * `/test/__reset` (see the file header), so a run interrupted before its
+ * cleanup would otherwise leave one behind and the next `POST` would fail with
+ * DUPLICATE_NAME, turning one bad run into a permanently red spec (NFR-018).
+ */
+export async function createAppJig(
+  request: APIRequestContext,
+  input: AppJigInput,
+): Promise<string> {
+  const listRes = await request.get("/api/jigs");
+  expect(listRes.status(), "GET /api/jigs").toBe(200);
+  const existing = (await listRes.json()) as { id: string; name: string }[];
+  for (const jig of existing) {
+    if (jig.name === input.name) await deleteAppJig(request, jig.id);
+  }
+
+  const res = await request.post("/api/jigs", { data: input });
+  expect(res.status(), `POST /api/jigs (${input.name})`).toBe(201);
+  const created = (await res.json()) as { id: string };
+  return created.id;
+}
+
+/** Delete an app-level jig. A jig that is already gone counts as success. */
+export async function deleteAppJig(request: APIRequestContext, jigId: string): Promise<void> {
+  const res = await request.delete(`/api/jigs/${jigId}`);
+  expect([204, 404], `DELETE /api/jigs/${jigId}`).toContain(res.status());
 }
 
 /**
