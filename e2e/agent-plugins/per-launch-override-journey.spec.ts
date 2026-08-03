@@ -105,8 +105,24 @@ const EXPECTED_BASELINE_TRACE =
 /** The dialog's caption, verbatim from S001-O01. */
 const ONE_SESSION_CAPTION = "One session only. Nothing is saved.";
 
-/** The toast the launch raises (`TerminalTabs.tsx`), see S003-O02 below. */
-const LAUNCH_TOAST = `${CLAUDE_AGENT_NAME} session started`;
+/**
+ * The toast an overridden launch raises (`TerminalTabs.tsx`), verbatim from
+ * S003-O02: it both confirms the session started and says the launch carried
+ * one-off overrides. A launch with no draft still raises the plain
+ * `<agent> session started`, which is what AP-TC-017 S001-O03 asserts.
+ */
+const LAUNCH_TOAST = `${CLAUDE_AGENT_NAME} session started with overrides`;
+
+/**
+ * What the toast poll looks for: the prefix BOTH branches share, never the full
+ * expected string. Polling for the full string would make a regressed toast
+ * (the plain `<agent> session started`) invisible to the poll, so S003-O02 would
+ * report "no toast appeared" for one that plainly did, and the expected-vs-actual
+ * the failure-output contract promises would name the wrong failure. The needle
+ * finds any launch toast; the exact comparison below decides whether it is the
+ * right one.
+ */
+const LAUNCH_TOAST_PREFIX = `${CLAUDE_AGENT_NAME} session started`;
 
 // The slice issues this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice.
@@ -223,14 +239,20 @@ async function openTerminalTab(page: Page): Promise<void> {
  * here is TOLERATED rather than asserted: a menu or dialog that never appears is
  * reported by the caller's observation through the FR-020 block, not as an
  * unattributed Playwright timeout.
+ *
+ * Both clicks carry an EXPLICIT timeout. `actionTimeout` is unset in
+ * playwright.config.ts, so its default of 0 means no limit, and a click on a
+ * locator that never appears would block until the whole test timed out. That is
+ * exactly the divergence the tolerated waits above exist to report, so an
+ * unbounded click here would swallow the FR-020 block this helper promises.
  */
 async function openOverridesDialog(page: Page): Promise<Locator> {
   const trigger = page.getByRole("button", { name: "Choose launch option" }).first();
   await trigger.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
-  await trigger.click().catch(() => {});
+  await trigger.click({ timeout: 5_000 }).catch(() => {});
   const action = page.getByRole("menuitem", { name: "Launch with overrides" });
   await action.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
-  await action.click().catch(() => {});
+  await action.click({ timeout: 5_000 }).catch(() => {});
   const dialog = page.getByRole("dialog");
   await dialog.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
   return dialog;
@@ -267,6 +289,22 @@ async function readResolutionTrace(dialog: Locator): Promise<string> {
     parts.push(`${layerId}: ${rendered.join(" ")}`);
   }
   return parts.join(" -> ");
+}
+
+/**
+ * One element's trimmed text, or the literal `<not rendered>` when it is absent.
+ *
+ * `locator.textContent()` auto-waits, and `actionTimeout` is unset in
+ * playwright.config.ts (default 0, no limit), so reading a surface that never
+ * rendered would block until the test budget expired rather than reaching the
+ * observation that is supposed to report it. Deciding on `count()` first takes
+ * the read only when there is something to read, which is how the sibling guard
+ * keeps a missing element from bypassing the observer from inside its own
+ * argument list (claude-config-launch-journey.spec.ts S006).
+ */
+async function readTextIfPresent(locator: Locator): Promise<string> {
+  if ((await locator.count()) !== 1) return "<not rendered>";
+  return ((await locator.textContent()) ?? "").trim();
 }
 
 /**
@@ -351,6 +389,15 @@ test.afterEach(async ({ request }) => {
   clearCapturedArgv();
 });
 
+// Every tolerated wait in this guard is time an observation is allowed to take
+// before it reports a divergence, and on a failing run they add up well past the
+// 30s default: `openOverridesDialog` alone may spend 45s, and it is called
+// twice, with a further 35s on the S003 failure path. A budget that expired
+// mid-step would abort the test before `observe` ran, replacing the FR-020
+// attribution block with a bare timeout. The happy path is unaffected: the whole
+// journey runs in a second or two.
+test.setTimeout(180_000);
+
 test("AP-TC-028: a per-launch override applies to one session and persists nothing (S001-S005)", async ({
   page,
   request,
@@ -394,7 +441,7 @@ test("AP-TC-028: a per-launch override applies to one session and persists nothi
 
   // The toast is read before the session poll because it self-dismisses; the
   // observation for it is still emitted in step order, below.
-  const toast = await captureToast(page, LAUNCH_TOAST);
+  const toast = await captureToast(page, LAUNCH_TOAST_PREFIX);
   const { live, seen } = await waitForLiveAgentSession(request, CLAUDE_PLUGIN_ID);
   const argv = await waitForCapturedArgv();
   const captured = argv ?? [];
@@ -415,18 +462,17 @@ test("AP-TC-028: a per-launch override applies to one session and persists nothi
     }`,
   );
 
-  // S003-O02 asserts the toast that EXISTS. The case says "a toast confirms the
-  // session started with overrides"; the product raises `<agent> session started`
-  // and never mentions the overrides, so the wording half of the observation is a
-  // live divergence owned by #518 rather than something to settle by editing
-  // product copy from inside an e2e guard. What is asserted is the part the case
-  // and the product agree on: a toast appears, and it names the agent that
-  // actually started.
+  // S003-O02 asserts both halves the case names: that a toast confirms the
+  // session started, and that it says the launch carried overrides. The toast
+  // once said only the former; #690's precedent (see launch-menu-presets.spec.ts)
+  // is that a case-vs-copy divergence is settled in favour of the case, so
+  // `TerminalTabs` now appends the suffix whenever a launch carries a non-empty
+  // per-launch draft.
   observe(
     STEPS.S003,
     "S003-O02",
     toast === LAUNCH_TOAST,
-    `a toast confirms the session started, naming the agent: "${LAUNCH_TOAST}" (the case's wording also says "with overrides", which no shipped toast carries: see #518)`,
+    `a toast confirms the session started with overrides, naming the agent: "${LAUNCH_TOAST}"`,
     toast === null ? "no toast appeared within 15s of the launch" : JSON.stringify(toast),
   );
 
@@ -441,9 +487,9 @@ test("AP-TC-028: a per-launch override applies to one session and persists nothi
   const modelField = page.getByTestId("config-field-model");
   await modelField.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
   const shown = {
-    model: ((await modelField.textContent()) ?? "").trim(),
-    effort: ((await page.getByTestId("config-field-effort").textContent()) ?? "").trim(),
-    mode: ((await page.getByTestId("config-field-mode").textContent()) ?? "").trim(),
+    model: await readTextIfPresent(modelField),
+    effort: await readTextIfPresent(page.getByTestId("config-field-effort")),
+    mode: await readTextIfPresent(page.getByTestId("config-field-mode")),
   };
   observe(
     STEPS.S004,
@@ -457,7 +503,7 @@ test("AP-TC-028: a per-launch override applies to one session and persists nothi
   expect(projectSettingsRes?.status(), "GET the project settings page").toBe(200);
   const effectiveLine = page.getByTestId(`project-agent-effective-${CLAUDE_PLUGIN_ID}`);
   await effectiveLine.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
-  const effectiveText = ((await effectiveLine.textContent()) ?? "").trim();
+  const effectiveText = await readTextIfPresent(effectiveLine);
   // effort and mode still reading "Inherits app default" is the visible half of
   // "none of the per-launch overrides were written": had xhigh or auto landed
   // here, both rows would have flipped to overridden.

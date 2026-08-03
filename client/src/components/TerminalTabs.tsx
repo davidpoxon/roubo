@@ -304,7 +304,21 @@ export default function TerminalTabs({
             // AP-TC-017 S001-O03: the toast names the agent that actually
             // resolved, not the button that was pressed, so a default-bound
             // launch says which agent the default currently is.
-            addToast(`${agentName} session started`);
+            //
+            // AP-TC-028 S003-O02 asks it to say the launch carried one-off
+            // overrides as well, because that is the one thing about the
+            // session a user cannot read back anywhere: the draft is transient
+            // by design and no screen keeps it. The suffix is conditioned on a
+            // NON-EMPTY draft rather than on the dialog having been used, since
+            // a dialog launch that overrode nothing resolves exactly as the
+            // plain one did and should not claim otherwise.
+            const hasPerLaunch =
+              perLaunchOverrides !== undefined && Object.keys(perLaunchOverrides).length > 0;
+            addToast(
+              hasPerLaunch
+                ? `${agentName} session started with overrides`
+                : `${agentName} session started`,
+            );
           },
           onError: (err) => {
             // A refused agent launch is where the structured failure classes
