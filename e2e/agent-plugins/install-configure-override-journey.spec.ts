@@ -323,6 +323,10 @@ test.beforeEach(async ({ request }) => {
 
 test.afterEach(async ({ request }) => {
   await destroyAllSessions(request);
+  // Hand the environment back: `jigs.defaultAgentPluginId` lives in settings.json,
+  // which /test/__reset does not clear, so a pin left behind here would silently
+  // satisfy the next spec's precondition (NFR-018).
+  await setDefaultAgent(request, null);
   clearCapturedArgv();
 });
 
@@ -369,26 +373,46 @@ test("AP-TC-002: install, configure app defaults, override in a project, verify 
     .first()
     .waitFor({ state: "visible", timeout: 15_000 })
     .catch(() => {});
+  // Wait for the FILTERED render to land before reading the ids. The catalog
+  // query holds `placeholderData: keepPreviousData` (client/src/hooks/useMarketplace.ts),
+  // deliberately, so the chip row survives the refetch, which means the grid keeps
+  // showing the previous unfiltered cards while the `kind=agent` request is in
+  // flight. Reading straight after the click would sample that stale grid and
+  // report a false S001 divergence. The kind pill is used ONLY as this settle
+  // signal; the assertion itself stays the server cross-check below, since the
+  // agent filter is a SERVER-side query param.
+  await page
+    .locator('[data-testid="marketplace-card-kind"]:not([data-kind="agent"])')
+    .first()
+    .waitFor({ state: "detached", timeout: 15_000 })
+    .catch(() => {});
   const agentCardIds = await agentCards.evaluateAll((nodes) =>
     nodes.map((node) => node.getAttribute("data-plugin-id") ?? "(unnamed)"),
   );
-  observe(
-    STEPS.S001,
-    "S001-O01",
-    filterCount === 1 && agentCardIds.length >= 1,
-    "the Marketplace lists agent-kind plugins under its agent filter",
-    `agent filter count=${filterCount}, listed agent cards=${JSON.stringify(agentCardIds)}`,
-  );
-
-  // --- S002: the install surface and the consent prompt it gates on ----------
-  // Reconciliation 2a: the digest the installer verifies before commit is carried
-  // on the listing the card renders from. Under the harness that digest is the
-  // fixture's placeholder, so this asserts the pinned FIELD is present and
-  // well-formed, not that a real artifact verified.
+  // Cross-check the rendered ids against the agent-kind listing the server
+  // actually serves. Counting cards alone would not do it: the injected fixture
+  // catalog holds one entry per kind, so a regression that ignored `kind` would
+  // render all three and still satisfy "at least one card".
   const catalogRes = await request.get("/api/marketplace/plugins?kind=agent");
   expect(catalogRes.status(), "GET /api/marketplace/plugins?kind=agent").toBe(200);
   const catalog = (await catalogRes.json()) as { listings?: MarketplaceListing[] };
   const agentListings = catalog.listings ?? [];
+  const agentListingIds = agentListings.map((listing) => listing.id);
+  observe(
+    STEPS.S001,
+    "S001-O01",
+    filterCount === 1 &&
+      agentCardIds.length >= 1 &&
+      agentCardIds.every((id) => agentListingIds.includes(id)),
+    "the Marketplace lists agent-kind plugins, and only agent-kind plugins, under its agent filter",
+    `agent filter count=${filterCount}, listed agent cards=${JSON.stringify(agentCardIds)}, agent-kind listings=${JSON.stringify(agentListingIds)}`,
+  );
+
+  // --- S002: the install surface and the consent prompt it gates on ----------
+  // Reconciliation 2a: the digest the installer verifies before commit is carried
+  // on the listing the card renders from (fetched above, for S001). Under the
+  // harness that digest is the fixture's placeholder, so this asserts the pinned
+  // FIELD is present and well-formed, not that a real artifact verified.
   const digestPinned =
     agentListings.length >= 1 &&
     agentListings.every(
@@ -635,10 +659,16 @@ test("AP-TC-002: install, configure app defaults, override in a project, verify 
   // ("Launch <agentName>"), so finding it by that name is what proves the button
   // targets Claude Code rather than merely existing.
   const launchButton = page.getByRole("button", { name: `Launch ${CLAUDE_AGENT_NAME}` });
-  await launchButton.waitFor({ state: "visible", timeout: 15_000 });
+  // Tolerated wait, for the same reason as every other wait here: a button that
+  // never appears, or one whose accessible name names a different default agent,
+  // has to be reported THROUGH `observe` so the FR-020 block names S008, the
+  // expected-vs-actual and the owning slice, rather than throwing an unattributed
+  // Playwright timeout. The count is folded into S008-O02 below.
+  await launchButton.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+  const launchCount = await launchButton.count();
   // Unlink first so the argv read below can only be this launch's.
   clearCapturedArgv();
-  await launchButton.click();
+  if (launchCount === 1) await launchButton.click();
 
   let live: TerminalSessionEntry | undefined;
   for (let attempt = 0; attempt < 40 && live === undefined; attempt += 1) {
@@ -662,14 +692,17 @@ test("AP-TC-002: install, configure app defaults, override in a project, verify 
   observe(
     STEPS.S008,
     "S008-O02",
-    argv !== null &&
+    launchCount === 1 &&
+      argv !== null &&
       sessionIdIndex >= 0 &&
       JSON.stringify(captured.slice(0, sessionIdIndex)) === JSON.stringify(EXPECTED_ARGV_PREFIX),
     `the effective configuration reaches the spawned CLI as ${EXPECTED_ARGV_PREFIX.join(" ")} (the preview's ${EXPECTED_EFFECTIVE}, as real argv read from ${AGENT_ARGV_LOG_PATH})`,
-    argv === null
-      ? "no argv was captured: the child never ran"
-      : sessionIdIndex < 0
-        ? `no --session-id tail in ${JSON.stringify(captured)}`
-        : JSON.stringify(captured.slice(0, sessionIdIndex)),
+    launchCount !== 1
+      ? `no Launch ${CLAUDE_AGENT_NAME} button on the bench Terminal tab (count=${launchCount}), so nothing was spawned`
+      : argv === null
+        ? "no argv was captured: the child never ran"
+        : sessionIdIndex < 0
+          ? `no --session-id tail in ${JSON.stringify(captured)}`
+          : JSON.stringify(captured.slice(0, sessionIdIndex)),
   );
 });
