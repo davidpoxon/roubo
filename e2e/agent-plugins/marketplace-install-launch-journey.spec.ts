@@ -342,6 +342,19 @@ async function reloadAgentsTab(page: Page): Promise<void> {
 }
 
 test.beforeEach(async ({ request }) => {
+  // Every tolerated wait in this guard is time an observation is allowed to take
+  // before it reports a divergence, and on a failing run they add up well past
+  // the config's 30s per-test default: the ten 15s waits below, plus
+  // `waitForAvailableAgents` and the S007 session poll (40 x 250ms each). An
+  // S006 divergence alone spends 45s across `openLaunchMenu` and the row wait. A
+  // budget that expired mid-step would abort the test before `observe` ran,
+  // replacing the FR-020 attribution block with a bare unattributed timeout,
+  // which is precisely the failure-output contract this unit exists to deliver.
+  // Raised here rather than in playwright.config.ts so the other agent-plugin
+  // specs keep the tighter budget. The happy path is unaffected: the whole
+  // journey runs in a second or two.
+  test.setTimeout(180_000);
+
   await destroyAllSessions(request);
 
   const reset = await request.post("/test/__reset", { data: {} });
