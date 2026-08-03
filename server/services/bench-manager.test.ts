@@ -6967,12 +6967,12 @@ describe("startComponent (per-component Start setup gating)", () => {
 });
 
 describe("createBench global cap", () => {
-  // Test-case ids here belong to the `global-bench-limit` spec, which mints them
-  // bare. Always tag titles with the `GBL-` prefix: product-dev:verify's suite
-  // mapper matches ids by lowercase-alphanumeric containment, so a bare id whose
-  // preceding word ends in another spec's id_code (the "ap" of "cap" spells AP-)
-  // manufactures that prefix and gets read as that spec's case. See
-  // davidpoxon/roubo-development#679.
+  // Test-case ids here belong to the `global-bench-limit` spec, whose frozen
+  // `id_code` is `GBL` (davidpoxon/roubo-development#692). Always tag titles with
+  // the coded `GBL-` prefix: product-dev:verify's suite mapper matches ids by
+  // lowercase-alphanumeric containment, so a bare id whose preceding word ends in
+  // another spec's id_code (the "ap" of "cap" spells AP-) manufactures that prefix
+  // and gets read as that spec's case. See davidpoxon/roubo-development#679.
 
   // Flushes the void create/teardown background promise chains so seeded benches
   // settle and torn-down benches leave the Map before the next assertion.

@@ -4,12 +4,12 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 import { openConfigureDialog, save } from "./_support/picker.js";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
-// WU-009 (#358): the cut-list-area end-to-end journeys for category-first status
+// JSS-WU-009 (#358): the cut-list-area end-to-end journeys for category-first status
 // exclusion. This mirrors the two `e2e_flow` cases in the `cut-list` area of
 // `.specifications/jira-sources-scale/test-cases.json`:
 //
-//   TC-024 closed issues never appear in the cut list
-//   TC-025 a developer edits which status categories are excluded
+//   JSS-TC-024 closed issues never appear in the cut list
+//   JSS-TC-025 a developer edits which status categories are excluded
 //
 // It shares the e2e-flow harness (`_support/scenario.ts`) with the picker- and
 // source-search-area journeys, so the whole suite runs under one `npx playwright
@@ -33,7 +33,7 @@ const PROJECT_ID = "e2e-cut-list-flow";
 // The committed fixture config (e2e/fixtures/cut-list-flow-project/roubo.yaml):
 // e2e-stub plugin, one repository source, and no root exclusion of its own, so
 // the stub manifest's default (`["Done"]`) is what "leave Done-category
-// exclusion at its default" resolves to. TC-025 edits the excluded set through
+// exclusion at its default" resolves to. JSS-TC-025 edits the excluded set through
 // the Configure dialog, which writes a per-user integration override; the
 // `beforeEach` reset (`/test/__reset`) wipes that override so reruns are clean.
 async function registerProject(request: APIRequestContext): Promise<void> {
@@ -49,7 +49,7 @@ async function registerProject(request: APIRequestContext): Promise<void> {
   // for a project with no active integration in its override (it 409s on a
   // committed-only project). The override carries only the plugin, so the
   // committed sources and the manifest's default `["Done"]` exclusion still
-  // resolve through the merge (TC-024's baseline of 3 filtered is unchanged).
+  // resolve through the merge (JSS-TC-024's baseline of 3 filtered is unchanged).
   const override = await request.put(`/api/projects/${PROJECT_ID}/integration/override`, {
     data: { plugin: "e2e-stub" },
   });
@@ -68,7 +68,7 @@ test.afterEach(async ({ request }) => {
   await request.delete(`/api/projects/${PROJECT_ID}?force=true`);
 });
 
-test("TC-024: closed issues never appear in the cut list", async ({ page }) => {
+test("JSS-TC-024: closed issues never appear in the cut list", async ({ page }) => {
   await loadAppShell(page);
   await page.goto(`/projects/${PROJECT_ID}`);
 
@@ -80,7 +80,7 @@ test("TC-024: closed issues never appear in the cut list", async ({ page }) => {
 
   // No Closed/Done/Resolved issue appears: every Done-category issue is dropped
   // in-query, including the one whose status name is "Closed" and the
-  // "Resolved" one (proving the filter is category-based, FR-009/FR-010).
+  // "Resolved" one (proving the filter is category-based, JSS-FR-009/JSS-FR-010).
   await expect(page.getByText("#103", { exact: true })).toHaveCount(0);
   await expect(page.getByText("#104", { exact: true })).toHaveCount(0);
   await expect(page.getByText("#105", { exact: true })).toHaveCount(0);
@@ -90,7 +90,7 @@ test("TC-024: closed issues never appear in the cut list", async ({ page }) => {
   await expect(page.getByTestId("excluded-count-note")).toHaveText("3 filtered out by status");
 });
 
-test("TC-025: a developer edits which status categories are excluded", async ({ page }) => {
+test("JSS-TC-025: a developer edits which status categories are excluded", async ({ page }) => {
   await loadAppShell(page);
   await page.goto(`/projects/${PROJECT_ID}`);
 

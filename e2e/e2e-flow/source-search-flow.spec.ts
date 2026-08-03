@@ -2,11 +2,11 @@ import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "./_support/scenario.js";
 import { addSource, externalIds, openConfigure, readSources, save } from "./_support/picker.js";
 
-// WU-008 (#357): the source-search-area end-to-end journey for the searchable,
+// JSS-WU-008 (#357): the source-search-area end-to-end journey for the searchable,
 // project-first Jira source picker. This mirrors the single `e2e_flow` case in
 // the `source-search` area of `.specifications/jira-sources-scale/test-cases.json`:
 //
-//   TC-022 find a source by searching instead of scrolling
+//   JSS-TC-022 find a source by searching instead of scrolling
 //
 // It shares the e2e-flow harness (`_support/picker.ts`, `_support/scenario.ts`)
 // with the picker-area journeys in `jira-picker-flows.spec.ts`, so the whole
@@ -17,7 +17,7 @@ import { addSource, externalIds, openConfigure, readSources, save } from "./_sup
 // boards to project PLAT. The stub's `getSourceOptions` pages results in
 // windows of 10 (PAGE_SIZE in e2e/fixtures/stubbed-plugin/src/contract.ts), so a
 // board search returns a capped first page plus a "Load more" cursor, exercising
-// the affordance and the result-count readout TC-022 asserts.
+// the affordance and the result-count readout JSS-TC-022 asserts.
 
 const SCENARIO = "jira-sources-scale-search";
 const NOW = "2026-05-21T13:00:00.000Z";
@@ -26,7 +26,7 @@ const NOW = "2026-05-21T13:00:00.000Z";
 // shows a bounded window, not the whole instance ("no giant pre-loaded list").
 const PAGE_SIZE = 10;
 // Generous wall-clock budget for scoped results to appear after typing. This is
-// a non-flaky smoke proxy for NFR-001, not its hard p95<500ms target: it covers
+// a non-flaky smoke proxy for JSS-NFR-001, not its hard p95<500ms target: it covers
 // the picker's ~250ms input debounce plus the stub RPC with CI headroom. The
 // hard latency budget is a metric/perf-harness concern, not an e2e assertion.
 const LATENCY_BUDGET_MS = 2_000;
@@ -35,7 +35,7 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("TC-022: a developer finds a source by searching instead of scrolling", async ({
+test("JSS-TC-022: a developer finds a source by searching instead of scrolling", async ({
   page,
   request,
 }) => {
@@ -84,7 +84,7 @@ test("TC-022: a developer finds a source by searching instead of scrolling", asy
   await expect(loadMore).toBeVisible();
   await expect(resultCount).toHaveText("10+ results");
 
-  // FR-013: the results list renders outside the Configure modal's DOM subtree
+  // JSS-FR-013: the results list renders outside the Configure modal's DOM subtree
   // (portaled to the body), so it can never be clipped by the modal's overflow.
   await expect(dialog.getByRole("listbox", { name: /Boards results/i })).toHaveCount(0);
   await expect(results).toBeVisible();
