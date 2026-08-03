@@ -9,8 +9,15 @@ import type {
 } from "@roubo/shared";
 import type { CatalogSource, ThirdPartyCatalogResult, VerifiedCatalog } from "./catalog-client.js";
 
+// HOST_API_VERSION is pinned in the mock rather than re-exported from the real
+// module: the host-range derivation (issue #720) compares against it, and pinning
+// it here keeps the incompatible / compatible fixtures below stable when the real
+// host version is bumped.
+const MOCK_HOST_API_VERSION = "1.5.0";
+
 vi.mock("./plugin-manager.js", () => ({
   listInstalled: vi.fn(() => [] as PluginRecord[]),
+  HOST_API_VERSION: "1.5.0",
 }));
 
 vi.mock("./plugin-installer.js", () => {
@@ -687,6 +694,100 @@ describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
     const annotated = await annotatedById("acme-component");
     expect(annotated.kind).toBe("component");
     expect(annotated.agentCompatibility).toBeNull();
+  });
+});
+
+// Issue #720: an entry may carry the plugin's declared `roubo` host range, so a
+// listing this host is out of range for is marked incompatible and refused BEFORE
+// any artifact is downloaded. The derivation is one function feeding both the
+// listing mark and the install/update gate, so the two cannot disagree.
+describe("host compatibility from the entry's declared roubo range (issue #720)", () => {
+  // A published entry whose declared range excludes this host. Deliberately a
+  // release source: nothing local can be read for it, which is exactly why the
+  // range has to ride on the entry rather than be read off a manifest.
+  const OUT_OF_RANGE: MarketplaceCatalogEntry = {
+    id: "future-plugin",
+    name: "Future Plugin",
+    kind: "component",
+    version: "2.0.0",
+    summary: "A component built against a later Roubo",
+    source: { type: "release", assetUrl: "https://example.invalid/future-plugin-2.0.0.tgz" },
+    provenance: "acme/future-plugin@2.0.0",
+    integrity: "sha256-future",
+    verified: false,
+    roubo: "^9.0.0",
+  };
+
+  const IN_RANGE: MarketplaceCatalogEntry = {
+    ...OUT_OF_RANGE,
+    id: "current-plugin",
+    name: "Current Plugin",
+    roubo: "^1.0.0",
+  };
+
+  it("marks a listing whose declared range excludes this host, naming the range", async () => {
+    setCatalog("network", [...ENTRIES, OUT_OF_RANGE]);
+    const annotated = await annotatedById("future-plugin");
+    expect(annotated.hostCompatibility).toEqual({
+      declaredRange: "^9.0.0",
+      hostVersion: MOCK_HOST_API_VERSION,
+    });
+    // Still listed, not filtered: the consumer sees why it cannot be installed
+    // rather than the plugin silently vanishing (unlike a revoked entry).
+    expect(annotated.id).toBe("future-plugin");
+  });
+
+  it("leaves a listing whose declared range includes this host compatible", async () => {
+    setCatalog("network", [...ENTRIES, IN_RANGE]);
+    expect((await annotatedById("current-plugin")).hostCompatibility).toBeNull();
+  });
+
+  it("leaves an entry declaring no range exactly as it was before the field existed", async () => {
+    // Every catalog published before #720 is this shape, so this is the
+    // no-op-by-default guarantee.
+    const { listings } = await marketplace.listCatalog();
+    for (const listing of listings) {
+      expect(listing.hostCompatibility, listing.id).toBeNull();
+    }
+  });
+
+  it("degrades an unparseable range to compatible rather than a hard error", async () => {
+    // A malformed declaration is nobody's evaluable verdict, so it must not
+    // delist a plugin on a typo. The post-download check (#719) still sees the
+    // real manifest and still refuses.
+    setCatalog("network", [...ENTRIES, { ...OUT_OF_RANGE, roubo: "not a range" }]);
+    expect((await annotatedById("future-plugin")).hostCompatibility).toBeNull();
+  });
+
+  it("refuses an install of an out-of-range entry before anything is downloaded", async () => {
+    setCatalog("network", [...ENTRIES, OUT_OF_RANGE]);
+    await expect(marketplace.install("future-plugin")).rejects.toMatchObject({
+      code: "incompatible-host",
+      message: `Plugin requires roubo "^9.0.0" but host is ${MOCK_HOST_API_VERSION}`,
+    });
+    // The gate is PRE-download: neither preview path was ever entered, so no
+    // artifact was fetched or staged.
+    expect(previewFromRelease).not.toHaveBeenCalled();
+    expect(previewFromGitUrl).not.toHaveBeenCalled();
+  });
+
+  it("refuses an update of an out-of-range entry before anything is downloaded", async () => {
+    setCatalog("network", [...ENTRIES, OUT_OF_RANGE]);
+    await expect(marketplace.update("future-plugin")).rejects.toMatchObject({
+      code: "incompatible-host",
+    });
+    expect(previewUpdateFromRelease).not.toHaveBeenCalled();
+    expect(previewUpdateFromGitUrl).not.toHaveBeenCalled();
+  });
+
+  it("installs an in-range entry normally", async () => {
+    setCatalog("network", [...ENTRIES, IN_RANGE]);
+    previewFromRelease.mockResolvedValue({
+      stagingToken: "t",
+      source: IN_RANGE.source,
+    } as Awaited<ReturnType<typeof pluginInstaller.previewFromRelease>>);
+    await marketplace.install("current-plugin");
+    expect(previewFromRelease).toHaveBeenCalled();
   });
 });
 

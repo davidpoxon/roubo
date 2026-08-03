@@ -138,6 +138,7 @@ function agentListing(over: Partial<MarketplaceListing> = {}): MarketplaceListin
     declaredPermissions: null,
     lifecycle: null,
     agentCompatibility: null,
+    hostCompatibility: null,
     sourceId: FIRST_PARTY_SOURCE_ID,
     ...over,
   };

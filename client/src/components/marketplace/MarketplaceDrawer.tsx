@@ -1,6 +1,15 @@
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { stampAriaModal } from "../../lib/aria-modal";
-import { Check, Download, Package, RefreshCw, ShieldAlert, ShieldCheck, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Download,
+  Package,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { declaredCategories } from "@roubo/shared";
 import type { MarketplaceListing, PluginLifecycle } from "@roubo/shared";
 import { CATEGORY_META } from "./permission-categories";
@@ -42,6 +51,12 @@ const STRINGS = {
   // as the card's line so the two surfaces agree word for word.
   agentCompatibility: "Agent CLI",
   agentCompatibilityUndeclared: "compatibility not declared",
+  // The host-range mark (issue #720), worded as the card's pill is so the two
+  // surfaces agree. The row appears only when this host is out of range: a
+  // compatible listing is the unremarkable case and gains no row.
+  hostCompatibility: "Roubo",
+  hostIncompatible: (range: string, host: string) => `requires ${range} · host is ${host}`,
+  incompatibleAction: "Incompatible with this Roubo",
   permissionsHeading: "Declared permissions",
   noPermissions: "This plugin declares no special permissions.",
   install: "Install",
@@ -110,6 +125,11 @@ export default function MarketplaceDrawer({
   // in which case the corresponding section / row is omitted.
   const declaredPermissions = listing.declaredPermissions;
   const permissionCategories = declaredPermissions ? declaredCategories(declaredPermissions) : [];
+  // Issue #720: the server-derived host-range verdict, non-null only when this
+  // host is outside the range the plugin declared. Same suppression rule as the
+  // card, so opening the drawer on a marked listing cannot offer an install the
+  // card refused.
+  const incompatibility = listing.hostCompatibility;
 
   return (
     <ModalOverlay
@@ -189,6 +209,21 @@ export default function MarketplaceDrawer({
                 </span>
               </MetaRow>
               <MetaRow label={STRINGS.kind}>{listing.kind}</MetaRow>
+              {incompatibility !== null && (
+                <MetaRow label={STRINGS.hostCompatibility}>
+                  <span
+                    data-testid="marketplace-drawer-incompatible"
+                    data-declared-range={incompatibility.declaredRange}
+                    className="inline-flex items-center gap-1 font-mono text-red-700 dark:text-red-400"
+                  >
+                    <ShieldAlert size={14} aria-hidden />{" "}
+                    {STRINGS.hostIncompatible(
+                      incompatibility.declaredRange,
+                      incompatibility.hostVersion,
+                    )}
+                  </span>
+                </MetaRow>
+              )}
               {listing.kind === "agent" && (
                 <MetaRow label={STRINGS.agentCompatibility}>
                   <span
@@ -267,7 +302,21 @@ export default function MarketplaceDrawer({
             )}
 
             <div className="mt-6">
-              {listing.updateAvailable ? (
+              {showInstalled ? (
+                <span
+                  data-testid="marketplace-drawer-installed"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 px-3 py-2 text-[13px] font-medium text-green-800 dark:text-green-300"
+                >
+                  <Check size={16} /> {STRINGS.installed}
+                </span>
+              ) : incompatibility !== null ? (
+                <span
+                  data-testid="marketplace-drawer-incompatible-action"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] font-medium text-red-800 dark:text-red-300"
+                >
+                  <AlertTriangle size={16} aria-hidden /> {STRINGS.incompatibleAction}
+                </span>
+              ) : listing.updateAvailable ? (
                 <Button
                   data-testid="marketplace-drawer-update"
                   onPress={() => onUpdate(listing)}
@@ -275,13 +324,6 @@ export default function MarketplaceDrawer({
                 >
                   <RefreshCw size={16} /> {STRINGS.update}
                 </Button>
-              ) : showInstalled ? (
-                <span
-                  data-testid="marketplace-drawer-installed"
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 px-3 py-2 text-[13px] font-medium text-green-800 dark:text-green-300"
-                >
-                  <Check size={16} /> {STRINGS.installed}
-                </span>
               ) : (
                 <Button
                   data-testid="marketplace-drawer-install"

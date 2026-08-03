@@ -89,6 +89,7 @@ const LISTING: MarketplaceListing = {
   declaredPermissions: null,
   lifecycle: null,
   agentCompatibility: null,
+  hostCompatibility: null,
   sourceId: FIRST_PARTY_SOURCE_ID,
 };
 
