@@ -531,6 +531,23 @@ describe("PluginCard: lifecycle banners", () => {
     const banner = screen.getByTestId("plugin-invalid-banner");
     expect(banner.textContent).toContain("Missing required field: entry");
   });
+
+  it("explains an incompatible record that has no manifest (issue #719)", () => {
+    // A manifest declaring a key this host does not know never survives the
+    // strict parse, so the host reports the declared range with a null manifest.
+    // The card must still say why rather than showing a bare pill.
+    const r = record({
+      status: "incompatible",
+      manifest: null,
+      lastError: {
+        code: "incompatible-host",
+        message: 'Plugin requires roubo "^9.0.0" but host is 1.0.0',
+      },
+    });
+    render(<PluginCard plugin={r} hostApiVersion="1.0.0" />);
+    const banner = screen.getByTestId("plugin-invalid-banner");
+    expect(banner.textContent).toContain('Plugin requires roubo "^9.0.0" but host is 1.0.0');
+  });
 });
 
 describe("PluginCard: auth-problem branch (issue #204)", () => {
