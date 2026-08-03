@@ -61,7 +61,7 @@ function makeDeps(overrides: Partial<TrackerActionGatewayDeps> = {}): {
   return { deps, audit, invoke, onGatePassed, onGateReopened };
 }
 
-describe("TrackerActionGateway: consented + declared success (TC-047)", () => {
+describe("TrackerActionGateway: consented + declared success (VG-TC-047)", () => {
   it("createIssue invokes the plugin and records an 'applied' audit entry", async () => {
     const { deps, audit, invoke } = makeDeps();
     const created: CreateIssueResult = {
@@ -160,7 +160,7 @@ describe("TrackerActionGateway: consented + declared success (TC-047)", () => {
   });
 });
 
-describe("TrackerActionGateway: unconsented call is blocked (TC-048)", () => {
+describe("TrackerActionGateway: unconsented call is blocked (VG-TC-048)", () => {
   it("refuses createIssue when the plugin is not consented, without invoking", async () => {
     const { deps, audit, invoke } = makeDeps({ hasConsent: () => false });
 
@@ -200,7 +200,7 @@ describe("TrackerActionGateway: unconsented call is blocked (TC-048)", () => {
   });
 });
 
-describe("TrackerActionGateway: missing capability degrades, never a silent no-op (TC-050)", () => {
+describe("TrackerActionGateway: missing capability degrades, never a silent no-op (VG-TC-050)", () => {
   it("refuses createIssue with a legible error when supportsCreateIssue is absent", async () => {
     const { deps, audit, invoke } = makeDeps({
       getCapabilities: () => ({ supportsCreateIssue: false }),
@@ -256,7 +256,7 @@ describe("TrackerActionGateway: missing capability degrades, never a silent no-o
   });
 });
 
-describe("TrackerActionGateway: audit records carry no tracker tokens or secrets (NFR-001, TC-051)", () => {
+describe("TrackerActionGateway: audit records carry no tracker tokens or secrets (VG-NFR-001, VG-TC-051)", () => {
   it("never places a credential on any audit entry across applied and refused paths", async () => {
     const secret = "ghp_supersecret_token_value";
     const { deps, audit, invoke } = makeDeps();

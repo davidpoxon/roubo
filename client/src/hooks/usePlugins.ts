@@ -111,7 +111,7 @@ export function usePluginLogs(pluginId: string, file: "current" | "previous", en
   });
 }
 
-// WU-011: two-stage install. Errors are surfaced inline by the dialog (no
+// IP-WU-011: two-stage install. Errors are surfaced inline by the dialog (no
 // global toast), so we deliberately omit onError handlers on preview/cancel.
 export function useInstallPluginPreview() {
   return useMutation({
@@ -174,7 +174,7 @@ export function useGrantConsent() {
   });
 }
 
-// WU-050: read the cached connection-status for a plugin. Renders the cached
+// IP-WU-050: read the cached connection-status for a plugin. Renders the cached
 // value synchronously and never fires its own background poll: re-fetches
 // only when an opportunistic trigger (PluginsTab / Configure modal / cut list
 // mount) invalidates or prefetches the query.
@@ -188,10 +188,10 @@ export function useConnectionStatus(pluginId: string, enabled: boolean) {
   });
 }
 
-// WU-050: opportunistic re-check. On mount (and whenever the set of enabled
+// IP-WU-050: opportunistic re-check. On mount (and whenever the set of enabled
 // plugin ids changes) fire a single `getConnectionStatus` RPC per enabled
 // plugin. Disabled plugins are skipped. No setInterval/setTimeout. Per-plugin
-// in-flight dedup is enforced by the plugin-manager singleton (WU-044), so
+// in-flight dedup is enforced by the plugin-manager singleton (IP-WU-044), so
 // near-simultaneous triggers (e.g. tab + cut list) coalesce server-side.
 export function useOpportunisticRecheckOnMount(enabledIds: readonly string[]): void {
   const queryClient = useQueryClient();

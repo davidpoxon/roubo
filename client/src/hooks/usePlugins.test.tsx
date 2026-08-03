@@ -196,7 +196,7 @@ describe("useUninstallPlugin", () => {
   });
 });
 
-describe("useConnectionStatus (WU-050)", () => {
+describe("useConnectionStatus (IP-WU-050)", () => {
   it("does not fetch while disabled (skips disabled plugins)", () => {
     mockedApi.fetchConnectionStatus.mockResolvedValue({ state: "connected" });
     renderHookWithProviders(() => useConnectionStatus("github-com", false));
@@ -219,7 +219,7 @@ describe("useConnectionStatus (WU-050)", () => {
   });
 });
 
-describe("useOpportunisticRecheckOnMount (WU-050)", () => {
+describe("useOpportunisticRecheckOnMount (IP-WU-050)", () => {
   it("fires fetchConnectionStatus once per enabled plugin id on mount", async () => {
     mockedApi.fetchConnectionStatus.mockResolvedValue({ state: "connected" });
     renderHookWithProviders(() => useOpportunisticRecheckOnMount(["github-com", "jira"]));

@@ -104,7 +104,7 @@ router.get("/:projectId/issues", async (req, res) => {
       body.cacheStatus = result.cacheStatus;
       if (result.snapshotCapturedAt) body.snapshotCapturedAt = result.snapshotCapturedAt;
     }
-    // FR-014: keep capturing every successful first-page response into the
+    // IP-FR-014: keep capturing every successful first-page response into the
     // in-memory snapshot cache so the errored/disabled fallback above has
     // something to serve. The persistent disk cache does not supersede this
     // in-memory fallback in this slice; the behaviour here is unchanged.
@@ -120,7 +120,7 @@ router.get("/:projectId/issues", async (req, res) => {
     }
     res.json(body);
   } catch (err) {
-    // FR-014: when the active plugin is `errored` or `disabled` and we have a
+    // IP-FR-014: when the active plugin is `errored` or `disabled` and we have a
     // first-page snapshot from a previous successful call, serve it so the
     // cut-list keeps rendering instead of going blank. `stale: true` lets the
     // client surface the matching banner (#263 tracks the UI work). We only
@@ -307,7 +307,7 @@ router.post("/:projectId/benches/:id/assign-issue", async (req, res) => {
   try {
     // Bound the single getIssue read to the gate budget when enforcement is ON so
     // a hung plugin fails closed in ~3s instead of stalling for the 30s RPC default
-    // (#438, NFR-002). fetchIssueForStart returns the full issue, reused as
+    // (#438, VG-NFR-002). fetchIssueForStart returns the full issue, reused as
     // prefetchedIssue below so the request still issues one RPC.
     issue = await fetchIssueForStart(req.params.projectId, externalId, active.pluginId);
   } catch (err) {
@@ -328,7 +328,7 @@ router.post("/:projectId/benches/:id/assign-issue", async (req, res) => {
     // Hard start-gate (#699): same enforcement as create-and-assign. When
     // enforceIssueDependencies is ON, refuse to assign a unit whose upstream
     // verify gate has not passed, reusing the freshly fetched issue so no second
-    // getIssue RPC is needed (NFR-002). A blocked or indeterminate gate throws a
+    // getIssue RPC is needed (VG-NFR-002). A blocked or indeterminate gate throws a
     // 409 ServiceError (GATE_BLOCKED / GATE_INDETERMINATE) before the git
     // checkout, so the branch is never created.
     await assertGateOpen(req.params.projectId, externalId, active.pluginId, {

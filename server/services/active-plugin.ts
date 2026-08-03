@@ -6,7 +6,7 @@ import {
   IntegrationOverrideError,
 } from "./integration-overrides.js";
 
-/** Default `listIssues` page size when neither the committed config nor the per-user override specifies one (FR-022, NFR-005). */
+/** Default `listIssues` page size when neither the committed config nor the per-user override specifies one (IP-FR-022, IP-NFR-005). */
 export const DEFAULT_PAGE_SIZE = 50;
 
 export interface ActivePlugin {
@@ -18,7 +18,7 @@ export interface ActivePlugin {
 /**
  * Resolve the active integration plugin for a project by merging the
  * committed `roubo.yaml` integration config with the per-user override
- * file at `~/.roubo/integrations/<projectId>.yaml` (WU-004).
+ * file at `~/.roubo/integrations/<projectId>.yaml` (IP-WU-004).
  *
  * Returns `null` when the project is unknown, has no parsed config, or
  * has no `integration.plugin` set after the merge. Callers should map
@@ -50,7 +50,7 @@ export function resolveActivePlugin(projectId: string): ActivePlugin | null {
 
 /**
  * Resolve the human-readable display name for a project's active integration
- * plugin (FR-069, WU-056). Returns `null` when the project has no active
+ * plugin (IP-FR-069, IP-WU-056). Returns `null` when the project has no active
  * plugin or the plugin isn't installed locally; callers own the user-facing
  * fallback string (e.g. "Source") so that "no display name" stays distinct
  * from "plugin id used as a label".

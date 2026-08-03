@@ -4,7 +4,7 @@ name: e2e
 # wall-clock duration of `npx playwright test` as both a job output and a
 # named artifact. Called by:
 #   - pr-check.yml (single call per PR)
-#   - e2e-reliability.yml (ten calls per run, aggregated for TC-148 / NFR-018)
+#   - e2e-reliability.yml (ten calls per run, aggregated for IP-TC-148 / IP-NFR-018)
 #
 # Each caller passes a unique `run_index` so artifact names don't collide
 # when the reliability workflow uploads ten of them in one run.

@@ -239,7 +239,7 @@ export function getEffectiveWithGlobal(
   return getEffectiveIntegrationConfig(committed, globalOverride, projectOverride);
 }
 
-// Per-source post-merge pass for `excludedStatuses` (FR-063). The root-level
+// Per-source post-merge pass for `excludedStatuses` (IP-FR-063). The root-level
 // deep-merge walker does not descend into `sources[<cat>][<i>]` entries, so
 // this pass walks them after the merge and normalises each entry to the
 // object form `{ externalId, excludedStatuses }`, where the resolved list is

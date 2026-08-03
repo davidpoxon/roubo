@@ -42,7 +42,7 @@ afterEach(() => {
   clearAll();
 });
 
-describe("issue-snapshot-cache (FR-014)", () => {
+describe("issue-snapshot-cache (IP-FR-014)", () => {
   it("records a first-page snapshot and returns it", () => {
     const response = makeResponse();
     recordSnapshot("e2e-stub", "p1", makeParams(), response, "E2E Stub", true);

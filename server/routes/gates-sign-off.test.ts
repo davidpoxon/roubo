@@ -1,5 +1,5 @@
-// Sign-off / reopen route tests for the verify gate (issue #830, FR-007/FR-008,
-// US-005, NFR-001, NFR-005). Kept in a separate file from gates.test.ts so this
+// Sign-off / reopen route tests for the verify gate (issue #830, VG-FR-007/VG-FR-008,
+// VG-US-005, VG-NFR-001, VG-NFR-005). Kept in a separate file from gates.test.ts so this
 // router instance (and its module-level rate limiters) is fresh under Vitest's
 // per-file isolation: the sign-off / reopen write requests here have their own
 // rate-limit budget and never accumulate against gates.test.ts's writes.
@@ -283,7 +283,7 @@ beforeEach(() => {
 describe("POST /:projectId/gates/:gateId/sign-off (#830)", () => {
   beforeEach(passedTrackedGate);
 
-  it("closes the gate's tracker issue and returns signedOff:true on success (AC, NFR-001)", async () => {
+  it("closes the gate's tracker issue and returns signedOff:true on success (AC, VG-NFR-001)", async () => {
     vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
     // After closeGate runs, withSignedOff re-reads the (now closed) tracker issue.
     vi.mocked(pluginManager.invoke).mockResolvedValue({ currentState: "closed" } as never);

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #702 (FR-012, TC-027): the gate-state panel renders the gate's status with a
+// #702 (VG-FR-012, VG-TC-027): the gate-state panel renders the gate's status with a
 // visible text label (never colour alone), and for a non-passed gate lists the
 // unresolved gating cases and the covering slice units. A passed gate shows
 // neither set. axe-clean.

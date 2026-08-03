@@ -6,7 +6,7 @@ import { ServiceError } from "./service-error.js";
 /**
  * Default bound for the single blocking-read RPC the gate may issue. The start
  * path must never hang on a slow integration: a read that does not resolve in
- * this window reads as indeterminate and fails closed (NFR-002, NFR-003).
+ * this window reads as indeterminate and fails closed (VG-NFR-002, VG-NFR-003).
  */
 const DEFAULT_GATE_TIMEOUT_MS = 3000;
 
@@ -20,7 +20,7 @@ export interface AssertGateOpenOptions {
   timeoutMs?: number;
   /**
    * The already-fetched issue. When supplied the gate reads `blockedBy` from it
-   * directly and issues NO RPC (NFR-002: at most one blocking read on the start
+   * directly and issues NO RPC (VG-NFR-002: at most one blocking read on the start
    * path, and the callers already hold a fresh fetch).
    */
   prefetchedIssue?: NormalizedIssue;
@@ -30,14 +30,14 @@ export interface AssertGateOpenOptions {
  * Hard start-gate. Refuses to start or assign a bench on a unit whose upstream
  * verify gate has not passed, keyed entirely to `enforceIssueDependencies`.
  *
- * - OFF: returns immediately, no gate-blocking, no RPC (FR-006).
+ * - OFF: returns immediately, no gate-blocking, no RPC (VG-FR-006).
  * - ON: reads the issue's `blockedBy`. A non-empty `blockedBy` means an
  *   unresolved upstream gate (the GitHub plugin filters resolved blockers out
  *   before this point), so the start is refused with `409 GATE_BLOCKED` naming
  *   every blocker for traceability.
  * - ON and the blocking state cannot be determined (no active plugin when a
  *   read is needed, RPC error, or timeout): fails closed with
- *   `409 GATE_INDETERMINATE`; the start is never allowed (NFR-003).
+ *   `409 GATE_INDETERMINATE`; the start is never allowed (VG-NFR-003).
  *
  * The decision over `blockedBy` is purely in-memory. This does not evaluate the
  * gate's results or load `work-units.json`; that lifecycle is a separate issue.
@@ -80,11 +80,11 @@ export interface FetchIssueForStartOptions {
  *
  * - Enforcement ON: the one `getIssue` RPC is bounded to the gate budget (3s by
  *   default) via {@link fetchIssueBounded}. A timeout, missing plugin, or RPC
- *   error fails closed with `409 GATE_INDETERMINATE` (NFR-002, NFR-003). The
+ *   error fails closed with `409 GATE_INDETERMINATE` (VG-NFR-002, VG-NFR-003). The
  *   returned issue is then handed to {@link assertGateOpen} as `prefetchedIssue`,
  *   so the whole start request still issues exactly one `getIssue` RPC.
  * - Enforcement OFF: a plain, ungated `getIssue` at the plugin manager's default
- *   RPC bound (the gate never runs, FR-006). Plugin RPC errors propagate to the
+ *   RPC bound (the gate never runs, VG-FR-006). Plugin RPC errors propagate to the
  *   caller unchanged so the route can surface them as plugin-RPC errors.
  */
 export async function fetchIssueForStart(

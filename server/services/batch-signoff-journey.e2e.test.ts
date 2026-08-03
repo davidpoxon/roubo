@@ -1,8 +1,8 @@
-// TC-024 (e2e_flow, level 1): the batch sign-off journey end to end. A verifier
+// VG-TC-024 (e2e_flow, level 1): the batch sign-off journey end to end. A verifier
 // opens the batches overview, picks Phase 2, verifies its subset, and signs off;
 // Phase 2 reads passed/closed and Phase 3 unblocks.
 //
-// Sibling to gate-journey.e2e.test.ts (which does this for TC-040). The "running
+// Sibling to gate-journey.e2e.test.ts (which does this for VG-TC-040). The "running
 // system" here is the REAL, already-merged batch stack composed as one continuous
 // journey, not a mock of the gate logic (AC-1):
 //   - S001 + S004 (overview cards) read the gate state through the REAL gates-route
@@ -30,13 +30,13 @@
 // loadVerifyUnits, gateOverrideStore). The gate functions themselves and the route
 // projection are the real production code.
 //
-// Phase 3 "blocked" is modelled exactly as TC-040 S003 does: the gate-state model
+// Phase 3 "blocked" is modelled exactly as VG-TC-040 S003 does: the gate-state model
 // has no "blocked" status (gate states are passed/failed/pending/stale), so the
 // downstream unit's blockedBy carrying the Phase 2 gate tracker IS the blocked
 // signal the Phase 3 card reads, and closing the gate clears it.
 //
-// Drift guard (AC-2): each it() is named after its TC-024 step id and the step's
-// expected observation is kept explicit, so a change to the authoritative TC-024 in
+// Drift guard (AC-2): each it() is named after its VG-TC-024 step id and the step's
+// expected observation is kept explicit, so a change to the authoritative VG-TC-024 in
 // .specifications/verify-gate/test-cases.json forces this test to be updated.
 //
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
@@ -132,7 +132,7 @@ const SLICE_S003 = "#702 (batch view: mark-passed drives the real evaluateGate, 
 const SLICE_S004 =
   "#702 (batch view: sign-off action drives the real onGatePassed, #700) / #701 (overview re-read)";
 
-// ── Fixture identifiers (TC-024 preconditions: three phases, milestone-aligned
+// ── Fixture identifiers (VG-TC-024 preconditions: three phases, milestone-aligned
 // units, Phase 1 closed, Phase 2 verifying over [TC-019, TC-020, TC-024], Phase 3
 // blocked by the Phase 2 gate). ──
 const PROJECT_ID = "proj-verify-gate";
@@ -152,7 +152,7 @@ const PHASE2_TRACKER = "440";
 const PHASE2_CASES = ["TC-019", "TC-020", "TC-024"];
 
 // Phase 3 gate: blocked while its downstream delivery unit lists the Phase 2 gate
-// tracker in blockedBy. Modelled like TC-040 S003.
+// tracker in blockedBy. Modelled like VG-TC-040 S003.
 const PHASE3_GATE = "WU-060";
 const PHASE3_CASE = "TC-032";
 const PHASE3_REF = "owner/repo#460";
@@ -281,7 +281,7 @@ const planCasesByGate: Record<string, Case[]> = {
 // The gate tracker issue (#440), open while the gate is open.
 let trackerIssue: NormalizedIssue = makeIssue();
 // The downstream Phase 3 delivery unit: blocked by the Phase 2 gate tracker until
-// it closes (the Phase 3 card's "blocked" signal, like TC-040 S003).
+// it closes (the Phase 3 card's "blocked" signal, like VG-TC-040 S003).
 let phase3Issue: NormalizedIssue = makeIssue({
   externalId: PHASE3_REF,
   externalUrl: "https://github.com/o/r/issues/460",
@@ -379,7 +379,7 @@ beforeEach(() => {
   });
 });
 
-describe("TC-024: verifier opens the overview, picks Phase 2, verifies the subset, and signs off", () => {
+describe("VG-TC-024: verifier opens the overview, picks Phase 2, verifies the subset, and signs off", () => {
   it("S001: navigate to the batches overview -> three cards: Phase 1 passed, Phase 2 verifying, Phase 3 blocked (S001-O01)", async () => {
     const overview = await readOverview();
 
@@ -397,7 +397,7 @@ describe("TC-024: verifier opens the overview, picks Phase 2, verifies the subse
 
     // S001-O01: Phase 3 reads blocked. The gate-state model has no "blocked"
     // status; the block is the downstream unit's blockedBy carrying the Phase 2
-    // gate tracker (same modelling as TC-040 S003).
+    // gate tracker (same modelling as VG-TC-040 S003).
     expect(
       phase3Issue.blockedBy,
       `TC-024 step S001 (S001-O01) diverged: expected the Phase 3 unit to be blocked by the Phase 2 gate tracker #${PHASE2_TRACKER} (the card's blocked signal), got blockedBy ${JSON.stringify(

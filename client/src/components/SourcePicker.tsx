@@ -12,7 +12,7 @@ import type { SourceOptionCategory } from "../hooks/useSourceOptions";
 import { entryExternalId } from "../lib/source-selection";
 
 /**
- * Host-rendered declarative source picker (FR-019). The active integration
+ * Host-rendered declarative source picker (IP-FR-019). The active integration
  * plugin returns a shape descriptor from `listSourceCandidates`; this component
  * renders it. `multi-list` is one flat selector (GitHub.com / GHE repos +
  * Projects); `categorized-multi-list` is a tabbed selector (Jira Boards / Epics

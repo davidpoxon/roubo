@@ -1,5 +1,5 @@
-// Validated loader for the published `work-units.json` artifact (#701, FR-003,
-// FR-008, FR-012, architecture.md "WorkUnitLoader" row).
+// Validated loader for the published `work-units.json` artifact (#701, VG-FR-003,
+// VG-FR-008, VG-FR-012, architecture.md "WorkUnitLoader" row).
 //
 // Responsibility: locate every `.specifications/<slug>/work-units.json` under a
 // registered project's repoPath, validate each against the published contract
@@ -19,9 +19,9 @@
 //   - a `work-units.json` that EXISTS but fails JSON parse or contract validation
 //     is surfaced as a WorkUnitsValidationError: a present-but-broken artifact is
 //     a real misconfiguration the operator must see, not silently dropped (which
-//     would mask a missing gate, the NFR-007 fail-closed spirit).
+//     would mask a missing gate, the VG-NFR-007 fail-closed spirit).
 //
-// Path-safety (NFR-001): every fs path flows through assertSafeIdentifier(slug)
+// Path-safety (VG-NFR-001): every fs path flows through assertSafeIdentifier(slug)
 // then resolveWithin(repoPath, '.specifications', slug, ...), so an out-of-repo
 // or traversal slug is rejected before any fs call. This module never writes.
 
@@ -170,7 +170,7 @@ export function loadAllUnitsForSlug(repoPath: string, slug: string): Unit[] {
 // Build the WU- id -> test_case_ids map for a single spec slug, drawn from the
 // spec's NON-verify units (a delivery slice's `implements.test_case_ids` is the
 // set of cases that slice delivers). A split assigns the source gate's `covers`
-// WU- ids to parts; this map resolves each part's gating set (#703, TC-023).
+// WU- ids to parts; this map resolves each part's gating set (#703, VG-TC-023).
 //
 // Last-write-wins on a duplicate WU- id (the validator does not enforce id
 // uniqueness); a verify unit's own entry is excluded since its test_case_ids is
@@ -197,7 +197,7 @@ export function buildWorkUnitCaseMap(repoPath: string, slug: string): Map<string
 // Per-spec error handling diverges by path (#802):
 //   - single-slug path (`slug` given): a present-but-invalid work-units.json
 //     throws WorkUnitsValidationError, surfaced not dropped. This is the fail-
-//     closed per-spec contract (NFR-007): asking for one spec's gates must never
+//     closed per-spec contract (VG-NFR-007): asking for one spec's gates must never
 //     silently hide that the spec's artifact is broken.
 //   - all-specs path (`slug` omitted): one malformed spec must not abort the
 //     whole aggregate request. A WorkUnitsValidationError from any single spec is

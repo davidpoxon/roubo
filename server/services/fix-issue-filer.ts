@@ -1,4 +1,4 @@
-// Failed-case fix-issue filer (#706, FR-009, FR-010, NFR-003; spec
+// Failed-case fix-issue filer (#706, VG-FR-009, VG-FR-010, VG-NFR-003; spec
 // .specifications/verify-gate/architecture.md "FixIssueFiler").
 //
 // On marking a gating case failed or blocked, the verifier captures notes and
@@ -9,15 +9,15 @@
 // recovery.
 //
 // The contract this module guarantees:
-//   - Pre-flight (NFR-005). Before creating anything, it checks that the active
+//   - Pre-flight (VG-NFR-005). Before creating anything, it checks that the active
 //     plugin declares BOTH `supportsCreateIssue` and `supportsBlockingLinks`. A
 //     gate that can be created but never linked would leave an orphan fix issue
 //     and a falsely passable gate, so the filer degrades loudly UP FRONT (a typed
 //     TrackerActionError with code "capability-absent") rather than creating an
 //     issue it can never wire up.
-//   - Create-then-link (FR-009, FR-010). createIssue, then addBlockedBy: the new
+//   - Create-then-link (VG-FR-009, VG-FR-010). createIssue, then addBlockedBy: the new
 //     fix issue is registered as a blocker on the gate's tracker issue.
-//   - Link-pending recovery (NFR-003). When createIssue succeeds but addBlockedBy
+//   - Link-pending recovery (VG-NFR-003). When createIssue succeeds but addBlockedBy
 //     fails afterwards (a transient tracker error), the filer returns a
 //     FixIssueRecord with `linkStatus: 'link_pending'` carrying the created
 //     `fixIssueRef`. The route surfaces this as a partial (207) and the operator
@@ -112,7 +112,7 @@ export interface FileFixIssueParams {
   /**
    * When set, the create step is skipped and ONLY the block-link step runs
    * against this already-created fix issue ref. Drives the link-only retry after
-   * a prior `link_pending` outcome (NFR-003).
+   * a prior `link_pending` outcome (VG-NFR-003).
    */
   existingFixRef?: string;
 }
@@ -151,8 +151,8 @@ function preflightCapabilities(
 
 /**
  * File a fix issue for a failed gating case and register it as a blocker on the
- * gate, with create-then-link partial-failure recovery (FR-009, FR-010,
- * NFR-003).
+ * gate, with create-then-link partial-failure recovery (VG-FR-009, VG-FR-010,
+ * VG-NFR-003).
  *
  * Flow:
  *   1. Reject empty / whitespace-only notes before any tracker call.
@@ -186,7 +186,7 @@ export async function fileFixIssueAndBlock(
   // this is just [gateRef], so one addBlockedBy call, identical to before.
   const blockedRefs = [gateRef, ...(params.additionalGateRefs ?? [])];
 
-  // Link-only retry (NFR-003): the issue already exists, so skip create and run
+  // Link-only retry (VG-NFR-003): the issue already exists, so skip create and run
   // only the block-link step against every target. Pre-flight only the link
   // capability.
   if (params.existingFixRef !== undefined && params.existingFixRef.length > 0) {
@@ -217,7 +217,7 @@ export async function fileFixIssueAndBlock(
   });
 
   // Create succeeded. From here a link failure must NOT throw: the issue exists,
-  // so we surface the partial state for a link-only retry (NFR-003) rather than
+  // so we surface the partial state for a link-only retry (VG-NFR-003) rather than
   // letting the operator re-file. The gate stays non-passable regardless: the
   // failed gating case keeps it so. Every target is linked; a failure on any one
   // surfaces link_pending, and the retry re-runs all links against the existing

@@ -57,7 +57,7 @@ export function useSaveIntegrationConfig(projectId: string) {
   });
 }
 
-// Declarative source picker (FR-019). Candidates are fetched lazily (only when
+// Declarative source picker (IP-FR-019). Candidates are fetched lazily (only when
 // the Configure dialog is open and connected) since they require a live plugin
 // connection.
 export function useSourceCandidates(projectId: string, enabled: boolean) {

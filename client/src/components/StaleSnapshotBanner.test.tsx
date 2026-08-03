@@ -4,8 +4,8 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import StaleSnapshotBanner from "./StaleSnapshotBanner";
 
-describe("StaleSnapshotBanner (FR-014 / TC-016)", () => {
-  it("renders TC-016 copy with the plugin name substituted", () => {
+describe("StaleSnapshotBanner (IP-FR-014 / IP-TC-016)", () => {
+  it("renders IP-TC-016 copy with the plugin name substituted", () => {
     render(
       <MemoryRouter>
         <StaleSnapshotBanner pluginName="GitHub.com" />

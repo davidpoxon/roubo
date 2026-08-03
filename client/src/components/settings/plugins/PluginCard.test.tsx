@@ -217,7 +217,7 @@ describe("PluginCard: header content (TC-001, TC-013, FR-057)", () => {
   });
 });
 
-describe("PluginCard: plugin icon (FR-057, mockups §22)", () => {
+describe("PluginCard: plugin icon (IP-FR-057, mockups §22)", () => {
   it("renders the manifest icon as an image when it is a data: URI", () => {
     const iconUri = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>";
     render(
@@ -279,7 +279,7 @@ describe("PluginCard: connection status chip (mockups §21/§22)", () => {
   });
 });
 
-describe("PluginCard: enable Switch (FR-057, NFR-016)", () => {
+describe("PluginCard: enable Switch (IP-FR-057, IP-NFR-016)", () => {
   it("renders the Switch as selected for an enabled plugin", () => {
     render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
     const sw = screen.getByRole("switch") as HTMLInputElement;
@@ -317,7 +317,7 @@ describe("PluginCard: enable Switch (FR-057, NFR-016)", () => {
   });
 });
 
-describe("PluginCard: context-aware primary action (FR-072)", () => {
+describe("PluginCard: context-aware primary action (IP-FR-072)", () => {
   it('labels the primary button "Connect" for a disabled plugin', () => {
     render(<PluginCard plugin={record({ status: "disabled" })} hostApiVersion="1.0.0" />);
     expect(screen.getByRole("button", { name: "Connect" })).toBeTruthy();

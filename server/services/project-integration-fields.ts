@@ -5,7 +5,7 @@ import { writeRouboConfig } from "./write-roubo-config.js";
 import type { IntegrationFields, IntegrationFieldsUpdate, RouboConfig } from "@roubo/shared";
 
 /**
- * Plugins that own the three Identity-resident fields (FR-070). The GitHub
+ * Plugins that own the three Identity-resident fields (IP-FR-070). The GitHub
  * family (github-com, ghe) derives its sources from the repo field on save, so
  * both own these controls; Jira will join this list as its WU lands.
  */

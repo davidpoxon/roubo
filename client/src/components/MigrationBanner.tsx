@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { X } from "lucide-react";
 import { useMigrationStatus } from "../hooks/useMigrationStatus";
 
-// One-time migration banner from WU-024 / issue #42. Renders at most once per
+// One-time migration banner from IP-WU-024 / issue #42. Renders at most once per
 // machine per migration `at` timestamp: once dismissed, the localStorage marker
 // keeps it dismissed across reloads. Success and rolled-back variants per
 // .specifications/integration-plugins/prototype/mockups.md §13.

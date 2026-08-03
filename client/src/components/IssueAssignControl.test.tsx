@@ -243,7 +243,7 @@ describe("IssueAssignControl", () => {
       expect(button.textContent).toBe("Assign to me");
     });
 
-    it("wraps the disabled button in a TooltipTrigger so the documented copy is exposed on focus/hover (TC-095)", () => {
+    it("wraps the disabled button in a TooltipTrigger so the documented copy is exposed on focus/hover (IP-TC-095)", () => {
       // We can't reliably trigger the React Aria Tooltip popover for a disabled
       // <button> in jsdom (disabled elements drop pointer/focus events). Instead
       // assert the wiring: the button is disabled and React Aria's keyboard-

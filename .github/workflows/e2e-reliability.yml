@@ -1,6 +1,6 @@
 name: e2e-reliability
 
-# TC-148 / NFR-018: assert the Playwright suite passes 10 consecutive runs
+# IP-TC-148 / IP-NFR-018: assert the Playwright suite passes 10 consecutive runs
 # in CI with no retries and a total-duration variance budget under 10%.
 #
 # This workflow calls the reusable `e2e.yml` workflow ten times sequentially
@@ -78,7 +78,7 @@ jobs:
           const budget = 0.10;
 
           const lines = [
-            '## Playwright e2e reliability (TC-148)',
+            '## Playwright e2e reliability (IP-TC-148)',
             '',
             '| Run | Duration (s) |',
             '| --- | --- |',

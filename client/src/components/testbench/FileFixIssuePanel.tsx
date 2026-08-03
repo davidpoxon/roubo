@@ -5,8 +5,8 @@ import type { FixIssueRecord } from "@roubo/shared";
 import { useFileFixIssue } from "../../hooks/useGates";
 import { ApiError } from "../../lib/api";
 
-// Fix-issue filing panel (#706, FR-009/FR-010, US-006; verify-gate TC-045 /
-// TC-052 / TC-053). Hosted in the batch surface, it opens when the selected
+// Fix-issue filing panel (#706, VG-FR-009/VG-FR-010, VG-US-006; verify-gate VG-TC-045 /
+// VG-TC-052 / VG-TC-053). Hosted in the batch surface, it opens when the selected
 // gating case is failed: the operator captures failure notes and files a tracker
 // issue wired to block the gate, so the gate stays not-passable until the fix
 // issue is resolved.
@@ -19,9 +19,9 @@ import { ApiError } from "../../lib/api";
 // that re-files with `existingFixRef` set (the retry runs only the outstanding
 // link step, never a duplicate create). A real failure (422 empty notes /
 // capability absent, 409 no tracker / no integration, 400 path escape) rejects
-// with an ApiError, surfaced inline (FR-011, degrade loudly).
+// with an ApiError, surfaced inline (VG-FR-011, degrade loudly).
 //
-// Empty notes are rejected client-side BEFORE any call (TC-053): the inline
+// Empty notes are rejected client-side BEFORE any call (VG-TC-053): the inline
 // "notes required" message shows, no tracker call is made, no issue is created,
 // and the gate state is unchanged.
 
@@ -72,7 +72,7 @@ export default function FileFixIssuePanel({
   }
 
   function handleSubmit() {
-    // Reject empty notes client-side before any tracker call (TC-053): show the
+    // Reject empty notes client-side before any tracker call (VG-TC-053): show the
     // inline required message and make NO request, so no issue is created and the
     // gate state is unchanged.
     if (trimmed.length === 0) {

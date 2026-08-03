@@ -1,4 +1,4 @@
-// TC-040 (e2e_flow, level 1): the gate-lifecycle journey end to end. Pass the
+// VG-TC-040 (e2e_flow, level 1): the gate-lifecycle journey end to end. Pass the
 // final gating case, close the gate's tracker issue (#451), Phase 3 unblocks, and
 // a Phase 3 bench can start.
 //
@@ -20,8 +20,8 @@
 // assertGateOpen's enforce + prefetchedIssue options). The gate functions
 // themselves are the real production functions.
 //
-// Drift guard (AC-2): each it() is named after its TC-040 step id and the step's
-// expected observation is kept explicit, so a change to the authoritative TC-040
+// Drift guard (AC-2): each it() is named after its VG-TC-040 step id and the step's
+// expected observation is kept explicit, so a change to the authoritative VG-TC-040
 // in .specifications/verify-gate/test-cases.json forces this test to be updated.
 //
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
@@ -49,7 +49,7 @@ const SLICE_S002 = "#700 (gate lifecycle: close on pass)";
 const SLICE_S003 = "#700 (gate lifecycle: unblock next batch)";
 const SLICE_S004 = "#699 (hard start-gate, fail-closed)";
 
-// ── Fixture identifiers (TC-040 preconditions) ──
+// ── Fixture identifiers (VG-TC-040 preconditions) ──
 const PROJECT_ID = "proj-verify-gate";
 const PLUGIN_ID = "github-com";
 const PLAN_HASH = "sha256-plan-v1";
@@ -63,7 +63,7 @@ const PHASE3_REF = "owner/repo#460";
 
 // VerifyUnit gate WU-040 with tracker.ref -> #451, from
 // gate-lifecycle-coordinator.test.ts. Its single gating case TC-001 is the "final
-// remaining gating case" of TC-040.
+// remaining gating case" of VG-TC-040.
 function makeGate(): VerifyUnit {
   const tracker: Tracker = {
     system: "github",
@@ -164,7 +164,7 @@ const deps: GateLifecycleDeps = {
   now: () => "2026-06-22T00:00:00.000Z",
 };
 
-describe("TC-040: last gating case passes, gate closes #451, Phase 3 unblocks, a Phase 3 bench can start", () => {
+describe("VG-TC-040: last gating case passes, gate closes #451, Phase 3 unblocks, a Phase 3 bench can start", () => {
   it("S001: mark the final remaining gating case passed -> gate state changes to passed (S001-O01)", () => {
     // Precondition: before the final case flips, the gate is not passed. Drive the
     // REAL evaluateGate (#698) with the final case still unresolved.

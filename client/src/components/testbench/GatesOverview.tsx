@@ -8,13 +8,13 @@ import { useGates, useMergeGates, useSplitGate } from "../../hooks/useGates";
 import GateStateIndicator from "./GateStateIndicator";
 import Spinner from "../Spinner";
 
-// Gates overview (#702/#703, FR-001/FR-002/FR-012, AC1). One card per effective
+// Gates overview (#702/#703, VG-FR-001/VG-FR-002/VG-FR-012, AC1). One card per effective
 // gate (one gate per phase by default, derived server-side; an operator merge /
 // split replaces the affected cards). Each card shows the gate's id, its
 // evaluated status, and the covering slice unit ids the unresolved gating cases
-// trace to (the gate's `covers`, per FR-012).
+// trace to (the gate's `covers`, per VG-FR-012).
 //
-// Operator override (#703, FR-002, US-007): the toolbar exposes a merge mode
+// Operator override (#703, VG-FR-002, VG-US-007): the toolbar exposes a merge mode
 // (select two or more gates, then combine them into one) and each non-passed
 // gate exposes a split control (assign its covering WU- ids to two parts). Both
 // write through the gate-override store server-side, leaving the externally
@@ -23,7 +23,7 @@ import Spinner from "../Spinner";
 //
 // Live-update: the list is React Query backed; the merge / split mutations
 // invalidate the gates query so the combined / split cards replace the originals
-// on success (TC-022 S001-O01, TC-023 S001-O01).
+// on success (VG-TC-022 S001-O01, VG-TC-023 S001-O01).
 
 const STRINGS = {
   // The gate's covering work units (what its unresolved cases trace to). This is
@@ -31,7 +31,7 @@ const STRINGS = {
   // relabel, previously mislabeled "Blocked by").
   covers: "Covers",
   // The genuine upstream dependency line: verify gates this phase is blocked by
-  // until they are signed off (issue #433, FR-001).
+  // until they are signed off (issue #433, VG-FR-001).
   blockedByUpstream: "Blocked by",
   gatingCount: (n: number) => `${n} gating ${n === 1 ? "case" : "cases"}`,
   mergeMode: "Merge",
@@ -123,7 +123,7 @@ function GateCard({
   // partial fixture without the field renders no count line rather than crashing.
   const gatingCount = gate.gatingCaseIds?.length ?? 0;
   // Genuine upstream blockers: verify gates this phase depends on that are not yet
-  // signed off (issue #433, FR-001). Distinct from `coveringUnits` (the gate's own
+  // signed off (issue #433, VG-FR-001). Distinct from `coveringUnits` (the gate's own
   // covers), which the relabeled line below lists.
   const blockedBy = gate.blockedBy ?? [];
   const hasUpstreamBlockers = blockedBy.length > 0;

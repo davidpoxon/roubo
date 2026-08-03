@@ -3,7 +3,7 @@
  *
  * The bench-assignment API (server/routes/issues.ts → assign-issue) still
  * takes `issueNumber: number` because the bench state shape is unchanged
- * by WU-016 (deferred to a follow-up WU). For the github-com plugin the
+ * by IP-WU-016 (deferred to a follow-up WU). For the github-com plugin the
  * externalId is expected in `<owner>/<repo>#<number>` or `<repo>#<number>`
  * form; we extract the trailing number. Returns `null` when the format
  * doesn't match (e.g. a Jira-style key like `ROUBO-42`), in which case

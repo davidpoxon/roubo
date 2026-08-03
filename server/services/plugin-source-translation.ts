@@ -5,7 +5,7 @@ import type { SourceSelection, SourceEntry } from "@roubo/shared";
  * list of `{ kind, externalId }` entries. Plugins translate this internally
  * into per-source API calls.
  *
- * The optional per-source alert-category booleans (FR-074) are passed through
+ * The optional per-source alert-category booleans (IP-FR-074) are passed through
  * verbatim when present on an object-form source entry. Plugins that do not
  * implement security alerts (i.e. anything outside the GitHub family) ignore
  * them; the host treats them as plugin-defined per-source config.
@@ -74,7 +74,7 @@ export interface TranslateSourcesOptions {
 /**
  * The schema for IntegrationConfig.sources allows numeric externalIds (e.g.
  * `Project: [1, 2]`) for plugins that use numeric ids natively, and (per
- * FR-062/FR-063) object entries that carry per-source overrides like
+ * IP-FR-062/IP-FR-063) object entries that carry per-source overrides like
  * `excludedStatuses`. The declared `SourceSelection` type only mentions
  * strings; accept the looser shape and stringify/unwrap as needed.
  */

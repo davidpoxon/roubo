@@ -1,4 +1,4 @@
-// Tracker-action gateway (#705, FR-011, NFR-001, NFR-005; spike #704).
+// Tracker-action gateway (#705, VG-FR-011, VG-NFR-001, VG-NFR-005; spike #704).
 //
 // The single wrapper around `pluginManager.invoke` for the privileged tracker
 // ops: create an issue, register an "is blocked by" link, close a gate's tracker
@@ -12,14 +12,14 @@
 //      per-op capability (`supportsCreateIssue` / `supportsBlockingLinks`). When
 //      it is absent or false, the gateway NEVER calls the op: it throws a typed
 //      `TrackerActionError` with a legible message and audit-logs the refused
-//      attempt (NFR-005: a clear degrade, never a silent no-op). close-gate is
+//      attempt (VG-NFR-005: a clear degrade, never a silent no-op). close-gate is
 //      not a new flag; it reuses the existing `applyTransition` capability
 //      (spike #704), so its gate is consent only.
-//   2. Consent. The plugin must hold a consent record (NFR-001). An unconsented
+//   2. Consent. The plugin must hold a consent record (VG-NFR-001). An unconsented
 //      call is refused and audit-logged, mirroring the undeclared-actions guard.
 //   3. Audit. Every privileged op (applied, skipped, or refused) is recorded in
 //      the in-process tracker-action audit log, carrying only non-secret refs.
-//      No tracker token or secret is ever placed on an audit entry (NFR-001).
+//      No tracker token or secret is ever placed on an audit entry (VG-NFR-001).
 //
 // close-gate reuses the gate-lifecycle coordinator's `onGatePassed`, which is the
 // shipped close-on-pass path (it fetches the issue, picks a done-bound
@@ -62,7 +62,7 @@ export class TrackerActionError extends Error {
 }
 
 /**
- * In-memory record of every privileged tracker-action call (NFR-001), scoped to
+ * In-memory record of every privileged tracker-action call (VG-NFR-001), scoped to
  * a project + plugin (these ops have no bench). Mirrors the per-bench broker
  * `AuditLog` and the gate-close `GateAuditLog`, kept separate so the
  * create/link/close ledger does not overload either bench- or gate-close-scoped
@@ -192,7 +192,7 @@ function enforceGuards(
     throw new TrackerActionError(message, code);
   };
 
-  // Consent gate (NFR-001): every privileged op, including close, requires the
+  // Consent gate (VG-NFR-001): every privileged op, including close, requires the
   // plugin to be consented.
   if (!deps.hasConsent(pluginId)) {
     refuse(
@@ -202,7 +202,7 @@ function enforceGuards(
     );
   }
 
-  // Capability gate (NFR-005): create / link require the declared manifest
+  // Capability gate (VG-NFR-005): create / link require the declared manifest
   // capability. close-gate reuses the existing transition capability and so has
   // no flag of its own (spike #704).
   if (action === "createIssue" || action === "addBlockedBy") {
@@ -220,7 +220,7 @@ function enforceGuards(
 }
 
 /**
- * Create a tracker issue through the active integration plugin (FR-011). Gated on
+ * Create a tracker issue through the active integration plugin (VG-FR-011). Gated on
  * the `supportsCreateIssue` capability and consent; audit-logged. Returns the
  * created issue's external ref, url, and (when available) node id.
  */
@@ -254,7 +254,7 @@ export async function createIssue(
 
 /**
  * Register an "is blocked by" link through the active integration plugin
- * (FR-010/FR-011): `blockedRef` becomes blocked by `blockerRef`. Gated on the
+ * (VG-FR-010/VG-FR-011): `blockedRef` becomes blocked by `blockerRef`. Gated on the
  * `supportsBlockingLinks` capability and consent; audit-logged.
  */
 export async function addBlockedBy(
@@ -282,7 +282,7 @@ export async function addBlockedBy(
 }
 
 /**
- * Close a passed gate's tracker issue (FR-007/FR-011). Gated on consent (close
+ * Close a passed gate's tracker issue (VG-FR-007/VG-FR-011). Gated on consent (close
  * reuses the existing `applyTransition` capability, so there is no create/link
  * flag); audit-logged through the tracker-action log around the shipped
  * close-on-pass path (`onGatePassed`). The tracker-action ledger records

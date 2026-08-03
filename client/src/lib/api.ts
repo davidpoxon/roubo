@@ -578,15 +578,15 @@ export interface TestbenchPlanResponse {
   // read, absent from an older server.
   migrationGuide?: string | null;
   // Present only when the plan was fetched with a ?gateIds= subset filter (#702,
-  // FR-008): the gate ids the plan was narrowed to. Absent on a full-plan fetch.
+  // VG-FR-008): the gate ids the plan was narrowed to. Absent on a full-plan fetch.
   filteredToGateIds?: string[];
 }
 
-// The evaluated state of one verify gate (#702, FR-012). Mirrors the server's
+// The evaluated state of one verify gate (#702, VG-FR-012). Mirrors the server's
 // `GateStateResponse` projection from the pure evaluator: the gate's id plus its
 // computed status, the unresolved gating case ids, and the covering slice unit
 // ids those cases trace to (the gate's `covers`). For a passed gate both id
-// arrays are empty; per NFR-007 the server never reports a stale/unverified gate
+// arrays are empty; per VG-NFR-007 the server never reports a stale/unverified gate
 // as passed. `no_gating_cases` is the structural state for a gate whose narrowed
 // gating set is empty (e.g. all L3/L4, none e2e_flow): kept in sync with the
 // server's `GateStatus` union in `server/lib/gate-evaluator.ts` (issue #436).
@@ -607,7 +607,7 @@ export interface GateState {
   // (e.g. a synthetic merged/split gate); the card then titles by the gate id.
   milestone?: string | null;
   // Upstream verify-gate ids this gate's phase depends on that are NOT yet signed
-  // off (issue #433, FR-001). Empty when nothing upstream blocks it; an id clears
+  // off (issue #433, VG-FR-001). Empty when nothing upstream blocks it; an id clears
   // from the list once its upstream gate is signed off.
   blockedBy: string[];
   // Whether the gate's batch is signed off, derived from the gate's tracker-issue
@@ -633,7 +633,7 @@ export interface ReconcileResponse {
 
 // Fetch the bench's plan + results. With `gateIds` the server narrows the plan's
 // cases to the union of those gates' declared gating sets (the ?gateIds= subset
-// filter, #702 FR-008) and stamps `filteredToGateIds` on the response; without
+// filter, #702 VG-FR-008) and stamps `filteredToGateIds` on the response; without
 // it the full-plan shape is returned unchanged. An empty `gateIds` array still
 // sends the param (narrowing to no cases), so callers that want the full plan
 // must omit the argument entirely.
@@ -666,7 +666,7 @@ export interface GatesResponse {
   invalidSpecs: InvalidGateSpec[];
 }
 
-// Gate state (#702, FR-012; #371). `fetchGates` returns the gate list plus any
+// Gate state (#702, VG-FR-012; #371). `fetchGates` returns the gate list plus any
 // present-but-invalid skipped specs (`invalidSpecs`); `fetchGate` returns one gate
 // (or rejects with a 404 ApiError for an unknown gate id).
 //
@@ -683,14 +683,14 @@ export function fetchGate(projectId: string, gateId: string): Promise<GateState>
 }
 
 // One part of a split: a short label plus the source gate's covers WU- ids
-// assigned to that part (#703, FR-002). The part's gating set is computed
+// assigned to that part (#703, VG-FR-002). The part's gating set is computed
 // server-side from the WU- -> test_case_ids map.
 export interface GateSplitPart {
   label: string;
   coversWorkUnitIds: string[];
 }
 
-// Operator merge (#703, FR-002, AC1). Records a merge of two or more gates and
+// Operator merge (#703, VG-FR-002, AC1). Records a merge of two or more gates and
 // returns the recomputed effective gate list (the combined gate replaces its
 // sources). A 409 ApiError means an involved gate is signed off (passed); a 400
 // means an unknown gate id or a cross-spec merge.
@@ -701,7 +701,7 @@ export function mergeGates(projectId: string, gateIds: string[]): Promise<GateSt
   });
 }
 
-// Operator split (#703, FR-002, AC2). Records a split of one gate into parts and
+// Operator split (#703, VG-FR-002, AC2). Records a split of one gate into parts and
 // returns the recomputed effective gate list. A 409 ApiError means the gate is
 // signed off (passed); a 400 means an unknown gate id or a non-partitioning
 // assignment (loss or overlap of the source's covers).
@@ -722,7 +722,7 @@ export function resetGateOverrides(projectId: string): Promise<void> {
   return requestVoid(`/projects/${projectId}/gates/overrides`, { method: "DELETE" });
 }
 
-// Sign off a passed batch (#830, FR-007/FR-008). Closes the gate's tracker issue
+// Sign off a passed batch (#830, VG-FR-007/VG-FR-008). Closes the gate's tracker issue
 // via the active integration plugin and returns the updated GateState with
 // `signedOff: true`. A 409 means the gate is not passed (fail-closed) or has no
 // tracker issue / no active integration; a 422 means the active plugin lacks the
@@ -733,7 +733,7 @@ export function signOffGate(projectId: string, gateId: string): Promise<GateStat
   });
 }
 
-// Reopen a signed-off batch (#830, US-005). Reopens the gate's tracker issue and
+// Reopen a signed-off batch (#830, VG-US-005). Reopens the gate's tracker issue and
 // returns the updated GateState with `signedOff: false`. A 409 means the gate has
 // no tracker issue / no active integration.
 export function reopenGate(projectId: string, gateId: string): Promise<GateState> {
@@ -743,13 +743,13 @@ export function reopenGate(projectId: string, gateId: string): Promise<GateState
 }
 
 // File a fix issue for a failed gating case and wire it to block the gate (#706,
-// FR-009/FR-010, US-006). Returns the FixIssueRecord for BOTH a 201 complete and
+// VG-FR-009/VG-FR-010, VG-US-006). Returns the FixIssueRecord for BOTH a 201 complete and
 // a 207 link_pending outcome: `request` resolves any 2xx (Response.ok spans
 // 200-299) and the server sends the same record body for both, so callers branch
 // on `record.linkStatus`, NEVER on a thrown error. Only a real failure rejects
 // with an ApiError: 422 (empty notes or the plugin lacks the capability), 409 (no
 // tracker ref / no active integration), 400 (path-escaping evidence). The optional
-// `existingFixRef` on the body drives the link-only retry (NFR-003): the filer
+// `existingFixRef` on the body drives the link-only retry (VG-NFR-003): the filer
 // then runs only the outstanding block-link step against the already-created ref,
 // never a duplicate create.
 export function fileFixIssue(
@@ -801,7 +801,7 @@ export function fetchProjectGitHubProjects(projectId: string): Promise<GitHubPro
   return request(`/projects/${projectId}/projects`);
 }
 
-// Issues: paginated through the active integration plugin (WU-016).
+// Issues: paginated through the active integration plugin (IP-WU-016).
 export function fetchIssuesPage(
   projectId: string,
   opts: {
@@ -854,7 +854,7 @@ export function applyTransition(
   });
 }
 
-// Plugin RPC assignment (WU-019). Distinct from `assignIssue` below, which
+// Plugin RPC assignment (IP-WU-019). Distinct from `assignIssue` below, which
 // attaches an issue to a local bench. These call into the active integration
 // plugin's assignIssue / unassignIssue methods to update the remote tracker.
 export function assignIssueToUser(
@@ -1178,7 +1178,7 @@ export function fetchDerivedGithubSources(projectId: string): Promise<DerivedGit
   return request(`/projects/${projectId}/integration/derived-sources`);
 }
 
-// Declarative source picker (FR-019). The host proxies the active plugin's
+// Declarative source picker (IP-FR-019). The host proxies the active plugin's
 // `listSourceCandidates`; the response shape (`multi-list` /
 // `categorized-multi-list`) drives which picker the client renders.
 export function fetchSourceCandidates(projectId: string): Promise<SourceCandidatesResponse> {
@@ -1399,7 +1399,7 @@ export function fetchPluginLogs(
   return request(`/plugins/${encodeURIComponent(pluginId)}/logs?${params.toString()}`);
 }
 
-// Plugin install (WU-011): two-stage flow.
+// Plugin install (IP-WU-011): two-stage flow.
 //   1) previewInstallPlugin clones/copies into staging and returns the manifest preview.
 //   2) confirmInstallPlugin moves staging → ~/.roubo/plugins/<id>/ and enables it.
 //      cancelInstallPlugin removes the staging directory cleanly.
@@ -1527,7 +1527,7 @@ export type {
   MarketplaceSourceSummary,
 };
 
-// Migration (WU-024 / issue #42)
+// Migration (IP-WU-024 / issue #42)
 export function fetchMigrationStatus(): Promise<MigrationStatusResponse> {
   return request("/migration/status");
 }

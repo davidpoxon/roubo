@@ -5,7 +5,7 @@ import * as api from "../lib/api";
 
 /**
  * Fetches the active integration plugin's filter-facet descriptors via
- * `filterFacets` (FR-065). Keyed by `pluginId` so switching the active
+ * `filterFacets` (IP-FR-065). Keyed by `pluginId` so switching the active
  * integration triggers a refetch and old facet shapes never bleed across.
  * Returns the COMMON_FACET_FALLBACK set when the plugin omits the method
  * (server handles the fallback; the client just consumes whatever it gets).
@@ -39,7 +39,7 @@ export function useSortFields(projectId: string | undefined, pluginId: string | 
 /**
  * Lazy facet-option loader for `enum-async` facets. Disabled by default;
  * the consuming component sets `enabled` to true once the user opens the
- * facet section so the network call only fires on demand (TC-181). Keyed
+ * facet section so the network call only fires on demand (IP-TC-181). Keyed
  * separately per `facetId` so two open dropdowns don't trample each other.
  */
 export function useFacetOptions(

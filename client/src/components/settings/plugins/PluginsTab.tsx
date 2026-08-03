@@ -36,8 +36,8 @@ export default function PluginsTab() {
   const { data, isLoading, error } = usePlugins();
   const [installOpen, setInstallOpen] = useState(false);
 
-  // WU-050: opening the tab triggers a fresh connection-status re-check for
-  // every enabled plugin. Disabled plugins are skipped per FR-054.
+  // IP-WU-050: opening the tab triggers a fresh connection-status re-check for
+  // every enabled plugin. Disabled plugins are skipped per IP-FR-054.
   const enabledIds = useMemo(
     () => (data?.plugins ?? []).filter((p) => p.status === "enabled").map((p) => p.id),
     [data],

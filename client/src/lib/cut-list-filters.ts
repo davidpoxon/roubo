@@ -68,7 +68,7 @@ export function activeFilterCount(filters: FilterState): number {
 /**
  * Filter a list of normalized issues by the current FilterState. Pure: no
  * network, no caching, no side effects. Designed to run on every keystroke
- * for ~500 issues well under the 50 ms p95 budget (TC-139).
+ * for ~500 issues well under the 50 ms p95 budget (IP-TC-139).
  */
 export function applyFilters(issues: NormalizedIssue[], filters: FilterState): NormalizedIssue[] {
   const facetEntries = Object.entries(filters.facetValues).filter(([, set]) => set.size > 0);

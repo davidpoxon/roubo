@@ -245,7 +245,7 @@ describe("IssueQueuePanel", () => {
     expect(screen.getByText("API rate limit exceeded")).toBeInTheDocument();
   });
 
-  it("surfaces the stalled inline note when any page is stalled (TC-071)", () => {
+  it("surfaces the stalled inline note when any page is stalled (IP-TC-071)", () => {
     mockedUseIssues.mockReturnValue(defaultResult({ stalled: true }));
     renderWithProviders(
       <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
@@ -269,7 +269,7 @@ describe("IssueQueuePanel", () => {
     expect(screen.queryByTestId("excluded-count-note")).toBeNull();
   });
 
-  describe("FR-014 / TC-016: stale-snapshot banner", () => {
+  describe("IP-FR-014 / IP-TC-016: stale-snapshot banner", () => {
     it("renders the banner with the plugin name when useIssues returns stale: true", () => {
       mockedUseIssues.mockReturnValue(defaultResult({ stale: true }));
       mockedUseProjectIntegration.mockReturnValue(integrationWithPlugin("GitHub.com"));
@@ -341,7 +341,7 @@ describe("IssueQueuePanel", () => {
       );
     });
 
-    it("reads 'stale' when the FR-014 stale serve is active, overriding the cache status (CLI-TC-009/014)", () => {
+    it("reads 'stale' when the IP-FR-014 stale serve is active, overriding the cache status (CLI-TC-009/014)", () => {
       mockedUseIssues.mockReturnValue(
         defaultResult({ issues: [makeIssue("1")], stale: true, cacheStatus: "revalidating" }),
       );
@@ -607,7 +607,7 @@ describe("IssueQueuePanel", () => {
     });
   });
 
-  describe("WU-050: opportunistic connection-status re-check on cut-list load", () => {
+  describe("IP-WU-050: opportunistic connection-status re-check on cut-list load", () => {
     it("fires for every enabled plugin and skips disabled ones", () => {
       mockedUsePlugins.mockReturnValue({
         data: {

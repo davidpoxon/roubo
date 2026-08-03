@@ -11,18 +11,18 @@ interface IssueChipProps {
   children: ReactNode;
   icon?: LucideIcon;
   tone?: StatusTone;
-  // WU-033: required when variant === "security-category". Drives the
+  // IP-WU-033: required when variant === "security-category". Drives the
   // per-category color (CodeQL slate, Secret amber, Dependabot zinc).
   securityCategory?: SecurityCategory;
   ariaDescription?: string;
-  // WU-031: when provided, the chip renders as an interactive React Aria
+  // IP-WU-031: when provided, the chip renders as an interactive React Aria
   // Button so it can act as a re-consent trigger. Visual styling is identical.
   onPress?: () => void;
   // Optional suffix rendered inside the chip after `children`. Used to attach
   // a small "Retry" affordance after a cancelled OAuth re-consent attempt.
   actionSuffix?: ReactNode;
   "data-testid"?: string;
-  // WU-042: when provided, the chip wraps in a TooltipTrigger and exposes the
+  // IP-WU-042: when provided, the chip wraps in a TooltipTrigger and exposes the
   // text on hover/focus. Used to surface alert severity from the cut list.
   tooltip?: string;
 }

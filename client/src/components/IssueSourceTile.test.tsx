@@ -501,7 +501,7 @@ describe("IssueSourceTile", () => {
     expect(screen.getByRole("dialog", { name: /Configure GitHub\.com/ })).toBeInTheDocument();
   });
 
-  it("renders the connection-status chip in the configured variant header (WU-064, TC-168)", () => {
+  it("renders the connection-status chip in the configured variant header (IP-WU-064, IP-TC-168)", () => {
     withData({
       effective: {
         plugin: "github-com",
@@ -543,7 +543,7 @@ describe("IssueSourceTile", () => {
     expect(screen.queryByTestId("connection-status-pill")).not.toBeInTheDocument();
   });
 
-  it("GHE plugin renders the same single context-aware button behaviour (FR-073, TC-133)", () => {
+  it("GHE plugin renders the same single context-aware button behaviour (IP-FR-073, IP-TC-133)", () => {
     withData({
       // GHE: instance saved counts as "connected" via the helper's optimistic
       // instance-presence heuristic, mirroring github.com's connected branch.

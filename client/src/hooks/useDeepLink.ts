@@ -29,7 +29,7 @@ export function useDeepLink(): void {
           // callback URL here. Refetch any cached integration state so the
           // Configure dialog reflects the new credential without a manual
           // Test connection click. Also bust the cut list and per-source
-          // warnings so a re-consent flow (WU-039) immediately hides the
+          // warnings so a re-consent flow (IP-WU-039) immediately hides the
           // inline affordance and surfaces freshly-permitted alerts.
           //
           // The live connection-status query uses staleTime: Infinity and only

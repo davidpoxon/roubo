@@ -210,7 +210,7 @@ describe("IssuePickerModal", () => {
     expect(onSelect).toHaveBeenCalledWith("200", "Add billing dashboard");
   });
 
-  it("renders the security-category chip inline-left of the title for alert issues (WU-033)", () => {
+  it("renders the security-category chip inline-left of the title for alert issues (IP-WU-033)", () => {
     const issue = makeIssue("org/repo#code-scanning-7", {
       title: "SQL injection in handler",
       issueType: "security-code-scanning",
@@ -226,7 +226,7 @@ describe("IssuePickerModal", () => {
     expect(screen.queryByText("security-code-scanning")).not.toBeInTheDocument();
   });
 
-  it("does not render a security-category chip for regular issueTypes (WU-033)", () => {
+  it("does not render a security-category chip for regular issueTypes (IP-WU-033)", () => {
     const issue = makeIssue("11", { title: "Plain bug", issueType: "bug" });
     mockUseIssues.mockReturnValue(defaultResult({ issues: [issue] }));
     render(

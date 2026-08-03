@@ -1,6 +1,6 @@
 // Gate-overrides contract: the single, compile-time source of truth (in
 // `shared/`) for the Roubo-owned override document that records an operator's
-// batch merge / split regroupings (#703, FR-002, US-007). This mirrors the
+// batch merge / split regroupings (#703, VG-FR-002, VG-US-007). This mirrors the
 // work-units contract (work-units-contract.ts): a zod source schema, the
 // inferred type, the runtime validator, and the versioned `$id` constant.
 //

@@ -31,7 +31,7 @@ const ICONS: Record<ConnectionState, ComponentType<IconProps>> = {
 };
 
 // Every fg/bg pair below clears WCAG 2.1 AA (4.5:1) contrast at 12px/normal, which
-// is not "large text", so the 3:1 large-text allowance does not apply (NFR-016).
+// is not "large text", so the 3:1 large-text allowance does not apply (IP-NFR-016).
 // The solid variants keep near-white text on a darkened brand background; the muted
 // stone variants keep dark-on-light text one step darker than the eye-catching tint.
 const WRAP_STYLES: Record<ConnectionState, string> = {
@@ -111,7 +111,7 @@ export default function ConnectionStatusPill({
   const className = `${PILL_BASE} ${WRAP_STYLES[state]}`;
 
   if (hasTooltip) {
-    // Focusable wrapper so the tooltip is reachable by keyboard (NFR-016) as
+    // Focusable wrapper so the tooltip is reachable by keyboard (IP-NFR-016) as
     // well as hover. The Button has no onPress; it is purely a tooltip target.
     return (
       <TooltipTrigger delay={500}>

@@ -85,8 +85,8 @@ export default function IssueQueuePanel({
   }, [isRefetching, refreshItems]);
   const integrationQuery = useProjectIntegration(projectId);
 
-  // WU-050: loading the cut list triggers a fresh connection-status re-check
-  // for every enabled plugin (FR-054). Disabled plugins are not invalidated.
+  // IP-WU-050: loading the cut list triggers a fresh connection-status re-check
+  // for every enabled plugin (IP-FR-054). Disabled plugins are not invalidated.
   const pluginsQuery = usePlugins();
   const enabledPluginIds = useMemo(
     () => (pluginsQuery.data?.plugins ?? []).filter((p) => p.status === "enabled").map((p) => p.id),
@@ -94,7 +94,7 @@ export default function IssueQueuePanel({
   );
   useOpportunisticRecheckOnMount(enabledPluginIds);
   const activePluginId = integrationQuery.data?.plugin?.id ?? null;
-  // Display name for the FR-014 stale-snapshot banner. Sourced from the plugin
+  // Display name for the IP-FR-014 stale-snapshot banner. Sourced from the plugin
   // manifest the integration endpoint already returns; if unavailable we skip
   // the banner rather than render "from undefined".
   const activePluginName = integrationQuery.data?.plugin?.manifest?.name ?? null;
@@ -176,7 +176,7 @@ export default function IssueQueuePanel({
   const collapsedGroups = collapsedGroupsByKey.get(collapseStateKey) ?? new Set<string>();
 
   // Bench assignment is keyed on NormalizedIssue.externalId; bench state still
-  // carries both a legacy issueNumber and the externalId (see WU-002).
+  // carries both a legacy issueNumber and the externalId (see IP-WU-002).
   const assignedMap = useMemo(() => {
     const map = new Map<string, number>();
     for (const bench of benches) {
@@ -321,8 +321,8 @@ export default function IssueQueuePanel({
   }
 
   // Stale-while-revalidate cache-state badge (CLI-FR-002 / CLI-TC-001). Distinct
-  // from the FR-014 stale-snapshot banner below: this is the inline warm /
-  // revalidating / stale chip. Precedence: the FR-014 stale serve (plugin
+  // from the IP-FR-014 stale-snapshot banner below: this is the inline warm /
+  // revalidating / stale chip. Precedence: the IP-FR-014 stale serve (plugin
   // unavailable) wins; then a background revalidation in flight (React Query's
   // isRefetching) reads `revalidating`; then a warm snapshot served by the
   // server (`cacheStatus === 'revalidating'`) reads `warm`. A force-refresh

@@ -635,7 +635,7 @@ type NormalizedIssue = {
 Every `NormalizedIssue` carries a `raw: unknown` payload that is opaque to the host. Roubo never inspects it; only your plugin reads it back.
 
 - **Lifecycle.** While a bench is active, `raw` for the bench's assigned issue may be persisted to `~/.roubo/state.json` so your plugin can re-hydrate without an extra upstream fetch when Roubo restarts. When the bench is cleared, the whole record (including `raw`) is removed from `state.json`. Nothing else in `state.json` carries `raw`.
-- **PII contract (NFR-004).** Plugins MUST NOT put personally identifying information in `raw` unless functionally required. Treat it like a cache hint, not a data sink: upstream ETags, internal IDs, page tokens, transition metadata. Avoid full upstream payloads, free-text bodies, emails, and access tokens. If a field is already on `NormalizedIssue` (assignees, labels, body), it does not also need to live in `raw`.
+- **PII contract (IP-NFR-004).** Plugins MUST NOT put personally identifying information in `raw` unless functionally required. Treat it like a cache hint, not a data sink: upstream ETags, internal IDs, page tokens, transition metadata. Avoid full upstream payloads, free-text bodies, emails, and access tokens. If a field is already on `NormalizedIssue` (assignees, labels, body), it does not also need to live in `raw`.
 - The host may reduce or re-evaluate `raw`'s lifetime in a follow-on slug, so do not rely on long-lived persistence.
 
 ### `getComments({ externalId }): Promise<NormalizedComment[]>`
@@ -936,7 +936,7 @@ type ListIssuesWarning = {
 - Return the cursor your API uses for the next page, or `null` to signal the end.
 - The host detects non-progressing cursors. If your plugin returns the same `nextCursor` twice in a row, the host stops paging and surfaces a note to the user. Make sure each cursor moves forward.
 
-`pageSize` defaults to 50 (see FR-022). Expose `pageSize` in your `configSchema` if the upstream API has its own minimums or maximums.
+`pageSize` defaults to 50 (see IP-FR-022). Expose `pageSize` in your `configSchema` if the upstream API has its own minimums or maximums.
 
 ## Host helpers
 
@@ -992,7 +992,7 @@ Contract method errors thrown from your code propagate as JSON-RPC errors with w
 
 ## User-facing strings
 
-Every user-facing string a plugin or first-party component renders, status labels, button copy, modal headings, error fallbacks, alert category names, lives in a typed key map at the top of the consuming module. The host has no `t(key)` runtime; the pattern is convention, not framework. It exists so a future localization pass can swap copy without touching JSX (NFR-025).
+Every user-facing string a plugin or first-party component renders, status labels, button copy, modal headings, error fallbacks, alert category names, lives in a typed key map at the top of the consuming module. The host has no `t(key)` runtime; the pattern is convention, not framework. It exists so a future localization pass can swap copy without touching JSX (IP-NFR-025).
 
 The convention, taken directly from `client/src/components/settings/plugins/ConnectionStatusPill.tsx`:
 
@@ -1017,7 +1017,7 @@ Rules of thumb:
 - Treat error-fallback strings (`errorMessage(err, fallback)`) as user-visible. Put the fallback in the same map.
 - No em-dashes (`—`) in any user-facing copy. The project lint enforces it. En-dashes (`–`) are fine for numeric ranges only.
 
-The structural test for this rule lives at TC-155 (`.specifications/integration-plugins/test-cases.json`): grep new components for inline English in JSX and `aria-label` / `title`; expect none.
+The structural test for this rule lives at IP-TC-155 (`.specifications/integration-plugins/test-cases.json`): grep new components for inline English in JSX and `aria-label` / `title`; expect none.
 
 ## Trust boundaries
 

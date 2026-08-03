@@ -1,11 +1,11 @@
-// Per-project store for the Roubo-owned gate-overrides document (#703, FR-002,
-// US-007). The operator's batch merge / split regroupings are persisted here, in
+// Per-project store for the Roubo-owned gate-overrides document (#703, VG-FR-002,
+// VG-US-007). The operator's batch merge / split regroupings are persisted here, in
 // `~/.roubo/gate-overrides/<projectId>.json`, NOT in roubo.yaml and NOT in the
 // externally-authored work-units.json (Roubo never writes that file). The store
 // is the only writer; gate-overrides.ts applies the document as a pure transform
 // over the loaded verify units at read time.
 //
-// Path-safety (NFR-001): the projectId is constrained to PROJECT_ID_RE and the
+// Path-safety (VG-NFR-001): the projectId is constrained to PROJECT_ID_RE and the
 // resolved file is re-confined under the gate-overrides directory before any fs
 // call (the same containment-barrier shape CodeQL's js/path-injection suite
 // recognises, mirroring integration-overrides.ts).

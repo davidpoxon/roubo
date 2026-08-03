@@ -87,7 +87,7 @@ function plan(cases: Case[]): TestCasesPlan {
   };
 }
 
-describe("evaluateGate: status truth table (TC-009..TC-013, FR-004)", () => {
+describe("evaluateGate: status truth table (VG-TC-009..VG-TC-013, VG-FR-004)", () => {
   // Each row: a gating set of one case in a given effective status, and the gate
   // status the precedence ladder must yield.
   const rows: Array<{
@@ -130,7 +130,7 @@ describe("evaluateGate: status truth table (TC-009..TC-013, FR-004)", () => {
     expect(state.unresolvedCaseIds.sort()).toEqual(["TC-1", "TC-2"]);
   });
 
-  it("PASSED only when EVERY gating case is passed (TC-009)", () => {
+  it("PASSED only when EVERY gating case is passed (VG-TC-009)", () => {
     const gate = makeGate(["TC-1", "TC-2", "TC-3"]);
     const state = evaluateGate(
       gate,
@@ -147,7 +147,7 @@ describe("evaluateGate: status truth table (TC-009..TC-013, FR-004)", () => {
   });
 });
 
-describe("evaluateGate: effective status / override (TC-014, FR-005)", () => {
+describe("evaluateGate: effective status / override (VG-TC-014, VG-FR-005)", () => {
   it("override is honoured over derivedStatus (override passed beats derived failed)", () => {
     const gate = makeGate(["TC-1"]);
     const state = evaluateGate(
@@ -170,8 +170,8 @@ describe("evaluateGate: effective status / override (TC-014, FR-005)", () => {
   });
 });
 
-describe("evaluateGate: never false-pass (TC-015..TC-017, NFR-007)", () => {
-  it("an absent gating case reads as pending, never passed (TC-015)", () => {
+describe("evaluateGate: never false-pass (VG-TC-015..VG-TC-017, VG-NFR-007)", () => {
+  it("an absent gating case reads as pending, never passed (VG-TC-015)", () => {
     const gate = makeGate(["TC-1", "TC-2"]);
     // TC-2 has no recorded result.
     const state = evaluateGate(gate, results({ "TC-1": caseResult("passed") }), PLAN_HASH);
@@ -179,7 +179,7 @@ describe("evaluateGate: never false-pass (TC-015..TC-017, NFR-007)", () => {
     expect(state.unresolvedCaseIds).toEqual(["TC-2"]);
   });
 
-  it("an orphaned gating case reads as pending, never passed (TC-016)", () => {
+  it("an orphaned gating case reads as pending, never passed (VG-TC-016)", () => {
     const gate = makeGate(["TC-1"]);
     const state = evaluateGate(
       gate,
@@ -190,7 +190,7 @@ describe("evaluateGate: never false-pass (TC-015..TC-017, NFR-007)", () => {
     expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
   });
 
-  it("a planHash mismatch reads as stale, never passed (TC-017)", () => {
+  it("a planHash mismatch reads as stale, never passed (VG-TC-017)", () => {
     const gate = makeGate(["TC-1"]);
     const state = evaluateGate(
       gate,
@@ -209,7 +209,7 @@ describe("evaluateGate: never false-pass (TC-015..TC-017, NFR-007)", () => {
   });
 });
 
-describe("evaluateGate: default gating policy L1/L2 + e2e_flow (TC-018, FR-005)", () => {
+describe("evaluateGate: default gating policy L1/L2 + e2e_flow (VG-TC-018, VG-FR-005)", () => {
   // L3 and L4 cases are excluded even when failing, so they never block the gate.
   it("excludes L3/L4 cases from the gating set when a plan is threaded", () => {
     const gate = makeGate(["TC-L1", "TC-L2", "TC-L3", "TC-L4"]);
@@ -262,7 +262,7 @@ describe("evaluateGate: default gating policy L1/L2 + e2e_flow (TC-018, FR-005)"
   });
 });
 
-describe("evaluateGate: empty narrowed gating set reads as no_gating_cases (TC-026, #436, NFR-007)", () => {
+describe("evaluateGate: empty narrowed gating set reads as no_gating_cases (VG-TC-026, #436, VG-NFR-007)", () => {
   it("an all-L3/L4 gate with a plan narrows to no_gating_cases, never passed", () => {
     const gate = makeGate(["TC-L3", "TC-L4"], ["WU-10"]);
     const p = plan([planCase("TC-L3", 3, "functional"), planCase("TC-L4", 4, "functional")]);
@@ -304,7 +304,7 @@ describe("evaluateGate: empty narrowed gating set reads as no_gating_cases (TC-0
   });
 });
 
-describe("evaluateGate: coveringUnitIds derivation (NFR-004)", () => {
+describe("evaluateGate: coveringUnitIds derivation (VG-NFR-004)", () => {
   it("surfaces covers for unresolved cases", () => {
     const gate = makeGate(["TC-1"], ["WU-10", "WU-11"]);
     const state = evaluateGate(gate, results({ "TC-1": caseResult("failed") }), PLAN_HASH);
@@ -390,7 +390,7 @@ describe("evaluateGate: gatingCaseIds is the full narrowed gating set (issue #43
   });
 });
 
-describe("evaluateGate: purity and idempotence (TC-018, NFR-007)", () => {
+describe("evaluateGate: purity and idempotence (VG-TC-018, VG-NFR-007)", () => {
   it("identical inputs yield a deep-equal GateState", () => {
     const gate = makeGate(["TC-1", "TC-2"], ["WU-10"]);
     const r = results({

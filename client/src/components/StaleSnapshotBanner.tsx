@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import { AlertCircle } from "lucide-react";
 
-// FR-014 / TC-016: cut-list banner shown when /api/projects/:id/issues is
+// IP-FR-014 / IP-TC-016: cut-list banner shown when /api/projects/:id/issues is
 // served from the snapshot cache because the active integration plugin is
 // errored or disabled. Sits above the issue list so the user understands why
 // the list is frozen and how to repair the plugin.

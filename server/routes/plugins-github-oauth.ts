@@ -29,7 +29,7 @@ const oauthRateLimiter = rateLimit({
 
 router.use(oauthRateLimiter);
 
-// WU-036: maps the granted `security_events` scope back to the alert
+// IP-WU-036: maps the granted `security_events` scope back to the alert
 // categories it unlocks. The host emits this on /exchange success so a
 // "Connection upgraded" UI flip can be correlated with a structured log line
 // (architecture addendum line 952).
@@ -60,7 +60,7 @@ async function resetGithubPluginAuthCache(): Promise<void> {
 router.post("/authorize", (_req, res) => {
   try {
     const result = buildAuthorizationUrl();
-    // WU-036: surface the scope set without logging the authorize URL itself.
+    // IP-WU-036: surface the scope set without logging the authorize URL itself.
     // The URL embeds a single-use `state` nonce and must not appear in any
     // host log surface (github-oauth.ts:34–36).
     console.info(
@@ -95,11 +95,11 @@ router.post("/exchange", async (req, res) => {
     const username = await fetchGitHubUsername(token);
     await saveToken(token);
     await refreshAuth();
-    // WU-031: drop the cached connection-status for github-com so the next UI
+    // IP-WU-031: drop the cached connection-status for github-com so the next UI
     // poll re-probes under the freshly-saved token (incl. its new scopes).
     invalidateConnectionStatus(GITHUB_PLUGIN_ID);
     await resetGithubPluginAuthCache();
-    // WU-036: architecture addendum line 952. Emit the granted scopes and
+    // IP-WU-036: architecture addendum line 952. Emit the granted scopes and
     // the alert categories this re-consent unlocks (empty when the user did
     // not grant `security_events`, so a connection that never enabled any
     // category produces a zero-category line rather than no line at all).
