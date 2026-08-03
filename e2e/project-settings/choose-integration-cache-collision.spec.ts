@@ -10,7 +10,7 @@ import { registerTestProject } from "./_support/test-project.js";
 // object back and crashed in `(plugins ?? []).filter(isUsable)` with
 // "(r ?? []).filter is not a function".
 //
-// TC-164 (issue-source-tile-configure.spec.ts) missed this because it
+// IP-TC-164 (issue-source-tile-configure.spec.ts) missed this because it
 // navigates straight to project settings without first hitting any surface
 // that mounts usePlugins. This spec exercises the real-world ordering:
 // visit Settings > Plugins (mounts PluginsTab -> usePlugins -> primes
@@ -61,6 +61,6 @@ test("Choose integration dialog opens after the global Plugins tab primes the ca
   await expect(page.locator("body")).not.toContainText("Unexpected Application Error");
 
   // And the radio list rendered from the array shape: the github-com overlay
-  // surfaces as "GitHub.com" (mirrors TC-164).
+  // surfaces as "GitHub.com" (mirrors IP-TC-164).
   await expect(dialog.getByRole("radio", { name: /GitHub\.com/ })).toBeVisible();
 });

@@ -5,7 +5,7 @@ import {
   resetWithScenario,
 } from "../e2e-flow/_support/scenario.js";
 
-// TC-168 (US-014, FR-051..FR-055): the connection-status chip surfaces in
+// IP-TC-168 (IP-US-014, IP-FR-051..IP-FR-055): the connection-status chip surfaces in
 // every placement that hosts plugin context, without the user having to
 // click "Test connection". Three placements are in scope:
 //   1. Settings > Plugins tile (rendered by PluginCard).

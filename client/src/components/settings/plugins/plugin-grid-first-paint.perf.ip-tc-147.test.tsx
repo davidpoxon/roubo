@@ -4,14 +4,14 @@
 // the client tsconfig pins `types: ["vite/client"]`, so @types/node is not
 // otherwise in scope for this file.
 /**
- * TC-147: Plugin grid first-paint budget.
+ * IP-TC-147: Plugin grid first-paint budget.
  *
  * Spec (.specifications/integration-plugins/test-cases.json):
  *   - Five plugins installed
  *   - Navigate to Settings > Plugins
- *   - First contentful paint of the grid < 100ms (NFR-017)
+ *   - First contentful paint of the grid < 100ms (IP-NFR-017)
  *
- * Pattern mirrors TC-151 / TC-145 / TC-098: RUN_PERF_HARNESS=1 gates the latency
+ * Pattern mirrors IP-TC-151 / IP-TC-145 / IP-TC-098: RUN_PERF_HARNESS=1 gates the latency
  * assertion, an inline p95 helper, a warmup render plus measured iterations, a
  * structured perf-evidence JSON log, and a sentinel test so the file always
  * contributes one passing assertion under the default coverage run.
@@ -21,7 +21,7 @@
  * per-card connection/integration React Query fetches are gated off: first
  * paint is the synchronous card-layout render (name, icon, enable switch,
  * primary action), which is what the 100ms budget covers. The async chip fill
- * that follows is a separate concern measured by TC-145.
+ * that follows is a separate concern measured by IP-TC-145.
  */
 
 import { afterEach, describe, expect, test } from "vitest";
@@ -83,7 +83,7 @@ afterEach(() => {
 });
 
 test.runIf(RUN)(
-  "TC-147: plugin grid (5 cards) first-paint p95 < 100ms",
+  "IP-TC-147: plugin grid (5 cards) first-paint p95 < 100ms",
   () => {
     // Warmup render (not measured) to amortize first-render/module cost.
     renderWithProviders(<Grid />).unmount();
@@ -103,7 +103,7 @@ test.runIf(RUN)(
       JSON.stringify(
         {
           kind: "perf-evidence",
-          tc: "TC-147",
+          tc: "IP-TC-147",
           renders: RENDERS,
           gridSize: GRID_SIZE,
           p95Ms,
@@ -119,7 +119,7 @@ test.runIf(RUN)(
   120_000,
 );
 
-describe("TC-147 harness (smoke)", () => {
+describe("IP-TC-147 harness (smoke)", () => {
   // Sentinel so the file always contributes one passing assertion under the
   // default coverage run (vitest fails files with zero discovered tests).
   test.runIf(!RUN)("perf assertion is skipped unless RUN_PERF_HARNESS=1", () => {

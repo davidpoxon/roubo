@@ -7,7 +7,7 @@ import {
   waitForPluginRecord,
 } from "../e2e-flow/_support/scenario.js";
 
-// TC-163 (#240, US-009, FR-013/FR-014/FR-015, NFR-018, NFR-024): drive the
+// IP-TC-163 (#240, IP-US-009, IP-FR-013/IP-FR-014/IP-FR-015, IP-NFR-018, IP-NFR-024): drive the
 // stubbed plugin through 2 unexpected exits + auto-restart, force a 3rd
 // strike into `errored`, verify the cut-list still serves the last-good
 // snapshot, and observe the crash entries through the in-app log viewer.
@@ -16,7 +16,7 @@ import {
 // ROUBO_E2E=1-gated SIGKILL); we wait on observable state (`restartHistory`
 // length, status, pid) between crashes rather than on `setTimeout` durations,
 // which keeps the spec deterministic against the 500ms / 1000ms / 2000ms
-// backoff schedule under CI variance (NFR-018).
+// backoff schedule under CI variance (IP-NFR-018).
 
 const SCENARIO = "plugin-crash-restart-escalation";
 const NOW = "2026-05-27T09:00:00.000Z";
@@ -26,7 +26,7 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("plugin crash + auto-restart + errored serves last-good snapshot and surfaces crash log entries (TC-163)", async ({
+test("plugin crash + auto-restart + errored serves last-good snapshot and surfaces crash log entries (IP-TC-163)", async ({
   page,
   request,
 }) => {
@@ -36,7 +36,7 @@ test("plugin crash + auto-restart + errored serves last-good snapshot and surfac
   });
 
   // Sanity: the stub is up and the scenario data flows through `listIssues`.
-  // This pull also populates the FR-014 last-good snapshot cache.
+  // This pull also populates the IP-FR-014 last-good snapshot cache.
   const initialIssuesRes = await request.get(`/api/projects/${projectId}/issues`);
   expect(initialIssuesRes.status()).toBe(200);
   const initialBody = (await initialIssuesRes.json()) as {
@@ -88,7 +88,7 @@ test("plugin crash + auto-restart + errored serves last-good snapshot and surfac
   expect(erroredRecord.restartHistory.length).toBe(3);
   expect(erroredRecord.lastError?.code).toBe("restart-budget-exhausted");
 
-  // FR-014: while the plugin is errored, `/issues` serves the cached first
+  // IP-FR-014: while the plugin is errored, `/issues` serves the cached first
   // page with `stale: true` and the timestamp of the original snapshot.
   const erroredIssuesRes = await request.get(`/api/projects/${projectId}/issues`);
   expect(erroredIssuesRes.status()).toBe(200);
@@ -104,7 +104,7 @@ test("plugin crash + auto-restart + errored serves last-good snapshot and surfac
     "acme/widgets#502",
   ]);
 
-  // FR-015: the user opens the Plugins settings page, sees the errored
+  // IP-FR-015: the user opens the Plugins settings page, sees the errored
   // banner on the e2e-stub card, and the View logs dialog surfaces the three
   // host-side "plugin exited" warn lines plus the final
   // restart-budget-exhausted error line.
@@ -114,7 +114,7 @@ test("plugin crash + auto-restart + errored serves last-good snapshot and surfac
   await expect(banner).toBeVisible();
   // PluginCard also exposes an always-on "View logs" action in its action row;
   // scope the click to the banner's own button so the spec mirrors the user
-  // flow described in TC-163 ("user opens the log viewer from the errored
+  // flow described in IP-TC-163 ("user opens the log viewer from the errored
   // surface") rather than incidentally exercising the global action.
   await banner.getByRole("button", { name: "View logs" }).click();
   const dialog = page.getByRole("dialog");

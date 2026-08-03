@@ -5,11 +5,11 @@ import {
   resetWithScenario,
 } from "./_support/scenario.js";
 
-// TC-160 (US-005, FR-024/025): a project whose roubo.yaml references a
+// IP-TC-160 (IP-US-005, IP-FR-024/025): a project whose roubo.yaml references a
 // plugin that is not installed surfaces the Missing-plugin prompt. Driving
 // the full prompt + install-from-URL recovery flow requires the harness to
 // pre-stage a project with an unknown-plugin reference and the git-URL
-// install stub from TC-159. That fixture lands with the deeper drilldown of
+// install stub from IP-TC-159. That fixture lands with the deeper drilldown of
 // this TC tracked separately; this spec proves the missing-plugin-prompt
 // scenario reaches the spawned plugin and surfaces via the host.
 

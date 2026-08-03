@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject, setIntegrationPlugin } from "./_support/test-project.js";
 
-// TC-182 (US-014/022, FR-069): the plugin-driven name surfaces in the Source
+// IP-TC-182 (IP-US-014/022, IP-FR-069): the plugin-driven name surfaces in the Source
 // section title on the per-project Settings page. The sidebar entry and page
 // breadcrumb no longer carry the integration name. Switching the active plugin
 // updates the section title on the next render.

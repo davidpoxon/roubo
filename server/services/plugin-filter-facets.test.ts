@@ -37,7 +37,7 @@ describe("getPluginFilterFacets", () => {
     );
   });
 
-  it("returns the fixed common-facet set on MethodNotFound (TC-126)", async () => {
+  it("returns the fixed common-facet set on MethodNotFound (IP-TC-126)", async () => {
     vi.mocked(pluginManager.invoke).mockRejectedValueOnce(methodNotFound("filterFacets"));
 
     const result = await getPluginFilterFacets(PLUGIN_ID);
@@ -69,7 +69,7 @@ describe("getPluginFilterFacets", () => {
     await expect(getPluginFilterFacets(PLUGIN_ID)).rejects.toThrow("connection reset");
   });
 
-  it("drops a malformed descriptor host-side while valid siblings pass through (TC-190)", async () => {
+  it("drops a malformed descriptor host-side while valid siblings pass through (IP-TC-190)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const valid = { id: "milestone", label: "Milestone", type: "enum-async" as const };
     // Missing the required `label` and `type`: malformed, must be dropped.
@@ -81,7 +81,7 @@ describe("getPluginFilterFacets", () => {
     warn.mockRestore();
   });
 
-  it("logs the drop with the plugin id and the offending entry (TC-190 S002-O03)", async () => {
+  it("logs the drop with the plugin id and the offending entry (IP-TC-190 S002-O03)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const offending = { id: "x" };
     vi.mocked(pluginManager.invoke).mockResolvedValueOnce([offending] as never);

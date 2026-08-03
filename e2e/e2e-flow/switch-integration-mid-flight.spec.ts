@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { registerFixtureProject, resetWithScenario } from "./_support/scenario.js";
 
-// TC-161 (US-006/US-025, FR-028/029/077/078/080, NFR-018): a project on
+// IP-TC-161 (IP-US-006/IP-US-025, IP-FR-028/029/077/078/080, IP-NFR-018): a project on
 // github.com with two pre-existing benches switches mid-flight to the
 // self-hosted Jira plugin. The dialog drives the override write; existing
 // benches keep their `assignedIssue` snapshot but render the
@@ -9,16 +9,16 @@ import { registerFixtureProject, resetWithScenario } from "./_support/scenario.j
 // Jira-flavoured stub.
 //
 // The two pre-existing benches are seeded directly into state via
-// `registerFixtureProject`'s `seedBenches` option (added for TC-161). Driving
+// `registerFixtureProject`'s `seedBenches` option (added for IP-TC-161). Driving
 // the real bench-provisioning flow twice through the UI is too expensive for
-// NFR-018 (10 consecutive zero-retry runs); the seed shortcut matches the
+// IP-NFR-018 (10 consecutive zero-retry runs); the seed shortcut matches the
 // trade-off already made for project registration (`#232`).
 //
 // Post-switch Jira configuration (instance + sources) is written via
 // `PUT /api/projects/:id/integration/config` because the Switch dialog only
 // owns the plugin-id flip; the Configure dialog would normally collect
 // instance / sources next, and exercising that second dialog is out of scope
-// for TC-161 (covered by TC-157, `jira-self-hosted-source-config.spec.ts`).
+// for IP-TC-161 (covered by IP-TC-157, `jira-self-hosted-source-config.spec.ts`).
 
 const SCENARIO = "mid-flight-switch-github-to-jira";
 const NOW = "2026-05-27T09:00:00.000Z";
@@ -27,7 +27,7 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("switching from github.com to Jira mid-flight badges existing benches and routes the cut list to Jira (TC-161)", async ({
+test("switching from github.com to Jira mid-flight badges existing benches and routes the cut list to Jira (IP-TC-161)", async ({
   page,
   request,
 }) => {

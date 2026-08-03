@@ -468,7 +468,7 @@ describe("BenchDetail", () => {
     expect(screen.queryByRole("button", { name: /blocked/i })).not.toBeInTheDocument();
   });
 
-  describe("WU-033: alert-backed bench (TC-095)", () => {
+  describe("IP-WU-033: alert-backed bench (IP-TC-095)", () => {
     function mockBenchIssue(issueType: string | null) {
       mockUseBenchIssue.mockReturnValue({
         data: {
@@ -528,7 +528,7 @@ describe("BenchDetail", () => {
       );
     });
 
-    it("passes isDisabled and the documented tooltip copy to IssueAssignControl (TC-095)", () => {
+    it("passes isDisabled and the documented tooltip copy to IssueAssignControl (IP-TC-095)", () => {
       mockBenchIssue("security-dependabot");
       renderAlertBench(alertBench as never);
       expect(screen.getByTestId("issue-assign-control")).toBeInTheDocument();

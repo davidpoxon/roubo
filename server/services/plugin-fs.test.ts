@@ -191,7 +191,7 @@ describe("plugin-fs", () => {
       expect(resolved).toBe(file);
     });
 
-    it("denies and logs a path outside every root (TC-080 path)", async () => {
+    it("denies and logs a path outside every root (IP-TC-080 path)", async () => {
       const outside = "/tmp/exfiltrate-" + Date.now() + ".txt";
       try {
         await assertPathAllowed("jira-plugin", "host.fs.writeFile", outside, [tmpRoot], log);

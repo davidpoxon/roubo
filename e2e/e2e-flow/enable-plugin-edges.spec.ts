@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { loadAppShell, registerFixtureProject, resetWithScenario } from "./_support/scenario.js";
 
-// TC-172 (US-016/017/025, FR-059/060/061, NFR-022): the edge paths of the
+// IP-TC-172 (IP-US-016/017/025, IP-FR-059/060/061, IP-NFR-022): the edge paths of the
 // project-load Enable-plugin prompt modal — Cancel (no state change) and
 // plugin-refuses-to-start (inline error, plugin stays disabled). Both arms
 // share the `enable-prompt-edges` scenario: the Cancel test never spawns
@@ -36,7 +36,7 @@ test.describe("EnablePluginPromptModal edges", () => {
     const confirm = page.getByTestId("enable-plugin-confirm");
     await expect(confirm).toBeFocused();
 
-    // NFR-022: Esc dismisses when the mutation is not pending. ModalOverlay
+    // IP-NFR-022: Esc dismisses when the mutation is not pending. ModalOverlay
     // is configured with `isDismissable={!isPending}` and
     // `isKeyboardDismissDisabled={isPending}` so this exercises the same
     // path the click-Cancel button takes.
@@ -63,7 +63,7 @@ test.describe("EnablePluginPromptModal edges", () => {
     // Watch the enable POST for the 409 the modal converts into the inline
     // error banner. The route returns 409 with { error: "..." } when
     // pluginManager.enable() throws — which it now does on synchronous
-    // spawn-time failures (WU-066 / FR-061).
+    // spawn-time failures (IP-WU-066 / IP-FR-061).
     const enablePromise = page.waitForResponse(
       (res) =>
         res.url().endsWith("/api/plugins/github-com/enable") && res.request().method() === "POST",
@@ -80,7 +80,7 @@ test.describe("EnablePluginPromptModal edges", () => {
     // Modal stays open so the user can read the message and retry / cancel.
     await expect(modal).toBeVisible();
 
-    // FR-061: the plugin is not running. The in-memory record reports
+    // IP-FR-061: the plugin is not running. The in-memory record reports
     // "errored" (the host's view of the failed spawn) and enable() rolled
     // the persisted state back to "disabled" so a server restart won't keep
     // respawning it. Either way it is not "enabled".

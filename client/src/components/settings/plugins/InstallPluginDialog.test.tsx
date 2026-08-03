@@ -164,7 +164,7 @@ describe("source step", () => {
     );
   });
 
-  it("calls previewInstallPlugin with source=git on submit (TC-007)", async () => {
+  it("calls previewInstallPlugin with source=git on submit (IP-TC-007)", async () => {
     const user = userEvent.setup();
     const { previewMutate } = setupMutations({
       previewMutate: (body, callbacks) => {
@@ -188,7 +188,7 @@ describe("source step", () => {
     ).toBeInTheDocument();
   });
 
-  it("calls previewInstallPlugin with source=local from the local tab (TC-019)", async () => {
+  it("calls previewInstallPlugin with source=local from the local tab (IP-TC-019)", async () => {
     const user = userEvent.setup();
     const { previewMutate } = setupMutations({
       previewMutate: (_body, callbacks) => {
@@ -210,7 +210,7 @@ describe("source step", () => {
     expect(await screen.findByText("/tmp/my-plugin", { exact: false })).toBeInTheDocument();
   });
 
-  it("renders the server error message verbatim in a red banner (TC-058)", async () => {
+  it("renders the server error message verbatim in a red banner (IP-TC-058)", async () => {
     const user = userEvent.setup();
     const apiError = new ApiError(
       "Could not clone repository. git exited with code 128: Repository not found.",
@@ -236,7 +236,7 @@ describe("source step", () => {
     expect(banner).toHaveTextContent(/Repository not found/);
   });
 
-  it("shows the missing-manifest message for the local flow (TC-059)", async () => {
+  it("shows the missing-manifest message for the local flow (IP-TC-059)", async () => {
     const user = userEvent.setup();
     const apiError = new ApiError(
       "No roubo-plugin.yaml found in /tmp/empty-dir",
@@ -272,7 +272,7 @@ describe("permissions step", () => {
     return { onClose, ...handles };
   }
 
-  it("lists every declared permission category (TC-007, TC-075 ARIA wiring)", async () => {
+  it("lists every declared permission category (IP-TC-007, IP-TC-075 ARIA wiring)", async () => {
     const user = userEvent.setup();
     arrangePermissionsStep();
 
@@ -283,7 +283,7 @@ describe("permissions step", () => {
     await user.click(screen.getByTestId("install-plugin-submit"));
 
     // Section headings; each is associated with its <section> via aria-labelledby
-    // so screen readers announce each category individually (TC-075).
+    // so screen readers announce each category individually (IP-TC-075).
     expect(await screen.findByRole("region", { name: /network hosts/i })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /credentials/i })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /filesystem paths/i })).toBeInTheDocument();
@@ -297,15 +297,15 @@ describe("permissions step", () => {
     expect(screen.getByText(/git url/i)).toBeInTheDocument();
     expect(screen.getByText("https://github.com/example/echo.git")).toBeInTheDocument();
 
-    // Primary action and cancel are clearly identified by accessible name (TC-075).
+    // Primary action and cancel are clearly identified by accessible name (IP-TC-075).
     expect(screen.getByRole("button", { name: /install and enable/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
 
-    // Dialog itself exposes role="dialog" and is named from the Heading (TC-075).
+    // Dialog itself exposes role="dialog" and is named from the Heading (IP-TC-075).
     expect(screen.getByRole("dialog", { name: /install echo/i })).toBeInTheDocument();
   });
 
-  it("calls confirm on Install and enable; closes dialog and toasts (TC-007)", async () => {
+  it("calls confirm on Install and enable; closes dialog and toasts (IP-TC-007)", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const previewMutate = vi.fn().mockImplementation((_body, callbacks) => {

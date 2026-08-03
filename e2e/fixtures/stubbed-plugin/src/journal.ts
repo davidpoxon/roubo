@@ -1,7 +1,7 @@
 /**
  * In-process journal that records mutating RPC effects so reads issued later
  * in the same process see the updated state. Reset on process restart; the
- * E2E harness restarts the stub between specs via WU-061's /test/__reset.
+ * E2E harness restarts the stub between specs via IP-WU-061's /test/__reset.
  */
 export interface Journal {
   recordAssign(externalId: string, assigneeExternalId: string): void;

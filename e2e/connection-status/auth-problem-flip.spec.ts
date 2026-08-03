@@ -5,7 +5,7 @@ import {
   resetWithScenario,
 } from "../e2e-flow/_support/scenario.js";
 
-// TC-169 (US-014, FR-054, FR-055, NFR-017, NFR-023): a previously-connected
+// IP-TC-169 (IP-US-014, IP-FR-054, IP-FR-055, IP-NFR-017, IP-NFR-023): a previously-connected
 // plugin whose next `getConnectionStatus` returns `auth-problem` causes the
 // chip to flip to "Sign in again" with a "Token expired" tooltip, and the
 // transition is recorded in the observability log.
@@ -17,11 +17,11 @@ import {
 // and asserts the chip has flipped together with the journal entry.
 //
 // The "rechecking..." transient is part of the UX requirement but is too
-// timing-sensitive to assert deterministically under NFR-018's zero-retry
+// timing-sensitive to assert deterministically under IP-NFR-018's zero-retry
 // budget across 10 CI runs, so this spec asserts the *result* of the flip
 // (final pill state + the tap entry) rather than the intermediate text. The
 // tap is the ROUBO_E2E=1-only mirror of the structured log emitted by
-// `recordConnectionStateTransition` (TC-153 / NFR-023).
+// `recordConnectionStateTransition` (IP-TC-153 / IP-NFR-023).
 
 const SCENARIO = "status-auth-problem-flip";
 const NOW = "2026-05-22T09:00:00.000Z";
@@ -53,7 +53,7 @@ test("token expiry flips the chip to auth-problem and journals the transition", 
 
   // Tooltip detail surface. React Aria's TooltipTrigger only opens after a
   // pointer-warmup delay (and only on real keyboard focus), so opening the
-  // tooltip from Playwright is flaky under NFR-018's zero-retry budget.
+  // tooltip from Playwright is flaky under IP-NFR-018's zero-retry budget.
   // The pill projects the same string into `aria-label` (`"Sign in again:
   // Token expired"`), so assistive tech sees the detail even with the popup
   // closed — assert on that instead. The aria-label is the contractual

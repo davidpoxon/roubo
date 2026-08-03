@@ -7,22 +7,22 @@ import { registerFixtureProject } from "../../e2e-flow/_support/scenario.js";
 export interface RegisterTestProjectOptions {
   // Kebab-case id forwarded as both the project name and the integration override
   // filename. Mirrors what main's `/test/__register-fixture-project` route
-  // expects on `projectId`. Older WU-068 callers passed this as `projectName`;
+  // expects on `projectId`. Older IP-WU-068 callers passed this as `projectName`;
   // both spellings are accepted for compatibility while specs migrate over.
   projectName?: string;
   projectId?: string;
-  // Plugin id to pin as the active integration. Older WU-068 callers passed
+  // Plugin id to pin as the active integration. Older IP-WU-068 callers passed
   // this as `pluginId`; both spellings are accepted.
   pluginId?: string;
   plugin?: string;
   // Optional extra integration fields (instance, sources, capturedUserId,
-  // etc.) merged into the saved override after `plugin`. WU-068 specs use
+  // etc.) merged into the saved override after `plugin`. IP-WU-068 specs use
   // this to drive surfaces (e.g. the Source tile instance line, the
   // configured-sources list) that only render when the override carries the
   // matching value. The route rejects a nested `plugin` here; pass it via
   // the top-level `plugin` / `pluginId` field instead.
   integrationConfig?: Omit<Partial<IntegrationConfig>, "plugin">;
-  // TC-164/167/177: optional `project.repo` for the generated fixture
+  // IP-TC-164/167/177: optional `project.repo` for the generated fixture
   // roubo.yaml. Drives the github-com Configure modal's derived-sources
   // preview to its success state (sources are derived from `project.repo`).
   projectRepo?: string;
@@ -40,7 +40,7 @@ export interface RegisterTestProjectResult {
 /**
  * Thin wrapper around the canonical `registerFixtureProject` helper from
  * `e2e-flow/_support/scenario.ts` (which posts to
- * `/test/__register-fixture-project`, see #232). Kept here so the WU-068
+ * `/test/__register-fixture-project`, see #232). Kept here so the IP-WU-068
  * project-settings specs can use a stable import path while the older API
  * shape (`projectName`, `pluginId`) is migrated to main's
  * `{ projectId, plugin }` contract. The `integrationConfig` field is
@@ -57,7 +57,7 @@ export async function registerTestProject(
   if (!projectId) {
     throw new Error("registerTestProject requires projectId (or projectName)");
   }
-  // TC-164: `plugin` is optional. When omitted, the fixture project is
+  // IP-TC-164: `plugin` is optional. When omitted, the fixture project is
   // registered without an integration override so the IssueSourceTile renders
   // its UnconfiguredBody variant.
   return await registerFixtureProject(request, {

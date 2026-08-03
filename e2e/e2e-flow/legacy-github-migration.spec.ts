@@ -5,7 +5,7 @@ import {
   resetWithScenario,
 } from "./_support/scenario.js";
 
-// TC-158 (US-003, FR-026/027/028): legacy github.com user migration on first
+// IP-TC-158 (IP-US-003, IP-FR-026/027/028): legacy github.com user migration on first
 // launch. Driving the full pre-populate ~/.roubo + migration banner +
 // keyring writeback path requires the harness to boot the server pointed at
 // a writable temp ROUBO_HOME with the legacy auth.json + project entry

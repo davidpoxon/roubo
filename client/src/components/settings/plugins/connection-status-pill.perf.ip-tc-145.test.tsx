@@ -4,15 +4,15 @@
 // the client tsconfig pins `types: ["vite/client"]`, so @types/node is not
 // otherwise in scope for this file.
 /**
- * TC-145: Cached status chip render budget.
+ * IP-TC-145: Cached status chip render budget.
  *
  * Spec (.specifications/integration-plugins/test-cases.json):
  *   - Plugin manager has cached ConnectionStatus values
  *   - Mount the status chip repeatedly in a perf harness
- *   - p95 < 50ms from mount to first paint of the status chip (NFR-017)
+ *   - p95 < 50ms from mount to first paint of the status chip (IP-NFR-017)
  *
- * Pattern mirrors TC-151 (cut-list-filter-recompute.perf.tc-151.test.tsx) and
- * TC-098 (plugins/github-com/.../list-issues.perf.tc-098.test.ts):
+ * Pattern mirrors IP-TC-151 (cut-list-filter-recompute.perf.ip-tc-151.test.tsx) and
+ * IP-TC-098 (plugins/github-com/.../list-issues.perf.ip-tc-098.test.ts):
  * RUN_PERF_HARNESS=1 gates the latency assertion, an inline p95 helper, a warmup
  * mount plus measured iterations, a structured perf-evidence JSON log, and a
  * sentinel test so the file always contributes one passing assertion under the
@@ -21,7 +21,7 @@
  * ConnectionStatusPill renders synchronously from an already-resolved
  * ConnectionStatus (the "cached" case: no query, no async). The harness measures
  * the mount -> rendered cost of that pure render, guarding against a regression
- * that makes the cached chip render path expensive (NFR-017's 50ms budget).
+ * that makes the cached chip render path expensive (IP-NFR-017's 50ms budget).
  */
 
 import { afterEach, describe, expect, test } from "vitest";
@@ -60,7 +60,7 @@ afterEach(() => {
 });
 
 test.runIf(RUN)(
-  "TC-145: cached status chip render p95 < 50ms across 100 mounts",
+  "IP-TC-145: cached status chip render p95 < 50ms across 100 mounts",
   () => {
     // Warmup mount (not measured) to amortize first-render/module cost.
     const warm = render(<ConnectionStatusPill status={CACHED_STATUSES[0]} />);
@@ -80,7 +80,7 @@ test.runIf(RUN)(
 
     console.log(
       JSON.stringify(
-        { kind: "perf-evidence", tc: "TC-145", mounts: MOUNTS, p95Ms, maxMs },
+        { kind: "perf-evidence", tc: "IP-TC-145", mounts: MOUNTS, p95Ms, maxMs },
         null,
         2,
       ),
@@ -91,7 +91,7 @@ test.runIf(RUN)(
   120_000,
 );
 
-describe("TC-145 harness (smoke)", () => {
+describe("IP-TC-145 harness (smoke)", () => {
   // Sentinel so the file always contributes one passing assertion under the
   // default coverage run (vitest fails files with zero discovered tests).
   test.runIf(!RUN)("perf assertion is skipped unless RUN_PERF_HARNESS=1", () => {

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { registerFixtureProject, resetWithScenario } from "./_support/scenario.js";
 
-// TC-032 (FR-006, US-002): end-to-end proof of the hard start-gate journey. With
+// VG-TC-032 (VG-FR-006, VG-US-002): end-to-end proof of the hard start-gate journey. With
 // enforceIssueDependencies ON at the project level, attempting to start a bench
 // for a Phase-3 unit (WU-051) whose upstream Phase-2 gate (WU-040) has not yet
 // passed is refused with 409 GATE_BLOCKED naming WU-040. Once the Phase-2 batch
@@ -19,8 +19,8 @@ import { registerFixtureProject, resetWithScenario } from "./_support/scenario.j
 // (mirroring the real GitHub plugin, which lists only open blockers).
 //
 // Drift guard: this spec MUST follow .specifications/verify-gate/test-cases.json
-// case TC-032 step for step. If TC-032 changes, update this spec to match.
-// Failure-output contract (TC-032 acceptance criterion 3): every assertion below
+// case VG-TC-032 step for step. If VG-TC-032 changes, update this spec to match.
+// Failure-output contract (VG-TC-032 acceptance criterion 3): every assertion below
 // names the diverging step id, the expected-vs-actual, and the owning slice
 // issue from this unit's blocked-by set, so a red run localizes the integration
 // drift to one attributable slice:
@@ -40,7 +40,7 @@ const WU_040_ENCODED = encodeURIComponent(WU_040);
 const WU_051_ENCODED = encodeURIComponent(WU_051);
 
 // Owning slice issues from this unit's blocked-by set, surfaced in failure
-// messages so a red step points at one slice (TC-032 acceptance criterion 3).
+// messages so a red step points at one slice (VG-TC-032 acceptance criterion 3).
 const START_GATE_SLICE = "#699/#722 (hard start-gate)";
 const GATE_LIFECYCLE_SLICE = "#721 (gate lifecycle: close-on-pass)";
 
@@ -48,7 +48,7 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("TC-032: hard start-gate blocks WU-051, then allows it once WU-040's gate passes", async ({
+test("VG-TC-032: hard start-gate blocks WU-051, then allows it once WU-040's gate passes", async ({
   request,
 }) => {
   const { projectId } = await registerFixtureProject(request, {

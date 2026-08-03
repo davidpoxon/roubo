@@ -197,7 +197,7 @@ describe("MissingPluginDialog", () => {
   });
 
   describe("prompt step (pluginSource present)", () => {
-    it("shows the heading, plugin id, and one-click install button (TC-028)", () => {
+    it("shows the heading, plugin id, and one-click install button (IP-TC-028)", () => {
       setupMutations();
       renderDialog({ pluginSource: "git@github.com:acme/roubo-jira-plugin.git" });
 
@@ -211,7 +211,7 @@ describe("MissingPluginDialog", () => {
       expect(screen.getByTestId("missing-plugin-one-click-install")).toBeInTheDocument();
     });
 
-    it("one-click install calls preview with source=git and advances to permissions (TC-028)", async () => {
+    it("one-click install calls preview with source=git and advances to permissions (IP-TC-028)", async () => {
       const user = userEvent.setup();
       const { previewMutate } = setupMutations({
         previewMutate: (_body, callbacks) => {
@@ -250,7 +250,7 @@ describe("MissingPluginDialog", () => {
       );
     });
 
-    it("confirming the install invalidates project-integration and closes (TC-028)", async () => {
+    it("confirming the install invalidates project-integration and closes (IP-TC-028)", async () => {
       const user = userEvent.setup();
       setupMutations({
         previewMutate: (_body, callbacks) => {
@@ -279,7 +279,7 @@ describe("MissingPluginDialog", () => {
       });
     });
 
-    it("when pluginSource clone fails, shows the error and offers manual source entry (TC-066)", async () => {
+    it("when pluginSource clone fails, shows the error and offers manual source entry (IP-TC-066)", async () => {
       const user = userEvent.setup();
       setupMutations({
         previewMutate: (_body, callbacks) => {

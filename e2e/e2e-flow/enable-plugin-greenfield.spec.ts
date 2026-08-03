@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { loadAppShell, registerFixtureProject, resetWithScenario } from "./_support/scenario.js";
 
-// TC-171 (US-016/017, FR-059/060/061/077/078/080, NFR-022): the
+// IP-TC-171 (IP-US-016/017, IP-FR-059/060/061/077/078/080, IP-NFR-022): the
 // greenfield-then-Enable path of the project-load Enable-plugin prompt
 // modal. The reset writes every bundled plugin id as "disabled" (mirroring
 // what migrate.run() does on a fresh install) so the modal fires the first
@@ -36,7 +36,7 @@ test("greenfield → Enable lands the project loaded and flips github-com to ena
   const modal = page.getByTestId("enable-plugin-modal");
   await expect(modal).toBeVisible();
 
-  // FR-059 / FR-060: title and button labels surface the plugin name.
+  // IP-FR-059 / IP-FR-060: title and button labels surface the plugin name.
   await expect(modal).toContainText("Enable GitHub.com to load this project?");
   const cancel = page.getByTestId("enable-plugin-cancel");
   const confirm = page.getByTestId("enable-plugin-confirm");
@@ -44,7 +44,7 @@ test("greenfield → Enable lands the project loaded and flips github-com to ena
   await expect(confirm).toBeVisible();
   await expect(confirm).toContainText("Enable and load project");
 
-  // NFR-022: focus lands on Confirm via React Aria's `autoFocus`, and Tab
+  // IP-NFR-022: focus lands on Confirm via React Aria's `autoFocus`, and Tab
   // cycles within the modal (React Aria's ModalOverlay traps focus).
   await expect(confirm).toBeFocused();
   await page.keyboard.press("Tab");
@@ -52,12 +52,12 @@ test("greenfield → Enable lands the project loaded and flips github-com to ena
   await page.keyboard.press("Tab");
   await expect(confirm).toBeFocused();
 
-  // NFR-022: Enter triggers the focused Confirm button (FR-078 path).
+  // IP-NFR-022: Enter triggers the focused Confirm button (IP-FR-078 path).
   await page.keyboard.press("Enter");
 
   await expect(modal).toBeHidden();
 
-  // FR-080: the plugin is now enabled; the in-memory record (sourced from
+  // IP-FR-080: the plugin is now enabled; the in-memory record (sourced from
   // plugins-state.json) reflects status === "enabled".
   const pluginsRes = await request.get("/api/plugins");
   expect(pluginsRes.status()).toBe(200);

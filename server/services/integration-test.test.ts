@@ -140,7 +140,7 @@ describe("runIntegrationTest", () => {
     }
   });
 
-  describe("per-category result strip (WU-041, FR-047)", () => {
+  describe("per-category result strip (IP-WU-041, IP-FR-047)", () => {
     it("emits an Issues-only strip at global scope (no ctx): Issues always renders, no probes", async () => {
       vi.mocked(pluginManager.invoke)
         .mockResolvedValueOnce(undefined)
@@ -269,7 +269,7 @@ describe("runIntegrationTest", () => {
       );
     });
 
-    it("passes through a full TC-094 mix (ok + scope-aware not-enabled + ok) verbatim", async () => {
+    it("passes through a full IP-TC-094 mix (ok + scope-aware not-enabled + ok) verbatim", async () => {
       vi.mocked(pluginManager.invoke)
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce({ externalId: "u-1", displayName: "Octo" })
@@ -326,7 +326,7 @@ describe("runIntegrationTest", () => {
       }
     });
 
-    it("surfaces a timed-out probe row without failing the overall test (TC-103, FR-047)", async () => {
+    it("surfaces a timed-out probe row without failing the overall test (IP-TC-103, IP-FR-047)", async () => {
       vi.mocked(pluginManager.invoke)
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce({ externalId: "u-1", displayName: "Octo" })
@@ -391,7 +391,7 @@ describe("runIntegrationTest", () => {
       }
     });
 
-    it("marks every enabled category as error when the probe throws (FR-047: overall test stays ok)", async () => {
+    it("marks every enabled category as error when the probe throws (IP-FR-047: overall test stays ok)", async () => {
       vi.mocked(pluginManager.invoke)
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce({ externalId: "u-1", displayName: "Octo" })

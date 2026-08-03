@@ -1,7 +1,7 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import type { AssignedIssue, MarketplaceCatalogEntry, PluginRecord } from "@roubo/shared";
 
-// TC-153: shape of one entry in the ROUBO_E2E=1-only tap exposed by
+// IP-TC-153: shape of one entry in the ROUBO_E2E=1-only tap exposed by
 // `GET /test/__connection-state-log`. The tap mirrors the structured log
 // lines emitted by `recordConnectionStateTransition` in
 // server/services/plugin-manager.ts; keep this type in lock-step with the
@@ -17,14 +17,14 @@ export interface ConnectionStateLogEntry {
 
 /**
  * Reset server singletons and pin the stubbed plugin to a scenario + frozen
- * clock for the duration of a single spec (WU-063). All e2e-flow specs go
+ * clock for the duration of a single spec (IP-WU-063). All e2e-flow specs go
  * through this helper so that the calling shape is uniform and the assertion
  * about the 200 response is centralised.
  *
- * WU-066 (TC-171/TC-172): pass `{ bundledPluginsDisabled: true }` to land the
+ * IP-WU-066 (IP-TC-171/IP-TC-172): pass `{ bundledPluginsDisabled: true }` to land the
  * spec in a greenfield-like state (bundled plugin ids written as "disabled"
  * in plugins-state.json) so the project-load Enable-plugin prompt fires. The
- * default preserves the WU-068 behaviour of force-enabling bundled plugins.
+ * default preserves the IP-WU-068 behaviour of force-enabling bundled plugins.
  */
 export async function resetWithScenario(
   request: APIRequestContext,
@@ -109,7 +109,7 @@ export async function showTestBenchCasesView(page: Page): Promise<void> {
 
 /**
  * Assert that, inside `scope`, the `ConnectionStatusPill` is visible and is
- * carrying the expected `data-state` value. WU-064 (TC-168/TC-169): the pill
+ * carrying the expected `data-state` value. IP-WU-064 (IP-TC-168/IP-TC-169): the pill
  * is the testable surface for connection-status placement assertions; callers
  * pass a Locator that scopes the query to one of the three placements
  * (PluginCard, Configure modal header, project Issue Source tile).
@@ -127,7 +127,7 @@ export async function expectConnectionStatePillState(
  * #568 (CLI-TC-017): un-bypass the persistent cut-list disk snapshot for the
  * duration of one spec via the ROUBO_E2E-gated `/test/__set-cut-list-disk-cache`
  * endpoint. The harness bypasses the disk path by default (so a snapshot from
- * one scenario is never served to a later one, NFR-018), which makes the
+ * one scenario is never served to a later one, IP-NFR-018), which makes the
  * warm-snapshot serve unreachable. The cut-list-refresh drift guard needs that
  * warm path: it enables the disk cache after the per-spec reset, drives a first
  * open (miss -> snapshot written) then a reload (warm serve), and `/test/__reset`
@@ -149,7 +149,7 @@ export async function setCutListDiskCacheEnabled(
  * memo so the served source flips on the next read, and the response carries the
  * freshly resolved source so the spec can assert the degrade/reconnect at the
  * catalog-client boundary. `/test/__reset` restores reachable:true so the toggle
- * never leaks into a later spec (NFR-018). Returns the resolved catalog source
+ * never leaks into a later spec (IP-NFR-018). Returns the resolved catalog source
  * ("network" | "cache" | "seed").
  */
 export async function setMarketplaceReachable(
@@ -171,7 +171,7 @@ export async function setMarketplaceReachable(
  * NETWORK -> CACHE degrade chain would otherwise bottom out empty. This seeds the
  * cache the chain degrades to and drops any memoised client, so the missing-plugin
  * bench-start resolution names the source (registered). `/test/__reset` clears the
- * sources + per-source caches so nothing leaks into a later spec (NFR-018).
+ * sources + per-source caches so nothing leaks into a later spec (IP-NFR-018).
  */
 export async function seedSourceCatalog(
   request: APIRequestContext,
@@ -196,7 +196,7 @@ export async function seedSourceCatalog(
  * third-party source", so the seam writes the state the install commit would, then
  * re-derives the live records so the seeded plugin's record carries the source.
  * `/test/__reset` wipes the registry, ledger, cache dir, and keyring credential so
- * the seed never leaks into a later spec (NFR-018). Returns the generated
+ * the seed never leaks into a later spec (IP-NFR-018). Returns the generated
  * { sourceId, sourceUrl, pluginId }.
  */
 export async function seedMarketplaceSource(
@@ -252,15 +252,15 @@ export async function registerFixtureProject(
   request: APIRequestContext,
   opts: {
     projectId: string;
-    // TC-164: omit `plugin` to register a fixture project with no integration
+    // IP-TC-164: omit `plugin` to register a fixture project with no integration
     // override so the IssueSourceTile renders its UnconfiguredBody variant.
     plugin?: string;
-    // WU-068: optional extra integration fields (instance, sources,
+    // IP-WU-068: optional extra integration fields (instance, sources,
     // capturedUserId, etc.) merged into the saved override alongside
     // `plugin`. Specs use this to drive surfaces (e.g. Source-tile instance
     // line) that only render when the override carries the matching value.
     integrationConfig?: Record<string, unknown>;
-    // TC-164/167/177: optional `project.repo` written into the fixture
+    // IP-TC-164/167/177: optional `project.repo` written into the fixture
     // roubo.yaml so the github-com Configure modal's derived-sources preview
     // resolves to a success state (the server derives sources from
     // `config.project.repo`).
@@ -270,7 +270,7 @@ export async function registerFixtureProject(
     // each a distinct base, since the port allocator rejects overlapping
     // ranges. Defaults to the route's high base when omitted.
     portBase?: number;
-    // TC-161: optional list of benches to seed against the fixture project,
+    // IP-TC-161: optional list of benches to seed against the fixture project,
     // each pinned with its own `assignedIssue`. The server route persists
     // them onto fresh tmpdir-backed PersistedBench rows and reloads
     // bench-manager so subsequent GET /api/projects/:id/benches surfaces
@@ -292,7 +292,7 @@ export async function registerFixtureProject(
     // repo and pins its worktree source to the local HEAD, so a real TestBench
     // worktree can be provisioned without an `origin` remote.
     gitInit?: boolean;
-    // TC-032 (#708): when true, the fixture roubo.yaml sets
+    // VG-TC-032 (#708): when true, the fixture roubo.yaml sets
     // `benches.enforceIssueDependencies: true`, turning the host's hard
     // start-gate ON at the project level (no reliance on the global default).
     // The start-gate e2e drives the blocked -> allowed journey against it.
@@ -322,7 +322,7 @@ export async function registerFixtureProject(
 /**
  * Read the ROUBO_E2E=1-only tap exposed by `GET /test/__connection-state-log`.
  * The tap mirrors the structured log lines emitted by
- * `recordConnectionStateTransition` (TC-153 / NFR-023). TC-169 uses it to
+ * `recordConnectionStateTransition` (IP-TC-153 / IP-NFR-023). IP-TC-169 uses it to
  * assert that an opportunistic recheck observed a state transition without
  * scraping the running server's stdout.
  */
@@ -416,7 +416,7 @@ export async function readCutListCacheFile(
 
 /**
  * Fetch a single plugin's record by id from `GET /api/plugins`. The endpoint
- * returns the full installed list; TC-163 (#240) keeps the helper focused so
+ * returns the full installed list; IP-TC-163 (#240) keeps the helper focused so
  * specs don't repeat the find-by-id boilerplate.
  */
 export async function fetchPluginRecord(
@@ -430,7 +430,7 @@ export async function fetchPluginRecord(
 }
 
 /**
- * TC-163 (#240): SIGKILL the named plugin's live child via the
+ * IP-TC-163 (#240): SIGKILL the named plugin's live child via the
  * `/test/__crash-plugin` ROUBO_E2E-gated endpoint so the supervisor sees an
  * unexpected exit. The endpoint returns 409 when the plugin is not running;
  * callers should `waitForPluginRestart` before chaining additional crashes.
@@ -441,7 +441,7 @@ export async function crashStubPlugin(request: APIRequestContext, pluginId: stri
 }
 
 /**
- * TC-163 (#240): poll `GET /api/plugins` until the named plugin's record
+ * IP-TC-163 (#240): poll `GET /api/plugins` until the named plugin's record
  * matches the supplied predicate. Used to observe restart-budget transitions
  * (history grew, respawned with a new pid, transitioned to errored) without
  * tying the spec to backoff timing. Total timeout matches the
@@ -469,7 +469,7 @@ export async function waitForPluginRecord(
 
 /**
  * Read the persisted plugin-enable-state file via the e2e harness endpoint.
- * TC-154 (#222) asserts the NFR-024 invariant ("plugin remains in its
+ * IP-TC-154 (#222) asserts the IP-NFR-024 invariant ("plugin remains in its
  * previous disabled state on spawn failure") by snapshotting this map before
  * and after the Enable click; the snapshot lets the spec verify that the
  * on-disk file was not mutated, without poking the filesystem from the

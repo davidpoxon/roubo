@@ -2,14 +2,14 @@ import { expect, test } from "@playwright/test";
 import { loadAppShell, resetWithScenario } from "../e2e-flow/_support/scenario.js";
 import { registerTestProject, unregisterTestProject } from "./_support/project.js";
 
-// TC-176 (US-021, FR-068, NFR-016, NFR-018): the chip taxonomy renders four
+// IP-TC-176 (IP-US-021, IP-FR-068, IP-NFR-016, IP-NFR-018): the chip taxonomy renders four
 // distinct buckets (status, issue-type or security-category, label, metadata)
 // and the chips stay distinguishable under greyscale and the two main red-
 // green colour-blindness palettes (protanopia, deuteranopia). The four
 // categories are encoded in markup (icon, shape, position) so structural
 // assertion proves distinguishability; per-palette screenshots are captured
 // as attachments for human review without baseline comparison so the spec
-// stays deterministic across runs and platforms (NFR-018).
+// stays deterministic across runs and platforms (IP-NFR-018).
 
 const SCENARIO = "chip-taxonomy";
 const NOW = "2026-05-26T12:00:00.000Z";
@@ -51,7 +51,7 @@ const PALETTE_FILTERS_SVG = `
 </svg>
 `;
 
-test.describe("TC-176: chip taxonomy renders four distinct categories", () => {
+test.describe("IP-TC-176: chip taxonomy renders four distinct categories", () => {
   let projectId: string;
 
   test.beforeEach(async ({ request }) => {

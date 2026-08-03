@@ -338,7 +338,7 @@ describe("discovery", () => {
     });
   });
 
-  it("flags invalid manifest as 'invalid' and continues boot (TC-002, FR-033)", async () => {
+  it("flags invalid manifest as 'invalid' and continues boot (IP-TC-002, IP-FR-033)", async () => {
     sandbox = await makeSandbox({
       bundled: ["echo", "invalid-manifest"],
     });
@@ -353,7 +353,7 @@ describe("discovery", () => {
     expect(echo.pid).not.toBeNull();
   });
 
-  it("flags incompatible plugin and does not spawn it (TC-003)", async () => {
+  it("flags incompatible plugin and does not spawn it (IP-TC-003)", async () => {
     sandbox = await makeSandbox({ bundled: ["incompatible"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1039,7 +1039,7 @@ describe("component-plugin crash hooks (issue #613)", () => {
 });
 
 describe("lifecycle", () => {
-  it("spawns an isolated child Node process per enabled plugin (TC-001, TC-004)", async () => {
+  it("spawns an isolated child Node process per enabled plugin (IP-TC-001, IP-TC-004)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1050,7 +1050,7 @@ describe("lifecycle", () => {
     expect(() => process.kill(pid, 0)).not.toThrow();
   });
 
-  it("round-trips a JSON-RPC request via invoke (TC-005)", async () => {
+  it("round-trips a JSON-RPC request via invoke (IP-TC-005)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1058,7 +1058,7 @@ describe("lifecycle", () => {
     expect(result).toEqual({ payload: 42 });
   });
 
-  it("supports TC-033 by routing listIssueTypes through invoke", async () => {
+  it("supports IP-TC-033 by routing listIssueTypes through invoke", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1069,14 +1069,14 @@ describe("lifecycle", () => {
     ]);
   });
 
-  // WU-066 / FR-061 (TC-172): enable() must throw when the plugin dies during
+  // IP-WU-066 / IP-FR-061 (IP-TC-172): enable() must throw when the plugin dies during
   // startup so the route handler can return 409 and the Enable-plugin prompt
   // modal can render the inline error. spawnPlugin captures sync failures
   // into entry.record without throwing, and a plugin that exits immediately
   // dies AFTER spawnPlugin returns. The setImmediate yield inside enable()
   // gives the exit handler a chance to fire so we can detect the death and
   // throw before the route returns.
-  it("throws when a plugin exits during startup, leaving status=errored (WU-066)", async () => {
+  it("throws when a plugin exits during startup, leaving status=errored (IP-WU-066)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo", "crashy"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1094,7 +1094,7 @@ describe("lifecycle", () => {
 
     await expect(mgr.enable("crashy")).rejects.toThrow(/exit/i);
 
-    // TC-154 (#222): enable() rolls the record back to "disabled" (not
+    // IP-TC-154 (#222): enable() rolls the record back to "disabled" (not
     // "errored") when the spawned process dies during startup, so the user
     // can retry without a restart cycle and the UI reflects a clean state.
     const rec = findRecord(mgr.listInstalled(), "crashy");
@@ -1104,7 +1104,7 @@ describe("lifecycle", () => {
     expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("crashy", false);
   }, 30_000);
 
-  it("disables and re-enables a plugin (TC-013)", async () => {
+  it("disables and re-enables a plugin (IP-TC-013)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1115,7 +1115,7 @@ describe("lifecycle", () => {
     expect(disabled.status).toBe("disabled");
     expect(disabled.pid).toBeNull();
     // FR-004 / NFR-001 (Spike 553, #553): disable EVICTS the persistent disk
-    // cache (distinct from the in-memory cache kept warm for the FR-014
+    // cache (distinct from the in-memory cache kept warm for the IP-FR-014
     // fallback).
     expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("echo");
     await waitFor(() => {
@@ -1133,7 +1133,7 @@ describe("lifecycle", () => {
     expect(reenabled.pid).not.toBe(firstPid);
   });
 
-  it("dispatches host.credentials.* with slot-scope enforcement (TC-070)", async () => {
+  it("dispatches host.credentials.* with slot-scope enforcement (IP-TC-070)", async () => {
     sandbox = await makeSandbox({ bundled: ["host-credentials-caller"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1183,7 +1183,7 @@ describe("lifecycle", () => {
     ).toBe(true);
   });
 
-  it("rejects off-allowlist host.fetch before any network I/O (TC-150)", async () => {
+  it("rejects off-allowlist host.fetch before any network I/O (IP-TC-150)", async () => {
     sandbox = await makeSandbox({ bundled: ["host-fetch-caller"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1222,7 +1222,7 @@ describe("lifecycle", () => {
     ).toBe(true);
   });
 
-  it("runs the @roubo/plugin-sdk reference fixture end-to-end (TC-035)", async () => {
+  it("runs the @roubo/plugin-sdk reference fixture end-to-end (IP-TC-035)", async () => {
     const { createServer } = await import("node:http");
     const issuePayload = {
       items: [
@@ -1311,7 +1311,7 @@ describe("lifecycle", () => {
     }
   });
 
-  it("shutdown tears children down within 5s and clears the registry (TC-077)", async () => {
+  it("shutdown tears children down within 5s and clears the registry (IP-TC-077)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1333,8 +1333,8 @@ describe("lifecycle", () => {
   });
 });
 
-describe("invoke timeouts and errors (TC-014, TC-073, TC-074)", () => {
-  it("cancels a hanging call without orphaning the child (TC-014)", async () => {
+describe("invoke timeouts and errors (IP-TC-014, IP-TC-073, IP-TC-074)", () => {
+  it("cancels a hanging call without orphaning the child (IP-TC-014)", async () => {
     sandbox = await makeSandbox({ bundled: ["slow"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1347,7 +1347,7 @@ describe("invoke timeouts and errors (TC-014, TC-073, TC-074)", () => {
     expect(pong).toBe("pong");
   });
 
-  it("survives a malformed JSON-RPC reply (TC-073)", async () => {
+  it("survives a malformed JSON-RPC reply (IP-TC-073)", async () => {
     sandbox = await makeSandbox({ bundled: ["echo", "garbage-bytes"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1357,7 +1357,7 @@ describe("invoke timeouts and errors (TC-014, TC-073, TC-074)", () => {
     expect(garbage.pid).not.toBeNull();
   });
 
-  it("handles an oversized JSON-RPC reply (TC-074)", async () => {
+  it("handles an oversized JSON-RPC reply (IP-TC-074)", async () => {
     sandbox = await makeSandbox({ bundled: ["oversized"] });
     mgr = await loadManager();
     await mgr.initialize();
@@ -1396,7 +1396,7 @@ describe("invoke timeouts and errors (TC-014, TC-073, TC-074)", () => {
   });
 });
 
-describe("restart budget (TC-015)", () => {
+describe("restart budget (IP-TC-015)", () => {
   it("auto-restarts up to 3 times then marks errored", async () => {
     sandbox = await makeSandbox({ bundled: ["crashy"] });
     mgr = await loadManager();
@@ -1413,13 +1413,13 @@ describe("restart budget (TC-015)", () => {
     expect(rec.restartHistory.length).toBeGreaterThanOrEqual(3);
   }, 30_000);
 
-  // TC-163 (#240): the e2e harness uses `__test.crashRunningPlugin` to drive
-  // the supervisor through the same restart-budget arithmetic that TC-015
+  // IP-TC-163 (#240): the e2e harness uses `__test.crashRunningPlugin` to drive
+  // the supervisor through the same restart-budget arithmetic that IP-TC-015
   // exercises via a self-crashing fixture. This test pins the helper's
   // contract independently: a healthy `echo` plugin SIGKILLed three times in
   // quick succession should land in `errored` with `restart-budget-exhausted`
   // and a `restartHistory` of length 3.
-  it("crashRunningPlugin (TC-163) drives a healthy plugin to errored after 3 crashes", async () => {
+  it("crashRunningPlugin (IP-TC-163) drives a healthy plugin to errored after 3 crashes", async () => {
     const originalE2E = process.env.ROUBO_E2E;
     process.env.ROUBO_E2E = "1";
     try {
@@ -1916,7 +1916,7 @@ permissions:
       .then(() => false)
       .catch(() => true);
     expect(dirGone).toBe(true);
-    // WU-046: uninstall must also drop the plugin from plugins-state.json so
+    // IP-WU-046: uninstall must also drop the plugin from plugins-state.json so
     // a future install of the same id starts from the default.
     expect(enableStateMocks.removePlugin).toHaveBeenCalledWith("to-remove");
     // Issue #399 (CP-TC-096): uninstall drops the plugin's ConsentRecord so a
@@ -2087,7 +2087,7 @@ permissions:
   });
 });
 
-describe("registerInstalled (WU-011)", () => {
+describe("registerInstalled (IP-WU-011)", () => {
   async function makeUserPluginDir(parent: string, id: string): Promise<string> {
     const dir = path.join(parent, id);
     await symlink(path.join(FIXTURES_ROOT, "echo"), dir, "dir");
@@ -2246,7 +2246,7 @@ describe("reinstallIntoUserRoot (#756)", () => {
   });
 });
 
-describe("plugin-enable-state integration (WU-046)", () => {
+describe("plugin-enable-state integration (IP-WU-046)", () => {
   it("does not spawn plugins whose persisted state is 'disabled'", async () => {
     enableStateMocks.loadEnableState.mockReturnValueOnce({
       schemaVersion: 1,
@@ -2301,7 +2301,7 @@ describe("plugin-enable-state integration (WU-046)", () => {
     expect(echo.status).toBe("enabled");
   });
 
-  it("write-throughs enable() to setPluginEnabled after a successful spawn (TC-154)", async () => {
+  it("write-throughs enable() to setPluginEnabled after a successful spawn (IP-TC-154)", async () => {
     enableStateMocks.loadEnableState.mockReturnValueOnce({
       schemaVersion: 1,
       installInitialized: true,
@@ -2318,15 +2318,15 @@ describe("plugin-enable-state integration (WU-046)", () => {
     expect(findRecord(mgr.listInstalled(), "echo").status).toBe("enabled");
   });
 
-  // TC-154 (#222): NFR-024 ("plugin remains in its previous disabled state"
-  // on spawn failure) is the invariant that broke when WU-046 ordered the
+  // IP-TC-154 (#222): IP-NFR-024 ("plugin remains in its previous disabled state"
+  // on spawn failure) is the invariant that broke when IP-WU-046 ordered the
   // plugins-state.json write before the spawn attempt. This test pins the
   // corrected ordering: a plugin whose entry script crashes on launch must
   // (a) leave plugins-state.json unchanged, (b) surface a thrown error so
   // the route returns 4xx and EnablePluginPromptModal's onError fires, and
   // (c) leave the in-memory record back in "disabled" (not "errored" mid-
   // restart-cycle and not silently "enabled").
-  it("does not write-through enable() on spawn failure and surfaces the error (TC-154, NFR-024)", async () => {
+  it("does not write-through enable() on spawn failure and surfaces the error (IP-TC-154, IP-NFR-024)", async () => {
     enableStateMocks.loadEnableState.mockReturnValueOnce({
       schemaVersion: 1,
       installInitialized: true,
@@ -2364,7 +2364,7 @@ describe("plugin-enable-state integration (WU-046)", () => {
   });
 });
 
-describe("getConnectionStatus (WU-044)", () => {
+describe("getConnectionStatus (IP-WU-044)", () => {
   const PLUGIN_ID = "github-com";
   // github.com has a fixed API host and no plugin-wide `instance`, so the
   // connection-status flow never pushes setActiveConfig for it (see the
@@ -2388,10 +2388,10 @@ describe("getConnectionStatus (WU-044)", () => {
     vi.setSystemTime(FROZEN_TIME);
     invokerMock = vi.fn();
     pluginManager.__test.setConnectionStatusInvoker(invokerMock);
-    // TC-153 / NFR-023: every observed state transition is written to the
+    // IP-TC-153 / IP-NFR-023: every observed state transition is written to the
     // host structured logger (console.info JSON line). Suppress here so the
     // tests that don't care about the log do not leak it to stdout; the
-    // TC-153 sub-describe below reads the captured calls off this spy.
+    // IP-TC-153 sub-describe below reads the captured calls off this spy.
     vi.spyOn(console, "info").mockImplementation(() => {});
   });
 
@@ -2419,7 +2419,7 @@ describe("getConnectionStatus (WU-044)", () => {
     );
   });
 
-  it("falls back to validateConfig and reports connected when ok (TC-113)", async () => {
+  it("falls back to validateConfig and reports connected when ok (IP-TC-113)", async () => {
     invokerMock
       .mockRejectedValueOnce(methodNotFound("getConnectionStatus"))
       .mockResolvedValueOnce({ ok: true });
@@ -2578,7 +2578,7 @@ describe("getConnectionStatus (WU-044)", () => {
     expect(invokerMock).toHaveBeenCalledTimes(2);
   });
 
-  describe("force option (WU-050)", () => {
+  describe("force option (IP-WU-050)", () => {
     it("bypasses the value cache so the next call re-probes the plugin", async () => {
       invokerMock
         .mockResolvedValueOnce({ state: "auth-problem", checkedAt: FROZEN_TIME.toISOString() })
@@ -2627,7 +2627,7 @@ describe("getConnectionStatus (WU-044)", () => {
     });
   });
 
-  describe("invalidateConnectionStatus (WU-031)", () => {
+  describe("invalidateConnectionStatus (IP-WU-031)", () => {
     it("drops the cached value so the next call re-probes the plugin", async () => {
       invokerMock
         .mockResolvedValueOnce({ state: "auth-problem", checkedAt: FROZEN_TIME.toISOString() })
@@ -2660,12 +2660,12 @@ describe("getConnectionStatus (WU-044)", () => {
     });
   });
 
-  // TC-153 / NFR-023: every transition is written to the host's structured
+  // IP-TC-153 / IP-NFR-023: every transition is written to the host's structured
   // logger (console.info as a JSON line). Under ROUBO_E2E=1 the same entries
-  // are mirrored to an in-memory tap so Playwright specs (TC-169) can poll
+  // are mirrored to an in-memory tap so Playwright specs (IP-TC-169) can poll
   // without scraping the server's stdout. These tests reuse the parent
   // describe's `console.info` spy (installed in the outer beforeEach).
-  describe("connection-state structured logging (TC-153)", () => {
+  describe("connection-state structured logging (IP-TC-153)", () => {
     const originalRouboE2E = process.env.ROUBO_E2E;
 
     afterEach(() => {
@@ -2883,11 +2883,11 @@ describe("getConnectionStatus (WU-044)", () => {
   });
 });
 
-// WU-063: when the Playwright harness pins a scenario + frozen-now via
+// IP-WU-063: when the Playwright harness pins a scenario + frozen-now via
 // __test.setE2EConfig under ROUBO_E2E=1, the spawned plugin must receive the
 // values as --scenario / --now argv. The echo fixture exposes process.argv
 // over RPC so we can assert on the child's actual argv.
-describe("e2e config argv propagation (WU-063)", () => {
+describe("e2e config argv propagation (IP-WU-063)", () => {
   const originalRouboE2E = process.env.ROUBO_E2E;
 
   afterEach(() => {

@@ -12,7 +12,7 @@ const { githubOauthMocks, githubMocks, pluginManagerMocks, credentialStoreMocks 
       validateState: vi.fn(),
       GITHUB_PLUGIN_ID: "github-com",
       GITHUB_TOKEN_SLOT: "github-token",
-      // WU-036: REQUIRED_SCOPES is consumed by the route to log `scopesRequested`.
+      // IP-WU-036: REQUIRED_SCOPES is consumed by the route to log `scopesRequested`.
       REQUIRED_SCOPES: ["repo", "read:org", "read:project", "security_events"],
     },
     githubMocks: { refreshAuth: vi.fn() },
@@ -44,7 +44,7 @@ beforeEach(() => {
   credentialStoreMocks.deleteSlot.mockReset();
   credentialStoreMocks.set.mockReset();
   credentialStoreMocks.get.mockReset();
-  // WU-036: silence the structured oauth-authorize / oauth-exchange lines
+  // IP-WU-036: silence the structured oauth-authorize / oauth-exchange lines
   // emitted by the route. Tests that need to inspect them assert on the spy.
   consoleInfo = vi.spyOn(console, "info").mockImplementation(() => {});
 });
@@ -142,7 +142,7 @@ describe("POST /exchange", () => {
     expect(res.body).toEqual({ ok: true, username: "octocat" });
     expect(githubOauthMocks.saveToken).toHaveBeenCalledWith("ghp_secret");
     expect(githubMocks.refreshAuth).toHaveBeenCalled();
-    // WU-031: invalidate the cached connection-status so the next UI poll
+    // IP-WU-031: invalidate the cached connection-status so the next UI poll
     // re-probes under the freshly-saved token (incl. any newly granted scopes).
     expect(pluginManagerMocks.invalidateConnectionStatus).toHaveBeenCalledWith("github-com");
     // Reset the plugin process's cached Octokit so the derived-sources preview

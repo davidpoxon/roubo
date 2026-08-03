@@ -31,7 +31,7 @@ interface BuildContractDeps {
   journal: Journal;
 }
 
-// TC-032 (#708): the host's hard start-gate refuses a unit while its
+// VG-TC-032 (#708): the host's hard start-gate refuses a unit while its
 // `blockedBy` is non-empty. The real GitHub plugin only ever lists *open*
 // blockers (a closed/resolved blocker drops out of the graph), so a blocker
 // whose tracker issue has closed no longer gates the dependent. We mirror that
@@ -106,7 +106,7 @@ function sortKept(
 export function buildContract({ scenario, clock, journal }: BuildContractDeps): PluginContract {
   const listSourceCandidates = (): SourceCandidatesResponse => scenario.sourceCandidates;
 
-  // WU-069: TC-180 needs listIssues to surface a 401 warning on the first
+  // IP-WU-069: IP-TC-180 needs listIssues to surface a 401 warning on the first
   // pull, then return Dependabot alert rows on the next. Mirror the
   // connection-status sequence walk below (clamp at the final entry) so a
   // single scenario can model that transition without restarting the stub.
@@ -230,8 +230,8 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
 
   const listLabels = (_params: ListLabelsParams): string[] => [...scenario.labels].sort();
 
-  // WU-064: if the scenario declares a sequence, walk through it on each
-  // call (clamping at the final entry) so TC-169 can model a token expiring
+  // IP-WU-064: if the scenario declares a sequence, walk through it on each
+  // call (clamping at the final entry) so IP-TC-169 can model a token expiring
   // mid-session. Otherwise fall back to the single static `connectionStatus`.
   const sequence = scenario.connectionStatusSequence;
   let sequenceIndex = 0;
@@ -250,7 +250,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     };
   };
 
-  // TC-167: walk `probeAlertCategoriesSequence` on each call (clamp at the
+  // IP-TC-167: walk `probeAlertCategoriesSequence` on each call (clamp at the
   // last entry) so a single scenario can model the Test-connection strip
   // surfacing scope-missing on the first probe and ok after OAuth re-consent
   // refreshes the token. When no sequence is declared, return an empty
@@ -345,7 +345,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     probeAlertCategories,
   };
 
-  // WU-067 (TC-175): when the scenario sets `omitFilterFacets`, leave both
+  // IP-WU-067 (IP-TC-175): when the scenario sets `omitFilterFacets`, leave both
   // methods off the contract so the host RPC layer rejects with
   // MethodNotFound. `plugin-filter-facets.ts` already maps that to the fixed
   // `COMMON_FACET_FALLBACK` set. Models a plugin built against host-API 1.0.0.
