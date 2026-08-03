@@ -13,11 +13,13 @@ vi.mock("../hooks/useToast");
 vi.mock("../hooks/useAgentTools");
 vi.mock("../hooks/useProjectAgents");
 vi.mock("../hooks/useProjectDefaultJig");
-// Stands in for the real pane, surfacing only the `waiting` prop the pane strip
-// is driven by (#1119).
+// Stands in for the real pane, surfacing only the `waitingNotificationId` prop
+// the pane strip is driven by (#1119).
 vi.mock("./Terminal", () => ({
-  default: ({ waiting }: { waiting?: boolean }) =>
-    waiting === true ? <div data-testid="pane-waiting" /> : null,
+  default: ({ waitingNotificationId }: { waitingNotificationId?: string }) =>
+    waitingNotificationId !== undefined ? (
+      <div data-testid="pane-waiting" data-notification-id={waitingNotificationId} />
+    ) : null,
 }));
 
 import type {
@@ -1006,7 +1008,7 @@ describe("TerminalTabs: notification indicators", () => {
       />,
     );
 
-    expect(screen.getByTestId("pane-waiting")).toBeInTheDocument();
+    expect(screen.getByTestId("pane-waiting")).toHaveAttribute("data-notification-id", "n1");
   });
 
   it("does not mark a pane as waiting for a notification that is not a waiting one", () => {

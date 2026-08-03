@@ -114,7 +114,7 @@ Tools only appear in the UI when their dependencies are running. A browser tool 
 
 ## Session notifications
 
-A bench terminal session is either working, waiting on you, or gone. Roubo turns the last two into bench notifications so a tab you are not looking at can still ask for attention: a **waiting** notification while a session sits idle at a prompt, and an **exited** notification when its process ends. Both are session-scoped: they carry the session id, and the terminal tab strip renders an indicator on any inactive tab with a matching notification.
+A bench terminal session is either working, waiting on you, or gone. Roubo turns the last two into bench notifications so a tab you are not looking at can still ask for attention: a **waiting** notification while a session sits idle at a prompt, and an **exited** notification when its process ends. Both are session-scoped: they carry the session id, and the terminal tab strip renders an indicator on any inactive tab with a matching notification. A waiting session is surfaced on the pane as well, where the terminal shows a `Waiting for your input` strip, which covers the session you are looking at (the one the tab indicator deliberately skips).
 
 ### Two waiting-detection mechanisms
 

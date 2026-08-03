@@ -264,13 +264,28 @@ describe("Terminal: waiting affordance (#1119)", () => {
   });
 
   it("shows the waiting strip for the active session when it is waiting", () => {
-    render(<Terminal sessionId="sess-1" active waiting />);
+    render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
     expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
   });
 
-  it("keeps the strip after the waiting prop drops, since the active tab's notification is dismissed on poll", () => {
-    const { rerender } = render(<Terminal sessionId="sess-1" active waiting />);
-    rerender(<Terminal sessionId="sess-1" active waiting={false} />);
+  it("keeps the strip after the waiting notification goes, since the active tab's is dismissed on poll", () => {
+    const { rerender } = render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
+    rerender(<Terminal sessionId="sess-1" active />);
+    expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
+  });
+
+  it("re-arms when a fresh waiting notification replaces the old one inside one poll gap", () => {
+    const captured = captureConnection();
+    const { rerender } = render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
+
+    // Live output clears the strip locally, exactly as the server dismisses n1.
+    act(() => captured.onMessage({ type: "output", data: "working...\r\n" }));
+    expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
+
+    // The next poll never sampled the gap: n1 was dismissed and n2 raised in
+    // between, so a boolean prop would have read `true` throughout and the
+    // strip would have stayed hidden while the session really was waiting.
+    rerender(<Terminal sessionId="sess-1" active waitingNotificationId="n2" />);
     expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
   });
 
@@ -280,7 +295,7 @@ describe("Terminal: waiting affordance (#1119)", () => {
       capturedDataCallback = cb;
       return { dispose: vi.fn() };
     }) as never);
-    render(<Terminal sessionId="sess-1" active waiting />);
+    render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
     expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
 
     act(() => capturedDataCallback("y"));
@@ -289,19 +304,40 @@ describe("Terminal: waiting affordance (#1119)", () => {
 
   it("clears the strip on fresh live output, mirroring the server-side dismissal", () => {
     const captured = captureConnection();
-    render(<Terminal sessionId="sess-1" active waiting />);
+    render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
     expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
 
     act(() => captured.onMessage({ type: "output", data: "thinking...\r\n" }));
     expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
   });
 
+  it("clears the strip when the process exits, since a dead session waits on nobody", () => {
+    const captured = captureConnection();
+    render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
+    expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
+
+    // The exit frame leaves the socket open, so the reconnect banner never
+    // takes over and nothing else would clear the strip.
+    act(() => captured.onMessage({ type: "exit", code: 0 }));
+    expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
+  });
+
   it("does not clear the strip on a replay, which fires again on every reconnect", () => {
     const captured = captureConnection();
-    render(<Terminal sessionId="sess-1" active waiting />);
+    render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
 
     act(() => captured.onReplay(["scrollback\r\n"]));
     expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
+  });
+
+  it("clears the strip on a replay that carries an exit code, for an already-dead session", () => {
+    const captured = captureConnection();
+    render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
+
+    // Attaching to a session that died before the socket opened: no live exit
+    // frame ever arrives, so the replay is the only signal there is.
+    act(() => captured.onReplay(["scrollback\r\n"], 0));
+    expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
   });
 
   it("yields the top of the pane to the reconnect banner", () => {
@@ -311,7 +347,7 @@ describe("Terminal: waiting affordance (#1119)", () => {
       attempt: 1,
       retry: vi.fn(),
     } as never);
-    render(<Terminal sessionId="sess-1" active waiting />);
+    render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
     expect(screen.getByTestId("reconnect-banner")).toBeInTheDocument();
     expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
   });

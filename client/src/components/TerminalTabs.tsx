@@ -196,19 +196,23 @@ export default function TerminalTabs({
   }, [activeTab, projectId, benchId, dismissNotification, notifications]);
 
   /**
-   * Whether a session is waiting on the user, for the pane strip (#1119). The
-   * tab dot is suppressed on the active tab and the effect above dismisses that
-   * tab's notifications on the next poll, so the pane is the only surface left
-   * for the session the user is actually looking at. `Terminal` latches this,
-   * which is what survives that dismissal.
+   * The id of the waiting notification a session carries, for the pane strip
+   * (#1119). The tab dot is suppressed on the active tab and the effect above
+   * dismisses that tab's notifications on the next poll, so the pane is the
+   * only surface left for the session the user is actually looking at.
+   * `Terminal` latches this, which is what survives that dismissal.
+   *
+   * The id rather than a boolean, so a dismissal and a fresh waiting
+   * notification that both land inside one poll gap still read as a change and
+   * re-arm the latch.
    */
-  const isSessionWaiting = useCallback(
+  const waitingNotificationId = useCallback(
     (sessionId: string) =>
-      notifications.some(
+      notifications.find(
         (n) =>
           n.sourceSessionId === sessionId &&
           (n.type === "agent-waiting" || n.type === "terminal-waiting"),
-      ),
+      )?.id,
     [notifications],
   );
 
@@ -738,7 +742,7 @@ export default function TerminalTabs({
               <Terminal
                 sessionId={session.id}
                 active={activeTab === session.id}
-                waiting={isSessionWaiting(session.id)}
+                waitingNotificationId={waitingNotificationId(session.id)}
                 onRetry={() => handleRetrySession(session)}
               />
             </div>
