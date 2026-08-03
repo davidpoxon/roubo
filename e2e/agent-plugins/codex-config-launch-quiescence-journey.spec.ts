@@ -25,7 +25,7 @@ import {
 //
 // The integration-level drift guard for the AP-US-009 journey (AP-FR-012,
 // AP-FR-013, AP-FR-020), spanning the slices this unit is blocked by (#505,
-// #512, #513, #520). It walks both authoritative e2e_flow cases step for step
+// #512, #513, #520, #537). It walks both authoritative e2e_flow cases step for step
 // against the REAL built app. On divergence each observation routes through the
 // FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
@@ -185,13 +185,17 @@ const SLICE = {
     title: "Agent session notifications: hook-driven and quiescence waiting/exited detection",
   },
   plugin: { issue: 520, title: "Codex CLI agent plugin" },
+  gate: {
+    issue: 537,
+    title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces (33 gating cases)",
+  },
 } as const;
 
 const STEPS_056: Record<string, JourneyStep> = {
   S001: {
     id: "S001",
     instruction: "Launch Codex CLI from the Terminal tab All agents menu",
-    owners: [SLICE.plugin],
+    owners: [SLICE.plugin, SLICE.gate],
   },
   S002: {
     id: "S002",
@@ -231,7 +235,7 @@ const STEPS_105: Record<string, JourneyStep> = {
     id: "S004",
     instruction:
       "Navigate to the bench Terminal tab, open the Agent launch menu, and choose Codex CLI",
-    owners: [SLICE.plugin],
+    owners: [SLICE.plugin, SLICE.gate],
   },
   S005: {
     id: "S005",
@@ -513,6 +517,30 @@ async function readCodexCompatibility(
   return body.agents.find((agent) => agent.id === CODEX_PLUGIN_ID)?.compatibility ?? {};
 }
 
+/**
+ * Poll until the Codex compatibility verdict has resolved, or give up after 15s.
+ *
+ * The version probe behind that verdict is FIRE-AND-FORGET: `GET /api/agents`
+ * kicks off `warmAgentVersion` and answers from the cache in the same request,
+ * so `buildCompatibilityState` reports `status: "unknown"` until a probe result
+ * lands. `waitForAvailableAgents` returns on the very poll that first resolves
+ * the agent, which is also the first request that starts the warm, so reading
+ * the verdict once straight after it would race a cold cache and fail the
+ * precondition on a mysterious "unknown" rather than on a real drift out of the
+ * window. Every other read in this spec polls; this one does too.
+ */
+async function waitForCodexCompatibility(
+  request: APIRequestContext,
+): Promise<{ status?: string; detectedVersion?: string }> {
+  const unresolved = (status?: string): boolean => status === undefined || status === "unknown";
+  let compatibility = await readCodexCompatibility(request);
+  for (let attempt = 0; attempt < 60 && unresolved(compatibility.status); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    compatibility = await readCodexCompatibility(request);
+  }
+  return compatibility;
+}
+
 test.beforeEach(async ({ request }) => {
   // AP-TC-056 alone spends two full 3000ms quiescence windows waiting, on top of
   // a real launch, a real PTY teardown and two notification polls, which does not
@@ -619,7 +647,7 @@ test("AP-TC-056: a configured Codex session launches, injects its jig, and raise
   // range" (see the header note on the case's stale 0.48.2 literal). Asserted
   // rather than assumed, so a fixture drifting out of the window fails as a
   // missing precondition instead of as a mysterious launch refusal.
-  const compatibility = await readCodexCompatibility(request);
+  const compatibility = await waitForCodexCompatibility(request);
   expect(
     compatibility.status,
     `the detected Codex CLI version resolves within-tested-range (detected ${compatibility.detectedVersion ?? "nothing"})`,
