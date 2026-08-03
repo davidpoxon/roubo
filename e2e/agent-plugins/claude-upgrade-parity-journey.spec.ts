@@ -150,12 +150,25 @@ interface TerminalSessionEntry {
   agentPluginId?: string;
 }
 
-/** Pick one closed-choice control on the schema-driven form by its option label. */
-async function selectChoice(page: Page, field: string, optionLabel: string): Promise<void> {
+/**
+ * Pick one closed-choice control on the schema-driven form by its option label.
+ *
+ * `card` scopes the field: more than one installed agent declares a
+ * `configSchema`, and `config-field-*` testids repeat across the cards for every
+ * property name they share (`model` and `effort` are shared with the Codex
+ * overlay), so a page-wide read matches two controls where it expects one. Keep
+ * every `config-field-*` read below scoped the same way.
+ */
+async function selectChoice(
+  page: Page,
+  card: Locator,
+  field: string,
+  optionLabel: string,
+): Promise<void> {
   // React Aria's Select renders the trigger as a Button inside the testid'd root
-  // and portals its ListBox to the document body, so the option is located at
-  // page level rather than within the field.
-  await page.getByTestId(`config-field-${field}`).locator("button").click();
+  // and portals its ListBox to the document BODY, so the option is located at
+  // page level rather than within the card.
+  await card.getByTestId(`config-field-${field}`).locator("button").click();
   await page.getByRole("option", { name: optionLabel, exact: true }).click();
 }
 
@@ -345,11 +358,12 @@ test("AP-TC-102: an upgrading user sees the first-run notice once, configures th
   // Each read is count-guarded for the same reason the clicks are: a field that
   // never rendered would otherwise block the whole test instead of reaching the
   // observation that is meant to report it.
+  const card = page.getByTestId(`agent-plugin-card-${CLAUDE_PLUGIN_ID}`);
   const fieldText = async (field: string): Promise<string> => {
-    const locator = page.getByTestId(`config-field-${field}`);
+    const locator = card.getByTestId(`config-field-${field}`);
     return (await locator.count()) === 1 ? ((await locator.textContent()) ?? "").trim() : "";
   };
-  const extraArgsInput = page.getByTestId("config-field-extraArgs").locator("input");
+  const extraArgsInput = card.getByTestId("config-field-extraArgs").locator("input");
   const shown = {
     model: await fieldText("model"),
     effort: await fieldText("effort"),
@@ -377,9 +391,9 @@ test("AP-TC-102: an upgrading user sees the first-run notice once, configures th
   );
 
   // --- S003: choosing opus / high / plan and saving --------------------------
-  await selectChoice(page, "model", "Opus");
-  await selectChoice(page, "effort", "High");
-  await selectChoice(page, "mode", "Plan");
+  await selectChoice(page, card, "model", "Opus");
+  await selectChoice(page, card, "effort", "High");
+  await selectChoice(page, card, "mode", "Plan");
   const save = page.getByTestId(`agent-config-save-${CLAUDE_PLUGIN_ID}`);
   await expect(save, "Save defaults is enabled once the draft diverges").toBeEnabled();
   await save.click();
