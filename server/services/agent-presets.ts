@@ -17,7 +17,11 @@ import {
   type ResolvedAgent,
 } from "./agent-plugin-registry.js";
 import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
-import { validateAgentConfig } from "./agent-config-validator.js";
+import {
+  unexpectedPropertyMessage,
+  unknownConfigKeys,
+  validateAgentConfig,
+} from "./agent-config-validator.js";
 import { getEffectiveAgentConfig } from "./agent-overrides.js";
 import { mergeAgentConfig } from "./agent-project-overrides.js";
 
@@ -148,15 +152,17 @@ function unavailable(
  *    That case is an error on a key the preset does NOT set, which is why the
  *    filter below drops it.
  * 2. The built-ins hardcode `mode`, which is a per-plugin `configSchema` key
- *    rather than a host concept, so an agent whose schema closes
- *    `additionalProperties` and never declares `mode` rejects a key the preset
- *    DOES set. The filter cannot help there, and a built-in can be neither
- *    edited nor deleted, so a hard rejection would leave two of the three
- *    built-ins permanently unlaunchable. Built-ins therefore degrade: the
- *    rejected keys are dropped from the resolved params (`Agent (Plan)` becomes
- *    plain `Agent`) and the reduced overlay is revalidated (issue #654). `app`
- *    and `project` presets keep the hard rejection, because a user can actually
- *    edit those.
+ *    rather than a host concept, so an agent that never declares `mode` will
+ *    not honour a key the preset DOES set. That covers both a schema which
+ *    closes `additionalProperties` and so refuses the key outright, and one
+ *    which simply omits it and would drop it on the floor at launch (issue
+ *    #743); `presetParamErrors` reports the two identically. The filter cannot
+ *    help there, and a built-in can be neither edited nor deleted, so a hard
+ *    rejection would leave two of the three built-ins permanently unlaunchable.
+ *    Built-ins therefore degrade: the rejected keys are dropped from the
+ *    resolved params (`Agent (Plan)` becomes plain `Agent`) and the reduced
+ *    overlay is revalidated (issue #654). `app` and `project` presets keep the
+ *    hard rejection, because a user can actually edit those.
  *
  *    Degrading deliberately stops at the dropped keys: an error the drop leaves
  *    behind ON one of them is swallowed, because plain `Agent` sets no params at
@@ -237,16 +243,31 @@ function withValidatedParams(
  * narrowed to the keys the overlay actually sets. A defect inherited from the
  * app-level config is surfaced by the AI Agents form that owns it, not by
  * disabling every preset bound to the agent.
+ *
+ * Ajv answers only for the keys a `configSchema` explicitly refuses, and the
+ * bundled agent plugins leave `additionalProperties` unset, so a key their
+ * schema merely omits used to validate clean and be passed through to an agent
+ * that ignores it (issue #743). `unknownConfigKeys` supplies that second,
+ * conservative signal, folded in here as the same `ConfigFieldError` shape so
+ * the routing above treats both the same way. Deduped by path, because a schema
+ * that does close `additionalProperties` must still report each key once.
  */
 function presetParamErrors(
   agent: ResolvedAgent,
   params: Record<string, unknown>,
 ): ConfigFieldError[] {
   const effective = mergeAgentConfig(getEffectiveAgentConfig(agent.pluginId), params);
-  return validateAgentConfig(agent.manifest, effective).filter((err) => {
+  const errors = validateAgentConfig(agent.manifest, effective).filter((err) => {
     const [root = ""] = err.path.split(".");
     return err.path === "" || root in params;
   });
+
+  const reported = new Set(errors.map((err) => err.path));
+  const undeclared = unknownConfigKeys(agent.manifest, Object.keys(params))
+    .filter((key) => !reported.has(key))
+    .map((key) => ({ path: key, message: unexpectedPropertyMessage(key) }));
+
+  return [...errors, ...undeclared];
 }
 
 /** The app-level presets the editor saved, or an empty list. */

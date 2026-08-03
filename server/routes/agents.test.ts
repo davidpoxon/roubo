@@ -183,6 +183,36 @@ describe("GET /api/agents/presets", () => {
     expect(presets.find((preset) => preset.id === "__builtin_agent__")?.degraded).toBeUndefined();
   });
 
+  // Issue #743: the shipped agent plugins leave `additionalProperties` unset,
+  // so the drop above never fired for them and the route reported no degrade at
+  // all. A schema that just omits `mode` now reads the same as one refusing it.
+  it("reports the same degrade when the bound agent's schema merely omits the param", async () => {
+    const omits = {
+      ...manifest("codex-cli", "Codex CLI", {
+        type: "object",
+        properties: { reasoningEffort: { type: "string", enum: ["low", "high"] } },
+      }),
+      version: "3.0.0",
+    } as PluginManifest;
+    vi.mocked(registry.resolveAgent).mockImplementation(
+      (pluginId: string) =>
+        ({ pluginId, manifest: omits, connection: {} }) as ReturnType<typeof registry.resolveAgent>,
+    );
+    vi.mocked(resolveLaunchAgentId).mockReturnValue("codex-cli");
+
+    const res = await request(app()).get("/api/agents/presets");
+    expect(res.status).toBe(200);
+    const presets = res.body.presets as ResolvedAgentPreset[];
+    const plan = presets.find((preset) => preset.id === "__builtin_agent_plan__");
+    expect(plan?.degraded?.droppedParams).toEqual(["mode"]);
+    expect(plan?.degraded?.message).toContain("Agent (Plan)");
+    expect(plan?.degraded?.message).toContain("mode");
+    expect(plan?.degraded?.message).toContain("Codex CLI");
+    expect(plan?.unresolved).toBeUndefined();
+    expect(plan?.params).toEqual({});
+    expect(presets.find((preset) => preset.id === "__builtin_agent__")?.degraded).toBeUndefined();
+  });
+
   it("leaves a built-in unmarked when the bound agent accepts its params", async () => {
     // A distinct version, so this open schema gets its own memoised validator
     // rather than overwriting the closed CLAUDE one other cases rely on.

@@ -343,6 +343,138 @@ describe("preset resolution", () => {
     });
   });
 
+  // Issue #743: the real agent plugins do not close `additionalProperties`, so
+  // Ajv raised nothing for a key their schema simply never declares and the
+  // whole degrade path above was skipped. `Agent (Plan)` re-pointed at such an
+  // agent silently launched without `mode`. A schema that lists `properties`
+  // and offers no escape hatch is treated as closing its key set by omission.
+  describe("a built-in whose hardcoded param the bound agent's schema omits", () => {
+    const OPEN_POSTURE_ONLY = makeManifest({
+      id: "posture-agent",
+      name: "Posture Agent",
+      configSchema: {
+        type: "object",
+        properties: { posture: { type: "string", enum: ["read-only", "write"] } },
+      },
+    });
+
+    beforeEach(() => {
+      installAgents([OPEN_POSTURE_ONLY]);
+      setDefaultAgent("posture-agent");
+    });
+
+    it("reports the drop rather than launching without the param", () => {
+      const builtins = listAgentPresets().filter((p) => p.source === "builtin");
+      const degraded = builtins.filter((p) => p.name !== "Agent");
+      expect(degraded.map((p) => p.name)).toEqual(["Agent (Plan)", "Agent (Auto)"]);
+
+      for (const preset of degraded) {
+        expect(preset.degraded?.droppedParams).toEqual(["mode"]);
+        expect(preset.degraded?.message).toContain(preset.name);
+        expect(preset.degraded?.message).toContain("mode");
+        expect(preset.degraded?.message).toContain("Posture Agent");
+        expect(preset.unresolved).toBeUndefined();
+        expect(preset.params).toEqual({});
+      }
+    });
+
+    it("does not mark the paramless built-in degraded", () => {
+      const agent = listAgentPresets().find((p) => p.name === "Agent");
+      expect(agent?.degraded).toBeUndefined();
+      expect(agent?.unresolved).toBeUndefined();
+    });
+
+    it("still hard-rejects the omitted param on a project preset", () => {
+      const resolved = resolveAgentPreset(
+        { id: "project:Plan", name: "Plan", agent: "default", params: { mode: "plan" } },
+        "project",
+        { defaultAgentPluginId: "posture-agent" },
+      );
+      expect(resolved.unresolved?.reason).toBe("invalid-params");
+      expect(resolved.unresolved?.message).toContain("Plan");
+      expect(resolved.unresolved?.message).toContain("mode");
+      expect(resolved.degraded).toBeUndefined();
+    });
+
+    it("still hard-rejects the omitted param on an app preset", () => {
+      const resolved = resolveAgentPreset(
+        { id: "at-1", name: "Deep work", agent: "posture-agent", params: { mode: "plan" } },
+        "app",
+        { defaultAgentPluginId: "posture-agent" },
+      );
+      expect(resolved.unresolved?.reason).toBe("invalid-params");
+      expect(resolved.degraded).toBeUndefined();
+    });
+  });
+
+  // No false positives: an open schema that DOES declare the key accepts it, and
+  // so do the shapes whose key set cannot be read off `properties` alone.
+  describe("an agent whose schema leaves the built-in params acceptable", () => {
+    it("leaves the built-ins unmarked when the open schema declares the param", () => {
+      installAgents([
+        makeManifest({
+          id: "open-agent",
+          name: "Open Agent",
+          configSchema: {
+            type: "object",
+            properties: { mode: { type: "string", enum: ["plan", "auto"] } },
+          },
+        }),
+      ]);
+      setDefaultAgent("open-agent");
+      const builtins = listAgentPresets().filter((p) => p.source === "builtin");
+      expect(builtins.every((p) => p.degraded === undefined)).toBe(true);
+      expect(builtins.every((p) => p.unresolved === undefined)).toBe(true);
+      expect(builtins.find((p) => p.name === "Agent (Plan)")?.params).toEqual({ mode: "plan" });
+    });
+
+    it("leaves the built-ins unmarked when the schema declares no properties at all", () => {
+      installAgents([
+        makeManifest({ id: "anything-agent", name: "Anything Agent", configSchema: undefined }),
+      ]);
+      setDefaultAgent("anything-agent");
+      const builtins = listAgentPresets().filter((p) => p.source === "builtin");
+      expect(builtins.every((p) => p.degraded === undefined)).toBe(true);
+      expect(builtins.every((p) => p.unresolved === undefined)).toBe(true);
+    });
+
+    it("leaves the built-ins unmarked when the schema opts into extra keys", () => {
+      installAgents([
+        makeManifest({
+          id: "extensible-agent",
+          name: "Extensible Agent",
+          configSchema: {
+            type: "object",
+            properties: { posture: { type: "string" } },
+            additionalProperties: true,
+          },
+        }),
+      ]);
+      setDefaultAgent("extensible-agent");
+      const builtins = listAgentPresets().filter((p) => p.source === "builtin");
+      expect(builtins.every((p) => p.degraded === undefined)).toBe(true);
+      expect(builtins.every((p) => p.unresolved === undefined)).toBe(true);
+    });
+
+    it("leaves the built-ins unmarked when a composition keyword may declare the key", () => {
+      installAgents([
+        makeManifest({
+          id: "composed-agent",
+          name: "Composed Agent",
+          configSchema: {
+            type: "object",
+            properties: { posture: { type: "string" } },
+            allOf: [{ properties: { mode: { type: "string" } } }],
+          },
+        }),
+      ]);
+      setDefaultAgent("composed-agent");
+      const builtins = listAgentPresets().filter((p) => p.source === "builtin");
+      expect(builtins.every((p) => p.degraded === undefined)).toBe(true);
+      expect(builtins.every((p) => p.unresolved === undefined)).toBe(true);
+    });
+  });
+
   it("validates a preset's params against the app defaults they overlay", () => {
     agentOverrideMocks.getEffectiveAgentConfig.mockReturnValue({ model: "opus" });
     const resolved = resolveAgentPreset(
