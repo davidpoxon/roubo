@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { makeObserve, type JourneyStep } from "../component-plugins/_support/step-runner.js";
 import { AGENT_ARGV_LOG_PATH, clearCapturedArgv, readCapturedArgv } from "./_support/argv-log.js";
 
@@ -124,12 +124,26 @@ interface TerminalSessionEntry {
   agentPluginId?: string;
 }
 
-/** Pick one closed-choice control on the schema-driven form by its option label. */
-async function selectChoice(page: Page, field: string, optionLabel: string): Promise<void> {
+/**
+ * Pick one closed-choice control on the schema-driven form by its option label.
+ *
+ * `card` scopes the field, and every `config-field-*` read below is scoped the
+ * same way. The test ids are only unique WITHIN a card: `AgentPluginCard` mounts
+ * each card's disclosure open, so every installed agent renders its own form at
+ * once, and a page-wide read would count another agent's `model` control
+ * alongside this one the moment a second schema-bearing agent is installed
+ * (which the codex-cli overlay now is).
+ */
+async function selectChoice(
+  page: Page,
+  card: Locator,
+  field: string,
+  optionLabel: string,
+): Promise<void> {
   // React Aria's Select renders the trigger as a Button inside the testid'd root
   // and portals its ListBox to the document body, so the option is located at
   // page level rather than within the field.
-  await page.getByTestId(`config-field-${field}`).locator("button").click();
+  await card.getByTestId(`config-field-${field}`).locator("button").click();
   await page.getByRole("option", { name: optionLabel, exact: true }).click();
 }
 
@@ -258,10 +272,10 @@ test("AP-TC-087: configure Claude defaults, launch, and verify the assembled arg
   // at 0, which S002-O01 below reports as an attributed divergence.
   await form.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
   const fieldCounts = {
-    model: await page.getByTestId("config-field-model").count(),
-    effort: await page.getByTestId("config-field-effort").count(),
-    mode: await page.getByTestId("config-field-mode").count(),
-    extraArgs: await page.getByTestId("config-field-extraArgs").count(),
+    model: await card.getByTestId("config-field-model").count(),
+    effort: await card.getByTestId("config-field-effort").count(),
+    mode: await card.getByTestId("config-field-mode").count(),
+    extraArgs: await card.getByTestId("config-field-extraArgs").count(),
   };
   observe(
     STEPS.S002,
@@ -272,15 +286,15 @@ test("AP-TC-087: configure Claude defaults, launch, and verify the assembled arg
   );
 
   // --- S003: Model=opus, Effort=high, Mode=plan ------------------------------
-  await selectChoice(page, "model", "Opus");
-  await selectChoice(page, "effort", "High");
-  await selectChoice(page, "mode", "Plan");
-  await expect(page.getByTestId("config-field-model")).toContainText("Opus");
-  await expect(page.getByTestId("config-field-effort")).toContainText("High");
-  await expect(page.getByTestId("config-field-mode")).toContainText("Plan");
+  await selectChoice(page, card, "model", "Opus");
+  await selectChoice(page, card, "effort", "High");
+  await selectChoice(page, card, "mode", "Plan");
+  await expect(card.getByTestId("config-field-model")).toContainText("Opus");
+  await expect(card.getByTestId("config-field-effort")).toContainText("High");
+  await expect(card.getByTestId("config-field-mode")).toContainText("Plan");
 
   // --- S004: the Additional CLI arguments field -----------------------------
-  const extraArgsInput = page.getByTestId("config-field-extraArgs").locator("input");
+  const extraArgsInput = card.getByTestId("config-field-extraArgs").locator("input");
   await extraArgsInput.fill(EXTRA_ARGS);
   await expect(extraArgsInput).toHaveValue(EXTRA_ARGS);
 

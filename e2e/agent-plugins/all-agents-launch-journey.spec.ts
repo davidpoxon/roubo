@@ -42,17 +42,16 @@ const observe = makeObserve("AP-TC-022");
 // travel from a menu row through the launch pipeline into a spawned child, and
 // that the tab bar then holds both.
 //
-// EVIDENCE IS ASYMMETRIC BETWEEN THE TWO LAUNCHES, deliberately. Claude Code's
-// launch is proved from the child's OWN `process.argv`: `roubo-e2e-claude-stub`
-// writes it to AGENT_ARGV_LOG_PATH, so "its PTY runs the claude CLI" is the
-// child's own report rather than a host-side reconstruction. Codex CLI's launch
-// cannot use that channel: `roubo-e2e-codex-stub` never writes the argv log on
-// purpose, because the log is a single shared file the AP-TC-087 guard reads as
-// evidence of its own launch and a second writer could only race it. So S003-O01
-// is proved from the session record instead (`agentPluginId` plus the
+// EVIDENCE IS ASYMMETRIC BETWEEN THE TWO LAUNCHES. Claude Code's launch is
+// proved from the child's OWN `process.argv`: `roubo-e2e-claude-stub` writes it
+// to AGENT_ARGV_LOG_PATH, so "its PTY runs the claude CLI" is the child's own
+// report rather than a host-side reconstruction. Codex CLI's S003-O01 is proved
+// from the session record instead (`agentPluginId` plus the
 // `TerminalSession.command` the descriptor named), read back through the real
-// terminals route. That is weaker than the Claude half by design, not by
-// oversight.
+// terminals route. That is weaker, and it stays that way because this case is
+// about the MENU rather than the argv: the AP-TC-056 / AP-TC-105 journeys own
+// the Codex argv, reading it from CODEX_ARGV_LOG_PATH, the codex stub's own
+// separate capture file (#532).
 
 const PROJECT_ID = "ap-tc-022-all-agents";
 // "Bench 2 Terminal tab is open" (precondition). `/test/__register-fixture-project`

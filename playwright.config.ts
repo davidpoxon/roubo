@@ -64,10 +64,13 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     binary on the server's PATH, which captures the spawned child's own argv
 //     to AGENT_ARGV_LOG_PATH whenever ROUBO_E2E_AGENT_ARGV_LOG is set.
 //     A second agent-kind overlay, `codex-cli` with `roubo-e2e-codex-stub`
-//     (#683), sits alongside it so a spec can observe two agents: it declares a
-//     compatibility window and a probe but no config fields, and its stub never
-//     writes the argv log, so neither half of the AP-TC-087 guard moves. It is
-//     installed but UNCONSENTED unless a spec consents it, which keeps
+//     (#683, #532), sits alongside it and carries the AP-TC-056 / AP-TC-105
+//     configure-Codex-then-launch drift guard. It mirrors the shipped Codex
+//     plugin's configSchema, argv mapping and quiescence window, and its stub
+//     captures argv to its OWN CODEX_ARGV_LOG_PATH under the same
+//     ROUBO_E2E_AGENT_ARGV_LOG gate, so the two guards' evidence cannot race.
+//     It is installed but UNCONSENTED and force-disabled by every
+//     `/test/__reset` unless a spec opts in, which keeps
 //     `resolveLaunchAgentId`'s lone-available-agent fallback on Claude Code.
 //     A third agent-kind overlay, `gemini-cli` with `roubo-e2e-gemini-stub`
 //     (#534), sits alongside both for the AP-TC-115 marketplace-install-to-

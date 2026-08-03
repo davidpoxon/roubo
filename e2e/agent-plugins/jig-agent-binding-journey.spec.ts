@@ -70,10 +70,10 @@ const observe = makeObserve("AP-TC-020");
 // WHY THE EVIDENCE IS THE SESSION RECORD, not the argv. S004 and S005 ask which
 // agent a session RUNS, and `session.agentPluginId` on
 // GET /api/projects/:id/benches/:n/terminals is that answer directly. The argv
-// channel the AP-TC-087 guard reads cannot serve here: only
-// `roubo-e2e-claude-stub` writes AGENT_ARGV_LOG_PATH, the codex stub
-// deliberately never does (so the two guards cannot race), which would leave the
-// codex half of this case with nothing to read.
+// channels the other guards read would answer a different question (which flags
+// a session carries), and each stub writes its own file anyway
+// (AGENT_ARGV_LOG_PATH for claude, CODEX_ARGV_LOG_PATH for codex, #532), so
+// neither adds anything to a case about agent RESOLUTION.
 //
 // WHY EACH LAUNCH IS OBSERVED TWICE. The two launch surfaces resolve the agent
 // in different places, and the case is about the resolution, not the button. A

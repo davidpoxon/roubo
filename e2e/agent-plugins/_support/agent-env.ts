@@ -308,7 +308,13 @@ export async function createAppJig(
   return created.id;
 }
 
-/** Delete an app-level jig. A jig that is already gone counts as success. */
+/**
+ * Delete an app-level jig. A jig that is already gone counts as success: the
+ * point is that the jig is gone, and a teardown that throws on an already-absent
+ * one would mask the failure the test itself is reporting. A spec that mints a
+ * jig must call this, because app jigs outlive `/test/__reset` (see the file
+ * header).
+ */
 export async function deleteAppJig(request: APIRequestContext, jigId: string): Promise<void> {
   const res = await request.delete(`/api/jigs/${jigId}`);
   expect([204, 404], `DELETE /api/jigs/${jigId}`).toContain(res.status());

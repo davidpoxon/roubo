@@ -38,10 +38,10 @@ const observe = makeObserve("AP-TC-018");
 // second agent is the `codex-cli` bundled overlay at
 // e2e/fixtures/bundled-overlays/codex-cli/, which AP-TC-113 (#683) already added
 // for its compatibility line. This spec reuses it as-is and needs nothing from
-// it beyond its id and name: it never launches through it, and it declares no
-// configSchema, so enabling it moves neither the argv log nor the page-wide
-// `config-field-*` count that AP-TC-087 reads. Every launch assertion in this
-// directory goes through claude-code and its argv-capturing stub.
+// it beyond its id and name: it never launches through it, and it writes its own
+// argv log rather than the claude one (#532), so enabling it disturbs no other
+// guard's evidence. It does carry a configSchema since #532, which is why every
+// `config-field-*` read in this directory is scoped to its own agent card.
 //
 // The overlay is force-DISABLED by every /test/__reset (see
 // OPT_IN_AGENT_FIXTURE_PLUGIN_IDS in server/routes/test.ts). Consent has no
