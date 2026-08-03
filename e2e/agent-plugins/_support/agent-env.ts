@@ -134,6 +134,37 @@ export async function consentAgent(request: APIRequestContext, pluginId: string)
 }
 
 /**
+ * Write an agent's application-level defaults, the way the AI Agents card's
+ * Save defaults button writes them. The body replaces the whole record rather
+ * than merging, so this both sets a precondition and is the only thing needed to
+ * unset one.
+ */
+export async function setAgentConfig(
+  request: APIRequestContext,
+  pluginId: string,
+  config: Record<string, unknown>,
+): Promise<void> {
+  const res = await request.put(`/api/agents/${pluginId}/config`, { data: { config } });
+  expect(res.status(), `PUT /api/agents/${pluginId}/config`).toBe(200);
+}
+
+/**
+ * An agent's application-level defaults as they were actually persisted, read
+ * back through the real route rather than off disk. A spec asserting that a
+ * per-launch override wrote nothing needs the saved record, not the form's
+ * optimistic state (AP-TC-028 S004).
+ */
+export async function readAgentConfig(
+  request: APIRequestContext,
+  pluginId: string,
+): Promise<Record<string, unknown>> {
+  const res = await request.get(`/api/agents/${pluginId}/config`);
+  expect(res.status(), `GET /api/agents/${pluginId}/config`).toBe(200);
+  const body = (await res.json()) as { config?: Record<string, unknown> };
+  return body.config ?? {};
+}
+
+/**
  * Drop an agent's application-level defaults.
  *
  * They live in `~/.roubo-dev/<checkout>/agents/_global/` and are NOT among the
@@ -145,8 +176,51 @@ export async function clearAgentConfig(
   request: APIRequestContext,
   pluginId: string,
 ): Promise<void> {
-  const res = await request.put(`/api/agents/${pluginId}/config`, { data: { config: {} } });
-  expect(res.status(), `PUT /api/agents/${pluginId}/config (clear defaults)`).toBe(200);
+  await setAgentConfig(request, pluginId, {});
+}
+
+/**
+ * Write one project's override SUBSET for an agent, the way the project
+ * settings > Agent overrides card writes it: a key present means the project
+ * overrides that field, and `{}` clears every override for that plugin.
+ *
+ * The route 404s on an unregistered project, so this has to run AFTER
+ * `/test/__register-fixture-project`. Like the app-level defaults, the file it
+ * writes outlives `/test/__reset`, so a spec that sets one hands it back.
+ */
+export async function setProjectAgentOverride(
+  request: APIRequestContext,
+  projectId: string,
+  pluginId: string,
+  config: Record<string, unknown>,
+): Promise<void> {
+  const res = await request.put(`/api/projects/${projectId}/agents/${pluginId}/config`, {
+    data: { config },
+  });
+  expect(res.status(), `PUT /api/projects/${projectId}/agents/${pluginId}/config`).toBe(200);
+}
+
+/** One installed agent as the project-scoped route reports it. */
+export interface ProjectAgentSnapshot {
+  id: string;
+  appDefaults?: Record<string, unknown>;
+  overrides?: Record<string, unknown>;
+  effective?: Record<string, unknown>;
+}
+
+/**
+ * Every installed agent's app defaults, this project's override subset and the
+ * overlay of the two, kept SEPARATE by the route. Reading the three apart is
+ * what lets a spec say which layer a value came from (AP-TC-028 S004).
+ */
+export async function readProjectAgents(
+  request: APIRequestContext,
+  projectId: string,
+): Promise<ProjectAgentSnapshot[]> {
+  const res = await request.get(`/api/projects/${projectId}/agents`);
+  expect(res.status(), `GET /api/projects/${projectId}/agents`).toBe(200);
+  const body = (await res.json()) as { agents?: ProjectAgentSnapshot[] };
+  return body.agents ?? [];
 }
 
 /** Enable a plugin through the real route, spawning it. Answers 204. */
