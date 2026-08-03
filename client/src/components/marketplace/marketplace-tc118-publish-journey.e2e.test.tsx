@@ -29,11 +29,16 @@
 // a published third-party plugin is a `source.type: "release"` entry that is not
 // installed yet, and `MarketplaceCatalogEntry` carries no compatibility field. So
 // the projection is null and the card renders its "compatibility not declared"
-// fallback (AP-TC-121). Both halves are asserted below: the card DOES render the
-// declared floor and ceiling the moment the projection supplies them, and the
-// shipped release-entry projection renders the fallback. Closing the gap means
-// widening the catalog entry, which is product work owned by #522 and filed as
-// davidpoxon/roubo-development#722.
+// fallback (AP-TC-121). Both halves of the CARD's behaviour are asserted below:
+// it renders the declared floor and ceiling the moment the projection supplies
+// them, and it renders the fallback when the projection is null. Both fixtures
+// are hand-built listings, so neither exercises the server projection and neither
+// changes when the gap closes. The assertion that genuinely pins the shipped
+// release-entry projection (and that will fail when the gap closes) is the server
+// half, server/services/marketplace-third-party-publish-tc118-journey.e2e.test.ts
+// ("S005-O02 (reconciled)"), which drives the real `listCatalog()`. Closing the
+// gap means widening the catalog entry, which is product work owned by #522 and
+// filed as davidpoxon/roubo-development#722.
 //
 // Failure-output contract (AP-FR-020): every assertion carries an
 // expected-vs-actual message naming the diverged step (and its observation id)
@@ -284,12 +289,14 @@ describe("AP-TC-118 S005/S006: the published agent plugin's marketplace listing 
     expect(compatibility.textContent).toContain(TESTED_CEILING);
   });
 
-  it("S005-O02 (reconciled): a not-yet-installed release listing renders the undeclared fallback, pending #722", async () => {
-    // The SHIPPED projection for a genuinely published plugin: the server cannot
-    // read a release entry's manifest pre-install, so the window is null and the
-    // card renders its "compatibility not declared" fallback (AP-TC-121). This
-    // assertion pins the gap; when davidpoxon/roubo-development#722 lands it fails,
-    // and this reconciliation is deleted in the same change.
+  it("S005-O02 (reconciled): a listing whose projected window is null renders the undeclared fallback", async () => {
+    // The card half of the reconciliation, and only that. A genuinely published
+    // plugin projects a null window today (the server cannot read a release
+    // entry's manifest pre-install), and this pins what the card does with a null:
+    // the "compatibility not declared" fallback (AP-TC-121). The fixture hardcodes
+    // the null, so this test does NOT observe the projection and will keep passing
+    // after davidpoxon/roubo-development#722 widens it. The assertion that fails
+    // when #722 lands is the server one, over the real `listCatalog()` result.
     setCatalog([agentListing()]);
     const { findByTestId, getAllByTestId } = renderMarketplace();
     await findByTestId("marketplace-grid");
@@ -299,7 +306,7 @@ describe("AP-TC-118 S005/S006: the published agent plugin's marketplace listing 
     );
     expect(
       compatibility.getAttribute("data-declared"),
-      `AP-TC-118 step S005 (S005-O02) diverged: expected the shipped release-entry listing to fall back to "compatibility not declared" (pending davidpoxon/roubo-development#722), got data-declared="${compatibility.getAttribute("data-declared")}". Owning slice: ${SLICE_MARKETPLACE}.`,
+      `AP-TC-118 step S005 (S005-O02) diverged: expected a listing whose projected window is null to fall back to "compatibility not declared", got data-declared="${compatibility.getAttribute("data-declared")}". Owning slice: ${SLICE_MARKETPLACE}.`,
     ).toBe("false");
     expect(compatibility).toHaveTextContent("compatibility not declared");
   });

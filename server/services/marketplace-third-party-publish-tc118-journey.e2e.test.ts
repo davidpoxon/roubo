@@ -735,10 +735,17 @@ describe("AP-TC-118: a third-party agent plugin is published, listed, and instal
     // the plugins dir and registers it.
     vi.mocked(pluginManager.registerInstalled).mockResolvedValue(installedRecord());
     const record = await pluginInstaller.commit(preview.stagingToken);
+    // `record` is whatever the mocked `registerInstalled` resolved, so its fields
+    // carry no FR-020 attribution: asserting them would only restate this test's
+    // own fixture. What commit() itself determines is that the staged entry is
+    // consumed, so the artifact can never be committed twice.
+    expect(record.id).toBe(PLUGIN_ID);
     expect(
-      record.status,
-      `AP-TC-118 step S006 (S006-O01) diverged: expected the committed plugin to be enabled, got "${record.status}". Owning slice: ${SLICE_MARKETPLACE}.`,
-    ).toBe("enabled");
+      pluginInstaller.__test.listTokens(),
+      `AP-TC-118 step S006 (S006-O01) diverged: expected committing the verified package to consume its staging token, got ${JSON.stringify(
+        pluginInstaller.__test.listTokens(),
+      )}. Owning slice: ${SLICE_MARKETPLACE}.`,
+    ).not.toContain(preview.stagingToken);
     const target = path.join(pluginsRoot, PLUGIN_ID);
     expect(
       (await stat(path.join(target, "roubo-plugin.yaml"))).isFile(),
