@@ -225,13 +225,30 @@ async function selectJigAgent(page: Page, jigId: string, optionLabel: string): P
   await page.getByRole("option", { name: optionLabel, exact: true }).click();
 }
 
-/** What one Custom Jigs row's Agent select currently reads. */
-async function readJigAgentSelect(page: Page, jigId: string): Promise<string> {
+/**
+ * What one Custom Jigs row's Agent select currently reads.
+ *
+ * `expected` settles the read against a label the caller has just CHANGED. The
+ * trigger's label is fully server-round-tripped (`Select` holds no internal
+ * selection state, `JigRow` renders `jig.agentPluginId` straight from
+ * `useGlobalJigs`, and `useUpdateGlobalJig` has no optimistic `onMutate`), so it
+ * cannot move until `PUT /api/jigs/:id` and the follow-up refetch both land.
+ * Without this the read would race two HTTP round trips against a few Playwright
+ * IPC calls and normally win, reporting the pre-change label. S003 passes no
+ * `expected`, because that row is never mutated.
+ */
+async function readJigAgentSelect(page: Page, jigId: string, expected?: string): Promise<string> {
   const trigger = page.getByTestId(`jig-agent-select-${jigId}`).locator("button");
-  // A TOLERATED wait, not an assertion: a row that never renders leaves the
-  // string below empty, which the observation reports as an attributed
-  // divergence rather than an unattributed Playwright timeout.
+  // Both waits below are TOLERATED, not assertions: a row that never renders, or
+  // a label that never arrives, leaves the string below at its pre-change (or
+  // empty) value, which the observation reports as an attributed divergence
+  // rather than an unattributed Playwright timeout.
   await trigger.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+  if (expected !== undefined) {
+    await expect(trigger)
+      .toHaveText(expected, { timeout: 15_000 })
+      .catch(() => {});
+  }
   return (await trigger.count()) === 1 ? ((await trigger.textContent()) ?? "").trim() : "";
 }
 
@@ -401,10 +418,17 @@ test("AP-TC-020: a bound jig launches its agent and an unbound jig launches the 
   const group = page.getByRole("radiogroup", { name: "Default agent" });
   const claudeTile = page.getByTestId(`default-agent-tile-${CLAUDE_PLUGIN_ID}`);
   const codexTile = page.getByTestId(`default-agent-tile-${CODEX_PLUGIN_ID}`);
-  // TOLERATED wait: a picker that never renders leaves the reads below at their
+  // TOLERATED waits: a picker that never renders leaves the reads below at their
   // empty values, which S001-O01 reports as an attributed divergence rather than
   // failing here as an unattributed Playwright timeout.
+  //
+  // BOTH tiles are waited on, not just the one about to be clicked. The picker
+  // renders one tile per available agent as `GET /api/agents` resolves in the
+  // client, so the Codex tile can mount a beat after the Claude tile; reading
+  // `data-selected` off it before then answers null (the attribute is absent
+  // because the element is), and S001-O01 asserts the string "false".
   await claudeTile.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+  await codexTile.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
   // The tile, not the radio input: React Aria renders a zero-size input inside
   // the label, so the tile covering it is both what a user presses and the only
   // thing a click can land on.
@@ -414,8 +438,19 @@ test("AP-TC-020: a bound jig launches its agent and an unbound jig launches the 
   // disagree. `data-selected` mirrors the same `isSelected` that drives the
   // highlight and the check indicator, so it is the visual state rather than a
   // second source of truth.
-  const claudeSelected = await claudeTile.getAttribute("data-selected").catch(() => null);
-  const codexSelected = await codexTile.getAttribute("data-selected").catch(() => null);
+  // Guarded on a non-waiting `count()`, like every other tolerated read in this
+  // file: `getAttribute` carries no default timeout (`actionTimeout` is unset in
+  // playwright.config.ts), so on a tile that never rendered it would block for
+  // the rest of the 180s budget and die as an unattributed Playwright timeout,
+  // which is precisely what the tolerated waits above exist to avoid.
+  const claudeSelected =
+    (await claudeTile.count()) === 1
+      ? await claudeTile.getAttribute("data-selected").catch(() => null)
+      : null;
+  const codexSelected =
+    (await codexTile.count()) === 1
+      ? await codexTile.getAttribute("data-selected").catch(() => null)
+      : null;
   observe(
     STEPS.S001,
     "S001-O01",
@@ -456,7 +491,9 @@ test("AP-TC-020: a bound jig launches its agent and an unbound jig launches the 
   // --- S002: 'Refactor pass' is bound to Codex CLI ---------------------------
   await selectJigAgent(page, refactorJigId, CODEX_AGENT_NAME);
 
-  const refactorSelectText = await readJigAgentSelect(page, refactorJigId);
+  // Settling on the new label first is also what makes the persisted read below
+  // safe: the label cannot move until the PUT has landed.
+  const refactorSelectText = await readJigAgentSelect(page, refactorJigId, CODEX_AGENT_NAME);
   const refactorPersisted = await readPersistedJig(request, refactorJigId);
   observe(
     STEPS.S002,
