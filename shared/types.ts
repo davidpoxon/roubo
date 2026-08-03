@@ -307,6 +307,24 @@ export type MarketplaceKind = "component" | "integration" | "agent";
  * the registry path shown in the detail drawer. `revoked` marks a withdrawn /
  * taken-down entry: it is filtered out of `listCatalog` and rejected by
  * install / update.
+ *
+ * `agentCompatibility` is the AUTHOR-DECLARED agent-CLI window an `agent`-kind
+ * entry may carry (issue #722), so a not-yet-installed, `release`-sourced agent
+ * listing can render its floor and tested ceiling before anything is downloaded:
+ * `readEntryManifest()` reaches a manifest only for an installed record or a
+ * `git` source with a local `directory`, which a genuinely published plugin is
+ * neither. Optional throughout, so an entry omitting it behaves exactly as
+ * before. Unlike `verified` it is deliberately NOT force-false'd for third-party
+ * sources: a published third-party agent is precisely the case this exists for,
+ * and it is display-only metadata in the same trust class as `name` / `summary`
+ * (a hostile source can already lie about those). Nothing gates on it, and the
+ * manifest-derived window wins post-install (`annotate()`), so the card and the
+ * installed state can never disagree.
+ *
+ * A catalog build omits the key entirely rather than writing `null` (so a
+ * non-agent entry's canonical bytes are unchanged). `null` is admitted only so
+ * `MarketplaceListing` can narrow the same property to its always-present
+ * `MarketplaceAgentCompatibility | null` projection and stay assignable here.
  */
 export interface MarketplaceCatalogEntry {
   id: string;
@@ -321,6 +339,7 @@ export interface MarketplaceCatalogEntry {
   integrity: string;
   revoked?: boolean;
   verified: boolean;
+  agentCompatibility?: MarketplaceAgentCompatibility | null;
 }
 
 /**
@@ -407,12 +426,13 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   installed: boolean;
   installedVersion: string | null;
   updateAvailable: boolean;
-  // Derived, PRE-INSTALL provenance the detail drawer renders (issue #401). These
-  // are NOT part of the signed catalog `payload` (changing that requires the
-  // out-of-band signing key and would trip the marketplace drift guard); the
-  // server derives them in `annotate()` by reading the plugin's declared manifest
-  // (the installed record, or the bundled `plugins/<id>` source), the same way
-  // `installed` / `updateAvailable` are derived.
+  // Derived, PRE-INSTALL provenance the detail drawer renders (issue #401).
+  // `declaredPermissions` and `lifecycle` are NOT part of the signed catalog
+  // `payload` (putting them there requires the out-of-band signing key and would
+  // trip the marketplace drift guard); the server derives them in `annotate()` by
+  // reading the plugin's declared manifest (the installed record, or the bundled
+  // `plugins/<id>` source), the same way `installed` / `updateAvailable` are
+  // derived.
   //
   // `declaredPermissions` is the plugin's declared permission set (the drawer
   // runs `declaredCategories()` over it to list each requested category with a
@@ -423,11 +443,17 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // `agentCompatibility` is the agent-CLI window an AGENT-kind entry declared
   // (AP-FR-022, issue #522), gated on the kind here on the server so a component
   // or integration listing can never render CLI compatibility metadata
-  // (AP-TC-125). `null` for every other kind, when the manifest is unavailable
-  // pre-install, and when an agent manifest declares no bounds at all: the one
-  // null branch the card renders its "compatibility not declared" fallback from
-  // (AP-TC-121), so a missing manifest and an undeclared window read the same
-  // rather than one of them rendering an empty row.
+  // (AP-TC-125). It narrows the OPTIONAL entry field of the same name to a
+  // required, always-present projection, and it is the one field here with two
+  // sources: `annotate()` prefers the manifest-derived window (authoritative for
+  // what is on the machine) and falls back to the entry's own declaration, so a
+  // not-yet-installed release listing still shows what its author declared
+  // (issue #722). `null` for every other kind, and when neither source yields a
+  // bound (no readable manifest and no entry declaration, or a manifest that
+  // declares no bounds at all): the one null branch the card renders its
+  // "compatibility not declared" fallback from (AP-TC-121), so an unreachable
+  // manifest and an undeclared window read the same rather than one of them
+  // rendering an empty row.
   declaredPermissions: PluginPermissions | null;
   lifecycle: PluginLifecycle | null;
   agentCompatibility: MarketplaceAgentCompatibility | null;

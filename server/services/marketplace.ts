@@ -199,11 +199,41 @@ function readEntryManifest(
  * into the single state the card has a fallback for (AP-TC-121). The manifest's
  * `probe` directive is deliberately dropped: it tells the host how to detect a
  * version, which is not something a consumer browsing the catalog reads.
+ *
+ * This seam only reaches a manifest for an installed record or a `git` source
+ * carrying a local `directory`, which a genuinely published third-party plugin
+ * (`source.type: "release"`, not yet installed) is neither. `entryAgentWindow()`
+ * below is the second source `annotate()` falls back to for exactly that case
+ * (issue #722).
  */
 function declaredAgentWindow(
   manifest: PluginManifest | null,
 ): MarketplaceAgentCompatibility | null {
   const declared = manifest?.agentCompatibility;
+  if (!declared) return null;
+  const window: MarketplaceAgentCompatibility = {
+    ...(declared.minVersion !== undefined && { minVersion: declared.minVersion }),
+    ...(declared.testedCeiling !== undefined && { testedCeiling: declared.testedCeiling }),
+  };
+  return window.minVersion === undefined && window.testedCeiling === undefined ? null : window;
+}
+
+/**
+ * The same window as the CATALOG ENTRY declares it (issue #722), normalised with
+ * the identical drop-empty-to-null semantics as `declaredAgentWindow()` above so
+ * an entry carrying an empty block cannot render a bare row where an undeclared
+ * one renders the AP-TC-121 fallback.
+ *
+ * Author-declared and, for a third-party source, unverifiable: it arrives on the
+ * (unsigned) third-party payload, so a hostile source can claim any bounds. That
+ * is accepted rather than force-false'd the way `verified` is, because a
+ * genuinely third-party published agent is exactly the case this fallback exists
+ * to serve, and the field is display-only metadata in the same trust class as
+ * `name` / `summary`. Nothing gates on it, and the manifest wins post-install, so
+ * the card and the installed state cannot end up disagreeing.
+ */
+function entryAgentWindow(entry: MarketplaceCatalogEntry): MarketplaceAgentCompatibility | null {
+  const declared = entry.agentCompatibility;
   if (!declared) return null;
   const window: MarketplaceAgentCompatibility = {
     ...(declared.minVersion !== undefined && { minVersion: declared.minVersion }),
@@ -247,8 +277,18 @@ function annotate(
   // Agent-CLI compatibility is an AGENT-kind concept, gated here rather than in
   // the card so only agent listings can ever render it (AP-TC-125): the client
   // has no kind branch to forget, and a component or integration entry that
-  // happened to declare the block would still list nothing.
-  const agentCompatibility = entry.kind === "agent" ? declaredAgentWindow(manifest) : null;
+  // happened to declare the block (in its manifest OR on the entry) would still
+  // list nothing.
+  //
+  // Two sources, manifest first (issue #722): the manifest is authoritative for
+  // what is actually on the machine, so an installed plugin's real window can
+  // never be overridden by a stale or dishonest catalog declaration. The entry's
+  // own declaration is the fallback that makes a not-yet-installed,
+  // release-sourced agent show its floor and ceiling at all, since
+  // `readEntryManifest()` cannot reach that plugin's manifest pre-install. Both
+  // collapse to the same single null (AP-TC-121) when neither declares a bound.
+  const agentCompatibility =
+    entry.kind === "agent" ? (declaredAgentWindow(manifest) ?? entryAgentWindow(entry)) : null;
   return {
     ...entry,
     installed,

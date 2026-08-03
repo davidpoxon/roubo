@@ -569,6 +569,95 @@ describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
     const annotated = await annotatedById("codex-cli");
     expect(annotated.agentCompatibility).toEqual({ minVersion: "9.9.9" });
   });
+
+  // Issue #722: a genuinely published third-party agent is `source.type:
+  // "release"` and not yet installed, so `readEntryManifest()` reaches no
+  // manifest at all. The window the author declared on the CATALOG ENTRY is the
+  // fallback that lets such a listing render its bounds pre-install.
+  //
+  // Shares AGENT_WITH_WINDOW's identity but not its readable source: the whole
+  // point is that nothing local can be read for this shape.
+  const RELEASE_AGENT_DECLARING_WINDOW: MarketplaceCatalogEntry = {
+    id: "acme-agent",
+    name: "ACME Agent",
+    kind: "agent",
+    version: "1.2.3",
+    summary: "A published third-party agent plugin",
+    source: { type: "release", assetUrl: "https://example.invalid/acme-agent-1.2.3.tgz" },
+    provenance: "acme/roubo-acme-agent@1.2.3",
+    integrity: "sha256-acme",
+    verified: false,
+    agentCompatibility: { minVersion: "3.0.0", testedCeiling: "3.4.0" },
+  };
+
+  it("renders a NOT-yet-installed release entry's own declared window (issue #722)", async () => {
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [...ENTRIES, RELEASE_AGENT_DECLARING_WINDOW]);
+    const annotated = await annotatedById("acme-agent");
+    // No installed record and no local directory, so the manifest seam yields
+    // nothing: this window can only have come off the catalog entry.
+    expect(annotated.installed).toBe(false);
+    expect(annotated.declaredPermissions).toBeNull();
+    expect(annotated.agentCompatibility).toEqual({
+      minVersion: "3.0.0",
+      testedCeiling: "3.4.0",
+    });
+  });
+
+  it("lets the MANIFEST window win over a conflicting entry-declared one (issue #722)", async () => {
+    // The manifest is authoritative for what is on the machine, so the card and
+    // the post-install state cannot disagree even when the catalog entry claims
+    // different bounds.
+    listInstalled.mockReturnValue([
+      {
+        ...installedRecord("codex-cli", "0.1.0"),
+        manifest: {
+          ...installedRecord("codex-cli", "0.1.0").manifest,
+          kind: "agent",
+          agentCompatibility: { minVersion: "9.9.9" },
+        },
+      } as PluginRecord,
+    ]);
+    setCatalog("network", [
+      ...ENTRIES,
+      {
+        ...AGENT_WITH_WINDOW,
+        agentCompatibility: { minVersion: "0.0.1", testedCeiling: "0.0.2" },
+      },
+    ]);
+    const annotated = await annotatedById("codex-cli");
+    expect(annotated.agentCompatibility).toEqual({ minVersion: "9.9.9" });
+  });
+
+  it("still falls back to null for an entry declaring neither bound (AP-TC-121)", async () => {
+    // An empty declaration must not render a bare compatibility row: it collapses
+    // into the same single null an undeclared window produces.
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [
+      ...ENTRIES,
+      { ...RELEASE_AGENT_DECLARING_WINDOW, agentCompatibility: {} },
+    ]);
+    const annotated = await annotatedById("acme-agent");
+    expect(annotated.kind).toBe("agent");
+    expect(annotated.agentCompatibility).toBeNull();
+  });
+
+  it("ignores a window declared on a NON-agent entry (AP-TC-125)", async () => {
+    // The kind gate is still on the entry kind, so widening the entry shape gives
+    // a component no new route to smuggle CLI metadata onto its card.
+    listInstalled.mockReturnValue([]);
+    setCatalog("network", [
+      ...ENTRIES,
+      {
+        ...RELEASE_AGENT_DECLARING_WINDOW,
+        id: "acme-component",
+        kind: "component",
+      },
+    ]);
+    const annotated = await annotatedById("acme-component");
+    expect(annotated.kind).toBe("component");
+    expect(annotated.agentCompatibility).toBeNull();
+  });
 });
 
 // Issue #557 (CPHMTP-FR-004 / NFR-006 / NFR-007): listCatalog fans out over the
