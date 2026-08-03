@@ -36,7 +36,7 @@ export interface UseIssuesResult {
   snapshotCapturedAt: string | null;
   /**
    * Issues the active plugin dropped in-query on this page (status-category
-   * exclusion, FR-009/FR-010), or 0 when the page reported no count. Drives the
+   * exclusion, JSS-FR-009/JSS-FR-010), or 0 when the page reported no count. Drives the
    * cut list's "N filtered out by status" banner.
    */
   excludedCount: number;

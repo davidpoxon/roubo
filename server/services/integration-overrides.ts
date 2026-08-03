@@ -290,7 +290,7 @@ export function sourceExcludedStatuses(
   return rootLevel ? [...rootLevel] : pluginGlobalDefault ? [...pluginGlobalDefault] : undefined;
 }
 
-// Resolve the root-level status exclusion (FR-009/FR-010) for the cut list.
+// Resolve the root-level status exclusion (JSS-FR-009/JSS-FR-010) for the cut list.
 // Both fields follow the same fallback ladder as `sourceExcludedStatuses`, but
 // at the root: the merged effective value (roubo.yaml ⊕ global ⊕ per-user,
 // already shallow-replaced by `getEffectiveIntegrationConfig`) wins, otherwise

@@ -26,7 +26,7 @@ export interface UseSourceOptionsResult {
   fetchNextPage: () => void;
   error: Error | null;
   // Measured round-trip latency (ms) of the most recently fetched page, or
-  // null before any page has resolved. Backs the NFR-001 budget visibly (#432).
+  // null before any page has resolved. Backs the JSS-NFR-001 budget visibly (#432).
   durationMs: number | null;
 }
 
@@ -38,10 +38,10 @@ interface SourceOptionsPage extends SourceOptionsResult {
 const SEARCH_DEBOUNCE_MS = 250;
 
 /**
- * Paginated, debounced type-ahead source search (WU-002). Wraps
+ * Paginated, debounced type-ahead source search (JSS-WU-002). Wraps
  * `fetchSourceOptions` in an infinite query keyed by the debounced search term
  * and scope, so a superseded slow response resolves into an inactive cache
- * entry and never flickers over the latest results (NFR-001 / NFR-004).
+ * entry and never flickers over the latest results (JSS-NFR-001 / JSS-NFR-004).
  */
 export function useSourceOptions({
   projectId,

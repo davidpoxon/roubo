@@ -925,7 +925,7 @@ describe("Bundled plugin manifests ship default excludedStatuses (TC-124, FR-064
   });
 });
 
-describe("PluginDefaultIntegrationConfigSchema excludedStatusCategories (FR-010, TC-003)", () => {
+describe("PluginDefaultIntegrationConfigSchema excludedStatusCategories (JSS-FR-010, TC-003)", () => {
   it("accepts a defaultIntegrationConfig with excludedStatusCategories", () => {
     const result = PluginDefaultIntegrationConfigSchema.safeParse({
       excludedStatuses: ["Done"],

@@ -487,7 +487,7 @@ router.put("/:projectId/integration/config", (req, res) => {
       nextIntegration.capturedUserId = update.capturedUserId;
     }
     if (update.excludedStatusCategories !== undefined) {
-      // FR-010: the Configure dialog's status-category toggle. Shallow-replaces
+      // JSS-FR-010: the Configure dialog's status-category toggle. Shallow-replaces
       // the committed value in the per-project override; the next GET /issues
       // re-resolves the cut list because we forget the cached activation below.
       nextIntegration.excludedStatusCategories = update.excludedStatusCategories;
@@ -657,7 +657,7 @@ router.get("/:projectId/integration/facet-options", async (req, res) => {
   }
 });
 
-// Scoped, paginated, type-ahead source search (WU-002). Mirrors the
+// Scoped, paginated, type-ahead source search (JSS-WU-002). Mirrors the
 // facet-options route's validate-and-forward shape, adding category / scope /
 // cursor. The active plugin's `getSourceOptions` does the per-category Jira
 // search; the host stays a thin proxy.

@@ -1213,7 +1213,7 @@ export function fetchFacetOptions(
   return request(`/projects/${projectId}/integration/facet-options?${params.toString()}`);
 }
 
-// Scoped, paginated source search (WU-002). `scope` carries the parent
+// Scoped, paginated source search (JSS-WU-002). `scope` carries the parent
 // selection (e.g. the Jira project keys a board/filter/epic search is confined
 // to); `cursor` is the opaque token from the previous page's `nextCursor`.
 export function fetchSourceOptions(

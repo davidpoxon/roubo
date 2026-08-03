@@ -10,11 +10,11 @@ import {
   save,
 } from "./_support/picker.js";
 
-// WU-010 (#359): the config-area end-to-end journey for team-default vs
+// JSS-WU-010 (#359): the config-area end-to-end journey for team-default vs
 // personal source sets. This mirrors the single `e2e_flow` case in the
 // `config` area of `.specifications/jira-sources-scale/test-cases.json`:
 //
-//   TC-028 a team default is overridden by a personal source set
+//   JSS-TC-028 a team default is overridden by a personal source set
 //
 // It shares the e2e-flow harness (`_support/picker.ts`, `_support/scenario.ts`)
 // with the picker- and source-search-area journeys, so the whole area runs as a
@@ -57,7 +57,10 @@ test.afterEach(async ({ request }) => {
   await request.delete(`/api/projects/${PROJECT_ID}?force=true`);
 });
 
-test("TC-028: a team default is overridden by a personal source set", async ({ page, request }) => {
+test("JSS-TC-028: a team default is overridden by a personal source set", async ({
+  page,
+  request,
+}) => {
   await loadAppShell(page);
   const { dialog, picker } = await openConfigureDialog(page, PROJECT_ID);
 

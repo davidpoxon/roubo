@@ -2,14 +2,14 @@ import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "./_support/scenario.js";
 import { addSource, externalIds, openConfigure, readSources, save } from "./_support/picker.js";
 
-// WU-007 (#356): the picker-area end-to-end journeys for the searchable,
+// JSS-WU-007 (#356): the picker-area end-to-end journeys for the searchable,
 // project-first Jira source picker. These mirror the seven `e2e_flow` picker
 // cases from `.specifications/jira-sources-scale/test-cases.json`:
 //
-//   TC-019 project-first scoping        TC-026 assigned-to-me
-//   TC-020 scrum board                  TC-027 epic scope
-//   TC-021 saved filter                 TC-029 disambiguate similar names
-//   TC-023 combine multiple sources
+//   JSS-TC-019 project-first scoping        JSS-TC-026 assigned-to-me
+//   JSS-TC-020 scrum board                  JSS-TC-027 epic scope
+//   JSS-TC-021 saved filter                 JSS-TC-029 disambiguate similar names
+//   JSS-TC-023 combine multiple sources
 //
 // All seven share one scenario (`jira-sources-scale-picker`) and the e2e-flow
 // harness, so they run as a single CI suite (the project's `pr-check` workflow
@@ -20,7 +20,7 @@ import { addSource, externalIds, openConfigure, readSources, save } from "./_sup
 // list preview" with JQL semantics (active-sprint-only, OR-union de-dup, mine
 // in-scope vs anywhere). There is no in-dialog preview, and the stub does not
 // execute JQL, so those semantics are covered by the plugin unit tests in
-// `plugins/jira-self-hosted/src/jql.test.ts` (TC-004, TC-007, TC-008), not here.
+// `plugins/jira-self-hosted/src/jql.test.ts` (JSS-TC-004, JSS-TC-007, JSS-TC-008), not here.
 
 const SCENARIO = "jira-sources-scale-picker";
 const NOW = "2026-05-21T13:00:00.000Z";
@@ -29,7 +29,7 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("TC-019: a developer scopes to a Jira project before adding sources", async ({
+test("JSS-TC-019: a developer scopes to a Jira project before adding sources", async ({
   page,
   request,
 }) => {
@@ -57,7 +57,7 @@ test("TC-019: a developer scopes to a Jira project before adding sources", async
   expect(externalIds(sources.project)).toContain("PLAT");
 });
 
-test("TC-020: a developer adds their scrum board", async ({ page, request }) => {
+test("JSS-TC-020: a developer adds their scrum board", async ({ page, request }) => {
   const projectId = "tc-020";
   const { dialog, picker } = await openConfigure(page, request, projectId);
 
@@ -75,7 +75,7 @@ test("TC-020: a developer adds their scrum board", async ({ page, request }) => 
   expect(sources.board?.[0]).toMatchObject({ externalId: "482", project: "PLAT" });
 });
 
-test("TC-021: a developer adds a saved filter as a source", async ({ page, request }) => {
+test("JSS-TC-021: a developer adds a saved filter as a source", async ({ page, request }) => {
   const projectId = "tc-021";
   const { dialog, picker } = await openConfigure(page, request, projectId);
 
@@ -88,7 +88,10 @@ test("TC-021: a developer adds a saved filter as a source", async ({ page, reque
   expect(externalIds(sources.filter)).toEqual(["10231"]);
 });
 
-test("TC-023: a developer combines multiple sources across types", async ({ page, request }) => {
+test("JSS-TC-023: a developer combines multiple sources across types", async ({
+  page,
+  request,
+}) => {
   const projectId = "tc-023";
   const { dialog, picker } = await openConfigure(page, request, projectId);
 
@@ -109,7 +112,7 @@ test("TC-023: a developer combines multiple sources across types", async ({ page
   expect(externalIds(sources.filter)).toEqual(["10231"]);
 });
 
-test("TC-026: a developer adds an assigned-to-me source", async ({ page, request }) => {
+test("JSS-TC-026: a developer adds an assigned-to-me source", async ({ page, request }) => {
   const projectId = "tc-026";
   const { dialog, picker } = await openConfigure(page, request, projectId);
 
@@ -132,7 +135,7 @@ test("TC-026: a developer adds an assigned-to-me source", async ({ page, request
   expect(sources.mine?.[0]).toMatchObject({ externalId: "mine", mineScope: "anywhere" });
 });
 
-test("TC-027: a developer scopes a bench to a single epic", async ({ page, request }) => {
+test("JSS-TC-027: a developer scopes a bench to a single epic", async ({ page, request }) => {
   const projectId = "tc-027";
   const { dialog, picker } = await openConfigure(page, request, projectId);
 
@@ -146,7 +149,10 @@ test("TC-027: a developer scopes a bench to a single epic", async ({ page, reque
   expect(externalIds(sources.epic)).toEqual(["PLAT-100"]);
 });
 
-test("TC-029: a developer distinguishes two similarly named filters", async ({ page, request }) => {
+test("JSS-TC-029: a developer distinguishes two similarly named filters", async ({
+  page,
+  request,
+}) => {
   const projectId = "tc-029";
   const { dialog, picker } = await openConfigure(page, request, projectId);
 

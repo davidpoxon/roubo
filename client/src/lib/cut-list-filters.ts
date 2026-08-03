@@ -8,7 +8,7 @@ import type { NormalizedIssue } from "@roubo/shared";
  * `enum`, `enum-async`, and `multi-enum` shapes.
  *
  * Status exclusion is no longer a client concern: it is applied in the query
- * (FR-009, e.g. the Jira plugin's `statusCategory not in (...)` JQL), so
+ * (JSS-FR-009, e.g. the Jira plugin's `statusCategory not in (...)` JQL), so
  * excluded issues never reach a page and there is nothing to hide or reveal here.
  */
 export interface FilterState {

@@ -123,11 +123,11 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
         ...(step.warnings && step.warnings.length > 0 ? { warnings: step.warnings } : {}),
       };
     }
-    // TC-024/TC-025 (#358): mirror the real plugin's in-query status exclusion
-    // (FR-009/FR-010). The host resolves the effective excluded set from the
-    // three-layer merge and passes it in; we drop issues whose fixture
-    // `statusCategory` is excluded (or whose `currentState` is in the
-    // name-based fallback set) and report how many were filtered out.
+    // JSS-TC-024/JSS-TC-025 (#358): mirror the real plugin's in-query status
+    // exclusion (JSS-FR-009/JSS-FR-010). The host resolves the effective
+    // excluded set from the three-layer merge and passes it in; we drop issues
+    // whose fixture `statusCategory` is excluded (or whose `currentState` is in
+    // the name-based fallback set) and report how many were filtered out.
     const excludedCategories = new Set(params.excludedStatusCategories ?? []);
     const excludedStatuses = new Set(params.excludedStatuses ?? []);
     const isExcluded = (issue: ScenarioIssue): boolean =>
@@ -148,7 +148,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     // `getSourceOptions` below) and advance `nextCursor` until the set is
     // exhausted. A malformed or missing cursor is the first page, so a bad
     // token never throws inside the stub. Scenarios that fit in one page (the
-    // TC-024/TC-025 exclusion fixtures at the default pageSize) keep
+    // JSS-TC-024/JSS-TC-025 exclusion fixtures at the default pageSize) keep
     // `nextCursor: null`, so the existing cut-list specs are unaffected.
     const pageSize =
       Number.isInteger(params.pageSize) && params.pageSize > 0 ? params.pageSize : 50;
@@ -268,7 +268,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     return { reports: [] };
   };
 
-  // WU-007 (TC-019..TC-029): the scoped, paginated source-option search behind
+  // JSS-WU-007 (JSS-TC-019..JSS-TC-029): the scoped, paginated source-option search behind
   // the searchable project-first picker. Project options are returned whole;
   // board / filter / epic options are confined to `scope.project` (an empty
   // page when no project is in scope, matching the host's project-first gate
@@ -276,11 +276,11 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
   // The internal `project` marker is stripped so the host sees only a
   // SourceCandidateItem.
   //
-  // WU-008 (TC-022): page the matched set with a `PAGE_SIZE` window so the
-  // searchable picker's "Load more" affordance and result-count readout are
+  // JSS-WU-008 (JSS-TC-022): page the matched set with a `PAGE_SIZE` window so
+  // the searchable picker's "Load more" affordance and result-count readout are
   // exercised end-to-end. `cursor` is an opaque integer offset; `nextCursor`
   // advances by `PAGE_SIZE` until the set is exhausted (then null). Result sets
-  // that fit in one page (every WU-007 scenario) keep `nextCursor: null`, so the
+  // that fit in one page (every JSS-WU-007 scenario) keep `nextCursor: null`, so the
   // picker-area specs are unaffected.
   const SCOPED_CATEGORIES = new Set(["board", "filter", "epic"]);
   const PAGE_SIZE = 10;

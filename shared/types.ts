@@ -1053,7 +1053,7 @@ export interface IntegrationConfigUpdate {
   advanced?: Record<string, unknown>;
   capturedUserId?: CapturedUserId;
   /**
-   * Root-level status-category exclusion (FR-010), editable from the Configure
+   * Root-level status-category exclusion (JSS-FR-010), editable from the Configure
    * dialog. Shallow-replaces the committed value in the per-project override;
    * an empty array means "exclude nothing", distinct from omitting the key
    * (which leaves the existing override untouched).

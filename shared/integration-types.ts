@@ -73,7 +73,7 @@ export interface GetSourceOptionsParams {
 /**
  * One page of source options returned by `getSourceOptions`. `nextCursor` is an
  * opaque token the host passes back verbatim to fetch the next page; `null`
- * means exhausted (NFR-004: every item reachable, no page dropped or duplicated).
+ * means exhausted (JSS-NFR-004: every item reachable, no page dropped or duplicated).
  */
 export interface SourceOptionsResult {
   items: SourceCandidateItem[];

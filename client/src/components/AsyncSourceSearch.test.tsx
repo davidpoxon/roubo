@@ -55,7 +55,7 @@ describe("AsyncSourceSearch", () => {
     expect(screen.getByText("Pick a project first.")).toBeInTheDocument();
   });
 
-  it("renders untruncated results with a monospace key + id sublabel (FR-011)", async () => {
+  it("renders untruncated results with a monospace key + id sublabel (JSS-FR-011)", async () => {
     const user = userEvent.setup();
     mockHook({ items: BOARDS });
     render(
@@ -177,7 +177,7 @@ describe("AsyncSourceSearch", () => {
     expect(fetchNextPage).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a result count, with a + when more pages remain (TC-022)", async () => {
+  it("shows a result count, with a + when more pages remain (JSS-TC-022)", async () => {
     const user = userEvent.setup();
     // First page of a larger set: the readout flags that more results exist.
     mockHook({ items: BOARDS, hasNextPage: true });
@@ -226,7 +226,7 @@ describe("AsyncSourceSearch", () => {
 
     await user.click(screen.getByRole("button", { name: "Add boards" }));
     // The latency reads alongside the count, and the count testid stays an exact
-    // "N results" so the TC-022 e2e exact-match assertion keeps holding.
+    // "N results" so the JSS-TC-022 e2e exact-match assertion keeps holding.
     expect(screen.getByTestId("source-search-latency")).toHaveTextContent("· 142ms");
     expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2 results");
   });

@@ -2,7 +2,7 @@ import { expect, type APIRequestContext, type Locator, type Page } from "@playwr
 import { registerTestProject } from "../../project-settings/_support/test-project.js";
 
 // Shared harness for the searchable, project-first Jira source-picker e2e-flow
-// specs (WU-007 picker journeys + WU-008 source-search journey). Keeping the
+// specs (JSS-WU-007 picker journeys + JSS-WU-008 source-search journey). Keeping the
 // picker-driving helpers in one place means every e2e_flow spec for this area
 // runs off a single automation harness (issue #357 AC2) instead of copy-pasting
 // the open / search / read-back boilerplate per file.
@@ -30,13 +30,13 @@ export async function openConfigure(
 
 // Open the Configure dialog for an ALREADY-registered project and return the
 // dialog + picker locators. Split out of `openConfigure` so specs that register
-// their project a different way (e.g. TC-028 needs committed team-default
+// their project a different way (e.g. JSS-TC-028 needs committed team-default
 // sources in roubo.yaml, which `registerTestProject` can't seed since it writes
 // a per-user override) can still reuse the open / locate boilerplate.
 //
 // `waitForPicker` (default true) waits for the source-picker to render before
 // returning. The picker only renders when the connection pill resolves
-// "connected", so specs that drive a picker-independent surface (e.g. TC-025's
+// "connected", so specs that drive a picker-independent surface (e.g. JSS-TC-025's
 // status-category exclusion toggle, #452) pass `false` to avoid hanging on a
 // picker they never touch.
 export async function openConfigureDialog(
@@ -109,7 +109,7 @@ type SourceSelection = Record<string, Array<string | { externalId: string; [k: s
 
 // Read the three integration layers the host exposes for a project: the
 // committed roubo.yaml config, the per-user override file, and the merged
-// effective result. TC-028 asserts all three at once (team default unchanged,
+// effective result. JSS-TC-028 asserts all three at once (team default unchanged,
 // personal override stored, personal wins), so the helper returns each layer's
 // `sources` (defaulting to {}) rather than just the effective one `readSources`
 // returns.

@@ -171,8 +171,8 @@ export interface ListIssuesParams {
   pageSize: number;
   filters?: { labels?: string[]; search?: string };
   /**
-   * Status exclusion resolved by the host from the three-layer merge (FR-009,
-   * FR-010), applied in the query so excluded issues never occupy a result
+   * Status exclusion resolved by the host from the three-layer merge (JSS-FR-009,
+   * JSS-FR-010), applied in the query so excluded issues never occupy a result
    * page. `excludedStatusCategories` is the category-first default (e.g.
    * `["Done"]`); `excludedStatuses` is the status-name list a plugin uses as
    * the fallback when the instance does not support `statusCategory` in its
@@ -219,7 +219,7 @@ export interface ListIssuesResult {
   warnings?: ListIssuesWarning[];
   /**
    * Count of issues the plugin dropped in-query (e.g. the status-category
-   * exclusion of FR-009/FR-010), surfaced so the cut list can show "N filtered
+   * exclusion of JSS-FR-009/JSS-FR-010), surfaced so the cut list can show "N filtered
    * out by status". Additive and optional: the host sums it across pages and
    * treats absence as "unknown". Plugins that filter in memory report it
    * per page; the jira-self-hosted plugin excludes server-side in JQL, so it
@@ -304,7 +304,7 @@ export interface GetSourceOptionsParams {
 /**
  * One page of source options. `nextCursor` is an opaque token the host passes
  * back verbatim to fetch the following page; `null` means the result set is
- * exhausted (NFR-004: every item reachable, no page dropped or duplicated).
+ * exhausted (JSS-NFR-004: every item reachable, no page dropped or duplicated).
  */
 export interface SourceOptionsResult {
   items: SourceCandidateItem[];

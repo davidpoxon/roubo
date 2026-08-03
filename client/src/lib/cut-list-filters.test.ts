@@ -115,7 +115,7 @@ describe("applyFilters", () => {
   });
 
   it("does not exclude any status client-side (exclusion is applied in the query)", () => {
-    // Status exclusion moved into the query (FR-009): every fetched issue is
+    // Status exclusion moved into the query (JSS-FR-009): every fetched issue is
     // shown, so a Closed/Done issue that reaches the client is rendered rather
     // than silently dropped. The query is now the single source of truth.
     const out = applyFilters(issues, createEmptyFilters());

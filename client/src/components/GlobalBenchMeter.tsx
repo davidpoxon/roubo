@@ -2,7 +2,7 @@ import { useGlobalCap } from "../hooks/useGlobalCap";
 
 /**
  * Passive, always-on meter for the application-wide bench cap. Reads its count
- * and ceiling from useGlobalCap (the single source of truth from WU-003) and
+ * and ceiling from useGlobalCap (the single source of truth from GBL-WU-003) and
  * self-gates: it renders nothing when no global cap is configured, so callers
  * can mount it unconditionally.
  */

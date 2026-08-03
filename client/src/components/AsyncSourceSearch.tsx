@@ -39,12 +39,12 @@ function entryToItem(entry: SourceSelectionEntry, id: string): SourceCandidateIt
 }
 
 /**
- * Debounced async type-ahead for a single source category (WU-003, #352). The
+ * Debounced async type-ahead for a single source category (JSS-WU-003, #352). The
  * results render inside a React Aria `Popover`, which portals to the document
- * body and so is never clipped by the configure modal (FR-013). Selecting a
+ * body and so is never clipped by the configure modal (JSS-FR-013). Selecting a
  * result toggles its membership; results show the full untruncated name plus a
- * monospace `KEY · #id` secondary line (FR-011). Built on React Aria primitives
- * for keyboard navigation, visible focus, and screen-reader labels (NFR-002).
+ * monospace `KEY · #id` secondary line (JSS-FR-011). Built on React Aria primitives
+ * for keyboard navigation, visible focus, and screen-reader labels (JSS-NFR-002).
  */
 export default function AsyncSourceSearch({
   projectId,
@@ -192,7 +192,7 @@ export default function AsyncSourceSearch({
             <p className="px-3 py-2 text-xs text-stone-400 dark:text-stone-600">No matches.</p>
           )}
           {/* Always-present live region so the readout's first appearance and
-              every later update announce reliably (NFR-002); empty until a page
+              every later update announce reliably (JSS-NFR-002); empty until a page
               loads, with no padding so it adds no gap above the empty/loading
               messages. */}
           {!error && (

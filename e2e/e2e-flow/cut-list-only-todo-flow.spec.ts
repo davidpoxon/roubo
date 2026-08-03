@@ -15,13 +15,13 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 // spec only adds the guarding test (no production source changes).
 //
 // It shares the e2e-flow harness (`_support/scenario.ts`) with the cut-list
-// category-exclusion journeys (TC-024/TC-025 in cut-list-flow.spec.ts), so the
+// category-exclusion journeys (JSS-TC-024/JSS-TC-025 in cut-list-flow.spec.ts), so the
 // whole suite runs under one `npx playwright test` (the `e2e-flow` project).
 //
 // Scenario `jira-sources-scale-cut-list` seeds five issues spanning the three
 // canonical status categories: #101 (To Do), #102 (In Progress), and
 // #103/#104/#105 (Done). The only-To-Do default does NOT come from the shared
-// stub manifest (whose [Done] default TC-024/TC-025 rely on): it comes from a
+// stub manifest (whose [Done] default JSS-TC-024/JSS-TC-025 rely on): it comes from a
 // dedicated fixture project (e2e/fixtures/cut-list-only-todo-project) whose
 // committed roubo.yaml sets a root `integration.excludedStatusCategories:
 // ["In Progress", "Done"]`. With no per-user override of that key, the cut list
@@ -120,7 +120,7 @@ test("CLI-TC-046: only-To-Do default, re-include In Progress via config, persist
 
   await test.step("S002: open the status dialog - In Progress/Done excluded, To Do locked", async () => {
     // waitForPicker: false - this journey drives the status-exclusion toggle,
-    // not the source picker (same as TC-025, #452).
+    // not the source picker (same as JSS-TC-025, #452).
     const open = await openConfigureDialog(page, PROJECT_ID, { waitForPicker: false });
     await expect(
       open.dialog.getByTestId("status-exclusion-section"),
