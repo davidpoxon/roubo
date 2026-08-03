@@ -484,12 +484,18 @@ test("AP-TC-028: a per-launch override applies to one session and persists nothi
   await expect(agentsTab, "the AI Agents settings tab renders").toBeVisible();
   await agentsTab.click();
 
-  const modelField = page.getByTestId("config-field-model");
+  // Scoped to the Claude Code card. `config-field-<key>` ids are unique only
+  // WITHIN a card, and `AgentPluginCard` mounts every installed agent's
+  // disclosure open (available or not), so the codex-cli overlay's own `model`
+  // and `effort` controls sit on this page too and a page-wide read would
+  // resolve to two elements.
+  const claudeCard = page.getByTestId(`agent-plugin-card-${CLAUDE_PLUGIN_ID}`);
+  const modelField = claudeCard.getByTestId("config-field-model");
   await modelField.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
   const shown = {
     model: await readTextIfPresent(modelField),
-    effort: await readTextIfPresent(page.getByTestId("config-field-effort")),
-    mode: await readTextIfPresent(page.getByTestId("config-field-mode")),
+    effort: await readTextIfPresent(claudeCard.getByTestId("config-field-effort")),
+    mode: await readTextIfPresent(claudeCard.getByTestId("config-field-mode")),
   };
   observe(
     STEPS.S004,

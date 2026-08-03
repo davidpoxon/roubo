@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Stub agent CLI for the `codex-cli` e2e overlay (issue #683).
+// Stub agent CLI for the `codex-cli` e2e overlay (issues #683, #532).
 //
 // The overlay (../bundled-overlays/codex-cli/) points its manifest-declared
 // version probe and its launch descriptor at this binary. It exists so the AI
@@ -17,12 +17,35 @@
 //   --version   print a version inside the overlay's declared compatibility
 //               window and exit 0, so the card resolves `within-tested-range`
 //               and any launch passes the pre-launch gate.
-//   otherwise   print a ready line and idle so the PTY session stays live and
-//               the host classifies no early-exit failure.
+//   otherwise   write argv (everything after the script path) as JSON to
+//               CODEX_ARGV_LOG_PATH, then print a ready line and idle so the PTY
+//               session stays live and the host classifies no early-exit failure.
 //
-// Unlike roubo-e2e-claude-stub this binary NEVER writes AGENT_ARGV_LOG_PATH.
-// That log is a single shared file the AP-TC-087 guard reads as evidence of the
-// argv its own launch produced; a second writer could only race it or clobber it.
+// WHY A SECOND LOG PATH rather than the one roubo-e2e-claude-stub writes (#532).
+// Each capture file is single-writer, last-write-wins, and the AP-TC-056 /
+// AP-TC-105 journeys hold a live codex session while the ambient claude overlay
+// is still installed, so one shared destination would let either child clobber
+// the other guard's evidence. CODEX_ARGV_LOG_PATH is a distinct constant in the
+// same module, which removes the race and gives those cases the CHILD's own argv
+// rather than a host-side reconstruction.
+//
+// $ROUBO_E2E_AGENT_ARGV_LOG gates the write but does not choose where it lands:
+// the destination is the shared CODEX_ARGV_LOG_PATH constant, imported below. An
+// environment variable is untrusted input and must not steer a filesystem path.
+//
+// The version-probe path never writes the log: it exits before the write, and
+// `runCommand` strips every ROUBO_* variable from the probe's environment, so
+// $ROUBO_E2E_AGENT_ARGV_LOG is not even visible there.
+
+// ESM: the file has no extension, so Node resolves its module type from the
+// nearest package.json, and roubo/package.json declares `"type": "module"`.
+import fs from "node:fs";
+
+// The one file this stub will ever write. Defined once, in plain ESM, so this
+// binary and the specs' TypeScript support module cannot disagree about where
+// the argv lands: a drifted second copy would surface as a spec that reads no
+// argv and blames the launch.
+import { CODEX_ARGV_LOG_PATH } from "../../agent-plugins/_support/argv-log-path.mjs";
 
 // The output shape is the real `codex --version` shape, `codex-cli <semver>`,
 // recorded against @openai/codex 0.144.1 in spike 502 and already covered by
@@ -42,9 +65,20 @@ if (argv.includes("--version")) {
   process.exit(0);
 }
 
-// A line of output so the session reads as a live agent rather than a silent
-// one, and so the early-exit classifier has captured output to work with if this
-// process ever does die.
+if (process.env.ROUBO_E2E_AGENT_ARGV_LOG) {
+  try {
+    fs.writeFileSync(CODEX_ARGV_LOG_PATH, `${JSON.stringify(argv)}\n`, "utf-8");
+  } catch (err) {
+    process.stderr.write(`roubo-e2e-codex-stub: could not write argv log: ${err.message}\n`);
+  }
+}
+
+// A single line of output, then silence. That is also the AP-TC-056 S003 script
+// ("let the agent finish a turn and go idle"): the host schedules its quiescence
+// check off this write, and nothing further ever arrives to reset it, so the
+// overlay's declared 3000ms debounce is what decides when the session reads as
+// waiting. It also gives the early-exit classifier captured output to work with
+// if this process ever does die.
 process.stdout.write("roubo-e2e-codex-stub ready\n");
 
 // Idle. The spec destroys the session when it is done, and the timer is the only

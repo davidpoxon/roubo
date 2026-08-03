@@ -1,7 +1,7 @@
 id: codex-cli
 name: Codex CLI
-version: 0.1.0
-description: E2E overlay that installs a second agent plugin during Playwright runs, so AP-TC-113 S002 can read a real Codex CLI compatibility line (floor, tested ceiling, detected version) rather than a fixtured one. Not for production.
+version: 0.2.0
+description: E2E overlay that takes the bundled codex agent plugin's slot during Playwright runs. Mirrors the real plugin's configSchema and argv mapping against a stub CLI so AP-TC-056 and AP-TC-105 can drive the integrated configure-then-launch journey, and so AP-TC-113 S002 can read a real compatibility line. Not for production.
 kind: agent
 roubo: ^1.0.0
 entry: ./index.mjs
@@ -27,9 +27,10 @@ contractVersion: 1
 # stub's version (e2e/fixtures/bin/roubo-e2e-codex-stub) inside it so the card
 # resolves `within-tested-range`.
 #
-# UNLIKE the sibling claude-code overlay, the RUNTIME still mirrors nothing: the
-# argv mapping, config schema, notification wiring and permissions bindings stay
-# out of index.mjs on purpose (see the note there).
+# The RUNTIME now mirrors the shipped plugin's argv mapping and its waiting
+# detection (#532), so the AP-TC-056 / AP-TC-105 journeys can drive the
+# integrated configure-then-launch path. The notification wiring and the
+# permissions bindings still stay out of index.mjs (see the note there).
 #
 # The probe names the e2e stub rather than `codex`, for the same reason the
 # Claude stub is not named `claude`: `resolveShellPath()` prepends
@@ -43,14 +44,78 @@ agentCompatibility:
     args:
       - --version
     parse: semver
-# No `configSchema`, deliberately. AP-TC-113 S002 observes the compatibility
-# line only, and the AP-TC-087 guard counts `config-field-<key>` test ids
-# PAGE-WIDE while every agent card mounts its form expanded, so a `model` or
-# `effort` property here would make that guard read two controls where it
-# expects one and fail on a fixture artefact. The shipped plugin's real schema
-# (model, reasoning effort, approval policy, sandbox, extra arguments) lives in
-# roubo-plugins/plugins/codex/roubo-plugin.yaml and is deliberately not copied
-# here; exercising it through this overlay needs that guard scoped first.
+# Copied VERBATIM from roubo-plugins/plugins/codex/roubo-plugin.yaml so the AI
+# Agents card renders the real Model / Reasoning effort / Approval policy /
+# Sandbox selects plus the real Additional CLI arguments field. Any divergence
+# here would make the AP-TC-105 drift guard assert a form the shipped plugin does
+# not have.
+#
+# This schema was held back until #532 for one reason: the AP-TC-087 guard read
+# `config-field-<key>` test ids PAGE-WIDE while every agent card mounts its form
+# expanded, so a second `model` property made that guard count two controls where
+# it expects one. Those reads are now scoped to
+# `agent-plugin-card-claude-code`, so a schema here is safe. Keep them scoped.
+configSchema:
+  type: object
+  properties:
+    model:
+      title: Model
+      type: string
+      default: gpt-5.2-codex
+      description: The model the session runs on, passed as `--model`. `Account default` sends no `--model` flag and defers to the Codex configuration.
+      oneOf:
+        - const: default
+          title: Account default
+        - const: gpt-5.2-codex
+          title: GPT-5.2 Codex
+        - const: gpt-5.1-codex
+          title: GPT-5.1 Codex
+        - const: gpt-5.1-codex-mini
+          title: GPT-5.1 Codex mini
+    effort:
+      title: Reasoning effort
+      type: string
+      default: medium
+      description: Reasoning effort passed as `-c model_reasoning_effort=`.
+      oneOf:
+        - const: minimal
+          title: Minimal
+        - const: low
+          title: Low
+        - const: medium
+          title: Medium
+        - const: high
+          title: High
+        - const: xhigh
+          title: Extra high
+    approvalPolicy:
+      title: Approval policy
+      type: string
+      default: on-request
+      description: When Codex asks before acting, passed as `-c approval_policy=`. A permission posture chosen on the project's permissions screen overrides this field, sending the posture's own value instead, so exactly one `approval_policy` override ever reaches the CLI.
+      oneOf:
+        - const: untrusted
+          title: Untrusted
+        - const: on-request
+          title: On request
+        - const: never
+          title: Never
+    sandbox:
+      title: Sandbox
+      type: string
+      default: workspace-write
+      description: What the session may write, passed as `-c sandbox_mode=`. A permission posture chosen on the project's permissions screen overrides this field, sending the posture's own value instead, so exactly one `sandbox_mode` override ever reaches the CLI.
+      oneOf:
+        - const: read-only
+          title: Read only
+        - const: workspace-write
+          title: Workspace write
+        - const: danger-full-access
+          title: Full access
+    extraArgs:
+      title: Additional CLI arguments
+      type: string
+      description: Free-form extra arguments appended after the generated flags. Split into discrete argv tokens with quoting honoured; shell metacharacters are never interpreted.
 permissions:
   network:
     hosts: []
