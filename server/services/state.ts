@@ -361,6 +361,53 @@ export function hasLegacyAgentSettings(): boolean {
   return readLegacyAgentSettings() !== undefined;
 }
 
+/**
+ * Plant or remove the retired built-in agent preferences block (AP-FR-021).
+ *
+ * A TEST SEAM, reachable only through `POST /test/__seed-legacy-agent-settings`
+ * under `ROUBO_E2E=1`. The block is the one signal that an install is an
+ * upgrade, and nothing in the product ever writes it: it is a residue of a build
+ * that predates the agent plugins. So the "existing user upgrades" journey
+ * (AP-TC-102) has no other way to reach its own precondition, and a spec cannot
+ * write `settings.json` itself without knowing the key, which would be a second
+ * place naming it.
+ *
+ * It lives here, beside `readLegacyAgentSettings`, precisely so it does not
+ * become that second place: `LEGACY_AGENT_SETTINGS_KEY` stays named exactly once
+ * (AP-NFR-006). `null` removes the block, which is what lets the journey hand
+ * the environment back as a fresh install (NFR-018).
+ */
+export function writeLegacyAgentSettings(block: Record<string, unknown> | null): void {
+  ensureDirs();
+  let raw: Record<string, unknown> = {};
+  if (fs.existsSync(SETTINGS_FILE)) {
+    try {
+      const parsed: unknown = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        raw = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // A corrupt settings file is replaced rather than merged into: the seam's
+      // job is to leave the block in a known state, not to salvage the rest.
+      raw = {};
+    }
+  }
+  // Rebuilt by omission rather than with `delete`, which the lint rules forbid
+  // on a computed key: the block is the only key this seam owns, so dropping it
+  // from a filtered copy is exactly equivalent and keeps the rest untouched.
+  const next = Object.fromEntries(
+    Object.entries(raw).filter(([key]) => key !== LEGACY_AGENT_SETTINGS_KEY),
+  );
+  atomicWrite(
+    SETTINGS_FILE,
+    JSON.stringify(
+      block === null ? next : { ...next, [LEGACY_AGENT_SETTINGS_KEY]: block },
+      null,
+      2,
+    ),
+  );
+}
+
 export function getPersistedBenches(projectId?: string): PersistedBench[] {
   const data = loadState();
   if (projectId) {

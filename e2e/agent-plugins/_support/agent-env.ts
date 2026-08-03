@@ -102,6 +102,33 @@ export async function setDefaultAgent(
   expect(res.status(), `PUT /api/settings (default agent = ${pluginId ?? "none"})`).toBe(200);
 }
 
+/**
+ * Pin (or, with `null`, clear) the app-level default jig, the baseline an agent
+ * launch carries when the preset names none (AP-FR-007). Written through the
+ * same settings route the Jigs screen uses, and it preserves the pinned default
+ * agent so the two helpers can be called in either order.
+ */
+export async function setDefaultJig(
+  request: APIRequestContext,
+  jigId: string | null,
+): Promise<void> {
+  const current = await readSettings(request);
+  const res = await request.put("/api/settings", {
+    data: {
+      theme: current.theme ?? "dark",
+      jigs: {
+        autoInject: current.jigs?.autoInject ?? true,
+        autoExecute: current.jigs?.autoExecute ?? true,
+        ...(jigId !== null && { defaultJigId: jigId }),
+        ...(current.jigs?.defaultAgentPluginId != null && {
+          defaultAgentPluginId: current.jigs.defaultAgentPluginId,
+        }),
+      },
+    },
+  });
+  expect(res.status(), `PUT /api/settings (default jig = ${jigId ?? "none"})`).toBe(200);
+}
+
 /** Replace the app-level agent tool presets. Pass `[]` to clear them. */
 export async function setAppAgentTools(
   request: APIRequestContext,
@@ -122,40 +149,6 @@ export async function readAppAgentTools(
   expect(res.status(), "GET /api/settings").toBe(200);
   const body = (await res.json()) as { agentTools?: Record<string, unknown>[] };
   return body.agentTools ?? [];
-}
-
-/** One app-level jig, as `POST /api/jigs` accepts it. */
-export interface AppJigInput {
-  name: string;
-  description: string;
-  content: string;
-}
-
-/**
- * Create an app-level jig through the real route, and answer the id the server
- * minted for it (`slugify(name)`, jig-manager.ts).
- *
- * App jigs live in `~/.roubo-dev/<checkout>/jigs/*.md`, which `/test/__reset`
- * does not clear, so a jig created here has to be removed by the spec that
- * created it (see {@link deleteAppJig}) or the next run's create fails as a
- * duplicate name and the leftover shows up in every other spec's jig picker
- * (NFR-018).
- */
-export async function createAppJig(request: APIRequestContext, jig: AppJigInput): Promise<string> {
-  const res = await request.post("/api/jigs", { data: jig });
-  expect(res.status(), `POST /api/jigs (${jig.name})`).toBe(201);
-  const body = (await res.json()) as { id: string };
-  return body.id;
-}
-
-/**
- * Remove an app-level jig. A 404 is success: the point is that the jig is gone,
- * and a teardown that throws on an already-absent jig would mask the failure the
- * test itself is reporting.
- */
-export async function deleteAppJig(request: APIRequestContext, jigId: string): Promise<void> {
-  const res = await request.delete(`/api/jigs/${jigId}`);
-  expect([204, 404], `DELETE /api/jigs/${jigId}`).toContain(res.status());
 }
 
 /**
@@ -347,4 +340,177 @@ export async function waitForAvailableAgents(
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error(`Agents never became available: expected ${pluginIds.join(", ")}; saw ${seen}`);
+}
+
+/**
+ * Create a PROJECT jig, optionally bound to an agent (AP-FR-006).
+ *
+ * A jig lives in the project repo's own `.roubo/jigs/` directory, so it rides on
+ * the fixture project's tmpdir and is dropped with it by the next
+ * `/test/__reset`.
+ *
+ * Answers the id (derived from the name, and what a preset's `jig` field has to
+ * carry) AND the content as STORED, read back through the detail route rather
+ * than echoed from the create request: the jig is written to a markdown file and
+ * loaded back from it at launch, and that round trip normalises the body. A spec
+ * asserting an injected prompt has to expect what the app will actually read,
+ * not what it handed over.
+ */
+export async function createProjectJig(
+  request: APIRequestContext,
+  projectId: string,
+  jig: { name: string; description: string; content: string; agentPluginId?: string },
+): Promise<{ id: string; content: string }> {
+  const res = await request.post(`/api/projects/${projectId}/jigs`, { data: jig });
+  expect(res.status(), `POST /api/projects/${projectId}/jigs`).toBe(201);
+  const { id } = (await res.json()) as { id: string };
+
+  const stored = await request.get(`/api/projects/${projectId}/jigs/${id}`);
+  expect(stored.status(), `GET /api/projects/${projectId}/jigs/${id}`).toBe(200);
+  const detail = (await stored.json()) as { content: string };
+  return { id, content: detail.content };
+}
+
+/** One bench as the real benches route reports it. */
+export interface BenchSnapshot {
+  id: number;
+  workspacePath: string;
+  status: string;
+  notifications: { id: string; type: string; sourceSessionId?: string }[];
+}
+
+/** Every bench of a project, read through the route the bench screens use. */
+export async function readBenches(
+  request: APIRequestContext,
+  projectId: string,
+): Promise<BenchSnapshot[]> {
+  const res = await request.get(`/api/projects/${projectId}/benches`);
+  expect(res.status(), `GET /api/projects/${projectId}/benches`).toBe(200);
+  const body = (await res.json()) as BenchSnapshot[];
+  return Array.isArray(body) ? body : [];
+}
+
+/**
+ * The on-disk workspace of one seeded bench. `/test/__register-fixture-project`
+ * mints a real tmpdir per seeded bench, and it is the directory a launch's
+ * workspace writes (`.claude/settings.local.json`) are confined to, so a spec
+ * that reads that file has to ask the app where the bench actually lives rather
+ * than reconstructing the path.
+ */
+export async function readBenchWorkspacePath(
+  request: APIRequestContext,
+  projectId: string,
+  benchId: number,
+): Promise<string> {
+  const bench = (await readBenches(request, projectId)).find((entry) => entry.id === benchId);
+  if (!bench) throw new Error(`Bench ${benchId} of ${projectId} was not found`);
+  return bench.workspacePath;
+}
+
+/** One bench notification, as the FR-020 observations describe it. */
+export interface NotificationProbe {
+  found: boolean;
+  /** Every notification currently on the bench, for the divergence block. */
+  seen: string;
+}
+
+/**
+ * Poll a bench for a notification of `type` raised by `sessionId`.
+ *
+ * Notifications are persisted on the bench record and served by the same route
+ * the bench screens read, so this observes what the app itself would render
+ * rather than a private channel. Answers as soon as it appears, or after ~10s
+ * with `found: false` and everything that WAS there, which is what the
+ * divergence block reports as the actual.
+ */
+export async function waitForBenchNotification(
+  request: APIRequestContext,
+  opts: { projectId: string; benchId: number; type: string; sessionId: string },
+): Promise<NotificationProbe> {
+  return probeBenchNotification(request, opts, true);
+}
+
+/**
+ * The mirror of {@link waitForBenchNotification}: poll until the notification is
+ * GONE. A spec asserting that a notification cleared cannot reuse the
+ * present-waiter, which answers on its first sighting and so would report the
+ * state before the clearing rather than after it.
+ */
+export async function waitForNoBenchNotification(
+  request: APIRequestContext,
+  opts: { projectId: string; benchId: number; type: string; sessionId: string },
+): Promise<NotificationProbe> {
+  return probeBenchNotification(request, opts, false);
+}
+
+async function probeBenchNotification(
+  request: APIRequestContext,
+  opts: { projectId: string; benchId: number; type: string; sessionId: string },
+  until: boolean,
+): Promise<NotificationProbe> {
+  let seen: string = "no notifications on the bench";
+  let found = false;
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    const bench = (await readBenches(request, opts.projectId)).find(
+      (entry) => entry.id === opts.benchId,
+    );
+    const notifications = bench?.notifications ?? [];
+    seen =
+      notifications.length === 0
+        ? "no notifications on the bench"
+        : notifications.map((n) => `${n.type} (session ${n.sourceSessionId ?? "none"})`).join("; ");
+    found = notifications.some((n) => n.type === opts.type && n.sourceSessionId === opts.sessionId);
+    if (found === until) return { found, seen };
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return { found, seen };
+}
+
+/**
+ * Fire the agent notification hook for a live session (AP-FR-013).
+ *
+ * The endpoint every `http-hook` descriptor POSTs its waiting events to. Its own
+ * status IS the correlation evidence: it resolves `session_id` to a live,
+ * hook-wired session and answers 404 / 400 otherwise, so a 200 means the event
+ * was correlated to this session rather than merely accepted.
+ */
+export async function fireWaitingHook(
+  request: APIRequestContext,
+  sessionId: string,
+): Promise<number> {
+  const res = await request.post("/api/hooks/claude-notification", {
+    data: { session_id: sessionId },
+  });
+  return res.status();
+}
+
+/** Replace a project's agent permissions through the route the editor uses. */
+export async function setProjectPermissions(
+  request: APIRequestContext,
+  projectId: string,
+  permissions: { allow: string[]; deny: string[]; ask: string[] },
+): Promise<void> {
+  const res = await request.put(`/api/projects/${projectId}/permissions`, { data: permissions });
+  expect(res.status(), `PUT /api/projects/${projectId}/permissions`).toBe(200);
+}
+
+/**
+ * Plant (or, with `null`, remove) the retired built-in agent preferences block
+ * (AP-FR-021, issue #530).
+ *
+ * The one signal that an install is an upgrade rather than a fresh one. Nothing
+ * in the product writes it any more and `/test/__reset` does not truncate
+ * `settings.json`, so the upgrade journey both seeds it through this seam and
+ * hands it back with `null` (NFR-018).
+ */
+export async function seedLegacyAgentSettings(
+  request: APIRequestContext,
+  settings: Record<string, unknown> | null,
+): Promise<void> {
+  const res = await request.post("/test/__seed-legacy-agent-settings", { data: { settings } });
+  expect(res.status(), "POST /test/__seed-legacy-agent-settings").toBe(200);
+  const body = (await res.json()) as { present: boolean };
+  expect(body.present, "the legacy agent settings block is present after seeding").toBe(
+    settings !== null,
+  );
 }

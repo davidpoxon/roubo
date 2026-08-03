@@ -669,6 +669,51 @@ router.post("/__seed-notice", (req: Request, res: Response) => {
   }
 });
 
+// POST /test/__seed-legacy-agent-settings (#530): plant (or remove) the retired
+// built-in agent preferences block in `settings.json`, which is the ONLY signal
+// that an install is an upgrade rather than a fresh one (AP-FR-021).
+//
+// The AP-TC-102 upgrade journey opens on "the user is upgrading from a build
+// that had built-in agent settings", and nothing in the product writes that
+// block any more: #521 deleted the field, leaving only a reader
+// (`hasLegacyAgentSettings`) behind the `legacyAgentSettingsPresent` flag the
+// first-run notice is gated on. `/test/__reset` does not truncate
+// `settings.json` either, so the block also has to be REMOVABLE from a spec's
+// teardown or a seeded upgrade would leak into every later spec (NFR-018).
+//
+// The write goes through `state.writeLegacyAgentSettings` rather than being
+// assembled here, so the legacy file key stays named in exactly one place
+// (AP-NFR-006). Gated by ROUBO_E2E so production builds 404 the URL; the
+// testRouteRateLimiter still applies.
+//
+// Body: { settings?: object | null }. Omitted seeds the AP-TC-102 precondition
+// (the two retired preferences, both on); `null` removes the block.
+const DEFAULT_LEGACY_AGENT_SETTINGS = { autoMode: true, planMode: true } as const;
+router.post("/__seed-legacy-agent-settings", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as { settings?: unknown };
+  let block: Record<string, unknown> | null = { ...DEFAULT_LEGACY_AGENT_SETTINGS };
+  if (body.settings !== undefined) {
+    if (body.settings === null) {
+      block = null;
+    } else if (typeof body.settings !== "object" || Array.isArray(body.settings)) {
+      return res.status(400).json({ error: "settings must be an object or null when provided" });
+    } else {
+      block = body.settings as Record<string, unknown>;
+    }
+  }
+  try {
+    state.writeLegacyAgentSettings(block);
+    res.status(200).json({ present: state.hasLegacyAgentSettings() });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__seed-legacy-agent-settings failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
 // POST /test/__set-cut-list-disk-cache (#568): toggle whether the persistent
 // cut-list disk snapshot is bypassed at runtime. Under the e2e harness
 // (ROUBO_E2E=1) the CutListQueryService bypasses the disk path by default so a

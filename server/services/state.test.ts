@@ -493,6 +493,55 @@ describe("hasLegacyAgentSettings (AP-FR-021, #521)", () => {
   });
 });
 
+describe("writeLegacyAgentSettings (AP-FR-021, #530)", () => {
+  it("plants the block beside the existing settings, so the upgrade signal reads true", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", jigs: { autoInject: true } }));
+
+    stateModule.writeLegacyAgentSettings({ autoMode: true, planMode: true });
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string) as Record<string, unknown>;
+    expect(written.theme).toBe("dark");
+    expect(written.jigs).toEqual({ autoInject: true });
+    expect(written.claudeCode).toEqual({ autoMode: true, planMode: true });
+    // Re-derive the signal from the saved bytes rather than from the fixture.
+    readFileSync.mockReturnValue(writeFileSync.mock.calls[0][1] as string);
+    expect(stateModule.hasLegacyAgentSettings()).toBe(true);
+  });
+
+  it("removes the block on null, so a seeded upgrade can be handed back as a fresh install", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", claudeCode: { autoMode: true } }));
+
+    stateModule.writeLegacyAgentSettings(null);
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string) as Record<string, unknown>;
+    expect(written).not.toHaveProperty("claudeCode");
+    expect(written.theme).toBe("dark");
+    readFileSync.mockReturnValue(writeFileSync.mock.calls[0][1] as string);
+    expect(stateModule.hasLegacyAgentSettings()).toBe(false);
+  });
+
+  it("writes a settings file that does not exist yet", () => {
+    existsSync.mockReturnValue(false);
+
+    stateModule.writeLegacyAgentSettings({ autoMode: true });
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string) as Record<string, unknown>;
+    expect(written).toEqual({ claudeCode: { autoMode: true } });
+  });
+
+  it("replaces a corrupt settings file rather than merging into it", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue("not valid json{{{");
+
+    stateModule.writeLegacyAgentSettings({ autoMode: true });
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string) as Record<string, unknown>;
+    expect(written).toEqual({ claudeCode: { autoMode: true } });
+  });
+});
+
 describe("loadProjects", () => {
   it("returns { projects: [] } when file does not exist", () => {
     existsSync.mockReturnValue(false);
