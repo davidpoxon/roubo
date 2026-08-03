@@ -554,6 +554,27 @@ function makeEmptyEntry(record: PluginRecord): PluginEntry {
   };
 }
 
+/**
+ * The actionable host-incompatibility message for a declared `roubo` range, or
+ * null when there is no incompatibility to report (issue #719).
+ *
+ * Returns null when the range is absent, is not a range node-semver can parse,
+ * or is one this host satisfies. That "null means carry on" shape is what lets
+ * the strict-parse failure path consult it without becoming a way to smuggle an
+ * unknown key past validation: a manifest this host is in range for still falls
+ * through to the schema error it produces today.
+ *
+ * This runs after the plugin is already on disk. Marking an incompatible
+ * marketplace listing BEFORE it is downloaded needs the range on the catalog
+ * entry, which is #720.
+ */
+function incompatibleRangeMessage(declared: string | undefined): string | null {
+  if (declared === undefined) return null;
+  if (!semver.validRange(declared)) return null;
+  if (semver.satisfies(HOST_API_VERSION, declared, { includePrerelease: false })) return null;
+  return `Plugin requires roubo "${declared}" but host is ${HOST_API_VERSION}`;
+}
+
 interface BuiltEntry {
   /** The map key under which this entry should be stored (manifest.id when valid, dir name otherwise). */
   idForMap: string;
@@ -576,10 +597,22 @@ async function buildEntryFromDir(
 
   const parsed = parseManifest(manifestFile.text, manifestFile.path);
   if (!parsed.ok) {
-    const record = makeRecord(fallbackId, null, manifestFile.path, pluginDir, source, "invalid", {
-      code: "invalid-manifest",
-      message: parsed.error.message,
-    });
+    // Issue #719: the manifest schema is `.strict()`, so a host that predates a
+    // manifest field fails here on the unrecognized key and never reaches the
+    // range check below. The declared `roubo` range exists to describe exactly
+    // that host, so when it excludes this one, the exclusion is the real reason
+    // the parse failed and is what gets reported. Anything this host is in range
+    // for still fails the strict parse as before.
+    const rangeError = incompatibleRangeMessage(parsed.error.declaredRoubo);
+    const record = rangeError
+      ? makeRecord(fallbackId, null, manifestFile.path, pluginDir, source, "incompatible", {
+          code: "incompatible-host",
+          message: rangeError,
+        })
+      : makeRecord(fallbackId, null, manifestFile.path, pluginDir, source, "invalid", {
+          code: "invalid-manifest",
+          message: parsed.error.message,
+        });
     return { idForMap: fallbackId, manifest: null, entry: makeEmptyEntry(record) };
   }
 
@@ -601,7 +634,8 @@ async function buildEntryFromDir(
     return { idForMap: manifest.id, manifest, entry: makeEmptyEntry(record) };
   }
 
-  if (!semver.satisfies(HOST_API_VERSION, manifest.roubo, { includePrerelease: false })) {
+  const incompatible = incompatibleRangeMessage(manifest.roubo);
+  if (incompatible) {
     const record = makeRecord(
       manifest.id,
       manifest,
@@ -611,7 +645,7 @@ async function buildEntryFromDir(
       "incompatible",
       {
         code: "incompatible-host",
-        message: `Plugin requires roubo "${manifest.roubo}" but host is ${HOST_API_VERSION}`,
+        message: incompatible,
       },
     );
     return { idForMap: manifest.id, manifest, entry: makeEmptyEntry(record) };

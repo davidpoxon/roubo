@@ -400,6 +400,85 @@ describe("discovery", () => {
   });
 });
 
+describe("an unknown manifest key is reported against the declared roubo range (issue #719)", () => {
+  const UNKNOWN_KEY = "somethingThisHostDoesNotKnow";
+
+  function manifestWithUnknownKey(id: string, roubo: string): string {
+    return `id: ${id}
+name: Future Plugin
+version: 0.0.0
+description: Declares a field this host does not know
+kind: integration
+roubo: ${roubo}
+entry: ./index.cjs
+${UNKNOWN_KEY}:
+  - /opt/thing
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
+`;
+  }
+
+  async function writePlugin(dir: string, id: string, manifest: string): Promise<void> {
+    const pluginDir = path.join(dir, id);
+    await mkdir(pluginDir, { recursive: true });
+    await writeFile(path.join(pluginDir, "roubo-plugin.yaml"), manifest, "utf8");
+  }
+
+  it("reports incompatible-host naming the required Roubo version, not a zod error", async () => {
+    sandbox = await makeSandbox({});
+    await writePlugin(sandbox.bundledDir, "future", manifestWithUnknownKey("future", "^9.0.0"));
+    mgr = await loadManager();
+    await mgr.initialize();
+    const installed = mgr.listInstalled();
+    expect(installed).toHaveLength(1);
+    const record = installed[0];
+    expect(record.status).toBe("incompatible");
+    expect(record.lastError?.code).toBe("incompatible-host");
+    expect(record.lastError?.message).toBe(
+      `Plugin requires roubo "^9.0.0" but host is ${pluginManager.HOST_API_VERSION}`,
+    );
+    expect(record.lastError?.message).not.toContain(UNKNOWN_KEY);
+    expect(record.pid).toBeNull();
+  });
+
+  it("still fails the strict parse when the host IS in the declared range", async () => {
+    // The range check must not become a way to smuggle an unknown key past
+    // validation: a manifest this host satisfies is rejected exactly as before.
+    sandbox = await makeSandbox({});
+    await writePlugin(sandbox.bundledDir, "in-range", manifestWithUnknownKey("in-range", "^1.0.0"));
+    mgr = await loadManager();
+    await mgr.initialize();
+    const installed = mgr.listInstalled();
+    expect(installed).toHaveLength(1);
+    const record = installed[0];
+    expect(record.status).toBe("invalid");
+    expect(record.lastError?.code).toBe("invalid-manifest");
+    expect(record.lastError?.message).toContain(UNKNOWN_KEY);
+  });
+
+  it("leaves the record shape unchanged for a manifest that already parses", async () => {
+    // The `incompatible` fixture parses cleanly and reaches the existing range
+    // check, so it keeps a non-null manifest and its manifest-declared id.
+    sandbox = await makeSandbox({ bundled: ["incompatible"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const record = findRecord(mgr.listInstalled(), "incompatible");
+    expect(record.status).toBe("incompatible");
+    expect(record.manifest).not.toBeNull();
+    expect(record.manifest?.id).toBe("incompatible");
+    expect(record.lastError).toEqual({
+      code: "incompatible-host",
+      message: `Plugin requires roubo "^2.0.0" but host is ${pluginManager.HOST_API_VERSION}`,
+    });
+  });
+});
+
 // Clean break (issue davidpoxon/roubo-development#310 / #621, CPHM-FR-008 /
 // NFR-005): the app no longer ships or discovers a bundled plugin source dir,
 // and the first-run SEED channel was retired. First-party plugins install from

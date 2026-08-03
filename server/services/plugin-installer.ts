@@ -134,6 +134,27 @@ async function rmStaging(stagingDir: string): Promise<void> {
   }
 }
 
+/**
+ * The actionable host-incompatibility message for a declared `roubo` range, or
+ * null when there is no incompatibility to report (issue #719).
+ *
+ * Mirrors the discovery-path helper of the same name in plugin-manager. It lives
+ * here rather than being imported from there because the host version it reads
+ * is `pluginManager.HOST_API_VERSION`, resolved per call, which is the seam the
+ * installer already compares against in `assertCompatible`.
+ *
+ * Returns null when the range is absent, is not a range node-semver can parse,
+ * or is one this host satisfies, so a manifest this host is in range for still
+ * fails the strict parse exactly as it does today.
+ */
+function incompatibleRangeMessage(declared: string | undefined): string | null {
+  if (declared === undefined) return null;
+  if (!semver.validRange(declared)) return null;
+  const host = pluginManager.HOST_API_VERSION;
+  if (semver.satisfies(host, declared, { includePrerelease: false })) return null;
+  return `Plugin requires roubo "${declared}" but host is ${host}`;
+}
+
 async function readStagingManifest(stagingDir: string): Promise<PluginManifest> {
   for (const filename of ["roubo-plugin.yaml", "roubo-plugin.yml"]) {
     const candidate = resolveWithin(stagingDir, filename);
@@ -141,6 +162,15 @@ async function readStagingManifest(stagingDir: string): Promise<PluginManifest> 
       const text = await readFile(candidate, "utf8");
       const parsed = parseManifest(text, candidate);
       if (!parsed.ok) {
+        // Issue #719: the manifest schema is `.strict()`, so a host that predates
+        // a manifest field fails here on the unrecognized key and never reaches
+        // `assertCompatible`. When the declared `roubo` range excludes this host,
+        // that exclusion is the real reason the parse failed, so it is reported
+        // with the same actionable message `assertCompatible` would have used.
+        const rangeError = incompatibleRangeMessage(parsed.error.declaredRoubo);
+        if (rangeError) {
+          throw new InstallError("incompatible-host", rangeError);
+        }
         throw new InstallError("invalid-manifest", parsed.error.message);
       }
       return parsed.manifest;
@@ -161,15 +191,9 @@ function assertCompatible(manifest: PluginManifest): void {
       `Manifest "roubo" field is not a valid semver range: ${manifest.roubo}`,
     );
   }
-  if (
-    !semver.satisfies(pluginManager.HOST_API_VERSION, manifest.roubo, {
-      includePrerelease: false,
-    })
-  ) {
-    throw new InstallError(
-      "incompatible-host",
-      `Plugin requires roubo "${manifest.roubo}" but host is ${pluginManager.HOST_API_VERSION}`,
-    );
+  const incompatible = incompatibleRangeMessage(manifest.roubo);
+  if (incompatible) {
+    throw new InstallError("incompatible-host", incompatible);
   }
 }
 

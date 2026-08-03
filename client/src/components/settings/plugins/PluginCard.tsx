@@ -177,6 +177,17 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         </div>
       )}
 
+      {/* An incompatible record with NO manifest: the manifest declared a key this
+          host does not know, so the strict parse never produced one and the host
+          reported the declared range instead (issue #719). There is no range to
+          hand IncompatibleBanner, but lastError.message already names the required
+          Roubo version, so it is rendered rather than left silent. */}
+      {plugin.status === "incompatible" && !plugin.manifest && plugin.lastError && (
+        <div className="mt-3">
+          <InvalidBanner message={plugin.lastError.message} />
+        </div>
+      )}
+
       {plugin.status === "invalid" && plugin.lastError && (
         <div className="mt-3">
           <InvalidBanner message={plugin.lastError.message} />
