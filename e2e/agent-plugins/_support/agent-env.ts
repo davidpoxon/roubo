@@ -376,16 +376,6 @@ export async function waitForAvailableAgents(
   throw new Error(`Agents never became available: expected ${pluginIds.join(", ")}; saw ${seen}`);
 }
 
-/** Write an agent's application-level defaults (the layer under every launch). */
-export async function setAgentConfig(
-  request: APIRequestContext,
-  pluginId: string,
-  config: Record<string, unknown>,
-): Promise<void> {
-  const res = await request.put(`/api/agents/${pluginId}/config`, { data: { config } });
-  expect(res.status(), `PUT /api/agents/${pluginId}/config`).toBe(200);
-}
-
 /**
  * Create a PROJECT jig, optionally bound to an agent (AP-FR-006).
  *
