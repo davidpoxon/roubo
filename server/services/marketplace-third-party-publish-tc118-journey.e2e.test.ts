@@ -460,7 +460,10 @@ beforeEach(async () => {
 });
 
 describe("AP-TC-118: a third-party agent plugin is published, listed, and installed", () => {
-  it("S001: the published @roubo SDK exposes the agent definition entry point and the agent contract types", async () => {
+  // AP-TC-119 S001 makes the same claim about the published SDK surface (the
+  // agent contract types and the definition entry point are exported), so this
+  // row corroborates both cases rather than being duplicated under its own id.
+  it("S001: the published @roubo SDK exposes the agent definition entry point and the agent contract types (AP-TC-119)", async () => {
     const pkg = JSON.parse(await readFile(path.join(SDK_DIR, "package.json"), "utf8")) as {
       name: string;
       private?: boolean;

@@ -46,15 +46,82 @@ function agent(over: Partial<AgentPluginState> = {}): AgentPluginState {
   };
 }
 
+/**
+ * The four closed-choice params the shipped Codex plugin declares, in the
+ * `oneOf: [{ const, title }]` spelling its manifest uses (copied from
+ * roubo-plugins/plugins/codex/roubo-plugin.yaml). AP-TC-106 is about this
+ * specific form persisting, so the fixture has to be the real shape rather
+ * than the two-property generic one `agent()` returns.
+ */
+function codexAgent(over: Partial<AgentPluginState> = {}): AgentPluginState {
+  const choice = (title: string, branches: [string, string][]) => ({
+    type: "string",
+    title,
+    oneOf: branches.map(([c, t]) => ({ const: c, title: t })),
+  });
+  return {
+    id: "codex-cli",
+    name: "Codex CLI",
+    version: "0.2.0",
+    configSchema: {
+      type: "object",
+      properties: {
+        model: choice("Model", [
+          ["gpt-5.2-codex", "GPT-5.2 Codex"],
+          ["gpt-5.1-codex", "GPT-5.1 Codex"],
+        ]),
+        effort: choice("Reasoning effort", [
+          ["low", "Low"],
+          ["medium", "Medium"],
+          ["high", "High"],
+        ]),
+        approvalPolicy: choice("Approval policy", [
+          ["untrusted", "Untrusted"],
+          ["on-request", "On request"],
+          ["never", "Never"],
+        ]),
+        sandbox: choice("Sandbox", [
+          ["read-only", "Read only"],
+          ["workspace-write", "Workspace write"],
+        ]),
+      },
+    },
+    config: {},
+    unavailable: null,
+    ...over,
+  };
+}
+
 function childOf<T extends Element>(container: HTMLElement, selector: string): T {
   const found = container.querySelector<T>(selector);
   if (!found) throw new Error(`No ${selector} inside ${container.dataset.testid ?? "container"}`);
   return found;
 }
 
-async function pickModel(user: ReturnType<typeof userEvent.setup>, label: string) {
-  await user.click(childOf<HTMLButtonElement>(screen.getByTestId("config-field-model"), "button"));
+async function pickOption(user: ReturnType<typeof userEvent.setup>, key: string, label: string) {
+  await user.click(childOf<HTMLButtonElement>(screen.getByTestId(`config-field-${key}`), "button"));
   await user.click(await screen.findByRole("option", { name: label }));
+}
+
+async function pickModel(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await pickOption(user, "model", label);
+}
+
+/**
+ * The value a config select is actually SHOWING. `config-field-*` also contains
+ * react-aria's hidden native <select>, which carries every option in the schema,
+ * so asserting text content over the whole container matches any option label
+ * whether or not it is the selected one. These two read the selection itself:
+ * the hidden select's value, and the trigger's visible label.
+ */
+function selectedValue(key: string): string {
+  const field = screen.getByTestId(`config-field-${key}`);
+  return childOf<HTMLSelectElement>(field, '[data-testid="hidden-select-container"] select').value;
+}
+
+function selectedLabel(key: string): string {
+  const field = screen.getByTestId(`config-field-${key}`);
+  return childOf<HTMLElement>(field, "button > span").textContent ?? "";
 }
 
 beforeEach(() => {
@@ -213,5 +280,48 @@ describe("AgentConfigForm", () => {
 
     expect(saves["claude-code"]).toEqual([{ note: "claude-a" }]);
     expect(saves["codex-cli"]).toEqual([{ note: "codex-b" }]);
+  });
+
+  it("confirms the save and reads the four Codex selects back on reopen (AP-TC-106)", async () => {
+    const user = userEvent.setup();
+    const saves: Record<string, Record<string, unknown>[]> = {};
+    stubSave(saves);
+
+    const { unmount } = render(<AgentConfigForm agent={codexAgent()} />);
+
+    await pickOption(user, "model", "GPT-5.2 Codex");
+    await pickOption(user, "effort", "Medium");
+    await pickOption(user, "approvalPolicy", "On request");
+    await pickOption(user, "sandbox", "Workspace write");
+    await user.click(screen.getByTestId("agent-config-save-codex-cli"));
+
+    // S001-O01: the save is confirmed in the form.
+    expect(screen.getByText("Saved.")).toBeInTheDocument();
+    expect(saves["codex-cli"]).toEqual([
+      {
+        model: "gpt-5.2-codex",
+        effort: "medium",
+        approvalPolicy: "on-request",
+        sandbox: "workspace-write",
+      },
+    ]);
+
+    // S002-O01: reopening the form (a fresh mount over the persisted config, which
+    // is what expanding the card again does) shows all four saved values, not the
+    // schema defaults.
+    unmount();
+    render(<AgentConfigForm agent={codexAgent({ config: saves["codex-cli"][0] })} />);
+
+    expect(selectedValue("model")).toBe("gpt-5.2-codex");
+    expect(selectedValue("effort")).toBe("medium");
+    expect(selectedValue("approvalPolicy")).toBe("on-request");
+    expect(selectedValue("sandbox")).toBe("workspace-write");
+    // ...and the user sees the saved choice, not the "Select an item" placeholder.
+    expect(selectedLabel("model")).toBe("GPT-5.2 Codex");
+    expect(selectedLabel("effort")).toBe("Medium");
+    expect(selectedLabel("approvalPolicy")).toBe("On request");
+    expect(selectedLabel("sandbox")).toBe("Workspace write");
+    // Nothing is dirty on reopen: the rendered values ARE the saved ones.
+    expect(screen.getByTestId("agent-config-save-codex-cli")).toBeDisabled();
   });
 });
