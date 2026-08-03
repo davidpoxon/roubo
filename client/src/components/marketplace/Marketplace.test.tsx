@@ -61,6 +61,7 @@ function listing(over: Partial<MarketplaceListing> = {}): MarketplaceListing {
     declaredPermissions: null,
     lifecycle: null,
     agentCompatibility: null,
+    hostCompatibility: null,
     sourceId: FIRST_PARTY_SOURCE_ID,
     ...over,
   };
@@ -557,6 +558,86 @@ describe("Marketplace catalog", () => {
       expect(
         screen.queryByTestId("marketplace-drawer-agent-compatibility"),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  // Issue #720: a listing whose declared `roubo` range excludes the running host
+  // is marked incompatible pre-install, naming the required Roubo version, and
+  // offers no install affordance. The verdict is server-derived
+  // (`hostCompatibility`); the client renders it and suppresses the action.
+  describe("host-incompatible listings (issue #720)", () => {
+    const INCOMPATIBLE = listing({
+      id: "future-plugin",
+      name: "Future Plugin",
+      hostCompatibility: { declaredRange: "^9.0.0", hostVersion: "1.5.0" },
+    });
+
+    it("marks the card incompatible and names the required Roubo version", () => {
+      setCatalog([INCOMPATIBLE]);
+      render(<Marketplace />);
+      const card = screen.getByTestId("marketplace-card");
+      const pill = within(card).getByTestId("marketplace-card-incompatible");
+      expect(pill).toHaveTextContent("^9.0.0");
+      expect(pill).toHaveAccessibleName(/requires Roubo \^9\.0\.0 but this host is 1\.5\.0/i);
+    });
+
+    it("offers no install affordance on an incompatible card", () => {
+      setCatalog([INCOMPATIBLE]);
+      render(<Marketplace />);
+      const card = screen.getByTestId("marketplace-card");
+      expect(within(card).queryByTestId("marketplace-card-install")).not.toBeInTheDocument();
+      expect(within(card).queryByTestId("marketplace-card-update")).not.toBeInTheDocument();
+      expect(within(card).getByTestId("marketplace-card-incompatible-action")).toBeInTheDocument();
+    });
+
+    it("suppresses the Update affordance too when an installed copy is out of range", () => {
+      setCatalog([
+        listing({
+          ...INCOMPATIBLE,
+          installed: true,
+          installedVersion: "1.0.0",
+          updateAvailable: true,
+        }),
+      ]);
+      render(<Marketplace />);
+      const card = screen.getByTestId("marketplace-card");
+      expect(within(card).queryByTestId("marketplace-card-update")).not.toBeInTheDocument();
+      expect(within(card).getByTestId("marketplace-card-incompatible-action")).toBeInTheDocument();
+    });
+
+    it("leaves a compatible listing exactly as it was: no mark, install offered", () => {
+      setCatalog([listing({ id: "future-plugin", hostCompatibility: null })]);
+      render(<Marketplace />);
+      const card = screen.getByTestId("marketplace-card");
+      expect(within(card).queryByTestId("marketplace-card-incompatible")).not.toBeInTheDocument();
+      expect(within(card).getByTestId("marketplace-card-install")).toBeInTheDocument();
+    });
+
+    it("marks the drawer and withholds its install button", async () => {
+      setCatalog([INCOMPATIBLE]);
+      const user = userEvent.setup();
+      render(<Marketplace />);
+      await user.click(screen.getByTestId("marketplace-card-detail"));
+      await waitFor(() => {
+        expect(screen.getByTestId("marketplace-drawer")).toBeInTheDocument();
+      });
+      const row = screen.getByTestId("marketplace-drawer-incompatible");
+      expect(row).toHaveTextContent("requires ^9.0.0");
+      expect(row).toHaveTextContent("host is 1.5.0");
+      expect(screen.queryByTestId("marketplace-drawer-install")).not.toBeInTheDocument();
+      expect(screen.getByTestId("marketplace-drawer-incompatible-action")).toBeInTheDocument();
+    });
+
+    it("omits the drawer incompatibility row for a compatible entry", async () => {
+      setCatalog([listing({ hostCompatibility: null })]);
+      const user = userEvent.setup();
+      render(<Marketplace />);
+      await user.click(screen.getByTestId("marketplace-card-detail"));
+      await waitFor(() => {
+        expect(screen.getByTestId("marketplace-drawer")).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId("marketplace-drawer-incompatible")).not.toBeInTheDocument();
+      expect(screen.getByTestId("marketplace-drawer-install")).toBeInTheDocument();
     });
   });
 

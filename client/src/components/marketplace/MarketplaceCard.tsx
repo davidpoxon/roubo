@@ -27,6 +27,13 @@ const STRINGS = {
   floorPrefix: "floor",
   ceilingPrefix: "tested <=",
   compatibilityUndeclared: "compatibility not declared",
+  // The host-range incompatibility mark (issue #720). Names the required Roubo
+  // version, so the card says WHY the plugin cannot be installed rather than just
+  // that it cannot.
+  incompatiblePill: "Incompatible",
+  incompatibleLabel: (range: string, host: string) =>
+    `Incompatible: this plugin requires Roubo ${range} but this host is ${host}.`,
+  incompatibleAction: "Incompatible",
   collisionPill: (count: number) => `Served by ${count} sources`,
   // Names every contributing source, so the collision is legible from the card
   // without opening anything (CPHMTP-TC-033 S001-O02).
@@ -55,6 +62,39 @@ function CollisionPill({ sourceLabels }: { sourceLabels: string[] }) {
     >
       <AlertTriangle size={11} aria-hidden className="shrink-0" />
       <span className="truncate">{STRINGS.collisionPill(sourceLabels.length)}</span>
+    </span>
+  );
+}
+
+/**
+ * The pre-install host-incompatibility pill (issue #720). Rendered from the
+ * server-derived `hostCompatibility`, whose presence IS the verdict: the client
+ * evaluates no semver range of its own, so the mark and the server's install
+ * refusal cannot disagree.
+ *
+ * Red like the collision pill and for the same reason: this is a blocked action,
+ * not provenance. The install affordance is suppressed alongside it, so the card
+ * never offers a download that the server would refuse anyway.
+ */
+function IncompatiblePill({
+  incompatibility,
+}: {
+  incompatibility: NonNullable<MarketplaceListing["hostCompatibility"]>;
+}) {
+  return (
+    <span
+      data-testid="marketplace-card-incompatible"
+      data-declared-range={incompatibility.declaredRange}
+      aria-label={STRINGS.incompatibleLabel(
+        incompatibility.declaredRange,
+        incompatibility.hostVersion,
+      )}
+      className="inline-flex items-center gap-1 rounded-full border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 text-[10px] font-medium text-red-800 dark:text-red-300"
+    >
+      <AlertTriangle size={11} aria-hidden className="shrink-0" />
+      <span className="truncate">
+        {STRINGS.incompatiblePill} · requires {incompatibility.declaredRange}
+      </span>
     </span>
   );
 }
@@ -150,6 +190,13 @@ export default function MarketplaceCard({
 }: Props) {
   const showInstalled = listing.installed && !listing.updateAvailable;
   const isCollision = listing.collision !== undefined;
+  // Issue #720: this host is outside the range the plugin declared. The mark
+  // replaces BOTH install affordances (Install and Update), since the server
+  // refuses both before it downloads anything and offering either would be an
+  // action that cannot succeed. It does not replace the Installed badge: a plugin
+  // already on the machine is still installed, and that state offers no action to
+  // suppress.
+  const incompatibility = listing.hostCompatibility;
 
   return (
     <article
@@ -178,6 +225,7 @@ export default function MarketplaceCard({
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <ProvenanceBadge provenance={listingProvenance(listing, sourceLabel)} />
             {isCollision && <CollisionPill sourceLabels={collisionSourceLabels} />}
+            {incompatibility !== null && <IncompatiblePill incompatibility={incompatibility} />}
           </div>
         </div>
       </div>
@@ -212,7 +260,23 @@ export default function MarketplaceCard({
           )}
         </div>
 
-        {listing.updateAvailable ? (
+        {showInstalled ? (
+          <span
+            data-testid="marketplace-card-installed"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 px-3 py-1.5 text-[12px] font-medium text-green-800 dark:text-green-300"
+          >
+            <Check size={14} /> {STRINGS.installed}
+          </span>
+        ) : incompatibility !== null ? (
+          // Non-interactive: there is no action to take. The pill above already
+          // names the range, so this states the outcome without repeating it.
+          <span
+            data-testid="marketplace-card-incompatible-action"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-1.5 text-[12px] font-medium text-red-800 dark:text-red-300"
+          >
+            <AlertTriangle size={14} aria-hidden /> {STRINGS.incompatibleAction}
+          </span>
+        ) : listing.updateAvailable ? (
           <Button
             data-testid="marketplace-card-update"
             onPress={() => onUpdate(listing)}
@@ -220,13 +284,6 @@ export default function MarketplaceCard({
           >
             <RefreshCw size={14} /> {STRINGS.update}
           </Button>
-        ) : showInstalled ? (
-          <span
-            data-testid="marketplace-card-installed"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 px-3 py-1.5 text-[12px] font-medium text-green-800 dark:text-green-300"
-          >
-            <Check size={14} /> {STRINGS.installed}
-          </span>
         ) : (
           <Button
             data-testid="marketplace-card-install"

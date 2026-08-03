@@ -325,6 +325,16 @@ export type MarketplaceKind = "component" | "integration" | "agent";
  * non-agent entry's canonical bytes are unchanged). `null` is admitted only so
  * `MarketplaceListing` can narrow the same property to its always-present
  * `MarketplaceAgentCompatibility | null` projection and stay assignable here.
+ *
+ * `roubo` is the AUTHOR-DECLARED host semver range the plugin's manifest carries
+ * (issue #720), so a listing this host is out of range for can be marked
+ * incompatible and have its install action refused BEFORE any artifact is
+ * downloaded. Same trust class and same optionality as `agentCompatibility`: it
+ * rides on the (unsigned, for a third-party source) payload, so a hostile source
+ * can declare a trivially-satisfied range, which is accepted because this gate
+ * only ever ADDS a refusal and the post-download check (issue #719) remains
+ * authoritative. A catalog build emits the key only when the manifest declares
+ * one, so an entry without it behaves exactly as before.
  */
 export interface MarketplaceCatalogEntry {
   id: string;
@@ -340,6 +350,7 @@ export interface MarketplaceCatalogEntry {
   revoked?: boolean;
   verified: boolean;
   agentCompatibility?: MarketplaceAgentCompatibility | null;
+  roubo?: string;
 }
 
 /**
@@ -419,6 +430,21 @@ export type MarketplaceAgentCompatibility = Pick<
 >;
 
 /**
+ * A listing whose declared `roubo` range EXCLUDES the running host (issue #720).
+ * Carries just enough to say so without the client re-implementing semver: the
+ * range the plugin declared and the host version it was evaluated against.
+ *
+ * Its presence is the verdict. `MarketplaceListing.hostCompatibility` is null in
+ * every other case (compatible, undeclared, or a range node-semver cannot parse),
+ * so the card and the drawer have one branch to render and cannot disagree with
+ * the server-side install gate that shares the derivation.
+ */
+export interface MarketplaceHostIncompatibility {
+  declaredRange: string;
+  hostVersion: string;
+}
+
+/**
  * A catalog entry annotated with the consumer's local install state. Returned
  * by `GET /api/marketplace/plugins`. `installed` reflects whether a plugin with
  * this id is present in `listInstalled()`; `installedVersion` is its on-disk
@@ -459,9 +485,20 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // "compatibility not declared" fallback from (AP-TC-121), so an unreachable
   // manifest and an undeclared window read the same rather than one of them
   // rendering an empty row.
+  //
+  // `hostCompatibility` is the HOST-range verdict (issue #720), derived here on
+  // the server from the entry's declared `roubo` range against this host's API
+  // version. Non-null means this host is out of range, so the card and the drawer
+  // mark the listing incompatible and render no install affordance; null means
+  // compatible, undeclared, or a range node-semver cannot parse, all of which
+  // behave exactly as they did before the field existed. The evaluation lives
+  // server-side deliberately: it shares one derivation with the pre-download
+  // install refusal, so the UI mark and the API gate can never disagree, and the
+  // client never re-implements range logic.
   declaredPermissions: PluginPermissions | null;
   lifecycle: PluginLifecycle | null;
   agentCompatibility: MarketplaceAgentCompatibility | null;
+  hostCompatibility: MarketplaceHostIncompatibility | null;
   // The id of the marketplace source this entry came from: `FIRST_PARTY_SOURCE_ID`
   // for the built-in catalog, otherwise the registered source's generated id
   // (CPHMTP-FR-004, issue #557). Every listing carries exactly one, so the card

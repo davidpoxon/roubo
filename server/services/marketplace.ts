@@ -8,6 +8,7 @@ import type {
   MarketplaceAgentCompatibility,
   MarketplaceCatalogEntry,
   MarketplaceCatalogSource,
+  MarketplaceHostIncompatibility,
   MarketplaceKind,
   MarketplaceListing,
   MarketplaceSource,
@@ -245,6 +246,32 @@ function entryAgentWindow(entry: MarketplaceCatalogEntry): MarketplaceAgentCompa
   return window.minVersion === undefined && window.testedCeiling === undefined ? null : window;
 }
 
+/**
+ * The HOST-range verdict for a catalog entry (issue #720): non-null when the
+ * range the plugin declared EXCLUDES this host, null in every other case.
+ *
+ * One derivation feeds both enforcement points, the pre-install mark on the card
+ * / drawer and the pre-download refusal in `assertServable()`, so the UI and the
+ * API gate cannot disagree about whether a listing is installable.
+ *
+ * Three inputs all collapse to null and behave exactly as before the field
+ * existed: an entry declaring no range (every catalog published before #720), a
+ * range this host satisfies, and a range node-semver cannot parse. A malformed
+ * declaration is deliberately NOT a hard error here: refusing an install over a
+ * value nobody can evaluate would delist a plugin on a typo, so it degrades to
+ * the post-download `incompatible-host` check (#719), which still sees the real
+ * manifest and still refuses.
+ */
+function hostIncompatibility(
+  entry: MarketplaceCatalogEntry,
+): MarketplaceHostIncompatibility | null {
+  const declared = entry.roubo;
+  if (declared === undefined || !semver.validRange(declared)) return null;
+  const hostVersion = pluginManager.HOST_API_VERSION;
+  if (semver.satisfies(hostVersion, declared, { includePrerelease: false })) return null;
+  return { declaredRange: declared, hostVersion };
+}
+
 function annotate(
   entry: MarketplaceCatalogEntry,
   sourceId: string,
@@ -312,6 +339,12 @@ function annotate(
     declaredPermissions,
     lifecycle,
     agentCompatibility,
+    // The pre-download host-range verdict (issue #720). Derived from the entry's
+    // own declaration rather than a manifest, deliberately: the whole point is to
+    // mark a listing before anything is fetched, and `readEntryManifest()` reaches
+    // nothing for the published, release-sourced, not-yet-installed entry this
+    // exists for.
+    hostCompatibility: hostIncompatibility(entry),
     // Per-entry provenance (CPHMTP-FR-004, issue #557): stamped from the client
     // that returned the entry, never read off the entry itself.
     sourceId,
@@ -735,6 +768,20 @@ function assertServable(candidate: InstallCandidate, id: string): InstallCandida
     throw new pluginInstaller.InstallError(
       "marketplace-unreachable",
       `Can't install "${id}" while the marketplace is unreachable. Already-installed plugins remain available; new installs resume when the marketplace is reachable again.`,
+    );
+  }
+  // The entry declares a host range this Roubo is outside (issue #720). Refuse
+  // here, before any artifact is fetched or staged, so a plugin the card already
+  // marks incompatible cannot be installed by calling the API directly. The
+  // message is the same wording the post-download check (#719) produces, so the
+  // two paths read identically; that check stays in place and remains the
+  // authority for an entry the catalog did not pre-mark (a stale catalog, or an
+  // entry that simply never declared a range).
+  const incompatible = hostIncompatibility(candidate.entry);
+  if (incompatible !== null) {
+    throw new pluginInstaller.InstallError(
+      "incompatible-host",
+      `Plugin requires roubo "${incompatible.declaredRange}" but host is ${incompatible.hostVersion}`,
     );
   }
   return candidate;

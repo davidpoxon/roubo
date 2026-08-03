@@ -98,6 +98,8 @@ The manifest is validated by [`schema/roubo-plugin.schema.json`](../schema/roubo
 
 `host.fetch` to a host outside `network.hosts` is rejected with a structured error before any DNS lookup. `host.credentials.get/set` to a slot not declared in `permissions.credentials.slots` is rejected before the keyring is touched.
 
+`roubo` is enforced twice, and the first check happens before anything is downloaded. The catalog build copies your declared range onto the published catalog entry, so a host outside it marks your **marketplace listing** incompatible, names the range you require, and offers no Install or Update action at all. The install API refuses the same entry with `incompatible-host` for a caller that skips the UI. The second check is the one that has always been there: the host re-reads the range off the real manifest after staging and refuses again, which is what still catches a plugin an older or stale catalog never marked. Keep the range as wide as your plugin genuinely supports; an unnecessarily narrow one now costs you the Install button on hosts that would have run you fine.
+
 ### Default integration config
 
 `defaultIntegrationConfig` ships plugin-global defaults that become the base layer of the host's three-layer effective-config merge (plugin defaults < per-project < per-source). The host reads it at manifest load and exposes it through the `/integration` config endpoints; the user can override any value in the Configure dialog.
