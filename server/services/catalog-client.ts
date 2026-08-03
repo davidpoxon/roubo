@@ -715,6 +715,26 @@ const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
     integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
     verified: true,
   },
+  {
+    // AP-TC-115 (#534): the agent-kind listing the marketplace-install-to-launch
+    // drift guard reads. Its `directory` points at the bundled overlay, so
+    // `readEntryManifest` enriches the listing with that manifest's declared
+    // compatibility window (floor 0.9.0, tested <= 1.2.3), which is the line
+    // S002 observes on the card.
+    id: "gemini-cli",
+    name: "Gemini CLI",
+    kind: "agent",
+    version: "0.1.0",
+    summary: "Run benches on the Gemini AI coding agent.",
+    source: {
+      type: "git",
+      url: "https://github.com/davidpoxon/roubo.git",
+      directory: "e2e/fixtures/bundled-overlays/gemini-cli",
+    },
+    provenance: "roubo/plugins@gemini-cli",
+    integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+    verified: true,
+  },
 ];
 
 interface E2EReachabilitySeam {

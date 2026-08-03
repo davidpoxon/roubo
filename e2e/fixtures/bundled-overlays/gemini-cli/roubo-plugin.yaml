@@ -1,0 +1,92 @@
+id: gemini-cli
+name: Gemini CLI
+version: 0.1.0
+description: E2E overlay that installs a third agent plugin during Playwright runs, so AP-TC-115 can walk the marketplace-listing to configured-launch journey against a real agent-kind listing rather than a fixtured one. Not for production.
+kind: agent
+roubo: ^1.0.0
+entry: ./index.mjs
+contractVersion: 1
+# OPT-IN, not ambient. Every POST /test/__reset forces this id disabled, via
+# OPT_IN_AGENT_FIXTURE_PLUGIN_IDS in server/routes/test.ts, for the same reason
+# the sibling codex-cli overlay is force-disabled: consent has no revoke route
+# and outlives both the reset and the server process, so the enable ledger is
+# the only lever that stops a spec which consented this agent from leaving an
+# EXTRA available agent behind. "Exactly one available agent" is a resolution
+# fallback several specs depend on (AP-TC-087, NFR-018). A spec that wants this
+# overlay enables it (POST /api/plugins/gemini-cli/enable) and hands it back
+# disabled.
+#
+# The window below is NOT re-based on a shipped plugin, because no Gemini agent
+# plugin exists in roubo-plugins/plugins/ yet. It reproduces AP-TC-115 S002's
+# worked example verbatim (floor 0.9.0, tested up to 1.2.3) so the marketplace
+# listing renders exactly the compatibility line the case names. Re-base it on
+# the real manifest whenever a Gemini plugin ships, and keep the stub's version
+# (e2e/fixtures/bin/roubo-e2e-gemini-stub) inside the window so the card and the
+# pre-launch gate both resolve `within-tested-range`.
+#
+# The probe names the e2e stub rather than `gemini`, for the same reason neither
+# sibling stub is named after its real CLI: `resolveShellPath()` prepends
+# `~/.local/bin`, so a real Gemini CLI install on a developer machine would win
+# the PATH lookup and the harness would report that binary's version instead.
+agentCompatibility:
+  minVersion: 0.9.0
+  testedCeiling: 1.2.3
+  probe:
+    command: roubo-e2e-gemini-stub
+    args:
+      - --version
+    parse: semver
+# UNLIKE the sibling codex-cli overlay, this one DOES declare a configSchema:
+# AP-TC-115 S005 asks for "a configuration form rendered from the plugin's
+# schema", so a schema-less overlay would leave that observation undrivable.
+#
+# The property KEYS are deliberately chosen not to collide with the claude-code
+# overlay's (model / effort / mode / extraArgs). The AP-TC-087 guard counts
+# `config-field-<key>` test ids PAGE-WIDE while every agent card mounts its form
+# expanded, so a `model` property here would make that guard read two controls
+# where it expects one and fail on a fixture artefact. The force-disable on every
+# reset is the first protection; these key names are the second, so neither
+# alone has to hold.
+configSchema:
+  type: object
+  properties:
+    modelName:
+      title: Model
+      type: string
+      default: default
+      description: The Gemini model the session runs on. `Account default` sends no model flag and defers to the account setting.
+      oneOf:
+        - const: default
+          title: Account default
+        - const: gemini-2.5-pro
+          title: Gemini 2.5 Pro
+        - const: gemini-2.5-flash
+          title: Gemini 2.5 Flash
+    approval:
+      title: Approval mode
+      type: string
+      default: default
+      description: How much the session confirms before acting. `CLI default` sends no flag and defers to the CLI's own default.
+      oneOf:
+        - const: default
+          title: CLI default
+        - const: auto-edit
+          title: Auto edit
+        - const: yolo
+          title: Skip confirmations
+    cliArgs:
+      title: Additional CLI arguments
+      type: string
+      description: Free-form extra arguments appended after the generated flags, split on whitespace into discrete argv tokens.
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  # An agent plugin must declare `processes: false`; the descriptor is its only
+  # write route (PluginManifestSchema enforces this for kind: agent).
+  processes: false
+  ports: false
+  docker: false
