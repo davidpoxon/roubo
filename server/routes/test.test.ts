@@ -102,6 +102,11 @@ vi.mock("../services/state.js", () => ({
   // Default to an empty state; tests that assert the merge override loadState.
   loadState: vi.fn(() => ({ benches: [] })),
   saveState: vi.fn(),
+  // #530: the seam /test/__seed-legacy-agent-settings writes through, plus the
+  // reader the route echoes back so the response reports the resulting state
+  // rather than the requested one.
+  writeLegacyAgentSettings: vi.fn(),
+  hasLegacyAgentSettings: vi.fn(() => true),
 }));
 
 vi.mock("../services/integration-overrides.js", () => ({
@@ -588,6 +593,108 @@ describe("POST /test/__seed-notice", () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("disk full");
     expect(consoleSpy).toHaveBeenCalledWith("/test/__seed-notice failed:", "disk full");
+    consoleSpy.mockRestore();
+  });
+});
+
+// #530: plant (or remove) the retired built-in agent preferences block, the one
+// signal that an install is an upgrade (AP-FR-021). The AP-TC-102 journey opens
+// on that precondition and nothing in the product writes the block any more, so
+// this route is the only way to reach it (and the only way to hand it back).
+describe("POST /test/__seed-legacy-agent-settings", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).post("/test/__seed-legacy-agent-settings");
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(state.writeLegacyAgentSettings).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when ROUBO_E2E is set to a value other than '1'", async () => {
+    process.env.ROUBO_E2E = "true";
+
+    const res = await request(app).post("/test/__seed-legacy-agent-settings");
+
+    expect(res.status).toBe(404);
+    expect(state.writeLegacyAgentSettings).not.toHaveBeenCalled();
+  });
+
+  it("seeds the upgrade precondition when no body is sent", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__seed-legacy-agent-settings");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ present: true });
+    expect(state.writeLegacyAgentSettings).toHaveBeenCalledWith({
+      autoMode: true,
+      planMode: true,
+    });
+  });
+
+  it("writes the supplied block verbatim", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__seed-legacy-agent-settings")
+      .send({ settings: { autoMode: false } });
+
+    expect(res.status).toBe(200);
+    expect(state.writeLegacyAgentSettings).toHaveBeenCalledWith({ autoMode: false });
+  });
+
+  it("removes the block when settings is null, and reports it absent", async () => {
+    process.env.ROUBO_E2E = "1";
+    vi.mocked(state.hasLegacyAgentSettings).mockReturnValueOnce(false);
+
+    const res = await request(app)
+      .post("/test/__seed-legacy-agent-settings")
+      .send({ settings: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ present: false });
+    expect(state.writeLegacyAgentSettings).toHaveBeenCalledWith(null);
+  });
+
+  it("returns 400 when settings is not an object", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__seed-legacy-agent-settings")
+      .send({ settings: "auto" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/object or null/);
+    expect(state.writeLegacyAgentSettings).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when settings is an array", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__seed-legacy-agent-settings")
+      .send({ settings: ["autoMode"] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/object or null/);
+    expect(state.writeLegacyAgentSettings).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 and logs when the write throws", async () => {
+    process.env.ROUBO_E2E = "1";
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(state.writeLegacyAgentSettings).mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+
+    const res = await request(app).post("/test/__seed-legacy-agent-settings");
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("disk full");
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "/test/__seed-legacy-agent-settings failed:",
+      "disk full",
+    );
     consoleSpy.mockRestore();
   });
 });
