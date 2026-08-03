@@ -425,10 +425,18 @@ test("AP-TC-024: save an app-level agent tool preset and launch it from the benc
       ? menu.getByTestId("launch-preset-__absent__")
       : agentToolsGroup.getByTestId(`launch-preset-${presetId}`);
   const presetItemCount = await presetItem.count();
-  expect(
-    presetItemCount,
-    `"${PRESET_NAME}" is listed under "${AGENT_TOOLS_SECTION}" in the launch menu (owning slice: #${SLICE.presets.issue})`,
-  ).toBe(1);
+  // Routed through the observer rather than a bare `expect`: a preset missing
+  // from the launch menu is the likeliest S004 failure, and it is a divergence
+  // of this step, so its failure has to name the step the way every other
+  // observation here does (FR-020). The observer throws on a false `ok` exactly
+  // as `expect` did, so the click below stays unreachable on failure.
+  observe(
+    STEPS.S004,
+    "S004-O01",
+    presetItemCount === 1,
+    `"${PRESET_NAME}" is listed once under "${AGENT_TOOLS_SECTION}" in the launch menu`,
+    `rows=${presetItemCount}`,
+  );
 
   // Unlink first so the argv read below can only be this launch's.
   clearCapturedArgv();
@@ -468,7 +476,7 @@ test("AP-TC-024: save an app-level agent tool preset and launch it from the benc
   );
   observe(
     STEPS.S004,
-    "S004-O01",
+    "S004-O02",
     live !== undefined &&
       argv !== null &&
       sessionIdIndex >= 0 &&
@@ -494,7 +502,7 @@ test("AP-TC-024: save an app-level agent tool preset and launch it from the benc
   const expectedTabText = (live?.label ?? "").split(" - ")[0];
   observe(
     STEPS.S004,
-    "S004-O02",
+    "S004-O03",
     tabCount === 1 && expectedTabText !== "" && tabText === expectedTabText,
     `the tab bar gains exactly one session tab, labelled ${JSON.stringify(expectedTabText === "" ? `${CLAUDE_AGENT_NAME} 1` : expectedTabText)} for the session the preset launched`,
     `session tabs=${tabCount}, text=${JSON.stringify(tabText)}, launched session label=${JSON.stringify(live?.label ?? null)}`,
