@@ -212,6 +212,14 @@ test("AP-TC-057: adding a rule and re-syncing writes the mapped rules into every
   page,
   request,
 }) => {
+  // Four steps across two surfaces, each guarded by a tolerated wait of up to
+  // 15s, so the default 30s budget is not the thing under test. Without this the
+  // accumulated waits on a real divergence would blow the budget before
+  // `observe` runs, and the failure would arrive as an unattributed Playwright
+  // timeout rather than the FR-020 block the unit's failure-output criterion
+  // requires.
+  test.setTimeout(180_000);
+
   const workspacePaths = await readWorkspacePaths(request);
 
   // --- S001: the table renders the existing allow, ask and deny rules -------
