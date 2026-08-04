@@ -1734,10 +1734,13 @@ export interface ResolvedAgentPreset {
   jig?: string;
   unresolved?: { reason: AgentPresetUnresolvedReason; message: string };
   /**
-   * Advisory only: a built-in preset resolved cleanly but is not doing what its
-   * name promises, because the bound agent's `configSchema` rejected keys it
-   * sets and the built-in dropped them rather than dying (issue #654,
-   * `withValidatedParams`). `droppedParams` names those keys.
+   * Advisory only: the preset resolved cleanly but is not doing what its name
+   * promises, because the bound agent's `configSchema` refused or never
+   * declared keys it sets and those keys were dropped rather than the preset
+   * dying (issues #654 and #743, `withValidatedParams`). `droppedParams` names
+   * those keys. A built-in degrades on any such key; a preset that binds the
+   * default agent also degrades on a key the schema never declares, whatever
+   * its source, because switching the default is what caused the mismatch.
    *
    * Deliberately a sibling of `unresolved` rather than a reason inside it: a
    * degraded preset is still launchable, so this field must never gate

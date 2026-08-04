@@ -17,7 +17,11 @@ import {
   type ResolvedAgent,
 } from "./agent-plugin-registry.js";
 import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
-import { validateAgentConfig } from "./agent-config-validator.js";
+import {
+  unexpectedPropertyMessage,
+  unknownConfigKeys,
+  validateAgentConfig,
+} from "./agent-config-validator.js";
 import { getEffectiveAgentConfig } from "./agent-overrides.js";
 import { mergeAgentConfig } from "./agent-project-overrides.js";
 
@@ -158,6 +162,25 @@ function unavailable(
  *    and `project` presets keep the hard rejection, because a user can actually
  *    edit those.
  *
+ * 3. A key the agent's schema never DECLARES is a third case, and it is routed
+ *    by binding rather than by source (issue #743). Such a key raises no Ajv
+ *    error at all on the shipped manifests, which set no `additionalProperties`,
+ *    so it used to survive validation and reach an agent that drops it on the
+ *    floor, unreported. It is now reported like any other rejected key, but a
+ *    preset that binds `default` degrades on it WHATEVER its source, rather than
+ *    only when it is a built-in. The mismatch there was caused by switching the
+ *    default agent, an action taken elsewhere, not by the preset author writing
+ *    something wrong, so hard-rejecting would disable a `roubo.yaml` tool that
+ *    launches today over a change its author never made. A preset pinned to a
+ *    named agent keeps the hard rejection: its author chose the agent and the
+ *    param together, so the pair is theirs to fix.
+ *
+ *    This widening is deliberately confined to the undeclared-key case. A key
+ *    the schema refuses OUTRIGHT (a bad value, or an unknown key under
+ *    `additionalProperties: false`) still routes by source exactly as carve-out
+ *    2 describes, because there the plugin author stated a rule and the preset
+ *    author broke it.
+ *
  *    Degrading deliberately stops at the dropped keys: an error the drop leaves
  *    behind ON one of them is swallowed, because plain `Agent` sets no params at
  *    all and so skips validation entirely, and holding `Agent (Plan)` to a
@@ -176,24 +199,38 @@ function withValidatedParams(
   preset: AgentToolPreset,
   agent: ResolvedAgent,
 ): ResolvedAgentPreset {
+  // Held as a local as well as on `resolved`, where the field is optional and so
+  // reads back as `string | undefined` however it was assigned.
+  const agentName = agent.manifest.name ?? agent.pluginId;
   const resolved: ResolvedAgentPreset = {
     ...base,
     agentPluginId: agent.pluginId,
-    resolvedAgentName: agent.manifest.name ?? agent.pluginId,
+    resolvedAgentName: agentName,
   };
 
   const params = preset.params ?? {};
   if (Object.keys(params).length === 0) return resolved;
 
+  // Which keys this preset may degrade on rather than die for, per carve-outs 2
+  // and 3 above: everything for a built-in, plus any key the agent's schema
+  // never declares when the preset binds `default`, whatever its source.
+  const undeclared = new Set(unknownConfigKeys(agent.manifest, Object.keys(params)));
+  const isDroppable = (key: string): boolean =>
+    base.source === "builtin" || (base.bindsDefaultAgent && undeclared.has(key));
+
   let overlay = params;
   let errors = presetParamErrors(agent, overlay);
   let droppedParams: string[] = [];
 
-  if (errors.length > 0 && base.source === "builtin") {
+  if (errors.length > 0) {
     // A root-level error (`path === ""`) names no key, so there is nothing to
-    // drop for it; such a built-in stays surfaced rather than degrading.
+    // drop for it; such a preset stays surfaced rather than degrading. A key
+    // this preset may not degrade on is left in place for the same reason: it
+    // falls through to the hard rejection below.
     const rejected = new Set(
-      errors.map((err) => err.path.split(".")[0] ?? "").filter((key) => key !== ""),
+      errors
+        .map((err) => err.path.split(".")[0] ?? "")
+        .filter((key) => key !== "" && isDroppable(key)),
     );
     if (rejected.size > 0) {
       overlay = Object.fromEntries(Object.entries(params).filter(([key]) => !rejected.has(key)));
@@ -216,7 +253,7 @@ function withValidatedParams(
       ...(droppedParams.length > 0 && {
         degraded: {
           droppedParams,
-          message: `Agent tool "${preset.name}" drops ${droppedParams.join(", ")}, which ${resolved.resolvedAgentName} does not accept, so it launches as a plain agent.`,
+          message: degradedMessage(preset.name, agentName, droppedParams, overlay),
         },
       }),
     };
@@ -233,20 +270,56 @@ function withValidatedParams(
 }
 
 /**
+ * The advisory a degraded preset carries.
+ *
+ * A built-in only ever carries the params it hardcodes, so dropping them leaves
+ * nothing behind and "launches as a plain agent" says exactly what happened
+ * (issue #665). A user-authored preset that degrades on an undeclared key can
+ * keep other params the agent does accept (issue #743), and calling that a plain
+ * agent would understate what still applies, so it reports the drop alone.
+ */
+function degradedMessage(
+  presetName: string,
+  agentName: string,
+  droppedParams: string[],
+  remaining: Record<string, unknown>,
+): string {
+  const dropped = `Agent tool "${presetName}" drops ${droppedParams.join(", ")}, which ${agentName} does not accept,`;
+  return Object.keys(remaining).length === 0
+    ? `${dropped} so it launches as a plain agent.`
+    : `${dropped} so that part of its configuration does not apply.`;
+}
+
+/**
  * The errors an overlay of `params` over the agent's app-level config produces,
  * narrowed to the keys the overlay actually sets. A defect inherited from the
  * app-level config is surfaced by the AI Agents form that owns it, not by
  * disabling every preset bound to the agent.
+ *
+ * Ajv answers only for the keys a `configSchema` explicitly refuses, and the
+ * bundled agent plugins leave `additionalProperties` unset, so a key their
+ * schema merely omits used to validate clean and be passed through to an agent
+ * that ignores it (issue #743). `unknownConfigKeys` supplies that second,
+ * conservative signal, folded in here as the same `ConfigFieldError` shape so
+ * the routing above treats both the same way. Deduped by path, because a schema
+ * that does close `additionalProperties` must still report each key once.
  */
 function presetParamErrors(
   agent: ResolvedAgent,
   params: Record<string, unknown>,
 ): ConfigFieldError[] {
   const effective = mergeAgentConfig(getEffectiveAgentConfig(agent.pluginId), params);
-  return validateAgentConfig(agent.manifest, effective).filter((err) => {
+  const errors = validateAgentConfig(agent.manifest, effective).filter((err) => {
     const [root = ""] = err.path.split(".");
     return err.path === "" || root in params;
   });
+
+  const reported = new Set(errors.map((err) => err.path));
+  const undeclared = unknownConfigKeys(agent.manifest, Object.keys(params))
+    .filter((key) => !reported.has(key))
+    .map((key) => ({ path: key, message: unexpectedPropertyMessage(key) }));
+
+  return [...errors, ...undeclared];
 }
 
 /** The app-level presets the editor saved, or an empty list. */

@@ -110,6 +110,61 @@ function errorPath(issue: ErrorObject): string {
   return segments.join(".");
 }
 
+/** The message an unexpected top-level config key reports, from either path. */
+export function unexpectedPropertyMessage(key: string): string {
+  return `Unexpected property '${key}'`;
+}
+
+// Root keywords that can widen a schema's accepted key set beyond its own
+// `properties`, so a key missing from `properties` may still be legitimate.
+// Any one of them present makes the "closed by omission" reading unsafe.
+const KEY_SET_WIDENING_KEYWORDS = [
+  "patternProperties",
+  "$ref",
+  "$dynamicRef",
+  "oneOf",
+  "anyOf",
+  "allOf",
+  "not",
+  "if",
+  "then",
+  "else",
+  "dependentSchemas",
+];
+
+/**
+ * The subset of `keys` that `manifest.configSchema` gives no way to accept
+ * (issue #743).
+ *
+ * Ajv only errors on an unknown key when the schema sets
+ * `additionalProperties: false`, but a manifest that simply lists its
+ * `properties` and stops (which is what the bundled agent plugins do) is
+ * equally definite about the keys it understands: anything else is dropped on
+ * the floor by the plugin's own `translateLaunch`. Callers that must report a
+ * key the agent will ignore need that second, weaker signal.
+ *
+ * Deliberately conservative, because a false positive here rejects config a
+ * plugin would have honoured. It reports nothing unless the root schema lists
+ * `properties`, says nothing about `additionalProperties`, and uses none of the
+ * composition keywords that could declare the key elsewhere. When the schema
+ * does set `additionalProperties`, this returns nothing either way: `false`
+ * belongs to Ajv (`validateAgentConfig` already reports it, and reporting it
+ * twice would double-count), and `true` or a subschema means the key is
+ * accepted.
+ */
+export function unknownConfigKeys(manifest: PluginManifest, keys: string[]): string[] {
+  const schema = manifest.configSchema;
+  if (!schema) return [];
+  if (schema.additionalProperties !== undefined) return [];
+
+  const properties = schema.properties;
+  if (typeof properties !== "object" || properties === null || Array.isArray(properties)) return [];
+  if (KEY_SET_WIDENING_KEYWORDS.some((keyword) => keyword in schema)) return [];
+
+  const declared = properties as Record<string, unknown>;
+  return keys.filter((key) => !(key in declared));
+}
+
 function ajvMessage(issue: ErrorObject): string {
   // AP-TC-011: an out-of-enum value must name the field's allowed values, not
   // just say "must be equal to one of the allowed values".
@@ -121,7 +176,7 @@ function ajvMessage(issue: ErrorObject): string {
     issue.keyword === "additionalProperties" &&
     typeof issue.params?.additionalProperty === "string"
   ) {
-    return `Unexpected property '${issue.params.additionalProperty}'`;
+    return unexpectedPropertyMessage(issue.params.additionalProperty);
   }
   return issue.message ?? "Invalid value";
 }
