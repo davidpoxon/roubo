@@ -8,7 +8,7 @@
 // echoing the manifest back, which is what AP-TC-113 S002-O01 asks for: floor,
 // tested ceiling, and a detected version that came from probing something.
 //
-// Deliberately NOT named `codex`: `resolveShellPath()` prepends `~/.local/bin`
+// Deliberately NOT named `codex`: `importLoginShellEnv()` prepends `~/.local/bin`
 // to the server's PATH, so a real Codex install on a developer machine would win
 // the lookup and the screen would report that binary's version instead.
 //

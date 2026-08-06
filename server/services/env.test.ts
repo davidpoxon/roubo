@@ -33,6 +33,16 @@ function mockFs(tree: { files?: string[]; dirs?: string[]; executable?: string[]
   }) as typeof fs.accessSync);
 }
 
+/**
+ * Renders `env -0` output: NUL-terminated KEY=VALUE records, which is what
+ * importLoginShellEnv() parses. Values may contain newlines.
+ */
+function envOutput(vars: Record<string, string>): string {
+  return Object.entries(vars)
+    .map(([key, value]) => `${key}=${value}\0`)
+    .join("");
+}
+
 describe("cleanEnv", () => {
   const originalEnv = process.env;
 
@@ -180,7 +190,7 @@ describe("loadEnvFile", () => {
   });
 });
 
-describe("resolveShellPath", () => {
+describe("importLoginShellEnv", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -194,56 +204,143 @@ describe("resolveShellPath", () => {
 
   it("merges login shell paths with existing PATH, prepending new entries", async () => {
     process.env.PATH = "/usr/bin:/bin";
-    vi.mocked(execFileSync).mockReturnValue("/usr/local/bin:/usr/bin:/bin\n");
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    vi.mocked(execFileSync).mockReturnValue(envOutput({ PATH: "/usr/local/bin:/usr/bin:/bin" }));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     // /usr/local/bin is new: prepended; /usr/bin and /bin already present: not duplicated
     expect(process.env.PATH).toBe("/usr/local/bin:/usr/bin:/bin");
   });
 
   it("preserves launch-environment paths not in the login shell PATH", async () => {
     process.env.PATH = "/launch/shim:/usr/bin";
-    vi.mocked(execFileSync).mockReturnValue("/usr/local/bin:/usr/bin\n");
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    vi.mocked(execFileSync).mockReturnValue(envOutput({ PATH: "/usr/local/bin:/usr/bin" }));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     // /usr/local/bin prepended; /launch/shim kept at end
     expect(process.env.PATH).toBe("/usr/local/bin:/launch/shim:/usr/bin");
   });
 
+  it("merges PATH by the bespoke rule rather than gap-filling it", async () => {
+    // PATH is always already set, so the gap-fill rule the other variables use
+    // would skip it outright: it must keep its own merge.
+    process.env.PATH = "/usr/bin";
+    vi.mocked(execFileSync).mockReturnValue(
+      envOutput({ PATH: "/opt/homebrew/bin:/usr/bin", EDITOR: "vim" }),
+    );
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(process.env.PATH).toBe("/opt/homebrew/bin:/usr/bin");
+  });
+
+  it("imports a variable present only in the login shell environment", async () => {
+    delete process.env.ROUBO_TEST_SHELL_ONLY;
+    vi.mocked(execFileSync).mockReturnValue(
+      envOutput({ PATH: "/usr/bin", ROUBO_TEST_SHELL_ONLY: "from-profile" }),
+    );
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(process.env.ROUBO_TEST_SHELL_ONLY).toBe("from-profile");
+  });
+
+  it("does not overwrite a variable already set in process.env", async () => {
+    process.env.ROUBO_E2E = "1";
+    vi.mocked(execFileSync).mockReturnValue(
+      envOutput({ PATH: "/usr/bin", ROUBO_E2E: "from-profile" }),
+    );
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(process.env.ROUBO_E2E).toBe("1");
+  });
+
+  it("keeps a value containing a newline intact", async () => {
+    delete process.env.ROUBO_TEST_MULTILINE;
+    vi.mocked(execFileSync).mockReturnValue(
+      envOutput({ ROUBO_TEST_MULTILINE: "line one\nline two", PATH: "/usr/bin" }),
+    );
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(process.env.ROUBO_TEST_MULTILINE).toBe("line one\nline two");
+    expect(process.env.PATH).toContain("/usr/bin");
+  });
+
+  it("ignores output that is not a KEY=VALUE record", async () => {
+    delete process.env.ROUBO_TEST_SWALLOWED;
+    delete process.env.ROUBO_TEST_AFTER_NOISE;
+    // A profile that prints to stdout has no NUL after its banner, so the banner
+    // runs into the FIRST record and takes it down: that record's key is no
+    // longer a plain variable name, so it is dropped. Every later record, having
+    // its own NUL boundary, still imports.
+    vi.mocked(execFileSync).mockReturnValue(
+      `welcome to your shell\n${envOutput({
+        ROUBO_TEST_SWALLOWED: "lost",
+        ROUBO_TEST_AFTER_NOISE: "ok",
+      })}`,
+    );
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    // The mangled key is what the reject branch actually drops. Asserting on
+    // ROUBO_TEST_SWALLOWED alone would pass even with the guard removed, since
+    // the banner renames the variable either way.
+    expect(process.env["welcome to your shell\nROUBO_TEST_SWALLOWED"]).toBeUndefined();
+    expect(process.env.ROUBO_TEST_SWALLOWED).toBeUndefined();
+    expect(process.env.ROUBO_TEST_AFTER_NOISE).toBe("ok");
+  });
+
   it("uses SHELL env var to determine the shell", async () => {
     process.env.SHELL = "/bin/bash";
-    vi.mocked(execFileSync).mockReturnValue("/usr/local/bin:/usr/bin\n");
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    vi.mocked(execFileSync).mockReturnValue(envOutput({ PATH: "/usr/local/bin:/usr/bin" }));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(execFileSync).toHaveBeenCalledWith(
       "/bin/bash",
-      ["-lc", 'echo "$PATH"'],
+      ["-lc", "env -0"],
+      expect.objectContaining({ encoding: "utf-8" }),
+    );
+  });
+
+  it("runs zsh interactively so ~/.zshrc exports are seen", async () => {
+    process.env.SHELL = "/bin/zsh";
+    vi.mocked(execFileSync).mockReturnValue(envOutput({ PATH: "/usr/bin" }));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(execFileSync).toHaveBeenCalledWith(
+      "/bin/zsh",
+      ["-ilc", "env -0"],
       expect.objectContaining({ encoding: "utf-8" }),
     );
   });
 
   it("falls back to /bin/sh when SHELL is not set", async () => {
     delete process.env.SHELL;
-    vi.mocked(execFileSync).mockReturnValue("/usr/bin:/bin\n");
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    vi.mocked(execFileSync).mockReturnValue(envOutput({ PATH: "/usr/bin:/bin" }));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(execFileSync).toHaveBeenCalledWith("/bin/sh", expect.any(Array), expect.any(Object));
   });
 
-  it("skips resolution when SHELL points to fish", async () => {
+  it("imports through fish too, since `env -0` output is NUL-separated for every shell", async () => {
     process.env.SHELL = "/usr/local/bin/fish";
-    process.env.PATH = "/original/path";
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
-    expect(execFileSync).not.toHaveBeenCalled();
-    expect(process.env.PATH).toBe("/original/path");
+    process.env.PATH = "/usr/bin";
+    delete process.env.ROUBO_TEST_FISH_ONLY;
+    vi.mocked(execFileSync).mockReturnValue(
+      envOutput({ PATH: "/opt/fish/bin:/usr/bin", ROUBO_TEST_FISH_ONLY: "yes" }),
+    );
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(execFileSync).toHaveBeenCalledWith(
+      "/usr/local/bin/fish",
+      ["-lc", "env -0"],
+      expect.objectContaining({ encoding: "utf-8" }),
+    );
+    expect(process.env.PATH).toBe("/opt/fish/bin:/usr/bin");
+    expect(process.env.ROUBO_TEST_FISH_ONLY).toBe("yes");
   });
 
   it("sets PATH from shell when PATH is initially undefined", async () => {
     delete process.env.PATH;
-    vi.mocked(execFileSync).mockReturnValue("/usr/local/bin:/usr/bin\n");
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    vi.mocked(execFileSync).mockReturnValue(envOutput({ PATH: "/usr/local/bin:/usr/bin" }));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe("/usr/local/bin:/usr/bin");
   });
 
@@ -253,33 +350,44 @@ describe("resolveShellPath", () => {
     vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error("spawn failed");
     });
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe("/original/path");
   });
 
-  it("logs a warn message when shell resolution fails and ROUBO_QUIET is not set", async () => {
+  it("imports nothing when the shell command throws", async () => {
+    process.env.ROUBO_QUIET = "1";
+    delete process.env.ROUBO_TEST_SHELL_ONLY;
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error("spawn failed");
+    });
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(process.env.ROUBO_TEST_SHELL_ONLY).toBeUndefined();
+  });
+
+  it("logs a warn message when the import fails and ROUBO_QUIET is not set", async () => {
     delete process.env.ROUBO_QUIET;
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error("spawn failed");
     });
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(warnSpy).toHaveBeenCalledWith(
-      "resolveShellPath: could not resolve login-shell PATH:",
+      "importLoginShellEnv: could not import the login-shell environment:",
       expect.any(Error),
     );
   });
 
-  it("does not log when shell resolution fails and ROUBO_QUIET is set", async () => {
+  it("does not log when the import fails and ROUBO_QUIET is set", async () => {
     process.env.ROUBO_QUIET = "1";
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error("spawn failed");
     });
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
@@ -289,21 +397,21 @@ describe("resolveShellPath", () => {
     vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error("spawn failed");
     });
-    const { resolveShellPath } = await import("./env.js");
-    expect(() => resolveShellPath()).not.toThrow();
+    const { importLoginShellEnv } = await import("./env.js");
+    expect(() => importLoginShellEnv()).not.toThrow();
     expect(process.env.PATH).toBeUndefined();
   });
 
-  it("does not update PATH when the shell returns an empty string", async () => {
+  it("does not update PATH when the shell returns no output", async () => {
     process.env.PATH = "/original/path";
-    vi.mocked(execFileSync).mockReturnValue("   \n");
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    vi.mocked(execFileSync).mockReturnValue("");
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe("/original/path");
   });
 });
 
-describe("resolveShellPath well-known CLI dirs", () => {
+describe("importLoginShellEnv well-known CLI dirs", () => {
   const originalEnv = { ...process.env };
   const originalPlatform = process.platform;
 
@@ -326,8 +434,8 @@ describe("resolveShellPath well-known CLI dirs", () => {
     vi.mocked(fs.existsSync).mockImplementation(
       (p) => p === "/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
     );
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe(
       "/usr/bin:/bin:/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
     );
@@ -337,8 +445,8 @@ describe("resolveShellPath well-known CLI dirs", () => {
     Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
     process.env.PATH = "/usr/bin:/bin";
     vi.mocked(fs.existsSync).mockReturnValue(false);
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe("/usr/bin:/bin");
   });
 
@@ -348,8 +456,8 @@ describe("resolveShellPath well-known CLI dirs", () => {
     vi.mocked(fs.existsSync).mockImplementation(
       (p) => p === "/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
     );
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe(
       "/usr/bin:/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
     );
@@ -361,8 +469,8 @@ describe("resolveShellPath well-known CLI dirs", () => {
     vi.mocked(fs.existsSync).mockImplementation(
       (p) => p === "/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
     );
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe("/usr/bin:/bin");
   });
 
@@ -370,8 +478,8 @@ describe("resolveShellPath well-known CLI dirs", () => {
     Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
     process.env.PATH = "/usr/bin:/bin";
     vi.mocked(fs.existsSync).mockImplementation((p) => p === `${os.homedir()}/.local/bin`);
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe(`${os.homedir()}/.local/bin:/usr/bin:/bin`);
   });
 
@@ -379,8 +487,8 @@ describe("resolveShellPath well-known CLI dirs", () => {
     Object.defineProperty(process, "platform", { value: "linux", configurable: true });
     process.env.PATH = "/usr/bin:/bin";
     vi.mocked(fs.existsSync).mockImplementation((p) => p === `${os.homedir()}/.local/bin`);
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe(`${os.homedir()}/.local/bin:/usr/bin:/bin`);
   });
 
@@ -388,8 +496,8 @@ describe("resolveShellPath well-known CLI dirs", () => {
     Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
     process.env.PATH = `${os.homedir()}/.local/bin:/usr/bin:/bin`;
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe(
       `${os.homedir()}/.local/bin:/usr/bin:/bin:/Applications/Visual Studio Code.app/Contents/Resources/app/bin`,
     );
@@ -399,8 +507,8 @@ describe("resolveShellPath well-known CLI dirs", () => {
     Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
     process.env.PATH = "/usr/bin:/bin";
     vi.mocked(fs.existsSync).mockReturnValue(false);
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe("/usr/bin:/bin");
   });
 
@@ -408,32 +516,30 @@ describe("resolveShellPath well-known CLI dirs", () => {
     Object.defineProperty(process, "platform", { value: "linux", configurable: true });
     delete process.env.PATH;
     vi.mocked(fs.existsSync).mockImplementation((p) => p === `${os.homedir()}/.local/bin`);
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe(`${os.homedir()}/.local/bin`);
   });
 
-  it("prepends ~/.local/bin for fish shell users (exec skipped, user-local-bin still runs)", async () => {
+  it("prepends ~/.local/bin for fish shell users (import failed, user-local-bin still runs)", async () => {
     Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
     process.env.SHELL = "/usr/local/bin/fish";
     process.env.PATH = "/usr/bin:/bin";
     vi.mocked(fs.existsSync).mockImplementation((p) => p === `${os.homedir()}/.local/bin`);
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
-    expect(execFileSync).not.toHaveBeenCalled();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe(`${os.homedir()}/.local/bin:/usr/bin:/bin`);
   });
 
-  it("appends VS Code CLI dir for fish shell users on darwin (exec skipped, fallback still runs)", async () => {
+  it("appends VS Code CLI dir for fish shell users on darwin (import failed, fallback still runs)", async () => {
     Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
     process.env.SHELL = "/usr/local/bin/fish";
     process.env.PATH = "/usr/bin:/bin";
     vi.mocked(fs.existsSync).mockImplementation(
       (p) => p === "/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
     );
-    const { resolveShellPath } = await import("./env.js");
-    resolveShellPath();
-    expect(execFileSync).not.toHaveBeenCalled();
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
     expect(process.env.PATH).toBe(
       "/usr/bin:/bin:/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
     );

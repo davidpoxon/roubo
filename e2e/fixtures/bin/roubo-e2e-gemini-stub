@@ -8,7 +8,7 @@
 // so AP-TC-115 S007 can open a live PTY session for an agent that is not Claude
 // Code.
 //
-// Deliberately NOT named `gemini`: `resolveShellPath()` prepends `~/.local/bin`
+// Deliberately NOT named `gemini`: `importLoginShellEnv()` prepends `~/.local/bin`
 // to the server's PATH, so a real Gemini CLI install on a developer machine
 // would win the lookup and the harness would drive that binary instead.
 //

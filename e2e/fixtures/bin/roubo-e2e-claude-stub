@@ -10,7 +10,7 @@
 // evidence that the extra arguments reached the CLI as separate argv tokens with
 // no shell interpretation (AP-TC-087 S008).
 //
-// Deliberately NOT named `claude`: `resolveShellPath()` prepends `~/.local/bin`
+// Deliberately NOT named `claude`: `importLoginShellEnv()` prepends `~/.local/bin`
 // to the server's PATH, so a real Claude Code install on a developer machine
 // would win the lookup and the guard would silently drive the real CLI.
 //

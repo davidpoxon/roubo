@@ -33,7 +33,7 @@ contractVersion: 1
 # permissions bindings still stay out of index.mjs (see the note there).
 #
 # The probe names the e2e stub rather than `codex`, for the same reason the
-# Claude stub is not named `claude`: `resolveShellPath()` prepends
+# Claude stub is not named `claude`: `importLoginShellEnv()` prepends
 # `~/.local/bin`, so a real Codex install on a developer machine would win the
 # PATH lookup and the card would report that binary's version instead.
 agentCompatibility:

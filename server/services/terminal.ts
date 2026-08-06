@@ -416,7 +416,9 @@ export function createSession(
 
   let ptyProcess;
   try {
-    ptyProcess = pty.spawn(shell, [], {
+    // `-l` makes this a real login shell, so zsh reads /etc/zprofile (and with
+    // it path_helper), ~/.zprofile and ~/.zlogin, matching Terminal.app (#762).
+    ptyProcess = pty.spawn(shell, ["-l"], {
       name: "xterm-256color",
       cols: 80,
       rows: 24,

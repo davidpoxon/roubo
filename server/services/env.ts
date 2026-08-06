@@ -66,47 +66,74 @@ const WELL_KNOWN_CLI_DIRS_DARWIN: string[] = [
   "/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
 ];
 
+/** A shell variable name of the conventional shape, used to reject parse noise. */
+const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 /**
- * Resolves the user's full login shell PATH and merges it into process.env.PATH.
- * This ensures child processes can find commands (e.g. `code`, `brew`) that are
- * only added to PATH via shell profile scripts, which a non-login server process
- * would otherwise not inherit.
- * Also unconditionally prepends ~/.local/bin (the standard user-local binary dir
- * used by native installers such as Claude Code) when it exists on disk, ensuring
- * tools installed there are found even when the user's shell profile does not
- * export it (e.g. GUI Finder/Dock launches, fish shell users).
- * Silently no-ops if shell resolution fails (CI, containers, headless envs).
- * Note: fish shell is not supported (it outputs PATH newline-separated, not
- * colon-separated), so resolution is skipped when SHELL points to fish.
+ * Imports the user's login shell environment into process.env, once at boot.
+ *
+ * A server launched from the Dock or Finder inherits launchd's minimal
+ * environment, so everything the user exports from their shell profile (API
+ * keys, proxy settings, version-manager shims) is missing. Bench terminals and
+ * agent sessions both derive their child environment from process.env, and an
+ * agent CLI is exec'd directly with an argv array (AP-NFR-001), so no shell
+ * runs anywhere in that chain: the import has to happen here, at the server.
+ *
+ * Runs `env -0` through the login shell (via `loginShellScriptArgs`, so zsh is
+ * also interactive and `~/.zshrc` loads) and splits the NUL-separated output,
+ * which keeps values containing newlines intact. An existing process.env value
+ * always wins and the import only fills gaps, matching `loadEnvFile()`'s
+ * "explicit env wins" rule, which is what keeps harness overrides such as
+ * ROUBO_E2E working.
+ *
+ * PATH is exempt from that gap-fill rule (it is always already set, so the rule
+ * would skip it outright) and keeps its own merge: login-shell entries not
+ * already present are prepended, preserving any paths injected by the launch
+ * environment. ~/.local/bin (the standard user-local binary dir used by native
+ * installers such as Claude Code) is then prepended when it exists on disk, and
+ * the well-known macOS GUI CLI dirs appended, so tools installed there are found
+ * even when the user's profile does not export them.
+ *
+ * Silently no-ops if the shell cannot be run (CI, containers, headless envs).
  */
-export function resolveShellPath(): void {
+export function importLoginShellEnv(): void {
   const shell = getLoginShell();
-  // fish outputs PATH entries newline-separated rather than colon-separated,
-  // which would produce an invalid PATH value: skip the exec for fish only.
-  // The well-known-dirs fallback below still runs for all shells.
-  if (path.basename(shell) !== "fish") {
-    try {
-      const resolved = execFileSync(shell, ["-lc", 'echo "$PATH"'], {
-        timeout: 2000,
-        encoding: "utf-8",
-        stdio: ["ignore", "pipe", "ignore"],
-      }).trim();
-      if (resolved) {
-        // Merge: prepend login-shell paths not already present, preserving any
-        // paths injected by the launch environment (e.g. version manager shims).
-        const existing = process.env.PATH?.split(":") ?? [];
-        const merged = [
-          ...resolved.split(":").filter((p) => p && !existing.includes(p)),
-          ...existing,
-        ];
-        process.env.PATH = merged.join(":");
+  try {
+    const output = execFileSync(shell, loginShellScriptArgs("env -0"), {
+      timeout: 5000,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    let shellPath: string | undefined;
+    for (const entry of output.split("\0")) {
+      const eq = entry.indexOf("=");
+      if (eq <= 0) continue;
+      const key = entry.slice(0, eq);
+      // A profile that prints to stdout prefixes the first entry, so anything
+      // that is not a plain variable name is dropped rather than imported.
+      if (!ENV_KEY_RE.test(key)) continue;
+      const value = entry.slice(eq + 1);
+      if (key === "PATH") {
+        shellPath = value;
+        continue;
       }
-    } catch (err) {
-      // Keep existing PATH if shell resolution fails.
-      // Log at warn level so failures are visible in normal output.
-      if (!process.env.ROUBO_QUIET) {
-        console.warn("resolveShellPath: could not resolve login-shell PATH:", err);
-      }
+      if (!(key in process.env)) process.env[key] = value;
+    }
+    if (shellPath) {
+      // Merge: prepend login-shell paths not already present, preserving any
+      // paths injected by the launch environment (e.g. version manager shims).
+      const existing = process.env.PATH?.split(":") ?? [];
+      const merged = [
+        ...shellPath.split(":").filter((p) => p && !existing.includes(p)),
+        ...existing,
+      ];
+      process.env.PATH = merged.join(":");
+    }
+  } catch (err) {
+    // Keep the existing environment if the shell cannot be run.
+    // Log at warn level so failures are visible in normal output.
+    if (!process.env.ROUBO_QUIET) {
+      console.warn("importLoginShellEnv: could not import the login-shell environment:", err);
     }
   }
 
@@ -121,7 +148,7 @@ export function resolveShellPath(): void {
 
   // Append well-known CLI directories that exist on disk but aren't in PATH yet.
   // These act as a fallback for GUI apps whose CLIs aren't symlinked into PATH.
-  // Runs for all shells (including fish) so the fallback is always available.
+  // Runs even when the import above failed, so the fallback is always available.
   if (process.platform === "darwin") {
     const currentParts = new Set(process.env.PATH?.split(":") ?? []);
     const extras = WELL_KNOWN_CLI_DIRS_DARWIN.filter(
@@ -249,8 +276,8 @@ export class AgentCommandNotFoundError extends Error {
  *    probe, not a reimplementation of execvp's own search.
  * 3. Otherwise the first well-known install location holding an executable file,
  *    so a session launched from an agent plugin finds the CLI on installs whose
- *    PATH the server process never inherits (notably per-user shims, and fish or
- *    GUI launches). The candidates come from the agent plugin's own manifest
+ *    PATH the server process never inherits (notably per-user shims and GUI
+ *    launches). The candidates come from the agent plugin's own manifest
  *    when it declares `agentInstallLocations` (#712), and otherwise from the
  *    legacy basename table in `wellKnownPathsFor`.
  * 4. On a total miss, throws AgentCommandNotFoundError naming every location

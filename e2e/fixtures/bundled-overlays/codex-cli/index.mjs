@@ -36,7 +36,7 @@
 import * as rpc from "vscode-jsonrpc/node";
 
 /**
- * The stub CLI the host spawns. Deliberately NOT `codex`: `resolveShellPath()`
+ * The stub CLI the host spawns. Deliberately NOT `codex`: `importLoginShellEnv()`
  * prepends `~/.local/bin`, so a real Codex install would otherwise win the
  * lookup and the harness would drive the real CLI.
  */

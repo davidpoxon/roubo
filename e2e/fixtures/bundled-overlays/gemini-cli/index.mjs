@@ -22,7 +22,7 @@
 import * as rpc from "vscode-jsonrpc/node";
 
 /**
- * The stub CLI the host spawns. Deliberately NOT `gemini`: `resolveShellPath()`
+ * The stub CLI the host spawns. Deliberately NOT `gemini`: `importLoginShellEnv()`
  * prepends `~/.local/bin`, so a real Gemini CLI install would otherwise win the
  * lookup and the harness would drive the real CLI.
  */

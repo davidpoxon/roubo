@@ -180,7 +180,7 @@ export default defineConfig({
         ROUBO_USER_PLUGINS_DIR: E2E_USER_PLUGINS_DIR,
         ROUBO_BUNDLED_PLUGINS_DIR: E2E_BUNDLED_PLUGINS_DIR,
         // AP-TC-087 (#531): make `roubo-e2e-claude-stub` resolvable, and switch on
-        // its argv capture. `resolveShellPath()` merges the login shell's PATH by
+        // its argv capture. `importLoginShellEnv()` merges the login shell's PATH by
         // prepending only entries this value does not already carry, so the fixture
         // dir survives that merge.
         PATH: [E2E_FIXTURE_BIN_DIR, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter),
