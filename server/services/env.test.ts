@@ -264,15 +264,26 @@ describe("importLoginShellEnv", () => {
   });
 
   it("ignores output that is not a KEY=VALUE record", async () => {
+    delete process.env.ROUBO_TEST_SWALLOWED;
     delete process.env.ROUBO_TEST_AFTER_NOISE;
-    // A profile that prints to stdout prefixes the first record.
+    // A profile that prints to stdout has no NUL after its banner, so the banner
+    // runs into the FIRST record and takes it down: that record's key is no
+    // longer a plain variable name, so it is dropped. Every later record, having
+    // its own NUL boundary, still imports.
     vi.mocked(execFileSync).mockReturnValue(
-      `welcome to your shell\nSOME_BANNER\0${envOutput({ ROUBO_TEST_AFTER_NOISE: "ok" })}`,
+      `welcome to your shell\n${envOutput({
+        ROUBO_TEST_SWALLOWED: "lost",
+        ROUBO_TEST_AFTER_NOISE: "ok",
+      })}`,
     );
     const { importLoginShellEnv } = await import("./env.js");
     importLoginShellEnv();
+    // The mangled key is what the reject branch actually drops. Asserting on
+    // ROUBO_TEST_SWALLOWED alone would pass even with the guard removed, since
+    // the banner renames the variable either way.
+    expect(process.env["welcome to your shell\nROUBO_TEST_SWALLOWED"]).toBeUndefined();
+    expect(process.env.ROUBO_TEST_SWALLOWED).toBeUndefined();
     expect(process.env.ROUBO_TEST_AFTER_NOISE).toBe("ok");
-    expect(process.env.SOME_BANNER).toBeUndefined();
   });
 
   it("uses SHELL env var to determine the shell", async () => {

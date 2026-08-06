@@ -1209,8 +1209,8 @@ describe("agent CLI discovery (#645)", () => {
     writeFileSync(shim, "#!/bin/sh\nexec true\n", { mode: 0o755 });
 
     const original = { PATH: process.env.PATH, SHELL: process.env.SHELL };
-    // An empty PATH plus a fish login shell (whose PATH the server never
-    // resolves) is the install shape from the issue: the command cannot be
+    // An empty PATH plus a shell whose profile never exports the install
+    // directory is the install shape from the issue: the command cannot be
     // found by searching, so the well-known list is the only thing left.
     process.env.PATH = "";
     process.env.SHELL = "/usr/local/bin/fish";

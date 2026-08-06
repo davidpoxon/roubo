@@ -276,8 +276,8 @@ export class AgentCommandNotFoundError extends Error {
  *    probe, not a reimplementation of execvp's own search.
  * 3. Otherwise the first well-known install location holding an executable file,
  *    so a session launched from an agent plugin finds the CLI on installs whose
- *    PATH the server process never inherits (notably per-user shims, and fish or
- *    GUI launches). The candidates come from the agent plugin's own manifest
+ *    PATH the server process never inherits (notably per-user shims and GUI
+ *    launches). The candidates come from the agent plugin's own manifest
  *    when it declares `agentInstallLocations` (#712), and otherwise from the
  *    legacy basename table in `wellKnownPathsFor`.
  * 4. On a total miss, throws AgentCommandNotFoundError naming every location
