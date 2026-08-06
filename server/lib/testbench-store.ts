@@ -126,13 +126,11 @@ function resultsPath(rootPath: string, slug: string): string {
 // result for the spec. Genuine content edits (title, level, preconditions, steps,
 // observations) still change the hash, so real staleness is still detected.
 //
-// The consequence a future reader should plan for: because retiring a case is
-// invisible here, once the gate surface honours the lifecycle block a retired case
-// will stop being unresolved, so a verify gate will be able to move from pending to
-// passed with no staleness prompt at all. The gate surface is what must show
-// lifecycle exclusions explicitly; the hash will not flag them. Today evaluateGate
-// does not read `lifecycle` (a retired case still counts towards the gating set),
-// so only the staleness rung is affected so far.
+// The consequence to keep in mind: because retiring a case is invisible here, and
+// because evaluateGate honours the lifecycle block as of #768, a retired case stops
+// being unresolved and a verify gate can move from pending to passed with no
+// staleness prompt at all. The gate surface is what must show lifecycle exclusions
+// explicitly; the hash will not flag them.
 // Locked by testbench-store.test.ts, testbench-domain.test.ts, and
 // gate-evaluator.test.ts (SATCA-TC-055).
 export function computePlanHash(plan: TestCasesPlan): string {

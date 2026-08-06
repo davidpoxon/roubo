@@ -1221,3 +1221,112 @@ describe("GET /:projectId/gates/:gateId blockedBy uses sibling sign-off state (#
     expect(res.body.blockedBy).toEqual(["WU-GATE-1"]);
   });
 });
+
+// #768: the route is the caller that threads the lifecycle resolution into the
+// pure evaluator (SATCA-FR-012). These cover the wiring, not the rules; the rules
+// themselves are locked in server/lib/gate-evaluator.test.ts.
+describe("GET /:projectId/gates lifecycle-aware evaluation (#768, SATCA-FR-008, SATCA-FR-011)", () => {
+  // A plan fixture that carries the specSlug the resolver scopes bare pointers to
+  // (planAndResults' minimal fixture omits it).
+  function lifecyclePlanAndResults(
+    specSlug: string,
+    cases: Case[],
+    caseResults: Record<string, CaseResult>,
+  ) {
+    return {
+      plan: { specSlug, cases } as never,
+      results: { caseResults, updatedAt: "2026-01-01T00:00:00.000Z" },
+      stale: false,
+      planHash: PLAN_HASH,
+      recovered: false,
+    };
+  }
+
+  function retiredCase(id: string, level: number): Case {
+    return {
+      ...planCase(id, level),
+      lifecycle: { state: "retired", reason: "folded in" },
+    } as never;
+  }
+
+  function supersededCase(id: string, level: number, replacement: string): Case {
+    return { ...planCase(id, level), lifecycle: { state: "superseded", replacement } } as never;
+  }
+
+  it("drops a retired case from the projected gating set and lets the gate pass", () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001", "TC-002"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      lifecyclePlanAndResults("alpha", [planCase("TC-001", 1), retiredCase("TC-002", 1)], {
+        "TC-001": caseResult("passed"),
+        "TC-002": caseResult("not_started"),
+      }) as never,
+    );
+    return request(app)
+      .get("/p1/gates")
+      .then((res) => {
+        expect(res.status).toBe(200);
+        expect(res.body.gates[0].gatingCaseIds).toEqual(["TC-001"]);
+        expect(res.body.gates[0].status).toBe("passed");
+      });
+  });
+
+  it("reads a same-spec supersession through to the replacement's recorded status", () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      lifecyclePlanAndResults(
+        "alpha",
+        [supersededCase("TC-001", 1, "TC-009"), planCase("TC-009", 1)],
+        { "TC-009": caseResult("failed") },
+      ) as never,
+    );
+    return request(app)
+      .get("/p1/gates")
+      .then((res) => {
+        expect(res.status).toBe(200);
+        expect(res.body.gates[0].status).toBe("failed");
+        expect(res.body.gates[0].unresolvedCaseIds).toEqual(["TC-001"]);
+      });
+  });
+
+  it("projects emptyReason so a lifecycle-emptied set is distinguishable from a policy-emptied one", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      lifecyclePlanAndResults("alpha", [retiredCase("TC-001", 1)], {
+        "TC-001": caseResult("passed"),
+      }) as never,
+    );
+    const lifecycleEmptied = await request(app).get("/p1/gates");
+    expect(lifecycleEmptied.body.gates[0].status).toBe("no_gating_cases");
+    expect(lifecycleEmptied.body.gates[0].emptyReason).toBe("lifecycle");
+
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      lifecyclePlanAndResults("alpha", [planCase("TC-001", 4)], {
+        "TC-001": caseResult("passed"),
+      }) as never,
+    );
+    const policyEmptied = await request(app).get("/p1/gates");
+    expect(policyEmptied.body.gates[0].status).toBe("no_gating_cases");
+    expect(policyEmptied.body.gates[0].emptyReason).toBe("policy");
+  });
+
+  it("leaves a gate with a lifecycle-free plan untouched (emptyReason null)", () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-001", 1)], { "TC-001": caseResult("passed") }) as never,
+    );
+    return request(app)
+      .get("/p1/gates")
+      .then((res) => {
+        expect(res.body.gates[0].status).toBe("passed");
+        expect(res.body.gates[0].emptyReason).toBeNull();
+      });
+  });
+});

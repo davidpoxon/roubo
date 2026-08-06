@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { evaluateGate, type VerifyUnit, type GateResults } from "./gate-evaluator.js";
+import {
+  evaluateGate,
+  type VerifyUnit,
+  type GateResults,
+  type GateLifecycle,
+} from "./gate-evaluator.js";
+// The real resolver the evaluator's lifecycle input is produced by (#766), driven
+// here rather than stubbed so the gate and the authoring-time picker are shown to
+// resolve a pointer through the same code (#768).
+import { collectReferencedSlugs, resolvePlan } from "@roubo/shared/lifecycle-resolver";
+import type { ResolverPlan, ResolverSpecLifecycle } from "@roubo/shared/lifecycle-resolver";
 import type {
   BenchResults,
   CaseResult,
@@ -467,5 +477,376 @@ describe("evaluateGate: purity and idempotence (VG-TC-018, VG-NFR-007)", () => {
     evaluateGate(gate, r, PLAN_HASH);
     expect(gate).toEqual(gateSnapshot);
     expect(r).toEqual(resultsSnapshot);
+  });
+});
+
+// ── #768 lifecycle builders (SATCA-FR-008..SATCA-FR-012) ──
+//
+// The evaluator consumes a resolution, never a raw lifecycle block, so these
+// builders drive the REAL `resolvePlan` from @roubo/shared/lifecycle-resolver
+// rather than hand-writing Resolution literals. That keeps these tests honest
+// about the one thing the architecture insists on: the gate and the authoring-time
+// picker resolve a pointer through the same code.
+
+function retired(testCase: Case, reason = "superseded by a broader scenario"): Case {
+  return { ...testCase, lifecycle: { state: "retired", reason } };
+}
+
+function supersededBy(testCase: Case, replacement: string): Case {
+  return { ...testCase, lifecycle: { state: "superseded", replacement } };
+}
+
+function planFor(specSlug: string, cases: Case[]): TestCasesPlan {
+  return {
+    $schema: TEST_CASES_SCHEMA_ID,
+    schemaVersion: TEST_CASES_SCHEMA_VERSION,
+    specSlug,
+    cases,
+  };
+}
+
+// The recorded results of ANOTHER spec, as threaded in through `resultsBySlug`.
+function foreignResults(caseResults: Record<string, CaseResult>): BenchResults {
+  return { caseResults, updatedAt: "2026-01-01T00:00:00.000Z" };
+}
+
+function lifecycleFor(
+  origin: TestCasesPlan,
+  opts: {
+    otherPlans?: TestCasesPlan[];
+    archivedSpecs?: string[];
+    resultsBySlug?: Record<string, BenchResults>;
+  } = {},
+): GateLifecycle {
+  const plans = new Map<string, ResolverPlan>([[origin.specSlug, origin]]);
+  for (const other of opts.otherPlans ?? []) plans.set(other.specSlug, other);
+  const specLifecycles = new Map<string, ResolverSpecLifecycle>(
+    (opts.archivedSpecs ?? []).map((slug) => [slug, { archived: true } as const]),
+  );
+  return {
+    resolutions: resolvePlan(origin, { plans, specLifecycles }),
+    resultsBySlug: new Map(Object.entries(opts.resultsBySlug ?? {})),
+  };
+}
+
+describe("evaluateGate: a retired case leaves the gating set (SATCA-TC-022, SATCA-FR-008)", () => {
+  const declared = ["TC-1", "TC-2", "TC-3", "TC-4"];
+  const recorded = results({
+    "TC-1": caseResult("passed"),
+    "TC-2": caseResult("passed"),
+    "TC-3": caseResult("passed"),
+    "TC-4": caseResult("not_started"),
+  });
+  const live = [
+    planCase("TC-1", 1, "functional"),
+    planCase("TC-2", 1, "functional"),
+    planCase("TC-3", 1, "functional"),
+  ];
+
+  it("the retired case is absent from the effective gating set and the gate passes", () => {
+    const gate = makeGate(declared, ["WU-10"]);
+    const declaredSnapshot = structuredClone(gate.implements.test_case_ids);
+    const p = plan([...live, retired(planCase("TC-4", 1, "functional"))]);
+
+    const state = evaluateGate(gate, recorded, PLAN_HASH, p, lifecycleFor(p));
+
+    // S001-O01: TC-4 is gone from the effective set.
+    expect(state.gatingCaseIds).toEqual(["TC-1", "TC-2", "TC-3"]);
+    expect(state.unresolvedCaseIds).toEqual([]);
+    // S001-O02: the three remaining cases all pass, so the gate passes.
+    expect(state.status).toBe("passed");
+    // S001-O03: nobody edited the work unit's declared case list; the narrowing is
+    // computed, never written back.
+    expect(gate.implements.test_case_ids).toEqual(declaredSnapshot);
+  });
+
+  it("without the lifecycle input the same retired case still gates (pre-#768 behaviour)", () => {
+    const gate = makeGate(declared, ["WU-10"]);
+    const p = plan([...live, retired(planCase("TC-4", 1, "functional"))]);
+    const state = evaluateGate(gate, recorded, PLAN_HASH, p);
+    expect(state.gatingCaseIds).toEqual(declared);
+    expect(state.status).toBe("pending");
+  });
+});
+
+describe("evaluateGate: a superseded case takes its replacement's status (SATCA-TC-023, SATCA-FR-009)", () => {
+  // TC-1 is superseded by TC-9 in the same spec. TC-1 itself has no recorded
+  // result at all, so a gate that ignored the pointer would read it as pending.
+  const p = plan([
+    supersededBy(planCase("TC-1", 1, "functional"), "TC-9"),
+    planCase("TC-9", 1, "functional"),
+  ]);
+
+  it("resolves to the replacement and reports passed", () => {
+    const gate = makeGate(["TC-1"], ["WU-10"]);
+    const state = evaluateGate(
+      gate,
+      results({ "TC-9": caseResult("passed") }),
+      PLAN_HASH,
+      p,
+      lifecycleFor(p),
+    );
+    // S001-O01: the obligation transferred; the declared id is still what the gate
+    // reports gating on, but its status came from TC-9.
+    expect(state.gatingCaseIds).toEqual(["TC-1"]);
+    expect(state.unresolvedCaseIds).toEqual([]);
+    // S001-O02.
+    expect(state.status).toBe("passed");
+  });
+
+  it("reports failed once the replacement later fails", () => {
+    const gate = makeGate(["TC-1"], ["WU-10"]);
+    const state = evaluateGate(
+      gate,
+      results({ "TC-9": caseResult("failed") }),
+      PLAN_HASH,
+      p,
+      lifecycleFor(p),
+    );
+    // S002-O01: the replacement's failure is the gate's failure.
+    expect(state.status).toBe("failed");
+    expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
+  });
+});
+
+describe("evaluateGate: a supersession chain reads the case it lands on (SATCA-TC-079, SATCA-FR-009)", () => {
+  it("reads the third case's status through a two-hop chain", () => {
+    // TC-1 -> TC-2 -> TC-3, where TC-3 is live and passed and TC-1 has no result.
+    const p = plan([
+      supersededBy(planCase("TC-1", 2, "functional"), "TC-2"),
+      supersededBy(planCase("TC-2", 2, "functional"), "TC-3"),
+      planCase("TC-3", 2, "functional"),
+    ]);
+    const gate = makeGate(["TC-1"], ["WU-10"]);
+
+    const state = evaluateGate(
+      gate,
+      results({ "TC-3": caseResult("passed") }),
+      PLAN_HASH,
+      p,
+      lifecycleFor(p),
+    );
+
+    // S001-O01: the third case's status stood in for the superseded case's.
+    expect(state.status).toBe("passed");
+    expect(state.gatingCaseIds).toEqual(["TC-1"]);
+    // S001-O02.
+    expect(state.unresolvedCaseIds).toEqual([]);
+  });
+});
+
+describe("evaluateGate: an unresolvable pointer keeps the gate non-passing (SATCA-TC-028, SATCA-FR-010)", () => {
+  it("a pointer at a case inside an archived spec fails closed", () => {
+    const p = plan([supersededBy(planCase("TC-1", 1, "functional"), "retired-spec:TC-9")]);
+    const target = planFor("retired-spec", [planCase("TC-9", 1, "functional")]);
+    const lifecycle = lifecycleFor(p, {
+      otherPlans: [target],
+      archivedSpecs: ["retired-spec"],
+      // The target's results ARE available; the archived spec is what blocks it,
+      // so a passed target must still not produce a pass.
+      resultsBySlug: { "retired-spec": foreignResults({ "TC-9": caseResult("passed") }) },
+    });
+    const gate = makeGate(["TC-1"], ["WU-10"]);
+
+    // S001-O01: the resolver names the archived target, from the closed six-value
+    // vocabulary the evaluator consumes rather than re-derives.
+    const resolution = lifecycle.resolutions.find((r) => r.origin.caseId === "TC-1");
+    expect(resolution?.status).toBe("unresolved");
+    expect(resolution?.reason).toBe("target archived");
+    expect(resolution?.targetSpecState).toBe("archived");
+
+    const state = evaluateGate(
+      gate,
+      results({ "TC-1": caseResult("passed") }),
+      PLAN_HASH,
+      p,
+      lifecycle,
+    );
+    // S001-O02: the case stays in the gating set as unresolved, so the gate cannot
+    // pass, not even off its own stale recorded pass.
+    expect(state.gatingCaseIds).toEqual(["TC-1"]);
+    expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
+    expect(state.status).toBe("pending");
+  });
+
+  it("a cycle keeps both cases gating and the gate non-passing", () => {
+    const p = plan([
+      supersededBy(planCase("TC-1", 1, "functional"), "TC-2"),
+      supersededBy(planCase("TC-2", 1, "functional"), "TC-1"),
+    ]);
+    const gate = makeGate(["TC-1", "TC-2"], ["WU-10"]);
+    const state = evaluateGate(
+      gate,
+      results({ "TC-1": caseResult("passed"), "TC-2": caseResult("passed") }),
+      PLAN_HASH,
+      p,
+      lifecycleFor(p),
+    );
+    expect(state.status).toBe("pending");
+    expect(state.unresolvedCaseIds).toEqual(["TC-1", "TC-2"]);
+  });
+});
+
+describe("evaluateGate: a cross-spec pointer resolves only when the caller threads the target in (SATCA-TC-029, SATCA-FR-002, SATCA-FR-009)", () => {
+  const origin = plan([supersededBy(planCase("TC-1", 2, "integration"), "spec-b:TC-9")]);
+  const specB = planFor("spec-b", [planCase("TC-9", 2, "integration")]);
+  const gate = makeGate(["TC-1"], ["WU-10"]);
+
+  it("names the other spec through the resolver's referenced-slug collector", () => {
+    // S001-O01: the caller asks the resolver what to load; it does not parse the
+    // pointer itself.
+    expect(collectReferencedSlugs(origin)).toEqual(["spec-b"]);
+  });
+
+  it("resolves and passes once that spec's plan and results are threaded in", () => {
+    const state = evaluateGate(
+      gate,
+      results({}),
+      PLAN_HASH,
+      origin,
+      lifecycleFor(origin, {
+        otherPlans: [specB],
+        resultsBySlug: { "spec-b": foreignResults({ "TC-9": caseResult("passed") }) },
+      }),
+    );
+    // S002-O01 / S002-O02.
+    expect(state.gatingCaseIds).toEqual(["TC-1"]);
+    expect(state.unresolvedCaseIds).toEqual([]);
+    expect(state.status).toBe("passed");
+  });
+
+  it("stays unresolved when the target spec was not supplied", () => {
+    const lifecycle = lifecycleFor(origin);
+    expect(lifecycle.resolutions[0].reason).toBe("target spec not supplied");
+    const state = evaluateGate(gate, results({}), PLAN_HASH, origin, lifecycle);
+    expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
+    expect(state.status).not.toBe("passed");
+  });
+
+  it("stays unresolved when the target spec's plan is supplied but its results are not", () => {
+    // The pointer resolves, but there is no recorded status to read at the
+    // landing. Fail closed rather than treat an absent foreign result as a pass.
+    const state = evaluateGate(
+      gate,
+      results({}),
+      PLAN_HASH,
+      origin,
+      lifecycleFor(origin, { otherPlans: [specB] }),
+    );
+    expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
+    expect(state.status).not.toBe("passed");
+  });
+});
+
+describe("evaluateGate: an emptied gating set names what emptied it (SATCA-TC-031, SATCA-FR-011)", () => {
+  it("a set emptied by lifecycle reports emptyReason 'lifecycle'", () => {
+    const gate = makeGate(["TC-1", "TC-2"], ["WU-10"]);
+    const p = plan([
+      retired(planCase("TC-1", 1, "functional")),
+      retired(planCase("TC-2", 1, "functional")),
+    ]);
+    const state = evaluateGate(
+      gate,
+      results({ "TC-1": caseResult("passed"), "TC-2": caseResult("passed") }),
+      PLAN_HASH,
+      p,
+      lifecycleFor(p),
+    );
+    // S001-O01: an empty gating set, deliberately not a pass.
+    expect(state.status).toBe("no_gating_cases");
+    expect(state.gatingCaseIds).toEqual([]);
+    // S001-O02.
+    expect(state.emptyReason).toBe("lifecycle");
+  });
+
+  it("a set emptied by the level and type policy reports a distinct emptyReason 'policy'", () => {
+    const gate = makeGate(["TC-1", "TC-2"], ["WU-10"]);
+    const p = plan([planCase("TC-1", 3, "functional"), planCase("TC-2", 4, "functional")]);
+    const state = evaluateGate(
+      gate,
+      results({ "TC-1": caseResult("passed"), "TC-2": caseResult("passed") }),
+      PLAN_HASH,
+      p,
+      lifecycleFor(p),
+    );
+    // S002-O01 / S002-O02: same status, different, distinguishable reason.
+    expect(state.status).toBe("no_gating_cases");
+    expect(state.emptyReason).toBe("policy");
+    expect(state.emptyReason).not.toBe("lifecycle");
+  });
+
+  it("a set both rules emptied reports 'mixed' rather than rounding to one rule", () => {
+    const gate = makeGate(["TC-1", "TC-2"], ["WU-10"]);
+    const p = plan([retired(planCase("TC-1", 1, "functional")), planCase("TC-2", 4, "functional")]);
+    const state = evaluateGate(gate, results({}), PLAN_HASH, p, lifecycleFor(p));
+    expect(state.status).toBe("no_gating_cases");
+    expect(state.emptyReason).toBe("mixed");
+  });
+
+  it("a retired out-of-policy case is attributed to lifecycle, whatever the declaration order", () => {
+    // Lifecycle is evaluated before the policy filter so the attribution is
+    // deterministic rather than an accident of ordering.
+    const gate = makeGate(["TC-1"], ["WU-10"]);
+    const p = plan([retired(planCase("TC-1", 4, "functional"))]);
+    const state = evaluateGate(gate, results({}), PLAN_HASH, p, lifecycleFor(p));
+    expect(state.emptyReason).toBe("lifecycle");
+  });
+
+  it("a gate that declared nothing reports emptyReason null (nothing emptied it)", () => {
+    const state = evaluateGate(makeGate([], ["WU-10"]), results({}), PLAN_HASH, plan([]));
+    expect(state.status).toBe("no_gating_cases");
+    expect(state.emptyReason).toBeNull();
+  });
+
+  it("emptyReason is null on every non-empty rung", () => {
+    const gate = makeGate(["TC-1"], ["WU-10"]);
+    const p = plan([planCase("TC-1", 1, "functional")]);
+    expect(
+      evaluateGate(gate, results({ "TC-1": caseResult("passed") }), PLAN_HASH, p).emptyReason,
+    ).toBeNull();
+    expect(
+      evaluateGate(gate, results({ "TC-1": caseResult("failed") }), PLAN_HASH, p).emptyReason,
+    ).toBeNull();
+    expect(evaluateGate(gate, null, PLAN_HASH, p).emptyReason).toBeNull();
+  });
+});
+
+describe("evaluateGate: the lifecycle input stays pure (SATCA-FR-012, VG-NFR-007)", () => {
+  const p = plan([
+    supersededBy(planCase("TC-1", 1, "functional"), "spec-b:TC-9"),
+    retired(planCase("TC-2", 1, "functional")),
+    planCase("TC-3", 1, "functional"),
+  ]);
+  const specB = planFor("spec-b", [planCase("TC-9", 1, "functional")]);
+
+  it("identical inputs yield a deep-equal GateState", () => {
+    const gate = makeGate(["TC-1", "TC-2", "TC-3"], ["WU-10"]);
+    const r = results({ "TC-3": caseResult("passed") });
+    const lifecycle = lifecycleFor(p, {
+      otherPlans: [specB],
+      resultsBySlug: { "spec-b": foreignResults({ "TC-9": caseResult("passed") }) },
+    });
+    const a = evaluateGate(gate, r, PLAN_HASH, p, lifecycle);
+    const b = evaluateGate(gate, r, PLAN_HASH, p, lifecycle);
+    expect(a).toEqual(b);
+    expect(a).not.toBe(b);
+    expect(a.status).toBe("passed");
+  });
+
+  it("does not mutate the threaded lifecycle input", () => {
+    const gate = makeGate(["TC-1", "TC-2", "TC-3"], ["WU-10"]);
+    const lifecycle = lifecycleFor(p, {
+      otherPlans: [specB],
+      resultsBySlug: { "spec-b": foreignResults({ "TC-9": caseResult("passed") }) },
+    });
+    const resolutionsSnapshot = structuredClone(lifecycle.resolutions);
+    const foreignSnapshot = structuredClone([...(lifecycle.resultsBySlug ?? new Map())]);
+    const planSnapshot = structuredClone(p);
+
+    evaluateGate(gate, results({ "TC-3": caseResult("passed") }), PLAN_HASH, p, lifecycle);
+
+    expect(lifecycle.resolutions).toEqual(resolutionsSnapshot);
+    expect([...(lifecycle.resultsBySlug ?? new Map())]).toEqual(foreignSnapshot);
+    expect(p).toEqual(planSnapshot);
   });
 });

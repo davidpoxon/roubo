@@ -597,6 +597,12 @@ export interface TestbenchPlanResponse {
 // server's `GateStatus` union in `server/lib/gate-evaluator.ts` (issue #436).
 export type GateStatus = "passed" | "failed" | "pending" | "stale" | "no_gating_cases";
 
+// Why a `no_gating_cases` gate's set is empty (#768, SATCA-FR-011): the level/type
+// policy narrowed every declared case away, the case lifecycle blocks retired them
+// away, or both. Kept in sync with the server's `GateEmptyReason` union in
+// `server/lib/gate-evaluator.ts`.
+export type GateEmptyReason = "policy" | "lifecycle" | "mixed";
+
 export interface GateState {
   gateId: string;
   status: GateStatus;
@@ -607,6 +613,10 @@ export interface GateState {
   // the server gates on.
   gatingCaseIds: string[];
   coveringUnitIds: string[];
+  // Set only when `status` is `no_gating_cases`, naming what emptied the set
+  // (#768). Null on every other status, and null when the gate declared no cases
+  // at all. Optional so a response from a server that predates #768 still parses.
+  emptyReason?: GateEmptyReason | null;
   // The gate's milestone (phase) label, rendered as the card title with the gate
   // id as a mono sub-label (issue #433). Null/absent when the unit carries none
   // (e.g. a synthetic merged/split gate); the card then titles by the gate id.
