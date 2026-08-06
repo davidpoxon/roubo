@@ -17,6 +17,14 @@
  * under the default coverage run, and a non-gated structural test pins that the
  * partitioned view actually paints from the payload (so the measured render is the
  * real work, not a stub).
+ *
+ * SATCA-TC-043 / SATCA-NFR-002 (#771) measures the same open against a SECOND
+ * fixture, one that carries archived specs, so the archived partition added by
+ * #770 is inside the budget too: p95 under 150ms. It gets its own fixture rather
+ * than archiving rows in the one above, whose whole point is that every spec is
+ * live (see the comment on lifecycle() below); mixing archived rows into it would
+ * shrink the list the 100ms budget measures and quietly weaken that budget.
+ * Both numbers are jsdom render times, not real-browser open times.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderWithProviders } from "../../test/renderWithProviders";
@@ -27,6 +35,14 @@ const RUN = process.env.RUN_PERF_HARNESS === "1";
 const SPEC_COUNT = 25;
 const ITERATIONS = 20;
 const P95_BUDGET_MS = 100;
+// SATCA-NFR-002: the picker opens at p95 under 150ms with archived specs in the
+// payload. The archived fixture splits 15 needs-attention / 4 all-passed / 6
+// archived, so a partition regression that leaked archived rows into a live
+// group would move the structural counts below before it moved the clock.
+const ARCHIVED_P95_BUDGET_MS = 150;
+const ARCHIVED_NEEDS_ATTENTION = 15;
+const ARCHIVED_ALL_PASSED = 4;
+const ARCHIVED_ARCHIVED = 6;
 
 function p95(values: number[]): number {
   if (values.length === 0) return 0;
@@ -62,11 +78,23 @@ function verification(
   };
 }
 
-// Every perf fixture spec is live: the archived group (#770) is a separate,
-// hidden-by-default partition with its own coverage, and mixing archived specs in
-// here would shrink the rendered list this budget measures.
+// Every spec in the TSPF-TC-016 fixture below is live: the archived group (#770)
+// is a separate, hidden-by-default partition, and mixing archived specs in here
+// would shrink the rendered list that budget measures. The archived partition
+// gets its own fixture (ARCHIVED_SPECS) and its own budget instead.
 function lifecycle(): SpecLifecycleState {
   return { archived: false, reason: null, supersededBy: null, recordError: null };
+}
+
+// An archived record as discovery reports it (#765): `archived: true` plus either
+// a reason or a supersededBy pointer, never both in this fixture.
+function archivedLifecycle(supersededBy: string | null): SpecLifecycleState {
+  return {
+    archived: true,
+    reason: supersededBy === null ? "Shipped" : null,
+    supersededBy,
+    recordError: null,
+  };
 }
 
 // 25 mixed-classification specs, cycling the five summary shapes so the partition
@@ -140,6 +168,51 @@ const SPECS: DiscoveredSpec[] = Array.from({ length: SPEC_COUNT }, (_, i) => {
   }
 });
 
+// The SATCA-TC-043 fixture (#771): the same 25-spec payload size, partitioned 15
+// needs-attention / 4 all-passed / 6 archived. The archived six carry both record
+// shapes (three plain, three superseded) and a mix of verification
+// classifications, because archived wins over the classification by construction:
+// a partition regression that let one fall through into a live group would move
+// the structural counts before it moved the clock.
+const ARCHIVED_SPECS: DiscoveredSpec[] = Array.from({ length: SPEC_COUNT }, (_, i) => {
+  const slug = `spec-${String(i).padStart(2, "0")}`;
+  const specPath = `/repo/.specifications/${slug}/test-cases.json`;
+  const caseCount = 3 + (i % 9);
+  if (i >= ARCHIVED_NEEDS_ATTENTION + ARCHIVED_ALL_PASSED) {
+    const superseded = i % 2 === 0;
+    return {
+      slug,
+      path: specPath,
+      caseCount,
+      verification: verification(
+        superseded
+          ? { classification: "all-passed", statusCounts: { passed: caseCount } }
+          : { statusCounts: { passed: 1, failed: caseCount - 1 } },
+      ),
+      lifecycle: archivedLifecycle(superseded ? `spec-${String(i - 1).padStart(2, "0")}` : null),
+    };
+  }
+  if (i >= ARCHIVED_NEEDS_ATTENTION) {
+    return {
+      slug,
+      path: specPath,
+      caseCount,
+      verification: verification({
+        classification: "all-passed",
+        statusCounts: { passed: caseCount },
+      }),
+      lifecycle: lifecycle(),
+    };
+  }
+  return {
+    slug,
+    path: specPath,
+    caseCount,
+    verification: verification({ statusCounts: { passed: 1, failed: caseCount - 1 } }),
+    lifecycle: lifecycle(),
+  };
+});
+
 const mockUseTestbenchSpecs = vi.hoisted(() => vi.fn());
 const mockUseManualPathValidation = vi.hoisted(() => vi.fn());
 
@@ -189,6 +262,78 @@ describe("TSPF-TC-016: partitioned view renders from the arrived payload", () =>
     expect(view.getByText("· 5 specs")).toBeInTheDocument();
   });
 });
+
+// Point the mocked discovery query at the archived fixture. Called inside each
+// SATCA test (and inside the measured loop's setup) because beforeEach resets the
+// mock to the all-live TSPF payload.
+function useArchivedFixture(): void {
+  mockUseTestbenchSpecs.mockReturnValue(
+    specsQuery({ data: { specs: ARCHIVED_SPECS, invalid: [] } }),
+  );
+}
+
+describe("SATCA-TC-043: the archived partition renders from the arrived payload", () => {
+  it("paints the 15 live rows and leaves the archived group present but collapsed", () => {
+    useArchivedFixture();
+    const view = renderModal();
+    // Only live needs-attention specs are selectable rows on open: the all-passed
+    // tail is collapsed and the archived group is hidden behind its own control.
+    expect(view.getAllByRole("radio")).toHaveLength(ARCHIVED_NEEDS_ATTENTION);
+    expect(view.getByRole("button", { name: /All passed/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    const showArchived = view.getByRole("button", { name: /Show archived/ });
+    expect(showArchived).toHaveAttribute("aria-expanded", "false");
+    expect(view.getByText(`· ${ARCHIVED_ALL_PASSED} specs`)).toBeInTheDocument();
+    expect(view.getByText(`· ${ARCHIVED_ARCHIVED} specs`)).toBeInTheDocument();
+  });
+});
+
+it.runIf(RUN)(
+  "SATCA-TC-043: picker open p95 < 150ms for a 25-spec payload with archived specs",
+  () => {
+    useArchivedFixture();
+    // Warmup open (not measured) to amortize first-render module/JIT cost.
+    renderModal().unmount();
+
+    const samples: number[] = [];
+    for (let i = 0; i < ITERATIONS; i++) {
+      const t0 = performance.now();
+      const view = renderModal();
+      // Live rows painted and the archived control present == the open finished
+      // with the archived partition computed, not just the live one.
+      view.getAllByRole("radio");
+      view.getByRole("button", { name: /Show archived/ });
+      samples.push(performance.now() - t0);
+      view.unmount();
+    }
+
+    const p95Ms = p95(samples);
+    const maxMs = Math.max(...samples);
+
+    console.log(
+      JSON.stringify(
+        {
+          kind: "perf-evidence",
+          tc: "SATCA-TC-043",
+          surface: "picker",
+          specCount: SPEC_COUNT,
+          archivedCount: ARCHIVED_ARCHIVED,
+          iterations: ITERATIONS,
+          p95Ms,
+          maxMs,
+          budgetMs: ARCHIVED_P95_BUDGET_MS,
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(p95Ms).toBeLessThan(ARCHIVED_P95_BUDGET_MS);
+  },
+  120_000,
+);
 
 it.runIf(RUN)(
   "TSPF-TC-016: partition + render p95 < 100ms for a 25-spec payload",
