@@ -117,19 +117,22 @@ function resultsPath(rootPath: string, slug: string): string {
 // the plan (FR-016). canonicalize drops $schema/schemaVersion/specSlug and every
 // targeting field, so the hash tracks the testable case body only.
 //
-// This is a hash of the TESTABLE plan, NOT of test-cases.json. As of #767 that
-// explicitly includes the v1.2.0 lifecycle bookkeeping (#764): canonicalize is an
-// allowlist projection and never sees `lifecycle`, so retiring or superseding a
-// case leaves this hash byte-identical. A lifecycle-only edit therefore changes
+// This is a hash of the TESTABLE plan, NOT of test-cases.json. As of #767 what it
+// leaves out explicitly covers the v1.2.0 lifecycle bookkeeping (#764): canonicalize
+// is an allowlist projection and never sees `lifecycle`, so retiring or superseding
+// a case leaves this hash byte-identical. A lifecycle-only edit therefore changes
 // no `stale` flag, prompts no stale-results warning, and moves no verify gate to
 // `stale`. That is deliberate: one retirement must not invalidate every recorded
 // result for the spec. Genuine content edits (title, level, preconditions, steps,
 // observations) still change the hash, so real staleness is still detected.
 //
-// The consequence a future reader should know about: because retiring a case is
-// invisible here, a verify gate can move from pending to passed with no staleness
-// prompt at all (the retired case simply stops being unresolved). The gate surface
-// is what must show lifecycle exclusions explicitly; the hash will not flag them.
+// The consequence a future reader should plan for: because retiring a case is
+// invisible here, once the gate surface honours the lifecycle block a retired case
+// will stop being unresolved, so a verify gate will be able to move from pending to
+// passed with no staleness prompt at all. The gate surface is what must show
+// lifecycle exclusions explicitly; the hash will not flag them. Today evaluateGate
+// does not read `lifecycle` (a retired case still counts towards the gating set),
+// so only the staleness rung is affected so far.
 // Locked by testbench-store.test.ts, testbench-domain.test.ts, and
 // gate-evaluator.test.ts (SATCA-TC-055).
 export function computePlanHash(plan: TestCasesPlan): string {
