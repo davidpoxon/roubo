@@ -45,7 +45,7 @@ An absent `lifecycle` block means the case is live. There is no `live` state to 
 
 - A `test-cases.json` recorded at 1.1.0 validates unchanged against 1.2.0. `$schema` and `schemaVersion` are free strings on the envelope, so a file at either version parses.
 - A spec's recorded schema version is raised to 1.2.0 only when a lifecycle record is actually introduced into that file. Reading a spec, browsing it, or recording results (which writes only the `test-results.json` sidecar) never rewrites `test-cases.json`, so an untouched spec is never silently re-versioned.
-- The lifecycle block is excluded from the canonical case body, so retiring or superseding a case changes neither the plan hash nor that case's changed/unchanged classification.
+- The lifecycle block is excluded from the canonical case body, so retiring or superseding a case changes neither the plan hash nor that case's changed/unchanged classification. The plan hash is therefore a hash of the **testable** plan, not of the file: it covers titles, levels, preconditions, steps, and observations, and deliberately ignores lifecycle bookkeeping. A lifecycle-only edit raises no stale-results warning and moves no verify gate to `stale`, while a genuine content edit still does. The consequence to know about: a gate can move from pending to passed with no staleness prompt (a retired case simply stops being unresolved), which is why the gate surface, not the hash, is what shows lifecycle exclusions explicitly.
 
 ## test-results.json
 

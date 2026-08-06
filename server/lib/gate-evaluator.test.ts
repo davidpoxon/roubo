@@ -9,6 +9,10 @@ import type {
   Case,
 } from "@roubo/shared/testbench-contracts";
 import { TEST_CASES_SCHEMA_ID, TEST_CASES_SCHEMA_VERSION } from "@roubo/shared/testbench-contracts";
+// The real hash the store records and the gate compares against, so the
+// lifecycle carve-out is exercised end to end rather than through a stand-in
+// string (#767).
+import { computePlanHash } from "./testbench-store.js";
 
 // ── Builders (keep the table rows terse and intention-revealing) ──
 
@@ -204,6 +208,55 @@ describe("evaluateGate: never false-pass (VG-TC-015..VG-TC-017, VG-NFR-007)", ()
   it("absent results (null) read as stale, never passed", () => {
     const gate = makeGate(["TC-1"]);
     const state = evaluateGate(gate, null, PLAN_HASH);
+    expect(state.status).toBe("stale");
+    expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
+  });
+});
+
+// #767 (SATCA-FR-022, SATCA-TC-055): the gate's staleness rung is exactly
+// `results.planHash !== currentPlanHash`, and the plan hash excludes the v1.2.0
+// lifecycle block (#764), so a lifecycle-only edit cannot move a gate to stale.
+// The negative control keeps VG-NFR-007 fail-closed honest: a genuine content
+// edit still reads as stale, never as passed.
+describe("evaluateGate: a lifecycle-only plan edit never moves a gate to stale (#767)", () => {
+  function gatingCase(id: string, expected: string): Case {
+    return {
+      ...planCase(id, 1, "e2e_flow"),
+      steps: [{ id: "S1", instruction: "do the thing", observations: [{ id: "O1", expected }] }],
+    };
+  }
+
+  const live = plan([gatingCase("TC-1", "obs one")]);
+  // The hash recorded on the results, computed against the pre-lifecycle plan.
+  const recordedHash = computePlanHash(live);
+
+  it("keeps a passed gate passed after its case is retired or superseded", () => {
+    const retired = plan([
+      { ...gatingCase("TC-1", "obs one"), lifecycle: { state: "retired", reason: "Obsolete" } },
+    ]);
+    const superseded = plan([
+      {
+        ...gatingCase("TC-1", "obs one"),
+        lifecycle: { state: "superseded", replacement: "TC-2" },
+      },
+    ]);
+
+    const gate = makeGate(["TC-1"]);
+    const recorded = results({ "TC-1": caseResult("passed") }, recordedHash);
+
+    for (const edited of [retired, superseded]) {
+      const state = evaluateGate(gate, recorded, computePlanHash(edited), edited);
+      expect(state.status).toBe("passed");
+      expect(state.unresolvedCaseIds).toEqual([]);
+    }
+  });
+
+  it("still reads as stale after a live case's steps are edited", () => {
+    const edited = plan([gatingCase("TC-1", "reworded obs one")]);
+    const gate = makeGate(["TC-1"]);
+    const recorded = results({ "TC-1": caseResult("passed") }, recordedHash);
+
+    const state = evaluateGate(gate, recorded, computePlanHash(edited), edited);
     expect(state.status).toBe("stale");
     expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
   });

@@ -635,6 +635,82 @@ describe("reconcile (NFR-003 orphan-not-delete)", () => {
   });
 });
 
+// #767 (SATCA-FR-022, SATCA-TC-055): the v1.2.0 lifecycle block (#764) is excluded
+// from the canonical case body, so the plan hash covers the TESTABLE plan only.
+// canonicalize's own suite locks the canonical STRING; these lock the rest of the
+// chain: sha256 (computePlanHash), the store's `stale` flag, and reconcile's
+// classification. Each assertion is paired with a negative control, so the
+// exclusion can never be mistaken for staleness detection having stopped working.
+describe("lifecycle exclusion from the plan hash (#767, SATCA-FR-022)", () => {
+  function retiredPlan(): TestCasesPlan {
+    const plan = planFor();
+    plan.cases[0].lifecycle = { state: "retired", reason: "Login flow was replaced" };
+    return plan;
+  }
+
+  function supersededPlan(): TestCasesPlan {
+    const plan = planFor();
+    plan.cases[0].lifecycle = { state: "superseded", replacement: "TC-002" };
+    return plan;
+  }
+
+  function stepsEditedPlan(): TestCasesPlan {
+    const plan = planFor();
+    plan.cases[0].steps[0].observations[0].expected = "Form shown differently";
+    return plan;
+  }
+
+  it("computes an identical plan hash after a case is retired", () => {
+    expect(computePlanHash(retiredPlan())).toBe(computePlanHash(planFor()));
+  });
+
+  it("computes an identical plan hash after a case is superseded", () => {
+    expect(computePlanHash(supersededPlan())).toBe(computePlanHash(planFor()));
+  });
+
+  // Negative control: the carve-out is scoped to lifecycle bookkeeping only.
+  it("still changes the plan hash when a live case's steps are edited", () => {
+    expect(computePlanHash(stepsEditedPlan())).not.toBe(computePlanHash(planFor()));
+  });
+
+  it("reads results as not stale after a lifecycle-only rewrite of test-cases.json", async () => {
+    writePlan(planFor());
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    expect(readPlanAndResults(repo, SLUG).stale).toBe(false);
+
+    writePlan(retiredPlan());
+    const afterRetire = readPlanAndResults(repo, SLUG);
+    expect(afterRetire.stale).toBe(false);
+    expect(afterRetire.planHash).toBe(computePlanHash(planFor()));
+
+    writePlan(supersededPlan());
+    const afterSupersede = readPlanAndResults(repo, SLUG);
+    expect(afterSupersede.stale).toBe(false);
+    expect(afterSupersede.planHash).toBe(computePlanHash(planFor()));
+  });
+
+  // Negative control: a genuine content edit still flips the store's stale flag.
+  it("reads results as stale after a steps rewrite of test-cases.json", async () => {
+    writePlan(planFor());
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+
+    writePlan(stepsEditedPlan());
+    const after = readPlanAndResults(repo, SLUG);
+    expect(after.stale).toBe(true);
+    expect(after.planHash).toBe(computePlanHash(stepsEditedPlan()));
+  });
+
+  it("keeps a retired case classified unchanged by reconcile", async () => {
+    writePlan(planFor());
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+
+    writePlan(retiredPlan());
+    const outcome = await reconcile(repo, SLUG);
+    expect(outcome.classification.unchanged).toContain("TC-001");
+    expect(outcome.classification.changed).not.toContain("TC-001");
+  });
+});
+
 // #427: the read sinks resolve `.specifications/<slug>/…` under repoPath through
 // the lexical resolveWithin guard, which cannot see an on-disk symlink whose name
 // is a valid slug. The path helpers now apply the realpath barrier before the fs

@@ -141,6 +141,55 @@ describe("reconcile (spike-407 AC3 classification)", () => {
     expect(classification.unchanged).toEqual([]);
   });
 
+  // #767 (SATCA-FR-022, SATCA-TC-055): reconcile compares the stored caseCanon
+  // against canonicalizeCase(planCase), and the canonical projection excludes the
+  // v1.2.0 lifecycle block (#764), so retiring or superseding a case must NOT
+  // re-classify it as changed. TC-003 is the negative control: an edit to the
+  // case body still reads as changed.
+  it("does not classify a case as changed solely because its lifecycle block changed", () => {
+    const liveOne = buildCase("TC-001", "obs one");
+    const liveTwo = buildCase("TC-002", "obs two");
+    const liveThree = buildCase("TC-003", "obs three");
+
+    const plan = buildPlan([
+      { ...liveOne, lifecycle: { state: "retired", reason: "Behaviour was removed" } },
+      { ...liveTwo, lifecycle: { state: "superseded", replacement: "TC-009" } },
+      buildCase("TC-003", "reworded obs three"),
+    ]);
+
+    const results: BenchResults = {
+      caseResults: {
+        "TC-001": {
+          observationMarks: { O1: mark("pass") },
+          derivedStatus: "passed",
+          notes: [],
+          caseCanon: canonicalizeCase(liveOne),
+        },
+        "TC-002": {
+          observationMarks: { O1: mark("pass") },
+          derivedStatus: "passed",
+          notes: [],
+          caseCanon: canonicalizeCase(liveTwo),
+        },
+        "TC-003": {
+          observationMarks: { O1: mark("pass") },
+          derivedStatus: "passed",
+          notes: [],
+          caseCanon: canonicalizeCase(liveThree),
+        },
+      },
+      updatedAt: "T0",
+    };
+
+    const { classification, nextResults } = reconcile(plan, results);
+    expect(classification.unchanged).toEqual(["TC-001", "TC-002"]);
+    expect(classification.changed).toEqual(["TC-003"]);
+    // An unchanged case's stored snapshot is left exactly as authored: the
+    // lifecycle block never reaches it.
+    expect(nextResults.caseResults["TC-001"].caseCanon).toBe(canonicalizeCase(liveOne));
+    expect(nextResults.caseResults["TC-001"].caseCanon).not.toContain("lifecycle");
+  });
+
   it("does not mutate the input results", () => {
     const planCase = buildCase("TC-001", "obs one");
     const plan = buildPlan([]); // TC-001 removed from plan
