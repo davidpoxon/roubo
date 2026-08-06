@@ -70,7 +70,10 @@ function projectStep(step: Step): {
 // (area, type, tags, linked_*) are deliberately NOT projected: the staleness hash
 // tracks the testable body (title, level, steps), so re-tagging or re-linking a
 // case never marks it stale-for-retest. Like every TargetingField and unknown
-// field, they are dropped.
+// field, they are dropped. The v1.2.0 `lifecycle` block (#764) is excluded for
+// the same reason, and by construction: this projection is an allowlist, so
+// retiring or superseding a case changes neither the plan hash nor that case's
+// changed/unchanged classification.
 //
 // preconditions order is PRESERVED (not sorted). An absent and an empty
 // preconditions list canonicalise identically: the key is omitted in both cases.

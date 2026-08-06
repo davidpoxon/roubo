@@ -30,6 +30,23 @@ Migration for a 1.0.0 file:
 
 Going forward, `test-cases.json` minor bumps stay additive and optional; a real break takes a major bump and an entry here.
 
+### 1.1.0 to 1.2.0 (additive: case lifecycle block)
+
+1.2.0 adds one optional field to a case, `lifecycle`, so a case can declare its own end of life instead of being deleted:
+
+- `{ "state": "retired", "reason": "<non-empty>" }`
+- `{ "state": "superseded", "replacement": "<non-empty>", "reason": "<optional>" }`
+
+An absent `lifecycle` block means the case is live. There is no `live` state to record, so a case that has not been retired or superseded carries no lifecycle key at all.
+
+`replacement` is a pointer to the case that replaces this one, in either the bare form (`TC-042`, a case in the same spec) or the slug-qualified form (`other-spec:TC-042`). The contract validates it as a non-empty string only: it never parses, normalises, or resolves the pointer, so whichever form was authored is what is read back.
+
+**No migration is required.** This is an additive optional field under the versioning rule above:
+
+- A `test-cases.json` recorded at 1.1.0 validates unchanged against 1.2.0. `$schema` and `schemaVersion` are free strings on the envelope, so a file at either version parses.
+- A spec's recorded schema version is raised to 1.2.0 only when a lifecycle record is actually introduced into that file. Reading a spec, browsing it, or recording results (which writes only the `test-results.json` sidecar) never rewrites `test-cases.json`, so an untouched spec is never silently re-versioned.
+- The lifecycle block is excluded from the canonical case body, so retiring or superseding a case changes neither the plan hash nor that case's changed/unchanged classification.
+
 ## test-results.json
 
 ### 1.0.0 to 2.0.0 (benches-map flatten)
@@ -53,5 +70,6 @@ Recorded results that are not migrated are not lost destructively: the fail-open
 | ----------------- | ------------- | ------------------------------------------------------------- | ------------------------------------------------ |
 | test-cases.json   | 1.0.0         | `https://roubo.dev/schema/testbench/test-cases/v1.0.0.json`   | Initial published shape.                         |
 | test-cases.json   | 1.1.0         | `https://roubo.dev/schema/testbench/test-cases/v1.1.0.json`   | Canonical merge (accepted retroactive break).    |
+| test-cases.json   | 1.2.0         | `https://roubo.dev/schema/testbench/test-cases/v1.2.0.json`   | Optional case lifecycle block (additive).        |
 | test-results.json | 1.0.0         | `https://roubo.dev/schema/testbench/test-results/v1.0.0.json` | Initial shape (per-bench `benches` map).         |
 | test-results.json | 2.0.0         | `https://roubo.dev/schema/testbench/test-results/v2.0.0.json` | Flatten to top-level `caseResults` per worktree. |

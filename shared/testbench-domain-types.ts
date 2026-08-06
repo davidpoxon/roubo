@@ -58,11 +58,20 @@ export interface Step {
   target?: TargetingField;
 }
 
-// Mirrors the merged v1.1.0 CaseSchema in testbench-contracts.ts: the canonical
+// The optional case lifecycle block, mirroring CaseLifecycleSchema in
+// testbench-contracts.ts (v1.2.0, #764). Absent means the case is live. The
+// pure domain modules do not read it; canonicalisation deliberately drops it so
+// a lifecycle-only edit never changes the plan hash (see testbench-canonicalize).
+export type CaseLifecycle =
+  | { state: "retired"; reason: string }
+  | { state: "superseded"; replacement: string; reason?: string };
+
+// Mirrors the merged v1.2.0 CaseSchema in testbench-contracts.ts: the canonical
 // product-dev fields (area, integer level, type, tags, linked_*) unioned with
-// the TestBench shape (optional priority, TestBench step shape). The pure domain
-// modules only read id/title/level/priority/preconditions/steps; the canonical
-// metadata fields ride along for structural fidelity with the contract type.
+// the TestBench shape (optional priority, TestBench step shape), plus the
+// optional lifecycle block added at v1.2.0. The pure domain modules only read
+// id/title/level/priority/preconditions/steps; the canonical metadata fields
+// ride along for structural fidelity with the contract type.
 export interface Case {
   id: string;
   title: string;
@@ -75,6 +84,7 @@ export interface Case {
   tags: string[];
   linked_requirement_ids: string[];
   linked_user_story_ids: string[];
+  lifecycle?: CaseLifecycle;
 }
 
 export interface TestCasesPlan {

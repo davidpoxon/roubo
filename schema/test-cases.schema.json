@@ -141,6 +141,44 @@
             "items": {
               "type": "string"
             }
+          },
+          "lifecycle": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "const": "retired"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["state", "reason"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "const": "superseded"
+                  },
+                  "replacement": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["state", "replacement"],
+                "additionalProperties": false
+              }
+            ]
           }
         },
         "required": [
@@ -160,5 +198,5 @@
   },
   "required": ["$schema", "schemaVersion", "specSlug", "cases"],
   "additionalProperties": false,
-  "$id": "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json"
+  "$id": "https://roubo.dev/schema/testbench/test-cases/v1.2.0.json"
 }
