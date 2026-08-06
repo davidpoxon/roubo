@@ -1,24 +1,60 @@
 import { Archive } from "lucide-react";
+import { Button } from "react-aria-components";
 import type { BenchResults, CaseResult } from "@roubo/shared/testbench-contracts";
+import type { ArchivedCaseModel } from "./rollup";
 import StatusIndicator from "./StatusIndicator";
 
-// Archived (orphaned) cases section for the TestBench review tab (FR-013, FR-017,
-// NFR-003). After a reconcile, a case removed from the source plan keeps its
-// recorded results on disk, flagged `orphaned`, and is excluded from the rollup.
-// Those results would otherwise be invisible in the panel because the case list
-// iterates the live plan. This read-only section surfaces each orphaned case's id,
-// its effective status (override wins over derived), its recorded observation
-// marks, and its notes, so an authored mark or note is never silently lost from
-// the reviewer's view.
+// Archived cases section for the TestBench review tab (FR-013, FR-017, NFR-003,
+// and SATCA-FR-006/FR-007 via #769). Two different things end up archived, and
+// this one section shows both rather than inventing a second surface:
 //
-// The section renders only when at least one orphaned result exists.
+//   1. Lifecycle-archived cases. A case retired or superseded in the source plan.
+//      It is STILL in the plan, so its results are never flagged `orphaned` and
+//      its marks, notes, and status override sit untouched on disk. The rollup
+//      excludes it from every count and from the live list, so without this
+//      section it would vanish from the panel entirely.
+//   2. Orphaned results. A case REMOVED from the source plan whose recorded
+//      results were retained on reconcile rather than deleted.
+//
+// Each entry states in text which of the two it is, and labels its state as
+// words rather than by colour alone (WCAG 2.1 AA). Both kinds render their
+// retained observation marks and notes, so an authored mark or note is never
+// silently lost from the reviewer's view.
+//
+// A same-spec replacement is activatable: it calls back into the panel's case
+// selection, which reveals that case in the live list. A cross-spec replacement
+// is named but not activatable, because the panel holds only this spec's plan.
+//
+// The section renders when at least one entry of either kind exists.
+
+const STATE_LABEL = {
+  retired: "Retired",
+  superseded: "Superseded",
+} as const;
+
+const LIFECYCLE_SITUATION =
+  "Archived by lifecycle. Still in the source plan, excluded from the rollup.";
+const ORPHAN_SITUATION =
+  "Removed from the source plan. Results retained and excluded from the rollup, never deleted.";
 
 function effectiveStatus(result: CaseResult): CaseResult["derivedStatus"] {
   return result.statusOverride?.status ?? result.derivedStatus;
 }
 
-function ObservationMarks({ result }: { result: CaseResult }) {
-  const marks = Object.entries(result.observationMarks);
+function StateLabel({ children }: { children: string }) {
+  return (
+    <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-500 dark:text-stone-400 bg-stone-200/70 dark:bg-stone-800/70 shrink-0">
+      {children}
+    </span>
+  );
+}
+
+function Situation({ children }: { children: string }) {
+  return <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">{children}</p>;
+}
+
+function ObservationMarks({ result }: { result: CaseResult | undefined }) {
+  const marks = Object.entries(result?.observationMarks ?? {});
   if (marks.length === 0) return null;
   return (
     <ul className="mt-1.5 flex flex-col gap-1">
@@ -43,11 +79,12 @@ function ObservationMarks({ result }: { result: CaseResult }) {
   );
 }
 
-function Notes({ result }: { result: CaseResult }) {
-  if (result.notes.length === 0) return null;
+function Notes({ result }: { result: CaseResult | undefined }) {
+  const notes = result?.notes ?? [];
+  if (notes.length === 0) return null;
   return (
     <ul className="mt-1.5 flex flex-col gap-1">
-      {result.notes.map((note) => (
+      {notes.map((note) => (
         <li
           key={note.id}
           className="whitespace-pre-wrap text-[12px] text-stone-600 dark:text-stone-400"
@@ -59,12 +96,82 @@ function Notes({ result }: { result: CaseResult }) {
   );
 }
 
-export default function ArchivedCases({ results }: { results: BenchResults | null }) {
+const ENTRY_CLASS = "rounded-md bg-white/60 dark:bg-stone-900/40 px-3 py-2";
+
+// One lifecycle-archived case: its id, its state as words, the status still
+// recorded against it, the situation, the verbatim reason, and its replacement.
+function LifecycleEntry({
+  entry,
+  result,
+  onSelectCase,
+}: {
+  entry: ArchivedCaseModel;
+  result: CaseResult | undefined;
+  onSelectCase?: (caseId: string) => void;
+}) {
+  const caseId = entry.case.id;
+  // Only a same-spec replacement can be revealed: the panel holds this spec's
+  // plan alone, so a slug-qualified pointer is named as text and left inert.
+  const revealId =
+    entry.isSameSpec && entry.replacementRef !== null && onSelectCase !== undefined
+      ? entry.replacementRef.caseId
+      : null;
+  return (
+    <li data-testid={`archived-case-${caseId}`} className={ENTRY_CLASS}>
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-[11px] text-stone-400 dark:text-stone-600 shrink-0">
+          {caseId}
+        </span>
+        <StateLabel>{STATE_LABEL[entry.state]}</StateLabel>
+        <StatusIndicator status={entry.status} />
+      </div>
+      <Situation>{LIFECYCLE_SITUATION}</Situation>
+      {entry.reason !== null && (
+        <p
+          data-testid={`archived-reason-${caseId}`}
+          className="mt-1 whitespace-pre-wrap text-[12px] text-stone-600 dark:text-stone-400"
+        >
+          {entry.reason}
+        </p>
+      )}
+      {entry.replacement !== null &&
+        (revealId !== null && onSelectCase !== undefined ? (
+          <Button
+            data-testid={`archived-replacement-${caseId}`}
+            onPress={() => onSelectCase(revealId)}
+            className="mt-1 inline-flex items-center rounded px-1 -mx-1 text-[12px] font-medium text-amber-700 dark:text-amber-400 underline underline-offset-2 transition-colors hover:text-amber-800 dark:hover:text-amber-300 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer"
+          >
+            Replaced by {revealId}
+          </Button>
+        ) : (
+          <p
+            data-testid={`archived-replacement-${caseId}`}
+            className="mt-1 text-[12px] text-stone-600 dark:text-stone-400"
+          >
+            Replaced by {entry.replacement}
+          </p>
+        ))}
+      <ObservationMarks result={result} />
+      <Notes result={result} />
+    </li>
+  );
+}
+
+export default function ArchivedCases({
+  results,
+  archived = [],
+  onSelectCase,
+}: {
+  results: BenchResults | null;
+  archived?: ArchivedCaseModel[];
+  onSelectCase?: (caseId: string) => void;
+}) {
   const orphans = results
     ? Object.entries(results.caseResults).filter(([, result]) => result.orphaned === true)
     : [];
 
-  if (orphans.length === 0) return null;
+  const total = archived.length + orphans.length;
+  if (total === 0) return null;
 
   return (
     <section
@@ -77,26 +184,31 @@ export default function ArchivedCases({ results }: { results: BenchResults | nul
         <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
           Archived
         </span>
-        <span className="font-mono text-[11px] text-stone-500 dark:text-stone-500">
-          {orphans.length}
-        </span>
+        <span className="font-mono text-[11px] text-stone-500 dark:text-stone-500">{total}</span>
       </div>
       <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
-        Removed from the source plan. Results retained and excluded from the rollup, never deleted.
+        Excluded from the rollup and from the live case list. Recorded marks, notes, and status
+        overrides are retained, never deleted.
       </p>
       <ul className="mt-2 flex flex-col gap-2">
+        {archived.map((entry) => (
+          <LifecycleEntry
+            key={entry.case.id}
+            entry={entry}
+            result={results?.caseResults[entry.case.id]}
+            onSelectCase={onSelectCase}
+          />
+        ))}
         {orphans.map(([caseId, result]) => (
-          <li
-            key={caseId}
-            data-testid={`archived-case-${caseId}`}
-            className="rounded-md bg-white/60 dark:bg-stone-900/40 px-3 py-2"
-          >
+          <li key={caseId} data-testid={`archived-case-${caseId}`} className={ENTRY_CLASS}>
             <div className="flex items-center gap-3">
               <span className="font-mono text-[11px] text-stone-400 dark:text-stone-600 shrink-0">
                 {caseId}
               </span>
+              <StateLabel>Removed from plan</StateLabel>
               <StatusIndicator status={effectiveStatus(result)} />
             </div>
+            <Situation>{ORPHAN_SITUATION}</Situation>
             <ObservationMarks result={result} />
             <Notes result={result} />
           </li>

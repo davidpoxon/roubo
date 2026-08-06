@@ -61,7 +61,14 @@ export default function BatchView({
   });
 
   const model = useMemo(
-    () => (planQuery.data ? buildRollup(planQuery.data.plan.cases, planQuery.data.results) : null),
+    () =>
+      planQuery.data
+        ? buildRollup(
+            planQuery.data.plan.cases,
+            planQuery.data.results,
+            planQuery.data.plan.specSlug,
+          )
+        : null,
     [planQuery.data],
   );
   const flatRows = useMemo(() => (model ? flattenRollup(model) : []), [model]);

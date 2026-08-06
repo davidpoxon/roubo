@@ -150,6 +150,151 @@ describe("buildRollup grouping", () => {
     const model = buildRollup([], null);
     expect(model.levels).toEqual([]);
     expect(model.overall.total).toBe(0);
+    expect(model.archived).toEqual([]);
+  });
+});
+
+// #769 (SATCA-FR-005/FR-006/FR-007). Live-ness is read from the LifecycleResolver,
+// so a case with no lifecycle block groups and counts exactly as it always did,
+// and a retired or superseded case leaves the counts and the list for `archived`.
+describe("buildRollup lifecycle exclusion (#769)", () => {
+  function retired(id: string, reason: string, level = 1): Case {
+    return { ...makeCase(id, level, "P0"), lifecycle: { state: "retired", reason } };
+  }
+
+  function superseded(id: string, replacement: string, reason?: string, level = 1): Case {
+    return {
+      ...makeCase(id, level, "P0"),
+      lifecycle: reason
+        ? { state: "superseded", replacement, reason }
+        : { state: "superseded", replacement },
+    };
+  }
+
+  function caseIdsIn(model: RollupModel): string[] {
+    return model.levels.flatMap((l) => l.priorities.flatMap((p) => p.rows.map((x) => x.case.id)));
+  }
+
+  it("SATCA-TC-013: retiring a passed case drops the denominator and the passed count only", () => {
+    // Ten cases, six of them passed.
+    const ids = Array.from({ length: 10 }, (_, i) => `c${i}`);
+    const live = ids.map((id) => makeCase(id, 1, "P0"));
+    const r = results(
+      Object.fromEntries(
+        ids.map((id, i) => [id, result({ derivedStatus: i < 6 ? "passed" : "not_started" })]),
+      ),
+    );
+
+    const before = buildRollup(live, r, "spec");
+    expect(before.overall.total).toBe(10);
+    expect(before.overall.passed).toBe(6);
+    expect(before.archived).toEqual([]);
+
+    // Retire c0, which had passed. Nothing else about the plan changes.
+    const after = buildRollup(
+      live.map((c) => (c.id === "c0" ? retired("c0", "covered by c1") : c)),
+      r,
+      "spec",
+    );
+    expect(after.overall.total).toBe(9);
+    expect(after.overall.passed).toBe(5);
+    // No other count moves.
+    expect(after.overall.not_started).toBe(before.overall.not_started);
+    expect(after.overall.failed).toBe(before.overall.failed);
+    expect(after.overall.in_progress).toBe(before.overall.in_progress);
+    expect(after.overall.blocked).toBe(before.overall.blocked);
+    expect(after.archived.map((a) => a.case.id)).toEqual(["c0"]);
+  });
+
+  it("SATCA-TC-014: a retired and a superseded case are absent from the case list", () => {
+    const cases = [
+      makeCase("live-1", 1, "P0"),
+      retired("gone", "no longer applicable"),
+      superseded("old", "live-1", "folded into live-1"),
+    ];
+    const model = buildRollup(cases, null, "spec");
+
+    expect(caseIdsIn(model)).toEqual(["live-1"]);
+    expect(
+      flattenRollup(model)
+        .filter((f) => f.kind === "case")
+        .map((f) => f.key),
+    ).toEqual(["case:live-1"]);
+    expect(model.overall.total).toBe(1);
+    expect(model.archived.map((a) => [a.case.id, a.state])).toEqual([
+      ["gone", "retired"],
+      ["old", "superseded"],
+    ]);
+  });
+
+  it("SATCA-TC-018: a plan whose cases are all non-live rolls up to zero live cases", () => {
+    const cases = [retired("a", "obsolete"), superseded("b", "other-spec:TC-9")];
+    const model = buildRollup(cases, null, "spec");
+
+    expect(model.levels).toEqual([]);
+    expect(model.overall.total).toBe(0);
+    // Every bucket is zero, so no consumer can derive a percentage from a
+    // non-zero numerator over a zero denominator.
+    expect(model.overall.passed).toBe(0);
+    expect(model.overall.failed).toBe(0);
+    expect(flattenRollup(model)).toEqual([]);
+    // The archived list still accounts for every case in the plan.
+    expect(model.archived.map((a) => a.case.id)).toEqual(["a", "b"]);
+  });
+
+  it("carries the reason, the verbatim pointer, and the retained status", () => {
+    const cases = [
+      retired("a", "duplicate of c1"),
+      superseded("b", "c1", "split into c1"),
+      superseded("c", "c1"),
+    ];
+    const r = results({
+      a: result({
+        derivedStatus: "failed",
+        statusOverride: {
+          status: "blocked",
+          author: { name: "a", email: "a@b.c" },
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+      }),
+    });
+    const model = buildRollup(cases, r, "spec");
+
+    expect(model.archived[0].reason).toBe("duplicate of c1");
+    expect(model.archived[0].replacement).toBeNull();
+    expect(model.archived[0].replacementRef).toBeNull();
+    // The status override recorded against a retired case is retained, not reset.
+    expect(model.archived[0].status).toBe("blocked");
+    expect(model.archived[1].reason).toBe("split into c1");
+    expect(model.archived[1].replacement).toBe("c1");
+    // A superseded case may carry no reason; that is null, not an empty string.
+    expect(model.archived[2].reason).toBeNull();
+    expect(model.archived[2].status).toBe("not_started");
+  });
+
+  it("classifies a bare pointer as same-spec and a slug-qualified one by its slug", () => {
+    const cases = [
+      superseded("bare", "TC-004"),
+      superseded("qualified-self", "spec:TC-004"),
+      superseded("qualified-other", "other-spec:TC-004"),
+    ];
+    const model = buildRollup(cases, null, "spec");
+
+    expect(model.archived.map((a) => [a.case.id, a.isSameSpec])).toEqual([
+      ["bare", true],
+      ["qualified-self", true],
+      ["qualified-other", false],
+    ]);
+    // The pointer is parsed by the resolver, so the target case id is named
+    // without the slug prefix.
+    expect(model.archived[2].replacementRef).toEqual({ slug: "other-spec", caseId: "TC-004" });
+    // The verbatim pointer is preserved alongside the parsed form.
+    expect(model.archived[2].replacement).toBe("other-spec:TC-004");
+  });
+
+  it("treats a slug-qualified pointer as cross-spec when no spec slug is supplied", () => {
+    const model = buildRollup([superseded("a", "TC-1"), superseded("b", "s:TC-1")], null);
+    expect(model.archived.map((x) => x.isSameSpec)).toEqual([true, false]);
   });
 });
 
