@@ -21,7 +21,7 @@
 import * as rpc from "vscode-jsonrpc/node";
 
 /**
- * The stub CLI the host spawns. Deliberately NOT `claude`: `resolveShellPath()`
+ * The stub CLI the host spawns. Deliberately NOT `claude`: `importLoginShellEnv()`
  * prepends `~/.local/bin`, so a real Claude Code install would otherwise win the
  * lookup and the guard would drive the real CLI.
  */

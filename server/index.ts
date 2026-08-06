@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net";
 import type * as http from "node:http";
 
 import { WebSocketServer } from "ws";
-import { loadEnvFile, resolveShellPath } from "./services/env.js";
+import { loadEnvFile, importLoginShellEnv } from "./services/env.js";
 import { describeSpawnHelperProblem } from "./services/pty-preflight.js";
 import { checkForUpdate } from "./services/version-check.js";
 import { warmAgentVersion } from "./services/agent-version-probe.js";
@@ -72,7 +72,7 @@ let initialEnvPort: string | undefined;
 export async function startServer(options: StartOptions = {}): Promise<ServerHandle> {
   if (!envInitialized) {
     loadEnvFile();
-    resolveShellPath();
+    importLoginShellEnv();
     initialEnvPort = process.env.ROUBO_PORT;
     envInitialized = true;
     // A non-executable node-pty spawn-helper breaks every terminal, but stays

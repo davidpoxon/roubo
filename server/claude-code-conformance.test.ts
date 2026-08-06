@@ -165,7 +165,7 @@ vi.mock("./services/env.js", () => ({
   getEnvFileKeys: () => [],
   getContextWindow: () => 200_000,
   loadEnvFile: () => {},
-  resolveShellPath: () => {},
+  importLoginShellEnv: () => {},
   resolveAgentCommand: (command: string) => command,
 }));
 
@@ -504,7 +504,7 @@ describe("jig injection route contract (CC-JIG)", () => {
     expect(existsSync(workspaceSettingsPath(workspacePath))).toBe(false);
   });
 
-  it("CC-JIG-05: a plain terminal (no jig, no agent) is still a plain shell with no argv", async () => {
+  it("CC-JIG-05: a plain terminal (no jig, no agent) is still a login shell with no agent argv", async () => {
     const { benchId, workspacePath } = seedBench();
 
     const res = await createTerminal(benchId, {});
@@ -512,7 +512,8 @@ describe("jig injection route contract (CC-JIG)", () => {
     expect(res.status).toBe(201);
     const spawn = lastSpawn();
     expect(spawn.file).toBe("/bin/zsh");
-    expect(spawn.args).toEqual([]);
+    // `-l` only: the login-shell flag, never an agent argv (#762).
+    expect(spawn.args).toEqual(["-l"]);
     // Core writes no agent-specific settings file of its own (AP-TC-104).
     expect(existsSync(workspaceSettingsPath(workspacePath))).toBe(false);
   });

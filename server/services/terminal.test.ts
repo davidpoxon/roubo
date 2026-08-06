@@ -160,7 +160,8 @@ describe("createSession", () => {
     expect(session.status).toBe("live");
     expect(mockSpawn).toHaveBeenCalledWith(
       "/bin/zsh",
-      [],
+      // `-l`: a plain terminal is a login shell, as Terminal.app opens one (#762)
+      ["-l"],
       expect.objectContaining({
         cwd: "/workspace",
         cols: 80,

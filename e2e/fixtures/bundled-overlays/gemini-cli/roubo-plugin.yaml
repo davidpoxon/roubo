@@ -25,7 +25,7 @@ contractVersion: 1
 # pre-launch gate both resolve `within-tested-range`.
 #
 # The probe names the e2e stub rather than `gemini`, for the same reason neither
-# sibling stub is named after its real CLI: `resolveShellPath()` prepends
+# sibling stub is named after its real CLI: `importLoginShellEnv()` prepends
 # `~/.local/bin`, so a real Gemini CLI install on a developer machine would win
 # the PATH lookup and the harness would report that binary's version instead.
 agentCompatibility:

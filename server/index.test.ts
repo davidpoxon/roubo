@@ -13,7 +13,7 @@ vi.mock("./services/env.js", () => ({
     }
   },
   loadEnvFile: vi.fn(),
-  resolveShellPath: vi.fn(),
+  importLoginShellEnv: vi.fn(),
   cleanEnv: vi.fn(() => ({})),
   getEnvFileKeys: vi.fn(() => []),
   getContextWindow: vi.fn(() => 200000),
@@ -219,7 +219,7 @@ describe.sequential("startServer", () => {
         loadEnvFile: vi.fn(() => {
           process.env.ROUBO_PORT = String(freePort);
         }),
-        resolveShellPath: vi.fn(),
+        importLoginShellEnv: vi.fn(),
         cleanEnv: vi.fn(() => ({})),
         getEnvFileKeys: vi.fn(() => []),
         getContextWindow: vi.fn(() => 200000),
