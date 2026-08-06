@@ -530,3 +530,155 @@ describe("discoverSpecs verification aggregation (#482)", () => {
     expect(fs.readFileSync(resultsPath).equals(before)).toBe(true);
   });
 });
+
+function writeManifest(slug: string, manifest: unknown): string {
+  const dir = path.join(repo, ".specifications", slug);
+  fs.mkdirSync(dir, { recursive: true });
+  const target = path.join(dir, "manifest.json");
+  fs.writeFileSync(
+    target,
+    typeof manifest === "string" ? manifest : JSON.stringify(manifest, null, 2),
+  );
+  return target;
+}
+
+describe("discoverSpecs lifecycle aggregation (#765)", () => {
+  it("carries a live lifecycle object on every spec with no manifest (SATCA-TC-039)", () => {
+    writeSpec("feat", planFor("feat", ["TC-001"]));
+
+    const { specs } = discoverSpecs(repo);
+    expect(specs).toHaveLength(1);
+    expect(specs[0].lifecycle).toEqual({
+      archived: false,
+      reason: null,
+      supersededBy: null,
+      recordError: null,
+    });
+  });
+
+  it("reads a legacy flow-state.json-only spec folder as live (SATCA-TC-040)", () => {
+    writeSpec("legacy", planFor("legacy", ["TC-001"]));
+    fs.writeFileSync(
+      path.join(repo, ".specifications", "legacy", "flow-state.json"),
+      JSON.stringify({ last_completed_stage: "breakdown", re_interview_log: [] }),
+    );
+
+    expect(discoverSpecs(repo).specs[0].lifecycle).toEqual({
+      archived: false,
+      reason: null,
+      supersededBy: null,
+      recordError: null,
+    });
+  });
+
+  it("reports an archived spec with its reason and superseding slug", () => {
+    writeSpec("old", planFor("old", ["TC-001"]));
+    writeManifest("old", {
+      schema_version: 1,
+      current_stage: "align",
+      lifecycle: {
+        archived: true,
+        reason: "Folded into the new spec.",
+        supersededBy: "new-spec",
+      },
+    });
+
+    expect(discoverSpecs(repo).specs[0].lifecycle).toEqual({
+      archived: true,
+      reason: "Folded into the new spec.",
+      supersededBy: "new-spec",
+      recordError: null,
+    });
+  });
+
+  it("reads a manifest with no lifecycle key as live", () => {
+    writeSpec("staged", planFor("staged", ["TC-001"]));
+    writeManifest("staged", { schema_version: 1, current_stage: "prd", id_counters: { FR: 3 } });
+
+    expect(discoverSpecs(repo).specs[0].lifecycle.archived).toBe(false);
+    expect(discoverSpecs(repo).specs[0].lifecycle.recordError).toBeNull();
+  });
+
+  // SATCA-TC-007 / SATCA-TC-041: one corrupt record degrades exactly one spec.
+  it("keeps a spec with a malformed lifecycle record listed, marked, and leaves every other spec unaffected", () => {
+    writeSpec("alpha", planFor("alpha", ["TC-001"]));
+    writeSpec("broken", planFor("broken", ["TC-001"]));
+    writeSpec("zebra", planFor("zebra", ["TC-001"]));
+    writeManifest("alpha", { schema_version: 1, lifecycle: { archived: true } });
+    writeManifest("broken", { schema_version: 1, lifecycle: { archived: true, reason: "" } });
+
+    const { specs, invalid } = discoverSpecs(repo);
+    // The spec is still listed, not silently hidden, and discovery did not fail.
+    expect(specs.map((s) => s.slug)).toEqual(["alpha", "broken", "zebra"]);
+    expect(invalid).toEqual([]);
+
+    const broken = specs[1].lifecycle;
+    expect(broken.archived).toBe(false);
+    expect(broken.recordError).toContain("reason");
+
+    // Every other spec is unaffected: the valid record still reads, and the
+    // no-manifest spec is still clean.
+    expect(specs[0].lifecycle).toEqual({
+      archived: true,
+      reason: null,
+      supersededBy: null,
+      recordError: null,
+    });
+    expect(specs[2].lifecycle).toEqual({
+      archived: false,
+      reason: null,
+      supersededBy: null,
+      recordError: null,
+    });
+  });
+
+  it("reads an unparseable manifest as live rather than hiding the spec", () => {
+    writeSpec("corrupt", planFor("corrupt", ["TC-001"]));
+    writeManifest("corrupt", "{ not json");
+
+    expect(discoverSpecs(repo).specs[0].lifecycle).toEqual({
+      archived: false,
+      reason: null,
+      supersededBy: null,
+      recordError: null,
+    });
+  });
+
+  it("degrades only the spec whose manifest symlinks outside the repo", () => {
+    writeSpec("safe", planFor("safe", ["TC-001"]));
+    writeSpec("escaping", planFor("escaping", ["TC-001"]));
+
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-discovery-outside-"));
+    try {
+      const foreign = path.join(outside, "manifest.json");
+      fs.writeFileSync(foreign, JSON.stringify({ lifecycle: { archived: true } }));
+      fs.symlinkSync(foreign, path.join(repo, ".specifications", "escaping", "manifest.json"));
+
+      const { specs } = discoverSpecs(repo);
+      expect(specs.map((s) => s.slug)).toEqual(["escaping", "safe"]);
+      // Refused, so never archived by a file outside the repo, and flagged.
+      expect(specs[0].lifecycle.archived).toBe(false);
+      expect(specs[0].lifecycle.recordError).not.toBeNull();
+      expect(specs[1].lifecycle.recordError).toBeNull();
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("performs zero writes: no manifest is created and an existing one is untouched", () => {
+    writeSpec("no-manifest", planFor("no-manifest", ["TC-001"]));
+    writeSpec("with-manifest", planFor("with-manifest", ["TC-001"]));
+    const manifestPath = writeManifest("with-manifest", {
+      schema_version: 1,
+      lifecycle: { archived: true },
+    });
+    const before = fs.readFileSync(manifestPath);
+
+    discoverSpecs(repo);
+
+    expect(fs.existsSync(path.join(repo, ".specifications", "no-manifest", "manifest.json"))).toBe(
+      false,
+    );
+    expect(fs.readFileSync(manifestPath).equals(before)).toBe(true);
+  });
+});

@@ -26,6 +26,7 @@ import {
 import { validateTestCases } from "@roubo/shared/testbench-contracts";
 import type { CaseStatus, TestCasesPlan } from "@roubo/shared/testbench-contracts";
 import { computePlanHash, loadResultsFile } from "./testbench-store.js";
+import { readSpecLifecycle } from "./testbench-spec-lifecycle.js";
 
 // Per-status case tally for one spec (#482). Non-negative integers keyed by the
 // five CaseStatus values; the tally is computed over the CURRENT plan's case ids
@@ -60,14 +61,34 @@ export interface SpecVerification {
   aggregationError: boolean;
 }
 
+// The read-only, fail-open lifecycle state discovery computes per spec (#765,
+// SATCA-FR-014). Flattened from the spec's manifest lifecycle record so the
+// response shape stays additive and the client never has to distinguish "no
+// record" from "unreadable record" by probing for an absent object:
+//   - archived: true only when a VALID archived record was read. Absent
+//     manifest, absent subtree, unparseable manifest, and malformed record all
+//     read false, so a spec is never hidden by accident (SATCA-FR-017).
+//   - reason / supersededBy: the record's optional fields, null when unrecorded.
+//   - recordError: why a PRESENT lifecycle record could not be read (a
+//     field-named message), or why the read itself was refused on path-safety
+//     grounds. Null on a clean read and on a spec with no record at all.
+export interface SpecLifecycleState {
+  archived: boolean;
+  reason: string | null;
+  supersededBy: string | null;
+  recordError: string | null;
+}
+
 // One discovered, contract-valid spec: the slug naming its `.specifications/<slug>/`
-// folder, the absolute path to its test-cases.json, the number of cases in it, and
-// its read-only per-spec verification state (#482).
+// folder, the absolute path to its test-cases.json, the number of cases in it,
+// its read-only per-spec verification state (#482), and its read-only lifecycle
+// state (#765).
 export interface DiscoveredSpec {
   slug: string;
   path: string;
   caseCount: number;
   verification: SpecVerification;
+  lifecycle: SpecLifecycleState;
 }
 
 // A spec folder that HAS a test-cases.json which failed to parse or validate
@@ -171,6 +192,34 @@ function computeVerification(
   }
 }
 
+// Compute one spec's read-only lifecycle state from its manifest (#765,
+// SATCA-FR-014). Delegates the IO and the fail-open ladder to the reader
+// (testbench-spec-lifecycle.ts), and wraps the call in the same per-spec
+// try/catch computeVerification uses: the reader's path-safety barriers are
+// fail-closed and throw, so a spec whose manifest symlinks out of the repo
+// degrades to a flagged-but-listed entry instead of failing discovery
+// (SATCA-NFR-003).
+function computeLifecycle(repoPath: string, slug: string): SpecLifecycleState {
+  try {
+    const { lifecycle, recordError } = readSpecLifecycle(repoPath, slug);
+    return {
+      archived: lifecycle !== null,
+      reason: lifecycle?.reason ?? null,
+      supersededBy: lifecycle?.supersededBy ?? null,
+      recordError,
+    };
+  } catch (err) {
+    // Per-spec degrade: never archived (a spec is not hidden because its record
+    // could not be reached), but marked so the surface can say why.
+    return {
+      archived: false,
+      reason: null,
+      supersededBy: null,
+      recordError: err instanceof Error ? err.message : "lifecycle record could not be read",
+    };
+  }
+}
+
 // Enumerate every `.specifications/<slug>/test-cases.json` under repoPath, sorting
 // each into the usable `specs` (parsed + contract-valid) or the present-but-broken
 // `invalid` (a test-cases.json that exists but fails JSON parse or contract
@@ -261,6 +310,9 @@ export function discoverSpecs(repoPath: string): SpecDiscovery {
       // Per-spec, read-only, fail-open verification state (#482). Computed here in
       // the existing loop where the parsed, contract-valid plan is already in hand.
       verification: computeVerification(repoPath, slug, plan),
+      // Per-spec, read-only, fail-open lifecycle state (#765). Computed in the
+      // same loop, on the same already-allowlisted slug.
+      lifecycle: computeLifecycle(repoPath, slug),
     });
   }
 

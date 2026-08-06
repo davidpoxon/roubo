@@ -24,7 +24,8 @@
     "./testbench-canonicalize": "./testbench-canonicalize.ts",
     "./testbench-domain": "./testbench-domain.ts",
     "./work-units-contract": "./work-units-contract.ts",
-    "./gate-overrides-contract": "./gate-overrides-contract.ts"
+    "./gate-overrides-contract": "./gate-overrides-contract.ts",
+    "./spec-lifecycle-schema": "./spec-lifecycle-schema.ts"
   },
   "files": [
     "*.ts",
