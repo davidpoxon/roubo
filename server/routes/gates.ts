@@ -52,8 +52,12 @@ import {
   assertSafeIdentifier,
   SPEC_SLUG_RE,
 } from "../lib/safe-path.js";
+import { readSpecLifecycle } from "../lib/testbench-spec-lifecycle.js";
 import { evaluateGate } from "../lib/gate-evaluator.js";
-import type { GateState, VerifyUnit } from "../lib/gate-evaluator.js";
+import type { GateLifecycle, GateState, VerifyUnit } from "../lib/gate-evaluator.js";
+import { collectReferencedSlugs, resolvePlan } from "@roubo/shared/lifecycle-resolver";
+import type { ResolverPlan, ResolverSpecLifecycle } from "@roubo/shared/lifecycle-resolver";
+import type { BenchResults, TestCasesPlan } from "@roubo/shared/testbench-contracts";
 import type { Tracker, Unit } from "@roubo/shared/work-units-contract";
 import {
   validateGateOverrides,
@@ -200,6 +204,75 @@ function resolveResultsRoot(projectId: string, repoPath: string, slug: string): 
   return repoPath;
 }
 
+// Read one spec's lifecycle record without letting a bad slug or an unreadable
+// manifest fail the whole gate read. `readSpecLifecycle` already fails open for a
+// missing / unparseable / invalid manifest; the catch covers the path barriers,
+// which throw UnsafePathError for a slug that came out of an author-written
+// replacement pointer. Either way the spec reads as live, which is the reader's
+// own never-hide-a-spec-by-accident rule.
+function readSpecLifecycleSafely(root: string, slug: string): ResolverSpecLifecycle | null {
+  try {
+    return readSpecLifecycle(root, slug).lifecycle;
+  } catch {
+    return null;
+  }
+}
+
+// Build the lifecycle view the evaluator consumes for one gate's spec (#768,
+// SATCA-FR-012). The route does the I/O; the evaluator does not.
+//
+// The resolver's own `collectReferencedSlugs` decides what to pre-load, so the
+// gate, the rollup, and the authoring-time picker all discover the same set by the
+// same rule and cannot diverge on what "supplied" means. Each referenced spec is
+// read from ITS own resolved results root (#432), and a slug that cannot be read
+// is simply left out of the map, which the resolver reports as `target spec not
+// supplied` rather than as a resolution.
+//
+// Returns undefined when the plan carries no lifecycle block at all: there is
+// nothing to resolve, the evaluator's lifecycle-free path is byte-identical, and
+// the common case does no extra I/O.
+function buildGateLifecycle(
+  projectId: string,
+  repoPath: string,
+  slug: string,
+  plan: TestCasesPlan,
+): GateLifecycle | undefined {
+  if (!plan.cases.some((testCase) => testCase.lifecycle !== undefined)) {
+    return undefined;
+  }
+
+  // Keyed by the plan's OWN `specSlug`, which is the slug a bare same-spec pointer
+  // is scoped to, so the resolver's internal lookups line up. The folder slug is
+  // what the manifest is read from; the two agree in practice.
+  const plans = new Map<string, ResolverPlan>([[plan.specSlug, plan]]);
+  const specLifecycles = new Map<string, ResolverSpecLifecycle>();
+  const resultsBySlug = new Map<string, BenchResults>();
+
+  const ownRecord = readSpecLifecycleSafely(repoPath, slug);
+  if (ownRecord !== null) specLifecycles.set(plan.specSlug, ownRecord);
+
+  for (const referenced of collectReferencedSlugs(plan)) {
+    const root = resolveResultsRoot(projectId, repoPath, referenced);
+    try {
+      const loaded = testbenchStore.readPlanAndResults(root, referenced);
+      plans.set(referenced, loaded.plan);
+      // Fail-closed (VG-NFR-007): a referenced spec whose recorded results are
+      // stale against its own plan contributes no status, so a pointer landing
+      // there reads as unresolved rather than borrowing an out-of-date pass.
+      if (loaded.results !== null && !loaded.stale) {
+        resultsBySlug.set(referenced, loaded.results);
+      }
+    } catch {
+      // Missing, unreadable, invalid, or an unsafe slug: leave it unsupplied.
+      continue;
+    }
+    const record = readSpecLifecycleSafely(root, referenced);
+    if (record !== null) specLifecycles.set(referenced, record);
+  }
+
+  return { resolutions: resolvePlan(plan, { plans, specLifecycles }), resultsBySlug };
+}
+
 // Evaluate a single loaded gate against its spec's recorded plan + results.
 //
 // The plan + results are read from the root resolved by `resolveResultsRoot`: the
@@ -231,7 +304,10 @@ function evaluateLoadedGate(
     // recorded yet" and reads as stale.
     const gateResults =
       results === null ? null : { ...results, planHash: stale ? `${planHash}::stale` : planHash };
-    state = evaluateGate(unit, gateResults, planHash, plan);
+    // Lifecycle is threaded in the same way the plan is: loaded here, never by
+    // the pure evaluator (#768, SATCA-FR-012).
+    const lifecycle = buildGateLifecycle(projectId, repoPath, slug, plan);
+    state = evaluateGate(unit, gateResults, planHash, plan, lifecycle);
   } catch (err) {
     if (err instanceof MissingPlanError) {
       // Fail-closed: no plan means the gate has never been verified. Report it
@@ -242,6 +318,8 @@ function evaluateLoadedGate(
         unresolvedCaseIds,
         gatingCaseIds: [...unresolvedCaseIds],
         coveringUnitIds: unresolvedCaseIds.length > 0 ? (unit.covers ?? []) : [],
+        // Nothing narrowed this set: it is the declared set, reported whole.
+        emptyReason: null,
       };
     } else {
       throw err;

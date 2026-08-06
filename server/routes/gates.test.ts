@@ -1221,3 +1221,184 @@ describe("GET /:projectId/gates/:gateId blockedBy uses sibling sign-off state (#
     expect(res.body.blockedBy).toEqual(["WU-GATE-1"]);
   });
 });
+
+// #768: the route is the caller that threads the lifecycle resolution into the
+// pure evaluator (SATCA-FR-012). These cover the wiring, not the rules; the rules
+// themselves are locked in server/lib/gate-evaluator.test.ts.
+describe("GET /:projectId/gates lifecycle-aware evaluation (#768, SATCA-FR-008, SATCA-FR-011)", () => {
+  // A plan fixture that carries the specSlug the resolver scopes bare pointers to
+  // (planAndResults' minimal fixture omits it).
+  function lifecyclePlanAndResults(
+    specSlug: string,
+    cases: Case[],
+    caseResults: Record<string, CaseResult>,
+  ) {
+    return {
+      plan: { specSlug, cases } as never,
+      results: { caseResults, updatedAt: "2026-01-01T00:00:00.000Z" },
+      stale: false,
+      planHash: PLAN_HASH,
+      recovered: false,
+    };
+  }
+
+  function retiredCase(id: string, level: number): Case {
+    return {
+      ...planCase(id, level),
+      lifecycle: { state: "retired", reason: "folded in" },
+    } as never;
+  }
+
+  function supersededCase(id: string, level: number, replacement: string): Case {
+    return { ...planCase(id, level), lifecycle: { state: "superseded", replacement } } as never;
+  }
+
+  it("drops a retired case from the projected gating set and lets the gate pass", () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001", "TC-002"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      lifecyclePlanAndResults("alpha", [planCase("TC-001", 1), retiredCase("TC-002", 1)], {
+        "TC-001": caseResult("passed"),
+        "TC-002": caseResult("not_started"),
+      }) as never,
+    );
+    return request(app)
+      .get("/p1/gates")
+      .then((res) => {
+        expect(res.status).toBe(200);
+        expect(res.body.gates[0].gatingCaseIds).toEqual(["TC-001"]);
+        expect(res.body.gates[0].status).toBe("passed");
+      });
+  });
+
+  it("reads a same-spec supersession through to the replacement's recorded status", () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      lifecyclePlanAndResults(
+        "alpha",
+        [supersededCase("TC-001", 1, "TC-009"), planCase("TC-009", 1)],
+        { "TC-009": caseResult("failed") },
+      ) as never,
+    );
+    return request(app)
+      .get("/p1/gates")
+      .then((res) => {
+        expect(res.status).toBe(200);
+        expect(res.body.gates[0].status).toBe("failed");
+        expect(res.body.gates[0].unresolvedCaseIds).toEqual(["TC-001"]);
+      });
+  });
+
+  it("projects emptyReason so a lifecycle-emptied set is distinguishable from a policy-emptied one", async () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      lifecyclePlanAndResults("alpha", [retiredCase("TC-001", 1)], {
+        "TC-001": caseResult("passed"),
+      }) as never,
+    );
+    const lifecycleEmptied = await request(app).get("/p1/gates");
+    expect(lifecycleEmptied.body.gates[0].status).toBe("no_gating_cases");
+    expect(lifecycleEmptied.body.gates[0].emptyReason).toBe("lifecycle");
+
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      lifecyclePlanAndResults("alpha", [planCase("TC-001", 4)], {
+        "TC-001": caseResult("passed"),
+      }) as never,
+    );
+    const policyEmptied = await request(app).get("/p1/gates");
+    expect(policyEmptied.body.gates[0].status).toBe("no_gating_cases");
+    expect(policyEmptied.body.gates[0].emptyReason).toBe("policy");
+  });
+
+  it("leaves a gate with a lifecycle-free plan untouched (emptyReason null)", () => {
+    vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+      loaded("alpha", gate("WU-100", ["TC-001"])),
+    ]);
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue(
+      planAndResults([planCase("TC-001", 1)], { "TC-001": caseResult("passed") }) as never,
+    );
+    return request(app)
+      .get("/p1/gates")
+      .then((res) => {
+        expect(res.body.gates[0].status).toBe("passed");
+        expect(res.body.gates[0].emptyReason).toBeNull();
+      });
+  });
+
+  // The cross-spec pre-load loop is the half of the wiring `collectReferencedSlugs`
+  // drives: a bare same-spec pointer never reaches it, so these drive the route with
+  // a slug-qualified pointer and a per-slug store mock. Every failure mode below must
+  // degrade to unresolved, never to a pass (SATCA-FR-010, VG-NFR-007).
+  describe("cross-spec pointers (#768, SATCA-FR-009, SATCA-FR-012)", () => {
+    // The origin spec "alpha" declares one L1 case superseded into "beta".
+    const originPlan = () =>
+      lifecyclePlanAndResults("alpha", [supersededCase("TC-001", 1, "beta:TC-009")], {});
+
+    // Route the store mock by slug, so the referenced spec is a genuinely separate
+    // read (the single-value mockReturnValue the tests above use cannot express this).
+    function storeBySlug(bySlug: Record<string, unknown>) {
+      vi.mocked(testbenchStore.readPlanAndResults).mockImplementation(((
+        _root: string,
+        slug: string,
+      ) => {
+        const loadedSpec = bySlug[slug];
+        if (loadedSpec === undefined) throw new testbenchStore.MissingPlanError(slug);
+        if (loadedSpec instanceof Error) throw loadedSpec;
+        return loadedSpec;
+      }) as never);
+    }
+
+    beforeEach(() => {
+      vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
+        loaded("alpha", gate("WU-100", ["TC-001"])),
+      ]);
+    });
+
+    it("resolves the pointer and reads the replacement's status when the target spec is supplied", async () => {
+      storeBySlug({
+        alpha: originPlan(),
+        beta: lifecyclePlanAndResults("beta", [planCase("TC-009", 1)], {
+          "TC-009": caseResult("passed"),
+        }),
+      });
+      const res = await request(app).get("/p1/gates");
+      expect(res.status).toBe(200);
+      // The DECLARED id stays the gating id; only its status comes from "beta".
+      expect(res.body.gates[0].gatingCaseIds).toEqual(["TC-001"]);
+      expect(res.body.gates[0].status).toBe("passed");
+    });
+
+    it("does not report passed when the target spec's own results are stale", async () => {
+      storeBySlug({
+        alpha: originPlan(),
+        beta: {
+          ...lifecyclePlanAndResults("beta", [planCase("TC-009", 1)], {
+            "TC-009": caseResult("passed"),
+          }),
+          stale: true,
+        },
+      });
+      const res = await request(app).get("/p1/gates");
+      expect(res.status).toBe(200);
+      // The plan is still supplied, so the pointer resolves; the stale results are
+      // withheld, so the replacement's status is unknown rather than an old pass.
+      expect(res.body.gates[0].status).not.toBe("passed");
+      expect(res.body.gates[0].unresolvedCaseIds).toEqual(["TC-001"]);
+    });
+
+    it("does not report passed when the target spec cannot be read at all", async () => {
+      // "beta" absent from the map: readPlanAndResults throws, the catch leaves it
+      // unsupplied, and the resolver reports `target spec not supplied`.
+      storeBySlug({ alpha: originPlan() });
+      const res = await request(app).get("/p1/gates");
+      expect(res.status).toBe(200);
+      expect(res.body.gates[0].status).not.toBe("passed");
+      expect(res.body.gates[0].unresolvedCaseIds).toEqual(["TC-001"]);
+    });
+  });
+});
