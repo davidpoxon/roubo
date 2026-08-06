@@ -78,7 +78,7 @@ npm run test:perf           # the performance harnesses, budget assertions on
 npx vitest run --disableConsoleIntercept   # verify a suite is genuinely silent
 ```
 
-Performance budgets live in `*.perf*.test.*` files beside the code they measure. Their budget assertions are gated behind `RUN_PERF_HARNESS=1`, so the default run skips them (a wall-clock assertion on a shared CI runner is a flake generator) and each file keeps a sentinel plus a non-gated structural test so it still asserts something. `npm run test:perf` sets the flag, runs those files alone, and prints each one's `perf-evidence` JSON. No CI job runs them; they are an opt-in local check.
+Performance budgets live in `*.perf*.test.*` and `*.scale*.test.*` files beside the code they measure. Their budget assertions are gated behind `RUN_PERF_HARNESS=1`, so the default run skips them (a wall-clock assertion on a shared CI runner is a flake generator) and each file keeps a sentinel plus a non-gated structural test so it still asserts something. `npm run test:perf` sets the flag, runs those files alone, and prints each one's `perf-evidence` JSON. Both filename patterns are in the script's filter, so a new budget harness only gets run if its filename carries one of them. No CI job runs them; they are an opt-in local check.
 
 CI enforces **80% coverage** on lines, functions, branches, and statements via the `pr-check` workflow. Code changes not covered by existing tests must come with new tests.
 
