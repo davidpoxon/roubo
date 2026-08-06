@@ -64,6 +64,38 @@ function planWithCase(filteredToGateIds: string[]) {
   };
 }
 
+// A subset plan whose only case is retired (#769). The plan is NOT empty, but the
+// rollup excludes every non-live case, so the live case list would otherwise be an
+// unlabelled empty card.
+function planWithOnlyRetiredCase(filteredToGateIds: string[]) {
+  return {
+    plan: {
+      $schema: "x",
+      schemaVersion: "1.2.0",
+      specSlug: "demo",
+      cases: [
+        {
+          id: "TC-RETIRED",
+          title: "A retired case",
+          area: "demo",
+          level: 1,
+          type: "functional",
+          steps: [],
+          tags: [],
+          linked_requirement_ids: ["FR-001"],
+          linked_user_story_ids: [],
+          lifecycle: { state: "retired", reason: "covered by TC-002" },
+        },
+      ],
+    },
+    results: null,
+    stale: false,
+    planHash: "h",
+    recovered: false,
+    filteredToGateIds,
+  };
+}
+
 function gateState(overrides: Record<string, unknown>) {
   return {
     gateId: "WU-099",
@@ -149,6 +181,18 @@ describe("BatchView", () => {
     const notices = await screen.findAllByText(/no gating cases in scope/i);
     expect(notices.length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText("An L3 case")).toBeNull();
+  });
+
+  it("elides when the subset plan is non-empty but every case is non-live (#769)", async () => {
+    // The gate still reports `pending` (the server does not read lifecycle yet), and
+    // the subset plan carries a case row, but the rollup excludes it as retired. The
+    // notice must fire off the empty LIVE rollup, never an unlabelled empty card (AC2).
+    mockedApi.fetchGate.mockResolvedValue(gateState({ status: "pending" }) as never);
+    mockedApi.fetchTestbenchPlan.mockResolvedValue(planWithOnlyRetiredCase(["WU-099"]) as never);
+
+    renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
+    await waitFor(() => expect(screen.getByText(/no gating cases in scope/i)).toBeTruthy());
+    expect(screen.queryByText("A retired case")).toBeNull();
   });
 
   it("disables 'Sign off batch' when the gate has not passed (AC3)", async () => {
