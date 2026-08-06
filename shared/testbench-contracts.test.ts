@@ -165,6 +165,199 @@ describe("validateTestCases", () => {
     expect(plan.cases[0].steps[0].observations[0].observe).toBeUndefined();
     expect(validateTestCases(plan).ok).toBe(true);
   });
+
+  // ── The optional case lifecycle block (v1.2.0, #764) ──
+
+  it("accepts a retired case carrying a reason (SATCA-TC-001)", () => {
+    const plan = makePlan();
+    plan.cases[0].lifecycle = { state: "retired", reason: "The flow it covers was removed" };
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const lifecycle = result.data.cases[0].lifecycle;
+      expect(lifecycle).toEqual({
+        state: "retired",
+        reason: "The flow it covers was removed",
+      });
+    }
+  });
+
+  it("accepts a superseded case carrying a replacement pointer (SATCA-TC-002)", () => {
+    const plan = makePlan();
+    plan.cases[0].lifecycle = { state: "superseded", replacement: "TC-042" };
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.cases[0].lifecycle).toEqual({
+        state: "superseded",
+        replacement: "TC-042",
+      });
+    }
+  });
+
+  it("accepts an optional reason alongside a replacement pointer", () => {
+    const plan = makePlan();
+    plan.cases[0].lifecycle = {
+      state: "superseded",
+      replacement: "TC-042",
+      reason: "Folded into the broader flow",
+    };
+    expect(validateTestCases(plan).ok).toBe(true);
+  });
+
+  it("rejects a retired case with no reason, naming the field and the case (SATCA-TC-003)", () => {
+    const plan = makePlan();
+    // @ts-expect-error deliberately missing the required reason
+    plan.cases[0].lifecycle = { state: "retired" };
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (e) => e.startsWith("cases.0.lifecycle.reason:") && e.endsWith(" (case TC-001)"),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects a retired case with an empty reason, naming the field and the case (SATCA-TC-003)", () => {
+    const plan = makePlan();
+    plan.cases[0].lifecycle = { state: "retired", reason: "" };
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (e) => e.startsWith("cases.0.lifecycle.reason:") && e.includes("(case TC-001)"),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects a superseded case with no replacement, naming the field and the case (SATCA-TC-004)", () => {
+    const plan = makePlan();
+    // @ts-expect-error deliberately missing the required replacement pointer
+    plan.cases[0].lifecycle = { state: "superseded", reason: "Replaced" };
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (e) => e.startsWith("cases.0.lifecycle.replacement:") && e.endsWith(" (case TC-001)"),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects a superseded case with an empty replacement, naming the field and the case (SATCA-TC-004)", () => {
+    const plan = makePlan();
+    plan.cases[0].lifecycle = { state: "superseded", replacement: "" };
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (e) => e.startsWith("cases.0.lifecycle.replacement:") && e.includes("(case TC-001)"),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects an unrecognised lifecycle state and lists the permitted values (SATCA-TC-009)", () => {
+    const plan = makePlan();
+    // @ts-expect-error deliberately out-of-contract lifecycle state
+    plan.cases[0].lifecycle = { state: "archived", reason: "Not a permitted state" };
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const stateError = result.errors.find((e) => e.startsWith("cases.0.lifecycle.state:"));
+      expect(stateError).toBeDefined();
+      expect(stateError).toContain("retired");
+      expect(stateError).toContain("superseded");
+      expect(stateError).toContain("(case TC-001)");
+    }
+  });
+
+  it("names the offending case, not just its index, in a multi-case plan (SATCA-TC-003)", () => {
+    const plan = makePlan();
+    plan.cases.push({ ...makePlan().cases[0], id: "TC-009" });
+    // @ts-expect-error deliberately missing the required reason
+    plan.cases[1].lifecycle = { state: "retired" };
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (e) => e.startsWith("cases.1.lifecycle.reason:") && e.endsWith(" (case TC-009)"),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("accepts a bare and a slug-qualified replacement pointer verbatim (SATCA-TC-006)", () => {
+    const plan = makePlan();
+    plan.cases[0].lifecycle = { state: "superseded", replacement: "TC-042" };
+    plan.cases.push({
+      ...makePlan().cases[0],
+      id: "TC-002",
+      lifecycle: { state: "superseded", replacement: "other-spec:TC-042" },
+    });
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const [first, second] = result.data.cases;
+      // Preserved verbatim: the contract never parses or normalises the pointer.
+      expect(first.lifecycle).toEqual({ state: "superseded", replacement: "TC-042" });
+      expect(second.lifecycle).toEqual({
+        state: "superseded",
+        replacement: "other-spec:TC-042",
+      });
+    }
+  });
+
+  it("treats a case with no lifecycle block as live (SATCA-TC-005)", () => {
+    const plan = makePlan();
+    expect(plan.cases[0].lifecycle).toBeUndefined();
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Absence IS the live state: there is no `live` value to record, and no
+      // default is materialised onto the parsed case.
+      expect(result.data.cases.every((c) => c.lifecycle === undefined)).toBe(true);
+    }
+  });
+
+  it("rejects an unknown key inside the lifecycle block", () => {
+    const plan = makePlan();
+    plan.cases[0].lifecycle = {
+      state: "retired",
+      reason: "Obsolete",
+      // @ts-expect-error deliberately out-of-contract key
+      supersededBy: "TC-042",
+    };
+    const result = validateTestCases(plan);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.some((e) => e.includes("supersededBy"))).toBe(true);
+    }
+  });
+
+  it("accepts a file recorded at v1.1.0 and one recorded at v1.2.0 (SATCA-TC-008)", () => {
+    // A pre-existing spec recorded at 1.1.0, with no lifecycle block anywhere.
+    const priorVersion = makePlan();
+    priorVersion.$schema = "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json";
+    priorVersion.schemaVersion = "1.1.0";
+    expect(validateTestCases(priorVersion).ok).toBe(true);
+
+    // A file recorded at the new version, carrying lifecycle blocks.
+    const currentVersion = makePlan();
+    expect(currentVersion.schemaVersion).toBe("1.2.0");
+    currentVersion.cases[0].lifecycle = {
+      state: "retired",
+      reason: "Superseded by a broader flow",
+    };
+    expect(validateTestCases(currentVersion).ok).toBe(true);
+  });
 });
 
 describe("validateTestResults", () => {
@@ -294,6 +487,11 @@ describe("schema metadata", () => {
   it("embeds the schemaVersion semver in each versioned $id (NFR-005)", () => {
     expect(TEST_CASES_SCHEMA_ID).toContain(TEST_CASES_SCHEMA_VERSION);
     expect(TEST_RESULTS_SCHEMA_ID).toContain(TEST_RESULTS_SCHEMA_VERSION);
+  });
+
+  it("publishes the case schema at v1.2.0 (the additive lifecycle bump, #764)", () => {
+    expect(TEST_CASES_SCHEMA_VERSION).toBe("1.2.0");
+    expect(TEST_CASES_SCHEMA_ID).toBe("https://roubo.dev/schema/testbench/test-cases/v1.2.0.json");
   });
 
   it("exposes the fixed CaseStatus set", () => {

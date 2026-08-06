@@ -16,8 +16,10 @@ import { z } from "zod";
 //
 // Each published file carries a `$schema` URI whose path embeds a semver. A
 // breaking change ships a major bump plus a documented migration path; additive
-// optional fields (like the reserved targeting fields below) do not bump the
-// version. `TEST_CASES_SCHEMA_VERSION` / `TEST_RESULTS_SCHEMA_VERSION` are the
+// optional fields (like the reserved targeting fields below) need not bump the
+// version at all, and where one is taken to advertise the new field (the v1.2.0
+// case lifecycle block) it is a MINOR bump that still accepts every file the
+// prior minor accepted. `TEST_CASES_SCHEMA_VERSION` / `TEST_RESULTS_SCHEMA_VERSION` are the
 // matching `schemaVersion` string values kept consistent with the `$id` semver.
 //
 // The migration history and the versioning rule live in
@@ -31,9 +33,15 @@ import { z } from "zod";
 //   - test-results 1.0.0 -> 2.0.0 flattened the per-bench `benches` map to
 //     top-level caseResults. The store loader detects a prior-major file and
 //     fails open with a version-migration-required signal pointing at that doc.
+//   - test-cases 1.1.0 -> 1.2.0 added the optional case lifecycle block
+//     (SATCA-FR-001, #764). Purely additive under the rule above: the field is
+//     optional, absent means live, and a 1.1.0 file still validates unchanged.
+//     `schemaVersion` and `$schema` are free strings on the envelope, so a file
+//     recorded at either version parses; nothing rewrites a spec's recorded
+//     version on a read or on an unrelated write (SATCA-NFR-004).
 
-export const TEST_CASES_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json";
-export const TEST_CASES_SCHEMA_VERSION = "1.1.0";
+export const TEST_CASES_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-cases/v1.2.0.json";
+export const TEST_CASES_SCHEMA_VERSION = "1.2.0";
 
 export const TEST_RESULTS_SCHEMA_ID = "https://roubo.dev/schema/testbench/test-results/v2.0.0.json";
 export const TEST_RESULTS_SCHEMA_VERSION = "2.0.0";
@@ -131,6 +139,38 @@ export const RECOMMENDED_CASE_TYPES = [
   "structural",
 ] as const;
 
+// The optional case lifecycle block (SATCA-FR-001, SATCA-FR-002, #764), added
+// additively at schema v1.2.0. Absent means the case is LIVE: there is no
+// `live` state to record, so every pre-1.2.0 spec keeps its meaning unchanged.
+//
+// Discriminated on `state` so each state carries exactly the evidence it needs:
+// `retired` requires a non-empty reason, `superseded` requires a non-empty
+// replacement pointer and may carry a reason. The discriminator also gives the
+// unknown-state error its permitted-value list for free ("Invalid discriminator
+// value. Expected 'retired' | 'superseded'").
+//
+// `replacement` is validated as a non-empty string ONLY. Both the bare case-id
+// form ("TC-004") and the slug-qualified form ("other-spec:TC-004") are
+// accepted and preserved verbatim: the contract never parses, normalises, or
+// resolves the pointer. Resolution is LifecycleResolver's job (#766), and
+// keeping the syntax opaque here is what lets both forms round-trip untouched.
+export const CaseLifecycleSchema = z.discriminatedUnion("state", [
+  z
+    .object({
+      state: z.literal("retired"),
+      reason: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal("superseded"),
+      replacement: z.string().min(1),
+      reason: z.string().min(1).optional(),
+    })
+    .strict(),
+]);
+export type CaseLifecycle = z.infer<typeof CaseLifecycleSchema>;
+
 export const CaseSchema = z
   .object({
     id: z.string(),
@@ -153,6 +193,8 @@ export const CaseSchema = z
     tags: z.array(z.string()),
     linked_requirement_ids: z.array(z.string()).min(1),
     linked_user_story_ids: z.array(z.string()),
+    // Optional end-of-life declaration, added at v1.2.0 (#764). Absent = live.
+    lifecycle: CaseLifecycleSchema.optional(),
   })
   .strict();
 export type Case = z.infer<typeof CaseSchema>;
@@ -294,17 +336,46 @@ export type TestResultsFile = z.infer<typeof TestResultsFileSchema>;
 
 export type ValidationResult<T> = { ok: true; data: T } | { ok: false; errors: string[] };
 
-function zodIssuesToFieldErrors(issues: z.ZodIssue[]): string[] {
+function zodIssuesToFieldErrors(
+  issues: z.ZodIssue[],
+  suffixFor?: (issue: z.ZodIssue) => string,
+): string[] {
   return issues.map((issue) => {
     const path = issue.path.join(".");
-    return path ? `${path}: ${issue.message}` : issue.message;
+    const base = path ? `${path}: ${issue.message}` : issue.message;
+    return suffixFor ? `${base}${suffixFor(issue)}` : base;
   });
+}
+
+// A positional path (`cases.3.lifecycle.reason`) names the field but not the
+// case, which is unusable in a spec of a hundred cases (SATCA-TC-003/TC-004).
+// For any issue under `cases.<n>`, look the case's own `id` up in the RAW input
+// (the parse failed, so there is no parsed data to read) and append it.
+//
+// A SUFFIX, not a prefix: the zod path stays the leading token of the message,
+// so existing consumers and assertions that match on `cases.0.<field>:` are
+// unaffected. Silent no-op when the id is missing or not a string, since a
+// malformed case must still produce its field-named error.
+function caseIdSuffix(raw: unknown, issue: z.ZodIssue): string {
+  const [head, index] = issue.path;
+  if (head !== "cases" || typeof index !== "number") {
+    return "";
+  }
+  const cases = (raw as { cases?: unknown } | null | undefined)?.cases;
+  if (!Array.isArray(cases)) {
+    return "";
+  }
+  const id = (cases[index] as { id?: unknown } | null | undefined)?.id;
+  return typeof id === "string" && id.length > 0 ? ` (case ${id})` : "";
 }
 
 export function validateTestCases(raw: unknown): ValidationResult<TestCasesPlan> {
   const parsed = TestCasesPlanSchema.safeParse(raw);
   if (!parsed.success) {
-    return { ok: false, errors: zodIssuesToFieldErrors(parsed.error.issues) };
+    return {
+      ok: false,
+      errors: zodIssuesToFieldErrors(parsed.error.issues, (issue) => caseIdSuffix(raw, issue)),
+    };
   }
   return { ok: true, data: parsed.data };
 }

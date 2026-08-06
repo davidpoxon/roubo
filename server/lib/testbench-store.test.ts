@@ -373,6 +373,29 @@ describe("markObservation", () => {
     expect(planBytes().equals(before)).toBe(true);
   });
 
+  // SATCA-TC-012 / SATCA-NFR-004 (#764): a spec recorded at the PREVIOUS case
+  // schema version is never silently re-versioned. Reading it and marking an
+  // observation touches the results sidecar only, so the case file keeps both
+  // its bytes and its recorded 1.1.0 version. The version is raised only when a
+  // lifecycle record is actually introduced, which no code path does yet.
+  it("leaves an untouched v1.1.0 plan byte-identical and at its recorded version", async () => {
+    const priorVersionPlan = {
+      ...planFor(),
+      $schema: "https://roubo.dev/schema/testbench/test-cases/v1.1.0.json",
+      schemaVersion: "1.1.0",
+    };
+    writePlan(priorVersionPlan);
+    const before = planBytes();
+
+    const view = readPlanAndResults(repo, SLUG);
+    expect(view.plan.schemaVersion).toBe("1.1.0");
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+
+    expect(planBytes().equals(before)).toBe(true);
+    expect(JSON.parse(planBytes().toString()).schemaVersion).toBe("1.1.0");
+    expect(readPlanAndResults(repo, SLUG).plan.schemaVersion).toBe("1.1.0");
+  });
+
   // A recovered (corrupt) sidecar is replaced cleanly on the next write.
   it("recovers from a corrupt sidecar by reinitialising on write", async () => {
     writeRawResults("{ broken");

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canonicalize } from "./testbench-canonicalize.js";
+import { canonicalize, canonicalizeCase } from "./testbench-canonicalize.js";
 import type { TestCasesPlan } from "./testbench-domain-types.js";
 
 // spike-407 AC2 worked example. Input A is compact; Input B is pretty/CRLF/
@@ -208,6 +208,31 @@ describe("canonicalize (spike-407 AC1/AC2)", () => {
       cases: [{ id: "TC-1", title: "T", level: "1", priority: "P0", preconditions, steps: [] }],
     });
     expect(canonicalize(plan(["beta", "alpha"]))).not.toBe(canonicalize(plan(["alpha", "beta"])));
+  });
+
+  // #764: the lifecycle block is metadata about a case, not part of its testable
+  // body, so the allowlist projection drops it. Retiring or superseding a case
+  // must therefore leave the plan hash (and that case's changed/unchanged
+  // classification) untouched.
+  it("excludes the lifecycle block, so a lifecycle-only edit does not change the canonical string", () => {
+    const live: TestCasesPlan = {
+      $schema: "x",
+      schemaVersion: "1.2.0",
+      specSlug: "testbench",
+      cases: [{ id: "TC-1", title: "T", level: "1", priority: "P0", steps: [] }],
+    };
+    const retired: TestCasesPlan = {
+      ...live,
+      cases: [{ ...live.cases[0], lifecycle: { state: "retired", reason: "Obsolete" } }],
+    };
+    const superseded: TestCasesPlan = {
+      ...live,
+      cases: [{ ...live.cases[0], lifecycle: { state: "superseded", replacement: "TC-2" } }],
+    };
+    expect(canonicalize(retired)).toBe(canonicalize(live));
+    expect(canonicalize(superseded)).toBe(canonicalize(live));
+    expect(canonicalize(retired)).not.toContain("lifecycle");
+    expect(canonicalizeCase(retired.cases[0])).toBe(canonicalizeCase(live.cases[0]));
   });
 
   it("empty case set canonicalises to a fixed, stable, non-empty string", () => {
