@@ -580,6 +580,11 @@ export interface TestbenchPlanResponse {
   // Present only when the plan was fetched with a ?gateIds= subset filter (#702,
   // VG-FR-008): the gate ids the plan was narrowed to. Absent on a full-plan fetch.
   filteredToGateIds?: string[];
+  // The focused spec's read-only lifecycle state, read from THIS bench's own
+  // workspace (#770, SATCA-FR-018), so the panel can say the spec it is showing
+  // has been archived. Optional: an older server omits it entirely, the same way
+  // `recoveryReason` is handled, and the panel treats absent as live.
+  lifecycle?: SpecLifecycleState;
 }
 
 // The evaluated state of one verify gate (#702, VG-FR-012). Mirrors the server's
@@ -1572,14 +1577,36 @@ export interface SpecVerification {
   aggregationError: boolean;
 }
 
+// The read-only, per-spec lifecycle state discovery computes (#765/#770),
+// mirrored from the server's `SpecLifecycleState`. Flattened from the spec's
+// manifest lifecycle record, so the client never distinguishes "no record" from
+// "unreadable record" by probing for an absent object:
+//   - archived: true only when a VALID archived record was read. An absent
+//     manifest, an absent subtree, an unparseable manifest, and a malformed
+//     record all read false, so a spec is never hidden by accident.
+//   - reason: the recorded justification, null when unrecorded.
+//   - supersededBy: the slug of the spec that replaced this one, null when it
+//     was merely archived. "Superseded" is DERIVED (archived with a
+//     supersededBy), not a separately persisted state.
+//   - recordError: why a PRESENT lifecycle record could not be read; null on a
+//     clean read and on a spec with no record at all.
+export interface SpecLifecycleState {
+  archived: boolean;
+  reason: string | null;
+  supersededBy: string | null;
+  recordError: string | null;
+}
+
 // One discovered, contract-valid spec: the slug naming its
 // `.specifications/<slug>/` folder, the absolute path to its test-cases.json, the
-// number of cases in it, and its read-only per-spec verification state (#482).
+// number of cases in it, its read-only per-spec verification state (#482), and
+// its read-only lifecycle state (#765).
 export interface DiscoveredSpec {
   slug: string;
   path: string;
   caseCount: number;
   verification: SpecVerification;
+  lifecycle: SpecLifecycleState;
 }
 
 // A spec folder whose test-cases.json exists but failed to parse/validate, with

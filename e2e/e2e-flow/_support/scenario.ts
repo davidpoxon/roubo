@@ -287,7 +287,16 @@ export async function registerFixtureProject(
     // spec lands in a known verification classification ("all-passed" behind the
     // picker disclosure, or "partial" needs-attention with a real pass-state
     // summary). Omitted => no sidecar (needs-attention, "no results yet").
-    seedSpecs?: Array<{ slug: string; testCases: unknown; seedResults?: "all-passed" | "partial" }>;
+    // SATCA-TC-035/036/037 (#770): an entry may also carry `lifecycle`, the
+    // record written into the spec's `.specifications/<slug>/manifest.json`, so
+    // the spec reads archived (and optionally superseded) to the lifecycle
+    // reader. Omitted => no manifest, which is the live state.
+    seedSpecs?: Array<{
+      slug: string;
+      testCases: unknown;
+      seedResults?: "all-passed" | "partial";
+      lifecycle?: { archived: true; reason?: string; supersededBy?: string };
+    }>;
     // TC-001 (#438): when true, the server `git init`s + commits the fixture
     // repo and pins its worktree source to the local HEAD, so a real TestBench
     // worktree can be provisioned without an `origin` remote.

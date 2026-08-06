@@ -848,3 +848,76 @@ export const OWNING_SLICES_TSPF_TC011: Record<string, string> = {
   repointConfirm:
     "#483 (partitioned spec picker: re-point confirm re-points and preserves the previous spec's results)",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SATCA-TC-035/036/037/038 (#770): the fixture set for the "hide archived specs
+// by default, reveal them on demand" picker journey. Three specs are seeded into
+// one fixture repo so the default list, the reveal control, and both archived
+// labels are all exercised:
+//   - SATCA_LIVE_SPEC_SLUG: no manifest at all, so the lifecycle reader sees no
+//     record and the spec is live (SATCA-FR-017). It is what stays listed by
+//     default.
+//   - SATCA_ARCHIVED_SPEC_SLUG: an `{ archived: true, reason }` record, so it is
+//     hidden by default and labelled "Archived" once revealed.
+//   - SATCA_SUPERSEDED_SPEC_SLUG: an `{ archived: true, supersededBy }` record.
+//     Superseded is DERIVED from the pointer, not persisted as its own state, so
+//     this spec proves the picker labels it distinctly and names its replacement.
+// ─────────────────────────────────────────────────────────────────────────────
+export const SATCA_LIVE_SPEC_SLUG = "archival-live-spec";
+export const SATCA_ARCHIVED_SPEC_SLUG = "archival-archived-spec";
+export const SATCA_SUPERSEDED_SPEC_SLUG = "archival-superseded-spec";
+
+// The reason recorded on the merely-archived spec, asserted verbatim in the
+// revealed row so the label is proven to come from the record on disk.
+export const SATCA_ARCHIVED_REASON = "Shipped in #212";
+
+// A one-case plan per spec: the journey is about the lifecycle partition, not the
+// case list, so the plans stay minimal and differ only by slug.
+function archivalPlan(slug: string, caseId: string): TestCasesPlan {
+  return {
+    $schema: TEST_CASES_SCHEMA_ID,
+    schemaVersion: TEST_CASES_SCHEMA_VERSION,
+    specSlug: slug,
+    cases: [
+      {
+        id: caseId,
+        title: `Archival fixture case for ${slug}`,
+        area: "spec-archival",
+        level: 1,
+        type: "functional",
+        priority: "P0",
+        tags: [],
+        linked_requirement_ids: ["SATCA-FR-016"],
+        linked_user_story_ids: [],
+        steps: [
+          {
+            id: `${caseId}-S1`,
+            instruction: "Perform the check",
+            observations: [{ id: `${caseId}-S1-O1`, expected: "It holds" }],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export const SATCA_LIVE_PLAN: TestCasesPlan = archivalPlan(SATCA_LIVE_SPEC_SLUG, "SATCA-LIVE-01");
+export const SATCA_ARCHIVED_PLAN: TestCasesPlan = archivalPlan(
+  SATCA_ARCHIVED_SPEC_SLUG,
+  "SATCA-ARCH-01",
+);
+export const SATCA_SUPERSEDED_PLAN: TestCasesPlan = archivalPlan(
+  SATCA_SUPERSEDED_SPEC_SLUG,
+  "SATCA-SUPER-01",
+);
+
+// The slices that own each leg of the archival-picker journey, surfaced in a
+// failing run so a divergence localises to an attributable slice.
+export const SATCA_PICKER_OWNING_SLICES: Record<string, string> = {
+  discovery: "#765 (spec lifecycle reader + per-spec lifecycle on discovery)",
+  hidden: "#770 (spec picker: archived specs hidden from the default list)",
+  reveal: "#770 (spec picker: the show-archived reveal control)",
+  labels: "#770 (spec picker: archived vs superseded row labels)",
+  selectable: "#770 (spec picker: a revealed archived spec stays selectable)",
+  panel: "#770 (TestBench panel: archived indicator for the focused spec)",
+};

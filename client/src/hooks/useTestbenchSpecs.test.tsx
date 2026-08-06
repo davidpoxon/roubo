@@ -7,14 +7,22 @@ import {
   useManualPathValidation,
   partitionSpecs,
   deriveSpecSummary,
+  deriveArchivedLabel,
 } from "./useTestbenchSpecs";
 import type {
   DiscoveredSpec,
   InvalidSpec,
   ManualPathValidation,
+  SpecLifecycleState,
   SpecStatusCounts,
   SpecVerification,
 } from "../lib/api";
+
+// A live lifecycle payload (no record on disk), plus the archived variants each
+// test names explicitly (#770).
+function lifecycle(over: Partial<SpecLifecycleState> = {}): SpecLifecycleState {
+  return { archived: false, reason: null, supersededBy: null, recordError: null, ...over };
+}
 
 // Build a verification payload with sensible defaults so each test states only
 // the fields it cares about (#482/#483).
@@ -50,6 +58,7 @@ function spec(over: Partial<DiscoveredSpec> = {}): DiscoveredSpec {
     path: `/repo/.specifications/${over.slug ?? "s"}/test-cases.json`,
     caseCount: 0,
     verification: verification(),
+    lifecycle: lifecycle(),
     ...over,
   };
 }
@@ -74,6 +83,7 @@ describe("useTestbenchSpecs", () => {
         path: "/repo/.specifications/testbench/test-cases.json",
         caseCount: 3,
         verification: verification({ statusCounts: { passed: 3 } }),
+        lifecycle: lifecycle(),
       },
     ];
     mockedApi.fetchSpecs.mockResolvedValue({ specs, invalid: [] });
@@ -202,16 +212,17 @@ describe("useManualPathValidation", () => {
 });
 
 describe("partitionSpecs", () => {
-  it("splits specs by verification.classification only", () => {
+  it("splits live specs by verification.classification only", () => {
     const specs = [
       spec({ slug: "a", verification: verification({ classification: "needs-attention" }) }),
       spec({ slug: "b", verification: verification({ classification: "all-passed" }) }),
       spec({ slug: "c", verification: verification({ classification: "needs-attention" }) }),
       spec({ slug: "d", verification: verification({ classification: "all-passed" }) }),
     ];
-    const { needsAttention, allPassed } = partitionSpecs(specs);
+    const { needsAttention, allPassed, archived } = partitionSpecs(specs);
     expect(needsAttention.map((s) => s.slug)).toEqual(["a", "c"]);
     expect(allPassed.map((s) => s.slug)).toEqual(["b", "d"]);
+    expect(archived).toEqual([]);
   });
 
   it("preserves input order within each group", () => {
@@ -219,14 +230,78 @@ describe("partitionSpecs", () => {
       spec({ slug: "z", verification: verification({ classification: "all-passed" }) }),
       spec({ slug: "y", verification: verification({ classification: "all-passed" }) }),
       spec({ slug: "x", verification: verification({ classification: "needs-attention" }) }),
+      spec({ slug: "w", lifecycle: lifecycle({ archived: true }) }),
+      spec({ slug: "v", lifecycle: lifecycle({ archived: true }) }),
     ];
-    const { needsAttention, allPassed } = partitionSpecs(specs);
+    const { needsAttention, allPassed, archived } = partitionSpecs(specs);
     expect(allPassed.map((s) => s.slug)).toEqual(["z", "y"]);
     expect(needsAttention.map((s) => s.slug)).toEqual(["x"]);
+    expect(archived.map((s) => s.slug)).toEqual(["w", "v"]);
   });
 
   it("returns empty groups for an empty list", () => {
-    expect(partitionSpecs([])).toEqual({ needsAttention: [], allPassed: [] });
+    expect(partitionSpecs([])).toEqual({ needsAttention: [], allPassed: [], archived: [] });
+  });
+
+  // #770 (SATCA-FR-015): archived is decided BEFORE the live classification
+  // split, so an archived spec never also lands in a live group however its
+  // cases happen to be verified.
+  it("splits archived specs out ahead of the classification, whatever their classification", () => {
+    const specs = [
+      spec({
+        slug: "archived-all-passed",
+        verification: verification({ classification: "all-passed" }),
+        lifecycle: lifecycle({ archived: true }),
+      }),
+      spec({
+        slug: "archived-needs-attention",
+        verification: verification({ classification: "needs-attention" }),
+        lifecycle: lifecycle({ archived: true, supersededBy: "replacement" }),
+      }),
+      spec({ slug: "live", verification: verification({ classification: "needs-attention" }) }),
+    ];
+    const { needsAttention, allPassed, archived } = partitionSpecs(specs);
+    expect(archived.map((s) => s.slug)).toEqual([
+      "archived-all-passed",
+      "archived-needs-attention",
+    ]);
+    expect(needsAttention.map((s) => s.slug)).toEqual(["live"]);
+    expect(allPassed).toEqual([]);
+  });
+
+  // A malformed lifecycle record reads live-with-a-recordError server-side
+  // (SATCA-FR-017), so it must not be hidden from the default list.
+  it("keeps a spec carrying only a recordError in the live groups", () => {
+    const specs = [
+      spec({
+        slug: "unreadable",
+        lifecycle: lifecycle({ recordError: "archived: Invalid input" }),
+      }),
+    ];
+    const { needsAttention, archived } = partitionSpecs(specs);
+    expect(needsAttention.map((s) => s.slug)).toEqual(["unreadable"]);
+    expect(archived).toEqual([]);
+  });
+});
+
+describe("deriveArchivedLabel", () => {
+  it("labels a spec with no supersession pointer as merely Archived", () => {
+    const s = spec({ lifecycle: lifecycle({ archived: true, reason: "Shipped in #212" }) });
+    expect(deriveArchivedLabel(s)).toEqual({
+      label: "Archived",
+      supersededBy: null,
+      reason: "Shipped in #212",
+    });
+  });
+
+  // "Superseded" is derived, not persisted: archived + a supersededBy slug.
+  it("labels a spec that names a replacement as Superseded and carries the slug", () => {
+    const s = spec({ lifecycle: lifecycle({ archived: true, supersededBy: "billing-v2" }) });
+    expect(deriveArchivedLabel(s)).toEqual({
+      label: "Superseded",
+      supersededBy: "billing-v2",
+      reason: null,
+    });
   });
 });
 

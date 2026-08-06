@@ -21,6 +21,7 @@ import {
   setStatusOverride,
 } from "../lib/testbench-store.js";
 import { writeResults } from "../lib/testbench-results-write.js";
+import { validateSpecLifecycle } from "@roubo/shared/spec-lifecycle-schema";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
@@ -1044,6 +1045,13 @@ interface SeedSpecInput {
   // the requested classification. Omitted => no sidecar (needs-attention, "no
   // results yet"), preserving the prior seedSpecs behaviour.
   seedResults?: SeedResultsMode;
+  // SATCA-TC-035/036/037 (#770): optional `lifecycle` subtree written into the
+  // spec's `.specifications/<slug>/manifest.json`, so the spec reads ARCHIVED
+  // (optionally superseded) to the lifecycle reader. Omitted => no manifest at
+  // all, which is the live state (SATCA-FR-017). Validated against the published
+  // record schema at parse time, so a fixture can never seed a shape the reader
+  // would reject.
+  lifecycle?: unknown;
 }
 
 interface ParsedRegisterFixture {
@@ -1117,7 +1125,15 @@ function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
       }
       seedResults = seedResultsRaw as SeedResultsMode;
     }
-    parsed.push({ slug, testCases, seedResults });
+    // #770: an optional archived lifecycle record for the spec's manifest.
+    const lifecycleRaw = (entry as { lifecycle?: unknown }).lifecycle;
+    if (lifecycleRaw !== undefined) {
+      const validation = validateSpecLifecycle(lifecycleRaw);
+      if (!validation.ok) {
+        return `seedSpecs[${i}].lifecycle must be a valid spec lifecycle record: ${validation.errors.join("; ")}`;
+      }
+    }
+    parsed.push({ slug, testCases, seedResults, lifecycle: lifecycleRaw });
   }
   return parsed;
 }
@@ -1383,6 +1399,16 @@ function writeSeededSpecs(repoPath: string, specs: SeedSpecInput[]): void {
       `${JSON.stringify(spec.testCases, null, 2)}\n`,
       "utf-8",
     );
+    if (spec.lifecycle !== undefined) {
+      // #770: the manifest is product-dev's file, so the fixture writes a
+      // realistic one (a stage tracker sibling the reader must ignore) with the
+      // `lifecycle` subtree the reader actually plucks.
+      fs.writeFileSync(
+        path.join(specDir, "manifest.json"),
+        `${JSON.stringify({ slug: spec.slug, stage: "verify", lifecycle: spec.lifecycle }, null, 2)}\n`,
+        "utf-8",
+      );
+    }
     if (spec.seedResults !== undefined) {
       // parseSeedSpecs already validated the plan when seedResults is set, so this
       // re-parse always succeeds; the guard keeps the plan-typed path honest.

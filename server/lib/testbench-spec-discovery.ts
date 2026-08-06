@@ -199,7 +199,11 @@ function computeVerification(
 // fail-closed and throw, so a spec whose manifest symlinks out of the repo
 // degrades to a flagged-but-listed entry instead of failing discovery
 // (SATCA-NFR-003).
-function computeLifecycle(repoPath: string, slug: string): SpecLifecycleState {
+//
+// Exported because the plan route needs the same answer for a single slug read
+// out of the BENCH's own workspace (#770, SATCA-FR-018), which discovery never
+// walks: reusing this keeps one fail-open ladder rather than two.
+export function computeLifecycle(repoPath: string, slug: string): SpecLifecycleState {
   try {
     const { lifecycle, recordError } = readSpecLifecycle(repoPath, slug);
     return {

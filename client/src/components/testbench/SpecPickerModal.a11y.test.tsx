@@ -18,7 +18,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { renderWithProviders } from "../../test/renderWithProviders";
-import type { DiscoveredSpec, SpecVerification } from "../../lib/api";
+import type { DiscoveredSpec, SpecLifecycleState, SpecVerification } from "../../lib/api";
 import type { ManualPathState } from "../../hooks/useTestbenchSpecs";
 import { expectNoAxeFindings } from "../../test/axe";
 
@@ -49,6 +49,12 @@ function verification(
   };
 }
 
+// Lifecycle defaults to live (no record on disk); the archived fixtures below
+// state only the fields they need (#770).
+function lifecycle(over: Partial<SpecLifecycleState> = {}): SpecLifecycleState {
+  return { archived: false, reason: null, supersededBy: null, recordError: null, ...over };
+}
+
 const mockUseTestbenchSpecs = vi.hoisted(() => vi.fn());
 const mockUseManualPathValidation = vi.hoisted(() => vi.fn());
 
@@ -73,24 +79,28 @@ const MIXED: DiscoveredSpec[] = [
     path: "/repo/.specifications/testbench/test-cases.json",
     caseCount: 3,
     verification: verification({ statusCounts: { passed: 1, in_progress: 2 } }),
+    lifecycle: lifecycle(),
   },
   {
     slug: "billing",
     path: "/repo/.specifications/billing/test-cases.json",
     caseCount: 1,
     verification: verification({ statusCounts: { failed: 1 } }),
+    lifecycle: lifecycle(),
   },
   {
     slug: "shipped-alpha",
     path: "/repo/.specifications/shipped-alpha/test-cases.json",
     caseCount: 5,
     verification: verification({ classification: "all-passed", statusCounts: { passed: 5 } }),
+    lifecycle: lifecycle(),
   },
   {
     slug: "shipped-beta",
     path: "/repo/.specifications/shipped-beta/test-cases.json",
     caseCount: 8,
     verification: verification({ classification: "all-passed", statusCounts: { passed: 8 } }),
+    lifecycle: lifecycle(),
   },
 ];
 
@@ -102,12 +112,34 @@ const ALL_PASSED: DiscoveredSpec[] = [
     path: "/repo/.specifications/shipped-alpha/test-cases.json",
     caseCount: 5,
     verification: verification({ classification: "all-passed", statusCounts: { passed: 5 } }),
+    lifecycle: lifecycle(),
   },
   {
     slug: "shipped-beta",
     path: "/repo/.specifications/shipped-beta/test-cases.json",
     caseCount: 8,
     verification: verification({ classification: "all-passed", statusCounts: { passed: 8 } }),
+    lifecycle: lifecycle(),
+  },
+];
+
+// #770: the mixed list plus one merely-archived and one superseded spec, both
+// hidden until the reveal control is pressed.
+const WITH_ARCHIVED: DiscoveredSpec[] = [
+  ...MIXED,
+  {
+    slug: "retired-flow",
+    path: "/repo/.specifications/retired-flow/test-cases.json",
+    caseCount: 4,
+    verification: verification({ statusCounts: { passed: 2, not_started: 2 } }),
+    lifecycle: lifecycle({ archived: true, reason: "Shipped in #212" }),
+  },
+  {
+    slug: "billing-v1",
+    path: "/repo/.specifications/billing-v1/test-cases.json",
+    caseCount: 2,
+    verification: verification({ classification: "all-passed", statusCounts: { passed: 2 } }),
+    lifecycle: lifecycle({ archived: true, supersededBy: "billing-v2" }),
   },
 ];
 
@@ -175,6 +207,55 @@ describe("SpecPickerModal a11y (#484)", () => {
       renderModal();
       await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
       expect(screen.getByText("shipped-alpha")).toBeInTheDocument();
+      await expectNoViolations();
+    });
+  });
+
+  // #770 (SATCA-FR-015/FR-016): the reveal control and the group it discloses.
+  describe("archived reveal", () => {
+    beforeEach(() => {
+      mockUseTestbenchSpecs.mockReturnValue(specsQuery(WITH_ARCHIVED));
+    });
+
+    it("exposes the reveal control's pressed and expanded state", async () => {
+      renderModal();
+      const control = screen.getByRole("button", { name: /Show archived/ });
+      expect(control).toHaveAttribute("aria-pressed", "false");
+      expect(control).toHaveAttribute("aria-expanded", "false");
+      await userEvent.click(control);
+      expect(control).toHaveAttribute("aria-pressed", "true");
+      expect(control).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("labels the revealed group so it is distinguishable from the live ones", async () => {
+      renderModal();
+      await userEvent.click(screen.getByRole("button", { name: /Show archived/ }));
+      expect(screen.getByRole("group", { name: "Archived specs" })).toBeInTheDocument();
+    });
+
+    it("is keyboard operable: Enter and Space both flip the reveal", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      const control = screen.getByRole("button", { name: /Show archived/ });
+      control.focus();
+      expect(control).toHaveFocus();
+      await user.keyboard("{Enter}");
+      expect(control).toHaveAttribute("aria-pressed", "true");
+      await user.keyboard("{Enter}");
+      expect(control).toHaveAttribute("aria-pressed", "false");
+      await user.keyboard("[Space]");
+      expect(control).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("has no axe violations with archived specs hidden", async () => {
+      renderModal();
+      await expectNoViolations();
+    });
+
+    it("has no axe violations with archived specs revealed", async () => {
+      renderModal();
+      await userEvent.click(screen.getByRole("button", { name: /Show archived/ }));
+      expect(screen.getByText("retired-flow")).toBeInTheDocument();
       await expectNoViolations();
     });
   });

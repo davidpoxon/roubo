@@ -65,13 +65,29 @@ const needsAttentionVerification = (caseCount: number): DiscoveredSpec["verifica
   aggregationError: false,
 });
 
+// Both specs are live, so neither is hidden behind the picker's archived reveal
+// (#770); lifecycle absence on disk is the live state.
+const liveLifecycle = (): DiscoveredSpec["lifecycle"] => ({
+  archived: false,
+  reason: null,
+  supersededBy: null,
+  recordError: null,
+});
+
 const SPECS: DiscoveredSpec[] = [
-  { slug: "checkout", path: FOCUSED, caseCount: 2, verification: needsAttentionVerification(2) },
+  {
+    slug: "checkout",
+    path: FOCUSED,
+    caseCount: 2,
+    verification: needsAttentionVerification(2),
+    lifecycle: liveLifecycle(),
+  },
   {
     slug: "billing",
     path: "/repo/.specifications/billing/test-cases.json",
     caseCount: 1,
     verification: needsAttentionVerification(1),
+    lifecycle: liveLifecycle(),
   },
 ];
 
