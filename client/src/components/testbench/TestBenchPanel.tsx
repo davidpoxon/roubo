@@ -143,7 +143,14 @@ export default function TestBenchPanel({
         ? reconcilePurge.error.message
         : null;
 
-  const model = useMemo(() => (data ? buildRollup(data.plan.cases, data.results) : null), [data]);
+  // The plan's own slug is threaded in so the rollup can tell a same-spec
+  // replacement pointer ("TC-004") from a cross-spec one ("other-spec:TC-004"),
+  // which is what decides whether the archived section can reveal the
+  // replacement in this panel's live list (#769).
+  const model = useMemo(
+    () => (data ? buildRollup(data.plan.cases, data.results, data.plan.specSlug) : null),
+    [data],
+  );
   const flatRows = useMemo(() => (model ? flattenRollup(model) : []), [model]);
   // The case ids in list (grouped) order, so the detail pane's Next action can
   // advance to the case that visually follows the current one (#508).
@@ -386,7 +393,11 @@ export default function TestBenchPanel({
           </div>
         )}
       </div>
-      <ArchivedCases results={data.results} />
+      <ArchivedCases
+        results={data.results}
+        archived={model.archived}
+        onSelectCase={setSelectedCaseId}
+      />
       {classification && (
         <ReconcileDialog
           isOpen={isReconcileOpen}

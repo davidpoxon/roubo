@@ -61,7 +61,14 @@ export default function BatchView({
   });
 
   const model = useMemo(
-    () => (planQuery.data ? buildRollup(planQuery.data.plan.cases, planQuery.data.results) : null),
+    () =>
+      planQuery.data
+        ? buildRollup(
+            planQuery.data.plan.cases,
+            planQuery.data.results,
+            planQuery.data.plan.specSlug,
+          )
+        : null,
     [planQuery.data],
   );
   const flatRows = useMemo(() => (model ? flattenRollup(model) : []), [model]);
@@ -174,8 +181,14 @@ export default function BatchView({
   // narrow out of the default policy, e.g. all L3/L4). The `?gateIds=` subset uses
   // the gate's RAW declared ids, so an all-L3/L4 gate still renders case rows here;
   // driving the elision off the evaluated status makes the notice fire for it too
-  // (issue #436).
-  const noGatingCases = gate.status === "no_gating_cases" || planQuery.data.plan.cases.length === 0;
+  // (issue #436). The live rollup total is checked as well (#769): the subset plan
+  // can be non-empty while every case in it is retired or superseded, in which case
+  // the rollup excludes them all and `flatRows` is empty. Without this the card
+  // would render an unlabelled empty list, which AC2 forbids.
+  const noGatingCases =
+    gate.status === "no_gating_cases" ||
+    planQuery.data.plan.cases.length === 0 ||
+    model.overall.total === 0;
 
   // The fix-issue panel opens when the selected gating case is FAILED (VG-US-006,
   // VG-TC-045 S001): the operator captures notes and files a tracker issue that
