@@ -12,12 +12,21 @@ import {
   Input,
 } from "react-aria-components";
 import { stampAriaModal } from "../../lib/aria-modal";
-import { FlaskConical, FileText, AlertTriangle, Check, Loader2, ChevronRight } from "lucide-react";
+import {
+  FlaskConical,
+  FileText,
+  AlertTriangle,
+  Check,
+  Loader2,
+  ChevronRight,
+  Archive,
+} from "lucide-react";
 import {
   useTestbenchSpecs,
   useManualPathValidation,
   partitionSpecs,
   deriveSpecSummary,
+  deriveArchivedLabel,
 } from "../../hooks/useTestbenchSpecs";
 import type { SpecPassSummary } from "../../hooks/useTestbenchSpecs";
 import type { DiscoveredSpec } from "../../lib/api";
@@ -116,6 +125,12 @@ export default function SpecPickerModal({
   // TSPF-FR-005). Selection lives in selectedDiscoveredPath, shared across both
   // groups, so collapsing the tail never drops a selection made inside it.
   const [allPassedExpanded, setAllPassedExpanded] = useState(false);
+  // Archived specs are hidden from the default list and revealed only by the
+  // "Show archived" control, which starts off and is reset on every close (see
+  // reset()), so the picker always reopens showing the live specs alone (#770,
+  // SATCA-FR-015/FR-016). Revealed rows join the same controlled selection group,
+  // so an archived spec stays loadable.
+  const [showArchived, setShowArchived] = useState(false);
 
   const manualState = useManualPathValidation(projectId, manualPath, isOpen);
 
@@ -138,6 +153,7 @@ export default function SpecPickerModal({
     setManualPath("");
     setSelectedDiscoveredPath(null);
     setAllPassedExpanded(false);
+    setShowArchived(false);
   };
 
   const handleClose = () => {
@@ -158,18 +174,21 @@ export default function SpecPickerModal({
   const showEmptyDiscovery = !isLoading && !isError && (specs?.length ?? 0) === 0 && !hasInvalid;
   const showInvalidSpecs = !isLoading && !isError && hasInvalid;
 
-  // Partition the discovered specs (#483, TSPF-FR-003): needs-attention specs
-  // fill the prominent main space, all-passed specs live in the collapsed tail
-  // disclosure. Purely presentational, keyed on the server's classification.
-  const { needsAttention, allPassed } = partitionSpecs(specs ?? []);
+  // Partition the discovered specs (#483, TSPF-FR-003; #770, SATCA-FR-015):
+  // archived specs are split off first and hidden until "Show archived" is
+  // pressed, then the live ones divide into needs-attention (the prominent main
+  // space) and all-passed (the collapsed tail disclosure). Purely presentational,
+  // keyed on the server's lifecycle and classification.
+  const { needsAttention, allPassed, archived } = partitionSpecs(specs ?? []);
 
-  // Every discovered spec is all-passed (#484, TSPF-FR-007): the main space would
-  // otherwise be blank, so we show an explicit empty state pointing at the
-  // completed group below and the manual-path field. Keyed on an empty
-  // needs-attention list (not on hasInvalid): the invalid panel keeps its own
-  // separate messaging and does not participate in this condition.
+  // Every LIVE discovered spec is all-passed (#484, TSPF-FR-007): the main space
+  // would otherwise be blank, so we show an explicit empty state pointing at the
+  // completed group below and the manual-path field. Keyed on the all-passed
+  // group rather than the raw spec count so a project whose only remaining specs
+  // are archived does not claim they all passed (#770), and not on hasInvalid:
+  // the invalid panel keeps its own separate messaging.
   const showAllPassedEmptyState =
-    !isLoading && !isError && (specs?.length ?? 0) > 0 && needsAttention.length === 0;
+    !isLoading && !isError && allPassed.length > 0 && needsAttention.length === 0;
 
   // Render one selectable spec row. Shared by both groups so selection stays a
   // single controlled ToggleButtonGroup; `muted` de-emphasizes the all-passed
@@ -181,6 +200,10 @@ export default function SpecPickerModal({
     const isSelected = manualPath.trim().length === 0 && selectedDiscoveredPath === spec.path;
     const isActive = mode === "repoint" && spec.path === activePath;
     const summary = deriveSpecSummary(spec);
+    // Archived rows (only ever rendered inside the revealed archived group) carry
+    // a text label distinguishing a superseded spec from a merely archived one,
+    // plus the superseding slug and any recorded reason (#770, SATCA-FR-016).
+    const archivedLabel = spec.lifecycle.archived ? deriveArchivedLabel(spec) : null;
     return (
       <ToggleButton
         key={spec.path}
@@ -211,6 +234,11 @@ export default function SpecPickerModal({
                 Active
               </span>
             )}
+            {archivedLabel && (
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 rounded-full px-1.5 py-0.5">
+                {archivedLabel.label}
+              </span>
+            )}
           </p>
           <p className="text-[11px] font-mono truncate text-stone-500 dark:text-stone-400">
             {spec.path}
@@ -236,6 +264,16 @@ export default function SpecPickerModal({
               </span>
             )}
           </p>
+          {archivedLabel?.supersededBy && (
+            <p className="mt-0.5 text-[11px] text-stone-500 dark:text-stone-400">
+              Superseded by <span className="font-mono">{archivedLabel.supersededBy}</span>
+            </p>
+          )}
+          {archivedLabel?.reason && (
+            <p className="mt-0.5 text-[11px] text-stone-500 dark:text-stone-400">
+              {archivedLabel.reason}
+            </p>
+          )}
         </div>
         <span className="shrink-0 text-[11px] font-medium text-stone-600 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 rounded-full px-2 py-0.5">
           {spec.caseCount} {spec.caseCount === 1 ? "case" : "cases"}
@@ -435,6 +473,60 @@ export default function SpecPickerModal({
                               className="flex flex-col gap-1.5"
                             >
                               {allPassed.map((spec) => renderRow(spec, true))}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Archived specs (#770, SATCA-FR-015/FR-016) sit behind
+                          their own reveal control at the very tail, off by
+                          default and reset off on close. Like the all-passed
+                          disclosure the control is a plain Button interspersed in
+                          the group (never a ToggleButton), so it takes no part in
+                          the single selection, while the rows it reveals share
+                          the same controlled group and stay selectable: an
+                          archived spec can still be loaded into a bench. */}
+                      {archived.length > 0 && (
+                        <>
+                          <Button
+                            aria-pressed={showArchived}
+                            aria-expanded={showArchived}
+                            onPress={() => setShowArchived((open) => !open)}
+                            className={({ isHovered, isPressed, isFocusVisible }) =>
+                              `w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-stone-500 dark:text-stone-400 outline-none transition-colors ${
+                                isPressed
+                                  ? "bg-stone-200 dark:bg-stone-700/60"
+                                  : isHovered
+                                    ? "bg-stone-100 dark:bg-stone-800/60"
+                                    : ""
+                              } ${
+                                isFocusVisible
+                                  ? "ring-2 ring-amber-500 ring-offset-2 dark:ring-offset-stone-900"
+                                  : ""
+                              }`
+                            }
+                          >
+                            <Archive
+                              size={14}
+                              aria-hidden
+                              className="shrink-0 text-stone-500 dark:text-stone-400"
+                            />
+                            <span>
+                              Show archived{" "}
+                              <span className="font-normal text-stone-500 dark:text-stone-400">
+                                · {archived.length} spec{archived.length === 1 ? "" : "s"}
+                              </span>
+                            </span>
+                          </Button>
+                          {showArchived && (
+                            // role=group: aria-label is ARIA-prohibited on a
+                            // role-less div (issue roubo-development#600).
+                            <div
+                              role="group"
+                              aria-label="Archived specs"
+                              className="flex flex-col gap-1.5"
+                            >
+                              {archived.map((spec) => renderRow(spec, true))}
                             </div>
                           )}
                         </>

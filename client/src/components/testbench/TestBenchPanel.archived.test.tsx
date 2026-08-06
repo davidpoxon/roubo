@@ -1,0 +1,156 @@
+// @vitest-environment jsdom
+//
+// #770 (SATCA-FR-018, SATCA-TC-038/TC-042): a bench whose focused spec is
+// archived still works, and says so. The plan response carries the spec's
+// lifecycle state read from THIS bench's own workspace, so the panel labels the
+// focused spec archived (or superseded, naming its replacement) while every other
+// surface behaves exactly as it does for a live spec: the cases load, and marking
+// an observation still dispatches its mutation.
+//
+// The lifecycle field is optional on the response, so a server that predates
+// #770 (or a bench with no manifest at all) reads live and shows no label.
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { Case, TestCasesPlan } from "@roubo/shared/testbench-contracts";
+import type { SpecLifecycleState, TestbenchPlanResponse } from "../../lib/api";
+
+const mockUseTestbenchPlan = vi.hoisted(() => vi.fn());
+const mockMarkObservation = vi.hoisted(() => vi.fn());
+
+vi.mock("../../hooks/useTestbenchPlan", () => ({
+  useTestbenchPlan: () => mockUseTestbenchPlan(),
+  useSetTestbenchFocus: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+// Keep the real pure helpers the spec-picker imports; only the two fetching
+// hooks are stubbed (mirrors TestBenchPanel.reconcile.test.tsx).
+vi.mock("../../hooks/useTestbenchSpecs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../hooks/useTestbenchSpecs")>();
+  return {
+    ...actual,
+    useTestbenchSpecs: () => ({ data: undefined, isLoading: false, isError: false, error: null }),
+    useManualPathValidation: () => ({ status: "idle" }),
+  };
+});
+vi.mock("../../hooks/useReconcile", () => ({
+  useReconcilePreview: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  useReconcileApply: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  useReconcilePurge: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+}));
+vi.mock("../../hooks/useTestbenchMarks", () => ({
+  useMarkObservation: () => ({ mutate: mockMarkObservation, isPending: false, error: null }),
+  useSetStatusOverride: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+}));
+
+import TestBenchPanel from "./TestBenchPanel";
+
+const FOCUSED = "/repo/.specifications/retired-flow/test-cases.json";
+
+function makeCase(id: string): Case {
+  return {
+    id,
+    title: `case ${id}`,
+    area: "test-area",
+    level: 1,
+    type: "functional",
+    priority: "P0",
+    steps: [
+      {
+        id: "S1",
+        instruction: "Do the only thing",
+        observations: [{ id: "O1", expected: "The only observation holds" }],
+      },
+    ],
+    tags: [],
+    linked_requirement_ids: ["FR-001"],
+    linked_user_story_ids: [],
+  };
+}
+
+function plan(cases: Case[]): TestCasesPlan {
+  return { $schema: "x", schemaVersion: "1.0.0", specSlug: "retired-flow", cases };
+}
+
+function lifecycle(over: Partial<SpecLifecycleState> = {}): SpecLifecycleState {
+  return { archived: false, reason: null, supersededBy: null, recordError: null, ...over };
+}
+
+function setPlan(data: Partial<TestbenchPlanResponse> = {}): void {
+  mockUseTestbenchPlan.mockReturnValue({
+    data: {
+      plan: plan([makeCase("TC-A")]),
+      results: null,
+      stale: false,
+      planHash: "h",
+      recovered: false,
+      ...data,
+    },
+    isLoading: false,
+    isError: false,
+    error: null,
+  });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  // This suite exercises the Cases view; the panel defaults to Batches (#359).
+  localStorage.clear();
+  localStorage.setItem(
+    "roubo-bench-view-state",
+    JSON.stringify({ "p1:1": { testbenchViewMode: "cases" } }),
+  );
+});
+
+describe("TestBenchPanel archived focused spec (#770)", () => {
+  it("shows no archived label for a live spec", () => {
+    setPlan({ lifecycle: lifecycle() });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+    expect(screen.queryByTestId("focused-spec-archived")).not.toBeInTheDocument();
+  });
+
+  it("shows no archived label when the server omits the lifecycle field entirely", () => {
+    setPlan();
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+    expect(screen.queryByTestId("focused-spec-archived")).not.toBeInTheDocument();
+  });
+
+  // SATCA-TC-038 S001-O01/O02: the spec loads AND the panel says it is archived.
+  it("labels the focused spec archived while still listing its cases", () => {
+    setPlan({ lifecycle: lifecycle({ archived: true, reason: "Shipped in #212" }) });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+    expect(screen.getByTestId("focused-spec-archived")).toHaveTextContent("Archived");
+    expect(screen.getAllByTestId("case-row").length).toBeGreaterThan(0);
+  });
+
+  it("labels a superseded focused spec distinctly and names its replacement", () => {
+    setPlan({ lifecycle: lifecycle({ archived: true, supersededBy: "billing-v2" }) });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+    expect(screen.getByTestId("focused-spec-archived")).toHaveTextContent("Superseded");
+    expect(screen.getByText("billing-v2")).toBeInTheDocument();
+  });
+
+  // SATCA-TC-042 S001-O01/O02/O03: an already-open bench keeps working when its
+  // spec is archived, marking observations included.
+  it("still marks observations with the spec archived", async () => {
+    const user = userEvent.setup();
+    setPlan({ lifecycle: lifecycle({ archived: true }) });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+    expect(screen.getByTestId("focused-spec-archived")).toBeInTheDocument();
+
+    await user.click(screen.getAllByTestId("case-row")[0]);
+    const detail = screen.getByRole("region", { name: /Case detail/ });
+    await user.click(within(detail).getByRole("radio", { name: "Pass" }));
+
+    expect(mockMarkObservation).toHaveBeenCalledWith(
+      {
+        projectId: "p1",
+        benchId: 1,
+        caseId: "TC-A",
+        observationId: "O1",
+        result: "pass",
+      },
+      expect.anything(),
+    );
+  });
+});

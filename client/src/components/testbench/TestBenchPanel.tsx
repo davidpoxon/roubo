@@ -183,17 +183,43 @@ export default function TestBenchPanel({
     );
   };
 
+  // Archived indicator for the focused spec (#770, SATCA-FR-018). The server
+  // reads the lifecycle record from THIS bench's own workspace and attaches it to
+  // the plan response; an older server omits the field entirely, so an absent
+  // `lifecycle` reads as live. Nothing else in the panel keys off it: a spec that
+  // is archived while a bench has it open keeps working, marks included, and is
+  // only labelled.
+  const lifecycle = data?.lifecycle;
+  const archivedLabel = lifecycle?.archived
+    ? lifecycle.supersededBy
+      ? "Superseded"
+      : "Archived"
+    : null;
+
   const header = focusedSpecPath ? (
     <div className="flex items-center justify-between gap-3 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-2.5">
       <div className="flex items-center gap-2.5 min-w-0">
         <FileText size={15} className="text-amber-500 shrink-0" />
         <div className="min-w-0">
-          <p className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
-            {focusedSpecSlug(focusedSpecPath)}
+          <p className="flex items-center gap-1.5 text-sm font-medium text-stone-800 dark:text-stone-200">
+            <span className="truncate">{focusedSpecSlug(focusedSpecPath)}</span>
+            {archivedLabel && (
+              <span
+                data-testid="focused-spec-archived"
+                className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 rounded-full px-1.5 py-0.5"
+              >
+                {archivedLabel}
+              </span>
+            )}
           </p>
           <p className="text-[11px] font-mono text-stone-400 dark:text-stone-500 truncate">
             {focusedSpecPath}
           </p>
+          {lifecycle?.archived && lifecycle.supersededBy && (
+            <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+              Superseded by <span className="font-mono">{lifecycle.supersededBy}</span>
+            </p>
+          )}
         </div>
       </div>
       <Button

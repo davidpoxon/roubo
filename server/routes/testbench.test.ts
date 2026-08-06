@@ -38,6 +38,7 @@ vi.mock("../lib/testbench-spec-discovery.js", () => ({
   discoverSpecs: vi.fn(),
   validateManualPath: vi.fn(),
   resolveFocusedSpec: vi.fn(),
+  computeLifecycle: vi.fn(),
 }));
 
 vi.mock("../services/work-unit-loader.js", async () => {
@@ -80,6 +81,14 @@ const REPO = "/repo";
 // against REPO, where the focused spec was picked.
 const WORKTREE = "/worktree/bench-1";
 const FOCUSED = "/repo/.specifications/testbench/test-cases.json";
+// #770 (SATCA-FR-018): the fail-open lifecycle shape the plan route attaches.
+// Absence of a record is the live state, so this is what an unarchived spec reads.
+const LIVE_LIFECYCLE = {
+  archived: false,
+  reason: null,
+  supersededBy: null,
+  recordError: null,
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -97,6 +106,8 @@ beforeEach(() => {
     slug: "testbench",
     resolvedPath: FOCUSED,
   });
+  // #770: the plan route attaches the focused spec's lifecycle; default to live.
+  vi.mocked(discovery.computeLifecycle).mockReturnValue(LIVE_LIFECYCLE);
 });
 
 describe("GET /:projectId/testbench/specs", () => {
@@ -121,6 +132,12 @@ describe("GET /:projectId/testbench/specs", () => {
             planHashMatch: false,
             recoveryReason: null,
             aggregationError: false,
+          },
+          lifecycle: {
+            archived: false,
+            reason: null,
+            supersededBy: null,
+            recordError: null,
           },
         },
       ],
@@ -189,6 +206,73 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
     expect(res.body.planHash).toBe("abc");
     expect(res.body.recovered).toBe(true);
     expect(testbenchStore.readPlanAndResults).toHaveBeenCalledWith(WORKTREE, "testbench");
+  });
+
+  // #770 (SATCA-FR-018): the response carries the focused spec's read-only
+  // lifecycle state, read from the BENCH's own workspace (not the project repo
+  // discovery walks), so an open panel can say the spec it shows is archived.
+  describe("focused-spec lifecycle (#770)", () => {
+    beforeEach(() => {
+      vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
+        plan: { cases: [] } as never,
+        results: null,
+        stale: false,
+        planHash: "abc",
+        recovered: false,
+      });
+    });
+
+    it("reports a live spec, reading the bench worktree and not the project repo", async () => {
+      const res = await request(app).get("/p1/benches/1/testbench/plan");
+      expect(res.status).toBe(200);
+      expect(res.body.lifecycle).toEqual(LIVE_LIFECYCLE);
+      expect(discovery.computeLifecycle).toHaveBeenCalledWith(WORKTREE, "testbench");
+    });
+
+    it("reports an archived spec with its recorded reason", async () => {
+      vi.mocked(discovery.computeLifecycle).mockReturnValue({
+        archived: true,
+        reason: "Shipped in #212",
+        supersededBy: null,
+        recordError: null,
+      });
+      const res = await request(app).get("/p1/benches/1/testbench/plan");
+      expect(res.status).toBe(200);
+      expect(res.body.lifecycle).toEqual({
+        archived: true,
+        reason: "Shipped in #212",
+        supersededBy: null,
+        recordError: null,
+      });
+    });
+
+    it("carries the superseding slug when one is recorded", async () => {
+      vi.mocked(discovery.computeLifecycle).mockReturnValue({
+        archived: true,
+        reason: null,
+        supersededBy: "billing-v2",
+        recordError: null,
+      });
+      const res = await request(app).get("/p1/benches/1/testbench/plan");
+      expect(res.status).toBe(200);
+      expect(res.body.lifecycle.supersededBy).toBe("billing-v2");
+    });
+
+    it("attaches the lifecycle on the ?gateIds= filtered branch too", async () => {
+      vi.mocked(discovery.computeLifecycle).mockReturnValue({
+        archived: true,
+        reason: null,
+        supersededBy: null,
+        recordError: null,
+      });
+      vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([]);
+      vi.mocked(gateOverrideStore.loadOverrides).mockReturnValue(emptyGateOverrides());
+      vi.mocked(workUnitLoader.buildWorkUnitCaseMap).mockReturnValue(new Map());
+      const res = await request(app).get("/p1/benches/1/testbench/plan?gateIds=WU-100");
+      expect(res.status).toBe(200);
+      expect(res.body.lifecycle.archived).toBe(true);
+      expect(res.body.filteredToGateIds).toEqual(["WU-100"]);
+    });
   });
 
   it("returns 400 for a non-numeric bench id", async () => {

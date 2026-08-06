@@ -27,6 +27,7 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as testbenchStore from "../lib/testbench-store.js";
 import { MissingPlanError, UnsafePathError } from "../lib/testbench-store.js";
 import {
+  computeLifecycle,
   discoverSpecs,
   resolveFocusedSpec,
   validateManualPath,
@@ -220,6 +221,14 @@ function parseGateIdsParam(raw: unknown): string[] | undefined {
 // merged gate id (MERGED:...) resolves to the union of its source gates' cases
 // (#434), not zero. An unknown gate id in the filter contributes nothing (no
 // error): the union of known gates wins.
+//
+// The response also carries the focused spec's read-only `lifecycle` state (#770,
+// SATCA-FR-018), so an open panel can say that the spec it is showing has been
+// archived. It is read from `rootPath`, the BENCH's own workspace, not from the
+// project repo discovery walks: archived-ness is a property of what this bench's
+// workspace says, so two benches on different branches can legitimately disagree
+// until the change is merged. computeLifecycle is fail-open, so a missing or
+// unreadable manifest reads live and never fails the plan read.
 router.get(
   "/:projectId/benches/:id/testbench/plan",
   planReadRateLimiter,
@@ -228,11 +237,12 @@ router.get(
       const benchId = parseIntParam(req.params.id, "bench id");
       const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
       const result = testbenchStore.readPlanAndResults(rootPath, slug);
+      const lifecycle = computeLifecycle(rootPath, slug);
 
       const gateIds = parseGateIdsParam(req.query.gateIds);
       if (gateIds === undefined) {
-        // No filter: unchanged full-plan response.
-        res.json(result);
+        // No filter: the full-plan response, plus the lifecycle marker.
+        res.json({ ...result, lifecycle });
         return;
       }
 
@@ -260,7 +270,7 @@ router.get(
         ...result.plan,
         cases: result.plan.cases.filter((c) => subsetCaseIds.has(c.id)),
       };
-      res.json({ ...result, plan: filteredPlan, filteredToGateIds: gateIds });
+      res.json({ ...result, plan: filteredPlan, filteredToGateIds: gateIds, lifecycle });
     } catch (err) {
       handleError(res, err);
     }

@@ -19,25 +19,57 @@ export function useTestbenchSpecs(projectId: string, enabled: boolean) {
   });
 }
 
-// The partition the spec picker renders (#483, TSPF-FR-003): needs-attention
-// specs get the prominent main space, all-passed specs the collapsed tail
-// disclosure. Keyed SOLELY on `verification.classification` (the server owns the
-// classification; the client never re-derives it), and stable: input order is
-// preserved within each group so the server's slug sort survives the split.
+// The partition the spec picker renders (#483, TSPF-FR-003; #770, SATCA-FR-015):
+// archived specs are split off FIRST and hidden behind the show-archived control,
+// then the remaining live specs divide into needs-attention (the prominent main
+// space) and all-passed (the collapsed tail disclosure).
+//
+// Archived wins over the verification classification by construction: an archived
+// spec never reaches the live split, so it can never also appear in a live group
+// however its cases happen to be verified. The live split stays keyed SOLELY on
+// `verification.classification` (the server owns the classification; the client
+// never re-derives it). Stable: input order is preserved within each group so the
+// server's slug sort survives the split.
 export function partitionSpecs(specs: DiscoveredSpec[]): {
   needsAttention: DiscoveredSpec[];
   allPassed: DiscoveredSpec[];
+  archived: DiscoveredSpec[];
 } {
   const needsAttention: DiscoveredSpec[] = [];
   const allPassed: DiscoveredSpec[] = [];
+  const archived: DiscoveredSpec[] = [];
   for (const spec of specs) {
-    if (spec.verification.classification === "all-passed") {
+    if (spec.lifecycle.archived) {
+      archived.push(spec);
+    } else if (spec.verification.classification === "all-passed") {
       allPassed.push(spec);
     } else {
       needsAttention.push(spec);
     }
   }
-  return { needsAttention, allPassed };
+  return { needsAttention, allPassed, archived };
+}
+
+// How one archived row is labelled (#770, SATCA-FR-016, SATCA-TC-036/TC-037).
+// "Superseded" is DERIVED, not persisted: the record carries `archived: true`
+// plus an optional `supersededBy` slug, so a superseded spec is an archived one
+// that names its replacement. The label is always words, never colour alone, and
+// `supersededBy` is displayed verbatim as a slug: spec-level supersession
+// pointers are deliberately never walked (shared/lifecycle-resolver.ts), so the
+// picker must not try to resolve one.
+export interface SpecArchivedLabel {
+  label: "Archived" | "Superseded";
+  supersededBy: string | null;
+  reason: string | null;
+}
+
+export function deriveArchivedLabel(spec: DiscoveredSpec): SpecArchivedLabel {
+  const { supersededBy, reason } = spec.lifecycle;
+  return {
+    label: supersededBy ? "Superseded" : "Archived",
+    supersededBy: supersededBy ?? null,
+    reason: reason ?? null,
+  };
 }
 
 // The visual marker a pass-state summary leads with (#483, TSPF-FR-006). Each

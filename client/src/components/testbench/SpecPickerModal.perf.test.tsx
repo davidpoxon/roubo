@@ -20,7 +20,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderWithProviders } from "../../test/renderWithProviders";
-import type { DiscoveredSpec, SpecVerification } from "../../lib/api";
+import type { DiscoveredSpec, SpecLifecycleState, SpecVerification } from "../../lib/api";
 import type { ManualPathState } from "../../hooks/useTestbenchSpecs";
 
 const RUN = process.env.RUN_PERF_HARNESS === "1";
@@ -62,6 +62,13 @@ function verification(
   };
 }
 
+// Every perf fixture spec is live: the archived group (#770) is a separate,
+// hidden-by-default partition with its own coverage, and mixing archived specs in
+// here would shrink the rendered list this budget measures.
+function lifecycle(): SpecLifecycleState {
+  return { archived: false, reason: null, supersededBy: null, recordError: null };
+}
+
 // 25 mixed-classification specs, cycling the five summary shapes so the partition
 // split and every deriveSpecSummary branch are exercised. i % 5 === 0 is
 // all-passed (5 specs, collapsed tail); the other 20 are needs-attention.
@@ -80,6 +87,7 @@ const SPECS: DiscoveredSpec[] = Array.from({ length: SPEC_COUNT }, (_, i) => {
           classification: "all-passed",
           statusCounts: { passed: caseCount },
         }),
+        lifecycle: lifecycle(),
       };
     case 1:
       // no sidecar yet -> "no results yet".
@@ -93,6 +101,7 @@ const SPECS: DiscoveredSpec[] = Array.from({ length: SPEC_COUNT }, (_, i) => {
           planHashMatch: false,
           statusCounts: { not_started: caseCount },
         }),
+        lifecycle: lifecycle(),
       };
     case 2:
       // valid sidecar, hash mismatch -> "results stale".
@@ -104,6 +113,7 @@ const SPECS: DiscoveredSpec[] = Array.from({ length: SPEC_COUNT }, (_, i) => {
           planHashMatch: false,
           statusCounts: { passed: caseCount },
         }),
+        lifecycle: lifecycle(),
       };
     case 3:
       // some passed, no failures -> "P of M passed" (progress).
@@ -114,6 +124,7 @@ const SPECS: DiscoveredSpec[] = Array.from({ length: SPEC_COUNT }, (_, i) => {
         verification: verification({
           statusCounts: { passed: 1, in_progress: caseCount - 1 },
         }),
+        lifecycle: lifecycle(),
       };
     default:
       // some passed, with failures -> "P of M passed" + "· k failed".
@@ -124,6 +135,7 @@ const SPECS: DiscoveredSpec[] = Array.from({ length: SPEC_COUNT }, (_, i) => {
         verification: verification({
           statusCounts: { passed: 1, failed: caseCount - 1 },
         }),
+        lifecycle: lifecycle(),
       };
   }
 });

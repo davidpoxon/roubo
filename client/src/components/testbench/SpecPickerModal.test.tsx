@@ -1,10 +1,21 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test/renderWithProviders";
-import type { DiscoveredSpec, InvalidSpec, SpecVerification } from "../../lib/api";
+import type {
+  DiscoveredSpec,
+  InvalidSpec,
+  SpecLifecycleState,
+  SpecVerification,
+} from "../../lib/api";
 import type { ManualPathState } from "../../hooks/useTestbenchSpecs";
+
+// Lifecycle defaults to live (no record on disk); archived fixtures state only
+// the fields they need (#770).
+function lifecycle(over: Partial<SpecLifecycleState> = {}): SpecLifecycleState {
+  return { archived: false, reason: null, supersededBy: null, recordError: null, ...over };
+}
 
 // Build a verification payload with sensible defaults; each fixture states only
 // the fields it needs (#482/#483).
@@ -57,6 +68,7 @@ const SPECS: DiscoveredSpec[] = [
     path: "/repo/.specifications/testbench/test-cases.json",
     caseCount: 3,
     verification: verification({ statusCounts: { passed: 1, in_progress: 2 } }),
+    lifecycle: lifecycle(),
   },
   // Needs-attention with a failure -> "0 of 1 passed" + "· 1 failed".
   {
@@ -64,6 +76,7 @@ const SPECS: DiscoveredSpec[] = [
     path: "/repo/.specifications/billing/test-cases.json",
     caseCount: 1,
     verification: verification({ statusCounts: { failed: 1 } }),
+    lifecycle: lifecycle(),
   },
   // All-passed: relegated to the collapsed tail disclosure.
   {
@@ -71,14 +84,36 @@ const SPECS: DiscoveredSpec[] = [
     path: "/repo/.specifications/shipped-alpha/test-cases.json",
     caseCount: 5,
     verification: verification({ classification: "all-passed", statusCounts: { passed: 5 } }),
+    lifecycle: lifecycle(),
   },
   {
     slug: "shipped-beta",
     path: "/repo/.specifications/shipped-beta/test-cases.json",
     caseCount: 8,
     verification: verification({ classification: "all-passed", statusCounts: { passed: 8 } }),
+    lifecycle: lifecycle(),
   },
 ];
+
+// #770: one merely-archived spec and one recorded as superseded, added to the
+// live fixtures above for the archival suite.
+const ARCHIVED: DiscoveredSpec = {
+  slug: "retired-flow",
+  path: "/repo/.specifications/retired-flow/test-cases.json",
+  caseCount: 4,
+  verification: verification({ statusCounts: { passed: 2, not_started: 2 } }),
+  lifecycle: lifecycle({ archived: true, reason: "Shipped in #212" }),
+};
+
+const SUPERSEDED: DiscoveredSpec = {
+  slug: "billing-v1",
+  path: "/repo/.specifications/billing-v1/test-cases.json",
+  caseCount: 2,
+  verification: verification({ classification: "all-passed", statusCounts: { passed: 2 } }),
+  lifecycle: lifecycle({ archived: true, supersededBy: "billing-v2" }),
+};
+
+const SPECS_WITH_ARCHIVED: DiscoveredSpec[] = [...SPECS, ARCHIVED, SUPERSEDED];
 
 function specsQuery(over: Partial<ReturnType<typeof mockUseTestbenchSpecs>> = {}) {
   return {
@@ -276,6 +311,7 @@ describe("SpecPickerModal", () => {
                   planHashMatch: false,
                   statusCounts: { not_started: 4 },
                 }),
+                lifecycle: lifecycle(),
               },
             ],
             invalid: [],
@@ -301,6 +337,7 @@ describe("SpecPickerModal", () => {
                   planHashMatch: false,
                   statusCounts: { passed: 29 },
                 }),
+                lifecycle: lifecycle(),
               },
             ],
             invalid: [],
@@ -603,6 +640,132 @@ describe("SpecPickerModal", () => {
       const path = screen.getByText("/repo/.specifications/shipped-alpha/test-cases.json");
       expect(path).toHaveClass("text-stone-500");
       expect(path).toHaveClass("dark:text-stone-400");
+    });
+  });
+
+  describe("archived specs (#770, SATCA-FR-015/FR-016)", () => {
+    beforeEach(() => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: SPECS_WITH_ARCHIVED, invalid: [] } }),
+      );
+    });
+
+    // SATCA-TC-035 / AC1.
+    it("hides archived specs from the default list, in neither live group", async () => {
+      renderModal();
+      expect(screen.queryByText("retired-flow")).not.toBeInTheDocument();
+      expect(screen.queryByText("billing-v1")).not.toBeInTheDocument();
+      // Live specs are listed as before: needs-attention up front, all-passed
+      // behind its own disclosure. Expanding that disclosure must not surface an
+      // archived spec either, even the all-passed one.
+      expect(screen.getByText("testbench")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
+      expect(screen.getByText("shipped-alpha")).toBeInTheDocument();
+      expect(screen.queryByText("billing-v1")).not.toBeInTheDocument();
+    });
+
+    it("counts the archived specs on its reveal control, collapsed by default", () => {
+      renderModal();
+      const control = screen.getByRole("button", { name: /Show archived/ });
+      expect(control).toHaveAttribute("aria-pressed", "false");
+      expect(control).toHaveAttribute("aria-expanded", "false");
+      // Scoped to the control: the all-passed disclosure also counts two specs.
+      expect(within(control).getByText("· 2 specs")).toBeInTheDocument();
+    });
+
+    it("renders no reveal control when nothing is archived", () => {
+      mockUseTestbenchSpecs.mockReturnValue(specsQuery({ data: { specs: SPECS, invalid: [] } }));
+      renderModal();
+      expect(screen.queryByRole("button", { name: /Show archived/ })).not.toBeInTheDocument();
+    });
+
+    // SATCA-TC-036 / AC2.
+    it("reveals the archived specs alongside the live ones, labelled in text", async () => {
+      renderModal();
+      await userEvent.click(screen.getByRole("button", { name: /Show archived/ }));
+      expect(screen.getByRole("button", { name: /Show archived/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      const group = screen.getByRole("group", { name: "Archived specs" });
+      expect(within(group).getByText("retired-flow")).toBeInTheDocument();
+      // The label is words, not colour alone.
+      expect(within(group).getByText("Archived")).toBeInTheDocument();
+      expect(within(group).getByText("Shipped in #212")).toBeInTheDocument();
+      // The live specs stay listed.
+      expect(screen.getByText("testbench")).toBeInTheDocument();
+      expect(screen.getByText("billing")).toBeInTheDocument();
+    });
+
+    // SATCA-TC-037 / AC3.
+    it("labels a superseded spec distinctly and names the spec that replaced it", async () => {
+      renderModal();
+      await userEvent.click(screen.getByRole("button", { name: /Show archived/ }));
+      const supersededRow = screen
+        .getByText("/repo/.specifications/billing-v1/test-cases.json")
+        .closest("button") as HTMLElement;
+      expect(within(supersededRow).getByText("Superseded")).toBeInTheDocument();
+      expect(within(supersededRow).queryByText("Archived")).not.toBeInTheDocument();
+      expect(within(supersededRow).getByText("billing-v2")).toBeInTheDocument();
+      // The merely-archived row is labelled the other way round.
+      const archivedRow = screen
+        .getByText("/repo/.specifications/retired-flow/test-cases.json")
+        .closest("button") as HTMLElement;
+      expect(within(archivedRow).getByText("Archived")).toBeInTheDocument();
+      expect(within(archivedRow).queryByText("Superseded")).not.toBeInTheDocument();
+    });
+
+    // SATCA-TC-038 / AC4 (client half): a revealed archived spec is still a
+    // selectable row in the one controlled group, so it can be loaded.
+    it("keeps a revealed archived spec selectable and loadable", async () => {
+      const onCreate = vi.fn();
+      renderModal({ onCreate });
+      await userEvent.click(screen.getByRole("button", { name: /Show archived/ }));
+      await userEvent.click(screen.getByText("retired-flow"));
+      expect(screen.getAllByRole("radio", { checked: true })).toHaveLength(1);
+      const create = screen.getByRole("button", { name: /Create TestBench/ });
+      expect(create).not.toBeDisabled();
+      await userEvent.click(create);
+      expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/retired-flow/test-cases.json");
+    });
+
+    // Dismissal resets the reveal (reset() runs on Cancel / overlay / Escape), so
+    // the picker always reopens with archived specs hidden again.
+    it("re-collapses the archived group on dismissal", async () => {
+      const onClose = vi.fn();
+      renderModal({ onClose });
+      await userEvent.click(screen.getByRole("button", { name: /Show archived/ }));
+      expect(screen.getByText("retired-flow")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(onClose).toHaveBeenCalled();
+      await waitFor(() => expect(screen.queryByText("retired-flow")).not.toBeInTheDocument());
+      expect(screen.getByRole("button", { name: /Show archived/ })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it("does not claim every spec passed when the only hidden specs are archived", () => {
+      // Live needs-attention specs remain, so the all-passed empty state (which
+      // keys on the LIVE groups) must stay away.
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: [SPECS[0], ARCHIVED], invalid: [] } }),
+      );
+      renderModal();
+      expect(
+        screen.queryByText("Every discovered spec has all test cases passed"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does not show the all-passed empty state for an archived-only project", () => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: [ARCHIVED, SUPERSEDED], invalid: [] } }),
+      );
+      renderModal();
+      expect(
+        screen.queryByText("Every discovered spec has all test cases passed"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Show archived/ })).toBeInTheDocument();
     });
   });
 });
