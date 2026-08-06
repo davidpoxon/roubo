@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "archived": {
+      "type": "boolean",
+      "const": true
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "supersededBy": {
+      "type": "string",
+      "pattern": "^(?!\\.{1,2}$)[a-z0-9_-]+$"
+    }
+  },
+  "required": ["archived"],
+  "additionalProperties": false,
+  "$id": "https://roubo.dev/schema/spec-lifecycle/v1.0.0.json",
+  "title": "Spec lifecycle record",
+  "description": "The `lifecycle` subtree of a spec's .specifications/<slug>/manifest.json (SATCA-FR-013). Absent subtree means the spec is live."
+}

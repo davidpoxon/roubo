@@ -22,6 +22,7 @@ import { TestbenchTargetingSpikeSchema } from "../shared/testbench-targeting-sch
 import { TestCasesPlanSchema, TestResultsFileSchema } from "../shared/testbench-contracts.ts";
 import { WorkUnitsFileSchema } from "../shared/work-units-contract.ts";
 import { GateOverridesFileSchema } from "../shared/gate-overrides-contract.ts";
+import { SpecLifecycleRecordSchema } from "../shared/spec-lifecycle-schema.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(here, "..");
@@ -48,6 +49,10 @@ export const artifacts = [
   {
     schema: GateOverridesFileSchema,
     outPath: resolve(repoRoot, "schema", "gate-overrides.schema.json"),
+  },
+  {
+    schema: SpecLifecycleRecordSchema,
+    outPath: resolve(repoRoot, "schema", "spec-lifecycle.schema.json"),
   },
 ] as const;
 
