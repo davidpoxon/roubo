@@ -23,7 +23,9 @@ function results(caseResults: BenchResults["caseResults"]): BenchResults {
   return { caseResults, updatedAt: "2026-06-08T09:00:00.000Z" };
 }
 
-function lifecycleCase(id: string, lifecycle: CaseLifecycle): Case {
+// Omitting the lifecycle block yields a live case, which is what a revealable
+// replacement pointer has to name (#789).
+function lifecycleCase(id: string, lifecycle?: CaseLifecycle): Case {
   return {
     id,
     title: `Case ${id}`,
@@ -34,7 +36,7 @@ function lifecycleCase(id: string, lifecycle: CaseLifecycle): Case {
     tags: [],
     linked_requirement_ids: ["SATCA-FR-006"],
     linked_user_story_ids: [],
-    lifecycle,
+    ...(lifecycle === undefined ? {} : { lifecycle }),
   };
 }
 
@@ -148,7 +150,11 @@ describe("ArchivedCases lifecycle entries (#769)", () => {
       <ArchivedCases
         results={null}
         archived={archivedFor(
-          [lifecycleCase("TC-A", { state: "superseded", replacement: "TC-B" })],
+          [
+            lifecycleCase("TC-A", { state: "superseded", replacement: "TC-B" }),
+            // The target has to be in the plan and live to be revealable (#789).
+            lifecycleCase("TC-B"),
+          ],
           null,
         )}
         onSelectCase={onSelectCase}
@@ -162,6 +168,57 @@ describe("ArchivedCases lifecycle entries (#769)", () => {
 
     await userEvent.click(replacement);
     expect(onSelectCase).toHaveBeenCalledWith("TC-B");
+  });
+
+  // #789. A same-spec pointer is not proof the target can be revealed: the id may
+  // be in no plan at all, or name a case that is itself archived and so absent
+  // from the live list. Either way the panel could not resolve the selection, so
+  // the pointer is named as text rather than rendered as a dead control.
+  it("#789: does not make a same-spec replacement activatable when the target is missing", async () => {
+    const onSelectCase = vi.fn();
+    render(
+      <ArchivedCases
+        results={null}
+        archived={archivedFor(
+          [lifecycleCase("TC-A", { state: "superseded", replacement: "TC-GONE" })],
+          null,
+        )}
+        onSelectCase={onSelectCase}
+      />,
+    );
+
+    const replacement = screen.getByTestId("archived-replacement-TC-A");
+    // The verbatim pointer is still named, so the reviewer can see where the
+    // author pointed even though nothing can be revealed.
+    expect(replacement).toHaveTextContent("Replaced by TC-GONE");
+    expect(replacement.tagName).toBe("P");
+    expect(screen.queryByRole("button", { name: /Replaced by/ })).not.toBeInTheDocument();
+    await userEvent.click(replacement);
+    expect(onSelectCase).not.toHaveBeenCalled();
+  });
+
+  it("#789: does not make a same-spec replacement activatable when the target is retired", async () => {
+    const onSelectCase = vi.fn();
+    render(
+      <ArchivedCases
+        results={null}
+        archived={archivedFor(
+          [
+            lifecycleCase("TC-A", { state: "superseded", replacement: "TC-B" }),
+            lifecycleCase("TC-B", { state: "retired", reason: "obsolete too" }),
+          ],
+          null,
+        )}
+        onSelectCase={onSelectCase}
+      />,
+    );
+
+    const replacement = screen.getByTestId("archived-replacement-TC-A");
+    expect(replacement).toHaveTextContent("Replaced by TC-B");
+    expect(replacement.tagName).toBe("P");
+    expect(screen.queryByRole("button", { name: /Replaced by/ })).not.toBeInTheDocument();
+    await userEvent.click(replacement);
+    expect(onSelectCase).not.toHaveBeenCalled();
   });
 
   it("names a cross-spec replacement without making it activatable", async () => {

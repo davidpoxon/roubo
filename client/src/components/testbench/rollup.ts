@@ -18,6 +18,12 @@
 // as `archived` so the panel can surface them beside the orphaned results it
 // already shows, rather than losing them entirely.
 //
+// A same-spec pointer is additionally checked against THIS plan before it is
+// called revealable (#789): naming a case in this spec is not the same as that
+// case being present and live, and only a present, live target can actually be
+// revealed in the panel's live list. That check is a single lookup over the
+// plan's own cases, not a chain walk.
+//
 // The full resolver walk (`resolveCase`) is deliberately NOT used here: it needs
 // a map of every referenced plan, which the panel does not load. Chain resolution
 // and unresolved-reason reporting belong to the verify-gate surfaces.
@@ -113,9 +119,15 @@ export interface ArchivedCaseModel {
   // The parsed pointer, so a caller can name the target case id without
   // re-implementing the syntax. Null whenever `replacement` is.
   replacementRef: PointerRef | null;
-  // True when the replacement names a case in THIS spec, which is the only case
-  // the panel can reveal in its own live list.
+  // True when the replacement names a case in THIS spec. A pure fact about the
+  // pointer's slug: it says nothing about whether such a case exists.
   isSameSpec: boolean;
+  // True when the replacement can actually be revealed in the panel's live list
+  // (#789): `isSameSpec` AND the named case is present in this plan AND that
+  // case is itself live. A same-spec pointer to a case that was never in the
+  // plan, or that is itself retired or superseded, is inert: activating it would
+  // select an id the panel cannot resolve, so it is named as text instead.
+  isRevealable: boolean;
   // The effective status still recorded against the case, retained rather than
   // reset so an authored mark or override stays visible (SATCA-NFR-003).
   status: CaseStatus;
@@ -156,6 +168,7 @@ function compareKeys(a: string, b: string): number {
 function archivedModel(
   c: Case,
   state: Exclude<CaseState, "live">,
+  cases: Case[],
   results: BenchResults | null,
   specSlug: string | undefined,
 ): ArchivedCaseModel {
@@ -164,13 +177,21 @@ function archivedModel(
     lifecycle !== undefined && lifecycle.state === "superseded" ? lifecycle.replacement : null;
   const replacementRef =
     replacement === null ? null : parseReplacementPointer(replacement, specSlug ?? "");
+  const isSameSpec = replacementRef !== null && replacementRef.slug === (specSlug ?? "");
   return {
     case: c,
     state,
     reason: lifecycle?.reason ?? null,
     replacement,
     replacementRef,
-    isSameSpec: replacementRef !== null && replacementRef.slug === (specSlug ?? ""),
+    isSameSpec,
+    // Same-spec is necessary but not sufficient: the target must be in this plan
+    // and live, or there is nothing for the panel to reveal (#789). Live-ness is
+    // asked of the resolver, never read off the raw state.
+    isRevealable:
+      isSameSpec &&
+      replacementRef !== null &&
+      cases.some((t) => t.id === replacementRef.caseId && caseStateOf(t) === "live"),
     status: effectiveCaseStatus(c.id, results),
   };
 }
@@ -189,7 +210,7 @@ export function buildRollup(
     // block is live, so every pre-1.2.0 plan groups exactly as it always did.
     const state = caseStateOf(c);
     if (state !== "live") {
-      archived.push(archivedModel(c, state, results, specSlug));
+      archived.push(archivedModel(c, state, cases, results, specSlug));
       continue;
     }
     const status = effectiveCaseStatus(c.id, results);
