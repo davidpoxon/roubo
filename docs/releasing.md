@@ -4,7 +4,7 @@ This guide walks maintainers through cutting a release. It is reference material
 
 ## What the release workflow does
 
-The release workflow ([`.github/workflows/release.yml`](../.github/workflows/release.yml)) triggers on `release: [created]` and on `workflow_dispatch`. It validates the tag format, stamps the version, builds via `electron-forge make`, then uploads every `.dmg`, `.zip`, `.deb`, and `.AppImage` it finds to the GitHub release. macOS builds are signed and notarized when the Apple secrets below are configured.
+The release workflow ([`.github/workflows/release.yml`](../.github/workflows/release.yml)) triggers on `release: [created]` and on `workflow_dispatch`. It validates the tag format, stamps the version, builds via `electron-forge make`, then uploads every `.dmg`, `.zip`, `.deb`, and `.AppImage` it finds to the GitHub release. macOS builds are signed and notarized when the Apple secrets below are configured. After the upload, a `verify-public-listing` job asserts that a published release actually reached the public releases listing, which is the one thing auto-updates depend on and the one thing nothing else fails on. See [Verifying a public release](#verifying-a-public-release).
 
 Only one matrix entry is active: `macos-latest` / `arm64`. The `macos-latest` / `x64` and `ubuntu-22.04` / `x64` entries are commented out, so a release currently ships two macOS arm64 artifacts and nothing else:
 
@@ -140,7 +140,9 @@ It walks that list in order, skips drafts and pre-releases, and takes the **firs
 
 Run all three checks unauthenticated. Do not substitute `gh`, which would mask the exact failure this catches.
 
-These checks are manual today. Automating the first one as a release-workflow gate is tracked in #1171.
+Check 1 is enforced automatically, but only when the release workflow runs against an already-published release. The `verify-public-listing` job in [`.github/workflows/release.yml`](../.github/workflows/release.yml) runs it unauthenticated after the artifact upload, polls for two minutes to absorb ordinary propagation lag, and fails the release when the tag is missing or not first. It warns (never fails) when the update feed in check 2 has not flipped yet.
+
+On the draft-then-publish flow above, the workflow is dispatched at step 2 while the release is still a draft, so the job takes its draft-skip branch, and publishing at step 4 does not re-trigger it. **Check 1 in step 5 therefore remains mandatory by hand on that flow.** The job is the safety net for a release built or rebuilt against an already-published tag, not a replacement for step 5. Checks 2 and 3 are always manual.
 
 1. **The new tag appears in the public listing**, and appears first:
 

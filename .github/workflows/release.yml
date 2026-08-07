@@ -176,3 +176,71 @@ jobs:
       - name: Cleanup signing keychain
         if: always() && runner.os == 'macOS'
         run: security delete-keychain "$RUNNER_TEMP/roubo-signing.keychain-db" || true
+
+  verify-public-listing:
+    needs: [build]
+    name: verify public listing
+    runs-on: ubuntu-latest
+    # 6 attempts 20s apart is 2 minutes of polling, plus checkout and setup.
+    timeout-minutes: 10
+    permissions:
+      # `contents: write`, not `read`, and not for writing anything. The releases
+      # API exposes a DRAFT release only to a principal with push access, so under
+      # `contents: read` the draft gate below cannot read the release at all and
+      # would fail every draft dispatch, which is the routine pre-release path.
+      # The `build` job already holds the same scope to upload assets to that same
+      # draft. Nothing in this job writes.
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version-file: .nvmrc
+
+      # No `npm ci`: scripts/verify-public-release.mjs deliberately has no
+      # dependencies, so it runs straight off the checkout.
+      - name: Assert the release is publicly listed
+        env:
+          # This token is used for the draft gate ONLY, and the two halves of this
+          # step authenticate differently on purpose:
+          #
+          #   1. The draft gate MUST authenticate. A draft release is not publicly
+          #      readable at all, so an unauthenticated read cannot tell "draft" from
+          #      "missing", and drafts are the normal pre-release path (the workflow is
+          #      dispatched against them, and workflow_dispatch carries only tag_name).
+          #   2. The listing assertion MUST NOT authenticate. A token authenticates as
+          #      a principal with push access, which sees the release even when the
+          #      public cannot, which would mask the exact failure being guarded
+          #      against. scripts/verify-public-release.mjs therefore uses bare fetch
+          #      and never reads GH_TOKEN.
+          #
+          # Do not "tidy" the second half into `gh`. See docs/releasing.md,
+          # "Verifying a public release".
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
+          # Present on the `release` trigger only; a fallback for when `gh` cannot
+          # read the release record.
+          EVENT_DRAFT: ${{ github.event.release.draft }}
+        run: |
+          set -euo pipefail
+
+          # Gate on the release's own draft field, not on the trigger type.
+          draft=""
+          if resolved="$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
+            draft="$resolved"
+          elif [[ -n "${EVENT_DRAFT}" ]]; then
+            draft="${EVENT_DRAFT}"
+          fi
+
+          if [[ -z "$draft" ]]; then
+            echo "::error::Could not determine whether ${RELEASE_TAG} is a draft, so the public-listing assertion cannot run safely."
+            exit 1
+          fi
+
+          if [[ "$draft" == "true" ]]; then
+            echo "Release ${RELEASE_TAG} is still a draft, which is legitimately absent from the public listing. Skipping the assertion."
+            exit 0
+          fi
+
+          node scripts/verify-public-release.mjs
