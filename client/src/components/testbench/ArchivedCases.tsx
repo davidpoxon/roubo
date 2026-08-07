@@ -21,9 +21,12 @@ import StatusIndicator from "./StatusIndicator";
 // retained observation marks and notes, so an authored mark or note is never
 // silently lost from the reviewer's view.
 //
-// A same-spec replacement is activatable: it calls back into the panel's case
-// selection, which reveals that case in the live list. A cross-spec replacement
-// is named but not activatable, because the panel holds only this spec's plan.
+// A same-spec replacement is activatable only when it resolves to a live case in
+// this plan: it then calls back into the panel's case selection, which reveals
+// that case in the live list. A cross-spec replacement is named but not
+// activatable, because the panel holds only this spec's plan, and so is a
+// same-spec pointer whose target is absent from the plan or not itself live
+// (#789), which would otherwise be a control that does nothing when activated.
 //
 // The section renders when at least one entry of either kind exists.
 
@@ -110,10 +113,12 @@ function LifecycleEntry({
   onSelectCase?: (caseId: string) => void;
 }) {
   const caseId = entry.case.id;
-  // Only a same-spec replacement can be revealed: the panel holds this spec's
-  // plan alone, so a slug-qualified pointer is named as text and left inert.
+  // Only a replacement the rollup found to be present and live in this spec's
+  // plan can be revealed: the panel holds this spec's plan alone, so a
+  // slug-qualified pointer, or a same-spec one whose target is missing or itself
+  // non-live, is named as text and left inert (#789).
   const revealId =
-    entry.isSameSpec && entry.replacementRef !== null && onSelectCase !== undefined
+    entry.isRevealable && entry.replacementRef !== null && onSelectCase !== undefined
       ? entry.replacementRef.caseId
       : null;
   return (

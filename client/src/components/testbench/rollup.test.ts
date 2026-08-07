@@ -296,6 +296,43 @@ describe("buildRollup lifecycle exclusion (#769)", () => {
     const model = buildRollup([superseded("a", "TC-1"), superseded("b", "s:TC-1")], null);
     expect(model.archived.map((x) => x.isSameSpec)).toEqual([true, false]);
   });
+
+  // #789. `isSameSpec` is a fact about the pointer's slug alone. Revealing the
+  // target in the panel's live list additionally needs it to BE in this plan and
+  // to be live, or the panel would render a control that resolves to nothing.
+  it("#789: a same-spec pointer is revealable only when the target is present and live", () => {
+    const cases = [
+      superseded("to-live", "live-1"),
+      superseded("to-missing", "TC-404"),
+      superseded("to-retired", "dead"),
+      superseded("to-superseded", "chained"),
+      superseded("cross", "other-spec:live-1"),
+      makeCase("live-1", 1, "P0"),
+      retired("dead", "obsolete"),
+      superseded("chained", "live-1"),
+    ];
+    const model = buildRollup(cases, null, "spec");
+    const flags = new Map(
+      model.archived.map((a) => [a.case.id, [a.isSameSpec, a.isRevealable] as const]),
+    );
+
+    // The only revealable pointer: same spec, present in the plan, and live.
+    expect(flags.get("to-live")).toEqual([true, true]);
+    // Same-spec but the id is in no plan at all.
+    expect(flags.get("to-missing")).toEqual([true, false]);
+    // Same-spec and present, but the target is itself archived, so it is not in
+    // the live list the panel would reveal it in.
+    expect(flags.get("to-retired")).toEqual([true, false]);
+    expect(flags.get("to-superseded")).toEqual([true, false]);
+    // Cross-spec stays neither, even though `live-1` is live in this plan.
+    expect(flags.get("cross")).toEqual([false, false]);
+  });
+
+  it("#789: a retired case, which carries no pointer, is never revealable", () => {
+    const model = buildRollup([retired("a", "obsolete")], null, "spec");
+    expect(model.archived[0].isSameSpec).toBe(false);
+    expect(model.archived[0].isRevealable).toBe(false);
+  });
 });
 
 describe("flattenRollup", () => {
