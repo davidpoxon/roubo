@@ -173,17 +173,22 @@ test("SATCA-TC-010: a file-authored retirement is read end to end by the applica
   const panel = page.getByRole("tabpanel");
 
   await test.step("S003-O01: the retired case is absent from the live case list", async () => {
-    await expect(
-      panel.getByTestId("case-row").filter({ hasText: SATCA_TC010_RETIRE_CASE_ID }),
-      `${SATCA_TC010_OWNING_SLICES.excluded}: ${SATCA_TC010_RETIRE_CASE_ID} is gone from the live case list`,
-    ).toHaveCount(0);
-    // The untouched third case is still live, which is both the control for the
-    // exclusion above and the precondition the supersession pointer resolves
-    // against (a replacement must be present and live to be revealable).
+    // Assert the POSITIVE control first. The panel renders its header and view
+    // toggle around a spinner while the plan query is in flight, and
+    // `showTestBenchCasesView` only waits on that toggle, so a `toHaveCount(0)`
+    // fired straight after the reload would pass vacuously against a list that
+    // has not rendered yet. Waiting for the untouched third case proves the live
+    // list is on screen, which is what makes the absence below meaningful. It is
+    // also the precondition the supersession pointer resolves against (a
+    // replacement must be present and live to be revealable).
     await expect(
       panel.getByTestId("case-row").filter({ hasText: SATCA_TC010_REPLACEMENT_CASE_ID }),
       `${SATCA_TC010_OWNING_SLICES.live}: the untouched ${SATCA_TC010_REPLACEMENT_CASE_ID} is still live`,
     ).toBeVisible();
+    await expect(
+      panel.getByTestId("case-row").filter({ hasText: SATCA_TC010_RETIRE_CASE_ID }),
+      `${SATCA_TC010_OWNING_SLICES.excluded}: ${SATCA_TC010_RETIRE_CASE_ID} is gone from the live case list`,
+    ).toHaveCount(0);
   });
 
   await test.step("S003-O02: both cases appear in the archived section with their state labels", async () => {
