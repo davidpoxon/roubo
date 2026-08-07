@@ -1,4 +1,4 @@
-import type { GateState } from "../../lib/api";
+import type { GateEmptyReason, GateState } from "../../lib/api";
 import GateStateIndicator from "./GateStateIndicator";
 
 // Gate-state panel (#702, VG-FR-012): for any gate, the operator sees its current
@@ -12,6 +12,23 @@ import GateStateIndicator from "./GateStateIndicator";
 // in. The host (BatchView) re-fetches the gate via React Query after each mark
 // write, so the status and unresolved sets here flip pending/failed/passed/stale
 // as cases are marked, with no local state of its own.
+//
+// Lifecycle exclusion (#777, SATCA-FR-008/FR-011): retiring the case that was
+// holding a gate pending releases the gate, and the released gate then looks
+// identical to one whose cases were all verified. The exclusion line is what tells
+// those two apart, so it renders on EVERY status, including `passed`, naming the
+// declared cases lifecycle removed. `emptyReason` alone could not carry this: it
+// is reported only on the `no_gating_cases` rung, which is the narrower case where
+// lifecycle emptied the set outright rather than merely narrowing it.
+
+// Why a `no_gating_cases` gate has nothing left, in words. Colour and the bare
+// status dot cannot say this, and the operator's next move differs per reason.
+const EMPTY_REASON_COPY: Record<GateEmptyReason, string> = {
+  lifecycle: "Every declared case was excluded by lifecycle.",
+  policy: "Every declared case was excluded by the level and type policy.",
+  mixed: "Every declared case was excluded by lifecycle or by the level and type policy.",
+};
+
 export default function GateStatePanel({ gate }: { gate: GateState }) {
   const isPassed = gate.status === "passed";
   // A gate whose (narrowed) gating set is empty is a structural "nothing to gate
@@ -19,6 +36,9 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
   const isNoGatingCases = gate.status === "no_gating_cases";
   const unresolved = gate.unresolvedCaseIds;
   const covering = gate.coveringUnitIds;
+  // Absent on a response from a server predating #777; read that as none.
+  const lifecycleExcluded = gate.lifecycleExcludedCaseIds ?? [];
+  const emptyReason = isNoGatingCases && gate.emptyReason ? gate.emptyReason : null;
 
   return (
     <section
@@ -39,6 +59,7 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
       {isNoGatingCases ? (
         <p className="text-xs text-stone-500 dark:text-stone-400">
           No gating cases in scope. Nothing to verify here.
+          {emptyReason !== null && ` ${EMPTY_REASON_COPY[emptyReason]}`}
         </p>
       ) : isPassed ? (
         <p className="text-xs text-stone-500 dark:text-stone-400">
@@ -86,6 +107,21 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
             )}
           </div>
         </div>
+      )}
+
+      {lifecycleExcluded.length > 0 && (
+        <p
+          data-testid="gate-lifecycle-excluded"
+          className="text-xs text-stone-600 dark:text-stone-400"
+        >
+          {"Excluded by lifecycle: "}
+          <span className="font-mono text-stone-700 dark:text-stone-300">
+            {lifecycleExcluded.join(", ")}
+          </span>
+          {lifecycleExcluded.length === 1
+            ? ". This case is retired, so it no longer gates."
+            : ". These cases are retired, so they no longer gate."}
+        </p>
       )}
     </section>
   );

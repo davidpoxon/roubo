@@ -4,6 +4,11 @@ import {
   type CaseLifecycle,
   type TestCasesPlan,
 } from "@roubo/shared/testbench-contracts";
+import {
+  WORK_UNITS_SCHEMA_ID,
+  WORK_UNITS_SCHEMA_VERSION,
+  type WorkUnitsFile,
+} from "@roubo/shared/work-units-contract";
 
 // TC-001 (#438): the authoritative `e2e_flow` case the create-a-TestBench journey
 // drift-guards against. This is the schema-valid (TestCasesPlanSchema) projection
@@ -1137,4 +1142,239 @@ export const SATCA_A11Y_PLAN: TestCasesPlan = {
       replacement: SATCA_A11Y_LIVE_CASE_ID,
     }),
   ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SATCA-TC-020 (#777): the rollup-and-panel RETIREMENT journey. The precondition
+// the case states is "a spec open in a bench with at least three live cases", so
+// the fixture seeds exactly three, and the journey records a result against each
+// one before it retires anything. That ordering is what makes S003-O02 provable:
+// "the rollup denominator and passed count BOTH drop by the case's contribution"
+// only means something when the retired case was itself contributing a pass.
+//
+//   - SATCA_TC020_RETIRE_CASE_ID: marked PASSED, then retired. Its contribution
+//     is one pass out of a total of three, so the Overall readout must fall from
+//     2 passed of 3 to 1 passed of 2.
+//   - SATCA_TC020_PASSED_CASE_ID: marked passed and never touched again. It is
+//     the proof that the untouched half of the rollup is unmoved.
+//   - SATCA_TC020_FAILED_CASE_ID: marked FAILED, so the denominator drop cannot
+//     be mistaken for "everything passed" arithmetic: the failed count has to
+//     stay at one across the retire and the restore.
+//
+// Unlike SATCA-TC-010 (#776), which authors the lifecycle block BY HAND in the
+// case file, this journey drives the IN-APP retire control (S002 says "start the
+// retire action", and the reason-required / empty-refused observation exists only
+// on that control), then reverses it from the archived entry.
+// ─────────────────────────────────────────────────────────────────────────────
+export const SATCA_TC020_SPEC_SLUG = "archival-rollup-panel-spec";
+
+export const SATCA_TC020_RETIRE_CASE_ID = "SATCA-RPJ-01";
+export const SATCA_TC020_PASSED_CASE_ID = "SATCA-RPJ-02";
+export const SATCA_TC020_FAILED_CASE_ID = "SATCA-RPJ-03";
+
+// The reason typed into the in-app retire panel, asserted VERBATIM out of the
+// archived entry (S003-O03). A full sentence with punctuation, so a truncating or
+// re-worded render fails rather than passing on a prefix match.
+export const SATCA_TC020_RETIRE_REASON =
+  "The hand-upload surface was removed in #212, so this case can never be run again.";
+
+function rollupJourneyCase(id: string, title: string): TestCasesPlan["cases"][number] {
+  return {
+    id,
+    title,
+    area: "rollup-and-panel",
+    level: 1,
+    type: "functional",
+    priority: "P0",
+    tags: [],
+    linked_requirement_ids: ["SATCA-FR-005"],
+    linked_user_story_ids: ["SATCA-US-003"],
+    steps: [
+      {
+        id: `${id}-S1`,
+        instruction: "Perform the check",
+        observations: [{ id: `${id}-S1-O1`, expected: "It holds" }],
+      },
+    ],
+  };
+}
+
+// The precondition plan: three cases, every one of them live (no `lifecycle` key
+// anywhere, which is what "live" means at v1.2.0).
+export const SATCA_TC020_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: SATCA_TC020_SPEC_SLUG,
+  cases: [
+    rollupJourneyCase(SATCA_TC020_RETIRE_CASE_ID, "Upload a report by hand"),
+    rollupJourneyCase(SATCA_TC020_PASSED_CASE_ID, "Import a batch of reports"),
+    rollupJourneyCase(SATCA_TC020_FAILED_CASE_ID, "Export a report to CSV"),
+  ],
+};
+
+// The Overall rollup is a `role="img"` whose aria-label carries the whole readout
+// (ProgressBar), so the denominator assertion needs no new test id. Building the
+// expected label here rather than in the spec keeps the three snapshots (before
+// the retire, after it, after the restore) in one shape.
+export function satcaTc020OverallLabel(counts: {
+  passed: number;
+  failed: number;
+  total: number;
+}): string {
+  const remaining = counts.total - counts.passed - counts.failed;
+  return `Overall: ${counts.passed} passed, ${counts.failed} failed, 0 in progress, ${remaining} remaining of ${counts.total}`;
+}
+
+// The slices that own each leg of the rollup-and-panel retirement journey,
+// surfaced in every assertion message so a failing integrated run attributes the
+// divergence to a slice rather than to "the journey". Drawn from #777's
+// blocked-by set (#766, #768, #769, #770, #774, #775, #781), minus the legs
+// SATCA-TC-020 has no step for (#768/#781's verify gate is SATCA-TC-033's half of
+// this unit, and #774's replacement picker belongs to supersede, not retire),
+// plus the scaffolding preconditions the journey needs before any case is live on
+// screen and the write slice the in-app retire action itself lives in (#772,
+// which S002's "start the retire action" reaches and which no blocked-by entry
+// covers).
+export const SATCA_TC020_OWNING_SLICES: Record<string, string> = {
+  enable: "#416 (TestBench feature flag: the panel is reachable at all)",
+  create: "#438 (create a TestBench from an empty slot: spec-bound worktree)",
+  live: "#769 (rollup and panel: a case with no lifecycle block is live)",
+  marks: "#412/#415 (mark observations + sidecar persist)",
+  rollup: "#769 (rollup and panel: the Overall rollup counts live cases only)",
+  retireControl: "#772 (case lifecycle write path: the in-app retire action)",
+  reasonRequired: "#772 (case lifecycle write path: retire refuses an empty reason)",
+  excluded: "#769 (rollup and panel: exclude non-live cases from the live list)",
+  archived: "#769 (rollup and panel: show non-live cases as archived, labelled)",
+  reason: "#769 (rollup and panel: the recorded reason is shown verbatim)",
+  restore: "#772 (case lifecycle write path: restore clears the lifecycle record)",
+  resolver: "#766 (LifecycleResolver: the live predicate the rollup partitions on)",
+  panel: "#775 (accessibility pass: focus lands on the archived entry after the write)",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SATCA-TC-033 (#777): the verify-gate RELEASE journey. The precondition is "a
+// gate reporting pending, held only by one case that has never been started", so
+// the fixture declares a gate over exactly two L1 cases:
+//
+//   - SATCA_TC033_PASSED_CASE_ID: marked passed in-app before the gate is opened,
+//     so it is not what holds the gate.
+//   - SATCA_TC033_BLOCKING_CASE_ID: never started, so it is the sole reason the
+//     gate reads pending, and the case S001-O01 requires the gate to NAME.
+//
+// The gate must declare a second, already-passed case rather than only the case
+// being retired. Retiring the only declared case would empty the gating set, and
+// an empty set is deliberately NOT a pass (`no_gating_cases`, #436, VG-NFR-007);
+// the case says the gate "reports passed", so the fixture is shaped to reach the
+// passed rung rather than the structural-empty one.
+//
+// S003-O03 ("no work unit file was edited") is the reason the fixture seeds a
+// real `work-units.json`: the gate narrows its set at READ time from the case
+// lifecycle, and never writes back the declared `implements.test_case_ids`. The
+// spec proves that against the file's own bytes.
+// ─────────────────────────────────────────────────────────────────────────────
+export const SATCA_TC033_SPEC_SLUG = "archival-gate-release-spec";
+
+export const SATCA_TC033_PASSED_CASE_ID = "SATCA-GRJ-01";
+export const SATCA_TC033_BLOCKING_CASE_ID = "SATCA-GRJ-02";
+
+// The verify unit's id IS the gate id, and its milestone is what titles the card
+// on the Batches overview (issue #433).
+export const SATCA_TC033_GATE_ID = "GRJ-WU-002";
+export const SATCA_TC033_GATE_MILESTONE = "Archival gate release";
+export const SATCA_TC033_COVERED_UNIT_ID = "GRJ-WU-001";
+
+// The reason typed into the retire panel for the blocking case (S002).
+export const SATCA_TC033_RETIRE_REASON =
+  "The blocking scenario was dropped from the release, so this case will never be run.";
+
+function gateJourneyCase(id: string, title: string): TestCasesPlan["cases"][number] {
+  return {
+    id,
+    title,
+    area: "verify-gate",
+    level: 1,
+    type: "functional",
+    priority: "P0",
+    tags: [],
+    linked_requirement_ids: ["SATCA-FR-008"],
+    linked_user_story_ids: ["SATCA-US-003"],
+    steps: [
+      {
+        id: `${id}-S1`,
+        instruction: "Perform the check",
+        observations: [{ id: `${id}-S1-O1`, expected: "It holds" }],
+      },
+    ],
+  };
+}
+
+export const SATCA_TC033_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: SATCA_TC033_SPEC_SLUG,
+  cases: [
+    gateJourneyCase(SATCA_TC033_PASSED_CASE_ID, "The scenario that is verified before the gate"),
+    gateJourneyCase(SATCA_TC033_BLOCKING_CASE_ID, "The scenario that has never been started"),
+  ],
+};
+
+// The spec's `work-units.json`: one delivery slice plus the verify gate that
+// spans it. Both L1 cases sit in the gate's `implements.test_case_ids`, which IS
+// the declared gating set, and the file is asserted byte-identical across the
+// whole journey (S003-O03).
+export const SATCA_TC033_WORK_UNITS: WorkUnitsFile = {
+  $schema: WORK_UNITS_SCHEMA_ID,
+  schemaVersion: WORK_UNITS_SCHEMA_VERSION,
+  specSlug: SATCA_TC033_SPEC_SLUG,
+  units: [
+    {
+      id: SATCA_TC033_COVERED_UNIT_ID,
+      title: "Deliver the archival gate-release scenarios",
+      type: "feature",
+      description: "The delivery slice the verify gate spans.",
+      acceptance_criteria: ["Both scenarios are implemented."],
+      depends_on: [],
+      implements: {
+        requirement_ids: ["SATCA-FR-008"],
+        user_story_ids: ["SATCA-US-003"],
+        test_case_ids: [SATCA_TC033_PASSED_CASE_ID, SATCA_TC033_BLOCKING_CASE_ID],
+      },
+    },
+    {
+      id: SATCA_TC033_GATE_ID,
+      title: "Verify: archival gate release",
+      type: "task",
+      kind: "verify",
+      milestone: SATCA_TC033_GATE_MILESTONE,
+      description: "The verify gate over the archival gate-release scenarios.",
+      acceptance_criteria: ["Every gating case is verified."],
+      depends_on: [SATCA_TC033_COVERED_UNIT_ID],
+      covers: [SATCA_TC033_COVERED_UNIT_ID],
+      implements: {
+        requirement_ids: ["SATCA-FR-008"],
+        user_story_ids: ["SATCA-US-003"],
+        test_case_ids: [SATCA_TC033_PASSED_CASE_ID, SATCA_TC033_BLOCKING_CASE_ID],
+      },
+    },
+  ],
+};
+
+// The slices that own each leg of the gate-release journey, drawn from #777's
+// blocked-by set. #768 owns the evaluator's lifecycle narrowing and #781 the
+// Phase 2 gate surfaces the journey reads it through; #772 owns the in-app retire
+// write S002 drives, which no blocked-by entry covers; the enable / create legs
+// are scaffolding preconditions rather than part of the drift-guarded journey.
+export const SATCA_TC033_OWNING_SLICES: Record<string, string> = {
+  enable: "#416 (TestBench feature flag: the panel is reachable at all)",
+  create: "#438 (create a TestBench from an empty slot: spec-bound worktree)",
+  marks: "#412/#415 (mark observations + sidecar persist)",
+  batches: "#781 (verify gate Phase 2 surfaces: the Batches overview lists the gate)",
+  gateView: "#781 (verify gate Phase 2 surfaces: the gate view and its state panel)",
+  pending: "#768 (verify gate: an unstarted gating case holds the gate pending)",
+  namesCase: "#781 (verify gate Phase 2 surfaces: the gate names its unresolved cases)",
+  retireControl: "#772 (case lifecycle write path: the in-app retire action)",
+  released: "#768 (verify gate: a retired case leaves the effective gating set)",
+  excludedStated: "#768/#781 (verify gate: the gate view states the lifecycle exclusion)",
+  resolver: "#766 (LifecycleResolver: the live predicate the gate narrows on)",
+  workUnitsUntouched: "#768 (verify gate: narrowing is computed at read time, never written back)",
 };

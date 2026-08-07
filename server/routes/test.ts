@@ -22,6 +22,7 @@ import {
 } from "../lib/testbench-store.js";
 import { writeResults } from "../lib/testbench-results-write.js";
 import { validateSpecLifecycle } from "@roubo/shared/spec-lifecycle-schema";
+import { validateWorkUnits } from "@roubo/shared/work-units-contract";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
@@ -1060,6 +1061,14 @@ interface SeedSpecInput {
   // also omitted => no manifest at all, which is the live state and the
   // precondition for minimal-manifest creation.
   manifest?: Record<string, unknown>;
+  // SATCA-TC-033 (#777): the spec's whole `work-units.json`, written verbatim.
+  // Without it no fixture project can carry a verify gate at all, so the gate
+  // surface (the Batches view, GatesOverview / BatchView) is unreachable in e2e
+  // and the gate-release journey cannot be driven end to end. Validated against
+  // the published contract at parse time, so a fixture can never seed a file the
+  // loader would report as invalid. Omitted => no work-units.json, which is the
+  // pre-#777 behaviour (a spec with no gates).
+  workUnits?: unknown;
 }
 
 interface ParsedRegisterFixture {
@@ -1149,12 +1158,23 @@ function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
     ) {
       return `seedSpecs[${i}].manifest must be an object when provided`;
     }
+    // #777: an optional work-units.json, so the spec carries verify gates. Reject
+    // an invalid file here rather than letting the gate loader skip the spec
+    // mid-journey with a "present but invalid" diagnostic the fixture never meant.
+    const workUnitsRaw = (entry as { workUnits?: unknown }).workUnits;
+    if (workUnitsRaw !== undefined) {
+      const validation = validateWorkUnits(workUnitsRaw);
+      if (!validation.ok) {
+        return `seedSpecs[${i}].workUnits must be a valid work-units file: ${validation.errors.join("; ")}`;
+      }
+    }
     parsed.push({
       slug,
       testCases,
       seedResults,
       lifecycle: lifecycleRaw,
       manifest: manifestRaw as Record<string, unknown> | undefined,
+      workUnits: workUnitsRaw,
     });
   }
   return parsed;
@@ -1433,6 +1453,16 @@ function writeSeededSpecs(repoPath: string, specs: SeedSpecInput[]): void {
       fs.writeFileSync(
         path.join(specDir, "manifest.json"),
         `${JSON.stringify(manifest, null, 2)}\n`,
+        "utf-8",
+      );
+    }
+    if (spec.workUnits !== undefined) {
+      // #777: the gate loader reads `.specifications/<slug>/work-units.json` from
+      // the PROJECT repo, so this is where a fixture's verify gate has to land.
+      // parseSeedSpecs already validated it against the published contract.
+      fs.writeFileSync(
+        path.join(specDir, "work-units.json"),
+        `${JSON.stringify(spec.workUnits, null, 2)}\n`,
         "utf-8",
       );
     }
@@ -1958,6 +1988,61 @@ router.get("/__read-spec-manifest", (req: Request, res: Response) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("/test/__read-spec-manifest failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /test/__read-spec-work-units (#777, SATCA-TC-033 S003-O03): read one spec's
+// `.specifications/<slug>/work-units.json` out of a fixture project's REPO, which
+// is the copy the gate loader reads, plus its sha256. The gate-release drift guard
+// uses it to prove the negative the case states: the gate went from pending to
+// passed with the work unit file untouched (a retirement narrows the gating set at
+// read time; it never edits the declared `implements.test_case_ids`).
+//
+// `raw` is the file verbatim so a spec can compare whole-file bytes rather than a
+// re-serialized parse, and is null when the folder carries none. Modelled on
+// /test/__read-spec-manifest: same ROUBO_E2E gate, same containment barrier.
+//
+// Query: ?projectId=<id>&slug=<slug>.
+router.get("/__read-spec-work-units", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const projectId = req.query.projectId;
+  const slug = req.query.slug;
+  if (typeof projectId !== "string" || !FIXTURE_PROJECT_ID_RE.test(projectId)) {
+    return res
+      .status(400)
+      .json({ error: "projectId must be a kebab-case string matching /^[a-z][a-z0-9-]*$/" });
+  }
+  if (typeof slug !== "string" || !SPEC_SLUG_RE.test(slug)) {
+    return res
+      .status(400)
+      .json({ error: "slug must be a kebab-case string matching /^[a-z][a-z0-9-]*$/" });
+  }
+  const project = projectRegistry.getProject(projectId);
+  if (!project || !project.config) {
+    return res.status(404).json({ error: `Project '${projectId}' not found` });
+  }
+  try {
+    const specDir = resolveWithin(project.repoPath, ".specifications", slug);
+    const workUnitsPath = resolveWithin(specDir, "work-units.json");
+    let raw: string | null = null;
+    try {
+      raw = fs.readFileSync(workUnitsPath, "utf-8");
+    } catch {
+      // No work-units.json in this folder: the spec simply declares no gates.
+      raw = null;
+    }
+    res.status(200).json({
+      path: workUnitsPath,
+      raw,
+      workUnits: raw === null ? null : JSON.parse(raw),
+      checksum: raw === null ? null : createHash("sha256").update(raw, "utf-8").digest("hex"),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__read-spec-work-units failed:", message);
     res.status(500).json({ error: message });
   }
 });

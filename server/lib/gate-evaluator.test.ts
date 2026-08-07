@@ -850,3 +850,82 @@ describe("evaluateGate: the lifecycle input stays pure (SATCA-FR-012, VG-NFR-007
     expect(p).toEqual(planSnapshot);
   });
 });
+
+describe("evaluateGate: a narrowed set names the cases lifecycle excluded (SATCA-TC-033, #777)", () => {
+  const gate = makeGate(["TC-1", "TC-2"], ["WU-10"]);
+
+  it("names the retired case on a PASSED gate, which is where the release is read", () => {
+    // The journey SATCA-TC-033 walks: one case verified, one retired, so the gate
+    // passes. `emptyReason` cannot answer "why did this pass" here, because the
+    // set was narrowed rather than emptied.
+    const p = plan([planCase("TC-1", 1, "functional"), retired(planCase("TC-2", 1, "functional"))]);
+    const state = evaluateGate(
+      gate,
+      results({ "TC-1": caseResult("passed") }),
+      PLAN_HASH,
+      p,
+      lifecycleFor(p),
+    );
+    expect(state.status).toBe("passed");
+    expect(state.gatingCaseIds).toEqual(["TC-1"]);
+    expect(state.lifecycleExcludedCaseIds).toEqual(["TC-2"]);
+    // The narrowing is computed, never written back to the declared set.
+    expect(gate.implements.test_case_ids).toEqual(["TC-1", "TC-2"]);
+    // A narrowed (not emptied) set carries no emptyReason, which is exactly why
+    // the exclusion list has to exist.
+    expect(state.emptyReason).toBeNull();
+  });
+
+  it("names them on a PENDING gate too, in the gate's declared order", () => {
+    const p = plan([
+      retired(planCase("TC-1", 1, "functional")),
+      planCase("TC-2", 1, "functional"),
+      planCase("TC-3", 1, "functional"),
+    ]);
+    const wide = makeGate(["TC-1", "TC-2", "TC-3"], ["WU-10"]);
+    const state = evaluateGate(
+      wide,
+      results({ "TC-2": caseResult("passed") }),
+      PLAN_HASH,
+      p,
+      lifecycleFor(p),
+    );
+    expect(state.status).toBe("pending");
+    expect(state.lifecycleExcludedCaseIds).toEqual(["TC-1"]);
+    expect(state.unresolvedCaseIds).toEqual(["TC-3"]);
+  });
+
+  it("is empty when lifecycle dropped nothing, on every rung", () => {
+    const p = plan([planCase("TC-1", 1, "functional"), planCase("TC-2", 1, "functional")]);
+    for (const r of [
+      results({ "TC-1": caseResult("passed"), "TC-2": caseResult("passed") }),
+      results({ "TC-1": caseResult("failed"), "TC-2": caseResult("passed") }),
+      results({}),
+      null,
+    ] as const) {
+      expect(evaluateGate(gate, r, PLAN_HASH, p, lifecycleFor(p)).lifecycleExcludedCaseIds).toEqual(
+        [],
+      );
+    }
+  });
+
+  it("excludes only what LIFECYCLE dropped, never what the level and type policy dropped", () => {
+    // Attribution matters: an operator told "excluded by lifecycle" would go
+    // looking for a retirement record that does not exist.
+    const p = plan([planCase("TC-1", 4, "functional"), retired(planCase("TC-2", 1, "functional"))]);
+    const state = evaluateGate(gate, results({}), PLAN_HASH, p, lifecycleFor(p));
+    expect(state.status).toBe("no_gating_cases");
+    expect(state.emptyReason).toBe("mixed");
+    expect(state.lifecycleExcludedCaseIds).toEqual(["TC-2"]);
+  });
+
+  it("reports the whole declared set on a gate lifecycle emptied outright", () => {
+    const p = plan([
+      retired(planCase("TC-1", 1, "functional")),
+      retired(planCase("TC-2", 1, "functional")),
+    ]);
+    const state = evaluateGate(gate, results({}), PLAN_HASH, p, lifecycleFor(p));
+    expect(state.emptyReason).toBe("lifecycle");
+    expect(state.lifecycleExcludedCaseIds).toEqual(["TC-1", "TC-2"]);
+  });
+});

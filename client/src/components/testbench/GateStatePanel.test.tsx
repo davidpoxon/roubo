@@ -76,6 +76,88 @@ describe("GateStatePanel", () => {
     expect(screen.queryByText("Unresolved cases")).toBeNull();
   });
 
+  // #777 (SATCA-TC-033 S003-O02): retiring the case that held a gate pending
+  // releases it, and the released gate would otherwise be indistinguishable from
+  // one whose cases were all verified. The exclusion line is what tells them apart.
+  describe("lifecycle exclusion (#777)", () => {
+    const released: GateState = {
+      gateId: "WU-099",
+      status: "passed",
+      unresolvedCaseIds: [],
+      gatingCaseIds: ["TC-001"],
+      coveringUnitIds: [],
+      lifecycleExcludedCaseIds: ["TC-002"],
+      blockedBy: [],
+      signedOff: false,
+    };
+
+    it("states the lifecycle exclusion on a PASSED gate, naming the excluded case", () => {
+      render(<GateStatePanel gate={released} />);
+      expect(screen.getByText("Passed")).toBeTruthy();
+      const line = screen.getByTestId("gate-lifecycle-excluded");
+      expect(line.textContent).toContain("Excluded by lifecycle");
+      expect(line.textContent).toContain("TC-002");
+    });
+
+    it("states it on a non-passed gate too, alongside the unresolved set", () => {
+      render(<GateStatePanel gate={{ ...nonPassed, lifecycleExcludedCaseIds: ["TC-003"] }} />);
+      expect(screen.getByText("TC-001")).toBeTruthy();
+      expect(screen.getByTestId("gate-lifecycle-excluded").textContent).toContain("TC-003");
+    });
+
+    it("renders nothing when lifecycle excluded nothing, including on a response that predates the field", () => {
+      render(<GateStatePanel gate={nonPassed} />);
+      expect(screen.queryByTestId("gate-lifecycle-excluded")).toBeNull();
+      render(<GateStatePanel gate={{ ...nonPassed, lifecycleExcludedCaseIds: [] }} />);
+      expect(screen.queryByTestId("gate-lifecycle-excluded")).toBeNull();
+    });
+
+    it("names the empty-set reason on a no_gating_cases gate (SATCA-FR-011)", () => {
+      render(
+        <GateStatePanel
+          gate={{
+            gateId: "WU-099",
+            status: "no_gating_cases",
+            unresolvedCaseIds: [],
+            gatingCaseIds: [],
+            coveringUnitIds: [],
+            emptyReason: "lifecycle",
+            lifecycleExcludedCaseIds: ["TC-001"],
+            blockedBy: [],
+            signedOff: false,
+          }}
+        />,
+      );
+      expect(screen.getByText(/excluded by lifecycle\./i)).toBeTruthy();
+      expect(screen.queryByText(/level and type policy/)).toBeNull();
+    });
+
+    it("distinguishes a policy-emptied set from a lifecycle-emptied one", () => {
+      render(
+        <GateStatePanel
+          gate={{
+            gateId: "WU-099",
+            status: "no_gating_cases",
+            unresolvedCaseIds: [],
+            gatingCaseIds: [],
+            coveringUnitIds: [],
+            emptyReason: "policy",
+            lifecycleExcludedCaseIds: [],
+            blockedBy: [],
+            signedOff: false,
+          }}
+        />,
+      );
+      expect(screen.getByText(/level and type policy/)).toBeTruthy();
+      expect(screen.queryByTestId("gate-lifecycle-excluded")).toBeNull();
+    });
+
+    it("has no axe violations with the exclusion line rendered", async () => {
+      const { container } = render(<GateStatePanel gate={released} />);
+      expectNoAxeFindings(await axe(container));
+    });
+  });
+
   it("has no axe violations", async () => {
     const { container } = render(<GateStatePanel gate={nonPassed} />);
     expectNoAxeFindings(await axe(container));
