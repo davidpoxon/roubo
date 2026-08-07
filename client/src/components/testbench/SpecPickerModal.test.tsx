@@ -939,6 +939,21 @@ describe("SpecPickerModal", () => {
       expect(screen.getByText("Archive this specification")).toBeInTheDocument();
     });
 
+    it("surfaces a refused Restore, which has no confirm step to report it in", async () => {
+      mockSetSpecLifecycle.mockRejectedValue(new Error("manifest.json could not be read"));
+      const user = userEvent.setup();
+      renderModal();
+      await user.click(screen.getByRole("button", { name: /Show archived/ }));
+
+      await openMenu(user, "retired-flow");
+      await user.click(screen.getByRole("menuitem", { name: /Restore/ }));
+
+      // Restore applies straight from the menu, so the failure has to land in
+      // the list view or it lands nowhere and the row silently stays archived.
+      expect(await screen.findByText("manifest.json could not be read")).toBeInTheDocument();
+      expect(screen.getByText("Discovered specs")).toBeInTheDocument();
+    });
+
     it("abandons the confirm step on Cancel without writing anything", async () => {
       const user = userEvent.setup();
       renderModal();

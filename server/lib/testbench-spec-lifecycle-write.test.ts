@@ -215,6 +215,34 @@ describe("writeSpecLifecycle: merge-write key preservation (SATCA-TC-049)", () =
       ManifestUnreadableError,
     );
   });
+
+  it("refuses to clobber a manifest it cannot READ, rather than creating a minimal one", () => {
+    // A present-but-unreadable manifest is the dangerous case, and the one an
+    // ENOENT-blind catch gets wrong: rename needs only write permission on the
+    // DIRECTORY, so treating an EACCES read as "this folder has no manifest"
+    // would replace every product-dev key with a three-key minimal file.
+    const before = fullManifest("unreadable");
+    writeManifest("unreadable", before);
+    const target = manifestFile("unreadable");
+
+    const realReadFileSync = fs.readFileSync;
+    vi.spyOn(fs, "readFileSync").mockImplementation(((p: fs.PathOrFileDescriptor, ...rest) => {
+      if (p === target) {
+        const err = new Error("EACCES: permission denied") as NodeJS.ErrnoException;
+        err.code = "EACCES";
+        throw err;
+      }
+      return (realReadFileSync as (...a: unknown[]) => unknown)(p, ...rest);
+    }) as typeof fs.readFileSync);
+
+    expect(() => writeSpecLifecycle(repo, "unreadable", { archived: true })).toThrow(
+      ManifestUnreadableError,
+    );
+
+    vi.restoreAllMocks();
+    // Byte-identical: nothing was written, nothing was renamed over it.
+    expect(readManifest("unreadable")).toEqual(before);
+  });
 });
 
 describe("writeSpecLifecycle: reversal (SATCA-TC-050 S003/S004)", () => {

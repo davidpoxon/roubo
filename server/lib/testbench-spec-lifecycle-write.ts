@@ -105,8 +105,18 @@ function readManifestObject(target: string): Record<string, unknown> | null {
   let raw: string;
   try {
     raw = fs.readFileSync(target, "utf8");
-  } catch {
-    // No manifest (or unreadable): the minimal-creation branch.
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      // A manifest IS there, we just cannot read it (EACCES, EISDIR, ELOOP).
+      // Renaming over it needs only write permission on the DIRECTORY, so
+      // falling through to the minimal-creation branch would clobber every
+      // product-dev key with a three-key file. Refuse, exactly as an
+      // unparseable manifest is refused below.
+      throw new ManifestUnreadableError(
+        `manifest.json in .specifications/${path.basename(path.dirname(target))}/ could not be read; refusing to overwrite it`,
+      );
+    }
+    // Genuinely no manifest: the minimal-creation branch.
     return null;
   }
 

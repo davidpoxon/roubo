@@ -841,6 +841,20 @@ export default function SpecPickerModal({
                     </TextField>
                   </div>
 
+                  {/* Restore is applied straight from the menu and never opens a
+                      confirm step, so a refused reversal has no confirm-step
+                      error region to land in. This one sits in the list view,
+                      outside the scrolling body so it cannot be scrolled out of
+                      sight, and is what makes a failed Restore visible at all. */}
+                  <div aria-live="polite">
+                    {lifecycleError && (
+                      <p className="flex items-start gap-1.5 px-5 pb-3 text-xs text-red-600 dark:text-red-400">
+                        <AlertTriangle size={12} className="shrink-0 mt-0.5" aria-hidden />
+                        <span>{lifecycleError}</span>
+                      </p>
+                    )}
+                  </div>
+
                   <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                     <Button
                       onPress={() => {
