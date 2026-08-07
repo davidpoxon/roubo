@@ -975,3 +975,111 @@ export const SATCA_PICKER_OWNING_SLICES: Record<string, string> = {
   selectable: "#770 (spec picker: a revealed archived spec stays selectable)",
   panel: "#770 (TestBench panel: archived indicator for the focused spec)",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SATCA-TC-010 (#776): the CASE lifecycle FORMAT journey. The precondition the
+// case states is "a spec whose cases are all live", so the fixture plan seeds
+// three live cases and the journey applies the lifecycle blocks itself, by hand,
+// into the bench's own worktree. That ordering is the point: it proves the
+// running app reads a file-authored retirement off disk (SATCA-FR-001/FR-002),
+// rather than merely rendering a plan that arrived pre-retired.
+//
+//   - SATCA_TC010_RETIRE_CASE_ID: gains a `retired` block with a reason (S001).
+//   - SATCA_TC010_SUPERSEDE_CASE_ID: gains a `superseded` block whose bare
+//     pointer names the third case (S002), which stays live so the pointer
+//     resolves same-spec and present.
+//   - SATCA_TC010_REPLACEMENT_CASE_ID: never edited. It is both the replacement
+//     and the proof that live cases stay in the live list.
+// ─────────────────────────────────────────────────────────────────────────────
+export const SATCA_TC010_SPEC_SLUG = "archival-case-lifecycle-spec";
+
+export const SATCA_TC010_RETIRE_CASE_ID = "SATCA-CLF-01";
+export const SATCA_TC010_SUPERSEDE_CASE_ID = "SATCA-CLF-02";
+export const SATCA_TC010_REPLACEMENT_CASE_ID = "SATCA-CLF-03";
+
+// The reason hand-authored into the retired block, asserted VERBATIM out of the
+// archived entry (S003-O03). Deliberately a full sentence with punctuation, so a
+// truncating or re-worded render fails rather than passes on a prefix match.
+export const SATCA_TC010_RETIRED_REASON =
+  "The manual upload path was removed in #212, so this case can never run again.";
+
+// The reason carried alongside the supersession, which the contract allows on a
+// `superseded` block. It keeps the two archived entries distinguishable in the
+// panel by their text as well as by their state label.
+export const SATCA_TC010_SUPERSEDED_REASON = "Replaced by the batch-import case.";
+
+function caseLifecycleCase(id: string, title: string): TestCasesPlan["cases"][number] {
+  return {
+    id,
+    title,
+    area: "case-lifecycle-format",
+    level: 1,
+    type: "functional",
+    priority: "P0",
+    tags: [],
+    linked_requirement_ids: ["SATCA-FR-001"],
+    linked_user_story_ids: ["SATCA-US-001"],
+    steps: [
+      {
+        id: `${id}-S1`,
+        instruction: "Perform the check",
+        observations: [{ id: `${id}-S1-O1`, expected: "It holds" }],
+      },
+    ],
+  };
+}
+
+// The precondition plan: three cases, every one of them live (no `lifecycle` key
+// anywhere, which is what "live" means at v1.2.0).
+export const SATCA_TC010_LIVE_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: SATCA_TC010_SPEC_SLUG,
+  cases: [
+    caseLifecycleCase(SATCA_TC010_RETIRE_CASE_ID, "Upload a report by hand"),
+    caseLifecycleCase(SATCA_TC010_SUPERSEDE_CASE_ID, "Import a report one file at a time"),
+    caseLifecycleCase(SATCA_TC010_REPLACEMENT_CASE_ID, "Import a batch of reports"),
+  ],
+};
+
+// The same plan after the hand edits of S001 and S002: one case retired with a
+// reason, one superseded with a bare same-spec pointer at the third. Built from
+// the live plan so the two can never drift apart, and so the only difference the
+// app can be reading is the lifecycle block itself.
+export const SATCA_TC010_EDITED_PLAN: TestCasesPlan = {
+  ...SATCA_TC010_LIVE_PLAN,
+  cases: SATCA_TC010_LIVE_PLAN.cases.map((c) => {
+    if (c.id === SATCA_TC010_RETIRE_CASE_ID) {
+      return { ...c, lifecycle: { state: "retired", reason: SATCA_TC010_RETIRED_REASON } as const };
+    }
+    if (c.id === SATCA_TC010_SUPERSEDE_CASE_ID) {
+      return {
+        ...c,
+        lifecycle: {
+          state: "superseded",
+          replacement: SATCA_TC010_REPLACEMENT_CASE_ID,
+          reason: SATCA_TC010_SUPERSEDED_REASON,
+        } as const,
+      };
+    }
+    return c;
+  }),
+};
+
+// The slices that own each leg of the case lifecycle format journey, surfaced in
+// every assertion message so a failing integrated run attributes the divergence
+// to a slice rather than to "the journey". Drawn from #776's blocked-by set,
+// minus the legs SATCA-TC-010 has no step for (#774's replacement picker and
+// #768/#781's verify gate are proven by their own journeys), plus the two
+// preconditions the journey needs before any lifecycle block exists.
+export const SATCA_TC010_OWNING_SLICES: Record<string, string> = {
+  enable: "#416 (TestBench feature flag: the panel is reachable at all)",
+  create: "#438 (create a TestBench from an empty slot: spec-bound worktree)",
+  live: "#769 (rollup and panel: a case with no lifecycle block is live)",
+  contract: "#764 (case lifecycle block in the case contract, at schema v1.2.0)",
+  excluded: "#769 (rollup and panel: exclude non-live cases from the live list)",
+  archived: "#769 (rollup and panel: show non-live cases as archived, labelled)",
+  reason: "#769 (rollup and panel: the recorded reason is shown verbatim)",
+  replacement:
+    "#766/#763 (LifecycleResolver + pointer resolution rules: same-spec pointer, live predicate)",
+};
