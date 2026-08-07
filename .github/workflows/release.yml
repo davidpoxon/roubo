@@ -184,7 +184,13 @@ jobs:
     # 6 attempts 20s apart is 2 minutes of polling, plus checkout and setup.
     timeout-minutes: 10
     permissions:
-      contents: read
+      # `contents: write`, not `read`, and not for writing anything. The releases
+      # API exposes a DRAFT release only to a principal with push access, so under
+      # `contents: read` the draft gate below cannot read the release at all and
+      # would fail every draft dispatch, which is the routine pre-release path.
+      # The `build` job already holds the same scope to upload assets to that same
+      # draft. Nothing in this job writes.
+      contents: write
     steps:
       - uses: actions/checkout@v7.0.0
 

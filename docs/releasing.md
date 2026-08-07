@@ -140,7 +140,9 @@ It walks that list in order, skips drafts and pre-releases, and takes the **firs
 
 Run all three checks unauthenticated. Do not substitute `gh`, which would mask the exact failure this catches.
 
-Check 1 is enforced automatically. The `verify-public-listing` job in [`.github/workflows/release.yml`](../.github/workflows/release.yml) runs it unauthenticated after the artifact upload, polls for two minutes to absorb ordinary propagation lag, and fails the release when the tag is missing or not first. It skips drafts, and it warns (never fails) when the update feed in check 2 has not flipped yet. Checks 2 and 3 stay manual, and running all three by hand is still worthwhile when diagnosing a release or confirming a fix.
+Check 1 is enforced automatically, but only when the release workflow runs against an already-published release. The `verify-public-listing` job in [`.github/workflows/release.yml`](../.github/workflows/release.yml) runs it unauthenticated after the artifact upload, polls for two minutes to absorb ordinary propagation lag, and fails the release when the tag is missing or not first. It warns (never fails) when the update feed in check 2 has not flipped yet.
+
+On the draft-then-publish flow above, the workflow is dispatched at step 2 while the release is still a draft, so the job takes its draft-skip branch, and publishing at step 4 does not re-trigger it. **Check 1 in step 5 therefore remains mandatory by hand on that flow.** The job is the safety net for a release built or rebuilt against an already-published tag, not a replacement for step 5. Checks 2 and 3 are always manual.
 
 1. **The new tag appears in the public listing**, and appears first:
 
