@@ -202,10 +202,26 @@ test("SATCA-TC-045: archiving a spec removes it from the picker and the control 
 
     // S002-O01: it disappears from the default list IMMEDIATELY, with no reload
     // and no re-open of the picker.
+    //
+    // Wait for the confirm step to close and the picker body to come back BEFORE
+    // asserting on the list, and assert the subject's absence LAST. The confirm
+    // step replaces the picker body inside the same dialog rather than stacking a
+    // second one (#773), so while it is up the dialog's accessible name is
+    // "Archive this specification" and `createDialog` matches nothing at all:
+    // asserting `defaultRow(createDialog, ...).toBeHidden()` here would pass
+    // vacuously on a zero-match locator, before the archive had even round-tripped.
+    // Ordering it after the sibling loop makes it a real check: the rows are back,
+    // the mutation invalidates the spec list in onSettled (after the onSuccess that
+    // dismisses the confirm step), so the list re-renders briefly STALE and this
+    // assertion only passes once the refetch has actually dropped the subject.
     await expect(
-      defaultRow(createDialog, SATCA_TC045_SUBJECT_SLUG),
-      `S002 diverged: expected ${SATCA_TC045_SUBJECT_SLUG} to leave the default list on archive but it was still listed; owning slice ${SATCA_TC045_OWNING_SLICES.s002}`,
+      archiveDialog,
+      `S002 diverged: expected the Archive confirm step to close on confirm but it stayed open; owning slice ${SATCA_TC045_OWNING_SLICES.s002}`,
     ).toBeHidden();
+    await expect(
+      createDialog,
+      `S002 diverged: expected the picker body to return after the confirm step but it did not; owning slice ${SATCA_TC045_OWNING_SLICES.s002}`,
+    ).toBeVisible();
     // The specs the journey did not touch are unaffected.
     for (const slug of [SATCA_TC045_SIBLING_ONE_SLUG, SATCA_TC045_SIBLING_TWO_SLUG]) {
       await expect(
@@ -213,6 +229,10 @@ test("SATCA-TC-045: archiving a spec removes it from the picker and the control 
         `S002 diverged: expected the untouched spec ${slug} to stay in the default list but it left it; owning slice ${SATCA_TC045_OWNING_SLICES.s002}`,
       ).toBeVisible();
     }
+    await expect(
+      defaultRow(createDialog, SATCA_TC045_SUBJECT_SLUG),
+      `S002 diverged: expected ${SATCA_TC045_SUBJECT_SLUG} to leave the default list on archive but it was still listed; owning slice ${SATCA_TC045_OWNING_SLICES.s002}`,
+    ).toBeHidden();
 
     // What landed on disk, which is what every later step reads back: the reason
     // the reviewer typed is recorded on the spec Roubo does not own.
