@@ -32,9 +32,18 @@ import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestben
 vi.mock("../../hooks/useTestbenchNotes");
 import { useAppendNote } from "../../hooks/useTestbenchNotes";
 
+// #772: the pane now offers the lifecycle write path, which mounts the
+// useSetCaseLifecycle mutation; mock it for the same reason as the notes hook.
+vi.mock("../../hooks/useTestbenchPlan", () => ({
+  useSetCaseLifecycle: vi.fn(),
+  caseLifecycleErrorMessage: (error: unknown) => (error ? (error as Error).message : null),
+}));
+import { useSetCaseLifecycle } from "../../hooks/useTestbenchPlan";
+
 const mockMark = vi.mocked(useMarkObservation);
 const mockOverride = vi.mocked(useSetStatusOverride);
 const mockAppendNote = vi.mocked(useAppendNote);
+const mockSetLifecycle = vi.mocked(useSetCaseLifecycle);
 
 function makeMutationMock(mutate = vi.fn()) {
   return { mutate, isPending: false } as never;
@@ -73,6 +82,7 @@ beforeEach(() => {
   mockMark.mockReturnValue(makeMutationMock());
   mockOverride.mockReturnValue(makeMutationMock());
   mockAppendNote.mockReturnValue(makeMutationMock());
+  mockSetLifecycle.mockReturnValue(makeMutationMock());
 });
 
 describe("CaseDetail full render (TC-019)", () => {
@@ -507,5 +517,109 @@ describe("CaseDetail machine verification provenance", () => {
 
     expect(screen.queryByText("Machine verification")).not.toBeInTheDocument();
     expect(screen.queryByText(/tier a ·/)).not.toBeInTheDocument();
+  });
+});
+
+// #772 (SATCA-TC-046, SATCA-FR-019, SATCA-US-006): retiring and superseding are
+// applied from the panel. The reversal is deliberately NOT here: a retired case
+// leaves the live list, so Restore sits on the archived entry instead.
+describe("CaseDetail lifecycle actions (#772)", () => {
+  it("retires a case with a reason", async () => {
+    const mutate = vi.fn();
+    mockSetLifecycle.mockReturnValue(makeMutationMock(mutate));
+    const user = userEvent.setup();
+    render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
+
+    await user.click(screen.getByTestId("case-retire-open"));
+    await user.type(screen.getByTestId("case-retire-reason"), "  covered by TC-009  ");
+    await user.click(screen.getByTestId("case-retire-submit"));
+
+    expect(mutate).toHaveBeenCalledWith(
+      {
+        projectId: "p1",
+        benchId: 4,
+        caseId: "TC-001",
+        lifecycle: { state: "retired", reason: "covered by TC-009" },
+      },
+      expect.anything(),
+    );
+  });
+
+  it("will not retire without a reason", async () => {
+    const mutate = vi.fn();
+    mockSetLifecycle.mockReturnValue(makeMutationMock(mutate));
+    const user = userEvent.setup();
+    render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
+
+    await user.click(screen.getByTestId("case-retire-open"));
+    await user.type(screen.getByTestId("case-retire-reason"), "   ");
+    expect(screen.getByTestId("case-retire-submit")).toBeDisabled();
+
+    await user.click(screen.getByTestId("case-retire-submit"));
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("supersedes a case with a replacement pointer, reason optional", async () => {
+    const mutate = vi.fn();
+    mockSetLifecycle.mockReturnValue(makeMutationMock(mutate));
+    const user = userEvent.setup();
+    render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
+
+    await user.click(screen.getByTestId("case-supersede-open"));
+    expect(screen.getByTestId("case-supersede-submit")).toBeDisabled();
+    await user.type(screen.getByTestId("case-supersede-replacement"), "other-spec:TC-009");
+    await user.click(screen.getByTestId("case-supersede-submit"));
+
+    expect(mutate).toHaveBeenCalledWith(
+      {
+        projectId: "p1",
+        benchId: 4,
+        caseId: "TC-001",
+        lifecycle: { state: "superseded", replacement: "other-spec:TC-009" },
+      },
+      expect.anything(),
+    );
+  });
+
+  it("carries an optional reason on a supersession", async () => {
+    const mutate = vi.fn();
+    mockSetLifecycle.mockReturnValue(makeMutationMock(mutate));
+    const user = userEvent.setup();
+    render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
+
+    await user.click(screen.getByTestId("case-supersede-open"));
+    await user.type(screen.getByTestId("case-supersede-replacement"), "TC-009");
+    await user.type(screen.getByTestId("case-supersede-reason"), "split in two");
+    await user.click(screen.getByTestId("case-supersede-submit"));
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lifecycle: { state: "superseded", replacement: "TC-009", reason: "split in two" },
+      }),
+      expect.anything(),
+    );
+  });
+
+  // SATCA-TC-056: a refused write says to reload rather than failing generically.
+  it("surfaces a conflict as a reload prompt", () => {
+    mockSetLifecycle.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      error: new Error("The case file changed on disk. Reload the spec, then try again."),
+    } as never);
+    render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
+
+    const alert = screen.getByTestId("case-lifecycle-error");
+    expect(alert).toHaveAttribute("role", "alert");
+    expect(alert).toHaveTextContent(/reload/i);
+  });
+
+  it("points an already-archived case at the archived section instead of re-archiving it", () => {
+    const archived: Case = { ...CASE, lifecycle: { state: "retired", reason: "obsolete" } };
+    render(<CaseDetail projectId="p1" benchId={4} testCase={archived} result={undefined} />);
+
+    expect(screen.getByTestId("case-lifecycle-archived")).toHaveTextContent(/Archived section/);
+    expect(screen.queryByTestId("case-retire-open")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("case-supersede-open")).not.toBeInTheDocument();
   });
 });

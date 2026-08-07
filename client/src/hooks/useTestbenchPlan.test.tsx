@@ -2,7 +2,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { waitFor } from "@testing-library/react";
 import { renderHookWithProviders, makeQueryClient } from "../test/renderWithProviders";
-import { useTestbenchPlan, useSetTestbenchFocus, testbenchPlanQueryKey } from "./useTestbenchPlan";
+import {
+  useTestbenchPlan,
+  useSetTestbenchFocus,
+  useSetCaseLifecycle,
+  testbenchPlanQueryKey,
+} from "./useTestbenchPlan";
 
 vi.mock("../lib/api");
 import * as api from "../lib/api";
@@ -92,5 +97,106 @@ describe("useSetTestbenchFocus", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["testbenchPlan", "p1", 3] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["bench", "p1", 3] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["benches"] });
+  });
+});
+
+// #772 (SATCA-FR-019/FR-021, SATCA-TC-056): the lifecycle mutation sends the
+// fingerprint from the cached plan (the view the reviewer actually acted on) as
+// the If-Match precondition, and invalidates the plan on success rather than
+// guessing at the new rollup.
+describe("useSetCaseLifecycle", () => {
+  const cached = { ...planResponse, caseFileFingerprint: "fp-loaded" };
+
+  it("sends the cached plan's fingerprint as the precondition", async () => {
+    mockedApi.setCaseLifecycle.mockResolvedValue({} as never);
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(testbenchPlanQueryKey("p1", 3), cached);
+
+    const { result } = renderHookWithProviders(() => useSetCaseLifecycle(), { queryClient });
+    result.current.mutate({
+      projectId: "p1",
+      benchId: 3,
+      caseId: "TC-001",
+      lifecycle: { state: "retired", reason: "obsolete" },
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.setCaseLifecycle).toHaveBeenCalledWith(
+      "p1",
+      3,
+      "TC-001",
+      { state: "retired", reason: "obsolete" },
+      "fp-loaded",
+    );
+  });
+
+  it("sends a null lifecycle to restore", async () => {
+    mockedApi.setCaseLifecycle.mockResolvedValue({} as never);
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(testbenchPlanQueryKey("p1", 3), cached);
+
+    const { result } = renderHookWithProviders(() => useSetCaseLifecycle(), { queryClient });
+    result.current.mutate({ projectId: "p1", benchId: 3, caseId: "TC-001", lifecycle: null });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApi.setCaseLifecycle).toHaveBeenCalledWith("p1", 3, "TC-001", null, "fp-loaded");
+  });
+
+  it("refuses to write when the cached plan carries no fingerprint", async () => {
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(testbenchPlanQueryKey("p1", 3), planResponse);
+
+    const { result } = renderHookWithProviders(() => useSetCaseLifecycle(), { queryClient });
+    result.current.mutate({ projectId: "p1", benchId: 3, caseId: "TC-001", lifecycle: null });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mockedApi.setCaseLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("invalidates the plan query on success", async () => {
+    mockedApi.setCaseLifecycle.mockResolvedValue({} as never);
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(testbenchPlanQueryKey("p1", 3), cached);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHookWithProviders(() => useSetCaseLifecycle(), { queryClient });
+    result.current.mutate({ projectId: "p1", benchId: 3, caseId: "TC-001", lifecycle: null });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["testbenchPlan", "p1", 3] });
+  });
+
+  // The invalidation refetch is asynchronous, so a second action fired in the gap
+  // must not re-send the pre-write precondition and be refused with a 409 for the
+  // app's own write. Seeding the returned fingerprint closes that window.
+  it("seeds the returned fingerprint so a back-to-back action sends the new precondition", async () => {
+    mockedApi.setCaseLifecycle.mockResolvedValue({ caseFileFingerprint: "fp-after" } as never);
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(testbenchPlanQueryKey("p1", 3), cached);
+
+    const { result } = renderHookWithProviders(() => useSetCaseLifecycle(), { queryClient });
+    result.current.mutate({
+      projectId: "p1",
+      benchId: 3,
+      caseId: "TC-001",
+      lifecycle: { state: "retired", reason: "obsolete" },
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(
+      queryClient.getQueryData<typeof cached>(testbenchPlanQueryKey("p1", 3))?.caseFileFingerprint,
+    ).toBe("fp-after");
+
+    // A second action, before any refetch lands, carries the post-write value.
+    result.current.mutate({ projectId: "p1", benchId: 3, caseId: "TC-002", lifecycle: null });
+    await waitFor(() =>
+      expect(mockedApi.setCaseLifecycle).toHaveBeenLastCalledWith(
+        "p1",
+        3,
+        "TC-002",
+        null,
+        "fp-after",
+      ),
+    );
   });
 });

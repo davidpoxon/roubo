@@ -9,6 +9,7 @@
 //   - state + reconcile: deriveStatus/reconcile/purgeOrphans (testbench-domain)
 //   - authors: resolveGitIdentity (git-helpers, #427)
 //   - atomic write: writeResults same-directory temp+rename (#406)
+//   - case lifecycle write: setCaseLifecycle (testbench-lifecycle-write, #772)
 //
 // Contracts honoured here:
 //   - NFR-001: every fs path flows through assertSafeIdentifier(slug) then
@@ -22,8 +23,13 @@
 //     not the whole file: canonicalize excludes the v1.2.0 lifecycle block, so
 //     retiring or superseding a case never marks recorded results stale (#767).
 //     See computePlanHash below for the semantics and their consequence.
-//   - AC4: the source test-cases.json is never written here, so it stays
-//     byte-identical after any write or reconcile.
+//   - AC4 (amended by #772): no RESULTS write ever touches test-cases.json, so
+//     marking, overriding, noting, and reconciling still leave the source plan
+//     byte-identical. The absolute form of that invariant ("the source
+//     test-cases.json is never written here") no longer holds: setCaseLifecycle
+//     below writes the case file, and it is the ONLY function in this module that
+//     does. It writes exactly one case's `lifecycle` block, under a raw-bytes
+//     conflict precondition, and never as a side effect of a results write.
 //   - FR-012/AC5: marks, overrides, and notes are stamped with the resolved git
 //     identity, falling back to the sentinel author when git identity is unset.
 //   - NFR-003: reconcile is orphan-not-delete; physical deletion only happens when
@@ -49,6 +55,14 @@ import {
 } from "./safe-path.js";
 import { writeResults } from "./testbench-results-write.js";
 import {
+  CaseLifecycleConflictError,
+  CaseNotFoundError,
+  computeCaseFileFingerprint,
+  MissingCaseFileError,
+  setCaseLifecycle as writeCaseLifecycle,
+  type SetCaseLifecycleResult,
+} from "./testbench-lifecycle-write.js";
+import {
   TEST_RESULTS_SCHEMA_ID,
   TEST_RESULTS_SCHEMA_VERSION,
   TESTBENCH_MIGRATION_GUIDE_PATH,
@@ -56,6 +70,7 @@ import {
   validateTestResults,
   type Author,
   type BenchResults,
+  type CaseLifecycle,
   type CaseResult,
   type CaseStatus,
   type Note,
@@ -329,6 +344,13 @@ export interface PlanAndResults {
   stale: boolean;
   // The freshly computed sha256 of canonicalize(plan).
   planHash: string;
+  // sha256 over the RAW test-cases.json bytes this read saw (#772). Distinct
+  // from planHash, which excludes the lifecycle block by construction (#767) and
+  // therefore cannot detect a concurrent lifecycle edit. A lifecycle write echoes
+  // this value back as its precondition, so an edit made outside the app between
+  // load and write is reported as a conflict rather than silently overwritten
+  // (SATCA-TC-056). Optional so existing consumers stay compiling.
+  caseFileFingerprint?: string;
   // True when the sidecar was missing/corrupt/invalid/future-version and the
   // caller should treat results as a clean slate (AC3 recovery signal).
   recovered: boolean;
@@ -381,6 +403,9 @@ export function readPlanAndResults(rootPath: string, slug: string): PlanAndResul
   }
   const plan = planValidation.data;
   const planHash = computePlanHash(plan);
+  // Taken from the same bytes this read parsed, so the fingerprint a caller
+  // echoes back names exactly the file state it was shown (#772).
+  const caseFileFingerprint = computeCaseFileFingerprint(planRaw);
 
   const { file, recovered, reason } = loadFile(rootPath, slug);
 
@@ -396,6 +421,7 @@ export function readPlanAndResults(rootPath: string, slug: string): PlanAndResul
       results: null,
       stale: false,
       planHash,
+      caseFileFingerprint,
       recovered,
       recoveryReason: reason,
       migrationGuide,
@@ -408,6 +434,7 @@ export function readPlanAndResults(rootPath: string, slug: string): PlanAndResul
     results: fileResults(file),
     stale,
     planHash,
+    caseFileFingerprint,
     recovered,
     recoveryReason: reason,
     migrationGuide,
@@ -576,6 +603,32 @@ export async function setStatusOverride(
   });
 }
 
+// ── Case lifecycle (SATCA-FR-019/FR-021, #772) ──
+//
+// The ONE write in this module that touches the source case file. It is a
+// deliberate, user-initiated edit to a single case's `lifecycle` block, guarded
+// by the raw-bytes fingerprint the caller was shown, and it never happens as a
+// side effect of a results write (see the AC4 note in the module header).
+//
+// Pass a validated CaseLifecycle to retire or supersede, or null to restore
+// (removing the record entirely, which is what makes every action reversible).
+// Nothing here resolves a git identity or spawns a process: the lifecycle block
+// records no author, and the change is left uncommitted in the worktree by
+// design (SATCA-TC-053).
+//
+// Throws MissingCaseFileError (no/invalid plan), CaseNotFoundError (unknown case
+// id), CaseLifecycleConflictError (the file changed under the request), or
+// UnsafePathError (a slug or fingerprint that fails the barriers).
+export function setCaseLifecycle(
+  rootPath: string,
+  slug: string,
+  caseId: string,
+  lifecycle: CaseLifecycle | null,
+  expectedFingerprint: string,
+): SetCaseLifecycleResult {
+  return writeCaseLifecycle(rootPath, slug, caseId, lifecycle, expectedFingerprint);
+}
+
 // ── Reconcile (NFR-003 orphan-not-delete) ──
 
 export interface ReconcileOptions {
@@ -647,5 +700,8 @@ export async function reconcile(
 }
 
 // Re-export the path-safety error so callers (routes #12) can distinguish a
-// rejected slug from other failures without importing safe-path directly.
-export { UnsafePathError };
+// rejected slug from other failures without importing safe-path directly. The
+// lifecycle-write errors ride along for the same reason: the route layer maps
+// them to 404 / 404 / 409 without reaching past the store seam (#772).
+export { UnsafePathError, MissingCaseFileError, CaseNotFoundError, CaseLifecycleConflictError };
+export type { SetCaseLifecycleResult };

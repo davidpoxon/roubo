@@ -25,6 +25,10 @@ vi.mock("../../hooks/useBenchViewState", () => ({
 vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: () => ({ data: undefined, isLoading: false, isError: false, error: null }),
   useSetTestbenchFocus: () => ({ isPending: false, mutate: vi.fn() }),
+  // #772: the panel's archived entries and the case detail pane both reach for
+  // the lifecycle mutation; neither is under test here, so stub it inert.
+  useSetCaseLifecycle: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  caseLifecycleErrorMessage: () => null,
 }));
 
 vi.mock("../../hooks/useReconcile", () => ({

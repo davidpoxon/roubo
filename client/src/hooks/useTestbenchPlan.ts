@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Bench } from "@roubo/shared";
+import type { CaseLifecycle } from "@roubo/shared/testbench-contracts";
 import * as api from "../lib/api";
 
 // The cached shape under the testbench-plan query key. Aliased so mutation hooks
@@ -58,6 +59,69 @@ export function useSetTestbenchFocus() {
       });
       queryClient.invalidateQueries({ queryKey: ["bench", vars.projectId, vars.benchId] });
       queryClient.invalidateQueries({ queryKey: ["benches"] });
+    },
+  });
+}
+
+interface SetCaseLifecycleVars {
+  projectId: string;
+  benchId: number;
+  caseId: string;
+  // The record to write, or null to restore (remove it), which is what makes
+  // every lifecycle action reversible (SATCA-FR-021).
+  lifecycle: CaseLifecycle | null;
+}
+
+// The message a caller shows when a lifecycle write was refused. A 409 means the
+// case file moved under the request, and the only useful instruction is to
+// reload (SATCA-TC-056); anything else surfaces the server's own message.
+export function caseLifecycleErrorMessage(error: unknown): string | null {
+  if (!error) return null;
+  if (api.isCaseFileConflict(error)) return api.CASE_FILE_CONFLICT_MESSAGE;
+  return error instanceof Error ? error.message : String(error);
+}
+
+// Retire, supersede, or restore one case (#772, SATCA-FR-019/FR-021). Follows
+// the useSetTestbenchFocus pattern: the server owns the write, and the plan query
+// is invalidated on success so the panel re-reads the case file rather than the
+// client guessing what the rollup now looks like. There is deliberately NO
+// optimistic update: this write can be refused (409), and showing a case as
+// retired before the file says so is exactly the drift the conflict check exists
+// to prevent.
+//
+// The `If-Match` precondition is read from the cached plan: either the value the
+// reviewer's view was loaded at, or the post-write value this hook seeded after
+// its own last successful write (see onSuccess). Both describe a file state the
+// app itself is up to date with, which is the property the conflict check needs.
+// A cache with no fingerprint (an older server, or a plan that never loaded)
+// fails fast rather than writing unconditionally.
+export function useSetCaseLifecycle() {
+  const queryClient = useQueryClient();
+  return useMutation<api.SetCaseLifecycleResponse, Error, SetCaseLifecycleVars>({
+    mutationFn: ({ projectId, benchId, caseId, lifecycle }) => {
+      const cached = queryClient.getQueryData<TestbenchPlanData>(
+        testbenchPlanQueryKey(projectId, benchId),
+      );
+      const fingerprint = cached?.caseFileFingerprint;
+      if (typeof fingerprint !== "string" || fingerprint.length === 0) {
+        return Promise.reject(new Error(api.CASE_FILE_CONFLICT_MESSAGE));
+      }
+      return api.setCaseLifecycle(projectId, benchId, caseId, lifecycle, fingerprint);
+    },
+    onSuccess: (result, vars) => {
+      // Seed the post-write fingerprint into the cache BEFORE invalidating. The
+      // invalidation refetch is asynchronous, so a second action fired in the gap
+      // would otherwise re-send the pre-write precondition and be refused with a
+      // 409 for the app's OWN write. The server returns the new fingerprint for
+      // exactly this reason, and each archived entry mounts its own Restore
+      // button, so back-to-back actions are a normal thing to do.
+      queryClient.setQueryData<TestbenchPlanData>(
+        testbenchPlanQueryKey(vars.projectId, vars.benchId),
+        (old) => (old ? { ...old, caseFileFingerprint: result.caseFileFingerprint } : old),
+      );
+      queryClient.invalidateQueries({
+        queryKey: testbenchPlanQueryKey(vars.projectId, vars.benchId),
+      });
     },
   });
 }
