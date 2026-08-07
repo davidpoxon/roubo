@@ -4,7 +4,18 @@ This guide walks maintainers through cutting a release. It is reference material
 
 ## What the release workflow does
 
-The release workflow ([`.github/workflows/release.yml`](../.github/workflows/release.yml)) triggers on `release: [created]` and builds signed macOS arm64, macOS x64, and Linux x64 artifacts automatically via `electron-forge make`. Artifacts (`.dmg`, `.zip`, `.deb`) are uploaded to the GitHub release. macOS builds are signed and notarized when the Apple secrets below are configured.
+The release workflow ([`.github/workflows/release.yml`](../.github/workflows/release.yml)) triggers on `release: [created]` and on `workflow_dispatch`. It validates the tag format, stamps the version, builds via `electron-forge make`, then uploads every `.dmg`, `.zip`, `.deb`, and `.AppImage` it finds to the GitHub release. macOS builds are signed and notarized when the Apple secrets below are configured.
+
+Only one matrix entry is active: `macos-latest` / `arm64`. The `macos-latest` / `x64` and `ubuntu-22.04` / `x64` entries are commented out, so a release currently ships two macOS arm64 artifacts and nothing else:
+
+```
+Roubo-<version>-arm64.dmg
+Roubo-darwin-arm64-<version>.zip
+```
+
+[`electron/forge.config.ts`](../electron/forge.config.ts) still configures `deb` and AppImage makers for Linux, but no runner builds them today. Uncomment the matrix rows to ship those platforms.
+
+The `.zip` is the artifact that matters for auto-updates. `update.electronjs.org` only recognises a macOS asset whose filename matches `.*-(mac|darwin|osx).*\.zip$`, and reads the architecture from a `-arm64` or `-universal` segment in that filename. The default `maker-zip` output already satisfies this; renaming the asset would silently break updates.
 
 ## How versioning works
 
@@ -69,11 +80,13 @@ Requirements:
 
 - An authenticated GitHub CLI. Check with `gh auth status`; run `gh auth login` if needed.
 
-These are draft, pre-release builds. As with the manual flow below, `update.electronjs.org` does not serve them to users until you publish the release from the GitHub UI. Review the artifacts on the draft, then publish when ready.
+These are draft, pre-release builds. `update.electronjs.org` does not serve them to users. Review the artifacts on the draft, then take it public by following [Publishing a public release](#publishing-a-public-release) from step 4; publishing alone is not enough, the verification steps are part of the release.
 
-## Release Checklist
+## Publishing a public release
 
-The manual steps below are the fallback for the scripted flow above (or when you need full control over the tag, target, or notes).
+This is the full path for a release that reaches users. The scripted flow above only ever produces a draft pre-release, which `update.electronjs.org` will not serve, so every public release finishes with the publish and verification steps below. Steps 1 and 2 are also the fallback for that scripted flow when you need full control over the tag, target, or notes.
+
+Do not stop at step 4. A release can be published, correctly signed, and still invisible to the updater; step 5 is what catches that, and it has caught it in production before (see [Troubleshooting](#troubleshooting-a-published-release-is-not-offered-to-users)).
 
 1. **Create a draft release** with a `v`-prefixed tag. Either via the GitHub web UI:
    1. Go to the repo on GitHub → **Releases** → **Draft a new release**
@@ -95,10 +108,101 @@ The manual steps below are the fallback for the scripted flow above (or when you
    gh workflow run release.yml -f tag_name=v1.2.3
    ```
 
-   The workflow validates the tag format, stamps `electron/package.json` at build time, then builds all platform artifacts in parallel. macOS artifacts are signed and notarized when the Apple secrets are configured. Allow 8–15 minutes; macOS notarization is the slowest step.
+   The workflow validates the tag format, stamps `electron/package.json` at build time, then runs the build matrix (one macOS arm64 job today). macOS artifacts are signed and notarized when the Apple secrets are configured. Allow 8–15 minutes; macOS notarization is the slowest step.
 
-3. **Review artifacts** on the draft release page.
-4. **Publish the release** from the GitHub UI. `update-electron-app` picks it up on the next client check. (Draft and pre-release releases are not served by `update.electronjs.org`; publishing is what makes updates visible to users.)
+   Check the run log to confirm signing actually happened. The step echoes its own script, so the line `::warning::CSC_LINK or CSC_KEY_PASSWORD not set` appears in the log as echoed source text even on a fully signed build. The signal to look for is the resolved identity:
+
+   ```bash
+   gh run view <run-id> --log | grep "Developer ID Application"
+   ```
+
+3. **Review artifacts** on the draft release page. Confirm both expected macOS arm64 files are present and that the `.zip` filename still matches the pattern in [What the release workflow does](#what-the-release-workflow-does).
+
+4. **Publish the release.** Draft and pre-release releases are not served by `update.electronjs.org`; publishing is what makes the release eligible for users. Via the GitHub UI, open the draft and click **Publish release**. Or via the `gh` CLI:
+
+   ```bash
+   gh release edit v1.2.3 --draft=false --latest
+   ```
+
+5. **Verify the release is publicly visible.** Run the checks in [Verifying a public release](#verifying-a-public-release). This step is mandatory and cannot be done with `gh`, because `gh` authenticates as you and will show a release the public cannot see.
+
+6. **Confirm rollout expectations.** Clients poll on the interval set in [`electron/src/main.ts`](../electron/src/main.ts) (currently one hour) and only while the app is running, so uptake is gradual. Users who checked for updates before the release went live are not re-prompted until their next poll.
+
+## Verifying a public release
+
+`update-electron-app` points the app at `update.electronjs.org`, which resolves the latest version from exactly one endpoint:
+
+```
+GET https://api.github.com/repos/davidpoxon/roubo/releases?per_page=100
+```
+
+It walks that list in order, skips drafts and pre-releases, and takes the **first** release carrying an asset that matches the platform. It never calls `releases/latest`. A release that is missing from this one listing is invisible to every user, even when the release page, the tag, `releases/latest`, and the asset downloads all work perfectly.
+
+Run all three checks unauthenticated. Do not substitute `gh`, which would mask the exact failure this catches.
+
+These checks are manual today. Automating the first one as a release-workflow gate is tracked in #1171.
+
+1. **The new tag appears in the public listing**, and appears first:
+
+   ```bash
+   curl -s "https://api.github.com/repos/davidpoxon/roubo/releases?per_page=100" | jq -r '.[].tag_name'
+   ```
+
+   The new tag must be in the output, and it must be the first entry. Because the service takes the first matching release rather than the highest version, a new release listed below an older one would leave users on the older build. If the tag is absent or not first, stop and go to [Troubleshooting](#troubleshooting-a-published-release-is-not-offered-to-users); the release is not reaching users.
+
+2. **The update feed offers the new version** to someone on the previous release. Substitute the version users are upgrading _from_:
+
+   ```bash
+   curl -s "https://update.electronjs.org/davidpoxon/roubo/darwin-arm64/1.2.2" | jq -r '.name, .url'
+   ```
+
+   This must print the new tag and the `.zip` download URL. An empty response means HTTP 204, which is the server saying "already up to date".
+
+   The service caches its per-repo result for roughly 15 minutes, so allow for that lag before treating a 204 as a failure. Re-run until it flips rather than assuming the first answer is final.
+
+3. **The new version reports itself as current:**
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' "https://update.electronjs.org/davidpoxon/roubo/darwin-arm64/1.2.3"
+   ```
+
+   Expect `204`.
+
+## Troubleshooting: a published release is not offered to users
+
+**Symptom.** The release page looks correct and the artifacts download, but users are never prompted to update. Check 1 above shows the tag missing from the public listing while `gh release list` shows it normally.
+
+This has happened in production. Release `v0.2.1` was published, signed, notarized, and reachable via `releases/latest`, its tag, and its asset URLs, yet it was absent from the public `releases` listing for over a day. Users on `v0.2.0` were told they were up to date, and users on older builds were offered `v0.2.0`. Nothing distinguished it from the release before it: same workflow, same draft-then-publish sequence, identical `draft`, `prerelease`, and `target_commitish` fields. It was a GitHub-side indexing inconsistency, where the release record read as published but the public list index behaved as though it were still a draft.
+
+**Diagnosis.** Confirm the split between the authenticated and public views:
+
+```bash
+gh api "repos/davidpoxon/roubo/releases?per_page=100" --jq '.[].tag_name'   # shows the tag
+curl -s "https://api.github.com/repos/davidpoxon/roubo/releases?per_page=100" | jq -r '.[].tag_name'   # omits it
+```
+
+If the first command lists the tag and the second does not, the release record is fine and the listing index is stale.
+
+**Fix.** Toggling the pre-release flag rewrites the listing row and forces a reindex:
+
+```bash
+gh release edit v1.2.3 --prerelease
+gh release edit v1.2.3 --prerelease=false --latest
+```
+
+Re-run check 1; the tag should appear immediately. Then re-run check 2, allowing the usual cache lag before the feed flips from 204 to 200.
+
+Releases report `immutable: true`, which locks published assets but does not block these metadata edits. Marking the release as a pre-release briefly is safe: the updater already ignores it in that state, which is the state it was effectively stuck in anyway.
+
+**If the toggle does not take.** Delete and recreate the release against the existing tag, then re-run the build to re-upload the artifacts:
+
+```bash
+gh release delete v1.2.3 --yes            # the git tag is left in place
+gh release create v1.2.3 --title "v1.2.3" --generate-notes
+gh workflow run release.yml -f tag_name=v1.2.3
+```
+
+Failing that, cut the next patch version and abandon the stuck tag.
 
 ## Environment Variables
 
