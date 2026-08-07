@@ -1093,14 +1093,43 @@ export const SATCA_TC010_OWNING_SLICES: Record<string, string> = {
 // pane, and its lifecycle disclosures) reachable; the retired case exercises the
 // reason text; the superseded case points at the live one, which is what makes
 // its "Replaced by" reveal an activatable control rather than inert text (#789).
+//
+// #797 adds a FOURTH case, live and unmarked in the plan, that the contrast spec
+// marks and then retires in-app. The pass/fail mark colours in the Archived
+// section's ObservationMarks are unreachable from the fixture seam (the seeded
+// results synthesizer writes an empty `observationMarks` map for every case, and
+// ObservationMarks renders nothing for an empty map), so the only way to put
+// mark text on an archived entry is the real mark-then-retire journey. It needs
+// its own case because retiring SATCA_A11Y_LIVE_CASE_ID would remove the live
+// case the later retire/supersede disclosure steps depend on, and it needs TWO
+// observations because one archived entry has to carry both the green (pass) and
+// the red (fail) token for a single scan to measure both. The two expectations
+// differ because the mark control's accessible name is
+// `Mark observation pass or fail: ${expected}`, so identical texts would make
+// the two radiogroups indistinguishable to the test.
 // ─────────────────────────────────────────────────────────────────────────────
 export const SATCA_A11Y_SPEC_SLUG = "archival-a11y-spec";
 export const SATCA_A11Y_LIVE_CASE_ID = "SATCA-A11Y-01";
 export const SATCA_A11Y_RETIRED_CASE_ID = "SATCA-A11Y-02";
 export const SATCA_A11Y_SUPERSEDED_CASE_ID = "SATCA-A11Y-03";
+export const SATCA_A11Y_MARKED_CASE_ID = "SATCA-A11Y-04";
 export const SATCA_A11Y_RETIRED_REASON = "Folded into the batch-level smoke check";
 
-function a11yCase(id: string, lifecycle?: CaseLifecycle): TestCasesPlan["cases"][number] {
+// The two distinct observation expectations on the marked case, used verbatim to
+// address each observation's mark control by its accessible name.
+export const SATCA_A11Y_MARK_PASS_EXPECTATION = "The recorded green mark survives archival";
+export const SATCA_A11Y_MARK_FAIL_EXPECTATION = "The recorded red mark survives archival";
+
+// The reason typed into the retire disclosure for the marked case. Deliberately
+// free of the words the mark text uses, so an assertion on the retained mark
+// text cannot pass on the reason instead.
+export const SATCA_A11Y_MARKED_REASON = "Retired once both observations were marked";
+
+function a11yCase(
+  id: string,
+  lifecycle?: CaseLifecycle,
+  expectations: readonly string[] = ["It holds"],
+): TestCasesPlan["cases"][number] {
   return {
     id,
     title: `Archival accessibility fixture case ${id}`,
@@ -1115,7 +1144,10 @@ function a11yCase(id: string, lifecycle?: CaseLifecycle): TestCasesPlan["cases"]
       {
         id: `${id}-S1`,
         instruction: "Perform the check",
-        observations: [{ id: `${id}-S1-O1`, expected: "It holds" }],
+        observations: expectations.map((expected, index) => ({
+          id: `${id}-S1-O${index + 1}`,
+          expected,
+        })),
       },
     ],
     ...(lifecycle === undefined ? {} : { lifecycle }),
@@ -1136,5 +1168,9 @@ export const SATCA_A11Y_PLAN: TestCasesPlan = {
       state: "superseded",
       replacement: SATCA_A11Y_LIVE_CASE_ID,
     }),
+    a11yCase(SATCA_A11Y_MARKED_CASE_ID, undefined, [
+      SATCA_A11Y_MARK_PASS_EXPECTATION,
+      SATCA_A11Y_MARK_FAIL_EXPECTATION,
+    ]),
   ],
 };
