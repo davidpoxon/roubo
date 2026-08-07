@@ -127,6 +127,54 @@ describe("ReplacementPicker keyboard operation", () => {
   });
 });
 
+// #775 (SATCA-TC-078, AC3/AC6): the dialog declares its modality, the filter is
+// labelled, and the result count is announced as the query narrows the list.
+describe("ReplacementPicker dialog and filter semantics (#775)", () => {
+  it("stamps aria-modal on the dialog", () => {
+    mountPicker();
+    // React Aria omits aria-modal and strips the prop, so the shared
+    // stampAriaModal ref is what makes the modality explicit to AT (#612/#424).
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+
+  it("labels the filter and names the listbox it drives", () => {
+    mountPicker();
+    const filter = screen.getByRole("combobox", { name: "Replacement case" });
+    expect(filter).toBe(screen.getByTestId("replacement-filter"));
+    expect(filter.getAttribute("aria-controls")).toBe(screen.getByRole("listbox").id);
+    expect(screen.getByRole("listbox")).toHaveAccessibleName("Replacement cases");
+  });
+
+  it("announces the result count in a polite region as the query changes", async () => {
+    const user = userEvent.setup();
+    mountPicker();
+    const count = screen.getByTestId("replacement-count");
+    expect(count).toHaveAttribute("aria-live", "polite");
+    // TC-001 is the case being superseded and is excluded from its own list.
+    expect(count).toHaveTextContent("2 of 2 cases");
+
+    await user.type(screen.getByTestId("replacement-filter"), "staleness");
+    expect(count).toHaveTextContent("1 of 2 cases");
+
+    await user.clear(screen.getByTestId("replacement-filter"));
+    await user.type(screen.getByTestId("replacement-filter"), "zzzz");
+    expect(count).toHaveTextContent("0 of 2 cases");
+  });
+
+  it("conveys the active option to assistive technology without moving DOM focus", async () => {
+    const user = userEvent.setup();
+    mountPicker();
+    const filter = screen.getByTestId("replacement-filter");
+    await user.click(filter);
+    await user.keyboard("{ArrowDown}");
+
+    const active = screen.getByTestId("replacement-option-TC-002");
+    expect(filter).toHaveAttribute("aria-activedescendant", active.id);
+    expect(active).toHaveAttribute("aria-selected", "true");
+    expect(filter).toHaveFocus();
+  });
+});
+
 describe("ReplacementPicker a11y", () => {
   it("has no axe violations with a selection made", async () => {
     const user = userEvent.setup();

@@ -1,6 +1,7 @@
 import {
   TEST_CASES_SCHEMA_ID,
   TEST_CASES_SCHEMA_VERSION,
+  type CaseLifecycle,
   type TestCasesPlan,
 } from "@roubo/shared/testbench-contracts";
 
@@ -1082,4 +1083,58 @@ export const SATCA_TC010_OWNING_SLICES: Record<string, string> = {
   reason: "#769 (rollup and panel: the recorded reason is shown verbatim)",
   replacement:
     "#766/#763 (LifecycleResolver + pointer resolution rules: same-spec pointer, live predicate)",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #775 (SATCA-TC-019/044/057/078, SATCA-NFR-005): the archival accessibility
+// pass needs a spec whose PLAN already carries case-level lifecycle records, so
+// the panel's Archived section renders with both of its lifecycle shapes without
+// any in-app write first. One live case keeps the live list (and the case detail
+// pane, and its lifecycle disclosures) reachable; the retired case exercises the
+// reason text; the superseded case points at the live one, which is what makes
+// its "Replaced by" reveal an activatable control rather than inert text (#789).
+// ─────────────────────────────────────────────────────────────────────────────
+export const SATCA_A11Y_SPEC_SLUG = "archival-a11y-spec";
+export const SATCA_A11Y_LIVE_CASE_ID = "SATCA-A11Y-01";
+export const SATCA_A11Y_RETIRED_CASE_ID = "SATCA-A11Y-02";
+export const SATCA_A11Y_SUPERSEDED_CASE_ID = "SATCA-A11Y-03";
+export const SATCA_A11Y_RETIRED_REASON = "Folded into the batch-level smoke check";
+
+function a11yCase(id: string, lifecycle?: CaseLifecycle): TestCasesPlan["cases"][number] {
+  return {
+    id,
+    title: `Archival accessibility fixture case ${id}`,
+    area: "spec-archival",
+    level: 1,
+    type: "accessibility",
+    priority: "P0",
+    tags: [],
+    linked_requirement_ids: ["SATCA-NFR-005"],
+    linked_user_story_ids: [],
+    steps: [
+      {
+        id: `${id}-S1`,
+        instruction: "Perform the check",
+        observations: [{ id: `${id}-S1-O1`, expected: "It holds" }],
+      },
+    ],
+    ...(lifecycle === undefined ? {} : { lifecycle }),
+  };
+}
+
+export const SATCA_A11Y_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: SATCA_A11Y_SPEC_SLUG,
+  cases: [
+    a11yCase(SATCA_A11Y_LIVE_CASE_ID),
+    a11yCase(SATCA_A11Y_RETIRED_CASE_ID, {
+      state: "retired",
+      reason: SATCA_A11Y_RETIRED_REASON,
+    }),
+    a11yCase(SATCA_A11Y_SUPERSEDED_CASE_ID, {
+      state: "superseded",
+      replacement: SATCA_A11Y_LIVE_CASE_ID,
+    }),
+  ],
 };

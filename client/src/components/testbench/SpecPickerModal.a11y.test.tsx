@@ -233,6 +233,34 @@ describe("SpecPickerModal a11y (#484)", () => {
       expect(screen.getByRole("group", { name: "Archived specs" })).toBeInTheDocument();
     });
 
+    // #775 AC2. aria-pressed says what the control is; aria-controls says what it
+    // governs, so the group it discloses is reachable from the control itself.
+    it("points the reveal control at the group it discloses", async () => {
+      renderModal();
+      const control = screen.getByRole("button", { name: /Show archived/ });
+      await userEvent.click(control);
+      const group = screen.getByRole("group", { name: "Archived specs" });
+      expect(control.getAttribute("aria-controls")).toBe(group.id);
+      expect(group.id).not.toBe("");
+    });
+
+    // #775 AC2: the resulting LIST change is announced, not just the control's
+    // own pressed state. The region is mounted before the change so the update is
+    // announced rather than being swallowed as initial content.
+    it("announces the resulting list change in a polite live region", async () => {
+      renderModal();
+      const status = screen.getByTestId("archived-reveal-status");
+      expect(status).toHaveAttribute("aria-live", "polite");
+      expect(status).toHaveTextContent("Archived specs hidden");
+
+      await userEvent.click(screen.getByRole("button", { name: /Show archived/ }));
+      // WITH_ARCHIVED carries two archived specs.
+      expect(status).toHaveTextContent("2 archived specs shown");
+
+      await userEvent.click(screen.getByRole("button", { name: /Show archived/ }));
+      expect(status).toHaveTextContent("Archived specs hidden");
+    });
+
     it("is keyboard operable: Enter and Space both flip the reveal", async () => {
       const user = userEvent.setup();
       renderModal();

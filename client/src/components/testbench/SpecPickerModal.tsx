@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   ModalOverlay,
   Modal,
@@ -170,6 +170,9 @@ export default function SpecPickerModal({
   // SATCA-FR-015/FR-016). Revealed rows join the same controlled selection group,
   // so an archived spec stays loadable.
   const [showArchived, setShowArchived] = useState(false);
+  // Ties the reveal control to the group it discloses (aria-controls) so the
+  // relationship is machine-readable rather than only visual (#775, AC2).
+  const archivedGroupId = useId();
   // The lifecycle confirm step (#773). While set, the picker body is replaced by
   // the confirm form for that one spec, rather than opening a second modal on
   // top of this one: nesting dialogs would aria-hide the picker while it still
@@ -756,6 +759,7 @@ export default function SpecPickerModal({
                               <Button
                                 aria-pressed={showArchived}
                                 aria-expanded={showArchived}
+                                aria-controls={archivedGroupId}
                                 onPress={() => setShowArchived((open) => !open)}
                                 className={({ isHovered, isPressed, isFocusVisible }) =>
                                   `w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-stone-500 dark:text-stone-400 outline-none transition-colors ${
@@ -783,10 +787,28 @@ export default function SpecPickerModal({
                                   </span>
                                 </span>
                               </Button>
+                              {/* What the reveal did to the list, in words
+                                  (#775, AC2). aria-pressed alone tells a screen
+                                  reader the control's own state; this says what
+                                  changed below it, which is the thing the
+                                  reviewer cannot see happen. Always mounted so
+                                  the region exists before its text changes. */}
+                              <div
+                                aria-live="polite"
+                                data-testid="archived-reveal-status"
+                                className="sr-only"
+                              >
+                                {showArchived
+                                  ? `${archived.length} archived spec${
+                                      archived.length === 1 ? "" : "s"
+                                    } shown`
+                                  : "Archived specs hidden"}
+                              </div>
                               {showArchived && (
                                 // role=group: aria-label is ARIA-prohibited on a
                                 // role-less div (issue roubo-development#600).
                                 <div
+                                  id={archivedGroupId}
                                   role="group"
                                   aria-label="Archived specs"
                                   className="flex flex-col gap-1.5"
