@@ -291,11 +291,17 @@ export async function registerFixtureProject(
     // record written into the spec's `.specifications/<slug>/manifest.json`, so
     // the spec reads archived (and optionally superseded) to the lifecycle
     // reader. Omitted => no manifest, which is the live state.
+    // SATCA-TC-047/049 (#773): an entry may also carry `manifest`, the whole
+    // `manifest.json` written verbatim into the spec folder, so a fixture can
+    // stage a realistic product-dev manifest (stage tracking, id counters, an
+    // unrecognised key) for an in-app lifecycle write to merge into. Combines
+    // with `lifecycle`, which is merged in as the subtree.
     seedSpecs?: Array<{
       slug: string;
       testCases: unknown;
       seedResults?: "all-passed" | "partial";
       lifecycle?: { archived: true; reason?: string; supersededBy?: string };
+      manifest?: Record<string, unknown>;
     }>;
     // TC-001 (#438): when true, the server `git init`s + commits the fixture
     // repo and pins its worktree source to the local HEAD, so a real TestBench
@@ -401,6 +407,37 @@ export async function readTestResults(
   );
   expect(res.status()).toBe(200);
   return (await res.json()) as { results: unknown; casesChecksum: string };
+}
+
+/**
+ * #773 (SATCA-TC-047/048/049): read one spec's `.specifications/<slug>/manifest.json`
+ * out of a fixture project's repo, plus the sha256 of its test-cases.json, via
+ * `/test/__read-spec-manifest`. The archival write drift guard uses it to assert
+ * directly against disk what the picker's Archive / Supersede / Restore actions
+ * did: `manifest` is null when the folder has none, `raw` is the file verbatim,
+ * and `casesChecksum` proves the case file was never touched.
+ */
+export async function readSpecManifest(
+  request: APIRequestContext,
+  opts: { projectId: string; slug: string },
+): Promise<{
+  path: string;
+  raw: string | null;
+  manifest: Record<string, unknown> | null;
+  casesChecksum: string;
+}> {
+  const res = await request.get(
+    `/test/__read-spec-manifest?projectId=${encodeURIComponent(
+      opts.projectId,
+    )}&slug=${encodeURIComponent(opts.slug)}`,
+  );
+  expect(res.status(), `read spec manifest for ${opts.slug}`).toBe(200);
+  return (await res.json()) as {
+    path: string;
+    raw: string | null;
+    manifest: Record<string, unknown> | null;
+    casesChecksum: string;
+  };
 }
 
 /**

@@ -260,6 +260,76 @@ describe("SpecPickerModal a11y (#484)", () => {
     });
   });
 
+  // #773 (SATCA-FR-020/FR-021): the per-row actions menu and the confirm step
+  // it opens. The row is a ToggleButton, so the trigger MUST be a sibling of it,
+  // never a child: the axe scans below are what hold that line.
+  describe("lifecycle actions menu", () => {
+    beforeEach(() => {
+      mockUseTestbenchSpecs.mockReturnValue(specsQuery(WITH_ARCHIVED));
+    });
+
+    it("names each row's trigger after the spec it acts on", () => {
+      renderModal();
+      expect(screen.getByRole("button", { name: "Actions for testbench" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Actions for billing" })).toBeInTheDocument();
+    });
+
+    it("does not nest the trigger inside the selectable row", () => {
+      renderModal();
+      const row = screen.getByRole("radio", { name: /^testbench/ });
+      expect(row.querySelector("button")).toBeNull();
+    });
+
+    it("is keyboard operable: Enter opens the menu and lands on the first item", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      const trigger = screen.getByRole("button", { name: "Actions for testbench" });
+      trigger.focus();
+      await user.keyboard("{Enter}");
+      const menu = await screen.findByRole("menu");
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await user.keyboard("{ArrowDown}");
+      expect(menu).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("has no axe violations with the actions menu open", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      await user.click(screen.getByRole("button", { name: "Actions for testbench" }));
+      expect(await screen.findByRole("menu")).toBeInTheDocument();
+      await expectNoViolations();
+    });
+
+    it("has no axe violations on the archive confirm step", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      await user.click(screen.getByRole("button", { name: "Actions for testbench" }));
+      await user.click(await screen.findByRole("menuitem", { name: /Archive/ }));
+      expect(screen.getByText("Archive this specification")).toBeInTheDocument();
+      await expectNoViolations();
+    });
+
+    it("has no axe violations on the supersede confirm step", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      await user.click(screen.getByRole("button", { name: "Actions for testbench" }));
+      await user.click(await screen.findByRole("menuitem", { name: /Supersede/ }));
+      expect(screen.getByText("Supersede this specification")).toBeInTheDocument();
+      await expectNoViolations();
+    });
+
+    it("has no axe violations with the archived rows and their Restore menus revealed", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      await user.click(screen.getByRole("button", { name: /Show archived/ }));
+      await user.click(screen.getByRole("button", { name: "Actions for retired-flow" }));
+      expect(await screen.findByRole("menuitem", { name: /Restore/ })).toBeInTheDocument();
+      await expectNoViolations();
+    });
+  });
+
   describe("repoint mode", () => {
     it("has no axe violations for a mixed list", async () => {
       renderModal({

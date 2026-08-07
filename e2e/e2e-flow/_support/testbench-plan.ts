@@ -911,6 +911,60 @@ export const SATCA_SUPERSEDED_PLAN: TestCasesPlan = archivalPlan(
   "SATCA-SUPER-01",
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// #773 (SATCA-TC-047/048/049/050): the spec lifecycle WRITE journey. Three live
+// specs, differing only in what manifest they start with, so one journey covers
+// every write shape:
+//   - SATCA_LIVE_SPEC_SLUG (reused above): no manifest at all, so archiving it
+//     exercises minimal-manifest creation (TC-048).
+//   - SATCA_RICH_SPEC_SLUG: a realistic product-dev manifest carrying stage
+//     tracking, id counters, and a key Roubo has never heard of, so archiving it
+//     proves the merge-write preserves everything it did not author (TC-049) and
+//     leaves the case file byte-identical (TC-047).
+//   - SATCA_SUPERSEDED_SPEC_SLUG (reused above): the spec superseded and then
+//     restored, proving the pointer is reversible (TC-050 S004).
+// ─────────────────────────────────────────────────────────────────────────────
+export const SATCA_RICH_SPEC_SLUG = "archival-rich-spec";
+
+export const SATCA_RICH_PLAN: TestCasesPlan = archivalPlan(SATCA_RICH_SPEC_SLUG, "SATCA-RICH-01");
+
+// The unrecognised key the merge-write has to carry through verbatim, and the
+// manifest it sits in. Shaped like a real `.specifications/<slug>/manifest.json`
+// (snake_case keys, ISO-Z timestamps), because the point of the assertion is
+// that Roubo is a second writer of a file it does not own.
+export const SATCA_UNRECOGNISED_MANIFEST_KEY = "a_key_roubo_has_never_heard_of";
+
+export const SATCA_RICH_MANIFEST: Record<string, unknown> = {
+  schema_version: 1,
+  slug: SATCA_RICH_SPEC_SLUG,
+  title: "Archival rich fixture",
+  created_at: "2026-08-06T01:07:49Z",
+  updated_at: "2026-08-06T10:33:17Z",
+  current_stage: "align",
+  stages: {
+    interview: { status: "done", artifact: "brief.md", updated_at: "2026-08-06T01:07:49Z" },
+    prd: { status: "done", artifact: "prd.md", updated_at: "2026-08-06T03:11:02Z" },
+  },
+  id_counters: { FR: 30, NFR: 8, US: 12, TC: 50 },
+  spikes: [{ issue: 781, status: "resolved" }],
+  id_code: "SATCA",
+  design_root: "roubo",
+  [SATCA_UNRECOGNISED_MANIFEST_KEY]: { nested: ["values", 42], keep: true },
+};
+
+// The reason the reviewer types into the Archive confirm step, asserted back out
+// of the manifest on disk.
+export const SATCA_WRITE_REASON = "Shipped in #212, all issues closed";
+
+// The slices that own each leg of the archival WRITE journey.
+export const SATCA_WRITE_OWNING_SLICES: Record<string, string> = {
+  archive: "#773 (spec lifecycle write: archive from the picker)",
+  minimal: "#773 (spec lifecycle write: minimal manifest creation)",
+  preserve: "#773 (spec lifecycle write: merge-write key preservation)",
+  supersede: "#773 (spec lifecycle write: supersede from the project's other specs)",
+  reverse: "#773 (spec lifecycle write: reversal from the same surface)",
+};
+
 // The slices that own each leg of the archival-picker journey, surfaced in a
 // failing run so a divergence localises to an attributable slice.
 export const SATCA_PICKER_OWNING_SLICES: Record<string, string> = {

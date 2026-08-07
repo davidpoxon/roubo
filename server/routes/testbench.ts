@@ -8,6 +8,7 @@
 // Endpoints (all under /api/projects):
 //   GET    /:projectId/testbench/specs
 //   POST   /:projectId/testbench/specs/validate
+//   PUT    /:projectId/testbench/specs/:slug/lifecycle
 //   GET    /:projectId/benches/:id/testbench/plan
 //   PUT    /:projectId/benches/:id/testbench/cases/:caseId/observations/:observationId
 //   PUT    /:projectId/benches/:id/testbench/cases/:caseId/status
@@ -32,8 +33,14 @@ import {
   resolveFocusedSpec,
   validateManualPath,
 } from "../lib/testbench-spec-discovery.js";
+import {
+  ManifestUnreadableError,
+  SpecFolderNotFoundError,
+  writeSpecLifecycle,
+} from "../lib/testbench-spec-lifecycle-write.js";
 import { RouteError, parseIntParam } from "./helpers.js";
 import { CaseStatusSchema } from "@roubo/shared/testbench-contracts";
+import { SpecLifecycleRecordSchema } from "@roubo/shared/spec-lifecycle-schema";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
 import { GateOverrideStoreError } from "../services/gate-override-store.js";
@@ -66,6 +73,15 @@ const ReconcileBodySchema = z
   .object({ confirm: z.boolean().optional(), purgeOrphans: z.boolean().optional() })
   .strict();
 const FocusBodySchema = z.object({ focusedSpecPath: z.string() }).strict();
+// Spec lifecycle write (#773, SATCA-FR-020/FR-021). The record is the published
+// SpecLifecycleRecordSchema verbatim, so the route can never accept a shape the
+// reader would later reject. It is NESTED under a `lifecycle` key rather than
+// sent as the bare body because `null` (the reversal) is the payload for
+// restoring a spec, and express.json() runs in strict mode: a top-level `null`
+// body never reaches the handler.
+const SpecLifecycleBodySchema = z
+  .object({ lifecycle: SpecLifecycleRecordSchema.nullable() })
+  .strict();
 
 // Resolve a registered project's repoPath, or throw a 404 RouteError. Centralised
 // so every handler resolves it the same way.
@@ -135,6 +151,18 @@ function handleError(res: import("express").Response, err: unknown): void {
     res.status(400).json({ error: err.message });
     return;
   }
+  // Lifecycle-write failures (#773). A spec folder that is not there is a 404,
+  // exactly like a missing plan. A manifest the writer refused to clobber is a
+  // 409: the request was well-formed and it is the on-disk state that blocks it,
+  // so the reviewer needs to go fix the file rather than resend.
+  if (err instanceof SpecFolderNotFoundError) {
+    res.status(404).json({ error: err.message });
+    return;
+  }
+  if (err instanceof ManifestUnreadableError) {
+    res.status(409).json({ error: err.message });
+    return;
+  }
   // A present-but-broken work-units.json in the ?gateIds= subset path is a
   // bad-request-shaped misconfiguration, not a 500.
   if (err instanceof workUnitLoader.WorkUnitsValidationError) {
@@ -179,6 +207,65 @@ router.post("/:projectId/testbench/specs/validate", (req, res) => {
     } else {
       res.status(400).json(result);
     }
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// 3. Archive / supersede a spec, or reverse either (#773, SATCA-FR-020/FR-021).
+//
+// Resolved against the PROJECT repoPath, not a bench worktree: the picker is
+// project-scoped, and GET /testbench/specs (the list this write mutates) reads
+// from the same root. The bench-scoped routes below deliberately use the bench's
+// own workspacePath instead; the two roots are not interchangeable.
+//
+// Body: `{ lifecycle: <record> | null }`. A record archives (optionally
+// recording a reason and the spec that superseded this one); `null` clears the
+// record, which is how every lifecycle action is reversed from the surface that
+// applied it (SATCA-FR-021). Absence, not `archived: false`, is the live state.
+//
+// `supersededBy` is checked against the project's OTHER discovered specs before
+// anything is written, so an in-app supersession can never leave a dangling
+// pointer (SATCA-FR-028). The shape check in the schema is not enough on its
+// own: a well-formed slug naming no spec would validate.
+//
+// Responds with the freshly computed SpecLifecycleState, read back through the
+// same fail-open ladder discovery uses, so the client never has to guess what
+// landed on disk. The write leaves the change uncommitted in the worktree by
+// design.
+router.put("/:projectId/testbench/specs/:slug/lifecycle", (req, res) => {
+  try {
+    const repoPath = resolveRepoPath(req.params.projectId);
+    const parsed = SpecLifecycleBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: "lifecycle must be a valid spec lifecycle record, or null to clear it",
+        errors: parsed.error.issues.map((i) => {
+          const field = i.path.join(".");
+          return field ? `${field}: ${i.message}` : i.message;
+        }),
+      });
+      return;
+    }
+
+    const slug = req.params.slug;
+    const record = parsed.data.lifecycle;
+    if (record !== null && record.supersededBy !== undefined) {
+      if (record.supersededBy === slug) {
+        res.status(400).json({ error: "A spec cannot supersede itself" });
+        return;
+      }
+      const known = discoverSpecs(repoPath).specs.some((s) => s.slug === record.supersededBy);
+      if (!known) {
+        res.status(400).json({
+          error: `No spec '${record.supersededBy}' in this project; a superseding spec must be one of the project's other specifications`,
+        });
+        return;
+      }
+    }
+
+    writeSpecLifecycle(repoPath, slug, record);
+    res.json(computeLifecycle(repoPath, slug));
   } catch (err) {
     handleError(res, err);
   }
