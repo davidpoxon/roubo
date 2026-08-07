@@ -17,6 +17,10 @@ vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: (projectId: string, benchId: number) =>
     mockUseTestbenchPlan(projectId, benchId),
   useSetTestbenchFocus: () => ({ mutate: vi.fn(), isPending: false }),
+  // #772: the panel's archived entries and the case detail pane both reach for
+  // the lifecycle mutation; neither is under test here, so stub it inert.
+  useSetCaseLifecycle: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  caseLifecycleErrorMessage: () => null,
 }));
 vi.mock("../../hooks/useReconcile", () => ({
   useReconcilePreview: vi.fn(() => ({ mutate: vi.fn(), isPending: false, error: null })),

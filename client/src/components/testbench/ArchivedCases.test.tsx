@@ -10,12 +10,34 @@
 // superseded in the source plan, and therefore excluded from the rollup and the
 // live list). Both kinds coexist, each stating in text which situation it is.
 
-import { describe, it, expect, vi } from "vitest";
+// #772: a lifecycle entry now carries Restore, the reversal of the action that
+// archived it. The mutation hook is mocked so the section renders without a
+// QueryClientProvider, the same way the case detail pane's hooks are.
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { BenchResults, Case, CaseLifecycle } from "@roubo/shared/testbench-contracts";
 import ArchivedCases from "./ArchivedCases";
 import { buildRollup, type ArchivedCaseModel } from "./rollup";
+
+vi.mock("../../hooks/useTestbenchPlan", () => ({
+  useSetCaseLifecycle: vi.fn(),
+  caseLifecycleErrorMessage: (error: unknown) => (error ? (error as Error).message : null),
+}));
+import { useSetCaseLifecycle } from "../../hooks/useTestbenchPlan";
+
+const mockSetLifecycle = vi.mocked(useSetCaseLifecycle);
+const restoreMutate = vi.fn();
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockSetLifecycle.mockReturnValue({
+    mutate: restoreMutate,
+    isPending: false,
+    error: null,
+  } as never);
+});
 
 const AUTHOR = { name: "Reviewer", email: "r@example.com" };
 
@@ -318,5 +340,84 @@ describe("ArchivedCases lifecycle entries (#769)", () => {
     );
     expect(container).not.toBeEmptyDOMElement();
     expect(screen.getByTestId("archived-cases")).toBeInTheDocument();
+  });
+});
+
+// #772 (SATCA-TC-046, SATCA-FR-021): every lifecycle action is reversible, and
+// the reversal lives on the archived entry, because retiring a case removes it
+// from the live list that the retiring surface belongs to.
+describe("ArchivedCases restore (#772)", () => {
+  function renderWithBench(cases: Case[], benchResults: BenchResults | null = null) {
+    return render(
+      <ArchivedCases
+        results={benchResults}
+        archived={archivedFor(cases, benchResults)}
+        projectId="p1"
+        benchId={7}
+      />,
+    );
+  }
+
+  it("clears the record for a retired case", async () => {
+    const user = userEvent.setup();
+    renderWithBench([lifecycleCase("TC-A", { state: "retired", reason: "obsolete" })]);
+
+    await user.click(screen.getByTestId("archived-restore-TC-A"));
+
+    expect(restoreMutate).toHaveBeenCalledWith({
+      projectId: "p1",
+      benchId: 7,
+      caseId: "TC-A",
+      lifecycle: null,
+    });
+  });
+
+  it("clears the record for a superseded case", async () => {
+    const user = userEvent.setup();
+    renderWithBench([lifecycleCase("TC-B", { state: "superseded", replacement: "TC-C" })]);
+
+    await user.click(screen.getByTestId("archived-restore-TC-B"));
+
+    expect(restoreMutate).toHaveBeenCalledWith({
+      projectId: "p1",
+      benchId: 7,
+      caseId: "TC-B",
+      lifecycle: null,
+    });
+  });
+
+  it("offers no restore on an orphaned result, which carries no record to clear", () => {
+    const benchResults = results({
+      "TC-GONE": { observationMarks: {}, derivedStatus: "passed", notes: [], orphaned: true },
+    });
+    renderWithBench([], benchResults);
+
+    expect(screen.getByTestId("archived-case-TC-GONE")).toBeInTheDocument();
+    expect(screen.queryByTestId("archived-restore-TC-GONE")).not.toBeInTheDocument();
+  });
+
+  it("offers no restore when the section has no bench context", () => {
+    render(
+      <ArchivedCases
+        results={null}
+        archived={archivedFor([lifecycleCase("TC-A", { state: "retired", reason: "x" })], null)}
+      />,
+    );
+    expect(screen.queryByTestId("archived-restore-TC-A")).not.toBeInTheDocument();
+  });
+
+  // SATCA-TC-056: a refused write tells the reviewer to reload rather than
+  // failing silently or pretending the case was restored.
+  it("surfaces a refused restore as an alert", () => {
+    mockSetLifecycle.mockReturnValue({
+      mutate: restoreMutate,
+      isPending: false,
+      error: new Error("The case file changed on disk. Reload the spec, then try again."),
+    } as never);
+    renderWithBench([lifecycleCase("TC-A", { state: "retired", reason: "x" })]);
+
+    const alert = screen.getByTestId("archived-restore-error-TC-A");
+    expect(alert).toHaveAttribute("role", "alert");
+    expect(alert).toHaveTextContent(/reload/i);
   });
 });

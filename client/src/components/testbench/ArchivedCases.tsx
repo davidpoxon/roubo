@@ -1,8 +1,9 @@
-import { Archive } from "lucide-react";
+import { Archive, Undo2 } from "lucide-react";
 import { Button } from "react-aria-components";
 import type { BenchResults, CaseResult } from "@roubo/shared/testbench-contracts";
 import type { ArchivedCaseModel } from "./rollup";
 import StatusIndicator from "./StatusIndicator";
+import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useTestbenchPlan";
 
 // Archived cases section for the TestBench review tab (FR-013, FR-017, NFR-003,
 // and SATCA-FR-006/FR-007 via #769). Two different things end up archived, and
@@ -27,6 +28,15 @@ import StatusIndicator from "./StatusIndicator";
 // activatable, because the panel holds only this spec's plan, and so is a
 // same-spec pointer whose target is absent from the plan or not itself live
 // (#789), which would otherwise be a control that does nothing when activated.
+//
+// Restore lives on the lifecycle entry (#772, SATCA-FR-021). It is here rather
+// than in the case detail pane because retiring a case removes it from the live
+// list, so the surface that applied the action cannot be the one that reverses
+// it: this entry is where the archived case is still visible. Restore removes the
+// lifecycle record from the source case file entirely, which is what makes the
+// action a true reversal. Orphaned-result entries carry no Restore: a case
+// removed from the plan has no record to clear, and re-adding it is an authoring
+// act, not a lifecycle one.
 //
 // The section renders when at least one entry of either kind exists.
 
@@ -107,12 +117,21 @@ function LifecycleEntry({
   entry,
   result,
   onSelectCase,
+  projectId,
+  benchId,
 }: {
   entry: ArchivedCaseModel;
   result: CaseResult | undefined;
   onSelectCase?: (caseId: string) => void;
+  // Both are needed to address the write; the panel supplies them. Omitted (e.g.
+  // in a read-only render) the entry simply shows no Restore control.
+  projectId?: string;
+  benchId?: number;
 }) {
   const caseId = entry.case.id;
+  const restore = useSetCaseLifecycle();
+  const restoreError = caseLifecycleErrorMessage(restore.error);
+  const canRestore = projectId !== undefined && benchId !== undefined;
   // Only a replacement the rollup found to be present and live in this spec's
   // plan can be revealed: the panel holds this spec's plan alone, so a
   // slug-qualified pointer, or a same-spec one whose target is missing or itself
@@ -158,6 +177,35 @@ function LifecycleEntry({
         ))}
       <ObservationMarks result={result} />
       <Notes result={result} />
+      {canRestore && (
+        <div className="mt-2">
+          <Button
+            data-testid={`archived-restore-${caseId}`}
+            isDisabled={restore.isPending}
+            onPress={() =>
+              restore.mutate({
+                projectId,
+                benchId,
+                caseId,
+                lifecycle: null,
+              })
+            }
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-500"
+          >
+            <Undo2 aria-hidden="true" className="w-3.5 h-3.5" />
+            {restore.isPending ? "Restoring..." : "Restore"}
+          </Button>
+        </div>
+      )}
+      {restoreError && (
+        <p
+          role="alert"
+          data-testid={`archived-restore-error-${caseId}`}
+          className="mt-1 text-[12px] text-red-600 dark:text-red-400"
+        >
+          {restoreError}
+        </p>
+      )}
     </li>
   );
 }
@@ -166,10 +214,16 @@ export default function ArchivedCases({
   results,
   archived = [],
   onSelectCase,
+  projectId,
+  benchId,
 }: {
   results: BenchResults | null;
   archived?: ArchivedCaseModel[];
   onSelectCase?: (caseId: string) => void;
+  // Supplied by the panel so a lifecycle-archived entry can offer Restore
+  // (#772). Optional, so a read-only render of the section still works.
+  projectId?: string;
+  benchId?: number;
 }) {
   const orphans = results
     ? Object.entries(results.caseResults).filter(([, result]) => result.orphaned === true)
@@ -202,6 +256,8 @@ export default function ArchivedCases({
             entry={entry}
             result={results?.caseResults[entry.case.id]}
             onSelectCase={onSelectCase}
+            projectId={projectId}
+            benchId={benchId}
           />
         ))}
         {orphans.map(([caseId, result]) => (

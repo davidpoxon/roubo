@@ -84,6 +84,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/api/projects/:projectId/benches/:id/terminals`                                           | `server/routes/terminal.ts`             |
 | POST   | `/api/projects/:projectId/benches/:id/terminals`                                           | `server/routes/terminal.ts`             |
 | DELETE | `/api/projects/:projectId/benches/:id/terminals/:sid`                                      | `server/routes/terminal.ts`             |
+| PUT    | `/api/projects/:projectId/benches/:id/testbench/cases/:caseId/lifecycle`                   | `server/routes/testbench.ts`            |
 | POST   | `/api/projects/:projectId/benches/:id/testbench/cases/:caseId/notes`                       | `server/routes/testbench.ts`            |
 | PUT    | `/api/projects/:projectId/benches/:id/testbench/cases/:caseId/observations/:observationId` | `server/routes/testbench.ts`            |
 | PUT    | `/api/projects/:projectId/benches/:id/testbench/cases/:caseId/status`                      | `server/routes/testbench.ts`            |

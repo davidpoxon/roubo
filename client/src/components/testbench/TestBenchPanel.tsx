@@ -423,6 +423,8 @@ export default function TestBenchPanel({
         results={data.results}
         archived={model.archived}
         onSelectCase={setSelectedCaseId}
+        projectId={projectId}
+        benchId={benchId}
       />
       {classification && (
         <ReconcileDialog

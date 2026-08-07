@@ -26,9 +26,13 @@ vi.mock("../lib/testbench-store.js", async () => {
   return {
     MissingPlanError: actual.MissingPlanError,
     UnsafePathError: actual.UnsafePathError,
+    MissingCaseFileError: actual.MissingCaseFileError,
+    CaseNotFoundError: actual.CaseNotFoundError,
+    CaseLifecycleConflictError: actual.CaseLifecycleConflictError,
     readPlanAndResults: vi.fn(),
     markObservation: vi.fn(),
     setStatusOverride: vi.fn(),
+    setCaseLifecycle: vi.fn(),
     appendNote: vi.fn(),
     reconcile: vi.fn(),
   };
@@ -715,6 +719,129 @@ describe("PUT set status override", () => {
 
   it("returns 400 for an invalid status", async () => {
     const res = await request(app).put(url).send({ override: "nonsense" });
+    expect(res.status).toBe(400);
+  });
+});
+
+// #772 (SATCA-FR-019/FR-021): the case lifecycle write path. The store seam is
+// mocked here; the writer's own filesystem, path-safety, and conflict behaviour
+// is covered in server/lib/testbench-lifecycle-write.test.ts.
+describe("PUT set case lifecycle", () => {
+  const url = "/p1/benches/1/testbench/cases/TC-001/lifecycle";
+  const FINGERPRINT = "a".repeat(64);
+
+  it("records a retirement and returns the updated case", async () => {
+    vi.mocked(testbenchStore.setCaseLifecycle).mockReturnValue({
+      case: { id: "TC-001", lifecycle: { state: "retired", reason: "gone" } },
+      caseFileFingerprint: "b".repeat(64),
+      schemaVersion: "1.2.0",
+    } as never);
+    const res = await request(app)
+      .put(url)
+      .set("If-Match", FINGERPRINT)
+      .send({ lifecycle: { state: "retired", reason: "gone" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.case.id).toBe("TC-001");
+    expect(testbenchStore.setCaseLifecycle).toHaveBeenCalledWith(
+      WORKTREE,
+      "testbench",
+      "TC-001",
+      { state: "retired", reason: "gone" },
+      FINGERPRINT,
+    );
+  });
+
+  it("restores a case with a null lifecycle", async () => {
+    vi.mocked(testbenchStore.setCaseLifecycle).mockReturnValue({
+      case: { id: "TC-001" },
+      caseFileFingerprint: "b".repeat(64),
+      schemaVersion: "1.2.0",
+    } as never);
+    const res = await request(app).put(url).set("If-Match", FINGERPRINT).send({ lifecycle: null });
+
+    expect(res.status).toBe(200);
+    expect(testbenchStore.setCaseLifecycle).toHaveBeenCalledWith(
+      WORKTREE,
+      "testbench",
+      "TC-001",
+      null,
+      FINGERPRINT,
+    );
+  });
+
+  it("returns 400 without an If-Match precondition", async () => {
+    const res = await request(app)
+      .put(url)
+      .send({ lifecycle: { state: "retired", reason: "x" } });
+    expect(res.status).toBe(400);
+    expect(testbenchStore.setCaseLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for a retirement with no reason", async () => {
+    const res = await request(app)
+      .put(url)
+      .set("If-Match", FINGERPRINT)
+      .send({ lifecycle: { state: "retired", reason: "" } });
+    expect(res.status).toBe(400);
+    expect(testbenchStore.setCaseLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for a supersession with no replacement", async () => {
+    const res = await request(app)
+      .put(url)
+      .set("If-Match", FINGERPRINT)
+      .send({ lifecycle: { state: "superseded" } });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for an unknown lifecycle state", async () => {
+    const res = await request(app)
+      .put(url)
+      .set("If-Match", FINGERPRINT)
+      .send({ lifecycle: { state: "archived" } });
+    expect(res.status).toBe(400);
+  });
+
+  it("maps an unknown case id to 404", async () => {
+    vi.mocked(testbenchStore.setCaseLifecycle).mockImplementation(() => {
+      throw new testbenchStore.CaseNotFoundError('Case "TC-001" is not in spec "testbench"');
+    });
+    const res = await request(app).put(url).set("If-Match", FINGERPRINT).send({ lifecycle: null });
+    expect(res.status).toBe(404);
+  });
+
+  it("maps a missing case file to 404", async () => {
+    vi.mocked(testbenchStore.setCaseLifecycle).mockImplementation(() => {
+      throw new testbenchStore.MissingCaseFileError("No test-cases.json");
+    });
+    const res = await request(app).put(url).set("If-Match", FINGERPRINT).send({ lifecycle: null });
+    expect(res.status).toBe(404);
+  });
+
+  it("maps a concurrent modification to 409 carrying the current fingerprint", async () => {
+    vi.mocked(testbenchStore.setCaseLifecycle).mockImplementation(() => {
+      throw new testbenchStore.CaseLifecycleConflictError(
+        "test-cases.json changed on disk. Reload the spec and try again.",
+        "c".repeat(64),
+      );
+    });
+    const res = await request(app)
+      .put(url)
+      .set("If-Match", FINGERPRINT)
+      .send({ lifecycle: { state: "retired", reason: "gone" } });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("case-file-conflict");
+    expect(res.body.caseFileFingerprint).toBe("c".repeat(64));
+    expect(res.body.error).toMatch(/reload/i);
+  });
+
+  it("maps an unsafe slug to 400", async () => {
+    vi.mocked(testbenchStore.setCaseLifecycle).mockImplementation(() => {
+      throw new testbenchStore.UnsafePathError("Invalid spec slug: ../evil");
+    });
+    const res = await request(app).put(url).set("If-Match", FINGERPRINT).send({ lifecycle: null });
     expect(res.status).toBe(400);
   });
 });

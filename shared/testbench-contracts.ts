@@ -94,7 +94,14 @@ export const TargetingFieldSchema = z
   .strict();
 export type TargetingField = z.infer<typeof TargetingFieldSchema>;
 
-// ── test-cases.json (the source plan; never mutated) ──
+// ── test-cases.json (the source plan) ──
+//
+// Authored outside Roubo (by product-dev) and read-only to every results path:
+// marking, overriding, noting, and reconciling touch the sidecar alone. As of
+// #772 that is no longer the same as "never mutated": the in-app lifecycle
+// actions write one case's `lifecycle` block back into this file, atomically and
+// uncommitted, through server/lib/testbench-lifecycle-write.ts. That is the ONLY
+// write Roubo makes here; nothing else in the plan is ever rewritten.
 
 export const ObservationSchema = z
   .object({

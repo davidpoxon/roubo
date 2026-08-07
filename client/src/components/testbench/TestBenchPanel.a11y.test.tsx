@@ -14,6 +14,10 @@ import { expectNoAxeFindings } from "../../test/axe";
 vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: vi.fn(),
   useSetTestbenchFocus: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  // #772: the panel's archived entries and the case detail pane both reach for
+  // the lifecycle mutation; neither is under test here, so stub it inert.
+  useSetCaseLifecycle: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  caseLifecycleErrorMessage: () => null,
 }));
 // The panel now mounts the staleness/reconcile surface (#440 integration), which
 // pulls in the reconcile mutation hooks; mock them so the panel renders without a

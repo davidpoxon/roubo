@@ -80,6 +80,8 @@ import type {
   Note,
   TestCasesPlan,
   BenchResults,
+  Case,
+  CaseLifecycle,
   CaseResult,
   CaseStatus,
 } from "@roubo/shared/testbench-contracts";
@@ -567,6 +569,12 @@ export interface TestbenchPlanResponse {
   results: BenchResults | null;
   stale: boolean;
   planHash: string;
+  // sha256 over the raw test-cases.json bytes the server read (#772). Echoed
+  // back as the `If-Match` precondition on a lifecycle write, which is how an
+  // edit made outside the app between load and write is reported as a conflict
+  // instead of being silently overwritten. Optional, matching how `lifecycle`
+  // and `recoveryReason` tolerate an older server.
+  caseFileFingerprint?: string;
   recovered: boolean;
   // WHY the sidecar recovered, when it did (#896/#417). Mirrors the server's
   // optional `recoveryReason`; null on a clean read and absent from an older
@@ -1723,6 +1731,52 @@ export function markObservation(
     {
       method: "PUT",
       body: JSON.stringify({ result }),
+    },
+  );
+}
+
+// The 200 body of a case lifecycle write (#772): the updated case, the new raw
+// fingerprint (so a follow-up action needs no re-read), and the schemaVersion the
+// file now records.
+export interface SetCaseLifecycleResponse {
+  case: Case;
+  caseFileFingerprint: string;
+  schemaVersion: string;
+}
+
+// True when a write was refused because the case file changed on disk between
+// the load and the write (SATCA-TC-056). The panel turns this into a reload
+// prompt rather than a generic error. Mirrors the `isDirtyBenchError` precedent:
+// a typed read off `ApiError`, which `request` populates from the error body.
+export function isCaseFileConflict(err: unknown): err is ApiError {
+  return err instanceof ApiError && (err.status === 409 || err.code === "case-file-conflict");
+}
+
+// The message the panel shows for a conflict. Kept here so the case detail pane
+// and the archived list say the same thing.
+export const CASE_FILE_CONFLICT_MESSAGE =
+  "The case file changed on disk since this spec was loaded. Reload the spec, then try again.";
+
+// TestBench case lifecycle (#772, SATCA-FR-019/FR-021). PUT records a retirement
+// or a supersession on one case, or clears the record entirely (`lifecycle:
+// null`) to restore it. `fingerprint` is the `caseFileFingerprint` the plan read
+// returned; the server refuses the write with 409 when it no longer matches the
+// file on disk, so a stale view can never overwrite an external edit.
+export function setCaseLifecycle(
+  projectId: string,
+  benchId: number,
+  caseId: string,
+  lifecycle: CaseLifecycle | null,
+  fingerprint: string,
+): Promise<SetCaseLifecycleResponse> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/testbench/cases/${encodeURIComponent(
+      caseId,
+    )}/lifecycle`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "If-Match": fingerprint },
+      body: JSON.stringify({ lifecycle }),
     },
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Button, ToggleButton } from "react-aria-components";
-import { X, ArrowRight, StickyNote, ChevronDown, Bot } from "lucide-react";
+import { Button, Input, Label, TextField, ToggleButton } from "react-aria-components";
+import { X, ArrowRight, StickyNote, ChevronDown, Bot, Archive } from "lucide-react";
 import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
 import StatusIndicator from "./StatusIndicator";
 import ObservationMarkControl from "./ObservationMarkControl";
@@ -9,6 +9,7 @@ import { NotesRail } from "./NotesRail";
 import { caseObservationProgress } from "./rollup";
 import { useElementWidth } from "./useElementWidth";
 import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestbenchMarks";
+import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useTestbenchPlan";
 
 // The case-detail pane must be at least this wide (px) before the notes show as
 // an inline side rail; below it the notes collapse into the bottom drawer. This
@@ -318,6 +319,11 @@ export default function CaseDetail({
               </div>
             </>
           )}
+
+          {/* Lifecycle actions (#772): the write path into the spec's own case
+              file, kept at the foot of the case body so the review surface
+              (steps, marks, notes) stays first. */}
+          <LifecycleControls projectId={projectId} benchId={benchId} testCase={testCase} />
         </div>
 
         {/* Inline side rail, only when the pane is wide enough (#524). When
@@ -348,6 +354,178 @@ export default function CaseDetail({
         />
       )}
     </div>
+  );
+}
+
+const FIELD_CLASS =
+  "w-full rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1.5 text-[13px] text-stone-800 dark:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+const FIELD_LABEL_CLASS = "text-[11px] font-medium text-stone-600 dark:text-stone-400";
+const ACTION_CLASS =
+  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-500";
+
+// Lifecycle controls for one live case (#772, SATCA-FR-019, SATCA-US-006).
+//
+// Retire takes a required reason; supersede takes a required replacement pointer
+// plus an optional reason. The pointer is a plain text field for now: the
+// two-stage replacement picker is its own slice, and the contract validates the
+// pointer only as a non-empty string, so this input matches what the schema
+// actually requires and the picker can replace it later without a contract change.
+//
+// The reversal of either action does NOT live here. Retiring removes the case
+// from the live list (the rollup routes it to the Archived section), so the
+// surface that applied the action is not the surface that can reverse it;
+// Restore sits on the archived entry, which is where the case is still visible.
+//
+// A 409 is rendered as a reload prompt rather than a generic failure: the case
+// file moved under the request, and reloading is the only useful next step.
+function LifecycleControls({
+  projectId,
+  benchId,
+  testCase,
+}: {
+  projectId: string;
+  benchId: number;
+  testCase: Case;
+}) {
+  const [open, setOpen] = useState<"retire" | "supersede" | null>(null);
+  const [reason, setReason] = useState("");
+  const [replacement, setReplacement] = useState("");
+  const setLifecycle = useSetCaseLifecycle();
+  const error = caseLifecycleErrorMessage(setLifecycle.error);
+
+  // An already-archived case is reversible from the Archived section, not here.
+  if (testCase.lifecycle) {
+    return (
+      <>
+        <div className={SECTION_LABEL}>Lifecycle</div>
+        <p
+          data-testid="case-lifecycle-archived"
+          className="text-[12px] text-stone-500 dark:text-stone-400"
+        >
+          This case is {testCase.lifecycle.state}. Restore it from the Archived section below.
+        </p>
+      </>
+    );
+  }
+
+  const canRetire = reason.trim().length > 0 && !setLifecycle.isPending;
+  const canSupersede = replacement.trim().length > 0 && !setLifecycle.isPending;
+
+  const apply = (lifecycle: Parameters<typeof setLifecycle.mutate>[0]["lifecycle"]) => {
+    setLifecycle.mutate(
+      { projectId, benchId, caseId: testCase.id, lifecycle },
+      {
+        onSuccess: () => {
+          setOpen(null);
+          setReason("");
+          setReplacement("");
+        },
+      },
+    );
+  };
+
+  return (
+    <>
+      <div className={SECTION_LABEL}>Lifecycle</div>
+      <div className="flex flex-col gap-2">
+        <p className="text-[12px] text-stone-500 dark:text-stone-400">
+          Retiring or superseding writes the record into the spec&apos;s case file and leaves the
+          change uncommitted for review. Recorded marks and notes are kept.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            data-testid="case-retire-open"
+            onPress={() => setOpen(open === "retire" ? null : "retire")}
+            className={ACTION_CLASS}
+          >
+            <Archive aria-hidden="true" className="w-3.5 h-3.5" />
+            Retire
+          </Button>
+          <Button
+            data-testid="case-supersede-open"
+            onPress={() => setOpen(open === "supersede" ? null : "supersede")}
+            className={ACTION_CLASS}
+          >
+            <ArrowRight aria-hidden="true" className="w-3.5 h-3.5" />
+            Supersede
+          </Button>
+        </div>
+
+        {open === "retire" && (
+          <div className="flex flex-col gap-2 rounded-md bg-stone-100/70 dark:bg-stone-800/40 p-3">
+            <TextField
+              value={reason}
+              onChange={setReason}
+              isRequired
+              className="flex flex-col gap-1"
+            >
+              <Label className={FIELD_LABEL_CLASS}>Reason for retiring</Label>
+              <Input data-testid="case-retire-reason" className={FIELD_CLASS} />
+            </TextField>
+            <div>
+              <Button
+                data-testid="case-retire-submit"
+                isDisabled={!canRetire}
+                onPress={() => apply({ state: "retired", reason: reason.trim() })}
+                className={ACTION_CLASS}
+              >
+                {setLifecycle.isPending ? "Retiring..." : "Retire case"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {open === "supersede" && (
+          <div className="flex flex-col gap-2 rounded-md bg-stone-100/70 dark:bg-stone-800/40 p-3">
+            <TextField
+              value={replacement}
+              onChange={setReplacement}
+              isRequired
+              className="flex flex-col gap-1"
+            >
+              <Label className={FIELD_LABEL_CLASS}>
+                Replacement case (an id in this spec, or slug:id in another)
+              </Label>
+              <Input data-testid="case-supersede-replacement" className={FIELD_CLASS} />
+            </TextField>
+            <TextField value={reason} onChange={setReason} className="flex flex-col gap-1">
+              <Label className={FIELD_LABEL_CLASS}>Reason (optional)</Label>
+              <Input data-testid="case-supersede-reason" className={FIELD_CLASS} />
+            </TextField>
+            <div>
+              <Button
+                data-testid="case-supersede-submit"
+                isDisabled={!canSupersede}
+                onPress={() =>
+                  apply(
+                    reason.trim().length > 0
+                      ? {
+                          state: "superseded",
+                          replacement: replacement.trim(),
+                          reason: reason.trim(),
+                        }
+                      : { state: "superseded", replacement: replacement.trim() },
+                  )
+                }
+                className={ACTION_CLASS}
+              >
+                {setLifecycle.isPending ? "Superseding..." : "Supersede case"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <p
+            role="alert"
+            data-testid="case-lifecycle-error"
+            className="text-[12px] text-red-600 dark:text-red-400"
+          >
+            {error}
+          </p>
+        )}
+      </div>
+    </>
   );
 }
 

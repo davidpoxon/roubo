@@ -12,6 +12,7 @@
 //   GET    /:projectId/benches/:id/testbench/plan
 //   PUT    /:projectId/benches/:id/testbench/cases/:caseId/observations/:observationId
 //   PUT    /:projectId/benches/:id/testbench/cases/:caseId/status
+//   PUT    /:projectId/benches/:id/testbench/cases/:caseId/lifecycle
 //   POST   /:projectId/benches/:id/testbench/cases/:caseId/notes
 //   POST   /:projectId/benches/:id/testbench/reconcile
 //   PUT    /:projectId/benches/:id/testbench/focus
@@ -26,7 +27,13 @@ import * as benchManager from "../services/bench-manager.js";
 import { BenchError } from "../services/bench-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as testbenchStore from "../lib/testbench-store.js";
-import { MissingPlanError, UnsafePathError } from "../lib/testbench-store.js";
+import {
+  CaseLifecycleConflictError,
+  CaseNotFoundError,
+  MissingCaseFileError,
+  MissingPlanError,
+  UnsafePathError,
+} from "../lib/testbench-store.js";
 import {
   computeLifecycle,
   discoverSpecs,
@@ -39,7 +46,7 @@ import {
   writeSpecLifecycle,
 } from "../lib/testbench-spec-lifecycle-write.js";
 import { RouteError, parseIntParam } from "./helpers.js";
-import { CaseStatusSchema } from "@roubo/shared/testbench-contracts";
+import { CaseLifecycleSchema, CaseStatusSchema } from "@roubo/shared/testbench-contracts";
 import { SpecLifecycleRecordSchema } from "@roubo/shared/spec-lifecycle-schema";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
@@ -68,6 +75,17 @@ const MarkObservationBodySchema = z
   .object({ result: z.enum(["pass", "fail"]).nullable() })
   .strict();
 const SetStatusBodySchema = z.object({ override: CaseStatusSchema.nullable() }).strict();
+// The lifecycle record to write, or null to restore (#772). The record is
+// wrapped in a `{ lifecycle }` envelope rather than sent bare: express.json runs
+// in body-parser's default strict mode, which accepts only objects and arrays, so
+// a literal `null` body (the shape architecture.md sketches) never reaches a
+// handler at all. The envelope matches the sibling `{ override: ... | null }`
+// endpoint above and keeps restore expressible. The contract's discriminated
+// union does the validating, so a missing reason, a missing replacement, or an
+// unknown state is a 400 with a field-named message.
+const SetCaseLifecycleBodySchema = z
+  .object({ lifecycle: z.union([CaseLifecycleSchema, z.null()]) })
+  .strict();
 const AppendNoteBodySchema = z.object({ text: z.string() }).strict();
 const ReconcileBodySchema = z
   .object({ confirm: z.boolean().optional(), purgeOrphans: z.boolean().optional() })
@@ -145,6 +163,21 @@ function handleError(res: import("express").Response, err: unknown): void {
   }
   if (err instanceof MissingPlanError) {
     res.status(404).json({ error: err.message });
+    return;
+  }
+  // Lifecycle writes (#772): an absent/invalid case file or an unknown case id is
+  // a 404, and a case file that changed under the request is a 409 carrying the
+  // fingerprint the file actually holds now, so the client can say "reload".
+  if (err instanceof MissingCaseFileError || err instanceof CaseNotFoundError) {
+    res.status(404).json({ error: err.message });
+    return;
+  }
+  if (err instanceof CaseLifecycleConflictError) {
+    res.status(409).json({
+      error: err.message,
+      code: "case-file-conflict",
+      caseFileFingerprint: err.actualFingerprint,
+    });
     return;
   }
   if (err instanceof UnsafePathError) {
@@ -407,6 +440,52 @@ router.put("/:projectId/benches/:id/testbench/cases/:caseId/status", async (req,
       parsed.data.override,
     );
     res.json(caseResult);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// 6b. Set or clear a case's lifecycle record (PUT) -> 200 with the updated case
+// (#772, SATCA-FR-019/FR-021). The body is
+// { lifecycle: { state: "retired", reason } } or
+// { lifecycle: { state: "superseded", replacement, reason? } }, or
+// { lifecycle: null } to restore, which removes the record and is what makes
+// every action reversible.
+//
+// `If-Match` carries the caller's view of the case file: the
+// `caseFileFingerprint` the plan read returned, a sha256 over the RAW file bytes.
+// It is REQUIRED, not optional. The plan hash cannot stand in for it, because
+// canonicalization excludes the lifecycle block (#767) and so is byte-identical
+// across a lifecycle edit; without the fingerprint a write from a stale view
+// would silently overwrite an edit made outside the app (SATCA-TC-056). A
+// mismatch is a 409 via handleError.
+router.put("/:projectId/benches/:id/testbench/cases/:caseId/lifecycle", (req, res) => {
+  try {
+    const benchId = parseIntParam(req.params.id, "bench id");
+    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId);
+    const ifMatch = req.get("if-match");
+    if (typeof ifMatch !== "string" || ifMatch.length === 0) {
+      res.status(400).json({
+        error: "An If-Match case-file fingerprint is required for a lifecycle write",
+      });
+      return;
+    }
+    const parsed = SetCaseLifecycleBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: "lifecycle must be a valid lifecycle record or null",
+        errors: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`),
+      });
+      return;
+    }
+    const result = testbenchStore.setCaseLifecycle(
+      rootPath,
+      slug,
+      req.params.caseId,
+      parsed.data.lifecycle,
+      ifMatch,
+    );
+    res.json(result);
   } catch (err) {
     handleError(res, err);
   }
