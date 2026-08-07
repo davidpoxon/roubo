@@ -959,3 +959,187 @@ describe("PUT re-point focus", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// #774 (SATCA-FR-028/FR-029): the replacement picker's read-only candidate
+// endpoint. It returns the requested spec's cases plus the TRANSITIVE CLOSURE of
+// their pointer graph, so the client can preview a candidate pointer with the
+// same shared resolver the gate uses. Rooted at the BENCH's own workspace, like
+// the plan route.
+describe("GET /:projectId/benches/:id/testbench/replacement-candidates", () => {
+  const url = "/p1/benches/1/testbench/replacement-candidates";
+
+  function discovered(entries: { slug: string; caseCount?: number; archived?: boolean }[]): void {
+    vi.mocked(discovery.discoverSpecs).mockReturnValue({
+      specs: entries.map(({ slug, caseCount = 1, archived = false }) => ({
+        slug,
+        path: `/worktree/bench-1/.specifications/${slug}/test-cases.json`,
+        caseCount,
+        verification: {
+          classification: "needs-attention",
+          statusCounts: {
+            not_started: caseCount,
+            in_progress: 0,
+            passed: 0,
+            failed: 0,
+            blocked: 0,
+          },
+          resultsPresent: false,
+          resultsValid: false,
+          planHashMatch: false,
+          recoveryReason: null,
+          aggregationError: false,
+        },
+        lifecycle: { archived, reason: null, supersededBy: null, recordError: null },
+      })),
+      invalid: [],
+    });
+  }
+
+  // Plans keyed by slug, in the shape readPlanAndResults returns. A slug with no
+  // entry throws, which is how a spec that cannot be read is exercised.
+  function plansOnDisk(plans: Record<string, { cases: unknown[] }>): void {
+    vi.mocked(testbenchStore.readPlanAndResults).mockImplementation((_root, slug) => {
+      const plan = plans[slug];
+      if (!plan) throw new MissingPlanError(`No test-cases.json for spec "${slug}"`);
+      return { plan, results: null, stale: false, planHash: "h", recovered: false } as never;
+    });
+  }
+
+  const CASE = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    title: `Case ${id}`,
+    area: "reconcile",
+    level: 1,
+    type: "functional",
+    steps: [],
+    ...extra,
+  });
+
+  beforeEach(() => {
+    discovered([{ slug: "testbench", caseCount: 2 }, { slug: "verify-gate" }]);
+    plansOnDisk({
+      testbench: {
+        cases: [
+          CASE("TC-001"),
+          CASE("TC-002", {
+            lifecycle: { state: "superseded", replacement: "verify-gate:VG-TC-004" },
+          }),
+        ],
+      },
+      "verify-gate": { cases: [CASE("VG-TC-004")] },
+    });
+  });
+
+  it("returns the focused spec's cases plus every spec its pointers reach", async () => {
+    const res = await request(app).get(url);
+
+    expect(res.status).toBe(200);
+    expect(res.body.originSlug).toBe("testbench");
+    expect(res.body.slug).toBe("testbench");
+    // The cross-spec pointer pulled verify-gate into the closure, so the client
+    // can resolve the chain rather than reporting "target spec not supplied".
+    expect(Object.keys(res.body.plans).sort()).toEqual(["testbench", "verify-gate"]);
+    expect(res.body.plans.testbench.specSlug).toBe("testbench");
+    // Trimmed to what a picker row needs; steps are not shipped.
+    expect(res.body.plans.testbench.cases[0]).toEqual({
+      id: "TC-001",
+      title: "Case TC-001",
+      area: "reconcile",
+      level: 1,
+    });
+    expect(res.body.plans.testbench.cases[1].lifecycle).toEqual({
+      state: "superseded",
+      replacement: "verify-gate:VG-TC-004",
+    });
+    expect(res.body.specs).toEqual([
+      { slug: "testbench", caseCount: 2, archived: false },
+      { slug: "verify-gate", caseCount: 1, archived: false },
+    ]);
+    // Read from the BENCH's workspace, not the project repo.
+    expect(discovery.discoverSpecs).toHaveBeenCalledWith(WORKTREE);
+    expect(testbenchStore.readPlanAndResults).toHaveBeenCalledWith(WORKTREE, "testbench");
+  });
+
+  it("lists another spec's cases on request, keeping the origin spec supplied", async () => {
+    const res = await request(app).get(`${url}?slug=verify-gate`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.slug).toBe("verify-gate");
+    expect(res.body.originSlug).toBe("testbench");
+    // The origin spec is always in the closure: the resolution the picker
+    // previews starts from a case that lives there.
+    expect(Object.keys(res.body.plans).sort()).toEqual(["testbench", "verify-gate"]);
+    expect(res.body.plans["verify-gate"].cases.map((c: { id: string }) => c.id)).toEqual([
+      "VG-TC-004",
+    ]);
+  });
+
+  it("carries an archived spec's record, and only archived specs have one", async () => {
+    discovered([
+      { slug: "testbench", caseCount: 2 },
+      { slug: "verify-gate", archived: true },
+    ]);
+    vi.mocked(discovery.computeLifecycle).mockImplementation((_root, slug) =>
+      slug === "verify-gate"
+        ? {
+            archived: true,
+            reason: "folded in",
+            supersededBy: "integration-plugins",
+            recordError: null,
+          }
+        : LIVE_LIFECYCLE,
+    );
+
+    const res = await request(app).get(url);
+
+    expect(res.status).toBe(200);
+    // Absence is the live state, so testbench has no entry at all.
+    expect(res.body.specLifecycles).toEqual({
+      "verify-gate": {
+        archived: true,
+        reason: "folded in",
+        supersededBy: "integration-plugins",
+      },
+    });
+    // The archived spec's cases are still offered; it is the resolver that
+    // refuses to land in it, not the loader that hides it.
+    expect(res.body.plans["verify-gate"].cases).toHaveLength(1);
+    expect(res.body.specs[1].archived).toBe(true);
+  });
+
+  it("404s for a slug this workspace does not have, without reading it", async () => {
+    const res = await request(app).get(`${url}?slug=nope`);
+    expect(res.status).toBe(404);
+    expect(testbenchStore.readPlanAndResults).not.toHaveBeenCalledWith(WORKTREE, "nope");
+  });
+
+  it("refuses a traversal slug before any filesystem read", async () => {
+    const res = await request(app).get(`${url}?slug=${encodeURIComponent("../../etc")}`);
+    expect(res.status).toBe(404);
+    expect(testbenchStore.readPlanAndResults).not.toHaveBeenCalledWith(WORKTREE, "../../etc");
+  });
+
+  it("fails open per spec: an unreadable spec in the closure is simply absent", async () => {
+    plansOnDisk({
+      testbench: {
+        cases: [
+          CASE("TC-002", {
+            lifecycle: { state: "superseded", replacement: "verify-gate:VG-TC-004" },
+          }),
+        ],
+      },
+      // verify-gate deliberately omitted: its plan read throws.
+    });
+
+    const res = await request(app).get(url);
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.plans)).toEqual(["testbench"]);
+  });
+
+  it("404s for an unknown project", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+    const res = await request(app).get(url);
+    expect(res.status).toBe(404);
+  });
+});

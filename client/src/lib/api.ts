@@ -669,6 +669,58 @@ export function fetchTestbenchPlan(
   return request(`/projects/${projectId}/benches/${benchId}/testbench/plan${query}`);
 }
 
+// One candidate replacement case (#774): enough to render a picker row, plus the
+// lifecycle block the shared resolver walks. Deliberately not a whole `Case`: the
+// picker never reads steps or observations, and a candidate list is not a plan.
+export interface ReplacementCandidateCase {
+  id: string;
+  title: string;
+  area: string;
+  level: number;
+  lifecycle?: CaseLifecycle;
+}
+
+// One loaded plan in the closure, in the shape the resolver's `ResolverPlan`
+// takes, so the picker can feed the map straight in without re-mapping.
+export interface ReplacementCandidatePlan {
+  specSlug: string;
+  cases: ReplacementCandidateCase[];
+}
+
+// One selectable specification in the picker's first stage.
+export interface ReplacementCandidateSpec {
+  slug: string;
+  caseCount: number;
+  archived: boolean;
+}
+
+// GET /testbench/replacement-candidates (#774, SATCA-FR-028/FR-029). Everything
+// the picker needs to list candidates AND to resolve a chosen pointer with the
+// same shared resolver the gate uses: the requested spec's cases, every spec its
+// pointers transitively reach, and the archived-spec records for all of them.
+// `specLifecycles` carries ONLY archived specs, because absence is the live state.
+export interface ReplacementCandidatesResponse {
+  // The bench's focused spec: the spec the case being superseded lives in, and
+  // the slug a bare (unqualified) pointer is relative to.
+  originSlug: string;
+  // The spec whose cases `plans[slug]` lists (the `?slug=` echo).
+  slug: string;
+  specs: ReplacementCandidateSpec[];
+  plans: Record<string, ReplacementCandidatePlan>;
+  specLifecycles: Record<string, { archived: true; reason?: string; supersededBy?: string }>;
+}
+
+export function fetchReplacementCandidates(
+  projectId: string,
+  benchId: number,
+  slug?: string,
+): Promise<ReplacementCandidatesResponse> {
+  const query = slug !== undefined ? `?slug=${encodeURIComponent(slug)}` : "";
+  return request(
+    `/projects/${projectId}/benches/${benchId}/testbench/replacement-candidates${query}`,
+  );
+}
+
 // A spec folder whose work-units.json EXISTS but failed contract validation, so
 // it was skipped by the aggregate gates load (#371). Carries the slug plus its
 // human-readable validation errors so the overview can warn the operator by name
