@@ -296,12 +296,17 @@ export async function registerFixtureProject(
     // stage a realistic product-dev manifest (stage tracking, id counters, an
     // unrecognised key) for an in-app lifecycle write to merge into. Combines
     // with `lifecycle`, which is merged in as the subtree.
+    // SATCA-TC-033 (#777): an entry may also carry `workUnits`, the whole
+    // `work-units.json` written verbatim into the spec folder, so the spec
+    // declares verify gates and the Batches surface has something to render.
+    // Validated against the published contract server-side.
     seedSpecs?: Array<{
       slug: string;
       testCases: unknown;
       seedResults?: "all-passed" | "partial";
       lifecycle?: { archived: true; reason?: string; supersededBy?: string };
       manifest?: Record<string, unknown>;
+      workUnits?: unknown;
     }>;
     // TC-001 (#438): when true, the server `git init`s + commits the fixture
     // repo and pins its worktree source to the local HEAD, so a real TestBench
@@ -437,6 +442,38 @@ export async function readSpecManifest(
     raw: string | null;
     manifest: Record<string, unknown> | null;
     casesChecksum: string;
+  };
+}
+
+/**
+ * #777 (SATCA-TC-033 S003-O03): read one spec's `.specifications/<slug>/work-units.json`
+ * out of a fixture project's repo (the copy the gate loader reads) via
+ * `/test/__read-spec-work-units`. The gate-release drift guard uses it to prove the
+ * negative the case states: the gate flipped from pending to passed with the work
+ * unit file byte-identical, because a retirement narrows the gating set at read
+ * time and never edits the declared `implements.test_case_ids`. `raw` is the file
+ * verbatim (null when the folder carries none) and `checksum` its sha256.
+ */
+export async function readSpecWorkUnits(
+  request: APIRequestContext,
+  opts: { projectId: string; slug: string },
+): Promise<{
+  path: string;
+  raw: string | null;
+  workUnits: Record<string, unknown> | null;
+  checksum: string | null;
+}> {
+  const res = await request.get(
+    `/test/__read-spec-work-units?projectId=${encodeURIComponent(
+      opts.projectId,
+    )}&slug=${encodeURIComponent(opts.slug)}`,
+  );
+  expect(res.status(), `read spec work units for ${opts.slug}`).toBe(200);
+  return (await res.json()) as {
+    path: string;
+    raw: string | null;
+    workUnits: Record<string, unknown> | null;
+    checksum: string | null;
   };
 }
 

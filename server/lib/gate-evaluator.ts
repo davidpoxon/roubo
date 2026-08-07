@@ -100,6 +100,14 @@ export interface GateState {
   // Null on every other rung, and null on an empty set the gate never declared
   // anything into. See `GateEmptyReason`.
   emptyReason: GateEmptyReason | null;
+  // The declared case ids lifecycle removed from the effective gating set: the
+  // cases whose own `retired` block ended their obligation (SATCA-FR-008), in the
+  // order the gate declared them. Populated on EVERY rung, not just the empty one:
+  // a gate can pass precisely BECAUSE a case was retired, and the operator reading
+  // a passed gate is owed the reason it passed. `emptyReason` only ever answers
+  // that question for a gate lifecycle emptied outright, which is the narrower
+  // case. Empty when lifecycle dropped nothing (the pre-#777 shape, byte for byte).
+  lifecycleExcludedCaseIds: string[];
 }
 
 // The slice of the recorded results the evaluator needs. `readPlanAndResults`
@@ -208,7 +216,10 @@ export function evaluateGate(
   const declaredIds = gate.implements.test_case_ids;
   const caseById = plan ? new Map(plan.cases.map((c) => [c.id, c])) : null;
   const gatingCaseIds: string[] = [];
-  let droppedByLifecycle = false;
+  // The ids lifecycle removed, kept as a list rather than only as the boolean the
+  // `emptyReason` attribution needs, so a gate that merely NARROWED can still name
+  // which declared cases lifecycle excluded (#777, SATCA-TC-033 S003-O02).
+  const lifecycleExcludedCaseIds: string[] = [];
   let droppedByPolicy = false;
   for (const id of declaredIds) {
     // A retired case's obligation ENDS rather than transferring, so it leaves the
@@ -216,7 +227,7 @@ export function evaluateGate(
     // The gate's declared `implements.test_case_ids` is untouched: the narrowing is
     // computed here, never written back to the work unit.
     if (resolutionById.get(id)?.status === "retired") {
-      droppedByLifecycle = true;
+      lifecycleExcludedCaseIds.push(id);
       continue;
     }
     if (caseById) {
@@ -253,13 +264,14 @@ export function evaluateGate(
       // away is a different situation from one lifecycle retired away, and the two
       // call for different operator responses.
       emptyReason:
-        droppedByLifecycle && droppedByPolicy
+        lifecycleExcludedCaseIds.length > 0 && droppedByPolicy
           ? "mixed"
-          : droppedByLifecycle
+          : lifecycleExcludedCaseIds.length > 0
             ? "lifecycle"
             : droppedByPolicy
               ? "policy"
               : null,
+      lifecycleExcludedCaseIds,
     };
   }
 
@@ -272,6 +284,7 @@ export function evaluateGate(
       gatingCaseIds: [...gatingCaseIds],
       coveringUnitIds: gatingCaseIds.length > 0 ? coveringUnitIds : [],
       emptyReason: null,
+      lifecycleExcludedCaseIds,
     };
   }
 
@@ -348,6 +361,7 @@ export function evaluateGate(
       gatingCaseIds: [...gatingCaseIds],
       coveringUnitIds,
       emptyReason: null,
+      lifecycleExcludedCaseIds,
     };
   }
 
@@ -360,6 +374,7 @@ export function evaluateGate(
       gatingCaseIds: [...gatingCaseIds],
       coveringUnitIds,
       emptyReason: null,
+      lifecycleExcludedCaseIds,
     };
   }
 
@@ -370,5 +385,6 @@ export function evaluateGate(
     gatingCaseIds: [...gatingCaseIds],
     coveringUnitIds: [],
     emptyReason: null,
+    lifecycleExcludedCaseIds,
   };
 }

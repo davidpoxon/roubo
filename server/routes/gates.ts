@@ -320,6 +320,7 @@ function evaluateLoadedGate(
         coveringUnitIds: unresolvedCaseIds.length > 0 ? (unit.covers ?? []) : [],
         // Nothing narrowed this set: it is the declared set, reported whole.
         emptyReason: null,
+        lifecycleExcludedCaseIds: [],
       };
     } else {
       throw err;

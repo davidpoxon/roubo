@@ -625,6 +625,12 @@ export interface GateState {
   // (#768). Null on every other status, and null when the gate declared no cases
   // at all. Optional so a response from a server that predates #768 still parses.
   emptyReason?: GateEmptyReason | null;
+  // The declared gating case ids the case lifecycle removed from the effective
+  // set (#777, SATCA-FR-008/FR-011): the cases whose retirement is why the gate
+  // reads the way it does. Present on every status, including `passed`, since a
+  // gate can pass precisely because a case was retired. Optional so a response
+  // from a server that predates #777 still parses; absent is read as none.
+  lifecycleExcludedCaseIds?: string[];
   // The gate's milestone (phase) label, rendered as the card title with the gate
   // id as a mono sub-label (issue #433). Null/absent when the unit carries none
   // (e.g. a synthetic merged/split gate); the card then titles by the gate id.
