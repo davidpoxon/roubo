@@ -60,8 +60,15 @@ export type PermittedLifecycleFilename = (typeof PERMITTED_LIFECYCLE_FILENAMES)[
 // The single sink every lifecycle write goes through. It narrows the filename to
 // the pair above before handing off to the shared atomic primitive, so
 // "only the two permitted filenames are ever written" is a structural property
-// of this module rather than caller discipline (SATCA-TC-059). The manifest half
-// of the writer (the parallel spec-writes slice) reuses this same sink.
+// of this module rather than caller discipline (SATCA-TC-059).
+//
+// Today this sink carries the CASE half only. The manifest half landed
+// separately in #1166 and does its own same-directory temp-and-rename on a
+// hardcoded `manifest.json` (testbench-spec-lifecycle-write.ts), behind the same
+// three path-safety barriers but not through here. So `manifest.json` sits in the
+// pair above for a future caller rather than a current one; the architecture puts
+// both files under one LifecycleWriter, and converging the two sinks is the
+// cheapest way to get there.
 export function writeLifecycleFile(
   rootPath: string,
   slug: string,

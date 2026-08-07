@@ -31,14 +31,20 @@ import {
 //      intra-directory and EXDEV cannot occur. (state.ts atomicWrite is
 //      deliberately not reused: its sibling .tmp is only same-FS by luck.)
 
-// The complete set of filenames any Roubo write may place inside a spec folder
-// (SATCA-NFR-001, SATCA-TC-059). The lifecycle write path (#772) generalised
-// this primitive from one hardcoded filename to a parameterised one, so the
-// "only these filenames are ever written" property is enforced HERE, at the
-// single sink, rather than by every caller remembering to pass a safe value.
+// The complete set of filenames a write ROUTED THROUGH THIS PRIMITIVE may place
+// inside a spec folder (SATCA-NFR-001, SATCA-TC-059). The lifecycle write path
+// (#772) generalised it from one hardcoded filename to a parameterised one, so
+// for its callers the "only these filenames are ever written" property is
+// enforced HERE rather than by every caller remembering to pass a safe value.
 // `test-results.json` is the results sidecar Roubo has always owned;
-// `test-cases.json` and `manifest.json` are the two files the LifecycleWriter is
-// permitted to touch. Nothing else is reachable, whatever a caller passes.
+// `test-cases.json` is the case-lifecycle write.
+//
+// Scope note: this is not yet every Roubo write into a spec folder. The spec
+// lifecycle write (#1166) places `manifest.json` via its own temp-and-rename,
+// behind the same three path-safety barriers but not through this function, so
+// `manifest.json` is listed here for the case-side sink's allowlist rather than
+// because that writer passes through. Nothing else is reachable via this
+// primitive, whatever a caller passes.
 export const PERMITTED_SPEC_FILENAMES = [
   "test-results.json",
   "test-cases.json",
