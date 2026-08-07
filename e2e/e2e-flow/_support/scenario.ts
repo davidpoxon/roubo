@@ -415,6 +415,43 @@ export async function readTestResults(
 }
 
 /**
+ * #779 (SATCA-TC-058): inspect a provisioned TestBench worktree's git state via the
+ * ROUBO_E2E-gated `GET /test/__inspect-bench-git`. The in-app-actions journey asserts
+ * GIT facts ("exactly one file is modified", "the diff shows only the added lifecycle
+ * record", "nothing has been committed", "the tree returns to clean") that the
+ * content-reading taps (`readTestResults`, `readSpecManifest`) cannot express.
+ *
+ * `modified` lists every TRACKED path with a change on either side of the index,
+ * `staged` narrows that to index-side changes, `untracked` lists the rest; `diff` is
+ * the unified worktree diff and `headSha` the worktree's current commit, which the
+ * spec re-reads to prove nothing was committed underneath it.
+ */
+export async function inspectBenchGit(
+  request: APIRequestContext,
+  opts: { projectId: string; benchId: number },
+): Promise<{
+  modified: string[];
+  staged: string[];
+  untracked: string[];
+  diff: string;
+  headSha: string;
+}> {
+  const res = await request.get(
+    `/test/__inspect-bench-git?projectId=${encodeURIComponent(opts.projectId)}&benchId=${
+      opts.benchId
+    }`,
+  );
+  expect(res.status(), "inspect bench worktree git state").toBe(200);
+  return (await res.json()) as {
+    modified: string[];
+    staged: string[];
+    untracked: string[];
+    diff: string;
+    headSha: string;
+  };
+}
+
+/**
  * #773 (SATCA-TC-047/048/049): read one spec's `.specifications/<slug>/manifest.json`
  * out of a fixture project's repo, plus the sha256 of its test-cases.json, via
  * `/test/__read-spec-manifest`. The archival write drift guard uses it to assert

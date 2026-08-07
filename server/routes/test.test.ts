@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
@@ -2437,6 +2438,141 @@ describe("TestBench harness endpoints (#440)", () => {
       expect(res.body.error).toBe("read error");
       expect(consoleSpy).toHaveBeenCalledWith("/test/__read-spec-results failed:", "read error");
       readSpy.mockRestore();
+      consoleSpy.mockRestore();
+    });
+  });
+
+  // #779 (SATCA-TC-058): the git-inspection tap. The e2e journey that consumes it
+  // can only ever assert `staged` and `untracked` as EMPTY (a retirement stages
+  // nothing and creates nothing), so a parse bug that hardcoded either to `[]`
+  // would leave "nothing has been committed" and "no new file left behind"
+  // passing vacuously. These are the positive controls the journey cannot supply:
+  // each of the three classifications is asserted with a file that belongs in it.
+  describe("GET /test/__inspect-bench-git", () => {
+    // Turn the seeded worktree into a real repo with one commit, so `git status`
+    // has a baseline to be dirty against and `rev-parse HEAD` resolves.
+    function gitInitWorktree(): string {
+      const run = (args: string[]): string =>
+        execFileSync("git", args, { cwd: workspacePath, encoding: "utf-8" });
+      run(["init", "--initial-branch=main"]);
+      run(["config", "user.email", "e2e@example.com"]);
+      run(["config", "user.name", "E2E"]);
+      run(["config", "commit.gpgsign", "false"]);
+      run(["add", "."]);
+      run(["commit", "--no-gpg-sign", "-m", "seed"]);
+      return run(["rev-parse", "HEAD"]).trim();
+    }
+
+    it("returns 404 when ROUBO_E2E is unset", async () => {
+      const res = await request(app).get(
+        `/test/__inspect-bench-git?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+      expect(res.status).toBe(404);
+      expect(res.text).toBe("");
+    });
+
+    it("reports a clean worktree as clean, with HEAD resolved", async () => {
+      seedRepo(VALID_PLAN);
+      pointMocksAtRepo();
+      const head = gitInitWorktree();
+      process.env.ROUBO_E2E = "1";
+
+      const res = await request(app).get(
+        `/test/__inspect-bench-git?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.modified).toEqual([]);
+      expect(res.body.staged).toEqual([]);
+      expect(res.body.untracked).toEqual([]);
+      expect(res.body.diff).toBe("");
+      expect(res.body.headSha).toBe(head);
+    });
+
+    it("classifies unstaged, staged, and untracked changes into the right fields", async () => {
+      seedRepo(VALID_PLAN);
+      pointMocksAtRepo();
+      const head = gitInitWorktree();
+      const run = (args: string[]): string =>
+        execFileSync("git", args, { cwd: workspacePath, encoding: "utf-8" });
+
+      // Unstaged: a tracked file edited but not added. Belongs in `modified`
+      // only, which is the shape the live lifecycle write produces.
+      const casesPath = path.join(specDir, "test-cases.json");
+      fs.writeFileSync(casesPath, `${VALID_PLAN}\n`, "utf-8");
+      // Staged: a second tracked file edited AND added. Belongs in both.
+      const stagedPath = path.join(workspacePath, "staged.txt");
+      fs.writeFileSync(stagedPath, "before\n", "utf-8");
+      run(["add", "staged.txt"]);
+      run(["commit", "--no-gpg-sign", "-m", "add staged.txt"]);
+      fs.writeFileSync(stagedPath, "after\n", "utf-8");
+      run(["add", "staged.txt"]);
+      // Untracked: a brand-new file, never added. Belongs in `untracked` only.
+      fs.writeFileSync(path.join(workspacePath, "untracked.txt"), "new\n", "utf-8");
+
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app).get(
+        `/test/__inspect-bench-git?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+
+      expect(res.status).toBe(200);
+      const specRelPath = `.specifications/${SLUG}/test-cases.json`;
+      expect([...res.body.modified].sort()).toEqual(["staged.txt", specRelPath].sort());
+      // The staged file is in BOTH lists; the merely-edited one is in neither
+      // `staged` nor `untracked`. This is the discrimination the e2e cannot make.
+      expect(res.body.staged).toEqual(["staged.txt"]);
+      expect(res.body.untracked).toEqual(["untracked.txt"]);
+      expect(res.body.diff).toContain(specRelPath);
+      // HEAD moved because this test commits a second time; the point is that
+      // the route reports the CURRENT tip, which is what lets the journey prove
+      // the lifecycle write moved it not at all.
+      expect(res.body.headSha).not.toBe(head);
+      expect(res.body.headSha).toMatch(/^[0-9a-f]{40}$/);
+    });
+
+    it("returns 400 when benchId is not a positive integer", async () => {
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app).get(
+        `/test/__inspect-bench-git?projectId=${PROJECT_ID}&benchId=0`,
+      );
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/benchId/);
+    });
+
+    it("returns 404 when the bench is unknown", async () => {
+      seedRepo(VALID_PLAN);
+      vi.mocked(projectRegistry.getProject).mockReturnValue({
+        id: PROJECT_ID,
+        repoPath,
+        config: {} as never,
+        configValid: true,
+        settings: {} as never,
+      } as never);
+      vi.mocked(benchManager.getBench).mockReturnValue(undefined);
+      process.env.ROUBO_E2E = "1";
+      const res = await request(app).get(
+        `/test/__inspect-bench-git?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+      expect(res.status).toBe(404);
+      expect(res.body.error).toMatch(/Bench not found/);
+    });
+
+    it("returns 500 and logs when the worktree is not a git repository", async () => {
+      // No gitInitWorktree() call, so `git status` fails in the seeded dir.
+      seedRepo(VALID_PLAN);
+      pointMocksAtRepo();
+      process.env.ROUBO_E2E = "1";
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const res = await request(app).get(
+        `/test/__inspect-bench-git?projectId=${PROJECT_ID}&benchId=${BENCH_ID}`,
+      );
+
+      expect(res.status).toBe(500);
+      expect(typeof res.body.error).toBe("string");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "/test/__inspect-bench-git failed:",
+        expect.any(String),
+      );
       consoleSpy.mockRestore();
     });
   });
