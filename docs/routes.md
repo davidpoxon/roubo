@@ -160,6 +160,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/api/settings/env-keys`                                                                   | `server/routes/settings.ts`             |
 | GET    | `/test/__connection-state-log`                                                             | `server/routes/test.ts`                 |
 | POST   | `/test/__crash-plugin`                                                                     | `server/routes/test.ts`                 |
+| GET    | `/test/__inspect-bench-git`                                                                | `server/routes/test.ts`                 |
 | GET    | `/test/__inspect-marketplace-source`                                                       | `server/routes/test.ts`                 |
 | GET    | `/test/__plugin-enable-state`                                                              | `server/routes/test.ts`                 |
 | GET    | `/test/__read-cut-list-cache-file`                                                         | `server/routes/test.ts`                 |

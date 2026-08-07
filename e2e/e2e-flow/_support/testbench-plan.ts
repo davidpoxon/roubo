@@ -1414,3 +1414,115 @@ export const SATCA_TC033_OWNING_SLICES: Record<string, string> = {
   resolver: "#766 (LifecycleResolver: the live predicate the gate narrows on)",
   workUnitsUntouched: "#768 (verify gate: narrowing is computed at read time, never written back)",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SATCA-TC-058 (#779): the IN-APP ACTIONS journey. Where SATCA-TC-010 (#776)
+// proves a HAND-AUTHORED retirement is read by the app, this one proves the
+// reverse direction: an in-app retirement is WRITTEN, is reviewable as an
+// ordinary uncommitted git change, and reverses cleanly.
+//
+// The precondition the case states is "a clean working tree with a spec open in
+// a bench", so the plan seeds three live cases (no lifecycle key anywhere) and
+// the journey applies the record itself, through the real panel controls, into
+// the bench's own worktree.
+//
+//   - SATCA_TC058_RETIRE_CASE_ID: retired from the panel with a reason (S001).
+//   - the other two are never touched. They are the positive control that the
+//     live list has rendered (so the retired case's absence is meaningful), and
+//     the proof that the diff reaches exactly one case body and no sibling.
+//
+// `steps` is deliberately the LAST key on a case object: the writer appends
+// `lifecycle` after the existing keys, so the diff the journey asserts on is the
+// closing `]` of `steps` gaining a comma plus the lifecycle record's own lines,
+// and nothing else.
+// ─────────────────────────────────────────────────────────────────────────────
+export const SATCA_TC058_SPEC_SLUG = "archival-in-app-actions-spec";
+
+export const SATCA_TC058_RETIRE_CASE_ID = "SATCA-IAA-01";
+export const SATCA_TC058_UNTOUCHED_CASE_IDS = ["SATCA-IAA-02", "SATCA-IAA-03"] as const;
+
+// The reason typed into the retire disclosure. A full sentence with punctuation,
+// so a truncating render or a re-worded record fails rather than passing on a
+// prefix match, and free of characters JSON would escape, so the expected diff
+// line stays readable beside the assertion that uses it.
+export const SATCA_TC058_REASON =
+  "The manual worksheet this case covers was withdrawn, so it can never run again.";
+
+function inAppActionsCase(id: string, title: string): TestCasesPlan["cases"][number] {
+  return {
+    id,
+    title,
+    area: "in-app-actions",
+    level: 1,
+    type: "functional",
+    priority: "P0",
+    tags: [],
+    linked_requirement_ids: ["SATCA-FR-019"],
+    linked_user_story_ids: ["SATCA-US-006"],
+    steps: [
+      {
+        id: `${id}-S1`,
+        instruction: "Perform the check",
+        observations: [{ id: `${id}-S1-O1`, expected: "It holds" }],
+      },
+    ],
+  };
+}
+
+// The precondition plan: three cases, every one of them live. Seeded before the
+// fixture repo's initial commit, so the bench worktree starts clean and the
+// journey's git assertions have a real baseline.
+export const SATCA_TC058_LIVE_PLAN: TestCasesPlan = {
+  $schema: TEST_CASES_SCHEMA_ID,
+  schemaVersion: TEST_CASES_SCHEMA_VERSION,
+  specSlug: SATCA_TC058_SPEC_SLUG,
+  cases: [
+    inAppActionsCase(SATCA_TC058_RETIRE_CASE_ID, "Fill in the retirement worksheet by hand"),
+    inAppActionsCase(SATCA_TC058_UNTOUCHED_CASE_IDS[0], "Import a worksheet one row at a time"),
+    inAppActionsCase(SATCA_TC058_UNTOUCHED_CASE_IDS[1], "Import a batch of worksheets"),
+  ],
+};
+
+// The path, relative to the bench worktree root, that the retirement is allowed
+// to modify. S002-O01 asserts `modified` is exactly this one file.
+export const SATCA_TC058_CASE_FILE_PATH = `.specifications/${SATCA_TC058_SPEC_SLUG}/test-cases.json`;
+
+// The exact `+` lines the retirement is allowed to add to the case file, in
+// order, at the indentation `JSON.stringify(document, null, 2)` produces for a
+// key on a case object (6 spaces) and its nested fields (8). The first is the
+// closing `]` of the edited case's `steps`, which gains a comma because
+// `lifecycle` is appended after it; the rest are the lifecycle record itself.
+// Asserting the literal lines is what makes S002-O02 ("the diff shows only the
+// added lifecycle record") a real check rather than a substring sniff: any
+// reflow, re-order, or collateral edit to another case fails it.
+export const SATCA_TC058_EXPECTED_ADDED_LINES = [
+  "      ],",
+  '      "lifecycle": {',
+  '        "state": "retired",',
+  `        "reason": ${JSON.stringify(SATCA_TC058_REASON)}`,
+  "      }",
+];
+
+// The only `-` line the retirement is allowed to remove: the same `]` without
+// its new comma. A pure punctuation change, so no authored content is lost.
+export const SATCA_TC058_EXPECTED_REMOVED_LINES = ["      ]"];
+
+// The slices that own each leg of the in-app actions journey, surfaced in every
+// assertion message so a failing integrated run attributes the divergence to a
+// slice rather than to "the journey". Drawn from #779's blocked-by set (#767,
+// #772, #773, #774, #775, #781), minus the legs SATCA-TC-058 has no step for
+// (#773's spec-level write and #774's replacement picker are proven by their own
+// journeys), plus the two preconditions the journey needs before it can act.
+export const SATCA_TC058_OWNING_SLICES: Record<string, string> = {
+  enable: "#416 (TestBench feature flag: the panel is reachable at all)",
+  create: "#438 (create a TestBench from an empty slot: spec-bound worktree)",
+  clean: "#438 (create a TestBench from an empty slot: the worktree starts clean)",
+  live: "#769 (rollup and panel: a case with no lifecycle block is live)",
+  controls: "#775 (archival accessibility: the retire disclosure and its controls)",
+  write: "#772 (case lifecycle write: retire from the panel, with a reason)",
+  panel: "#769 (rollup and panel: the panel updates immediately after the write)",
+  scope: "#772 (case lifecycle write: one file, no sibling key rewritten)",
+  diff: "#767 (canonicalization excludes the lifecycle block, so the diff is lifecycle-only)",
+  uncommitted: "#772 (case lifecycle write: nothing is staged and nothing is committed)",
+  restore: "#772 (case lifecycle write: restore clears the record, returning the tree to clean)",
+};

@@ -1847,6 +1847,80 @@ router.get("/__read-spec-results", (req: Request, res: Response) => {
   }
 });
 
+// GET /test/__inspect-bench-git (#779, SATCA-TC-058): read-only git inspection of
+// a provisioned TestBench's own worktree, so the in-app-actions journey can assert
+// the GIT facts SATCA-TC-058 states and no other seam can express: exactly one
+// file is modified, the diff carries only the added lifecycle record, and nothing
+// has been committed. The existing disk taps (__read-spec-results,
+// __read-spec-manifest) read file CONTENT, which cannot answer any of those.
+//
+// Resolves the same way as the rewrite/read endpoints (rooted at the bench
+// worktree, #493), which is exactly where the live lifecycle write lands via
+// `resolveTestbench` (server/routes/testbench.ts). The fixture repo is git-init'd
+// and its seed committed before the worktree is added, so the worktree starts
+// clean and every assertion below is meaningful.
+//
+// Strictly read-only: `status`, `diff`, and `rev-parse` only. Nothing here stages,
+// commits, or resets, because "the change is left dirty in the worktree" is the
+// property under test. Gated by ROUBO_E2E; production builds 404 the URL.
+//
+// Query: ?projectId=<id>&benchId=<n>.
+// Returns { modified, staged, untracked, diff, headSha }, where `modified` lists
+// every TRACKED path with a change on either side of the index, `staged` narrows
+// that to paths with an index-side change, and `untracked` lists the rest.
+router.get("/__inspect-bench-git", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const benchIdRaw = req.query.benchId;
+  const target = parseBenchTarget({
+    projectId: req.query.projectId,
+    benchId: typeof benchIdRaw === "string" ? Number(benchIdRaw) : benchIdRaw,
+  });
+  if (typeof target === "string") {
+    return res.status(400).json({ error: target });
+  }
+  const resolved = resolveBenchSpecDir(target.projectId, target.benchId);
+  if ("error" in resolved) {
+    return res.status(resolved.status).json({ error: resolved.error });
+  }
+  try {
+    const git = (args: string[]): string =>
+      execFileSync("git", args, { cwd: resolved.rootPath, encoding: "utf-8" });
+    // --porcelain=v1 is the stable machine format: two status columns (index,
+    // worktree), a space, then the path. Renames would arrive as "old -> new";
+    // a lifecycle edit never produces one, and reporting the raw remainder keeps
+    // an unexpected shape visible in a failing assertion rather than hidden.
+    const modified: string[] = [];
+    const staged: string[] = [];
+    const untracked: string[] = [];
+    for (const line of git(["status", "--porcelain=v1", "--untracked-files=all"]).split("\n")) {
+      if (line.length === 0) continue;
+      const code = line.slice(0, 2);
+      const entryPath = line.slice(3);
+      if (code === "??") {
+        untracked.push(entryPath);
+        continue;
+      }
+      modified.push(entryPath);
+      if (code[0] !== " ") {
+        staged.push(entryPath);
+      }
+    }
+    res.status(200).json({
+      modified,
+      staged,
+      untracked,
+      diff: git(["diff", "--unified=3"]),
+      headSha: git(["rev-parse", "HEAD"]).trim(),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__inspect-bench-git failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
 // POST /test/__seed-spec-results (#487, TSPF-TC-011): seed a plan-hash-matching
 // test-results.json sidecar for a discovered spec in a fixture project's repo, so
 // the spec picker's server-side classification (verification.classification in
