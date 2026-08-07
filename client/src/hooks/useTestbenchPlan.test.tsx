@@ -165,4 +165,38 @@ describe("useSetCaseLifecycle", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["testbenchPlan", "p1", 3] });
   });
+
+  // The invalidation refetch is asynchronous, so a second action fired in the gap
+  // must not re-send the pre-write precondition and be refused with a 409 for the
+  // app's own write. Seeding the returned fingerprint closes that window.
+  it("seeds the returned fingerprint so a back-to-back action sends the new precondition", async () => {
+    mockedApi.setCaseLifecycle.mockResolvedValue({ caseFileFingerprint: "fp-after" } as never);
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(testbenchPlanQueryKey("p1", 3), cached);
+
+    const { result } = renderHookWithProviders(() => useSetCaseLifecycle(), { queryClient });
+    result.current.mutate({
+      projectId: "p1",
+      benchId: 3,
+      caseId: "TC-001",
+      lifecycle: { state: "retired", reason: "obsolete" },
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(
+      queryClient.getQueryData<typeof cached>(testbenchPlanQueryKey("p1", 3))?.caseFileFingerprint,
+    ).toBe("fp-after");
+
+    // A second action, before any refetch lands, carries the post-write value.
+    result.current.mutate({ projectId: "p1", benchId: 3, caseId: "TC-002", lifecycle: null });
+    await waitFor(() =>
+      expect(mockedApi.setCaseLifecycle).toHaveBeenLastCalledWith(
+        "p1",
+        3,
+        "TC-002",
+        null,
+        "fp-after",
+      ),
+    );
+  });
 });

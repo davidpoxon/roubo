@@ -51,9 +51,13 @@ export type PermittedSpecFilename = (typeof PERMITTED_SPEC_FILENAMES)[number];
 //
 // The filename is checked against the allowlist BEFORE any path is built, so a
 // traversal filename ("../../evil") or an unlisted one never reaches
-// resolveWithin, let alone an fs call. If the rename fails (an interrupted
-// write, SATCA-TC-054) the temp file is removed and the original target is left
-// exactly as it was: no partial or truncated file is left in the spec folder.
+// resolveWithin, let alone an fs call. If EITHER the temp write or the rename
+// fails (an interrupted write, SATCA-TC-054) the temp file is removed and the
+// original target is left exactly as it was: no partial or truncated file is
+// left in the spec folder. Both sinks sit inside the same try for that reason: a
+// temp write that dies part-way (ENOSPC, EIO) leaves exactly the truncated
+// sibling this guard exists to prevent, so guarding only the rename would miss
+// half the failure surface.
 //
 // Returns the resolved absolute target path.
 export function writeSpecFile(
@@ -75,13 +79,14 @@ export function writeSpecFile(
   fs.mkdirSync(dir, { recursive: true });
   assertRealpathWithin(rootPath, dir, "spec dir");
   const tmp = path.join(dir, `${safeFilename}.tmp`);
-  fs.writeFileSync(tmp, data);
   try {
+    fs.writeFileSync(tmp, data);
     fs.renameSync(tmp, target);
   } catch (err) {
-    // The rename is the commit point. If it never happened, the target still
-    // holds its original bytes; drop the temp so the spec folder is not left
-    // carrying a half-written sibling (SATCA-TC-054).
+    // The rename is the commit point. Until it lands, the target still holds its
+    // original bytes; drop the temp so the spec folder is not left carrying a
+    // half-written sibling, whether the temp write or the rename was what failed
+    // (SATCA-TC-054).
     try {
       fs.unlinkSync(tmp);
     } catch {

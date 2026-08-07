@@ -317,6 +317,36 @@ describe("interrupted write (SATCA-TC-054)", () => {
     expect(JSON.parse(fs.readFileSync(target, "utf8")).cases).toHaveLength(2);
     expect(fs.readdirSync(dir)).toEqual(["test-cases.json"]);
   });
+
+  // The temp write is the other half of the failure surface: a disk that fills or
+  // errors part-way through it leaves exactly the truncated sibling the rename
+  // guard exists to prevent, so it has to be cleaned up on the same path.
+  it("leaves the original intact and no .tmp behind when the temp write fails", () => {
+    const fingerprint = seed();
+    const before = fs.readFileSync(target, "utf8");
+    const dir = path.dirname(target);
+
+    const realWriteFileSync = fs.writeFileSync.bind(fs);
+    vi.spyOn(fs, "writeFileSync").mockImplementation(((
+      file: Parameters<typeof fs.writeFileSync>[0],
+      data: Parameters<typeof fs.writeFileSync>[1],
+      options?: Parameters<typeof fs.writeFileSync>[2],
+    ) => {
+      // Simulate a write that dies after committing partial bytes to the temp.
+      realWriteFileSync(file, "{ truncated", options);
+      throw new Error("ENOSPC: no space left on device");
+    }) as typeof fs.writeFileSync);
+
+    expect(() =>
+      setCaseLifecycle(repo, "demo", "TC-001", { state: "retired", reason: "gone" }, fingerprint),
+    ).toThrow("ENOSPC");
+
+    vi.restoreAllMocks();
+
+    expect(fs.readFileSync(target, "utf8")).toBe(before);
+    expect(JSON.parse(fs.readFileSync(target, "utf8")).cases).toHaveLength(2);
+    expect(fs.readdirSync(dir)).toEqual(["test-cases.json"]);
+  });
 });
 
 // SATCA-TC-056: a modification made outside the app between load and write is

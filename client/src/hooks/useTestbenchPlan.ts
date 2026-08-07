@@ -89,8 +89,10 @@ export function caseLifecycleErrorMessage(error: unknown): string | null {
 // retired before the file says so is exactly the drift the conflict check exists
 // to prevent.
 //
-// The `If-Match` precondition is read from the cached plan, which IS the view the
-// reviewer acted on, so the fingerprint sent is always the one they were shown.
+// The `If-Match` precondition is read from the cached plan: either the value the
+// reviewer's view was loaded at, or the post-write value this hook seeded after
+// its own last successful write (see onSuccess). Both describe a file state the
+// app itself is up to date with, which is the property the conflict check needs.
 // A cache with no fingerprint (an older server, or a plan that never loaded)
 // fails fast rather than writing unconditionally.
 export function useSetCaseLifecycle() {
@@ -106,7 +108,17 @@ export function useSetCaseLifecycle() {
       }
       return api.setCaseLifecycle(projectId, benchId, caseId, lifecycle, fingerprint);
     },
-    onSuccess: (_result, vars) => {
+    onSuccess: (result, vars) => {
+      // Seed the post-write fingerprint into the cache BEFORE invalidating. The
+      // invalidation refetch is asynchronous, so a second action fired in the gap
+      // would otherwise re-send the pre-write precondition and be refused with a
+      // 409 for the app's OWN write. The server returns the new fingerprint for
+      // exactly this reason, and each archived entry mounts its own Restore
+      // button, so back-to-back actions are a normal thing to do.
+      queryClient.setQueryData<TestbenchPlanData>(
+        testbenchPlanQueryKey(vars.projectId, vars.benchId),
+        (old) => (old ? { ...old, caseFileFingerprint: result.caseFileFingerprint } : old),
+      );
       queryClient.invalidateQueries({
         queryKey: testbenchPlanQueryKey(vars.projectId, vars.benchId),
       });
