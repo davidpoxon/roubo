@@ -72,6 +72,18 @@ export default function TestBenchPanel({
   });
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  // The case most recently retired or superseded from the detail pane (#775,
+  // AC4). Retiring removes the case from the live list, which unmounts the
+  // control that applied the action; without this, focus falls to the document
+  // body and nothing says what happened. The id drives two things: the archived
+  // entry takes focus once the refetched plan mounts it, and the live region
+  // below states the outcome. Cleared as soon as another case is selected.
+  const [archivedCaseId, setArchivedCaseId] = useState<string | undefined>(undefined);
+
+  const selectCase = (caseId: string | undefined) => {
+    setArchivedCaseId(undefined);
+    setSelectedCaseId(caseId);
+  };
   const setFocus = useSetTestbenchFocus();
 
   // Per-bench UI state, persisted via localStorage so it survives tab/bench
@@ -152,6 +164,15 @@ export default function TestBenchPanel({
     [data],
   );
   const flatRows = useMemo(() => (model ? flattenRollup(model) : []), [model]);
+  // The outcome of the last lifecycle write, in words (#775, AC4). Derived from
+  // the refetched rollup rather than from what was submitted, so it states what
+  // the server actually recorded and stays empty until the case really has moved.
+  const archivedNotice = useMemo(() => {
+    if (archivedCaseId === undefined || model === null) return "";
+    const entry = model.archived.find((a) => a.case.id === archivedCaseId);
+    if (entry === undefined) return "";
+    return `${entry.case.id} is now ${entry.state}. It has moved to the Archived section, where it can be restored.`;
+  }, [archivedCaseId, model]);
   // The case ids in list (grouped) order, so the detail pane's Next action can
   // advance to the case that visually follows the current one (#508).
   const orderedCaseIds = useMemo(
@@ -183,7 +204,7 @@ export default function TestBenchPanel({
       {
         onSuccess: () => {
           // Drop any stale selection from the prior spec before the new plan loads.
-          setSelectedCaseId(undefined);
+          selectCase(undefined);
           setIsPickerOpen(false);
         },
       },
@@ -399,11 +420,7 @@ export default function TestBenchPanel({
                 </Button>
               </div>
             )}
-            <CaseList
-              rows={flatRows}
-              onSelect={setSelectedCaseId}
-              selectedCaseId={selectedCaseId}
-            />
+            <CaseList rows={flatRows} onSelect={selectCase} selectedCaseId={selectedCaseId} />
           </div>
         )}
         {selectedCase && (
@@ -413,18 +430,26 @@ export default function TestBenchPanel({
               benchId={benchId}
               testCase={selectedCase}
               result={data.results?.caseResults[selectedCase.id]}
-              onBack={() => setSelectedCaseId(undefined)}
-              onNext={nextCaseId ? () => setSelectedCaseId(nextCaseId) : undefined}
+              onBack={() => selectCase(undefined)}
+              onNext={nextCaseId ? () => selectCase(nextCaseId) : undefined}
+              onArchived={setArchivedCaseId}
             />
           </div>
         )}
       </div>
+      {/* Always mounted while the case review is on screen, so the region exists
+          before its text changes; a live region that mounts together with its
+          message is not reliably announced (#775, AC4). */}
+      <div aria-live="polite" className="sr-only" data-testid="testbench-lifecycle-live">
+        {archivedNotice}
+      </div>
       <ArchivedCases
         results={data.results}
         archived={model.archived}
-        onSelectCase={setSelectedCaseId}
+        onSelectCase={selectCase}
         projectId={projectId}
         benchId={benchId}
+        focusCaseId={archivedCaseId}
       />
       {classification && (
         <ReconcileDialog

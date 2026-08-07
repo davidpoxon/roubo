@@ -691,6 +691,121 @@ describe("CaseDetail lifecycle actions (#772)", () => {
     expect(alert).toHaveTextContent(/reload/i);
   });
 
+  // #775 AC1/AC3 (SATCA-TC-057): the retire and supersede forms are inline
+  // disclosures, not dialogs, so each toggle declares its expanded state and
+  // names the panel it governs instead of leaving the relationship visual only.
+  it("declares each lifecycle toggle's disclosure state and the panel it controls", async () => {
+    const user = userEvent.setup();
+    render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
+
+    const retire = screen.getByTestId("case-retire-open");
+    const supersede = screen.getByTestId("case-supersede-open");
+    expect(retire).toHaveAttribute("aria-expanded", "false");
+    expect(supersede).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(retire);
+    expect(retire).toHaveAttribute("aria-expanded", "true");
+    expect(retire.getAttribute("aria-controls")).toBe(screen.getByTestId("case-retire-panel").id);
+    expect(supersede).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(supersede);
+    expect(supersede).toHaveAttribute("aria-expanded", "true");
+    expect(supersede.getAttribute("aria-controls")).toBe(
+      screen.getByTestId("case-supersede-panel").id,
+    );
+    // Only one panel is open at a time, and the closed toggle says so.
+    expect(retire).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("is keyboard operable: the lifecycle toggles open their panel from the keyboard", async () => {
+    const user = userEvent.setup();
+    render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
+
+    // Tabbed to, never clicked: the point is that the toggle is reachable by
+    // keyboard alone from the top of the pane. The bound is generous but finite.
+    const retire = screen.getByTestId("case-retire-open");
+    for (let i = 0; i < 20 && document.activeElement !== retire; i += 1) {
+      await user.tab();
+    }
+    expect(retire).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(retire).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("case-retire-reason")).toBeInTheDocument();
+  });
+
+  it("refuses to submit either form while its required field is empty", async () => {
+    const user = userEvent.setup();
+    render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
+
+    await user.click(screen.getByTestId("case-retire-open"));
+    expect(screen.getByTestId("case-retire-submit")).toBeDisabled();
+    await user.click(screen.getByTestId("case-supersede-open"));
+    expect(screen.getByTestId("case-supersede-submit")).toBeDisabled();
+  });
+
+  // #775 AC4: the case is about to leave the live list, which unmounts these
+  // controls. The pane hands the id up so the panel can place focus on the
+  // archived entry and announce the outcome, rather than losing focus to the body.
+  it("reports the archived case id once the write succeeds, so focus can be placed", async () => {
+    const mutate = vi.fn((_vars, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
+    mockSetLifecycle.mockReturnValue(makeMutationMock(mutate as never));
+    const onArchived = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <CaseDetail
+        projectId="p1"
+        benchId={4}
+        testCase={CASE}
+        result={undefined}
+        onArchived={onArchived}
+      />,
+    );
+
+    await user.click(screen.getByTestId("case-retire-open"));
+    await user.type(screen.getByTestId("case-retire-reason"), "covered by TC-009");
+    await user.click(screen.getByTestId("case-retire-submit"));
+
+    expect(onArchived).toHaveBeenCalledWith("TC-001");
+    // The form closes on success, so the reviewer is not left in a stale panel.
+    expect(screen.getByTestId("case-retire-open")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("does not report an archived case when the write fails", async () => {
+    const mutate = vi.fn();
+    mockSetLifecycle.mockReturnValue(makeMutationMock(mutate));
+    const onArchived = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <CaseDetail
+        projectId="p1"
+        benchId={4}
+        testCase={CASE}
+        result={undefined}
+        onArchived={onArchived}
+      />,
+    );
+
+    await user.click(screen.getByTestId("case-retire-open"));
+    await user.type(screen.getByTestId("case-retire-reason"), "covered by TC-009");
+    await user.click(screen.getByTestId("case-retire-submit"));
+
+    expect(mutate).toHaveBeenCalled();
+    expect(onArchived).not.toHaveBeenCalled();
+  });
+
+  it("has no axe violations with both lifecycle panels exercised", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />,
+    );
+
+    await user.click(screen.getByTestId("case-retire-open"));
+    expectNoAxeFindings(await axe(container));
+
+    await user.click(screen.getByTestId("case-supersede-open"));
+    expectNoAxeFindings(await axe(container));
+  });
+
   it("points an already-archived case at the archived section instead of re-archiving it", () => {
     const archived: Case = { ...CASE, lifecycle: { state: "retired", reason: "obsolete" } };
     render(<CaseDetail projectId="p1" benchId={4} testCase={archived} result={undefined} />);

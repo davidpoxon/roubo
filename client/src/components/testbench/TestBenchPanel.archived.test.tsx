@@ -21,13 +21,17 @@ import type { SpecLifecycleState, TestbenchPlanResponse } from "../../lib/api";
 
 const mockUseTestbenchPlan = vi.hoisted(() => vi.fn());
 const mockMarkObservation = vi.hoisted(() => vi.fn());
+// #775: the AC4 join needs a lifecycle mutation that can actually succeed, so
+// the stub is controllable rather than inert. Defaulted to a no-op mutate in
+// beforeEach, which is what every pre-#775 case in this suite assumes.
+const mockSetCaseLifecycle = vi.hoisted(() => vi.fn());
 
 vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: () => mockUseTestbenchPlan(),
   useSetTestbenchFocus: () => ({ mutate: vi.fn(), isPending: false }),
   // #772: the panel's archived entries and the case detail pane both reach for
-  // the lifecycle mutation; neither is under test here, so stub it inert.
-  useSetCaseLifecycle: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  // the lifecycle mutation.
+  useSetCaseLifecycle: () => mockSetCaseLifecycle(),
   caseLifecycleErrorMessage: () => null,
 }));
 // Keep the real pure helpers the spec-picker imports; only the two fetching
@@ -101,6 +105,7 @@ function setPlan(data: Partial<TestbenchPlanResponse> = {}): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSetCaseLifecycle.mockReturnValue({ mutate: vi.fn(), isPending: false, error: null });
   // This suite exercises the Cases view; the panel defaults to Batches (#359).
   localStorage.clear();
   localStorage.setItem(
@@ -159,5 +164,88 @@ describe("TestBenchPanel archived focused spec (#770)", () => {
       },
       expect.anything(),
     );
+  });
+});
+
+// #775 AC4 (SATCA-TC-057 S002): retiring a case from the detail pane removes it
+// from the live list, which unmounts the control that applied the action. The
+// panel is the only place the two halves meet: CaseDetail reports the archived
+// id upward, and the panel both announces the outcome and hands the id to the
+// Archived section so the entry takes focus. Each half is covered against its own
+// component; this exercises the join, which is what a reviewer actually relies on.
+describe("TestBenchPanel focus and announcement after a case is archived (#775)", () => {
+  function retiredCase(id: string): Case {
+    return { ...makeCase(id), lifecycle: { state: "retired", reason: "covered by TC-B" } };
+  }
+
+  async function retireTheFirstCase(): Promise<void> {
+    const user = userEvent.setup();
+    // A mutation that actually succeeds, so CaseDetail runs its onSuccess and
+    // reports the archived id up to the panel.
+    mockSetCaseLifecycle.mockReturnValue({
+      mutate: vi.fn((_vars, options?: { onSuccess?: () => void }) => options?.onSuccess?.()),
+      isPending: false,
+      error: null,
+    });
+    await user.click(screen.getAllByTestId("case-row")[0]);
+    await user.click(screen.getByTestId("case-retire-open"));
+    await user.type(screen.getByTestId("case-retire-reason"), "covered by TC-B");
+    await user.click(screen.getByTestId("case-retire-submit"));
+  }
+
+  it("announces the outcome and focuses the archived entry once the refetched plan lists it", async () => {
+    setPlan({ plan: plan([makeCase("TC-A"), makeCase("TC-B")]) });
+    const { rerender } = render(
+      <TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />,
+    );
+
+    // Nothing has been archived yet, so the region is mounted but silent. It has
+    // to exist BEFORE the text changes or the update is not reliably announced.
+    const live = screen.getByTestId("testbench-lifecycle-live");
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect(live).toHaveTextContent("");
+
+    await retireTheFirstCase();
+
+    // The refetched plan now carries the lifecycle record, which is what moves
+    // the case out of the live list and into the Archived section.
+    setPlan({ plan: plan([retiredCase("TC-A"), makeCase("TC-B")]) });
+    rerender(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+
+    expect(live).toHaveTextContent(
+      "TC-A is now retired. It has moved to the Archived section, where it can be restored.",
+    );
+    expect(screen.getByTestId("archived-case-TC-A")).toHaveFocus();
+  });
+
+  it("stays silent until the refetched plan actually reports the case archived", async () => {
+    setPlan({ plan: plan([makeCase("TC-A"), makeCase("TC-B")]) });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+
+    await retireTheFirstCase();
+
+    // The write succeeded but the plan has not come back yet, so the rollup lists
+    // no archived entry. The notice states what the server recorded, never what
+    // was merely submitted, so it stays empty rather than claiming a moved case.
+    expect(screen.getByTestId("testbench-lifecycle-live")).toHaveTextContent("");
+    expect(screen.queryByTestId("archived-case-TC-A")).not.toBeInTheDocument();
+  });
+
+  it("clears the notice and the focus target when another case is selected", async () => {
+    const user = userEvent.setup();
+    setPlan({ plan: plan([makeCase("TC-A"), makeCase("TC-B")]) });
+    const { rerender } = render(
+      <TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />,
+    );
+
+    await retireTheFirstCase();
+    setPlan({ plan: plan([retiredCase("TC-A"), makeCase("TC-B")]) });
+    rerender(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+    expect(screen.getByTestId("testbench-lifecycle-live")).not.toHaveTextContent("");
+
+    // Moving on to another case is the reviewer leaving the outcome behind; a
+    // live region that kept the stale sentence would re-announce it later.
+    await user.click(screen.getAllByTestId("case-row")[0]);
+    expect(screen.getByTestId("testbench-lifecycle-live")).toHaveTextContent("");
   });
 });

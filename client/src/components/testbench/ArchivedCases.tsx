@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Archive, Undo2 } from "lucide-react";
 import { Button } from "react-aria-components";
 import type { BenchResults, CaseResult } from "@roubo/shared/testbench-contracts";
@@ -29,6 +30,24 @@ import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useT
 // same-spec pointer whose target is absent from the plan or not itself live
 // (#789), which would otherwise be a control that does nothing when activated.
 //
+// Focus lands here after a case is archived from the case detail pane (#775,
+// SATCA-NFR-005). Retiring or superseding removes the case from the live list,
+// which unmounts the control that applied the action and would otherwise drop
+// focus to the document body. The panel hands this section the id of the case
+// that just arrived; the matching entry takes focus, so the reviewer is put on
+// the surface the case moved to, which is also where Restore now sits.
+//
+// Every colour token below is chosen to clear WCAG 2.1 AA (4.5:1) against the
+// entry and section backgrounds in BOTH themes; the small state and metadata
+// text used to sit at stone-400/stone-500, which measures as low as 2.5:1.
+// e2e/e2e-flow/archival-contrast.spec.ts is the browser-rendered guard, because
+// jsdom has no layout engine and so cannot decide the color-contrast rule. That
+// guard reaches the state labels, the situation lines, the retained reason, the
+// replacement reveal and Restore; it does NOT yet reach the pass/fail mark
+// colours in ObservationMarks, because the fixture seam synthesizes results with
+// an empty observationMarks map and only a real mark-then-retire journey would
+// render them. Extending it is roubo-development#797.
+//
 // Restore lives on the lifecycle entry (#772, SATCA-FR-021). It is here rather
 // than in the case detail pane because retiring a case removes it from the live
 // list, so the surface that applied the action cannot be the one that reverses
@@ -56,14 +75,14 @@ function effectiveStatus(result: CaseResult): CaseResult["derivedStatus"] {
 
 function StateLabel({ children }: { children: string }) {
   return (
-    <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-500 dark:text-stone-400 bg-stone-200/70 dark:bg-stone-800/70 shrink-0">
+    <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 shrink-0">
       {children}
     </span>
   );
 }
 
 function Situation({ children }: { children: string }) {
-  return <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">{children}</p>;
+  return <p className="mt-1 text-[11px] text-stone-600 dark:text-stone-400">{children}</p>;
 }
 
 function ObservationMarks({ result }: { result: CaseResult | undefined }) {
@@ -74,14 +93,14 @@ function ObservationMarks({ result }: { result: CaseResult | undefined }) {
       {marks.map(([observationId, mark]) => (
         <li
           key={observationId}
-          className="flex items-center gap-2 font-mono text-[11px] text-stone-500 dark:text-stone-500"
+          className="flex items-center gap-2 font-mono text-[11px] text-stone-600 dark:text-stone-400"
         >
           <span className="truncate">{observationId}</span>
           <span
             className={
               mark.result === "pass"
-                ? "font-semibold text-green-600 dark:text-green-400"
-                : "font-semibold text-red-600 dark:text-red-400"
+                ? "font-semibold text-green-700 dark:text-green-400"
+                : "font-semibold text-red-700 dark:text-red-400"
             }
           >
             {mark.result}
@@ -119,6 +138,7 @@ function LifecycleEntry({
   onSelectCase,
   projectId,
   benchId,
+  shouldFocus = false,
 }: {
   entry: ArchivedCaseModel;
   result: CaseResult | undefined;
@@ -127,9 +147,18 @@ function LifecycleEntry({
   // in a read-only render) the entry simply shows no Restore control.
   projectId?: string;
   benchId?: number;
+  // True for the entry the case just moved into, so focus lands here rather than
+  // on the body when the applying control unmounts (#775, AC4).
+  shouldFocus?: boolean;
 }) {
   const caseId = entry.case.id;
   const restore = useSetCaseLifecycle();
+  // tabIndex -1 keeps the entry out of the tab order while still being a legal
+  // programmatic focus target; the reviewer tabs on from here into Restore.
+  const entryRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (shouldFocus) entryRef.current?.focus();
+  }, [shouldFocus]);
   const restoreError = caseLifecycleErrorMessage(restore.error);
   const canRestore = projectId !== undefined && benchId !== undefined;
   // Only a replacement the rollup found to be present and live in this spec's
@@ -141,9 +170,14 @@ function LifecycleEntry({
       ? entry.replacementRef.caseId
       : null;
   return (
-    <li data-testid={`archived-case-${caseId}`} className={ENTRY_CLASS}>
+    <li
+      ref={entryRef}
+      tabIndex={-1}
+      data-testid={`archived-case-${caseId}`}
+      className={`${ENTRY_CLASS} outline-none focus-visible:ring-2 focus-visible:ring-amber-500`}
+    >
       <div className="flex items-center gap-3">
-        <span className="font-mono text-[11px] text-stone-400 dark:text-stone-600 shrink-0">
+        <span className="font-mono text-[11px] text-stone-600 dark:text-stone-400 shrink-0">
           {caseId}
         </span>
         <StateLabel>{STATE_LABEL[entry.state]}</StateLabel>
@@ -201,7 +235,7 @@ function LifecycleEntry({
         <p
           role="alert"
           data-testid={`archived-restore-error-${caseId}`}
-          className="mt-1 text-[12px] text-red-600 dark:text-red-400"
+          className="mt-1 text-[12px] text-red-700 dark:text-red-400"
         >
           {restoreError}
         </p>
@@ -216,6 +250,7 @@ export default function ArchivedCases({
   onSelectCase,
   projectId,
   benchId,
+  focusCaseId,
 }: {
   results: BenchResults | null;
   archived?: ArchivedCaseModel[];
@@ -224,6 +259,9 @@ export default function ArchivedCases({
   // (#772). Optional, so a read-only render of the section still works.
   projectId?: string;
   benchId?: number;
+  // The case that just arrived here, so its entry can take focus (#775, AC4).
+  // Undefined on an ordinary render, which leaves focus exactly where it was.
+  focusCaseId?: string;
 }) {
   const orphans = results
     ? Object.entries(results.caseResults).filter(([, result]) => result.orphaned === true)
@@ -239,13 +277,13 @@ export default function ArchivedCases({
       className="rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/40 dark:bg-stone-900/30 px-4 py-3"
     >
       <div className="flex items-center gap-2">
-        <Archive size={13} className="text-stone-500 shrink-0" aria-hidden />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+        <Archive size={13} className="text-stone-600 dark:text-stone-400 shrink-0" aria-hidden />
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-600 dark:text-stone-300">
           Archived
         </span>
-        <span className="font-mono text-[11px] text-stone-500 dark:text-stone-500">{total}</span>
+        <span className="font-mono text-[11px] text-stone-600 dark:text-stone-400">{total}</span>
       </div>
-      <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+      <p className="mt-1 text-[11px] text-stone-600 dark:text-stone-400 leading-relaxed">
         Excluded from the rollup and from the live case list. Recorded marks, notes, and status
         overrides are retained, never deleted.
       </p>
@@ -258,12 +296,13 @@ export default function ArchivedCases({
             onSelectCase={onSelectCase}
             projectId={projectId}
             benchId={benchId}
+            shouldFocus={focusCaseId === entry.case.id}
           />
         ))}
         {orphans.map(([caseId, result]) => (
           <li key={caseId} data-testid={`archived-case-${caseId}`} className={ENTRY_CLASS}>
             <div className="flex items-center gap-3">
-              <span className="font-mono text-[11px] text-stone-400 dark:text-stone-600 shrink-0">
+              <span className="font-mono text-[11px] text-stone-600 dark:text-stone-400 shrink-0">
                 {caseId}
               </span>
               <StateLabel>Removed from plan</StateLabel>

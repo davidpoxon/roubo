@@ -66,6 +66,11 @@ interface CaseDetailProps {
   // live-updates (pending / failed / passed / stale) as cases are marked. The
   // plain TestBench panel omits it, so existing behaviour is unchanged.
   onMarked?: () => void;
+  // Invoked once a retire or supersede write succeeds (#775, AC4). The case has
+  // just left the live list, which unmounts the control that applied the action,
+  // so the panel uses this to move focus onto the archived entry the case landed
+  // in and to announce the outcome. Omitted in a read-only render.
+  onArchived?: (caseId: string) => void;
 }
 
 const SECTION_LABEL =
@@ -89,6 +94,7 @@ export default function CaseDetail({
   onBack,
   onNext,
   onMarked,
+  onArchived,
 }: CaseDetailProps) {
   const markObservation = useMarkObservation();
   const setStatusOverride = useSetStatusOverride();
@@ -324,7 +330,12 @@ export default function CaseDetail({
           {/* Lifecycle actions (#772): the write path into the spec's own case
               file, kept at the foot of the case body so the review surface
               (steps, marks, notes) stays first. */}
-          <LifecycleControls projectId={projectId} benchId={benchId} testCase={testCase} />
+          <LifecycleControls
+            projectId={projectId}
+            benchId={benchId}
+            testCase={testCase}
+            onArchived={onArchived}
+          />
         </div>
 
         {/* Inline side rail, only when the pane is wide enough (#524). When
@@ -380,14 +391,20 @@ const ACTION_CLASS =
 //
 // A 409 is rendered as a reload prompt rather than a generic failure: the case
 // file moved under the request, and reloading is the only useful next step.
+//
+// Each action's form is a disclosure, not a dialog: it is an inline panel, so it
+// declares itself with aria-expanded and aria-controls on the toggle that opens
+// it rather than borrowing modal semantics it does not have (#775, AC1/AC3).
 function LifecycleControls({
   projectId,
   benchId,
   testCase,
+  onArchived,
 }: {
   projectId: string;
   benchId: number;
   testCase: Case;
+  onArchived?: (caseId: string) => void;
 }) {
   const [open, setOpen] = useState<"retire" | "supersede" | null>(null);
   const [reason, setReason] = useState("");
@@ -403,6 +420,8 @@ function LifecycleControls({
   // focus call made from the handler that closed it.
   const chooseRef = useRef<HTMLButtonElement>(null);
   const pickerWasOpen = useRef(false);
+  const retirePanelId = useId();
+  const supersedePanelId = useId();
   const setLifecycle = useSetCaseLifecycle();
   const error = caseLifecycleErrorMessage(setLifecycle.error);
 
@@ -437,6 +456,10 @@ function LifecycleControls({
           setOpen(null);
           setReason("");
           setReplacement("");
+          // The case is no longer live, so this whole control block is about to
+          // unmount. Hand the panel the id it needs to place focus and announce
+          // the outcome, instead of letting focus fall to the body (AC4).
+          onArchived?.(testCase.id);
         },
       },
     );
@@ -453,6 +476,8 @@ function LifecycleControls({
         <div className="flex items-center gap-2">
           <Button
             data-testid="case-retire-open"
+            aria-expanded={open === "retire"}
+            aria-controls={retirePanelId}
             onPress={() => setOpen(open === "retire" ? null : "retire")}
             className={ACTION_CLASS}
           >
@@ -461,6 +486,8 @@ function LifecycleControls({
           </Button>
           <Button
             data-testid="case-supersede-open"
+            aria-expanded={open === "supersede"}
+            aria-controls={supersedePanelId}
             onPress={() => setOpen(open === "supersede" ? null : "supersede")}
             className={ACTION_CLASS}
           >
@@ -470,7 +497,11 @@ function LifecycleControls({
         </div>
 
         {open === "retire" && (
-          <div className="flex flex-col gap-2 rounded-md bg-stone-100/70 dark:bg-stone-800/40 p-3">
+          <div
+            id={retirePanelId}
+            data-testid="case-retire-panel"
+            className="flex flex-col gap-2 rounded-md bg-stone-100/70 dark:bg-stone-800/40 p-3"
+          >
             <TextField
               value={reason}
               onChange={setReason}
@@ -494,7 +525,11 @@ function LifecycleControls({
         )}
 
         {open === "supersede" && (
-          <div className="flex flex-col gap-2 rounded-md bg-stone-100/70 dark:bg-stone-800/40 p-3">
+          <div
+            id={supersedePanelId}
+            data-testid="case-supersede-panel"
+            className="flex flex-col gap-2 rounded-md bg-stone-100/70 dark:bg-stone-800/40 p-3"
+          >
             <div className="flex flex-col gap-1">
               <span className={FIELD_LABEL_CLASS}>Replacement case</span>
               <div className="flex items-center gap-2">
