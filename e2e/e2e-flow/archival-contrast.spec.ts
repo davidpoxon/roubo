@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { injectAxe, scanBothThemes } from "./_support/axe-contrast.js";
 import {
   loadAppShell,
@@ -8,6 +8,10 @@ import {
 } from "./_support/scenario.js";
 import {
   SATCA_A11Y_LIVE_CASE_ID,
+  SATCA_A11Y_MARK_FAIL_EXPECTATION,
+  SATCA_A11Y_MARK_PASS_EXPECTATION,
+  SATCA_A11Y_MARKED_CASE_ID,
+  SATCA_A11Y_MARKED_REASON,
   SATCA_A11Y_PLAN,
   SATCA_A11Y_RETIRED_CASE_ID,
   SATCA_A11Y_SPEC_SLUG,
@@ -39,6 +43,17 @@ import {
 //   3. the case detail pane's retire and supersede lifecycle disclosures, and
 //      the replacement picker dialog they open.
 //
+// #797 closed the one gap #775 left: the pass/fail mark colours ObservationMarks
+// renders on an archived entry (text-green-700 / text-red-700 in light,
+// green-400 / red-400 in dark). No fixture seam can reach them, because the
+// seeded-results synthesizer writes an empty `observationMarks` map and
+// ObservationMarks renders nothing for one, so the panel test now drives the
+// real journey instead: it marks two observations on a dedicated live case (one
+// pass, one fail), retires that case from the detail pane, and scans the
+// Archived section again with the retained marks on screen. The same step
+// asserts #775's AC4 focus landing in a real browser, which the jsdom suite can
+// only observe through a callback.
+//
 // Each is scanned in BOTH themes. The injection, theme-flip and scan helpers are
 // the shared ones in _support/axe-contrast.ts; the scans are scoped to the
 // archival surface under test rather than the whole page, so a pre-existing
@@ -64,6 +79,29 @@ async function enableTestBench(request: APIRequestContext): Promise<void> {
 async function gotoBenchList(page: Page, projectId: string): Promise<void> {
   const res = await page.goto(`/projects/${projectId}`);
   expect(res?.status()).toBe(200);
+}
+
+// Mark ONE observation of the open case detail pane, addressed by its `expected`
+// text (the mark control's accessible name is
+// `Mark observation pass or fail: ${expected}`), so a case carrying several
+// observations can be marked per observation rather than as a whole. React
+// Aria's ToggleButton hosts the press responder on the visible "Pass"/"Fail"
+// label, so that text is the click target; awaiting the checked state is what
+// proves the mark round-tripped to the sidecar before the case is retired.
+async function markObservation(
+  panel: Locator,
+  expected: string,
+  result: "pass" | "fail",
+): Promise<void> {
+  const group = panel.getByRole("radiogroup", {
+    name: `Mark observation pass or fail: ${expected}`,
+  });
+  const label = result === "pass" ? "Pass" : "Fail";
+  await group.getByText(label, { exact: true }).click();
+  await expect(
+    group.getByRole("radio", { name: label }),
+    `observation "${expected}" marked ${result}`,
+  ).toBeChecked();
 }
 
 test.beforeEach(async ({ request }) => {
@@ -192,6 +230,39 @@ test.describe(() => {
         archivedSection.getByTestId(`archived-restore-${SATCA_A11Y_RETIRED_CASE_ID}`),
       ).toBeVisible();
       await scanBothThemes(page, archivedSection, "panel/archived-section");
+    });
+
+    await test.step("#797: mark two observations pass and fail on a live case", async () => {
+      // The mark colours can only be reached through the real journey: the
+      // seeded-results seam synthesizes an empty observationMarks map, and
+      // ObservationMarks renders nothing for one.
+      await panel.getByTestId("case-row").filter({ hasText: SATCA_A11Y_MARKED_CASE_ID }).click();
+      await markObservation(panel, SATCA_A11Y_MARK_PASS_EXPECTATION, "pass");
+      await markObservation(panel, SATCA_A11Y_MARK_FAIL_EXPECTATION, "fail");
+    });
+
+    const markedEntry = archivedSection.getByTestId(`archived-case-${SATCA_A11Y_MARKED_CASE_ID}`);
+
+    await test.step("#797: retiring the marked case moves it, with its marks, into the Archived section", async () => {
+      await panel.getByTestId("case-retire-open").click();
+      await panel.getByTestId("case-retire-reason").fill(SATCA_A11Y_MARKED_REASON);
+      await panel.getByTestId("case-retire-submit").click();
+      await expect(markedEntry).toBeVisible();
+      // #775 AC4: the applying control unmounts with the case, so focus is moved
+      // to the archived entry the case arrived on. jsdom can only observe this
+      // through the callback; here it is the real document.activeElement.
+      await expect(markedEntry, "#775 AC4: focus lands on the archived entry").toBeFocused();
+      await expect(markedEntry).toContainText(SATCA_A11Y_MARKED_REASON);
+    });
+
+    await test.step("#797: the retained pass/fail mark colours meet AA in both themes", async () => {
+      // The positive control for the scan below: the green and the red token are
+      // both on screen, so a passing scan measured them rather than nothing. The
+      // mark text is lowercase, which keeps it distinct from the "Passed"/
+      // "Failed" status label rendered on the same entry.
+      await expect(markedEntry.getByText("pass", { exact: true })).toBeVisible();
+      await expect(markedEntry.getByText("fail", { exact: true })).toBeVisible();
+      await scanBothThemes(page, archivedSection, "panel/archived-section-with-marks");
     });
 
     await test.step("the retire disclosure meets AA in both themes", async () => {
