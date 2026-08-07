@@ -6,6 +6,7 @@ import StatusIndicator from "./StatusIndicator";
 import ObservationMarkControl from "./ObservationMarkControl";
 import StatusOverrideControl from "./StatusOverrideControl";
 import { NotesRail } from "./NotesRail";
+import ReplacementPicker from "./ReplacementPicker";
 import { caseObservationProgress } from "./rollup";
 import { useElementWidth } from "./useElementWidth";
 import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestbenchMarks";
@@ -366,10 +367,11 @@ const ACTION_CLASS =
 // Lifecycle controls for one live case (#772, SATCA-FR-019, SATCA-US-006).
 //
 // Retire takes a required reason; supersede takes a required replacement pointer
-// plus an optional reason. The pointer is a plain text field for now: the
-// two-stage replacement picker is its own slice, and the contract validates the
-// pointer only as a non-empty string, so this input matches what the schema
-// actually requires and the picker can replace it later without a contract change.
+// plus an optional reason. The pointer is never typed: it is chosen in the
+// two-stage ReplacementPicker (#774, SATCA-FR-028/FR-029), which lists the cases
+// that actually exist and refuses to hand back a pointer the shared resolver
+// reports as unresolvable. What lands here is therefore always a slug-qualified
+// (or deliberately bare, same-spec) pointer that resolved at authoring time.
 //
 // The reversal of either action does NOT live here. Retiring removes the case
 // from the live list (the rollup routes it to the Archived section), so the
@@ -389,9 +391,25 @@ function LifecycleControls({
 }) {
   const [open, setOpen] = useState<"retire" | "supersede" | null>(null);
   const [reason, setReason] = useState("");
+  // The confirmed pointer handed back by the picker, never keyboard input.
   const [replacement, setReplacement] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // AC7: whichever way the picker is dismissed (Cancel, Escape, the overlay, or
+  // a confirmed choice), focus returns to the control that opened it. Restored
+  // here rather than left to the overlay's own restoration: the overlay restores
+  // to whatever held focus when it mounted, which is not necessarily this
+  // button. A passive effect (not the close handler) is what makes it stick,
+  // because the overlay's own restore runs in the unmount cleanup, after any
+  // focus call made from the handler that closed it.
+  const chooseRef = useRef<HTMLButtonElement>(null);
+  const pickerWasOpen = useRef(false);
   const setLifecycle = useSetCaseLifecycle();
   const error = caseLifecycleErrorMessage(setLifecycle.error);
+
+  useEffect(() => {
+    if (pickerWasOpen.current && !pickerOpen) chooseRef.current?.focus();
+    pickerWasOpen.current = pickerOpen;
+  }, [pickerOpen]);
 
   // An already-archived case is reversible from the Archived section, not here.
   if (testCase.lifecycle) {
@@ -477,17 +495,34 @@ function LifecycleControls({
 
         {open === "supersede" && (
           <div className="flex flex-col gap-2 rounded-md bg-stone-100/70 dark:bg-stone-800/40 p-3">
-            <TextField
-              value={replacement}
-              onChange={setReplacement}
-              isRequired
-              className="flex flex-col gap-1"
-            >
-              <Label className={FIELD_LABEL_CLASS}>
-                Replacement case (an id in this spec, or slug:id in another)
-              </Label>
-              <Input data-testid="case-supersede-replacement" className={FIELD_CLASS} />
-            </TextField>
+            <div className="flex flex-col gap-1">
+              <span className={FIELD_LABEL_CLASS}>Replacement case</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  ref={chooseRef}
+                  data-testid="case-supersede-choose"
+                  onPress={() => setPickerOpen(true)}
+                  className={ACTION_CLASS}
+                >
+                  {replacement.length > 0 ? "Change replacement" : "Choose replacement case"}
+                </Button>
+                <span
+                  data-testid="case-supersede-replacement"
+                  className="font-mono text-[12px] text-stone-600 dark:text-stone-300"
+                >
+                  {replacement.length > 0 ? replacement : "None chosen yet"}
+                </span>
+              </div>
+            </div>
+            <ReplacementPicker
+              isOpen={pickerOpen}
+              onClose={() => setPickerOpen(false)}
+              projectId={projectId}
+              benchId={benchId}
+              originCaseId={testCase.id}
+              originCaseArea={testCase.area}
+              onConfirm={setReplacement}
+            />
             <TextField value={reason} onChange={setReason} className="flex flex-col gap-1">
               <Label className={FIELD_LABEL_CLASS}>Reason (optional)</Label>
               <Input data-testid="case-supersede-reason" className={FIELD_CLASS} />

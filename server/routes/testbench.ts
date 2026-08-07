@@ -10,6 +10,7 @@
 //   POST   /:projectId/testbench/specs/validate
 //   PUT    /:projectId/testbench/specs/:slug/lifecycle
 //   GET    /:projectId/benches/:id/testbench/plan
+//   GET    /:projectId/benches/:id/testbench/replacement-candidates
 //   PUT    /:projectId/benches/:id/testbench/cases/:caseId/observations/:observationId
 //   PUT    /:projectId/benches/:id/testbench/cases/:caseId/status
 //   PUT    /:projectId/benches/:id/testbench/cases/:caseId/lifecycle
@@ -47,6 +48,12 @@ import {
 } from "../lib/testbench-spec-lifecycle-write.js";
 import { RouteError, parseIntParam } from "./helpers.js";
 import { CaseLifecycleSchema, CaseStatusSchema } from "@roubo/shared/testbench-contracts";
+import type { Case } from "@roubo/shared/testbench-contracts";
+import {
+  MAX_SUPERSESSION_DEPTH,
+  collectReferencedSlugs,
+  type ResolverPlan,
+} from "@roubo/shared/lifecycle-resolver";
 import { SpecLifecycleRecordSchema } from "@roubo/shared/spec-lifecycle-schema";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
@@ -391,6 +398,137 @@ router.get(
         cases: result.plan.cases.filter((c) => subsetCaseIds.has(c.id)),
       };
       res.json({ ...result, plan: filteredPlan, filteredToGateIds: gateIds, lifecycle });
+    } catch (err) {
+      handleError(res, err);
+    }
+  },
+);
+
+// One candidate case as the picker needs it: enough to render a row (id, title,
+// area, level) plus the lifecycle block the resolver walks. Deliberately NOT the
+// whole Case: steps and observations are megabytes of payload the picker never
+// reads, and a candidate list is not a plan.
+interface CandidateCase {
+  id: string;
+  title: string;
+  area: string;
+  level: number;
+  lifecycle?: Case["lifecycle"];
+}
+
+function toCandidateCase(testCase: Case): CandidateCase {
+  return {
+    id: testCase.id,
+    title: testCase.title,
+    area: testCase.area,
+    level: testCase.level,
+    ...(testCase.lifecycle ? { lifecycle: testCase.lifecycle } : {}),
+  };
+}
+
+// 4b. Replacement candidates for the two-stage picker (#774, SATCA-FR-028/FR-029).
+//
+// Read-only. Returns everything the client needs to render the picker AND to
+// resolve a candidate pointer with the shared LifecycleResolver itself: the
+// authoring-time preview must call the same resolver the gate calls, so the
+// server hands over plans rather than resolving on the client's behalf
+// (architecture.md, "ReplacementPicker to LifecycleResolver").
+//
+// The response carries the TRANSITIVE CLOSURE of the requested spec's pointer
+// graph, discovered with the resolver's own `collectReferencedSlugs` rule and
+// bounded by MAX_SUPERSESSION_DEPTH, plus the bench's origin spec. Returning the
+// closure (rather than one spec per request) is what keeps `target spec not
+// supplied` a genuine finding about the repository instead of an artefact of
+// what the client happened to fetch.
+//
+// Rooted at the BENCH's own workspace, exactly like the plan route: archived-ness
+// and case content are properties of this bench's branch, so two benches on
+// different branches can legitimately disagree until the change is merged.
+//
+// `?slug=` selects which specification's cases to list; it defaults to the
+// bench's focused spec. The slug must name a spec discovery found in this
+// workspace, which is what keeps an attacker-supplied slug off the filesystem
+// (discovery only ever yields allowlisted slugs).
+//
+// Fails open per spec the way discovery does: a spec whose plan cannot be read is
+// simply absent from `plans`, which the resolver reports honestly as `target spec
+// not supplied` rather than as a resolvable pointer.
+router.get(
+  "/:projectId/benches/:id/testbench/replacement-candidates",
+  planReadRateLimiter,
+  (req: Request<{ projectId: string; id: string }>, res: Response) => {
+    try {
+      const benchId = parseIntParam(req.params.id, "bench id");
+      const { rootPath, slug: originSlug } = resolveTestbench(req.params.projectId, benchId);
+
+      const discovered = discoverSpecs(rootPath).specs;
+      const rawSlug = req.query.slug;
+      const requestedSlug =
+        typeof rawSlug === "string" && rawSlug.length > 0 ? rawSlug : originSlug;
+      if (requestedSlug !== originSlug && !discovered.some((s) => s.slug === requestedSlug)) {
+        throw new RouteError(404, `No spec '${requestedSlug}' in this bench's workspace`);
+      }
+
+      // Walk the closure. Each loaded plan names the next slugs to load, which is
+      // the resolver's own sanctioned "what to load next" rule; the depth bound
+      // matches the walk the preview will run over the result.
+      const plans: Record<string, ResolverPlan & { cases: CandidateCase[] }> = {};
+      const queue = [requestedSlug, originSlug];
+      const seen = new Set<string>();
+      let hops = 0;
+      while (queue.length > 0 && hops <= MAX_SUPERSESSION_DEPTH) {
+        const batch = queue.splice(0, queue.length);
+        for (const candidate of batch) {
+          if (seen.has(candidate)) continue;
+          seen.add(candidate);
+          // Only ever read a slug discovery vouched for, plus the bench's own
+          // focused slug (which resolveTestbench already validated).
+          if (candidate !== originSlug && !discovered.some((s) => s.slug === candidate)) continue;
+          let cases: CandidateCase[];
+          try {
+            cases = testbenchStore
+              .readPlanAndResults(rootPath, candidate)
+              .plan.cases.map(toCandidateCase);
+          } catch {
+            // Fail open for this one spec: absent from `plans`, so the resolver
+            // says "target spec not supplied" instead of silently resolving.
+            continue;
+          }
+          const loaded = { specSlug: candidate, cases };
+          plans[candidate] = loaded;
+          queue.push(...collectReferencedSlugs(loaded));
+        }
+        hops += 1;
+      }
+
+      // Only ARCHIVED specs carry a record: absence is the live state
+      // (SATCA-FR-017), which is exactly the shape the resolver's
+      // `specLifecycles` map expects.
+      const specLifecycles: Record<
+        string,
+        { archived: true; reason?: string; supersededBy?: string }
+      > = {};
+      for (const loadedSlug of Object.keys(plans)) {
+        const lifecycle = computeLifecycle(rootPath, loadedSlug);
+        if (!lifecycle.archived) continue;
+        specLifecycles[loadedSlug] = {
+          archived: true,
+          ...(lifecycle.reason !== null ? { reason: lifecycle.reason } : {}),
+          ...(lifecycle.supersededBy !== null ? { supersededBy: lifecycle.supersededBy } : {}),
+        };
+      }
+
+      res.json({
+        originSlug,
+        slug: requestedSlug,
+        specs: discovered.map((s) => ({
+          slug: s.slug,
+          caseCount: s.caseCount,
+          archived: s.lifecycle.archived,
+        })),
+        plans,
+        specLifecycles,
+      });
     } catch (err) {
       handleError(res, err);
     }

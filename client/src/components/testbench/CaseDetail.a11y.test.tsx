@@ -40,10 +40,49 @@ vi.mock("../../hooks/useTestbenchPlan", () => ({
 }));
 import { useSetCaseLifecycle } from "../../hooks/useTestbenchPlan";
 
+// #774: the supersede form no longer takes a typed pointer; it opens the
+// ReplacementPicker, which loads its candidate closure through this hook. The
+// picker itself is real here, so the pointer these tests record is the one the
+// picker actually hands back.
+vi.mock("../../hooks/useReplacementCandidates", () => ({
+  useReplacementCandidates: vi.fn(),
+}));
+import { useReplacementCandidates } from "../../hooks/useReplacementCandidates";
+import type { ReplacementCandidatesResponse } from "../../lib/api";
+
 const mockMark = vi.mocked(useMarkObservation);
 const mockOverride = vi.mocked(useSetStatusOverride);
 const mockAppendNote = vi.mocked(useAppendNote);
 const mockSetLifecycle = vi.mocked(useSetCaseLifecycle);
+const mockCandidates = vi.mocked(useReplacementCandidates);
+
+const OWN_SPEC_PLAN = {
+  specSlug: "testbench",
+  cases: [
+    { id: "TC-001", title: "Mark each observation pass or fail", area: "testbench", level: 3 },
+    { id: "TC-009", title: "A live replacement case", area: "testbench", level: 2 },
+  ],
+};
+const OTHER_SPEC_PLAN = {
+  specSlug: "other-spec",
+  cases: [{ id: "TC-009", title: "A live case elsewhere", area: "gate", level: 1 }],
+};
+
+function candidatePayload(slug: string): ReplacementCandidatesResponse {
+  return {
+    originSlug: "testbench",
+    slug,
+    specs: [
+      { slug: "testbench", caseCount: 2, archived: false },
+      { slug: "other-spec", caseCount: 1, archived: false },
+    ],
+    plans:
+      slug === "testbench"
+        ? { testbench: OWN_SPEC_PLAN }
+        : { testbench: OWN_SPEC_PLAN, "other-spec": OTHER_SPEC_PLAN },
+    specLifecycles: {},
+  };
+}
 
 function makeMutationMock(mutate = vi.fn()) {
   return { mutate, isPending: false } as never;
@@ -83,6 +122,15 @@ beforeEach(() => {
   mockOverride.mockReturnValue(makeMutationMock());
   mockAppendNote.mockReturnValue(makeMutationMock());
   mockSetLifecycle.mockReturnValue(makeMutationMock());
+  mockCandidates.mockImplementation(
+    (_projectId: string, _benchId: number, slug: string | undefined) =>
+      ({
+        data: candidatePayload(slug ?? "testbench"),
+        isLoading: false,
+        isError: false,
+        error: null,
+      }) as never,
+  );
 });
 
 describe("CaseDetail full render (TC-019)", () => {
@@ -559,7 +607,9 @@ describe("CaseDetail lifecycle actions (#772)", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it("supersedes a case with a replacement pointer, reason optional", async () => {
+  // #774: the pointer is chosen in the picker, never typed. A cross-spec choice
+  // is recorded slug-qualified (SATCA-TC-074 S002).
+  it("supersedes a case with a pointer chosen in the picker, reason optional", async () => {
     const mutate = vi.fn();
     mockSetLifecycle.mockReturnValue(makeMutationMock(mutate));
     const user = userEvent.setup();
@@ -567,7 +617,16 @@ describe("CaseDetail lifecycle actions (#772)", () => {
 
     await user.click(screen.getByTestId("case-supersede-open"));
     expect(screen.getByTestId("case-supersede-submit")).toBeDisabled();
-    await user.type(screen.getByTestId("case-supersede-replacement"), "other-spec:TC-009");
+    // There is no free-text pointer field left to type into.
+    expect(screen.getByTestId("case-supersede-replacement")).toHaveTextContent("None chosen yet");
+
+    await user.click(screen.getByTestId("case-supersede-choose"));
+    await user.click(screen.getByRole("button", { name: /testbench \(this spec\)/ }));
+    await user.click(screen.getByRole("option", { name: "other-spec" }));
+    await user.click(screen.getByTestId("replacement-option-TC-009"));
+    await user.click(screen.getByTestId("replacement-confirm"));
+
+    expect(screen.getByTestId("case-supersede-replacement")).toHaveTextContent("other-spec:TC-009");
     await user.click(screen.getByTestId("case-supersede-submit"));
 
     expect(mutate).toHaveBeenCalledWith(
@@ -588,7 +647,10 @@ describe("CaseDetail lifecycle actions (#772)", () => {
     render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
 
     await user.click(screen.getByTestId("case-supersede-open"));
-    await user.type(screen.getByTestId("case-supersede-replacement"), "TC-009");
+    await user.click(screen.getByTestId("case-supersede-choose"));
+    // A same-spec choice stays bare, which is what a bare pointer means.
+    await user.click(screen.getByTestId("replacement-option-TC-009"));
+    await user.click(screen.getByTestId("replacement-confirm"));
     await user.type(screen.getByTestId("case-supersede-reason"), "split in two");
     await user.click(screen.getByTestId("case-supersede-submit"));
 
@@ -598,6 +660,21 @@ describe("CaseDetail lifecycle actions (#772)", () => {
       }),
       expect.anything(),
     );
+  });
+
+  // #774 AC7: dismissing the picker returns focus to the control that opened it.
+  it("returns focus to the opening control when the picker is dismissed", async () => {
+    const user = userEvent.setup();
+    render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
+
+    await user.click(screen.getByTestId("case-supersede-open"));
+    const opener = screen.getByTestId("case-supersede-choose");
+    await user.click(opener);
+    expect(screen.getByTestId("replacement-filter")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("replacement-filter")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
   });
 
   // SATCA-TC-056: a refused write says to reload rather than failing generically.

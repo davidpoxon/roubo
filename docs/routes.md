@@ -2,7 +2,7 @@
 
 # Route inventory
 
-Every HTTP route the Roubo server registers: 164 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
+Every HTTP route the Roubo server registers: 165 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
 
 This file is generated. Run `npm run generate:routes` after adding, removing, or renaming a route; the `route-inventory-drift` job in `pr-check` fails when the committed inventory does not match the source.
 
@@ -91,6 +91,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | PUT    | `/api/projects/:projectId/benches/:id/testbench/focus`                                     | `server/routes/testbench.ts`            |
 | GET    | `/api/projects/:projectId/benches/:id/testbench/plan`                                      | `server/routes/testbench.ts`            |
 | POST   | `/api/projects/:projectId/benches/:id/testbench/reconcile`                                 | `server/routes/testbench.ts`            |
+| GET    | `/api/projects/:projectId/benches/:id/testbench/replacement-candidates`                    | `server/routes/testbench.ts`            |
 | GET    | `/api/projects/:projectId/benches/:id/tools`                                               | `server/routes/benches.ts`              |
 | POST   | `/api/projects/:projectId/benches/:id/tools/:index/execute`                                | `server/routes/benches.ts`              |
 | GET    | `/api/projects/:projectId/benches/overrides`                                               | `server/routes/benches-settings.ts`     |
