@@ -11,7 +11,10 @@
 // #770 (or a bench with no manifest at all) reads live and shows no label.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+// The spec picker this panel opens uses a react-query mutation (#773), so the
+// panel must render inside a QueryClientProvider.
+import { renderWithProviders as render } from "../../test/renderWithProviders";
 import userEvent from "@testing-library/user-event";
 import type { Case, TestCasesPlan } from "@roubo/shared/testbench-contracts";
 import type { SpecLifecycleState, TestbenchPlanResponse } from "../../lib/api";

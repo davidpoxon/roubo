@@ -2,7 +2,7 @@
 
 # Route inventory
 
-Every HTTP route the Roubo server registers: 161 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
+Every HTTP route the Roubo server registers: 163 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
 
 This file is generated. Run `npm run generate:routes` after adding, removing, or renaming a route; the `route-inventory-drift` job in `pr-check` fails when the committed inventory does not match the source.
 
@@ -146,6 +146,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/api/projects/:projectId/settings`                                                        | `server/routes/project-settings.ts`     |
 | PUT    | `/api/projects/:projectId/settings`                                                        | `server/routes/project-settings.ts`     |
 | GET    | `/api/projects/:projectId/testbench/specs`                                                 | `server/routes/testbench.ts`            |
+| PUT    | `/api/projects/:projectId/testbench/specs/:slug/lifecycle`                                 | `server/routes/testbench.ts`            |
 | POST   | `/api/projects/:projectId/testbench/specs/validate`                                        | `server/routes/testbench.ts`            |
 | POST   | `/api/projects/check-config`                                                               | `server/routes/projects.ts`             |
 | GET    | `/api/projects/github-projects`                                                            | `server/routes/projects.ts`             |
@@ -160,6 +161,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/test/__inspect-marketplace-source`                                                       | `server/routes/test.ts`                 |
 | GET    | `/test/__plugin-enable-state`                                                              | `server/routes/test.ts`                 |
 | GET    | `/test/__read-cut-list-cache-file`                                                         | `server/routes/test.ts`                 |
+| GET    | `/test/__read-spec-manifest`                                                               | `server/routes/test.ts`                 |
 | GET    | `/test/__read-spec-results`                                                                | `server/routes/test.ts`                 |
 | POST   | `/test/__refresh-plugin-provenance`                                                        | `server/routes/test.ts`                 |
 | POST   | `/test/__register-fixture-project`                                                         | `server/routes/test.ts`                 |

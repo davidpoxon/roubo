@@ -1052,6 +1052,14 @@ interface SeedSpecInput {
   // record schema at parse time, so a fixture can never seed a shape the reader
   // would reject.
   lifecycle?: unknown;
+  // SATCA-TC-047/049 (#773): the spec's whole `manifest.json`, written verbatim.
+  // This is what lets a fixture stage a REALISTIC product-dev manifest (stage
+  // tracking, id counters, and a key Roubo does not recognise) so the in-app
+  // lifecycle write can be proven to preserve every one of them. Combines with
+  // `lifecycle`, which is merged in as the subtree. Omitted with `lifecycle`
+  // also omitted => no manifest at all, which is the live state and the
+  // precondition for minimal-manifest creation.
+  manifest?: Record<string, unknown>;
 }
 
 interface ParsedRegisterFixture {
@@ -1133,7 +1141,21 @@ function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
         return `seedSpecs[${i}].lifecycle must be a valid spec lifecycle record: ${validation.errors.join("; ")}`;
       }
     }
-    parsed.push({ slug, testCases, seedResults, lifecycle: lifecycleRaw });
+    // #773: an optional whole manifest for the spec folder.
+    const manifestRaw = (entry as { manifest?: unknown }).manifest;
+    if (
+      manifestRaw !== undefined &&
+      (manifestRaw === null || typeof manifestRaw !== "object" || Array.isArray(manifestRaw))
+    ) {
+      return `seedSpecs[${i}].manifest must be an object when provided`;
+    }
+    parsed.push({
+      slug,
+      testCases,
+      seedResults,
+      lifecycle: lifecycleRaw,
+      manifest: manifestRaw as Record<string, unknown> | undefined,
+    });
   }
   return parsed;
 }
@@ -1399,13 +1421,18 @@ function writeSeededSpecs(repoPath: string, specs: SeedSpecInput[]): void {
       `${JSON.stringify(spec.testCases, null, 2)}\n`,
       "utf-8",
     );
-    if (spec.lifecycle !== undefined) {
+    if (spec.lifecycle !== undefined || spec.manifest !== undefined) {
       // #770: the manifest is product-dev's file, so the fixture writes a
       // realistic one (a stage tracker sibling the reader must ignore) with the
       // `lifecycle` subtree the reader actually plucks.
+      // #773: a fixture may supply the whole manifest instead, to stage the
+      // sibling keys an in-app lifecycle write has to preserve. The two combine:
+      // `lifecycle` is always merged in as the subtree.
+      const base = spec.manifest ?? { slug: spec.slug, stage: "verify" };
+      const manifest = spec.lifecycle === undefined ? base : { ...base, lifecycle: spec.lifecycle };
       fs.writeFileSync(
         path.join(specDir, "manifest.json"),
-        `${JSON.stringify({ slug: spec.slug, stage: "verify", lifecycle: spec.lifecycle }, null, 2)}\n`,
+        `${JSON.stringify(manifest, null, 2)}\n`,
         "utf-8",
       );
     }
@@ -1868,6 +1895,69 @@ router.post("/__seed-spec-results", async (req: Request, res: Response) => {
     }
     const message = err instanceof Error ? err.message : String(err);
     console.error("/test/__seed-spec-results failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /test/__read-spec-manifest (#773, SATCA-TC-047/048/049): read one spec's
+// `.specifications/<slug>/manifest.json` out of a fixture project's REPO (not a
+// bench worktree, matching where the picker's lifecycle write lands), plus the
+// sha256 of its test-cases.json. The archival drift guard uses it to assert on
+// disk that archiving wrote the lifecycle record, that a minimal manifest was
+// created where there was none, that every pre-existing key survived, and that
+// the case file is byte-identical throughout.
+//
+// `manifest` is null when the folder has none, which is itself the assertion for
+// the before-state of the minimal-creation case. `raw` is the file verbatim, so
+// a spec can compare whole-file bytes rather than a re-serialized parse.
+// Modelled on /test/__read-spec-results: same ROUBO_E2E gate, same containment
+// barrier on the path. Gated by ROUBO_E2E.
+//
+// Query: ?projectId=<id>&slug=<slug>.
+router.get("/__read-spec-manifest", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const projectId = req.query.projectId;
+  const slug = req.query.slug;
+  if (typeof projectId !== "string" || !FIXTURE_PROJECT_ID_RE.test(projectId)) {
+    return res
+      .status(400)
+      .json({ error: "projectId must be a kebab-case string matching /^[a-z][a-z0-9-]*$/" });
+  }
+  if (typeof slug !== "string" || !SPEC_SLUG_RE.test(slug)) {
+    return res
+      .status(400)
+      .json({ error: "slug must be a kebab-case string matching /^[a-z][a-z0-9-]*$/" });
+  }
+  const project = projectRegistry.getProject(projectId);
+  if (!project || !project.config) {
+    return res.status(404).json({ error: `Project '${projectId}' not found` });
+  }
+  try {
+    const specDir = resolveWithin(project.repoPath, ".specifications", slug);
+    const manifestPath = resolveWithin(specDir, "manifest.json");
+    const casesPath = resolveWithin(specDir, "test-cases.json");
+    let raw: string | null = null;
+    try {
+      raw = fs.readFileSync(manifestPath, "utf-8");
+    } catch {
+      // No manifest in the folder: the live state, and the precondition the
+      // minimal-creation case asserts before it archives.
+      raw = null;
+    }
+    const casesChecksum = createHash("sha256")
+      .update(fs.readFileSync(casesPath, "utf-8"), "utf-8")
+      .digest("hex");
+    res.status(200).json({
+      path: manifestPath,
+      raw,
+      manifest: raw === null ? null : JSON.parse(raw),
+      casesChecksum,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("/test/__read-spec-manifest failed:", message);
     res.status(500).json({ error: message });
   }
 });

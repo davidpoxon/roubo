@@ -1661,6 +1661,32 @@ export async function validateSpecPath(
   return body as ManualPathValidation;
 }
 
+// The lifecycle record Roubo writes into a spec's manifest (#773), mirroring the
+// server's published SpecLifecycleRecordSchema. Absence, not `archived: false`,
+// is the live state, so there is no `archived` variant other than `true`.
+export interface SpecLifecycleRecordInput {
+  archived: true;
+  reason?: string;
+  supersededBy?: string;
+}
+
+// PUT /testbench/specs/:slug/lifecycle: archive or supersede a spec, or reverse
+// either by passing `null` (SATCA-FR-020/FR-021). The write is a merge into the
+// spec's `.specifications/<slug>/manifest.json` that preserves every key Roubo
+// did not author, creating a minimal manifest when the folder has none, and it
+// leaves the change uncommitted in the worktree. Returns the spec's freshly read
+// lifecycle state.
+export function setSpecLifecycle(
+  projectId: string,
+  slug: string,
+  lifecycle: SpecLifecycleRecordInput | null,
+): Promise<SpecLifecycleState> {
+  return request(`/projects/${projectId}/testbench/specs/${encodeURIComponent(slug)}/lifecycle`, {
+    method: "PUT",
+    body: JSON.stringify({ lifecycle }),
+  });
+}
+
 // TestBench notes (#421). Append-only: POST returns the stamped Note (author +
 // timestamp + status-at-write captured server-side). A blank or whitespace-only
 // body is rejected server-side with 400 (surfaced here as an ApiError).

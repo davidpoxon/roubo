@@ -41,6 +41,21 @@ vi.mock("../lib/testbench-spec-discovery.js", () => ({
   computeLifecycle: vi.fn(),
 }));
 
+// #773: the manifest write is mocked at the module boundary so the route tests
+// stay filesystem-free; the writer's own suite covers the merge-write itself.
+// The two error classes are kept real, because handleError maps them by
+// instanceof.
+vi.mock("../lib/testbench-spec-lifecycle-write.js", async () => {
+  const actual = await vi.importActual<typeof import("../lib/testbench-spec-lifecycle-write.js")>(
+    "../lib/testbench-spec-lifecycle-write.js",
+  );
+  return {
+    ManifestUnreadableError: actual.ManifestUnreadableError,
+    SpecFolderNotFoundError: actual.SpecFolderNotFoundError,
+    writeSpecLifecycle: vi.fn(),
+  };
+});
+
 vi.mock("../services/work-unit-loader.js", async () => {
   const actual = await vi.importActual<typeof import("../services/work-unit-loader.js")>(
     "../services/work-unit-loader.js",
@@ -67,6 +82,8 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
 import * as testbenchStore from "../lib/testbench-store.js";
 import * as discovery from "../lib/testbench-spec-discovery.js";
+import * as lifecycleWrite from "../lib/testbench-spec-lifecycle-write.js";
+import { UnsafePathError } from "../lib/safe-path.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
 import { emptyGateOverrides } from "@roubo/shared/gate-overrides-contract";
@@ -189,6 +206,177 @@ describe("POST /:projectId/testbench/specs/validate", () => {
   it("returns 400 when path is missing from the body", async () => {
     const res = await request(app).post("/p1/testbench/specs/validate").send({});
     expect(res.status).toBe(400);
+  });
+});
+
+// #773, SATCA-FR-020/FR-021/FR-028.
+describe("PUT /:projectId/testbench/specs/:slug/lifecycle", () => {
+  // A discovery result naming two sibling specs, so a supersession pointer has
+  // somewhere real to point.
+  function discoveredSlugs(slugs: string[]): void {
+    vi.mocked(discovery.discoverSpecs).mockReturnValue({
+      specs: slugs.map((slug) => ({
+        slug,
+        path: `/repo/.specifications/${slug}/test-cases.json`,
+        caseCount: 1,
+        verification: {
+          classification: "needs-attention",
+          statusCounts: { not_started: 1, in_progress: 0, passed: 0, failed: 0, blocked: 0 },
+          resultsPresent: false,
+          resultsValid: false,
+          planHashMatch: false,
+          recoveryReason: null,
+          aggregationError: false,
+        },
+        lifecycle: { archived: false, reason: null, supersededBy: null, recordError: null },
+      })),
+      invalid: [],
+    });
+  }
+
+  it("archives a spec against the PROJECT repoPath and returns the re-read state", async () => {
+    vi.mocked(discovery.computeLifecycle).mockReturnValue({
+      archived: true,
+      reason: "Shipped in #212",
+      supersededBy: null,
+      recordError: null,
+    });
+
+    const res = await request(app)
+      .put("/p1/testbench/specs/testbench/lifecycle")
+      .send({ lifecycle: { archived: true, reason: "Shipped in #212" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      archived: true,
+      reason: "Shipped in #212",
+      supersededBy: null,
+      recordError: null,
+    });
+    // The project repoPath, NOT a bench worktree: the picker is project-scoped.
+    expect(lifecycleWrite.writeSpecLifecycle).toHaveBeenCalledWith(REPO, "testbench", {
+      archived: true,
+      reason: "Shipped in #212",
+    });
+  });
+
+  it("clears the record when lifecycle is null (the reversal)", async () => {
+    const res = await request(app)
+      .put("/p1/testbench/specs/testbench/lifecycle")
+      .send({ lifecycle: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(LIVE_LIFECYCLE);
+    expect(lifecycleWrite.writeSpecLifecycle).toHaveBeenCalledWith(REPO, "testbench", null);
+  });
+
+  it("rejects a record the published schema does not accept", async () => {
+    const res = await request(app)
+      .put("/p1/testbench/specs/testbench/lifecycle")
+      .send({ lifecycle: { archived: false } });
+
+    expect(res.status).toBe(400);
+    expect(lifecycleWrite.writeSpecLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unrecognised key inside the record", async () => {
+    const res = await request(app)
+      .put("/p1/testbench/specs/testbench/lifecycle")
+      .send({ lifecycle: { archived: true, retired: true } });
+
+    expect(res.status).toBe(400);
+    expect(lifecycleWrite.writeSpecLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("rejects a body missing the lifecycle key entirely", async () => {
+    const res = await request(app).put("/p1/testbench/specs/testbench/lifecycle").send({});
+    expect(res.status).toBe(400);
+    expect(lifecycleWrite.writeSpecLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("accepts a supersededBy naming an existing sibling spec", async () => {
+    discoveredSlugs(["testbench", "successor"]);
+
+    const res = await request(app)
+      .put("/p1/testbench/specs/testbench/lifecycle")
+      .send({ lifecycle: { archived: true, supersededBy: "successor" } });
+
+    expect(res.status).toBe(200);
+    expect(lifecycleWrite.writeSpecLifecycle).toHaveBeenCalledWith(REPO, "testbench", {
+      archived: true,
+      supersededBy: "successor",
+    });
+  });
+
+  it("rejects a supersededBy that names no spec in the project (FR-028)", async () => {
+    discoveredSlugs(["testbench", "successor"]);
+
+    const res = await request(app)
+      .put("/p1/testbench/specs/testbench/lifecycle")
+      .send({ lifecycle: { archived: true, supersededBy: "not-a-real-spec" } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("not-a-real-spec");
+    expect(lifecycleWrite.writeSpecLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("rejects a spec superseding itself", async () => {
+    discoveredSlugs(["testbench"]);
+
+    const res = await request(app)
+      .put("/p1/testbench/specs/testbench/lifecycle")
+      .send({ lifecycle: { archived: true, supersededBy: "testbench" } });
+
+    expect(res.status).toBe(400);
+    expect(lifecycleWrite.writeSpecLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for an unsafe slug", async () => {
+    vi.mocked(lifecycleWrite.writeSpecLifecycle).mockImplementation(() => {
+      throw new UnsafePathError("Invalid spec slug: ..");
+    });
+
+    const res = await request(app)
+      .put("/p1/testbench/specs/..%2F..%2Fetc/lifecycle")
+      .send({ lifecycle: { archived: true } });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the spec folder does not exist", async () => {
+    vi.mocked(lifecycleWrite.writeSpecLifecycle).mockImplementation(() => {
+      throw new lifecycleWrite.SpecFolderNotFoundError("No spec folder");
+    });
+
+    const res = await request(app)
+      .put("/p1/testbench/specs/ghost/lifecycle")
+      .send({ lifecycle: { archived: true } });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 409 when an existing manifest cannot be parsed", async () => {
+    vi.mocked(lifecycleWrite.writeSpecLifecycle).mockImplementation(() => {
+      throw new lifecycleWrite.ManifestUnreadableError("manifest.json is not valid JSON");
+    });
+
+    const res = await request(app)
+      .put("/p1/testbench/specs/testbench/lifecycle")
+      .send({ lifecycle: { archived: true } });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("not valid JSON");
+  });
+
+  it("returns 404 for an unknown project", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const res = await request(app)
+      .put("/p1/testbench/specs/testbench/lifecycle")
+      .send({ lifecycle: { archived: true } });
+
+    expect(res.status).toBe(404);
+    expect(lifecycleWrite.writeSpecLifecycle).not.toHaveBeenCalled();
   });
 });
 

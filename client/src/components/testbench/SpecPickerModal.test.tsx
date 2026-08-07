@@ -46,6 +46,19 @@ function verification(
 
 const mockUseTestbenchSpecs = vi.hoisted(() => vi.fn());
 const mockUseManualPathValidation = vi.hoisted(() => vi.fn());
+// #773: the lifecycle write is the only network call the picker makes itself
+// (the rest go through the mocked hooks above), so stub it at the api boundary
+// and keep the real useSpecLifecycleMutation, whose cache invalidation is part
+// of what these tests exercise.
+const mockSetSpecLifecycle = vi.hoisted(() => vi.fn());
+
+vi.mock("../../lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/api")>();
+  return {
+    ...actual,
+    setSpecLifecycle: (...args: unknown[]) => mockSetSpecLifecycle(...args),
+  };
+});
 
 // Mock only the two data-fetching hooks; keep the real pure helpers
 // (partitionSpecs / deriveSpecSummary), which SpecPickerModal imports from the
@@ -129,6 +142,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockUseTestbenchSpecs.mockReturnValue(specsQuery());
   mockUseManualPathValidation.mockReturnValue({ status: "idle" } satisfies ManualPathState);
+  mockSetSpecLifecycle.mockResolvedValue({
+    archived: true,
+    reason: null,
+    supersededBy: null,
+    recordError: null,
+  });
 });
 
 function renderModal(props: Partial<React.ComponentProps<typeof SpecPickerModal>> = {}) {
@@ -766,6 +785,171 @@ describe("SpecPickerModal", () => {
         screen.queryByText("Every discovered spec has all test cases passed"),
       ).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Show archived/ })).toBeInTheDocument();
+    });
+  });
+
+  // #773, SATCA-FR-020/FR-021/FR-028, SATCA-TC-047/050.
+  describe("spec lifecycle actions (#773)", () => {
+    beforeEach(() => {
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery({ data: { specs: SPECS_WITH_ARCHIVED, invalid: [] } }),
+      );
+    });
+
+    async function openMenu(user: ReturnType<typeof userEvent.setup>, slug: string) {
+      await user.click(screen.getByRole("button", { name: `Actions for ${slug}` }));
+      return screen.getByRole("menu");
+    }
+
+    it("offers Archive and Supersede on a live row, and Restore on an archived one", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      await user.click(screen.getByRole("button", { name: /Show archived/ }));
+
+      const liveMenu = await openMenu(user, "testbench");
+      expect(within(liveMenu).getByRole("menuitem", { name: /Archive/ })).toBeInTheDocument();
+      expect(within(liveMenu).getByRole("menuitem", { name: /Supersede/ })).toBeInTheDocument();
+      expect(within(liveMenu).queryByRole("menuitem", { name: /Restore/ })).not.toBeInTheDocument();
+      await user.keyboard("{Escape}");
+
+      const archivedMenu = await openMenu(user, "retired-flow");
+      expect(within(archivedMenu).getByRole("menuitem", { name: /Restore/ })).toBeInTheDocument();
+      expect(
+        within(archivedMenu).queryByRole("menuitem", { name: /^Archive/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the actions menu OUT of the selectable row, so the two never nest", () => {
+      renderModal();
+      const row = screen.getByRole("radio", { name: /^testbench/ });
+      expect(
+        within(row).queryByRole("button", { name: "Actions for testbench" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Actions for testbench" })).toBeInTheDocument();
+    });
+
+    it("archives a spec with an optional reason and names the manifest it writes", async () => {
+      const user = userEvent.setup();
+      renderModal();
+
+      await openMenu(user, "testbench");
+      await user.click(screen.getByRole("menuitem", { name: /Archive/ }));
+
+      expect(screen.getByText("Archive this specification")).toBeInTheDocument();
+      expect(
+        screen.getByText(".specifications/testbench/manifest.json", { exact: false }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Left uncommitted for you to review/)).toBeInTheDocument();
+
+      await user.type(screen.getByLabelText("Reason (optional)"), "Shipped in #212");
+      await user.click(screen.getByRole("button", { name: "Archive" }));
+
+      await waitFor(() =>
+        expect(mockSetSpecLifecycle).toHaveBeenCalledWith("p1", "testbench", {
+          archived: true,
+          reason: "Shipped in #212",
+        }),
+      );
+      // The confirm step closes and the picker list returns.
+      await waitFor(() =>
+        expect(screen.queryByText("Archive this specification")).not.toBeInTheDocument(),
+      );
+    });
+
+    it("omits an empty reason rather than recording a blank string", async () => {
+      const user = userEvent.setup();
+      renderModal();
+
+      await openMenu(user, "testbench");
+      await user.click(screen.getByRole("menuitem", { name: /Archive/ }));
+      await user.type(screen.getByLabelText("Reason (optional)"), "   ");
+      await user.click(screen.getByRole("button", { name: "Archive" }));
+
+      await waitFor(() =>
+        expect(mockSetSpecLifecycle).toHaveBeenCalledWith("p1", "testbench", { archived: true }),
+      );
+    });
+
+    it("supersedes from a selector over the project's OTHER specs, never free text", async () => {
+      const user = userEvent.setup();
+      renderModal();
+
+      await openMenu(user, "testbench");
+      await user.click(screen.getByRole("menuitem", { name: /Supersede/ }));
+
+      expect(screen.getByText("Supersede this specification")).toBeInTheDocument();
+      // Nothing to type into: the target is chosen, not entered.
+      expect(screen.queryByRole("textbox", { name: /Superseded by/ })).not.toBeInTheDocument();
+      // Confirm stays disabled until a target is chosen.
+      expect(screen.getByRole("button", { name: "Supersede" })).toBeDisabled();
+
+      await user.click(screen.getByRole("button", { name: /Choose a specification/ }));
+      const options = screen.getAllByRole("option").map((o) => o.textContent);
+      expect(options).toContain("billing");
+      // The spec being superseded is excluded from its own target list.
+      expect(options).not.toContain("testbench");
+
+      await user.click(screen.getByRole("option", { name: "billing" }));
+      await user.click(screen.getByRole("button", { name: "Supersede" }));
+
+      await waitFor(() =>
+        expect(mockSetSpecLifecycle).toHaveBeenCalledWith("p1", "testbench", {
+          archived: true,
+          supersededBy: "billing",
+        }),
+      );
+    });
+
+    it("restores an archived spec by clearing the record, with no confirm step", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      await user.click(screen.getByRole("button", { name: /Show archived/ }));
+
+      await openMenu(user, "retired-flow");
+      await user.click(screen.getByRole("menuitem", { name: /Restore/ }));
+
+      await waitFor(() =>
+        expect(mockSetSpecLifecycle).toHaveBeenCalledWith("p1", "retired-flow", null),
+      );
+    });
+
+    it("reverses a supersession through the same Restore action", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      await user.click(screen.getByRole("button", { name: /Show archived/ }));
+
+      await openMenu(user, "billing-v1");
+      await user.click(screen.getByRole("menuitem", { name: /Restore/ }));
+
+      await waitFor(() =>
+        expect(mockSetSpecLifecycle).toHaveBeenCalledWith("p1", "billing-v1", null),
+      );
+    });
+
+    it("surfaces a refused write without dismissing the confirm step", async () => {
+      mockSetSpecLifecycle.mockRejectedValue(new Error("manifest.json is not valid JSON"));
+      const user = userEvent.setup();
+      renderModal();
+
+      await openMenu(user, "testbench");
+      await user.click(screen.getByRole("menuitem", { name: /Archive/ }));
+      await user.click(screen.getByRole("button", { name: "Archive" }));
+
+      expect(await screen.findByText("manifest.json is not valid JSON")).toBeInTheDocument();
+      expect(screen.getByText("Archive this specification")).toBeInTheDocument();
+    });
+
+    it("abandons the confirm step on Cancel without writing anything", async () => {
+      const user = userEvent.setup();
+      renderModal();
+
+      await openMenu(user, "testbench");
+      await user.click(screen.getByRole("menuitem", { name: /Archive/ }));
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByText("Archive this specification")).not.toBeInTheDocument();
+      expect(screen.getByText("Discovered specs")).toBeInTheDocument();
+      expect(mockSetSpecLifecycle).not.toHaveBeenCalled();
     });
   });
 });
