@@ -978,6 +978,61 @@ export const SATCA_PICKER_OWNING_SLICES: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SATCA-TC-045 (#778): the spec archival JOURNEY. Its precondition is "a project
+// with several live specs and none archived", which is neither #770's fixture
+// (one spec pre-archived on disk) nor #773's (varied starting manifests), so the
+// journey seeds its own three specs. All three start LIVE (no manifest at all,
+// so the fail-open reader sees no record), and the journey archives, reveals,
+// loads and restores ONE of them through the real UI, end to end, in a single
+// session. The slugs are named for that live starting state rather than for a
+// pre-archived one, which is why the SATCA_* slugs above are not reused.
+//   - SATCA_TC045_SUBJECT_SLUG: the spec the journey acts on across S002-S005.
+//   - SATCA_TC045_SIBLING_ONE_SLUG / SATCA_TC045_SIBLING_TWO_SLUG: the other
+//     live specs. They make "several live specs" true and stay untouched, so
+//     each step can assert that only the subject moved between the groups.
+// ─────────────────────────────────────────────────────────────────────────────
+export const SATCA_TC045_SUBJECT_SLUG = "archival-journey-subject";
+export const SATCA_TC045_SIBLING_ONE_SLUG = "archival-journey-sibling-one";
+export const SATCA_TC045_SIBLING_TWO_SLUG = "archival-journey-sibling-two";
+
+export const SATCA_TC045_SUBJECT_PLAN: TestCasesPlan = archivalPlan(
+  SATCA_TC045_SUBJECT_SLUG,
+  "SATCA-J45-01",
+);
+export const SATCA_TC045_SIBLING_ONE_PLAN: TestCasesPlan = archivalPlan(
+  SATCA_TC045_SIBLING_ONE_SLUG,
+  "SATCA-J45-02",
+);
+export const SATCA_TC045_SIBLING_TWO_PLAN: TestCasesPlan = archivalPlan(
+  SATCA_TC045_SIBLING_TWO_SLUG,
+  "SATCA-J45-03",
+);
+
+// The reason the reviewer types into the Archive confirm step at S002, asserted
+// back out of the revealed row at S003 and out of the manifest on disk, so the
+// label is proven to come from what the journey itself recorded.
+export const SATCA_TC045_ARCHIVE_REASON = "Folded into the Phase 3 rework";
+
+// The slice that owns each step of the journey, surfaced in every failure
+// message so a red step localises to one attributable slice (#778, AC7).
+//
+// Reconciliation against the declared blocked-by set (#765, #769, #770, #771,
+// #774, #775, #781): the archive and restore WRITES that S002 and S005 drive are
+// owned by #773 (spec lifecycle write path), which is not in that set. Naming
+// only an in-set slice there would point a red run at the wrong owner, so those
+// two steps name #773 as the true owner alongside the in-set slice whose surface
+// the failure would appear on.
+export const SATCA_TC045_OWNING_SLICES: Record<string, string> = {
+  precondition:
+    "#765 (spec lifecycle record: the fail-open reader, so a spec with no manifest reads live)",
+  s001: "#770 (spec picker: archived hidden by default, and no reveal control when nothing is archived)",
+  s002: "#773 (spec lifecycle write: archive from the picker), surfaced on #770's default list and recorded in #765's lifecycle record",
+  s003: "#770 (spec picker: the show-archived reveal control and the archived row label + reason)",
+  s004: "#770 (spec picker: a revealed archived spec stays selectable and loads into a bench)",
+  s005: "#773 (spec lifecycle write: restore from the same surface), surfaced on #770's default list",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SATCA-TC-010 (#776): the CASE lifecycle FORMAT journey. The precondition the
 // case states is "a spec whose cases are all live", so the fixture plan seeds
 // three live cases and the journey applies the lifecycle blocks itself, by hand,
