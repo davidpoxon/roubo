@@ -39,6 +39,7 @@ Roubo is tool-agnostic across AI coding agents (Claude Code, Codex, Gemini CLI, 
 
 - Terminals opened by a released Roubo app may carry the host's `ROUBO_PRODUCTION` and `ROUBO_PORT` (fixed by #877, but the app you are running may predate the fix). With `ROUBO_PRODUCTION` inherited, a dev or e2e server resolves state to the real `~/.roubo` instead of `~/.roubo-dev/<checkout>`, so it writes to live state. Prefix server and e2e commands with `env -u ROUBO_PRODUCTION -u ROUBO_PORT` when in doubt.
 - Vitest hides captured console output on passing runs. Confirm a suite is genuinely silent with `npx vitest run --disableConsoleIntercept`.
+- `npm ls --package-lock-only @electron/rebuild --all` exits `ELSPROBLEMS` by design: forge 7.11.2 declares `^3.7.0` against a tree pinned to 4.x. The rationale, and the rule that the root `overrides` entry and `electron/package.json` must carry the same exact version, are in [docs/development.md](docs/development.md#electronrebuild-is-pinned-twice-deliberately).
 
 ## Vocabulary
 
