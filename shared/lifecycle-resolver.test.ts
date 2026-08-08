@@ -479,3 +479,71 @@ describe("contract compatibility", () => {
     expect(results[0].resolvedTo).toEqual({ slug: "archival", caseId: "SATCA-TC-002" });
   });
 });
+
+// ── The shared fixture corpus ──
+//
+// `lifecycle-pointer-fixtures.json` beside this file is a BYTE-IDENTICAL copy of
+// the corpus in `int3nt/ai-agent-marketplace`
+// (`plugins/product-dev/references/`), whose `scripts/lifecycle_pointers.py`
+// transcribes this module's pointer grammar. The two cannot import each other
+// across the repository boundary, so the corpus is what keeps the transcription
+// honest: a grammar change here fails this block, which is the signal to land
+// the same bytes on the other side.
+//
+// SHARED is the grammar and only the grammar. Each fixture's `expected` block is
+// the split, and both runners assert it. Its `marketplace_only` block is that
+// plugin's link-checking outcome (does the pointer address an existing case),
+// which is NOT the question this module answers (does a gate obligation
+// transfer), so it is deliberately unread here. Asserting it would quietly give
+// this module the plugin's semantics: the two genuinely disagree on a pointer
+// into an archived spec, which the plugin resolves and `resolveCase` fails
+// closed as `target archived`.
+//
+// The corpus is data. It is copied, never edited here: a new fixture lands as
+// identical bytes in both repositories in one change, with `version` bumped.
+// Contract: `plugins/product-dev/references/lifecycle-pointer-fixtures.md`
+// there. On a grammar disagreement this module wins and the transcription is the
+// stale side.
+interface CorpusFixture {
+  name: string;
+  pointer: string;
+  owning_slug: string;
+  expected: { slug: string; case_id: string };
+}
+
+const corpus = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL("./lifecycle-pointer-fixtures.json", import.meta.url)),
+    "utf8",
+  ),
+) as { version: string; fixtures: CorpusFixture[] };
+
+describe("the shared fixture corpus", () => {
+  it("carries fixtures with unique names", () => {
+    expect(corpus.fixtures.length).toBeGreaterThan(0);
+    expect(new Set(corpus.fixtures.map((f) => f.name)).size).toBe(corpus.fixtures.length);
+  });
+
+  it("agrees with parseReplacementPointer on every fixture, and runs every one", () => {
+    let ran = 0;
+    for (const fixture of corpus.fixtures) {
+      expect(
+        parseReplacementPointer(fixture.pointer, fixture.owning_slug),
+        `${fixture.name}: parseReplacementPointer disagrees with the corpus`,
+      ).toEqual({ slug: fixture.expected.slug, caseId: fixture.expected.case_id });
+      ran += 1;
+    }
+    // The count assertion is the point: an entry can never be silently skipped
+    // on this side of the copy.
+    expect(ran).toBe(corpus.fixtures.length);
+  });
+
+  it("asks this repository for the grammar and nothing else", () => {
+    // A resolution key inside `expected` is how the marketplace's link-checking
+    // semantics would arrive here unnoticed, so the shape is pinned rather than
+    // trusted.
+    for (const fixture of corpus.fixtures) {
+      expect(Object.keys(fixture.expected).sort(), fixture.name).toEqual(["case_id", "slug"]);
+    }
+  });
+});

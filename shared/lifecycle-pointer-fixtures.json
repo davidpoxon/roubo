@@ -1,0 +1,265 @@
+{
+  "$comment": "The SHARED lifecycle-pointer fixture corpus. Copied BYTE-IDENTICALLY into every repository that implements the pointer grammar (this marketplace's scripts/lifecycle_pointers.py and Roubo's shared/lifecycle-resolver.ts). What is SHARED is the grammar: `expected` is the result of splitting the pointer, and every runner asserts it. What is NOT shared is `marketplace_only`, which records this repository's link-checking outcome; Roubo resolves gate reachability instead and ignores that block. See lifecycle-pointer-fixtures.md for the schema, the copy contract, and which side is authoritative on disagreement. Do NOT add a case here without adding a runner assertion on BOTH sides.",
+  "version": "2.0.0",
+  "marketplace_only_reasons": {
+    "spec_missing": "target spec missing",
+    "case_missing": "target case missing",
+    "empty_pointer": "empty pointer"
+  },
+  "fixtures": [
+    {
+      "name": "bare-pointer-resolves-in-the-owning-spec",
+      "note": "A pointer with no colon names a case in THIS spec.",
+      "specs": {
+        "checkout": ["TC-001"]
+      },
+      "owning_slug": "checkout",
+      "pointer": "TC-001",
+      "expected": {
+        "slug": "checkout",
+        "case_id": "TC-001"
+      },
+      "marketplace_only": {
+        "resolves": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "bare-pointer-naming-a-case-the-owning-spec-does-not-have",
+      "note": "The owning spec is the target; the case id is absent, so the pointer dangles.",
+      "specs": {
+        "checkout": ["TC-001"]
+      },
+      "owning_slug": "checkout",
+      "pointer": "TC-999",
+      "expected": {
+        "slug": "checkout",
+        "case_id": "TC-999"
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "target case missing"
+      }
+    },
+    {
+      "name": "bare-pointer-is-never-resolved-against-a-sibling-spec",
+      "note": "A same-id case in another spec must NOT rescue a bare pointer.",
+      "specs": {
+        "checkout": [],
+        "checkout-v2": ["TC-001"]
+      },
+      "owning_slug": "checkout",
+      "pointer": "TC-001",
+      "expected": {
+        "slug": "checkout",
+        "case_id": "TC-001"
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "target case missing"
+      }
+    },
+    {
+      "name": "slug-qualified-pointer-resolves-cross-spec",
+      "note": "The first colon splits slug from case id.",
+      "specs": {
+        "checkout": [],
+        "checkout-v2": ["TC-001"]
+      },
+      "owning_slug": "checkout",
+      "pointer": "checkout-v2:TC-001",
+      "expected": {
+        "slug": "checkout-v2",
+        "case_id": "TC-001"
+      },
+      "marketplace_only": {
+        "resolves": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "slug-qualified-pointer-naming-a-spec-folder-that-does-not-exist",
+      "specs": {
+        "checkout": []
+      },
+      "owning_slug": "checkout",
+      "pointer": "ghost:TC-004",
+      "expected": {
+        "slug": "ghost",
+        "case_id": "TC-004"
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "target spec missing"
+      }
+    },
+    {
+      "name": "slug-qualified-pointer-naming-a-case-the-target-spec-does-not-have",
+      "specs": {
+        "checkout": [],
+        "checkout-v2": ["TC-001"]
+      },
+      "owning_slug": "checkout",
+      "pointer": "checkout-v2:TC-404",
+      "expected": {
+        "slug": "checkout-v2",
+        "case_id": "TC-404"
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "target case missing"
+      }
+    },
+    {
+      "name": "target-spec-carrying-no-cases-reads-as-a-missing-case",
+      "note": "`null` means the folder exists with no test-cases.json at all: the folder resolves, the case does not.",
+      "specs": {
+        "checkout": [],
+        "empty-spec": null
+      },
+      "owning_slug": "checkout",
+      "pointer": "empty-spec:TC-001",
+      "expected": {
+        "slug": "empty-spec",
+        "case_id": "TC-001"
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "target case missing"
+      }
+    },
+    {
+      "name": "split-is-on-the-first-colon-so-a-colon-inside-the-case-id-survives",
+      "note": "Never split on the last colon, never on every colon.",
+      "specs": {
+        "checkout": [],
+        "other": ["TC:004"]
+      },
+      "owning_slug": "checkout",
+      "pointer": "other:TC:004",
+      "expected": {
+        "slug": "other",
+        "case_id": "TC:004"
+      },
+      "marketplace_only": {
+        "resolves": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "leading-colon-yields-an-empty-slug-which-names-no-spec",
+      "specs": {
+        "checkout": ["TC-004"]
+      },
+      "owning_slug": "checkout",
+      "pointer": ":TC-004",
+      "expected": {
+        "slug": "",
+        "case_id": "TC-004"
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "target spec missing"
+      }
+    },
+    {
+      "name": "trailing-colon-yields-an-empty-case-id-in-the-named-spec",
+      "specs": {
+        "checkout": [],
+        "checkout-v2": ["TC-001"]
+      },
+      "owning_slug": "checkout",
+      "pointer": "checkout-v2:",
+      "expected": {
+        "slug": "checkout-v2",
+        "case_id": ""
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "target case missing"
+      }
+    },
+    {
+      "name": "empty-pointer-splits-to-an-empty-case-id-in-the-owning-spec",
+      "note": "GRAMMAR only: with no colon the owning slug carries an empty case id. Whether that is its own outcome is per-implementation. This marketplace reports `empty pointer`; Roubo's schema rejects an empty replacement outright (z.string().min(1)), so the input never reaches its resolver in production.",
+      "specs": {
+        "checkout": ["TC-001"]
+      },
+      "owning_slug": "checkout",
+      "pointer": "",
+      "expected": {
+        "slug": "checkout",
+        "case_id": ""
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "empty pointer"
+      }
+    },
+    {
+      "name": "spec-level-supersession-is-never-walked-as-a-case-pointer",
+      "note": "`legacy` is superseded by `current`, and `current` HAS TC-050, but a bare case pointer still splits against `legacy` and is never redirected. Roubo agrees on the split and reports its own `target archived` outcome, which is why the outcome half is marketplace-only.",
+      "specs": {
+        "legacy": [],
+        "current": ["TC-050"]
+      },
+      "spec_supersedes": {
+        "legacy": "current"
+      },
+      "owning_slug": "legacy",
+      "pointer": "TC-050",
+      "expected": {
+        "slug": "legacy",
+        "case_id": "TC-050"
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "target case missing"
+      }
+    },
+    {
+      "name": "spec-level-supersession-does-not-redirect-a-slug-qualified-pointer",
+      "note": "Pointing at the archived spec splits to the archived spec, not to its successor.",
+      "specs": {
+        "checkout": [],
+        "legacy": [],
+        "current": ["TC-050"]
+      },
+      "spec_supersedes": {
+        "legacy": "current"
+      },
+      "owning_slug": "checkout",
+      "pointer": "legacy:TC-050",
+      "expected": {
+        "slug": "legacy",
+        "case_id": "TC-050"
+      },
+      "marketplace_only": {
+        "resolves": false,
+        "reason": "target case missing"
+      }
+    },
+    {
+      "name": "a-pointer-into-an-archived-spec-splits-against-that-spec",
+      "note": "Archived is not unreachable to the GRAMMAR. This marketplace then resolves it against that spec's own cases and finds TC-050; Roubo fails it closed as `target archived`, because it is answering whether a gate obligation transfers. The split is the shared part.",
+      "specs": {
+        "checkout": [],
+        "legacy": ["TC-050"],
+        "current": []
+      },
+      "spec_supersedes": {
+        "legacy": "current"
+      },
+      "owning_slug": "checkout",
+      "pointer": "legacy:TC-050",
+      "expected": {
+        "slug": "legacy",
+        "case_id": "TC-050"
+      },
+      "marketplace_only": {
+        "resolves": true,
+        "reason": null
+      }
+    }
+  ]
+}

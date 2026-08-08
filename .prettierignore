@@ -15,3 +15,6 @@ specs/projects-settings-prototypes-v2.html
 .roubo
 .claude/settings.local.json
 .github/workflows
+# A byte-identical copy of the marketplace's shared pointer corpus. Reformatting
+# it here would break the copy it exists to be (davidpoxon/roubo#1181).
+shared/lifecycle-pointer-fixtures.json
