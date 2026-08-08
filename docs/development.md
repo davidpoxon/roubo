@@ -150,6 +150,26 @@ Internally, `electron:make` performs a nested `npm install` inside `electron/` b
 
 For **signed, notarized release builds** and the full release checklist (including the GitHub Actions workflow, code signing certificates, and notarization), see [releasing.md](./releasing.md).
 
+### `@electron/rebuild` is pinned twice, deliberately
+
+`@electron/rebuild` is pinned in two places that must always carry the **same exact version**: the root `package.json` `overrides` block and `electron/package.json` `devDependencies`.
+
+The override exists to keep `@electron/rebuild` 3.x out of the tree. `@electron-forge/core`, `core-utils`, and `shared-types` (all 7.11.2) declare `@electron/rebuild: ^3.7.0`, and 3.7.x drags in `got@^11`, `ora@^5`, `fs-extra@^10`, `tar@^6.0.5`, and `@electron/node-gyp` from a raw git URL. Silencing that npm warning noise is why the override was added (#306, alongside `.npmrc`'s `engine-strict` and `strict-peer-deps`). It also keeps a real conflict hypothetical: the same `overrides` block pins `tar: "7.5.22"`, which would be forced into a package declaring `tar@^6`. Version 4.x carries none of that, only `node-gyp` and `node-abi`.
+
+Forge 7.11.2 works against 4.x despite its `^3.7.0` range. Forge touches exactly one entry point, `rebuild(options)` in `@electron-forge/core-utils/dist/remote-rebuild.js`, and reads `.lifecycle` off the returned promise; 4.2.0 still provides both. 4.x is ESM-only, so the `require()` in that file resolves only on Node 22.12 or newer, which the repo's `engines` pin (>= 24.14.0) guarantees. Upstream is moving the same way: `@electron-forge/core-utils@8.0.0-alpha.10` declares `@electron/rebuild: ^4.0.1`.
+
+So one warning is a known, accepted state and must not be "fixed":
+
+```bash
+npm ls --package-lock-only @electron/rebuild --all
+# └── @electron/rebuild@4.2.0 invalid: "^3.7.0" from node_modules/@electron-forge/shared-types
+# npm error code ELSPROBLEMS
+```
+
+A single installed copy at the pinned version is the correct tree. The `invalid` line is forge 7.11.2's stale range and clears only when forge 8 ships.
+
+When a dependency bot bumps `electron/package.json`, **bump the root override in the same commit**. It stopped doing that at 4.2.0, which left the two declarations disagreeing and the lockfile carrying two copies of the package (davidpoxon/roubo-development#806).
+
 ## Pre-push checklist
 
 Run the same checks CI runs, in this order:
