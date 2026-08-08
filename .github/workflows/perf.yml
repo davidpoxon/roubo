@@ -1,0 +1,57 @@
+name: perf
+
+# Runs the RUN_PERF_HARNESS-gated performance budgets (every *.perf*.test.* and
+# *.scale*.test.* file) once per merge to main.
+#
+# Decision, per davidpoxon/roubo-development#791:
+#   - The budgets are wall-clock assertions, which is exactly why they are gated
+#     out of the default `npm test`. On a shared runner they are a flake source,
+#     so this job runs on `push: [main]` and NOT on `pull_request`: a noisy
+#     budget costs a second look at a red run on main, never a blocked PR.
+#   - It is therefore a detective control, not a gate. Nothing here prevents a
+#     regression landing; it makes one visible the moment it does.
+#   - The full `perf-evidence` output is teed to a log and uploaded as an
+#     artifact (even when the run fails) so each budget's real numbers are
+#     available for trend and flake analysis.
+# `workflow_dispatch` is kept so the job can be run by hand on any ref.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      # No `npm run build` step: the harnesses run against source through the
+      # vitest transform, so a build would only add minutes.
+      - name: Run the gated performance harnesses
+        id: run-perf
+        shell: bash
+        run: |
+          mkdir -p perf-evidence
+          npm run test:perf 2>&1 | tee perf-evidence/perf-evidence.log
+      # Runs even on a budget breach: the evidence is most useful when the job
+      # is red, since it names which budget broke and by how much.
+      - name: Upload perf evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-evidence-${{ github.run_id }}
+          path: perf-evidence/perf-evidence.log
+          retention-days: 30
