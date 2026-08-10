@@ -11,7 +11,12 @@
 // resolveWithinRoots before any fs call, and the spec slug is re-validated through
 // the SPEC_SLUG_RE allowlist (assertSafeIdentifier). A path that escapes repoPath,
 // or a slug carrying a separator/traversal segment, is rejected before it reaches
-// disk. This module never writes; it only reads-and-validates.
+// disk. This module never writes; it only reads-and-validates, and the lifecycle
+// path it gained in #765 keeps that true: computeLifecycle below delegates to the
+// read-only reader (testbench-spec-lifecycle.ts). The claim is scoped to this
+// module, not to the data it reads: the `lifecycle` subtree of
+// `.specifications/<slug>/manifest.json` IS written, by the sibling
+// testbench-spec-lifecycle-write.ts (#773), which is its only writer.
 
 import fs from "node:fs";
 import path from "node:path";
