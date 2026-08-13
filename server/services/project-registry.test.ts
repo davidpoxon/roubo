@@ -422,6 +422,45 @@ describe("unregisterProject", () => {
     }
   });
 
+  it("carries the persisted bench count and ids on the HAS_BENCHES refusal (#829)", () => {
+    // The guard counts state.json, which can list records the Benches view never
+    // renders. The client offers a forced unregister off the back of this
+    // refusal, so it has to be able to name what forcing would drop.
+    const config = makeConfig();
+    mockedParseConfig.mockReturnValue({ valid: true, config });
+    mockedCheckPortConflicts.mockReturnValue([]);
+
+    registryModule.registerProject("/repos/test-project");
+
+    mockedGetPersistedBenches.mockReturnValue([
+      {
+        id: 3,
+        projectId: "test-project",
+        branch: "main",
+        workspacePath: "/workspace/3",
+        ports: {},
+        createdAt: "now",
+      },
+      {
+        id: 5,
+        projectId: "test-project",
+        branch: "feature",
+        workspacePath: "/workspace/5",
+        ports: {},
+        createdAt: "now",
+      },
+    ]);
+
+    expect.assertions(2);
+    try {
+      registryModule.unregisterProject("test-project");
+    } catch (e) {
+      const err = e as InstanceType<typeof registryModule.ProjectRegistryError>;
+      expect(err.code).toBe("HAS_BENCHES");
+      expect(err.details).toEqual({ benchCount: 2, benchIds: [3, 5] });
+    }
+  });
+
   it("force-unregisters by dropping persisted benches", () => {
     const config = makeConfig();
     mockedParseConfig.mockReturnValue({ valid: true, config });

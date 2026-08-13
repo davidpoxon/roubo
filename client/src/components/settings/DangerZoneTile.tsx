@@ -15,6 +15,7 @@ import { AlertTriangle } from "lucide-react";
 import { useProjects, useUnregisterProject } from "../../hooks/useProjects";
 import { useProjectBenches } from "../../hooks/useBenches";
 import { useToast } from "../../hooks/useToast";
+import { isHasBenchesError } from "../../lib/api";
 import { INPUT } from "../setup/styles";
 
 interface Props {
@@ -29,6 +30,10 @@ export default function DangerZoneTile({ projectId }: Props) {
   const { addToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [typedName, setTypedName] = useState("");
+  // Set when the server refuses with HAS_BENCHES: the count of persisted bench
+  // records it is objecting to. Non-null switches the dialog into its force
+  // recovery state (#829).
+  const [persistedBenchCount, setPersistedBenchCount] = useState<number | null>(null);
 
   const project = projects?.find((p) => p.id === projectId);
   if (!project) return null;
@@ -38,19 +43,31 @@ export default function DangerZoneTile({ projectId }: Props) {
   const needsForce = !project.configValid && benchCount > 0;
   const canConfirm = typedName === displayName && !unregister.isPending;
 
-  const handleConfirm = () => {
+  const reset = () => {
+    setIsOpen(false);
+    setTypedName("");
+    setPersistedBenchCount(null);
+  };
+
+  const handleConfirm = (force: boolean) => {
     unregister.mutate(
-      { projectId, force: needsForce },
+      { projectId, force },
       {
         onSuccess: () => {
-          setIsOpen(false);
-          setTypedName("");
+          reset();
           navigate("/", { replace: true });
           addToast(`Unregistered ${displayName}.`);
         },
         onError: (err) => {
-          setIsOpen(false);
-          setTypedName("");
+          // A HAS_BENCHES refusal is recoverable: the guard counts persisted
+          // records, which can outnumber what the Benches view renders. Keep the
+          // dialog open (typed-name gate intact) and offer the forced retry
+          // instead of dead-ending in a toast.
+          if (!force && isHasBenchesError(err)) {
+            setPersistedBenchCount(err.details.benchCount);
+            return;
+          }
+          reset();
           addToast(
             err instanceof Error && err.message.length > 0
               ? err.message
@@ -87,10 +104,7 @@ export default function DangerZoneTile({ projectId }: Props) {
       <ModalOverlay
         isOpen={isOpen}
         onOpenChange={(open) => {
-          if (!open) {
-            setIsOpen(false);
-            setTypedName("");
-          }
+          if (!open) reset();
         }}
         isDismissable={!unregister.isPending}
         isKeyboardDismissDisabled={unregister.isPending}
@@ -151,6 +165,20 @@ export default function DangerZoneTile({ projectId }: Props) {
                       </p>
                     </div>
                   )}
+                  {persistedBenchCount !== null && (
+                    <div
+                      data-testid="persisted-bench-force-note"
+                      className="flex items-start gap-3 rounded-md border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2"
+                    >
+                      <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                      <p className="text-sm text-stone-700 dark:text-stone-300">
+                        Roubo still has {persistedBenchCount} persisted bench record
+                        {persistedBenchCount === 1 ? "" : "s"} for this project that the Benches
+                        view is not showing. Remove {persistedBenchCount === 1 ? "it" : "them"} and
+                        unregister?
+                      </p>
+                    </div>
+                  )}
                   <TextField value={typedName} onChange={setTypedName}>
                     <Label className="block text-xs text-stone-500 mb-1.5">
                       Type{" "}
@@ -172,12 +200,12 @@ export default function DangerZoneTile({ projectId }: Props) {
                   </Button>
                   <Button
                     isDisabled={!canConfirm}
-                    onPress={handleConfirm}
+                    onPress={() => handleConfirm(needsForce || persistedBenchCount !== null)}
                     className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 not-disabled:hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
                   >
                     {unregister.isPending
                       ? "Unregistering…"
-                      : needsForce
+                      : needsForce || persistedBenchCount !== null
                         ? "Force unregister"
                         : "Unregister"}
                   </Button>

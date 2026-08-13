@@ -2696,6 +2696,25 @@ describe("teardownBench", () => {
     expect(bench.teardownSteps.every((s) => s.status === "pending")).toBe(true);
   });
 
+  it("removes the persisted record and flips isBenchLive false (#829)", async () => {
+    // The durable half of a clear. Background writers (notification persists,
+    // component-setup tails) gate on isBenchLive, and state.updateBench refuses
+    // to recreate an absent record, so both representations have to end empty
+    // for a cleared bench to stay cleared across a relaunch.
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(stateService.removeBench).mockClear();
+
+    expect(benchManager.isBenchLive("test-project", 1)).toBe(true);
+
+    benchManager.teardownBench("test-project", 1);
+    await flushBackground();
+
+    expect(stateService.removeBench).toHaveBeenCalledWith("test-project", 1);
+    expect(benchManager.isBenchLive("test-project", 1)).toBe(false);
+    expect(benchManager.getBench("test-project", 1)).toBeUndefined();
+  });
+
   it("stops all processes and docker services", async () => {
     const config = makeConfig({
       components: {

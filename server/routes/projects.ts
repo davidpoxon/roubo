@@ -363,7 +363,9 @@ router.delete("/:projectId", (req, res) => {
   } catch (err) {
     if (err instanceof ProjectRegistryError) {
       const status = err.code === "NOT_FOUND" ? 404 : err.code === "HAS_BENCHES" ? 409 : 400;
-      res.status(status).json({ error: err.message, code: err.code });
+      // Spread the code-specific details (HAS_BENCHES carries benchCount /
+      // benchIds) so the client can explain what forcing would drop (#829).
+      res.status(status).json({ error: err.message, code: err.code, ...(err.details ?? {}) });
     } else {
       res.status(500).json({ error: (err as Error).message });
     }

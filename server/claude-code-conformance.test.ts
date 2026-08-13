@@ -178,6 +178,10 @@ vi.mock("./services/bench-manager.js", () => ({
     Array.from(benchFixtures.benches.values()).filter(
       (b) => !projectId || (b as { projectId: string }).projectId === projectId,
     ),
+  // The notification service gates its persist on this, so a fixtured bench has
+  // to answer it or every hook-driven notification 500s (#829).
+  isBenchLive: (projectId: string, benchId: number) =>
+    benchFixtures.benches.has(`${projectId}:${benchId}`),
 }));
 
 const projectFixtures = vi.hoisted(() => ({ projects: new Map<string, unknown>() }));

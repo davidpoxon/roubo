@@ -179,6 +179,28 @@ export function isConsentError(err: unknown): err is ApiError & {
   return typeof pluginId === "string" && pluginId.length > 0;
 }
 
+/**
+ * An unregister was refused because the project still has persisted bench
+ * records. The count comes from state.json, which can legitimately exceed what
+ * the Benches view renders if a record was ever orphaned there (#829), so the
+ * body carries the count and ids the refusal is objecting to and the caller can
+ * offer a forced unregister that names them. Mirrors `isDirtyBenchError`: a
+ * typed body read off `ApiError.details`, which `request` populates with the
+ * whole error body.
+ */
+export function isHasBenchesError(err: unknown): err is ApiError & {
+  code: "HAS_BENCHES";
+  details: { benchCount: number; benchIds: number[] };
+} {
+  if (!(err instanceof ApiError) || err.code !== "HAS_BENCHES") return false;
+  if (typeof err.details !== "object" || err.details === null) return false;
+  const { benchCount, benchIds } = err.details as {
+    benchCount?: unknown;
+    benchIds?: unknown;
+  };
+  return typeof benchCount === "number" && Array.isArray(benchIds);
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },

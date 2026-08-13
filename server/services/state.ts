@@ -201,8 +201,26 @@ export function addBench(bench: PersistedBench) {
   saveState(data);
 }
 
+/**
+ * Replaces an existing persisted bench in place. Deliberately a no-op when no
+ * record with this (projectId, id) exists: creation is `addBench`'s job.
+ *
+ * This asymmetry is the fix for #829. Background writers hold a `Bench`
+ * reference across awaits (component setup, PTY-driven notifications, container
+ * assignment); if a teardown clears the bench in that window, an upserting
+ * update re-adds the record to state.json. Memory then says the bench is gone
+ * while state.json still lists it, so the Benches view renders nothing, the
+ * unregister guard still counts one, and the next launch hydrates the phantom
+ * back into the UI. A no-op-when-absent update closes that window for every
+ * writer at once, including the in-thread gap between `removeBench` and the
+ * `benches.delete` that follows it.
+ */
 export function updateBench(bench: PersistedBench) {
-  addBench(bench);
+  const data = loadState();
+  const index = data.benches.findIndex((b) => b.projectId === bench.projectId && b.id === bench.id);
+  if (index === -1) return;
+  data.benches[index] = bench;
+  saveState(data);
 }
 
 /**
