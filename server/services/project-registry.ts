@@ -216,6 +216,7 @@ export function unregisterProject(projectId: string, opts: { force?: boolean } =
       throw new ProjectRegistryError(
         `Cannot unregister '${projectId}': ${benches.length} active bench(es). Clear them first.`,
         "HAS_BENCHES",
+        { benchCount: benches.length, benchIds: benches.map((b) => b.id) },
       );
     }
     // Force path: drop bench records from state.json. No filesystem cleanup:
@@ -330,6 +331,13 @@ export class ProjectRegistryError extends Error {
   constructor(
     message: string,
     public code: string,
+    /**
+     * Code-specific context the route merges into the error body. `HAS_BENCHES`
+     * carries `{ benchCount, benchIds }` so the client can name exactly what a
+     * forced unregister would drop, including persisted records the Benches view
+     * never rendered (#829). Absent for every other code.
+     */
+    public details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ProjectRegistryError";

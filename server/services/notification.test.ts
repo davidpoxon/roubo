@@ -8,6 +8,14 @@ vi.mock("./sse.js", () => ({
   broadcast: vi.fn(),
 }));
 
+// Notifications persist through a background guard on the in-memory bench map.
+// Mock the bench-manager boundary so the guard is controllable and the real,
+// heavy module stays out of these unit tests. Default: the bench is live.
+const benchManagerMocks = vi.hoisted(() => ({
+  isBenchLive: vi.fn<(projectId: string, benchId: number) => boolean>(() => true),
+}));
+vi.mock("./bench-manager.js", () => benchManagerMocks);
+
 import * as stateService from "./state.js";
 import * as sseService from "./sse.js";
 import { makeBench } from "../test/fixtures.js";
@@ -25,6 +33,7 @@ const mockBroadcast = vi.mocked(sseService.broadcast);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  benchManagerMocks.isBenchLive.mockReturnValue(true);
 });
 
 describe("createNotification", () => {
@@ -63,6 +72,23 @@ describe("createNotification", () => {
     expect(mockUpdateBench).toHaveBeenCalledWith(
       expect.objectContaining({ benchSetupComplete: false }),
     );
+  });
+
+  it("does not persist a bench teardown already cleared (#829)", () => {
+    // A late PTY-driven notification must not write the bench back into
+    // state.json: the record would outlive the cleared bench, block unregister
+    // and hydrate back into the UI on the next launch.
+    benchManagerMocks.isBenchLive.mockReturnValue(false);
+    const bench = makeBench();
+
+    const result = createNotification(bench, "terminal-waiting", "session-1");
+
+    expect(result).toBeDefined();
+    expect(mockUpdateBench).not.toHaveBeenCalled();
+    // The in-memory notification and its SSE broadcast still happen; only the
+    // durable write is suppressed.
+    expect(bench.notifications).toHaveLength(1);
+    expect(mockBroadcast).toHaveBeenCalled();
   });
 
   it("assigns action-needed priority for agent-waiting", () => {

@@ -5,6 +5,7 @@ import type {
   NotificationPriority,
   NotificationType,
 } from "@roubo/shared";
+import * as benchManager from "./bench-manager.js";
 import * as stateService from "./state.js";
 import * as sseService from "./sse.js";
 
@@ -31,6 +32,13 @@ function derivePriority(type: NotificationType): NotificationPriority {
 }
 
 function persistBench(bench: Bench): void {
+  // Notifications fire from live PTY streams and component lifecycle tails, so
+  // this runs long after the caller captured its `bench` reference. Skip the
+  // write once teardown has dropped the bench from the in-memory map, matching
+  // the guard issue-assignment applies to its own background writes (#829).
+  // `updateBench` is a no-op for an absent record anyway; this just avoids the
+  // pointless load/save.
+  if (!benchManager.isBenchLive(bench.projectId, bench.id)) return;
   stateService.updateBench({
     id: bench.id,
     projectId: bench.projectId,

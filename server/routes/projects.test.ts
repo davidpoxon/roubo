@@ -588,6 +588,19 @@ describe("DELETE /:projectId", () => {
     expect(res.body.code).toBe("HAS_BENCHES");
   });
 
+  it("serialises the HAS_BENCHES bench count and ids onto the body (#829)", async () => {
+    vi.mocked(projectRegistry.unregisterProject).mockImplementation(() => {
+      throw new ProjectRegistryError("Has active benches", "HAS_BENCHES", {
+        benchCount: 2,
+        benchIds: [1, 4],
+      });
+    });
+
+    const res = await request(app).delete("/project");
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ code: "HAS_BENCHES", benchCount: 2, benchIds: [1, 4] });
+  });
+
   it("returns 500 when generic Error is thrown", async () => {
     vi.mocked(projectRegistry.unregisterProject).mockImplementation(() => {
       throw new Error("unexpected error");

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Bench, RegisteredProject } from "@roubo/shared";
+import { ApiError } from "../../lib/api";
 import DangerZoneTile from "./DangerZoneTile";
 
 const mockNavigate = vi.fn();
@@ -519,6 +520,140 @@ describe("DangerZoneTile", () => {
     render(<DangerZoneTile projectId="proj-1" />);
     await user.click(screen.getByRole("button", { name: "Unregister" }));
     expect(screen.queryByTestId("force-unregister-note")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Unregister" }),
+    ).toBeInTheDocument();
+  });
+
+  // --- HAS_BENCHES recovery (#829) ---
+
+  function hasBenchesError(benchCount: number, benchIds: number[]) {
+    return new ApiError(
+      `Cannot unregister 'proj-1': ${benchCount} active bench(es). Clear them first.`,
+      409,
+      "HAS_BENCHES",
+      { benchCount, benchIds },
+    );
+  }
+
+  it("offers a forced retry instead of a dead-end toast on a HAS_BENCHES refusal", async () => {
+    // state.json can list bench records the Benches view never renders, so the
+    // guard refuses while the UI shows nothing to clear. The dialog has to stay
+    // open and explain, or the project can never be unregistered.
+    const mutateFn = vi.fn(
+      (
+        _input: { projectId: string; force?: boolean },
+        options?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+      ) => {
+        options?.onError?.(hasBenchesError(1, [1]));
+      },
+    );
+    setupMocks({ mutateFn });
+    const user = userEvent.setup();
+    render(<DangerZoneTile projectId="proj-1" />);
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+    await user.type(within(screen.getByRole("dialog")).getByRole("textbox"), "My App");
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Unregister" }),
+    );
+
+    expect(mockAddToast).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    const note = screen.getByTestId("persisted-bench-force-note");
+    expect(note).toHaveTextContent(/1 persisted bench record/);
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Force unregister" }),
+    ).toBeInTheDocument();
+  });
+
+  it("re-issues the unregister with force=true when the forced retry is confirmed", async () => {
+    const mutateFn = vi.fn(
+      (
+        input: { projectId: string; force?: boolean },
+        options?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+      ) => {
+        if (input.force) {
+          options?.onSuccess?.();
+          return;
+        }
+        options?.onError?.(hasBenchesError(2, [1, 4]));
+      },
+    );
+    setupMocks({ mutateFn });
+    const user = userEvent.setup();
+    render(<DangerZoneTile projectId="proj-1" />);
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+    await user.type(within(screen.getByRole("dialog")).getByRole("textbox"), "My App");
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Unregister" }),
+    );
+    expect(screen.getByTestId("persisted-bench-force-note")).toHaveTextContent(
+      /2 persisted bench records/,
+    );
+
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Force unregister" }),
+    );
+
+    expect(mutateFn).toHaveBeenLastCalledWith(
+      { projectId: "proj-1", force: true },
+      expect.objectContaining({
+        onSuccess: expect.any(Function),
+        onError: expect.any(Function),
+      }),
+    );
+    expect(mockNavigate).toHaveBeenCalledWith("/", { replace: true });
+    expect(mockAddToast).toHaveBeenCalledWith("Unregistered My App.");
+  });
+
+  it("falls back to the error toast when a forced retry is itself refused", async () => {
+    const mutateFn = vi.fn(
+      (
+        input: { projectId: string; force?: boolean },
+        options?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+      ) => {
+        options?.onError?.(input.force ? new Error("Server unreachable") : hasBenchesError(1, [1]));
+      },
+    );
+    setupMocks({ mutateFn });
+    const user = userEvent.setup();
+    render(<DangerZoneTile projectId="proj-1" />);
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+    await user.type(within(screen.getByRole("dialog")).getByRole("textbox"), "My App");
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Unregister" }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Force unregister" }),
+    );
+
+    expect(mockAddToast).toHaveBeenCalledWith("Server unreachable", { duration: 8000 });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("clears the forced-retry state when the dialog is closed", async () => {
+    const mutateFn = vi.fn(
+      (
+        _input: { projectId: string; force?: boolean },
+        options?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+      ) => {
+        options?.onError?.(hasBenchesError(1, [1]));
+      },
+    );
+    setupMocks({ mutateFn });
+    const user = userEvent.setup();
+    render(<DangerZoneTile projectId="proj-1" />);
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+    await user.type(within(screen.getByRole("dialog")).getByRole("textbox"), "My App");
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Unregister" }),
+    );
+    expect(screen.getByTestId("persisted-bench-force-note")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+
+    expect(screen.queryByTestId("persisted-bench-force-note")).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Unregister" }),
     ).toBeInTheDocument();

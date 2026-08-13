@@ -801,6 +801,158 @@ describe("addBench", () => {
   });
 });
 
+describe("updateBench", () => {
+  it("replaces a present record in place", () => {
+    const existing = {
+      benches: [
+        {
+          id: 1,
+          projectId: "project1",
+          branch: "old",
+          workspacePath: "/old",
+          ports: {},
+          createdAt: "t1",
+        },
+        {
+          id: 2,
+          projectId: "project1",
+          branch: "sibling",
+          workspacePath: "/sibling",
+          ports: {},
+          createdAt: "t2",
+        },
+      ],
+    };
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify(existing));
+
+    stateModule.updateBench({
+      id: 1,
+      projectId: "project1",
+      branch: "new",
+      workspacePath: "/new",
+      ports: {},
+      createdAt: "t1",
+    });
+
+    const written = JSON.parse(writeFileSync.mock.calls[0][1] as string);
+    expect(written.benches).toHaveLength(2);
+    expect(written.benches[0].branch).toBe("new");
+    expect(written.benches[1].branch).toBe("sibling");
+  });
+
+  it("writes nothing when no record with that (projectId, id) exists (#829)", () => {
+    // The resurrection bug: a background writer holding a stale Bench reference
+    // persists after teardown removed the record. An upserting update re-adds it
+    // to state.json, so the unregister guard keeps counting a bench the Benches
+    // view no longer renders and the next launch hydrates it back.
+    const existing = {
+      benches: [
+        {
+          id: 2,
+          projectId: "project1",
+          branch: "sibling",
+          workspacePath: "/sibling",
+          ports: {},
+          createdAt: "t2",
+        },
+      ],
+    };
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify(existing));
+
+    stateModule.updateBench({
+      id: 1,
+      projectId: "project1",
+      branch: "cleared",
+      workspacePath: "/cleared",
+      ports: {},
+      createdAt: "t1",
+    });
+
+    expect(writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("does not match a same-id bench belonging to another project", () => {
+    const existing = {
+      benches: [
+        {
+          id: 1,
+          projectId: "project2",
+          branch: "other",
+          workspacePath: "/other",
+          ports: {},
+          createdAt: "t1",
+        },
+      ],
+    };
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify(existing));
+
+    stateModule.updateBench({
+      id: 1,
+      projectId: "project1",
+      branch: "cleared",
+      workspacePath: "/cleared",
+      ports: {},
+      createdAt: "t1",
+    });
+
+    expect(writeFileSync).not.toHaveBeenCalled();
+  });
+});
+
+describe("bench lifecycle durability (#829)", () => {
+  // Backs the mocked fs with a single mutable state.json so a whole
+  // create -> clear -> late-write -> relaunch sequence runs against the real
+  // load/save code rather than one hand-fed snapshot.
+  function useInMemoryStateFile() {
+    let contents: string | undefined;
+    existsSync.mockImplementation((p: string) => String(p).endsWith("state.json"));
+    readFileSync.mockImplementation(() => contents ?? JSON.stringify({ benches: [] }));
+    writeFileSync.mockImplementation((_p: string, data: string) => {
+      contents = data;
+    });
+    renameSync.mockImplementation(() => {});
+  }
+
+  it("keeps a cleared bench gone when a background writer persists after teardown", () => {
+    useInMemoryStateFile();
+
+    stateModule.addBench({
+      id: 1,
+      projectId: "project1",
+      branch: "feat/x",
+      workspacePath: "/w",
+      ports: {},
+      createdAt: "t1",
+    });
+    expect(stateModule.getPersistedBenches("project1")).toHaveLength(1);
+
+    // Teardown drops the record from state.json and the in-memory map.
+    stateModule.removeBench("project1", 1);
+
+    // A component-setup tail or a PTY-driven notification still holding the old
+    // Bench reference persists afterwards. Before the fix this re-added the
+    // record, so the unregister guard kept reporting "1 active bench(es)" while
+    // the Benches view showed none, and the next launch hydrated it back.
+    stateModule.updateBench({
+      id: 1,
+      projectId: "project1",
+      branch: "feat/x",
+      workspacePath: "/w",
+      ports: {},
+      createdAt: "t1",
+      benchSetupComplete: true,
+    });
+
+    // What the unregister guard counts, and what initialize() hydrates on the
+    // next launch, is this list.
+    expect(stateModule.getPersistedBenches("project1")).toEqual([]);
+    expect(stateModule.getPersistedBenches()).toEqual([]);
+  });
+});
+
 describe("removeBench", () => {
   it("filters correctly", () => {
     const existing = {

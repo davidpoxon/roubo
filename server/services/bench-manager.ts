@@ -1062,26 +1062,32 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
 
     updateStep(bench.provisioningSteps, "workspace", "done");
 
-    // Persist bench to disk now that workspace exists
-    stateService.addBench({
-      id: bench.id,
-      projectId: bench.projectId,
-      branch: bench.branch,
-      workspacePath: bench.workspacePath,
-      ports: bench.ports,
-      createdAt: bench.createdAt,
-      notifications: bench.notifications,
-      baseBranch: bench.baseBranch,
-      baseCommit: bench.baseCommit,
-      injectedJigId: bench.injectedJigId,
-      injectedJigSource: bench.injectedJigSource,
-      variant: bench.variant,
-      focusedSpecPath: bench.focusedSpecPath,
-      // Written even while false so a crash between here and a successful
-      // `benches.setup` run does not look like a legacy record on reload, which
-      // would migrate to `true` and skip setup forever (#630).
-      benchSetupComplete: bench.benchSetupComplete,
-    });
+    // Persist bench to disk now that workspace exists. This is the record's
+    // CREATE: `addBench` upserts, every later write is an `updateBench` that
+    // no-ops if the record is gone (#829).
+    //
+    // Serialise the whole live bench rather than a hand-picked subset. Creation
+    // is deliberately deferred until the workspace exists, so a caller that
+    // persisted earlier (issue assignment writes `assignedIssue` before its
+    // session work) found no record to update and its write no-opped. Those
+    // fields are still set on this same `bench` object, so taking the full
+    // snapshot here is what carries them to disk; naming a subset instead
+    // silently dropped `assignedIssue` on a bench whose assignment resolved
+    // before provisioning did, losing it on the next launch.
+    //
+    // `benchSetupComplete` rides along even while false, so a crash between here
+    // and a successful `benches.setup` run does not look like a legacy record on
+    // reload, which would migrate to `true` and skip setup forever (#630).
+    //
+    // Guarded like every other persist: clearing a bench mid-provisioning is a
+    // supported flow, and the preceding pull-latest and `worktree add` steps are
+    // long enough to be interrupted. Teardown removes nothing (no record exists
+    // yet) and drops the bench from the map, so an unguarded create here would
+    // write a record with no bench behind it: invisible in the Benches view,
+    // counted by the unregister guard, and hydrated back on the next launch.
+    // That is the #829 phantom, arriving through creation instead of update.
+    if (!isBenchLive(bench.projectId, bench.id)) return;
+    stateService.addBench(stateService.toPersistedBench(bench));
 
     // Inject project-level permissions into the workspace before any sessions start.
     // Failure is non-fatal: the bench can still run without pre-seeded permissions.

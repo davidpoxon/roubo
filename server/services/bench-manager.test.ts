@@ -1049,6 +1049,70 @@ describe("background provisioning", () => {
     expect(bench.provisioningSteps[0].status).toBe("done");
   });
 
+  it("does not create a record for a bench cleared mid-provisioning (#829)", async () => {
+    // Clearing during provisioning is supported, and `worktree add` is slow
+    // enough to be interrupted. Teardown removes nothing (no record exists yet)
+    // and drops the bench from the map, so an unguarded create would write a
+    // record with no bench behind it: the phantom this issue is about, reached
+    // through creation rather than through a resurrecting update.
+    setupCreateBenchMocks();
+    setupProcessMocks();
+
+    let releaseWorktreeAdd!: () => void;
+    const worktreeAddReached = new Promise<void>((resolveReached) => {
+      const gate = new Promise<void>((release) => {
+        releaseWorktreeAdd = () => release();
+      });
+      vi.mocked(execModule.runCommand).mockImplementation(async (_cmd, args) => {
+        if (Array.isArray(args) && args[0] === "worktree" && args[1] === "add") {
+          resolveReached();
+          await gate;
+        }
+        return { code: 0, stdout: "", stderr: "" };
+      });
+    });
+
+    benchManager.createBench("test-project", "my-branch");
+    await worktreeAddReached;
+
+    benchManager.teardownBench("test-project", 1);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(benchManager.isBenchLive("test-project", 1)).toBe(false);
+
+    releaseWorktreeAdd();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(stateService.addBench).not.toHaveBeenCalled();
+  });
+
+  it("carries fields set while provisioning was still running onto the created record (#829)", async () => {
+    // The record is only created once the workspace exists, so anything a
+    // caller persisted before that point found no record to update and no-opped
+    // (`updateBench` is deliberately no-op-when-absent). Issue assignment sets
+    // `assignedIssue` on this same bench object and persists it ahead of its
+    // session work, so the create has to snapshot the whole live bench. Naming a
+    // subset here dropped `assignedIssue` whenever assignment resolved before
+    // provisioning did, and the next launch hydrated a bench with no issue.
+    setupCreateBenchMocks();
+    setupProcessMocks();
+
+    const bench = benchManager.createBench("test-project", "my-branch");
+    bench.assignedIssue = {
+      integrationId: "github-com",
+      externalId: "owner/repo#7",
+      title: "Some issue",
+    };
+
+    await vi.waitFor(() => {
+      expect(stateService.addBench).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 1,
+          assignedIssue: expect.objectContaining({ externalId: "owner/repo#7" }),
+        }),
+      );
+    });
+  });
+
   it("broadcasts a bench-status event with status idle once provisioning completes", async () => {
     setupCreateBenchMocks();
     setupProcessMocks();
@@ -2694,6 +2758,25 @@ describe("teardownBench", () => {
     expect(bench.status).toBe("clearing");
     expect(bench.teardownSteps.length).toBeGreaterThan(0);
     expect(bench.teardownSteps.every((s) => s.status === "pending")).toBe(true);
+  });
+
+  it("removes the persisted record and flips isBenchLive false (#829)", async () => {
+    // The durable half of a clear. Background writers (notification persists,
+    // component-setup tails) gate on isBenchLive, and state.updateBench refuses
+    // to recreate an absent record, so both representations have to end empty
+    // for a cleared bench to stay cleared across a relaunch.
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(stateService.removeBench).mockClear();
+
+    expect(benchManager.isBenchLive("test-project", 1)).toBe(true);
+
+    benchManager.teardownBench("test-project", 1);
+    await flushBackground();
+
+    expect(stateService.removeBench).toHaveBeenCalledWith("test-project", 1);
+    expect(benchManager.isBenchLive("test-project", 1)).toBe(false);
+    expect(benchManager.getBench("test-project", 1)).toBeUndefined();
   });
 
   it("stops all processes and docker services", async () => {
