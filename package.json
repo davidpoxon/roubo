@@ -81,7 +81,7 @@
     "@testing-library/user-event": "14.6.1",
     "@types/node": "26.1.1",
     "@types/semver": "7.7.1",
-    "@types/supertest": "7.2.0",
+    "@types/supertest": "7.2.1",
     "@vitejs/plugin-react": "6.0.3",
     "@vitest/coverage-v8": "4.1.10",
     "axe-core": "4.12.1",
