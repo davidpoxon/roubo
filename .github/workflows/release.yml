@@ -54,7 +54,7 @@ jobs:
           #   arch: x64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
       - uses: actions/setup-node@v7.0.0
         with:
@@ -192,7 +192,7 @@ jobs:
       # draft. Nothing in this job writes.
       contents: write
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
       - uses: actions/setup-node@v7.0.0
         with:
