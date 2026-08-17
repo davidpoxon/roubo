@@ -68,7 +68,8 @@ import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useT
 // which is what lets the list's flex-1 grow again, and the overflow resolves the
 // section's automatic minimum size to 0, so a short window degrades by scrolling
 // in here rather than by starving the list. Deliberately NOT shrink-0: that would
-// reintroduce the starvation at small viewport heights.
+// reintroduce the starvation at small viewport heights. The cap is what makes the
+// section's own tab stop necessary; see the tabIndex note on the element.
 
 const STATE_LABEL = {
   retired: "Retired",
@@ -285,7 +286,17 @@ export default function ArchivedCases({
     <section
       data-testid="archived-cases"
       aria-label="Archived cases"
-      className="max-h-64 overflow-y-auto rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/40 dark:bg-stone-900/30 px-4 py-3"
+      // tabIndex 0 is required by the cap, not decoration: a capped scroll
+      // container that holds no tab stop of its own is unscrollable by keyboard
+      // (axe scrollable-region-focusable, WCAG 2.1.1), and this section can
+      // legitimately hold none. Orphaned-result entries carry no control at all,
+      // and a lifecycle entry rendered without projectId/benchId offers no
+      // Restore, so the clipped content below the cap would have no keyboard
+      // route to it. The section is already a named region via aria-label, so it
+      // is a legal focus target. jsdom cannot catch this (no layout means
+      // scrollHeight and clientHeight are both 0, so the axe rule never fires).
+      tabIndex={0}
+      className="max-h-64 overflow-y-auto rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/40 dark:bg-stone-900/30 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
     >
       <div className="flex items-center gap-2">
         <Archive size={13} className="text-stone-600 dark:text-stone-400 shrink-0" aria-hidden />

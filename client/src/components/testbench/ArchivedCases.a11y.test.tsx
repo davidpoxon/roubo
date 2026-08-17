@@ -118,8 +118,12 @@ describe("ArchivedCases a11y: keyboard operation (SATCA-TC-019 S002-O01)", () =>
     const user = userEvent.setup();
     renderSection({ archived: archivedFor([RETIRED]) });
 
-    // Reached by tabbing, never by a mouse click: a retired entry offers Restore
-    // as its only control, so one Tab from the document lands on it.
+    // Reached by tabbing, never by a mouse click. The section itself is the first
+    // tab stop (#832: it is a capped scroll container, so it must be keyboard
+    // scrollable), and a retired entry offers Restore as its only control, so the
+    // second Tab lands on it.
+    await user.tab();
+    expect(screen.getByTestId("archived-cases")).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: /Restore/ })).toHaveFocus();
     await user.keyboard("{Enter}");
@@ -140,6 +144,9 @@ describe("ArchivedCases a11y: keyboard operation (SATCA-TC-019 S002-O01)", () =>
     const onSelectCase = vi.fn();
     renderSection({ archived: archivedFor([SUPERSEDED, LIVE_TARGET]), onSelectCase });
 
+    // The section's own tab stop comes first (#832), then the reveal.
+    await user.tab();
+    expect(screen.getByTestId("archived-cases")).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "Replaced by TC-B" })).toHaveFocus();
     await user.keyboard("{Enter}");
@@ -150,10 +157,36 @@ describe("ArchivedCases a11y: keyboard operation (SATCA-TC-019 S002-O01)", () =>
     const user = userEvent.setup();
     renderSection({ archived: archivedFor([SUPERSEDED, LIVE_TARGET]), onSelectCase: vi.fn() });
 
+    // The scroll container leads (#832), then every control in order; the entries
+    // themselves stay skipped.
+    await user.tab();
+    expect(screen.getByTestId("archived-cases")).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "Replaced by TC-B" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: /Restore/ })).toHaveFocus();
+  });
+
+  // #832. The section is a capped scroll container, so it needs a tab stop of its
+  // own: without one, a shape holding no control leaves the content below the cap
+  // with no keyboard route to it (axe scrollable-region-focusable, WCAG 2.1.1).
+  // An orphaned-result entry is exactly that shape, since a case removed from the
+  // plan has no lifecycle record to restore and so carries no control.
+  it("is itself keyboard reachable when no entry offers a control", async () => {
+    const user = userEvent.setup();
+    render(
+      <ArchivedCases
+        results={results({
+          "TC-GONE": { observationMarks: {}, derivedStatus: "passed", notes: [], orphaned: true },
+        })}
+        archived={[]}
+      />,
+    );
+
+    const section = screen.getByTestId("archived-cases");
+    expect(within(section).queryAllByRole("button")).toHaveLength(0);
+    await user.tab();
+    expect(section).toHaveFocus();
   });
 });
 

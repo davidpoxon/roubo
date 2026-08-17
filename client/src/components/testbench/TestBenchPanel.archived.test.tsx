@@ -305,11 +305,27 @@ describe("TestBenchPanel archived section does not starve the live case list (#8
       within(list)
         .getAllByTestId("case-row")
         .filter((el) => el.getAttribute("tabindex") === "0");
-    expect(tabStops().length).toBe(1);
+    // Assert WHICH row holds the tab stop, not just how many do. The count alone
+    // is invariant: activeFocusIndex is a single derived value that falls back to
+    // the first case, and the focused row is always mounted, so exactly one row
+    // carries tabindex 0 whether or not the arrow-key handler runs. Deleting
+    // CaseList's key handling outright would leave a count-only assertion green.
+    const activeRow = () => tabStops()[0];
+    expect(tabStops()).toHaveLength(1);
+    expect(activeRow()).toHaveTextContent("TC-B");
 
-    for (const key of ["ArrowDown", "ArrowUp", "End", "Home"]) {
+    // TC-A is retired, so the live list is TC-B then TC-C.
+    const expected: [string, string][] = [
+      ["ArrowDown", "TC-C"],
+      ["ArrowUp", "TC-B"],
+      ["End", "TC-C"],
+      ["Home", "TC-B"],
+    ];
+    for (const [key, caseId] of expected) {
       fireEvent.keyDown(list, { key });
-      expect(tabStops().length).toBe(1);
+      expect(tabStops()).toHaveLength(1);
+      expect(activeRow()).toHaveTextContent(caseId);
+      expect(activeRow()).toHaveFocus();
     }
   });
 
