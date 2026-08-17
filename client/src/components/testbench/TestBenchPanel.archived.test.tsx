@@ -11,7 +11,7 @@
 // #770 (or a bench with no manifest at all) reads live and shows no label.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 // The spec picker this panel opens uses a react-query mutation (#773), so the
 // panel must render inside a QueryClientProvider.
 import { renderWithProviders as render } from "../../test/renderWithProviders";
@@ -247,5 +247,95 @@ describe("TestBenchPanel focus and announcement after a case is archived (#775)"
     // live region that kept the stale sentence would re-announce it later.
     await user.click(screen.getAllByTestId("case-row")[0]);
     expect(screen.getByTestId("testbench-lifecycle-live")).toHaveTextContent("");
+  });
+});
+
+// #832: a tall Archived section used to collapse the live case list to zero
+// height. Both live in one flex column (TestBenchPanel's `frame`), the list's
+// height floor is 0 (`flex-1 min-h-0`), and the section had no cap and no
+// overflow, so a retirement reason running to a few paragraphs took the column
+// and the list was allocated nothing. The fix bounds the section.
+//
+// jsdom has no layout engine and loads no Tailwind CSS, so neither the collapse
+// nor the cap is measurable here; the assertion is on the layout contract. Note
+// also that counting mounted rows is NOT a guard on its own: an unmeasured
+// viewport falls back to a fixed 600px window in useWindowedRows, so the rows
+// mount (and merely get clipped by a zero-height scroll container) even while the
+// bug is live, which is why this suite did not catch it. The pixel-level symptom
+// is a browser question; the sibling precedent for that is
+// e2e/e2e-flow/archival-contrast.spec.ts.
+describe("TestBenchPanel archived section does not starve the live case list (#832)", () => {
+  const LONG_REASON = [
+    "Retired because the surface it exercised was folded into the batch view.",
+    "The three retained observation marks are kept so the earlier review is not lost.",
+    "Re-graded from blocked to failed once the underlying defect was confirmed.",
+    "Superseding coverage is authored against the replacement case in the same area.",
+    "Kept archived rather than deleted so the audit trail survives a reconcile.",
+  ].join("\n\n");
+
+  function retired(id: string, reason: string): Case {
+    return { ...makeCase(id), lifecycle: { state: "retired", reason } };
+  }
+
+  it("bounds the archived section's height and scrolls it internally", () => {
+    setPlan({ plan: plan([retired("TC-A", LONG_REASON), makeCase("TC-B"), makeCase("TC-C")]) });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+
+    const section = screen.getByTestId("archived-cases");
+    // The cap is what restores positive free space in the column, and the
+    // overflow is what resolves the section's automatic minimum size to 0 so a
+    // short window scrolls here instead of starving the list.
+    expect(section.className).toMatch(/\bmax-h-\S+/);
+    expect(section.className).toMatch(/\boverflow-y-auto\b/);
+    // shrink-0 would pin the section back to its content height and reintroduce
+    // the starvation at small viewport heights.
+    expect(section.className).not.toMatch(/\bshrink-0\b/);
+    // The reason is still rendered in full, reachable by scrolling the section.
+    expect(screen.getByTestId("archived-reason-TC-A")).toHaveTextContent("audit trail");
+    // The live cases are still listed alongside it.
+    expect(screen.getAllByTestId("case-row").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the live list's roving tab stop and arrow keys working alongside it", () => {
+    setPlan({ plan: plan([retired("TC-A", LONG_REASON), makeCase("TC-B"), makeCase("TC-C")]) });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+
+    const list = screen.getByRole("group", { name: /Test cases grouped/ });
+    const tabStops = () =>
+      within(list)
+        .getAllByTestId("case-row")
+        .filter((el) => el.getAttribute("tabindex") === "0");
+    expect(tabStops().length).toBe(1);
+
+    for (const key of ["ArrowDown", "ArrowUp", "End", "Home"]) {
+      fireEvent.keyDown(list, { key });
+      expect(tabStops().length).toBe(1);
+    }
+  });
+
+  it("renders no archived section at all when nothing is archived", () => {
+    setPlan({ plan: plan([makeCase("TC-A"), makeCase("TC-B")]) });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+
+    expect(screen.queryByTestId("archived-cases")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("case-row").length).toBeGreaterThan(0);
+  });
+
+  it("stays bounded with several archived entries", () => {
+    setPlan({
+      plan: plan([
+        retired("TC-A", LONG_REASON),
+        retired("TC-B", LONG_REASON),
+        retired("TC-C", LONG_REASON),
+        makeCase("TC-D"),
+      ]),
+    });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+
+    const section = screen.getByTestId("archived-cases");
+    expect(section.className).toMatch(/\bmax-h-\S+/);
+    expect(section.className).toMatch(/\boverflow-y-auto\b/);
+    expect(within(section).getAllByTestId(/^archived-case-/).length).toBe(3);
+    expect(screen.getAllByTestId("case-row").length).toBeGreaterThan(0);
   });
 });

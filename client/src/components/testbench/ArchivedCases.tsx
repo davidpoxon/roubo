@@ -59,6 +59,16 @@ import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useT
 // act, not a lifecycle one.
 //
 // The section renders when at least one entry of either kind exists.
+//
+// It is height-capped with its own internal scroll (#832). The section sits in
+// the panel's single flex column as a sibling of the live case list, and the
+// list's own height floor is 0, so an uncapped section (one retirement reason
+// running to a few paragraphs is enough) took the whole column and left the list
+// at zero height with no rows reachable. Capping restores positive free space,
+// which is what lets the list's flex-1 grow again, and the overflow resolves the
+// section's automatic minimum size to 0, so a short window degrades by scrolling
+// in here rather than by starving the list. Deliberately NOT shrink-0: that would
+// reintroduce the starvation at small viewport heights.
 
 const STATE_LABEL = {
   retired: "Retired",
@@ -275,7 +285,7 @@ export default function ArchivedCases({
     <section
       data-testid="archived-cases"
       aria-label="Archived cases"
-      className="rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/40 dark:bg-stone-900/30 px-4 py-3"
+      className="max-h-64 overflow-y-auto rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/40 dark:bg-stone-900/30 px-4 py-3"
     >
       <div className="flex items-center gap-2">
         <Archive size={13} className="text-stone-600 dark:text-stone-400 shrink-0" aria-hidden />
