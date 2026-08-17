@@ -23,7 +23,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.inputs.tag_name || github.ref }}
 
@@ -106,7 +106,7 @@ jobs:
     steps:
       # Check out only to source the plugin's build inputs (src + tsup.config.ts);
       # the build itself runs in a fresh dir outside this tree.
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.inputs.tag_name || github.ref }}
 
