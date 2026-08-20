@@ -599,18 +599,6 @@ export interface PluginHandle {
 export const SUPPORTED_CONTRACT_VERSION = 1 as const;
 
 /**
- * Minimal structural copy of `@roubo/shared`'s `ProvisionDescriptor` union.
- *
- * `@roubo/plugin-sdk` is a published, dependency-light package (`private:
- * false`, only `vscode-jsonrpc`) whereas `@roubo/shared` is a `private: true`
- * workspace package that ships raw TypeScript. Taking a workspace dependency on
- * it would break both `npm publish` (an unpublished dependency) and the SDK's
- * own `tsc` build (`rootDir: ./src` cannot import a `.ts` file outside `src`).
- * So the descriptor shape is restated here. It MUST stay structurally in sync
- * with `shared/provision-descriptor-schema.ts` (the Zod schema is the
- * authority; the host validates every descriptor against it).
- */
-/**
  * The declarative route to a runtime URL (#834). A `translate`-only plugin
  * never holds the reportStatus sink (translate runs once, before the descriptor
  * executes), so the descriptor declares the URL and the host's LifecycleEngine
@@ -634,6 +622,18 @@ export const SUPPORTED_CONTRACT_VERSION = 1 as const;
 export type DescriptorUrl =
   { template: string; fromOutput?: never } | { fromOutput: string; template?: never };
 
+/**
+ * Minimal structural copy of `@roubo/shared`'s `ProvisionDescriptor` union.
+ *
+ * `@roubo/plugin-sdk` is a published, dependency-light package (`private:
+ * false`, only `vscode-jsonrpc`) whereas `@roubo/shared` is a `private: true`
+ * workspace package that ships raw TypeScript. Taking a workspace dependency on
+ * it would break both `npm publish` (an unpublished dependency) and the SDK's
+ * own `tsc` build (`rootDir: ./src` cannot import a `.ts` file outside `src`).
+ * So the descriptor shape is restated here. It MUST stay structurally in sync
+ * with `shared/provision-descriptor-schema.ts` (the Zod schema is the
+ * authority; the host validates every descriptor against it).
+ */
 export interface DockerProvisionDescriptor {
   schemaVersion: 1;
   kind: "docker";

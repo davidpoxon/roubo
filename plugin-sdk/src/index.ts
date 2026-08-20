@@ -31,6 +31,7 @@ export type {
   ConfiguredSource,
   DeclarativeComponentContract,
   DefineComponentPluginOptions,
+  DescriptorUrl,
   DockerProvisionDescriptor,
   ImperativeComponentContract,
   OneshotProvisionDescriptor,
