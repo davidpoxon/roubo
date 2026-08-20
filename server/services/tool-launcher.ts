@@ -214,9 +214,15 @@ function execAsync(command: string, cwd?: string): Promise<void> {
   // handles argument quoting (e.g. `open -a "Rider" "/path with spaces"`).
   // All template values substituted into shell tool commands must be
   // trusted (allocated ports, developer-controlled roubo.yaml user properties),
-  // never externally-sourced strings. The one value derived from a user-chosen
-  // name, the workspace path, is validated by assertSafeWorkspacePath in
-  // executeTool before substitution (CodeQL #32).
+  // never externally-sourced strings. Two values are trusted by validation
+  // rather than by provenance: the workspace path, derived from a user-chosen
+  // name and checked by assertSafeWorkspacePath in executeTool before
+  // substitution (CodeQL #32); and a component's runtime-reported
+  // `{{urls.<name>}}`, which is plugin-supplied and so is admitted only after
+  // normalizeReportedUrl in bench-manager has rejected any whitespace or
+  // shell-significant character. That runs on both routes into the field, the
+  // reportStatus sink and rehydration from state.json, so neither a plugin nor
+  // a tampered state file can put an unvetted string here (#833).
   return new Promise((resolve, reject) => {
     exec(command, { cwd }, (err) => {
       if (err) reject(err);

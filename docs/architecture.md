@@ -110,7 +110,7 @@ Tools are quick-open actions defined in `roubo.yaml`. Two kinds exist:
 - **Browser tools** open a URL in your default browser. The URL can template port and workspace values from the current bench.
 - **Shell tools** run an arbitrary command, typically to open the workspace in an editor (`code "{{workspace}}"`).
 
-Tools only appear in the UI when their dependencies are running. A browser tool that `requires: client` is greyed out until the `client` component is healthy.
+Tools only appear in the UI when their dependencies are running, or have run to completion. A browser tool that `requires: client` is greyed out until the `client` component is healthy; one that `requires` a one-shot component enables as soon as that component completes.
 
 ## Session notifications
 

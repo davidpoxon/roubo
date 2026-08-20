@@ -129,7 +129,7 @@ Any string value inside a component's `config` block, and in tool URLs, may refe
 
 - `{{ports.<componentName>}}`: the resolved port for a component on the current bench.
 - `{{connection.<componentName>}}`: the resolved connection string for a database component.
-- `{{urls.<componentName>}}`: the component's access URL. A URL the component reported at runtime (pushed through `host.component.reportStatus` as `ComponentStatus.url`) wins; otherwise Roubo derives `http://localhost:<port>` from the component's allocated port. A component with no `ports` entry can only resolve this by reporting a URL, and until it does the placeholder is left verbatim rather than erroring. Only `http` and `https` URLs are accepted.
+- `{{urls.<componentName>}}`: the component's access URL. A URL the component reported at runtime (pushed through `host.component.reportStatus` as `ComponentStatus.url`) wins; otherwise Roubo derives `http://localhost:<port>` from the component's allocated port. A component with no `ports` entry can only resolve this by reporting a URL, and until it does the placeholder is left verbatim rather than erroring. Only `http` and `https` URLs are accepted, and a reported URL must carry no whitespace or shell-significant characters (``; & | ` $ ( ) { } < > \ ' "``), because the same resolved value can be substituted into a shell tool's command. That rules out multi-parameter query strings; a URL carrying any of them is dropped with a warning and the previously reported value is kept. Only an imperative component plugin can report a URL today; a declarative (`translate`-based) plugin has no route yet (#834). A reported URL is overlaid only where the host resolves live bench state: tool URLs and commands, jig text, and terminal launches. A component's own `config` block is resolved while that component is being provisioned, before anything has been reported, so only the port-derived form is available there.
 - `{{workspace}}`: the absolute path of the bench's git worktree.
 
 ---
@@ -160,7 +160,7 @@ Roubo refuses to register a project whose `base` values would collide with any a
 
 ## `tools`
 
-Quick-open actions for a bench. Tools appear in the bench panel once their `requires` component is running.
+Quick-open actions for a bench. Tools appear in the bench panel once their `requires` component is running, or has run to completion.
 
 ```yaml
 tools:
@@ -175,18 +175,18 @@ tools:
     command: code "{{workspace}}"
 ```
 
-| Field      | Required | Type   | Notes                                                              |
-| ---------- | -------- | ------ | ------------------------------------------------------------------ |
-| `name`     | yes      | string | Label shown in the UI.                                             |
-| `icon`     | yes²     | string | A [Lucide](https://lucide.dev) icon name (e.g. `globe`, `code`).   |
-| `type`     | yes      | enum   | `browser`, `shell`, or `agent`.                                    |
-| `url`      | yes¹     | string | For `browser` tools.                                               |
-| `command`  | yes¹     | string | For `shell` tools.                                                 |
-| `requires` | no       | string | Component name that must be running for the tool to be enabled.    |
-| `login`    | no       | object | Browser tools only; automated login steps. See below.              |
-| `agent`    | yes³     | string | Agent tools only; a plugin id or `default`. See **Agent tools**.   |
-| `params`   | no       | object | Agent tools only; parameter overrides for the bound agent.         |
-| `jig`      | no       | string | Agent tools only; a jig id or an `__inherit__` / `__none__` value. |
+| Field      | Required | Type   | Notes                                                                          |
+| ---------- | -------- | ------ | ------------------------------------------------------------------------------ |
+| `name`     | yes      | string | Label shown in the UI.                                                         |
+| `icon`     | yes²     | string | A [Lucide](https://lucide.dev) icon name (e.g. `globe`, `code`).               |
+| `type`     | yes      | enum   | `browser`, `shell`, or `agent`.                                                |
+| `url`      | yes¹     | string | For `browser` tools.                                                           |
+| `command`  | yes¹     | string | For `shell` tools.                                                             |
+| `requires` | no       | string | Component name that must be running, or completed, for the tool to be enabled. |
+| `login`    | no       | object | Browser tools only; automated login steps. See below.                          |
+| `agent`    | yes³     | string | Agent tools only; a plugin id or `default`. See **Agent tools**.               |
+| `params`   | no       | object | Agent tools only; parameter overrides for the bound agent.                     |
+| `jig`      | no       | string | Agent tools only; a jig id or an `__inherit__` / `__none__` value.             |
 
 ¹ `url` is required for `browser` tools; `command` for `shell` tools.
 ² `icon` is required for `browser` and `shell` tools; agent tools default to a bot icon.

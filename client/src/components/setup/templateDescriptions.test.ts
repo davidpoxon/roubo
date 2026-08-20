@@ -155,6 +155,22 @@ describe("validateTemplateVariables", () => {
     expect(result).toContain("{{urls.unknown}}");
   });
 
+  // A component with no allocated port can still resolve {{urls.<name>}} by
+  // reporting one at runtime (#833), so the authoring surface must not flag it.
+  it("passes a url reference to a component that has no allocated port", () => {
+    const ctx = makeContext({
+      portNames: ["web"],
+      ports: { web: { base: 3000 } },
+      componentNames: ["web", "deploy"],
+      components: {
+        web: { type: "process", command: "npm run dev" },
+        deploy: { type: "process", command: "./deploy.sh" },
+      },
+    });
+    const result = validateTemplateVariables("{{urls.deploy}}", ctx);
+    expect(result).toEqual([]);
+  });
+
   it("returns invalid tokens for unknown variables", () => {
     const ctx = makeContext();
     const result = validateTemplateVariables("{{ports.unknown}} and {{foo.bar}}", ctx);

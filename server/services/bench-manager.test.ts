@@ -699,6 +699,33 @@ describe("initialize", () => {
     expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBeUndefined();
   });
 
+  // state.json is untrusted on disk (the same reason the workspace path is
+  // re-validated on load), and rehydration is the second route into a field
+  // that reaches `open` and /bin/sh, so it gets the same gate as a live push.
+  it.each([
+    ["a non-web scheme", "file:///etc/passwd"],
+    ["a command separator", "https://example.test/x;id"],
+    ["a newline", "https://example.test/x\ntouch /tmp/pwned"],
+    ["a malformed url", "not a url"],
+  ])("drops a persisted componentUrls entry carrying %s (#833)", (_label, url) => {
+    const config = makeConfig({
+      components: {
+        backend: { type: "process", command: "npm start" },
+      },
+    });
+    const project = makeProject({ config });
+    const persisted = makePersistedBench({
+      componentSetupState: { backend: true },
+      componentUrls: { backend: url },
+    });
+
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [persisted] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+    benchManager.initialize();
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBeUndefined();
+  });
+
   it("falls back to !setup default for components new to roubo.yaml after bench creation", () => {
     const config = makeConfig({
       components: {
@@ -5556,6 +5583,69 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
     const bench = benchManager.getBench("test-project", 1);
     expect(bench?.components.backend.url).toBeUndefined();
     expect(bench?.components.backend.status).toBe("completed");
+  });
+
+  // The resolved value can be substituted into a shell tool's command, which
+  // tool-launcher hands to /bin/sh, so a plugin must not be able to reach a
+  // shell by reporting a URL (it may never have declared permissions.processes).
+  it.each([
+    ["a newline", "https://example.test/x\ntouch /tmp/pwned"],
+    ["a carriage return", "https://example.test/x\r\nid"],
+    ["a tab", "https://example.test/x\tid"],
+    ["a command separator", "https://example.test/x;id"],
+    ["a background operator", "https://example.test/?a=1&id"],
+    ["a pipe", "https://example.test/x|id"],
+    ["command substitution", "https://example.test/$(id)"],
+    ["backtick substitution", "https://example.test/`id`"],
+    ["a redirect", "https://example.test/x>out"],
+    ["a quote", "https://example.test/x'id'"],
+  ])("drops a reported url carrying %s", (_label, url) => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({ name: "backend", status: "completed", setupComplete: true, url });
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.backend.url).toBeUndefined();
+    expect(bench?.components.backend.status).toBe("completed");
+  });
+
+  it("keeps the previously reported url when a later push is rejected", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "https://example.test/sheet",
+    });
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "https://example.test/x;id",
+    });
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBe(
+      "https://example.test/sheet",
+    );
+  });
+
+  it("stores the normalised href rather than the raw reported string", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "HTTPS://Example.test/sheet",
+    });
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBe(
+      "https://example.test/sheet",
+    );
   });
 
   it("ignores a status push for a bench that no longer exists", () => {

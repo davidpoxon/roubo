@@ -302,7 +302,7 @@ Returns `AuditEntry[]`: the privileged HostComponentBroker calls recorded for th
 GET /api/projects/:projectId/benches/:id/tools
 ```
 
-Returns `ResolvedTool[]`, with `url`/`command` already template-substituted for the bench. Each tool has an `enabled` flag: `false` while the tool's `requires` component is not yet running.
+Returns `ResolvedTool[]`, with `url`/`command` already template-substituted for the bench. Each tool has an `enabled` flag: `false` until the tool's `requires` component is running or has completed.
 
 A tool of type `agent` is a launch preset, not a quick-open action. It carries a resolved `preset` instead of a `url` or `command`, and its `enabled` flag is `false` when that preset could not be resolved.
 

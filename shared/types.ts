@@ -1215,8 +1215,14 @@ export interface ComponentStatus {
    * `PersistedBench.componentUrls`) so a Tools entry can still open it. It is
    * what `{{urls.<componentName>}}` resolves to, in preference to the
    * port-derived `http://localhost:<port>` form, which lets a component with no
-   * allocated port expose a URL at all. Only `http` and `https` are accepted;
-   * the host drops any other scheme at the reportStatus sink.
+   * allocated port expose a URL at all. Only `http` and `https` are accepted,
+   * and the URL must carry no whitespace or shell-significant characters, since
+   * the resolved value can also be substituted into a shell tool's command; the
+   * host drops anything else at the reportStatus sink.
+   *
+   * Reportable from an imperative component plugin only. A declarative
+   * (`translate`-only) plugin has no hook that runs after its descriptor and
+   * never holds the reportStatus sink, so it cannot set this yet (#834).
    */
   url?: string;
   /**
