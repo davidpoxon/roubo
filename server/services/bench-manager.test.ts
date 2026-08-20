@@ -3073,12 +3073,27 @@ describe("teardownBench", () => {
     expect(errorSpy.mock.calls[0][0]).toContain("bench 1");
     expect(errorSpy.mock.calls[0][0]).toContain("/home/.roubo/workspaces/test-project/bench-1");
     expect(errorSpy.mock.calls[0][0]).toContain("worktree remove");
+    // Both representations survive together (#831, AC1): the persisted record is
+    // never dropped while the in-memory bench is kept, which is the divergence
+    // #829 fixed from the other direction.
     expect(stateService.removeBench).not.toHaveBeenCalled();
+    expect(benchManager.getBench("test-project", 1)).toBeDefined();
+    expect(benchManager.isBenchLive("test-project", 1)).toBe(true);
+    // The leftovers are named rather than silently orphaned (#831, AC2), and the
+    // error says the bench can be cleared again.
+    expect(bench.error).toContain("/home/.roubo/workspaces/test-project/bench-1");
+    expect(bench.error).toMatch(/branch bench-1/);
+    expect(bench.error).toMatch(/clear it again/i);
     expect(notificationService.createNotification).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1 }),
       "bench-error",
+      undefined,
+      expect.objectContaining({
+        leftoverWorkspacePath: "/home/.roubo/workspaces/test-project/bench-1",
+        leftoverBranch: "bench-1",
+        retryable: true,
+      }),
     );
-    expect(benchManager.getBench("test-project", 1)).toBeDefined();
     errorSpy.mockRestore();
   });
 
@@ -3117,10 +3132,81 @@ describe("teardownBench", () => {
     expect(removeStep?.error).toMatch(/branch -D/);
     expect(errorSpy.mock.calls[0][0]).toContain("branch -D");
     expect(stateService.removeBench).not.toHaveBeenCalled();
+    expect(benchManager.getBench("test-project", 1)).toBeDefined();
+    expect(benchManager.isBenchLive("test-project", 1)).toBe(true);
+    // The workspace WAS removed before the branch delete threw, so only the
+    // branch is reported as left behind (#831, AC2).
+    expect(bench.error).toMatch(/branch bench-1/);
+    expect(bench.error).not.toContain("workspace directory");
+    expect(bench.error).toMatch(/clear it again/i);
     expect(notificationService.createNotification).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1 }),
       "bench-error",
+      undefined,
+      expect.objectContaining({
+        leftoverWorkspacePath: undefined,
+        leftoverBranch: "bench-1",
+        retryable: true,
+      }),
     );
+    errorSpy.mockRestore();
+  });
+
+  it("reports no leftovers when the failure happens before workspace removal (#831)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    // The terminals step runs before remove-workspace, so a throw there means
+    // nothing on disk was touched yet: the error must not claim leftovers.
+    vi.mocked(terminalService.destroyBenchSessions).mockImplementationOnce(() => {
+      throw new Error("terminal teardown exploded");
+    });
+
+    const bench = benchManager.teardownBench("test-project", 1, true);
+    await flushBackground();
+
+    expect(bench.status).toBe("error");
+    expect(bench.error).not.toContain("workspace directory");
+    expect(bench.error).not.toContain("branch bench-1");
+    expect(bench.error).toMatch(/Nothing was left behind/i);
+    expect(stateService.removeBench).not.toHaveBeenCalled();
+    expect(benchManager.getBench("test-project", 1)).toBeDefined();
+  });
+
+  it("re-persists and re-broadcasts on a repeated teardown failure (#831)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(fs.default.existsSync).mockReturnValue(true);
+    vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+      if (args[0] === "worktree" && args[1] === "list") {
+        return {
+          code: 0,
+          stdout: "worktree /home/.roubo/workspaces/test-project/bench-1\n",
+          stderr: "",
+        };
+      }
+      if (args[0] === "worktree" && args[1] === "remove") {
+        return { code: 128, stdout: "", stderr: "fatal: worktree is locked" };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+
+    benchManager.teardownBench("test-project", 1, true);
+    await flushBackground();
+
+    // notificationService.createNotification short-circuits on a repeat
+    // bench-error of the same type, so the retry's refreshed leftover report
+    // only reaches the client because teardown persists and broadcasts itself.
+    vi.mocked(stateService.updateBench).mockClear();
+    vi.mocked(sseService.broadcastBenchStatus).mockClear();
+
+    const bench = benchManager.teardownBench("test-project", 1, true);
+    await flushBackground();
+
+    expect(bench.status).toBe("error");
+    expect(stateService.updateBench).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+    expect(sseService.broadcastBenchStatus).toHaveBeenCalledWith(bench);
+    expect(stateService.removeBench).not.toHaveBeenCalled();
     expect(benchManager.getBench("test-project", 1)).toBeDefined();
     errorSpy.mockRestore();
   });
