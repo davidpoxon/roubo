@@ -145,8 +145,8 @@ DELETE /api/projects/:projectId?force=true
 
 - `204 No Content` on success
 - `404 NOT_FOUND` if no such project
-- `409 HAS_BENCHES` if any bench still exists for the project (clear them first). The body carries `benchCount` and `benchIds` for the persisted records the guard is objecting to, so a client can name what `?force=true` would drop.
-- Pass `?force=true` (or `?force=1`) to drop bench state records without clearing benches first. Use this when the project folder is no longer accessible or its `roubo.yaml` can't be loaded, so the normal "clear benches first" flow is unreachable. No filesystem cleanup is performed; leftover worktree files on disk are left alone.
+- `409 HAS_BENCHES` if any bench still exists for the project (clear them first). The body carries `benchCount` and `benchIds` for every bench the guard is objecting to: the union of the persisted `state.json` records and the benches still tracked in memory, since a bench that is still being provisioned, or one whose provisioning failed, has no persisted record yet. A client can therefore name what `?force=true` would drop.
+- Pass `?force=true` (or `?force=1`) to drop bench state records, and the project's in-memory bench entries (returning their global-cap slots immediately), without clearing benches first. Use this when the project folder is no longer accessible or its `roubo.yaml` can't be loaded, so the normal "clear benches first" flow is unreachable. No filesystem cleanup is performed; leftover worktree files on disk are left alone.
 
 ### Get parsed config
 
