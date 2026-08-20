@@ -1300,6 +1300,7 @@ async function runTeardownBackground(
   // instead of leaving it orphaned without a word to the user.
   let leftoverWorkspacePath: string | undefined;
   let leftoverBranch: string | undefined;
+  let leftoverWorkspaceReason: string | undefined;
 
   try {
     // Step 1: Close terminals
@@ -1431,6 +1432,7 @@ async function runTeardownBackground(
               `[bench-manager] Could not remove orphaned workspace directory ` +
                 `${bench.workspacePath} for bench ${benchId}: ${err}`,
             );
+            leftoverWorkspaceReason = (err as Error).message;
           }
         } else {
           // Neither on disk nor registered: nothing to remove, nothing left over.
@@ -1453,6 +1455,18 @@ async function runTeardownBackground(
       }
       // Deleted, or already gone: either way nothing is left behind.
       leftoverBranch = undefined;
+
+      // An orphaned directory rmSync could not remove is the one leftover the
+      // code already knows about, and swallowing it here would carry on to
+      // step 6 and drop the bench from both representations, orphaning the
+      // directory with nothing left to report it against (#831, AC2). Fail the
+      // step instead, so the catch names it and the bench stays retryable.
+      if (leftoverWorkspacePath) {
+        throw new Error(
+          `could not remove workspace directory ${leftoverWorkspacePath}` +
+            (leftoverWorkspaceReason ? `: ${leftoverWorkspaceReason}` : ""),
+        );
+      }
 
       updateStep(bench.teardownSteps, "remove-workspace", "done");
     }

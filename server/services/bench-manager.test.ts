@@ -3322,6 +3322,52 @@ describe("teardownBench", () => {
     warnSpy.mockRestore();
   });
 
+  it("keeps the bench and names the directory when rmSync cannot remove the orphan (#831)", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Directory exists on disk but is no longer tracked as a worktree, and the
+    // rmSync that would clear it fails. Before #831 this warn was swallowed and
+    // teardown carried on to drop the bench from state and memory, orphaning the
+    // directory with nothing left to report it against.
+    vi.mocked(fs.default.existsSync).mockReturnValue(true);
+    vi.mocked(fs.default.rmSync).mockImplementationOnce(() => {
+      throw new Error("EACCES: permission denied");
+    });
+    vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+      if (args[0] === "worktree" && args[1] === "list") {
+        return {
+          code: 0,
+          stdout: "worktree /home/.roubo/workspaces/test-project/bench-10\nHEAD abc123\n",
+          stderr: "",
+        };
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    });
+
+    const bench = benchManager.teardownBench("test-project", 1, true);
+    await flushBackground();
+
+    expect(bench.status).toBe("error");
+    // Both representations still agree (#831, AC1)
+    expect(stateService.removeBench).not.toHaveBeenCalled();
+    expect(benchManager.getBench("test-project", 1)).toBeDefined();
+    // The surviving directory is named, not silently orphaned (#831, AC2)
+    expect(bench.error).toContain("/home/.roubo/workspaces/test-project/bench-1");
+    expect(bench.error).toContain("EACCES: permission denied");
+    expect(bench.error).toMatch(/clear it again/i);
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1 }),
+      "bench-error",
+      undefined,
+      expect.objectContaining({
+        leftoverWorkspacePath: "/home/.roubo/workspaces/test-project/bench-1",
+        retryable: true,
+      }),
+    );
+    warnSpy.mockRestore();
+  });
+
   it("falls back to worktree remove --force when worktree list fails", async () => {
     setupExistingBench();
     setupProcessMocks();
