@@ -92,6 +92,64 @@ describe("docker variant", () => {
     ).toThrow();
   });
 
+  it("parses a url.template (#834)", () => {
+    const parsed = DockerProvisionDescriptorSchema.parse({
+      schemaVersion: V,
+      kind: "docker",
+      composeFile: "c.yml",
+      service: "db",
+      url: { template: "http://localhost:{{port}}/admin" },
+    });
+    expect(parsed.url).toEqual({ template: "http://localhost:{{port}}/admin" });
+  });
+
+  it("parses a url.fromOutput (#834)", () => {
+    const parsed = DockerProvisionDescriptorSchema.parse({
+      schemaVersion: V,
+      kind: "docker",
+      composeFile: "c.yml",
+      service: "db",
+      url: { fromOutput: "https://\\S+" },
+    });
+    expect(parsed.url).toEqual({ fromOutput: "https://\\S+" });
+  });
+
+  it("rejects a url setting both template and fromOutput (#834)", () => {
+    expect(() =>
+      DockerProvisionDescriptorSchema.parse({
+        schemaVersion: V,
+        kind: "docker",
+        composeFile: "c.yml",
+        service: "db",
+        url: { template: "http://localhost:1/", fromOutput: "https://\\S+" },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects an empty url object (#834)", () => {
+    expect(() =>
+      DockerProvisionDescriptorSchema.parse({
+        schemaVersion: V,
+        kind: "docker",
+        composeFile: "c.yml",
+        service: "db",
+        url: {},
+      }),
+    ).toThrow();
+  });
+
+  it("rejects an unknown key in nested url (.strict)", () => {
+    expect(() =>
+      DockerProvisionDescriptorSchema.parse({
+        schemaVersion: V,
+        kind: "docker",
+        composeFile: "c.yml",
+        service: "db",
+        url: { template: "http://localhost:1/", extra: 1 },
+      }),
+    ).toThrow();
+  });
+
   it("rejects a missing required field", () => {
     expect(() =>
       DockerProvisionDescriptorSchema.parse({
@@ -134,6 +192,27 @@ describe("process variant", () => {
         kind: "process",
         command: "x",
         bogus: 1,
+      }),
+    ).toThrow();
+  });
+
+  it("parses a url.template (#834)", () => {
+    const parsed = ProcessProvisionDescriptorSchema.parse({
+      schemaVersion: V,
+      kind: "process",
+      command: "npm run dev",
+      url: { template: "http://localhost:{{port}}" },
+    });
+    expect(parsed.url).toEqual({ template: "http://localhost:{{port}}" });
+  });
+
+  it("rejects a url.fromOutput: a long-running process has no completed output (#834)", () => {
+    expect(() =>
+      ProcessProvisionDescriptorSchema.parse({
+        schemaVersion: V,
+        kind: "process",
+        command: "npm run dev",
+        url: { fromOutput: "https://\\S+" },
       }),
     ).toThrow();
   });
@@ -181,6 +260,27 @@ describe("oneshot variant", () => {
         kind: "oneshot",
         command: "x",
         timeoutMs: 0,
+      }),
+    ).toThrow();
+  });
+
+  it("parses a url.fromOutput (#834)", () => {
+    const parsed = OneshotProvisionDescriptorSchema.parse({
+      schemaVersion: V,
+      kind: "oneshot",
+      command: "deploy.sh",
+      url: { fromOutput: "Deployed to (https://\\S+)" },
+    });
+    expect(parsed.url).toEqual({ fromOutput: "Deployed to (https://\\S+)" });
+  });
+
+  it("rejects a url setting neither template nor fromOutput (#834)", () => {
+    expect(() =>
+      OneshotProvisionDescriptorSchema.parse({
+        schemaVersion: V,
+        kind: "oneshot",
+        command: "deploy.sh",
+        url: {},
       }),
     ).toThrow();
   });

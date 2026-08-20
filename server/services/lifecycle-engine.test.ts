@@ -808,4 +808,230 @@ describe("lifecycle-engine runDescriptor", () => {
       );
     });
   });
+  // #834: the declarative route to ComponentStatus.url. A `translate`-only
+  // plugin never holds the reportStatus sink, so the descriptor declares the
+  // URL and the engine carries it into its own terminal push.
+  describe("descriptor-declared url (#834)", () => {
+    it("resolves a docker url.template against the allocated port on the running push", async () => {
+      const h = setup();
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        url: { template: "http://localhost:{{port}}/admin" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("running");
+      expect(h.statuses.at(-1)?.url).toBe("http://localhost:5433/admin");
+    });
+
+    it("resolves a docker url.fromOutput against the captured compose output", async () => {
+      const h = setup();
+      (h.docker.composeUp as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        stdout: "Creating network\nListening on https://db.internal.test:8443\n",
+        stderr: "",
+      });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        url: { fromOutput: "Listening on (https://\\S+)" },
+      };
+
+      await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(h.statuses.at(-1)?.url).toBe("https://db.internal.test:8443");
+    });
+
+    it("resolves a url.template on the assigned-container branch alongside the container id", async () => {
+      const h = setup();
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "compose.yml",
+        service: "postgres",
+        assignedContainerId: "user-owned-1",
+        url: { template: "http://localhost:{{port}}" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("running");
+      const final = h.statuses.at(-1);
+      expect(final?.containerId).toBe("user-owned-1");
+      expect(final?.url).toBe("http://localhost:5433");
+      expect(h.docker.composeUp).not.toHaveBeenCalled();
+    });
+
+    it("resolves a process url.template on the running push", async () => {
+      const h = setup({ componentName: "api", ports: { api: 4100 } });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "process",
+        command: "node server.js",
+        url: { template: "http://localhost:{{port}}/health" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("running");
+      const final = h.statuses.at(-1);
+      expect(final?.pid).toBe(4242);
+      expect(final?.url).toBe("http://localhost:4100/health");
+    });
+
+    it("pulls a oneshot url out of the command output via url.fromOutput", async () => {
+      const h = setup({ componentName: "deploy", ports: {} });
+      (h.pm.getProcessLogLines as ReturnType<typeof vi.fn>).mockReturnValue([
+        { source: "stdout", text: "Building...", ts: "2026-01-01T00:00:00.000Z" },
+        {
+          source: "stdout",
+          text: "Service URL: https://svc-abc.a.run.app",
+          ts: "2026-01-01T00:00:01.000Z",
+        },
+      ]);
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "oneshot",
+        command: "deploy.sh",
+        url: { fromOutput: "Service URL: (https://\\S+)" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("completed");
+      const final = h.statuses.at(-1);
+      expect(final?.status).toBe("completed");
+      expect(final?.url).toBe("https://svc-abc.a.run.app");
+      expect(h.pm.getProcessLogLines).toHaveBeenCalledWith("db-plugin:3:deploy");
+    });
+
+    it("returns the whole match when the fromOutput pattern defines no capture group", async () => {
+      const h = setup({ componentName: "deploy", ports: {} });
+      (h.pm.getProcessLogLines as ReturnType<typeof vi.fn>).mockReturnValue([
+        { source: "stdout", text: "done https://svc.example.test", ts: "2026-01-01T00:00:00.000Z" },
+      ]);
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "oneshot",
+        command: "deploy.sh",
+        url: { fromOutput: "https://\\S+" },
+      };
+
+      await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(h.statuses.at(-1)?.url).toBe("https://svc.example.test");
+    });
+
+    it("reports no url when the fromOutput pattern does not match, without failing the run", async () => {
+      const h = setup({ componentName: "deploy", ports: {} });
+      (h.pm.getProcessLogLines as ReturnType<typeof vi.fn>).mockReturnValue([
+        { source: "stdout", text: "nothing to see", ts: "2026-01-01T00:00:00.000Z" },
+      ]);
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "oneshot",
+        command: "deploy.sh",
+        url: { fromOutput: "Service URL: (https://\\S+)" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("completed");
+      const final = h.statuses.at(-1);
+      expect(final?.status).toBe("completed");
+      expect(final?.url).toBeUndefined();
+    });
+
+    it("survives a fromOutput pattern that will not compile", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const h = setup({ componentName: "deploy", ports: {} });
+      (h.pm.getProcessLogLines as ReturnType<typeof vi.fn>).mockReturnValue([
+        { source: "stdout", text: "https://svc.example.test", ts: "2026-01-01T00:00:00.000Z" },
+      ]);
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "oneshot",
+        command: "deploy.sh",
+        url: { fromOutput: "([unterminated" },
+      };
+
+      const result = await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(result.status).toBe("completed");
+      expect(h.statuses.at(-1)?.url).toBeUndefined();
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it("does not read the process log buffer when no fromOutput pattern is declared", async () => {
+      const h = setup({ componentName: "deploy", ports: {} });
+      const descriptor = {
+        schemaVersion: 1,
+        kind: "oneshot",
+        command: "deploy.sh",
+        url: { template: "https://static.example.test" },
+      };
+
+      await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      expect(h.pm.getProcessLogLines).not.toHaveBeenCalled();
+      expect(h.statuses.at(-1)?.url).toBe("https://static.example.test");
+    });
+
+    it("omits url entirely when the descriptor declares none", async () => {
+      const h = setup({ componentName: "deploy", ports: {} });
+      const descriptor = { schemaVersion: 1, kind: "oneshot", command: "deploy.sh" };
+
+      await runDescriptor(descriptor, h.ctx, {
+        processManager: h.pm,
+        docker: h.docker,
+        ledger: h.led,
+      });
+
+      const final = h.statuses.at(-1) as Record<string, unknown>;
+      expect("url" in final).toBe(false);
+    });
+  });
 });
