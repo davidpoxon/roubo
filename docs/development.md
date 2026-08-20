@@ -172,21 +172,17 @@ A single installed copy at the pinned version is the correct tree. The `invalid`
 
 Nothing currently catches a repeat. `.github/workflows/dependabot-auto-merge.yml` approves and auto-merges every `dependabot[bot]` PR with no human gate, and no CI check compares the two declarations, so the next automated bump can reintroduce the split without anyone seeing it. A durable guard is tracked in davidpoxon/roubo-development#807.
 
-### `@electron/packager` is overridden to 20.x
+### `extract-zip` stays on 2.0.1 until Forge 8
 
-The root `package.json` `overrides` block pins `@electron/packager: "20.3.0"`. Forge 7.11.2 (`@electron-forge/core` and `shared-types`) declares `@electron/packager: ^18.3.5`, and 18.x depends on `extract-zip@^2.0.0`, which is the unpatched high-severity symlink path traversal in GHSA-jmr9-qjv8-65gv (#1208). `extract-zip` has no fixed release, so the only route out is the dependent: `@electron/packager@20` swapped it for `@electron-internal/extract-zip`, the maintained Electron fork. Forge 8 is the first Forge line that declares a 20.x range and it is still in alpha, so the override stands in until then.
+`extract-zip@2.0.1` sits in the dev tree and carries GHSA-jmr9-qjv8-65gv, an unvalidated symlink path traversal (Dependabot alert 81, high, #1208). It has no fixed release, so the only route out is the dependent. It reaches the tree through exactly one edge: the `electron` workspace, via `@electron-forge/{cli,shared-types}@7.11.2` to `@electron/packager@18.4.4`, which declares `extract-zip@^2.0.0`. `@electron/packager@20.0.1` replaced it with `@electron-internal/extract-zip`, the maintained Electron fork already in the tree for `electron` itself.
 
-The packager entry points Forge uses (`packager(options)` and the `packagerConfig` shape reaching it from `electron/forge.config.ts`) are unchanged across 18 to 20, and `forge.config.ts` typechecks against the 20.x types. Note that 20.x also pulls `@electron/asar` 4, `@electron/notarize` 3, `@electron/osx-sign` 2, `@electron/universal` 3, and `@electron/windows-sign` 2, so the signing and notarizing path only really proves itself in `electron-forge make`, which no PR check runs. `.github/workflows/release.yml` is the first place a packaging regression would surface.
+**Do not add an `overrides` entry forcing `@electron/packager` to 20.x.** It resolves cleanly, `forge.config.ts` typechecks against the 20.x types, and every PR check passes, but it breaks `electron-forge make`. Packager 20 changed `HookFunction` to take a single `HookFunctionArgs` object and dropped callback-style hooks, so `dist/hooks.js` calls `hook(opts)`. `@electron-forge/core@7.11.2` still emits the positional form `(buildPath, electronVersion, platform, arch, done)` from `sequentialHooks` in `dist/api/package.js`, and its own source marks that shim `@deprecated Only use until @electron/packager publishes a new major version with promise based hooks`. Under the override `buildPath` binds to the options object. The chain's first hook only signals progress, but the second calls `path.join(buildPath, '**/.bin/**/*')` and throws `ERR_INVALID_ARG_TYPE`, and `sequentialHooks` abandons the chain on the first hook that throws. Everything after it is skipped: the `packageAfterCopy` Forge hooks, `listrCompatibleRebuildHook`, which is what rebuilds `node-pty` against the Electron ABI, and the mutation of the copied `package.json`.
 
-As with `@electron/rebuild`, one `npm ls` warning is a known, accepted state and must not be "fixed":
+Nothing in PR CI catches this. `.github/workflows/pr-check.yml` never packages; `.github/workflows/release.yml` is the first place it would surface, which is the worst possible place to find it.
 
-```bash
-npm ls --package-lock-only @electron/packager --all
-# └── @electron/packager@20.3.0 invalid: "^18.3.5" from node_modules/@electron-forge/shared-types, "^18.3.5" from node_modules/@electron-forge/core
-# npm error code ELSPROBLEMS
-```
+Aliasing the fork in place does not work either. `"extract-zip": "npm:@electron-internal/extract-zip@1.0.5"` swaps an ESM-only package into a slot that packager 18 reaches by `require()`, and the fork ships no CommonJS entry point.
 
-One further gotcha: npm does not re-resolve an already-locked dependency when you only add or change an `overrides` entry. `npm install`, `npm install --package-lock-only`, and `npm update <pkg>` all report "up to date" and leave the old version in `package-lock.json`. The override takes effect only on a from-scratch resolution (`rm -rf node_modules package-lock.json && npm install`), which is why adding one produces a wider lockfile diff than the single package suggests.
+The risk is accepted in the meantime. `extract-zip` is dev-scope and build-time only, never present in the packaged app, and packager feeds it archives fetched from the Electron release feed rather than untrusted input. `@electron-forge/core@8.0.0-alpha.10` declares `@electron/packager: ^20.0.1`, so the fix arrives with the Forge 8 line. Removing `extract-zip` for real is tracked in #1212.
 
 ## Pre-push checklist
 
