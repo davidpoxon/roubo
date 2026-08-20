@@ -669,6 +669,36 @@ describe("initialize", () => {
     expect(bench.components.backend.setupComplete).toBe(false);
   });
 
+  it("rehydrates a runtime-reported url from persisted componentUrls (#833)", () => {
+    const config = makeConfig({
+      components: {
+        backend: { type: "process", command: "npm start" },
+      },
+    });
+    const project = makeProject({ config });
+    const persisted = makePersistedBench({
+      componentSetupState: { backend: true },
+      componentUrls: { backend: "https://example.test/sheet" },
+    });
+
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [persisted] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+    benchManager.initialize();
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    expect(bench.components.backend.url).toBe("https://example.test/sheet");
+  });
+
+  it("leaves url undefined for benches persisted without componentUrls", () => {
+    const project = makeProject({ config: makeConfig() });
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [makePersistedBench()] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+    benchManager.initialize();
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBeUndefined();
+  });
+
   it("falls back to !setup default for components new to roubo.yaml after bench creation", () => {
     const config = makeConfig({
       components: {
@@ -5464,6 +5494,68 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
       "backend",
       "running",
     );
+  });
+
+  // Runtime-reported URLs (#833).
+  it("keeps a reported http(s) url and persists it so it survives a restart", () => {
+    seedBench();
+    vi.mocked(stateService.updateBench).mockClear();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+    });
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.backend.url).toBe(
+      "https://docs.google.com/spreadsheets/d/abc123/edit",
+    );
+    expect(vi.mocked(stateService.updateBench)).toHaveBeenCalled();
+  });
+
+  it("keeps a previously reported url across a later push that omits one", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "https://example.test/sheet",
+    });
+    report({ name: "backend", status: "stopped", setupComplete: true });
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBe(
+      "https://example.test/sheet",
+    );
+  });
+
+  it("drops a reported url whose scheme is not http or https", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "file:///etc/passwd",
+    });
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBeUndefined();
+  });
+
+  it("drops a malformed reported url without dropping the rest of the push", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({ name: "backend", status: "completed", setupComplete: true, url: "not a url" });
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.backend.url).toBeUndefined();
+    expect(bench?.components.backend.status).toBe("completed");
   });
 
   it("ignores a status push for a bench that no longer exists", () => {

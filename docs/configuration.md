@@ -129,7 +129,7 @@ Any string value inside a component's `config` block, and in tool URLs, may refe
 
 - `{{ports.<componentName>}}`: the resolved port for a component on the current bench.
 - `{{connection.<componentName>}}`: the resolved connection string for a database component.
-- `{{urls.<componentName>}}`: `http://localhost:<port>` for the component.
+- `{{urls.<componentName>}}`: the component's access URL. A URL the component reported at runtime (pushed through `host.component.reportStatus` as `ComponentStatus.url`) wins; otherwise Roubo derives `http://localhost:<port>` from the component's allocated port. A component with no `ports` entry can only resolve this by reporting a URL, and until it does the placeholder is left verbatim rather than erroring. Only `http` and `https` URLs are accepted.
 - `{{workspace}}`: the absolute path of the bench's git worktree.
 
 ---

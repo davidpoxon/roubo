@@ -1372,6 +1372,31 @@ describe("toPersistedBench", () => {
     expect(persisted.componentSetupState).toEqual({ db: true, web: false });
   });
 
+  it("derives componentUrls from the components that reported one (#833)", () => {
+    const persisted = stateModule.toPersistedBench({
+      id: 1,
+      projectId: "p",
+      branch: "b",
+      workspacePath: "/w",
+      status: "idle",
+      ports: {},
+      components: {
+        db: { name: "db", status: "stopped", setupComplete: true },
+        deploy: {
+          name: "deploy",
+          status: "completed",
+          setupComplete: true,
+          url: "https://example.test/sheet",
+        },
+      },
+      createdAt: "2026-01-01T00:00:00.000Z",
+      provisioningSteps: [],
+      teardownSteps: [],
+      notifications: [],
+    });
+    expect(persisted.componentUrls).toEqual({ deploy: "https://example.test/sheet" });
+  });
+
   it("round-trips componentSetupState through addBench → saveState", () => {
     existsSync.mockReturnValue(false);
     stateModule.addBench({

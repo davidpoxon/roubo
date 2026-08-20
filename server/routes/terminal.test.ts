@@ -28,6 +28,7 @@ vi.mock("../services/config-parser.js", () => ({
     components: {},
   }),
   applyContainerOverrides: vi.fn(),
+  applyComponentUrlOverrides: vi.fn(),
 }));
 vi.mock("../services/state.js", () => ({
   loadSettings: vi.fn().mockReturnValue({

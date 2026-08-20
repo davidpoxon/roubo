@@ -694,6 +694,16 @@ export interface ComponentStatus {
   error?: string;
   statusDetail?: string;
   startedAt?: string;
+  /**
+   * An access URL the component only discovers while running (#833), for
+   * example one minted by a first-run provisioning step. Push it here and the
+   * host exposes it to the project's Tools entries as
+   * `{{urls.<componentName>}}`, including for a component that has no allocated
+   * port. Must be an `http` or `https` URL; the host drops any other scheme.
+   * Durable rather than transient, so unlike `statusDetail` it is not cleared
+   * when the launch settles: report it once and it sticks until reported again.
+   */
+  url?: string;
 }
 
 /**

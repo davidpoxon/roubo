@@ -5,7 +5,11 @@ import { isBenchOperable, benchNotOperableMessage } from "../services/bench-oper
 import * as notificationService from "../services/notification.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as jigManager from "../services/jig-manager.js";
-import { buildTemplateContext, applyContainerOverrides } from "../services/config-parser.js";
+import {
+  buildTemplateContext,
+  applyContainerOverrides,
+  applyComponentUrlOverrides,
+} from "../services/config-parser.js";
 import {
   fetchIssueContext,
   buildPluginIssueContext,
@@ -144,6 +148,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
 
     const templateCtx = buildTemplateContext(project.config, benchId, bench.workspacePath);
     applyContainerOverrides(templateCtx, bench.assignedContainers);
+    applyComponentUrlOverrides(templateCtx, bench.components);
 
     let issueCtx: Partial<IssueContext> = {};
     // Alert-backed benches have no GitHub issue to fetch by number, so re-hydrate

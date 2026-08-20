@@ -1,13 +1,30 @@
 import { exec, execFile } from "node:child_process";
-import type { ResolvedTool, ToolResult } from "@roubo/shared";
+import type { ComponentStatus, ResolvedTool, ToolResult } from "@roubo/shared";
 import * as projectRegistry from "./project-registry.js";
 import * as benchManager from "./bench-manager.js";
 import { BenchError } from "./bench-manager.js";
-import { buildTemplateContext, resolveTemplate, applyContainerOverrides } from "./config-parser.js";
+import {
+  buildTemplateContext,
+  resolveTemplate,
+  applyContainerOverrides,
+  applyComponentUrlOverrides,
+} from "./config-parser.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
 import { resolveAgentPreset, toolConfigToPreset } from "./agent-presets.js";
 import { loadSettings } from "./state.js";
+
+/**
+ * Whether a tool's `requires` component has run far enough to enable the tool.
+ * `running` is the steady-state answer, but `completed` counts too (#833): a
+ * one-shot component exits as soon as its work is done, so a tool gated on one
+ * (for instance a browser entry opening the URL that one-shot reported) would
+ * otherwise be permanently disabled the moment the component it depends on
+ * succeeds.
+ */
+function isRequirementSatisfied(component: ComponentStatus | undefined): boolean {
+  return component?.status === "running" || component?.status === "completed";
+}
 
 export function getResolvedTools(projectId: string, benchId: number): ResolvedTool[] {
   const project = projectRegistry.getProject(projectId);
@@ -26,6 +43,7 @@ export function getResolvedTools(projectId: string, benchId: number): ResolvedTo
 
   const ctx = buildTemplateContext(project.config, benchId, bench.workspacePath);
   applyContainerOverrides(ctx, bench.assignedContainers);
+  applyComponentUrlOverrides(ctx, bench.components);
 
   const hasUsers = (project.config.users?.length ?? 0) > 0;
 
@@ -39,7 +57,7 @@ export function getResolvedTools(projectId: string, benchId: number): ResolvedTo
     : undefined;
 
   return tools.map((tool) => {
-    const enabled = !tool.requires || bench.components[tool.requires]?.status === "running";
+    const enabled = !tool.requires || isRequirementSatisfied(bench.components[tool.requires]);
 
     // An agent tool is a launch preset, not a browser or shell action: it is
     // resolved against the agent registry here and launched through terminal
@@ -118,12 +136,12 @@ export async function executeTool(
     };
   }
 
-  const enabled = !rawTool.requires || bench.components[rawTool.requires]?.status === "running";
+  const enabled = !rawTool.requires || isRequirementSatisfied(bench.components[rawTool.requires]);
 
   if (!enabled) {
     return {
       success: false,
-      error: `Tool '${rawTool.name}' is disabled (required component '${rawTool.requires}' is not running)`,
+      error: `Tool '${rawTool.name}' is disabled (required component '${rawTool.requires}' has not run)`,
     };
   }
 
@@ -152,6 +170,7 @@ export async function executeTool(
 
   const ctx = buildTemplateContext(project.config, benchId, workspacePath);
   applyContainerOverrides(ctx, bench.assignedContainers);
+  applyComponentUrlOverrides(ctx, bench.components);
   ctx.user = selectedUser?.properties;
 
   const url = rawTool.url ? resolveTemplate(rawTool.url, ctx) : undefined;

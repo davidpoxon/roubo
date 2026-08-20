@@ -76,11 +76,12 @@ The full TypeScript definitions live in [`shared/types.ts`](../shared/types.ts) 
 ```ts
 {
   name: string;
-  status: "stopped" | "starting" | "running" | "error" | "stopping";
+  status: "stopped" | "starting" | "running" | "error" | "stopping" | "completed";
   pid?: number;
   containerId?: string;
   error?: string;
   startedAt?: string;
+  url?: string;                          // runtime-reported access URL, http(s) only
   setupComplete: boolean;
 }
 ```

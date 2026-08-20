@@ -233,6 +233,20 @@ export function updateBench(bench: PersistedBench) {
  * is filtered out in `removeBench`. No other persisted field carries
  * plugin-supplied unknowns.
  */
+/**
+ * The persisted mirror of every runtime-reported component URL (#833). Only the
+ * components that actually reported one are carried, and a bench where none did
+ * writes no key at all, so state.json gains nothing for projects that never use
+ * the feature.
+ */
+function toComponentUrls(components: Bench["components"]): Record<string, string> | undefined {
+  const urls: Record<string, string> = {};
+  for (const [name, component] of Object.entries(components)) {
+    if (component.url) urls[name] = component.url;
+  }
+  return Object.keys(urls).length > 0 ? urls : undefined;
+}
+
 export function toPersistedBench(bench: Bench): PersistedBench {
   return {
     id: bench.id,
@@ -253,6 +267,7 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     componentSetupState: Object.fromEntries(
       Object.entries(bench.components).map(([name, c]) => [name, c.setupComplete]),
     ),
+    componentUrls: toComponentUrls(bench.components),
     benchSetupComplete: bench.benchSetupComplete,
   };
 }

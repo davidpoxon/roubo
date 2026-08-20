@@ -41,6 +41,7 @@ vi.mock("../services/config-parser.js", () => ({
     .fn()
     .mockReturnValue({ ports: {}, portHttps: {}, workspace: "/workspace", components: {} }),
   applyContainerOverrides: vi.fn(),
+  applyComponentUrlOverrides: vi.fn(),
 }));
 
 vi.mock("../services/state.js", () => ({

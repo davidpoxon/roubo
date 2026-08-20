@@ -193,7 +193,14 @@ export function initialize() {
         const setupComplete = isLegacy
           ? true
           : (persistedFlag ?? (componentHasSetup(componentConfig) ? false : true));
-        components[name] = { name, status: "stopped", setupComplete };
+        // A runtime-reported URL is durable, so it comes back with the bench
+        // (#833): the one-shot step that minted it usually will not run again.
+        components[name] = {
+          name,
+          status: "stopped",
+          setupComplete,
+          url: ps.componentUrls?.[name],
+        };
       }
     }
 
@@ -2329,7 +2336,10 @@ async function provisionComponent(
   }
 
   // Clear the in-flight markers (parity with the built-in launch path), so
-  // reconcile resumes managing this component's live state.
+  // reconcile resumes managing this component's live state. `url` is NOT an
+  // in-flight marker: a URL the component reported is durable and must survive
+  // here, or the Tools entry that opens it breaks the moment the launch settles
+  // (#833).
   liveStatus.statusDetail = undefined;
   liveStatus.statusDetailStartedAt = undefined;
   liveStatus.startedAt = undefined;
@@ -2387,7 +2397,8 @@ async function provisionImperativeComponent(
   // terminal error, preserve statusDetail: an imperative plugin uses it to name
   // why it failed (e.g. a host.process.run timeout, CP-TC-068 S004-O01), so that
   // detail must survive to the component surface rather than being wiped as a
-  // transient progress marker.
+  // transient progress marker. `url` is durable on every path and is never
+  // cleared here (#833).
   if (liveStatus.status !== "error") {
     liveStatus.statusDetail = undefined;
     liveStatus.statusDetailStartedAt = undefined;
@@ -2515,6 +2526,8 @@ export async function stopComponent(
   // so the orphan sweep does not later try to reap released resources.
   if (!isNotBound(binding) && getComponentMode(binding.pluginId) === "imperative") {
     await stopImperativeComponent(projectId, benchId, componentName, binding.pluginId, bench);
+    // `url` is deliberately left alone: a reported URL outlives a stop (#833),
+    // so restarting a bench does not lose the access point it minted.
     componentStatus.status = "stopped";
     componentStatus.pid = undefined;
     componentStatus.containerId = undefined;
@@ -2551,6 +2564,7 @@ export async function stopComponent(
   // Also stop the legacy host-id process (idempotent) so a process started
   // before this refactor's id scheme is cleaned up.
   await processManager.stopProcess(processId(projectId, benchId, componentName));
+  // As above, a reported `url` survives the stop (#833).
   componentStatus.status = "stopped";
   componentStatus.pid = undefined;
   componentStatus.containerId = undefined;
@@ -2847,6 +2861,23 @@ export function _resetAuditLogsForTest(): void {
  * BrokerContext.reportStatus / LifecycleContext.reportStatus at plugin
  * activation; it does not itself start any plugin.
  */
+/**
+ * Whether a plugin-reported URL is one the host is willing to hand to `open`
+ * (#833). The port-derived form this replaces could only ever be
+ * `http(s)://localhost:<port>`; a plugin-supplied string can be anything, so
+ * restrict it to the two web schemes rather than letting `file:` or a custom
+ * handler scheme reach the OS opener.
+ */
+function isReportableUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) return false;
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function buildReportStatus(
   projectId: string,
   benchId: number,
@@ -2858,7 +2889,26 @@ export function buildReportStatus(
     // Merge over any existing entry so a partial push (e.g. a phase update that
     // omits pid) never drops a field the previous status carried.
     const merged = { ...existing, ...status };
+    // A reported URL is opened by the host on the user's behalf (the Tools
+    // browser path hands it to `open`), so only http/https survives: anything
+    // else is dropped with a warning rather than trusted (#833). A push that
+    // omits `url` keeps whatever was reported before, since the value is
+    // durable, not an in-flight marker.
+    if (status.url !== undefined) {
+      merged.url = isReportableUrl(status.url) ? status.url : existing?.url;
+      if (!isReportableUrl(status.url)) {
+        console.warn(
+          `[bench-manager] ignoring reported URL for component '${status.name}': only http and https URLs are accepted`,
+        );
+      }
+    }
     bench.components[status.name] = merged;
+    // Persist a newly reported URL immediately. A runtime URL is typically
+    // minted once per bench by a guarded first-run step, so losing it to a host
+    // restart would leave no way to mint it again (#833).
+    if (merged.url !== existing?.url) {
+      stateService.updateBench(stateService.toPersistedBench(bench));
+    }
     updateBenchStatus(bench);
     sseService.broadcastBenchStatus(bench);
     // Also emit the per-component status-change event (#397). Consecutive

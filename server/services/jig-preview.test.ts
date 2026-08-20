@@ -9,6 +9,7 @@ vi.mock("./config-parser.js", () => ({
     components: {},
   })),
   applyContainerOverrides: vi.fn(),
+  applyComponentUrlOverrides: vi.fn(),
 }));
 
 vi.mock("./issue-formatting.js", () => ({

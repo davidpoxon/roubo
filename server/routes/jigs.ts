@@ -5,7 +5,11 @@ import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
 import * as jigManager from "../services/jig-manager.js";
 import * as terminalService from "../services/terminal.js";
-import { buildTemplateContext, applyContainerOverrides } from "../services/config-parser.js";
+import {
+  buildTemplateContext,
+  applyContainerOverrides,
+  applyComponentUrlOverrides,
+} from "../services/config-parser.js";
 import {
   fetchIssueContext,
   buildPluginIssueContext,
@@ -305,6 +309,7 @@ router.post("/:projectId/benches/:benchId/inject-jig", async (req, res) => {
 
   const templateCtx = buildTemplateContext(project.config, benchId, bench.workspacePath);
   applyContainerOverrides(templateCtx, bench.assignedContainers);
+  applyComponentUrlOverrides(templateCtx, bench.components);
 
   let issueCtx: Partial<IssueContext> = {};
 
