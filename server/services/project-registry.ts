@@ -23,6 +23,26 @@ export function onProjectConfigLoaded(cb: ConfigLoadedListener): void {
   configLoadedListeners.push(cb);
 }
 
+/**
+ * The in-memory bench map, seen from the registry. `bench-manager` already imports
+ * `project-registry`, so the registry cannot import it back; this seam inverts the
+ * dependency instead. `server/index.ts` (the composition root) registers the real
+ * implementation right after `initialize()`, well before the HTTP listener binds,
+ * so no unregister request can arrive unwired. With nothing registered the registry
+ * behaves exactly as it did before (persisted records only), which is what keeps the
+ * many partial `vi.mock("./project-registry.js")` suites working. See issue #830.
+ */
+export interface LiveBenchSource {
+  listBenchIds(projectId: string): number[];
+  dropBenches(projectId: string): number;
+}
+
+let liveBenchSource: LiveBenchSource | null = null;
+
+export function registerLiveBenchSource(source: LiveBenchSource | null): void {
+  liveBenchSource = source;
+}
+
 function emitConfigLoaded(project: RegisteredProject): void {
   if (!project.configValid) return;
   for (const cb of configLoadedListeners) {
@@ -210,13 +230,21 @@ export function unregisterProject(projectId: string, opts: { force?: boolean } =
     throw new ProjectRegistryError(`Project '${projectId}' not found`, "NOT_FOUND");
   }
 
+  // Count the union of both bench representations, deduped by id, so the guard can
+  // never report fewer benches than the Benches view renders (issue #830). Persisted
+  // records lag the in-memory map during the reservation window and never appear at
+  // all for a bench whose provisioning failed, so persisted state alone under-counts.
   const benches = state.getPersistedBenches(projectId);
-  if (benches.length > 0) {
+  const liveIds = liveBenchSource?.listBenchIds(projectId) ?? [];
+  const activeIds = Array.from(new Set([...benches.map((b) => b.id), ...liveIds])).sort(
+    (a, b) => a - b,
+  );
+  if (activeIds.length > 0) {
     if (!opts.force) {
       throw new ProjectRegistryError(
-        `Cannot unregister '${projectId}': ${benches.length} active bench(es). Clear them first.`,
+        `Cannot unregister '${projectId}': ${activeIds.length} active bench(es). Clear them first.`,
         "HAS_BENCHES",
-        { benchCount: benches.length, benchIds: benches.map((b) => b.id) },
+        { benchCount: activeIds.length, benchIds: activeIds },
       );
     }
     // Force path: drop bench records from state.json. No filesystem cleanup:
@@ -225,6 +253,9 @@ export function unregisterProject(projectId: string, opts: { force?: boolean } =
     for (const bench of benches) {
       state.removeBench(projectId, bench.id);
     }
+    // Drop the matching in-memory entries too, otherwise they keep counting toward
+    // the global bench cap (`benches.size`) until the app restarts (issue #830).
+    liveBenchSource?.dropBenches(projectId);
   }
 
   projects.delete(projectId);

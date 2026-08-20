@@ -7388,6 +7388,122 @@ describe("createBench global cap", () => {
   });
 });
 
+// The registry's unregister guard reads persisted state, which the in-memory map
+// leads during the reservation window and forever for a failed provisioning. These
+// two exports are the seam server/index.ts injects into project-registry so the
+// guard sees exactly what the Benches view renders, and so unregistering hands the
+// project's map entries back to the global cap (issue #830).
+describe("getLiveBenchIds / dropProjectBenches (issue #830)", () => {
+  function setCap(maxGlobal?: number) {
+    vi.mocked(stateService.loadSettings).mockReturnValue({
+      theme: "dark",
+      benches: {
+        enforceIssueDependencies: false,
+        autoStartComponents: false,
+        ...(maxGlobal === undefined ? {} : { maxGlobal }),
+      },
+    } as any);
+  }
+
+  function seedProjects(spec: Array<{ projectId: string; id: number }>) {
+    setupCreateBenchMocks({
+      project: makeProject({
+        config: makeConfig({ benches: { max: 200 } }),
+        settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+      }),
+    });
+    setupProcessMocks();
+    setupDockerServiceMocks();
+    vi.mocked(stateService.getWorkspacePath).mockImplementation(
+      (_appName: string, benchNum: number) => `/home/.roubo/workspaces/bench-${benchNum}`,
+    );
+    vi.mocked(stateService.loadState).mockReturnValue({
+      benches: spec.map(({ projectId, id }) =>
+        makePersistedBench({
+          id,
+          projectId,
+          branch: `bench-${id}`,
+          workspacePath: `/home/.roubo/workspaces/bench-${id}`,
+        }),
+      ),
+    });
+    benchManager.initialize();
+  }
+
+  it("returns benches the persisted store never sees: reserved (preparing) and failed (error)", () => {
+    seedProjects([]);
+    setCap(undefined);
+
+    // createBench reserves the map entry synchronously, before any record is
+    // written: this is the reservation window the guard used to miss.
+    const reserved = benchManager.createBench("test-project");
+    expect(reserved.status).toBe("preparing");
+
+    // A bench whose provisioning threw stays in the map in `error` state and is
+    // never persisted at all.
+    const failed = benchManager.createBench("test-project");
+    const failedBench = benchManager.getBench("test-project", failed.id);
+    expect(failedBench).toBeDefined();
+    if (failedBench) failedBench.status = "error";
+
+    expect(benchManager.getLiveBenchIds("test-project").sort((a, b) => a - b)).toEqual(
+      [reserved.id, failed.id].sort((a, b) => a - b),
+    );
+    // Same set the Benches view renders.
+    expect(benchManager.getLiveBenchIds("test-project").sort((a, b) => a - b)).toEqual(
+      benchManager
+        .getBenches("test-project")
+        .map((b) => b.id)
+        .sort((a, b) => a - b),
+    );
+  });
+
+  it("returns an empty list for a project with no benches", () => {
+    seedProjects([{ projectId: "other-project", id: 1 }]);
+
+    expect(benchManager.getLiveBenchIds("test-project")).toEqual([]);
+  });
+
+  it("dropProjectBenches removes only the named project's entries", () => {
+    seedProjects([
+      { projectId: "test-project", id: 1 },
+      { projectId: "test-project", id: 2 },
+      { projectId: "other-project", id: 3 },
+    ]);
+
+    expect(benchManager.dropProjectBenches("test-project")).toBe(2);
+
+    expect(benchManager.getBenches("test-project")).toHaveLength(0);
+    expect(benchManager.getBenches("other-project").map((b) => b.id)).toEqual([3]);
+    expect(benchManager.isBenchLive("test-project", 1)).toBe(false);
+  });
+
+  it("dropProjectBenches returns the freed slots to the global cap without a restart", () => {
+    seedProjects([
+      { projectId: "test-project", id: 1 },
+      { projectId: "test-project", id: 2 },
+      { projectId: "other-project", id: 3 },
+    ]);
+    setCap(3);
+
+    // At the cap: the map holds 3 benches, so a create is refused.
+    let thrown: any;
+    try {
+      benchManager.createBench("other-project");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown?.code).toBe("GLOBAL_CAP_REACHED");
+
+    // Unregistering test-project drops its map entries, which is what
+    // readGlobalBenchCap measures (benches.size).
+    expect(benchManager.dropProjectBenches("test-project")).toBe(2);
+
+    const bench = benchManager.createBench("other-project");
+    expect(bench.status).toBe("preparing");
+  });
+});
+
 // Crash cleanup, graceful degradation, auto-recovery, startup sweep (issue #613,
 // FR-015 / FR-016 / NFR-003). These exercise the ledger-driven hooks the
 // supervisor fires when a component plugin crashes, the ledger clearing on

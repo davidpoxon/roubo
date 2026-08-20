@@ -546,6 +546,120 @@ describe("unregisterProject", () => {
   });
 });
 
+describe("unregisterProject with a live bench source (issue #830)", () => {
+  // The Benches view renders benchManager.getBenches (the in-memory map), while the
+  // guard read only state.json. Memory leads persisted state during the reservation
+  // window and forever for a bench whose provisioning failed, so the guard could
+  // count fewer benches than the view showed. registerLiveBenchSource injects the
+  // map (server/index.ts wires the real bench-manager) and the guard unions the two.
+  function persisted(ids: number[]) {
+    return ids.map((id) => ({
+      id,
+      projectId: "test-project",
+      branch: `branch-${id}`,
+      workspacePath: `/workspace/${id}`,
+      ports: {},
+      createdAt: "now",
+    }));
+  }
+
+  function registerTestProject() {
+    const config = makeConfig();
+    mockedParseConfig.mockReturnValue({ valid: true, config });
+    mockedCheckPortConflicts.mockReturnValue([]);
+    registryModule.registerProject("/repos/test-project");
+    mockedRemoveProject.mockClear();
+    mockedRemoveBench.mockClear();
+  }
+
+  it("blocks unregister during the reservation window (live bench, no persisted record)", () => {
+    // createBench puts the bench in the map and returns before the workspace
+    // exists, so nothing is persisted yet. The view renders 1; the guard must
+    // not read 0.
+    registerTestProject();
+    mockedGetPersistedBenches.mockReturnValue([]);
+    registryModule.registerLiveBenchSource({
+      listBenchIds: () => [4],
+      dropBenches: () => 0,
+    });
+
+    expect.assertions(3);
+    try {
+      registryModule.unregisterProject("test-project");
+    } catch (e) {
+      const err = e as InstanceType<typeof registryModule.ProjectRegistryError>;
+      expect(err.code).toBe("HAS_BENCHES");
+      expect(err.details).toEqual({ benchCount: 1, benchIds: [4] });
+    }
+    expect(mockedRemoveProject).not.toHaveBeenCalled();
+  });
+
+  it("blocks unregister for a failed-provisioning bench that is never persisted", () => {
+    // Provisioning threw, so the bench sits in the map in `error` state with no
+    // state.json record. The divergence is permanent, not just a window.
+    registerTestProject();
+    mockedGetPersistedBenches.mockReturnValue([]);
+    registryModule.registerLiveBenchSource({
+      listBenchIds: () => [2],
+      dropBenches: () => 0,
+    });
+
+    expect.assertions(2);
+    try {
+      registryModule.unregisterProject("test-project");
+    } catch (e) {
+      const err = e as InstanceType<typeof registryModule.ProjectRegistryError>;
+      expect(err.code).toBe("HAS_BENCHES");
+      expect(err.details).toEqual({ benchCount: 1, benchIds: [2] });
+    }
+  });
+
+  it("counts a bench present in both representations once", () => {
+    registerTestProject();
+    mockedGetPersistedBenches.mockReturnValue(persisted([1, 2]));
+    registryModule.registerLiveBenchSource({
+      listBenchIds: () => [2, 3],
+      dropBenches: () => 0,
+    });
+
+    expect.assertions(2);
+    try {
+      registryModule.unregisterProject("test-project");
+    } catch (e) {
+      const err = e as InstanceType<typeof registryModule.ProjectRegistryError>;
+      expect(err.code).toBe("HAS_BENCHES");
+      expect(err.details).toEqual({ benchCount: 3, benchIds: [1, 2, 3] });
+    }
+  });
+
+  it("force-unregister drops both the persisted records and the in-memory entries", () => {
+    registerTestProject();
+    mockedGetPersistedBenches.mockReturnValue(persisted([1]));
+    const dropBenches = vi.fn(() => 2);
+    registryModule.registerLiveBenchSource({
+      listBenchIds: () => [1, 9],
+      dropBenches,
+    });
+
+    registryModule.unregisterProject("test-project", { force: true });
+
+    expect(mockedRemoveBench).toHaveBeenCalledWith("test-project", 1);
+    expect(dropBenches).toHaveBeenCalledWith("test-project");
+    expect(mockedRemoveProject).toHaveBeenCalledWith("test-project");
+    expect(registryModule.getProject("test-project")).toBeUndefined();
+  });
+
+  it("behaves exactly as before when no live bench source is registered", () => {
+    registerTestProject();
+    mockedGetPersistedBenches.mockReturnValue([]);
+
+    registryModule.unregisterProject("test-project");
+
+    expect(mockedRemoveProject).toHaveBeenCalledWith("test-project");
+    expect(registryModule.getProject("test-project")).toBeUndefined();
+  });
+});
+
 describe("getProjects", () => {
   it("returns all projects", () => {
     mockedCheckPortConflicts.mockReturnValue([]);

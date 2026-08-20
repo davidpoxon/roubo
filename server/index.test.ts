@@ -24,6 +24,8 @@ vi.mock("./services/project-registry.js", () => ({
   getProjects: vi.fn(() => []),
   getProject: vi.fn(),
   onProjectConfigLoaded: vi.fn(),
+  // Issue #830: startServer injects the in-memory bench accessor into the registry.
+  registerLiveBenchSource: vi.fn(),
   // Issue #399: startServer re-runs the component-binding second pass after the
   // plugin manager initializes.
   revalidateComponentBindings: vi.fn(),
@@ -36,6 +38,8 @@ vi.mock("./services/bench-manager.js", () => ({
   initialize: vi.fn(),
   reconcile: vi.fn(() => Promise.resolve()),
   getBenches: vi.fn(() => []),
+  getLiveBenchIds: vi.fn(() => []),
+  dropProjectBenches: vi.fn(() => 0),
   refreshComponentStatuses: vi.fn(() => Promise.resolve()),
   sweepOrphanedComposeProjects: vi.fn(() => Promise.resolve()),
   handleComponentPluginPreRestart: vi.fn(() => Promise.resolve()),
@@ -229,11 +233,14 @@ describe.sequential("startServer", () => {
         initialize: vi.fn(),
         getProjects: vi.fn(() => []),
         revalidateComponentBindings: vi.fn(),
+        registerLiveBenchSource: vi.fn(),
       }));
       vi.doMock("./services/bench-manager.js", () => ({
         initialize: vi.fn(),
         reconcile: vi.fn(() => Promise.resolve()),
         getBenches: vi.fn(() => []),
+        getLiveBenchIds: vi.fn(() => []),
+        dropProjectBenches: vi.fn(() => 0),
         refreshComponentStatuses: vi.fn(() => Promise.resolve()),
         sweepOrphanedComposeProjects: vi.fn(() => Promise.resolve()),
         handleComponentPluginPreRestart: vi.fn(() => Promise.resolve()),
