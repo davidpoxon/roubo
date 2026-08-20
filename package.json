@@ -105,6 +105,7 @@
   "overrides": {
     "tar": "7.5.22",
     "tmp": "0.2.7",
+    "@electron/packager": "20.3.0",
     "@electron/rebuild": "4.2.0",
     "protobufjs": "7.6.5",
     "esbuild": "0.28.1",

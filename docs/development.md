@@ -172,6 +172,22 @@ A single installed copy at the pinned version is the correct tree. The `invalid`
 
 Nothing currently catches a repeat. `.github/workflows/dependabot-auto-merge.yml` approves and auto-merges every `dependabot[bot]` PR with no human gate, and no CI check compares the two declarations, so the next automated bump can reintroduce the split without anyone seeing it. A durable guard is tracked in davidpoxon/roubo-development#807.
 
+### `@electron/packager` is overridden to 20.x
+
+The root `package.json` `overrides` block pins `@electron/packager: "20.3.0"`. Forge 7.11.2 (`@electron-forge/core` and `shared-types`) declares `@electron/packager: ^18.3.5`, and 18.x depends on `extract-zip@^2.0.0`, which is the unpatched high-severity symlink path traversal in GHSA-jmr9-qjv8-65gv (#1208). `extract-zip` has no fixed release, so the only route out is the dependent: `@electron/packager@20` swapped it for `@electron-internal/extract-zip`, the maintained Electron fork. Forge 8 is the first Forge line that declares a 20.x range and it is still in alpha, so the override stands in until then.
+
+The packager entry points Forge uses (`packager(options)` and the `packagerConfig` shape reaching it from `electron/forge.config.ts`) are unchanged across 18 to 20, and `forge.config.ts` typechecks against the 20.x types. Note that 20.x also pulls `@electron/asar` 4, `@electron/notarize` 3, `@electron/osx-sign` 2, `@electron/universal` 3, and `@electron/windows-sign` 2, so the signing and notarizing path only really proves itself in `electron-forge make`, which no PR check runs. `.github/workflows/release.yml` is the first place a packaging regression would surface.
+
+As with `@electron/rebuild`, one `npm ls` warning is a known, accepted state and must not be "fixed":
+
+```bash
+npm ls --package-lock-only @electron/packager --all
+# └── @electron/packager@20.3.0 invalid: "^18.3.5" from node_modules/@electron-forge/shared-types, "^18.3.5" from node_modules/@electron-forge/core
+# npm error code ELSPROBLEMS
+```
+
+One further gotcha: npm does not re-resolve an already-locked dependency when you only add or change an `overrides` entry. `npm install`, `npm install --package-lock-only`, and `npm update <pkg>` all report "up to date" and leave the old version in `package-lock.json`. The override takes effect only on a from-scratch resolution (`rm -rf node_modules package-lock.json && npm install`), which is why adding one produces a wider lockfile diff than the single package suggests.
+
 ## Pre-push checklist
 
 Run the same checks CI runs, in this order:
