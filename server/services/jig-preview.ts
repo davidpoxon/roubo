@@ -1,5 +1,9 @@
 import type { RegisteredProject, Bench } from "@roubo/shared";
-import { buildTemplateContext, applyContainerOverrides } from "./config-parser.js";
+import {
+  buildTemplateContext,
+  applyContainerOverrides,
+  applyComponentUrlOverrides,
+} from "./config-parser.js";
 import { fetchIssueContext, buildPluginIssueContext } from "./issue-formatting.js";
 import { isAlertExternalId } from "./alert-external-id.js";
 import { buildAlertIssueContext } from "./alert-formatting.js";
@@ -30,6 +34,7 @@ export async function buildPreviewContext(
 
   const templateCtx = buildTemplateContext(project.config, bench.id, bench.workspacePath);
   applyContainerOverrides(templateCtx, bench.assignedContainers);
+  applyComponentUrlOverrides(templateCtx, bench.components);
 
   let issueCtx: Partial<JigResolveContext> = {};
 

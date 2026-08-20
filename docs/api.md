@@ -76,11 +76,12 @@ The full TypeScript definitions live in [`shared/types.ts`](../shared/types.ts) 
 ```ts
 {
   name: string;
-  status: "stopped" | "starting" | "running" | "error" | "stopping";
+  status: "stopped" | "starting" | "running" | "error" | "stopping" | "completed";
   pid?: number;
   containerId?: string;
   error?: string;
   startedAt?: string;
+  url?: string;                          // runtime-reported access URL, http(s) only
   setupComplete: boolean;
 }
 ```
@@ -301,7 +302,7 @@ Returns `AuditEntry[]`: the privileged HostComponentBroker calls recorded for th
 GET /api/projects/:projectId/benches/:id/tools
 ```
 
-Returns `ResolvedTool[]`, with `url`/`command` already template-substituted for the bench. Each tool has an `enabled` flag: `false` while the tool's `requires` component is not yet running.
+Returns `ResolvedTool[]`, with `url`/`command` already template-substituted for the bench. Each tool has an `enabled` flag: `false` until the tool's `requires` component is running or has completed.
 
 A tool of type `agent` is a launch preset, not a quick-open action. It carries a resolved `preset` instead of a `url` or `command`, and its `enabled` flag is `false` when that preset could not be resolved.
 

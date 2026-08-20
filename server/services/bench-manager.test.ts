@@ -669,6 +669,63 @@ describe("initialize", () => {
     expect(bench.components.backend.setupComplete).toBe(false);
   });
 
+  it("rehydrates a runtime-reported url from persisted componentUrls (#833)", () => {
+    const config = makeConfig({
+      components: {
+        backend: { type: "process", command: "npm start" },
+      },
+    });
+    const project = makeProject({ config });
+    const persisted = makePersistedBench({
+      componentSetupState: { backend: true },
+      componentUrls: { backend: "https://example.test/sheet" },
+    });
+
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [persisted] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+    benchManager.initialize();
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    expect(bench.components.backend.url).toBe("https://example.test/sheet");
+  });
+
+  it("leaves url undefined for benches persisted without componentUrls", () => {
+    const project = makeProject({ config: makeConfig() });
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [makePersistedBench()] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+    benchManager.initialize();
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBeUndefined();
+  });
+
+  // state.json is untrusted on disk (the same reason the workspace path is
+  // re-validated on load), and rehydration is the second route into a field
+  // that reaches `open` and /bin/sh, so it gets the same gate as a live push.
+  it.each([
+    ["a non-web scheme", "file:///etc/passwd"],
+    ["a command separator", "https://example.test/x;id"],
+    ["a newline", "https://example.test/x\ntouch /tmp/pwned"],
+    ["a malformed url", "not a url"],
+  ])("drops a persisted componentUrls entry carrying %s (#833)", (_label, url) => {
+    const config = makeConfig({
+      components: {
+        backend: { type: "process", command: "npm start" },
+      },
+    });
+    const project = makeProject({ config });
+    const persisted = makePersistedBench({
+      componentSetupState: { backend: true },
+      componentUrls: { backend: url },
+    });
+
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [persisted] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+    benchManager.initialize();
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBeUndefined();
+  });
+
   it("falls back to !setup default for components new to roubo.yaml after bench creation", () => {
     const config = makeConfig({
       components: {
@@ -5463,6 +5520,131 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
       1,
       "backend",
       "running",
+    );
+  });
+
+  // Runtime-reported URLs (#833).
+  it("keeps a reported http(s) url and persists it so it survives a restart", () => {
+    seedBench();
+    vi.mocked(stateService.updateBench).mockClear();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "https://docs.google.com/spreadsheets/d/abc123/edit",
+    });
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.backend.url).toBe(
+      "https://docs.google.com/spreadsheets/d/abc123/edit",
+    );
+    expect(vi.mocked(stateService.updateBench)).toHaveBeenCalled();
+  });
+
+  it("keeps a previously reported url across a later push that omits one", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "https://example.test/sheet",
+    });
+    report({ name: "backend", status: "stopped", setupComplete: true });
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBe(
+      "https://example.test/sheet",
+    );
+  });
+
+  it("drops a reported url whose scheme is not http or https", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "file:///etc/passwd",
+    });
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBeUndefined();
+  });
+
+  it("drops a malformed reported url without dropping the rest of the push", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({ name: "backend", status: "completed", setupComplete: true, url: "not a url" });
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.backend.url).toBeUndefined();
+    expect(bench?.components.backend.status).toBe("completed");
+  });
+
+  // The resolved value can be substituted into a shell tool's command, which
+  // tool-launcher hands to /bin/sh, so a plugin must not be able to reach a
+  // shell by reporting a URL (it may never have declared permissions.processes).
+  it.each([
+    ["a newline", "https://example.test/x\ntouch /tmp/pwned"],
+    ["a carriage return", "https://example.test/x\r\nid"],
+    ["a tab", "https://example.test/x\tid"],
+    ["a command separator", "https://example.test/x;id"],
+    ["a background operator", "https://example.test/?a=1&id"],
+    ["a pipe", "https://example.test/x|id"],
+    ["command substitution", "https://example.test/$(id)"],
+    ["backtick substitution", "https://example.test/`id`"],
+    ["a redirect", "https://example.test/x>out"],
+    ["a quote", "https://example.test/x'id'"],
+  ])("drops a reported url carrying %s", (_label, url) => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({ name: "backend", status: "completed", setupComplete: true, url });
+
+    const bench = benchManager.getBench("test-project", 1);
+    expect(bench?.components.backend.url).toBeUndefined();
+    expect(bench?.components.backend.status).toBe("completed");
+  });
+
+  it("keeps the previously reported url when a later push is rejected", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "https://example.test/sheet",
+    });
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "https://example.test/x;id",
+    });
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBe(
+      "https://example.test/sheet",
+    );
+  });
+
+  it("stores the normalised href rather than the raw reported string", () => {
+    seedBench();
+    const report = benchManager.buildReportStatus("test-project", 1);
+
+    report({
+      name: "backend",
+      status: "completed",
+      setupComplete: true,
+      url: "HTTPS://Example.test/sheet",
+    });
+
+    expect(benchManager.getBench("test-project", 1)?.components.backend.url).toBe(
+      "https://example.test/sheet",
     );
   });
 

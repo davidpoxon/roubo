@@ -1208,6 +1208,24 @@ export interface ComponentStatus {
   startedAt?: string;
   phases?: ComponentPhase[];
   /**
+   * An access URL the component discovered while running and pushed back
+   * through `host.component.reportStatus` (#833). Unlike `statusDetail`, which
+   * is a transient in-flight marker the host clears once a launch settles, this
+   * is durable: it survives a stop and a host restart (persisted as
+   * `PersistedBench.componentUrls`) so a Tools entry can still open it. It is
+   * what `{{urls.<componentName>}}` resolves to, in preference to the
+   * port-derived `http://localhost:<port>` form, which lets a component with no
+   * allocated port expose a URL at all. Only `http` and `https` are accepted,
+   * and the URL must carry no whitespace or shell-significant characters, since
+   * the resolved value can also be substituted into a shell tool's command; the
+   * host drops anything else at the reportStatus sink.
+   *
+   * Reportable from an imperative component plugin only. A declarative
+   * (`translate`-only) plugin has no hook that runs after its descriptor and
+   * never holds the reportStatus sink, so it cannot set this yet (#834).
+   */
+  url?: string;
+  /**
    * True once the component's `setup` command has run successfully on this
    * bench, or trivially true if the component config defines no setup. Lets a
    * subsequent Start skip re-running setup after a Stop → Start cycle.
@@ -1898,6 +1916,15 @@ export interface PersistedBench {
    * old full-provisioning flow, so setup already ran).
    */
   componentSetupState?: Record<string, boolean>;
+  /**
+   * Persisted mirror of `bench.components[name].url`, keyed by component name,
+   * holding only the components that reported one (#833). A runtime-discovered
+   * URL is often minted once per bench by a guarded one-shot step, so without
+   * this the value would be unrecoverable after a restart and the Tools entry
+   * that opens it would break. Absent on benches written before this field
+   * existed, and absent when no component has reported a URL.
+   */
+  componentUrls?: Record<string, string>;
   /**
    * Persisted mirror of `Bench.benchSetupComplete`: whether `benches.setup`
    * has already run to completion for this bench, so a later bench-level Start

@@ -193,7 +193,18 @@ export function initialize() {
         const setupComplete = isLegacy
           ? true
           : (persistedFlag ?? (componentHasSetup(componentConfig) ? false : true));
-        components[name] = { name, status: "stopped", setupComplete };
+        // A runtime-reported URL is durable, so it comes back with the bench
+        // (#833): the one-shot step that minted it usually will not run again.
+        // Re-vet it on the way in, exactly as the workspace path above is: this
+        // is the second admission route for a value that reaches `open` and
+        // /bin/sh, and state.json is untrusted on disk, so a persisted URL gets
+        // the same gate a freshly reported one does rather than riding in.
+        components[name] = {
+          name,
+          status: "stopped",
+          setupComplete,
+          url: normalizeReportedUrl(ps.componentUrls?.[name]),
+        };
       }
     }
 
@@ -2329,7 +2340,10 @@ async function provisionComponent(
   }
 
   // Clear the in-flight markers (parity with the built-in launch path), so
-  // reconcile resumes managing this component's live state.
+  // reconcile resumes managing this component's live state. `url` is NOT an
+  // in-flight marker: a URL the component reported is durable and must survive
+  // here, or the Tools entry that opens it breaks the moment the launch settles
+  // (#833).
   liveStatus.statusDetail = undefined;
   liveStatus.statusDetailStartedAt = undefined;
   liveStatus.startedAt = undefined;
@@ -2387,7 +2401,8 @@ async function provisionImperativeComponent(
   // terminal error, preserve statusDetail: an imperative plugin uses it to name
   // why it failed (e.g. a host.process.run timeout, CP-TC-068 S004-O01), so that
   // detail must survive to the component surface rather than being wiped as a
-  // transient progress marker.
+  // transient progress marker. `url` is durable on every path and is never
+  // cleared here (#833).
   if (liveStatus.status !== "error") {
     liveStatus.statusDetail = undefined;
     liveStatus.statusDetailStartedAt = undefined;
@@ -2515,6 +2530,8 @@ export async function stopComponent(
   // so the orphan sweep does not later try to reap released resources.
   if (!isNotBound(binding) && getComponentMode(binding.pluginId) === "imperative") {
     await stopImperativeComponent(projectId, benchId, componentName, binding.pluginId, bench);
+    // `url` is deliberately left alone: a reported URL outlives a stop (#833),
+    // so restarting a bench does not lose the access point it minted.
     componentStatus.status = "stopped";
     componentStatus.pid = undefined;
     componentStatus.containerId = undefined;
@@ -2551,6 +2568,7 @@ export async function stopComponent(
   // Also stop the legacy host-id process (idempotent) so a process started
   // before this refactor's id scheme is cleaned up.
   await processManager.stopProcess(processId(projectId, benchId, componentName));
+  // As above, a reported `url` survives the stop (#833).
   componentStatus.status = "stopped";
   componentStatus.pid = undefined;
   componentStatus.containerId = undefined;
@@ -2837,6 +2855,58 @@ export function _resetAuditLogsForTest(): void {
 }
 
 /**
+ * Characters that would let a reported URL break out of the surrounding command
+ * once `{{urls.<name>}}` is substituted into a shell tool's `command` (which
+ * `tool-launcher` hands to `/bin/sh`) or into a jig injected as terminal input.
+ * Whitespace is included because the WHATWG URL parser strips tab, newline and
+ * carriage return silently rather than rejecting them, so a normalised href is
+ * not on its own safe to splice into a command line.
+ */
+const SHELL_UNSAFE_URL_CHARS = /[\s;&|`$(){}<>\\'"]/;
+
+/**
+ * Normalise a plugin-reported URL, or return undefined when it is not one the
+ * host is willing to pass on (#833). Two gates, because the value reaches two
+ * very different sinks. The port-derived form it replaces could only ever be
+ * `http(s)://localhost:<port>`, whereas a plugin-supplied string is arbitrary:
+ *
+ * 1. Scheme, so `file:` or a custom handler scheme never reaches the OS opener
+ *    that the Tools browser path calls.
+ * 2. Shell safety, because the same resolved value can also land in a shell
+ *    tool's command and in jig text typed into a terminal. A plugin that never
+ *    declared `permissions.processes` must not reach `/bin/sh` by reporting a
+ *    URL, so anything carrying shell-significant characters is refused rather
+ *    than escaped. That rules out `&`, and so rules out multi-parameter query
+ *    strings; it is the conservative half of the trade and is documented in
+ *    docs/configuration.md.
+ *
+ * The shell check runs against the RAW input as well as the parsed `href`,
+ * because the URL parser rewrites rather than rejects: it strips tab, newline
+ * and carriage return outright and percent-encodes backticks, `>` and spaces.
+ * Testing only the href would therefore accept `https://e.test/x\ntouch /tmp/x`
+ * and quietly store a different URL than the plugin reported. Refusing is the
+ * honest answer; a URL carrying these is a plugin bug or an attack, and neither
+ * deserves a silent rewrite.
+ *
+ * The parsed `href` is what is returned, so what gets stored and later
+ * substituted is the normalised form the scheme check actually ran against.
+ */
+function normalizeReportedUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  if (SHELL_UNSAFE_URL_CHARS.test(value)) return undefined;
+  let href: string;
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
+    href = parsed.href;
+  } catch {
+    return undefined;
+  }
+  if (SHELL_UNSAFE_URL_CHARS.test(href)) return undefined;
+  return href;
+}
+
+/**
  * Build the host.component.reportStatus sink for a plugin-backed component on a
  * given bench. Merging the pushed ComponentStatus into bench.components[name] and
  * broadcasting through the SAME sseService.broadcastBenchStatus path the built-in
@@ -2858,7 +2928,28 @@ export function buildReportStatus(
     // Merge over any existing entry so a partial push (e.g. a phase update that
     // omits pid) never drops a field the previous status carried.
     const merged = { ...existing, ...status };
+    // A reported URL is acted on by the host on the user's behalf: the Tools
+    // browser path hands it to `open`, and a shell tool or jig can splice it
+    // into a command line. So it is normalised and vetted here rather than
+    // trusted, and a rejected push leaves the previous value in place (#833). A
+    // push that omits `url` keeps whatever was reported before, since the value
+    // is durable, not an in-flight marker.
+    if (status.url !== undefined) {
+      const normalized = normalizeReportedUrl(status.url);
+      merged.url = normalized ?? existing?.url;
+      if (normalized === undefined) {
+        console.warn(
+          `[bench-manager] ignoring reported URL for component '${status.name}': only http and https URLs with no whitespace or shell-significant characters are accepted`,
+        );
+      }
+    }
     bench.components[status.name] = merged;
+    // Persist a newly reported URL immediately. A runtime URL is typically
+    // minted once per bench by a guarded first-run step, so losing it to a host
+    // restart would leave no way to mint it again (#833).
+    if (merged.url !== existing?.url) {
+      stateService.updateBench(stateService.toPersistedBench(bench));
+    }
     updateBenchStatus(bench);
     sseService.broadcastBenchStatus(bench);
     // Also emit the per-component status-change event (#397). Consecutive

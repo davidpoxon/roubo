@@ -111,6 +111,14 @@ export interface ResolvedTemplateContext {
   portHttps: Record<string, boolean>;
   workspace: string;
   components: Record<string, { connection?: string }>;
+  /**
+   * Runtime-reported access URLs, keyed by component name (#833). Overlaid onto
+   * a context by `applyComponentUrlOverrides` rather than built from config,
+   * because the value only exists once the component has run. Absent from a
+   * context nobody overlaid, which is why `{{urls.<name>}}` still falls back to
+   * the port-derived form.
+   */
+  urls?: Record<string, string>;
   user?: Record<string, string>;
   /**
    * The host-minted terminal session id, supplied only when resolving an agent
@@ -145,10 +153,15 @@ export function resolveTemplate(template: string, ctx: ResolvedTemplateContext):
     }
 
     if (key.startsWith("urls.")) {
-      const portName = key.slice("urls.".length);
-      const port = ctx.ports[portName];
+      const componentName = key.slice("urls.".length);
+      // A URL the component reported while running wins over the port-derived
+      // form (#833): it is the component's real access point, and it is the
+      // only form available at all when the component has no allocated port.
+      const reported = ctx.urls?.[componentName];
+      if (reported !== undefined && reported !== "") return reported;
+      const port = ctx.ports[componentName];
       if (port !== undefined) {
-        const protocol = ctx.portHttps[portName] ? "https" : "http";
+        const protocol = ctx.portHttps[componentName] ? "https" : "http";
         return `${protocol}://localhost:${port}`;
       }
     }
@@ -250,6 +263,25 @@ export function applyContainerOverrides(
   if (!assignedContainers) return;
   for (const [svc, assigned] of Object.entries(assignedContainers)) {
     ctx.ports[svc] = assigned.port;
+  }
+}
+
+/**
+ * Overlay the URLs components reported at runtime onto a template context
+ * (#833), the same shape as `applyContainerOverrides`: `buildTemplateContext`
+ * stays a pure function of static config, and live bench state is layered on at
+ * the call site. Components that reported nothing are left out entirely, so
+ * `{{urls.<name>}}` falls back to the port-derived form for them.
+ */
+export function applyComponentUrlOverrides(
+  ctx: ResolvedTemplateContext,
+  components?: Record<string, { url?: string }>,
+): void {
+  if (!components) return;
+  for (const [name, status] of Object.entries(components)) {
+    if (!status?.url) continue;
+    ctx.urls ??= {};
+    ctx.urls[name] = status.url;
   }
 }
 

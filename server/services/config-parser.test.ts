@@ -3,6 +3,7 @@ import fs from "node:fs";
 import {
   resolveTemplate,
   buildTemplateContext,
+  applyComponentUrlOverrides,
   resolveServiceEnv,
   stripSurroundingQuotes,
   parseConfig,
@@ -49,6 +50,38 @@ describe("resolveTemplate", () => {
 
   it("leaves unknown tokens verbatim", () => {
     expect(resolveTemplate("{{unknown}}", ctx)).toBe("{{unknown}}");
+  });
+
+  // Runtime-reported component URLs (#833). The value only exists once the
+  // component has run, so it is overlaid onto the context rather than built
+  // from config, and it takes precedence over the port-derived form.
+  it("substitutes a runtime-reported url in preference to the port-derived one", () => {
+    const reportedCtx: ResolvedTemplateContext = {
+      ...ctx,
+      urls: { backend: "https://docs.google.com/spreadsheets/d/abc123/edit" },
+    };
+    expect(resolveTemplate("{{urls.backend}}", reportedCtx)).toBe(
+      "https://docs.google.com/spreadsheets/d/abc123/edit",
+    );
+  });
+
+  it("substitutes a runtime-reported url for a component with no allocated port", () => {
+    const reportedCtx: ResolvedTemplateContext = {
+      ...ctx,
+      urls: { deploy: "https://script.google.com/d/xyz789/edit" },
+    };
+    expect(resolveTemplate("{{urls.deploy}}", reportedCtx)).toBe(
+      "https://script.google.com/d/xyz789/edit",
+    );
+  });
+
+  it("falls back to the port-derived url when nothing was reported", () => {
+    expect(resolveTemplate("{{urls.backend}}", ctx)).toBe("http://localhost:5000");
+    expect(resolveTemplate("{{urls.frontend}}", ctx)).toBe("https://localhost:3000");
+  });
+
+  it("leaves urls for an unreported, portless component unresolved rather than erroring", () => {
+    expect(resolveTemplate("{{urls.deploy}}", ctx)).toBe("{{urls.deploy}}");
   });
 
   // Agent-launch variables (AP-FR-011): present only when core is resolving a
@@ -224,6 +257,41 @@ describe("buildTemplateContext", () => {
     const config = makeConfig({ ports: { web: { base: 3000 } } });
     const ctx = buildTemplateContext(config, 1, "/wt");
     expect(ctx.portHttps).toEqual({ web: false });
+  });
+});
+
+describe("applyComponentUrlOverrides", () => {
+  function baseCtx(): ResolvedTemplateContext {
+    return {
+      ports: { backend: 5000 },
+      portHttps: {},
+      workspace: "/wt",
+      components: {},
+    };
+  }
+
+  it("overlays reported urls onto the context", () => {
+    const ctx = baseCtx();
+    applyComponentUrlOverrides(ctx, {
+      backend: { url: "https://example.test/backend" },
+      deploy: { url: "https://example.test/deploy" },
+    });
+    expect(resolveTemplate("{{urls.backend}} {{urls.deploy}}", ctx)).toBe(
+      "https://example.test/backend https://example.test/deploy",
+    );
+  });
+
+  it("skips components that reported no url, leaving the port-derived form intact", () => {
+    const ctx = baseCtx();
+    applyComponentUrlOverrides(ctx, { backend: {}, deploy: { url: "" } });
+    expect(ctx.urls).toBeUndefined();
+    expect(resolveTemplate("{{urls.backend}}", ctx)).toBe("http://localhost:5000");
+  });
+
+  it("is a no-op when there are no components", () => {
+    const ctx = baseCtx();
+    applyComponentUrlOverrides(ctx, undefined);
+    expect(ctx.urls).toBeUndefined();
   });
 });
 
