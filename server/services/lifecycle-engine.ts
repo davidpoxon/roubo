@@ -110,6 +110,14 @@ export interface LifecycleResult {
 const DEFAULT_PORT_ENV_VAR = "HOST_PORT";
 const MIGRATION_TIMEOUT_MS = 300_000;
 const INIT_TIMEOUT_MS = 120_000;
+/**
+ * Ceiling on how much captured output a `url.fromOutput` pattern is run over
+ * (#834). The pattern comes from a plugin, so it is untrusted with respect to
+ * backtracking cost; matching only the tail bounds the work a pathological
+ * pattern can do, and a URL a command prints is at the end of its output in
+ * practice.
+ */
+const URL_OUTPUT_SCAN_CHARS = 64_000;
 
 /**
  * Validate and execute one ProvisionDescriptor end-to-end. Resolves with the
@@ -185,14 +193,26 @@ async function runDocker(
       descriptor.connection && typeof port === "number"
         ? resolveConnectionTemplate(descriptor.connection.template, ctx.componentName, port)
         : descriptor.connection?.template;
+    // No command runs on this branch (the user owns the container), so only a
+    // `url.template` can resolve here; a `url.fromOutput` has no output to match
+    // against and simply reports nothing (#834).
+    const url = resolveDescriptorUrl(descriptor.url, ctx.componentName, port);
     completePhases(phases);
     // Surface the externally-assigned container id on the running status so the
     // integrated ComponentStatus reports it while the container is up
     // (davidpoxon/roubo-development#410), mirroring the pid the process path
     // attaches. The user owns this container's lifecycle; the id is theirs.
-    push(ctx, "running", phases, undefined, { containerId: descriptor.assignedContainerId });
+    push(ctx, "running", phases, undefined, {
+      containerId: descriptor.assignedContainerId,
+      ...urlExtra(url),
+    });
     return { status: "running", connection };
   }
+
+  // Accumulate the compose / init output a `url.fromOutput` pattern is matched
+  // against (#834). Both commands have completed and handed back their captured
+  // stdout+stderr by the time the terminal `running` push is built.
+  const capturedOutput: string[] = [];
 
   push(ctx, "starting", phases, "Starting container");
   const up = await docker.composeUp({
@@ -205,6 +225,7 @@ async function runDocker(
   // Forward compose output into the component log store (AC1, #397) before the
   // success gate, so a failed compose surfaces its diagnostic output too.
   forwardOutput(ctx, up.stdout, up.stderr);
+  capturedOutput.push(up.stdout ?? "", up.stderr ?? "");
   if (!up.success) {
     throw new Error(up.error ?? "composeUp failed");
   }
@@ -229,6 +250,7 @@ async function runDocker(
       timeoutMs: INIT_TIMEOUT_MS,
     });
     forwardOutput(ctx, init.stdout, init.stderr);
+    capturedOutput.push(init.stdout ?? "", init.stderr ?? "");
     if (!init.success) {
       throw new Error(init.error ?? "init service failed");
     }
@@ -279,8 +301,18 @@ async function runDocker(
   // post-success resolution; a null id (no matching container) simply omits it.
   const containerId = await docker.getContainerId(projectName, descriptor.service);
 
+  const url = resolveDescriptorUrl(
+    descriptor.url,
+    ctx.componentName,
+    port,
+    capturedOutput.join("\n"),
+  );
+
   completePhases(phases);
-  push(ctx, "running", phases, undefined, containerId ? { containerId } : {});
+  push(ctx, "running", phases, undefined, {
+    ...(containerId ? { containerId } : {}),
+    ...urlExtra(url),
+  });
   return { status: "running", connection };
 }
 
@@ -330,8 +362,12 @@ async function runProcess(
   const { pid } = await pm.startProcess(processId, parts[0], parts.slice(1), env, cwd);
   led.recordProcess(ctx.pluginId, ctx.benchId, processId);
 
+  // `process` declares a `url.template` only: startProcess returns as soon as
+  // the child is spawned, so there is no completed output for a regex (#834).
+  const url = resolveDescriptorUrl(descriptor.url, ctx.componentName, ctx.ports[ctx.componentName]);
+
   completePhases(phases);
-  push(ctx, "running", phases, undefined, { pid });
+  push(ctx, "running", phases, undefined, { pid, ...urlExtra(url) });
   return { status: "running" };
 }
 
@@ -383,10 +419,27 @@ async function runOneshot(
     return pushError(ctx, `one-shot exited with code ${exitCode}`, completePhasesError(phases));
   }
 
+  // The one-shot has exited, so its output is buffered under `processId` and can
+  // be read back synchronously. This is the motivating `url.fromOutput` case: a
+  // deploy that prints the endpoint it just minted (#834). Only read the buffer
+  // back when a pattern actually needs it.
+  const needsOutput = descriptor.url?.fromOutput !== undefined;
+  const url = resolveDescriptorUrl(
+    descriptor.url,
+    ctx.componentName,
+    ctx.ports[ctx.componentName],
+    needsOutput
+      ? pm
+          .getProcessLogLines(processId)
+          .map((line) => line.text)
+          .join("\n")
+      : undefined,
+  );
+
   completePhases(phases);
   // A successful one-shot reaches the `completed` terminal state (AC3), distinct
   // from `stopped` (idle) and `error` (failed).
-  push(ctx, "completed", phases);
+  push(ctx, "completed", phases, undefined, urlExtra(url));
   return { status: "completed" };
 }
 
@@ -466,6 +519,58 @@ function resolveConnectionTemplate(template: string, componentName: string, port
     if (key === `ports.${componentName}`) return String(port);
     return `{{${key}}}`;
   });
+}
+
+/**
+ * Resolve the descriptor's declared runtime URL (#834), the declarative route
+ * to `ComponentStatus.url` that #833 left open for `translate`-only plugins.
+ *
+ * `template` is filled from the host-allocated port through the same brace
+ * substitution `connection.template` uses. `fromOutput` is a plugin-supplied
+ * regular expression run over the output the executed command already
+ * captured, returning capture group 1 when the pattern defines one and the
+ * whole match otherwise, which is the only route for a URL minted while the
+ * descriptor runs.
+ *
+ * Returns undefined for a pattern that does not match, output that was never
+ * captured, or a pattern that will not compile: a URL is optional, so none of
+ * those may fail the launch. The match is bounded to the tail of the output so
+ * an expensive pattern cannot scan an unbounded buffer. Whatever comes back is
+ * still vetted at the reportStatus sink, which accepts only http/https URLs
+ * carrying no shell-significant characters.
+ */
+function resolveDescriptorUrl(
+  url: { template?: string; fromOutput?: string } | undefined,
+  componentName: string,
+  port: number | undefined,
+  output?: string,
+): string | undefined {
+  if (!url) return undefined;
+  if (url.template !== undefined) {
+    return typeof port === "number"
+      ? resolveConnectionTemplate(url.template, componentName, port)
+      : url.template;
+  }
+  if (url.fromOutput === undefined || !output) return undefined;
+  const haystack =
+    output.length > URL_OUTPUT_SCAN_CHARS ? output.slice(-URL_OUTPUT_SCAN_CHARS) : output;
+  try {
+    const match = new RegExp(url.fromOutput).exec(haystack);
+    if (!match) return undefined;
+    return match[1] ?? match[0];
+  } catch (err) {
+    console.warn(
+      `[lifecycle-engine] ignoring url.fromOutput for component '${componentName}': ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return undefined;
+  }
+}
+
+/** Pack a resolved URL into the `push` extra, omitting the key when there is none. */
+function urlExtra(url: string | undefined): Partial<ComponentStatus> {
+  return url ? { url } : {};
 }
 
 /**

@@ -1220,9 +1220,12 @@ export interface ComponentStatus {
    * the resolved value can also be substituted into a shell tool's command; the
    * host drops anything else at the reportStatus sink.
    *
-   * Reportable from an imperative component plugin only. A declarative
-   * (`translate`-only) plugin has no hook that runs after its descriptor and
-   * never holds the reportStatus sink, so it cannot set this yet (#834).
+   * An imperative component plugin pushes this through
+   * `host.component.reportStatus`. A declarative (`translate`-only) plugin
+   * never holds that sink, so it declares the URL on its ProvisionDescriptor
+   * instead (`url.template`, or `url.fromOutput` to pull it out of the
+   * command's own output) and the LifecycleEngine carries it into the
+   * component's terminal status push (#834).
    */
   url?: string;
   /**

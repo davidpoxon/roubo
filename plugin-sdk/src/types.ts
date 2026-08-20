@@ -610,6 +610,30 @@ export const SUPPORTED_CONTRACT_VERSION = 1 as const;
  * with `shared/provision-descriptor-schema.ts` (the Zod schema is the
  * authority; the host validates every descriptor against it).
  */
+/**
+ * The declarative route to a runtime URL (#834). A `translate`-only plugin
+ * never holds the reportStatus sink (translate runs once, before the descriptor
+ * executes), so the descriptor declares the URL and the host's LifecycleEngine
+ * reports it on the component's terminal status. What it sets is
+ * `ComponentStatus.url`, which is what `{{urls.<componentName>}}` resolves to.
+ *
+ * Set exactly one of the two forms. `template` is a static or
+ * `{{port}}` / `{{ports.<componentName>}}` templated URL the host fills from the
+ * allocated port. `fromOutput` is a regular expression the host runs over the
+ * output the descriptor's command already captured, taking capture group 1 when
+ * the pattern defines one and the whole match otherwise, for a URL that only
+ * exists once the command has run (a deploy printing the endpoint it minted).
+ *
+ * The host vets the result exactly as it vets an imperative push: http or https
+ * only, no whitespace or shell-significant characters, anything else dropped.
+ * A pattern that does not match, or will not compile, reports no URL rather
+ * than failing the launch.
+ *
+ * MUST stay in sync with the `url` field in `shared/provision-descriptor-schema.ts`.
+ */
+export type DescriptorUrl =
+  { template: string; fromOutput?: never } | { fromOutput: string; template?: never };
+
 export interface DockerProvisionDescriptor {
   schemaVersion: 1;
   kind: "docker";
@@ -619,6 +643,7 @@ export interface DockerProvisionDescriptor {
   portEnvVar?: string;
   migration?: { command: string; args?: string[] };
   connection?: { template: string };
+  url?: DescriptorUrl;
   assignedContainerId?: string;
   // Component-level env merged into the compose interpolation environment (and
   // the migration process env) alongside the allocated port. Mirrors the
@@ -637,6 +662,13 @@ export interface ProcessProvisionDescriptor {
   cwd?: string;
   setup?: string;
   dependsOn?: string[];
+  /**
+   * `template` only: a long-running process is spawned and left running, so it
+   * has produced no completed output for a `fromOutput` pattern to match by the
+   * time the host reports `running`. Declaring `fromOutput` on a `process`
+   * descriptor is rejected at the host's validation gate (#834).
+   */
+  url?: { template: string };
 }
 
 export interface OneshotProvisionDescriptor {
@@ -648,6 +680,7 @@ export interface OneshotProvisionDescriptor {
   cwd?: string;
   dependsOn?: string[];
   timeoutMs?: number;
+  url?: DescriptorUrl;
 }
 
 /**
@@ -705,9 +738,11 @@ export interface ComponentStatus {
    * transient, so unlike `statusDetail` it is not cleared when the launch
    * settles: report it once and it sticks until reported again.
    *
-   * Only an imperative plugin can set this today. A declarative
-   * (`translate`-only) plugin has no hook that runs after its descriptor and
-   * never holds the reportStatus sink, so it has no route yet (#834).
+   * An imperative plugin pushes this itself. A declarative (`translate`-only)
+   * plugin never holds the reportStatus sink, so it declares the URL on its
+   * `ProvisionDescriptor` instead (`url.template` or `url.fromOutput`, see
+   * {@link DescriptorUrl}) and the host reports it on the component's terminal
+   * status (#834).
    */
   url?: string;
 }

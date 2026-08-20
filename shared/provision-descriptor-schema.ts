@@ -32,6 +32,47 @@ const DockerConnectionSchema = z
   })
   .strict();
 
+// ── url (#834) ──
+// The declarative route to ComponentStatus.url, so a `translate`-only plugin
+// can resolve `{{urls.<componentName>}}` the way an imperative plugin already
+// does by pushing through host.component.reportStatus (#833). A declarative
+// plugin never holds that sink (translate runs once, BEFORE the descriptor
+// executes), so the descriptor declares the URL and the LifecycleEngine carries
+// it into its own terminal reportStatus call.
+//
+// Exactly one form, mirroring the `connection.template` precedent:
+//   - `template`: a static or `{{port}}` / `{{ports.<componentName>}}` templated
+//     URL, resolved against the host-allocated port.
+//   - `fromOutput`: a regular expression the engine runs over the output the
+//     executed command already captured, taking capture group 1 when the
+//     pattern defines one and the whole match otherwise. This is the case a
+//     static template cannot cover: a URL minted only while the descriptor runs
+//     (a `gcloud`-style deploy printing its endpoint on stdout).
+//
+// The host still vets whatever the engine reports at the reportStatus sink
+// (http/https only, no shell-significant characters), so this adds no new
+// trust surface.
+const DescriptorUrlSchema = z
+  .object({
+    template: z.string().min(1).optional(),
+    fromOutput: z.string().min(1).optional(),
+  })
+  .strict()
+  .refine((value) => (value.template === undefined) !== (value.fromOutput === undefined), {
+    message: "url must set exactly one of 'template' or 'fromOutput'",
+  });
+
+// `process` gets `template` only. A long-running process is started via
+// startProcess, which returns as soon as the child is spawned, so there is no
+// completed output to match a regex against at the point the engine pushes
+// `running`. The strict object rejects a `fromOutput` on a process descriptor
+// at the validation gate rather than silently ignoring it.
+const ProcessDescriptorUrlSchema = z
+  .object({
+    template: z.string().min(1),
+  })
+  .strict();
+
 export const DockerProvisionDescriptorSchema = z
   .object({
     schemaVersion: z.literal(SUPPORTED_PROVISION_SCHEMA_VERSION),
@@ -42,6 +83,7 @@ export const DockerProvisionDescriptorSchema = z
     portEnvVar: z.string().min(1).optional(),
     migration: DockerMigrationSchema.optional(),
     connection: DockerConnectionSchema.optional(),
+    url: DescriptorUrlSchema.optional(),
     assignedContainerId: z.string().min(1).optional(),
     // Component-level env injected into the compose interpolation environment
     // (and the migration process env), merged alongside the allocated port. This
@@ -69,6 +111,7 @@ export const ProcessProvisionDescriptorSchema = z
     cwd: z.string().min(1).optional(),
     setup: z.string().min(1).optional(),
     dependsOn: z.array(z.string()).optional(),
+    url: ProcessDescriptorUrlSchema.optional(),
   })
   .strict();
 export type ProcessProvisionDescriptor = z.infer<typeof ProcessProvisionDescriptorSchema>;
@@ -87,6 +130,7 @@ export const OneshotProvisionDescriptorSchema = z
     cwd: z.string().min(1).optional(),
     dependsOn: z.array(z.string()).optional(),
     timeoutMs: z.number().int().positive().optional(),
+    url: DescriptorUrlSchema.optional(),
   })
   .strict();
 export type OneshotProvisionDescriptor = z.infer<typeof OneshotProvisionDescriptorSchema>;
