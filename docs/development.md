@@ -172,6 +172,18 @@ A single installed copy at the pinned version is the correct tree. The `invalid`
 
 Nothing currently catches a repeat. `.github/workflows/dependabot-auto-merge.yml` approves and auto-merges every `dependabot[bot]` PR with no human gate, and no CI check compares the two declarations, so the next automated bump can reintroduce the split without anyone seeing it. A durable guard is tracked in davidpoxon/roubo-development#807.
 
+### `extract-zip` stays on 2.0.1 until Forge 8
+
+`extract-zip@2.0.1` sits in the dev tree and carries GHSA-jmr9-qjv8-65gv, an unvalidated symlink path traversal (Dependabot alert 81, high, #1208). It has no fixed release, so the only route out is the dependent. It reaches the tree through exactly one edge: the `electron` workspace, via `@electron-forge/{cli,shared-types}@7.11.2` to `@electron/packager@18.4.4`, which declares `extract-zip@^2.0.0`. `@electron/packager@20.0.1` replaced it with `@electron-internal/extract-zip`, the maintained Electron fork already in the tree for `electron` itself.
+
+**Do not add an `overrides` entry forcing `@electron/packager` to 20.x.** It resolves cleanly, `forge.config.ts` typechecks against the 20.x types, and every PR check passes, but it breaks `electron-forge make`. Packager 20 changed `HookFunction` to take a single `HookFunctionArgs` object and dropped callback-style hooks, so `dist/hooks.js` calls `hook(opts)`. `@electron-forge/core@7.11.2` still emits the positional form `(buildPath, electronVersion, platform, arch, done)` from `sequentialHooks` in `dist/api/package.js`, and its own source marks that shim `@deprecated Only use until @electron/packager publishes a new major version with promise based hooks`. Under the override `buildPath` binds to the options object. The chain's first hook only signals progress, but the second calls `path.join(buildPath, '**/.bin/**/*')` and throws `ERR_INVALID_ARG_TYPE`, and `sequentialHooks` abandons the chain on the first hook that throws. Everything after it is skipped: the `packageAfterCopy` Forge hooks, `listrCompatibleRebuildHook`, which is what rebuilds `node-pty` against the Electron ABI, and the mutation of the copied `package.json`.
+
+Nothing in PR CI catches this. `.github/workflows/pr-check.yml` never packages; `.github/workflows/release.yml` is the first place it would surface, which is the worst possible place to find it.
+
+Aliasing the fork in place does not work either. `"extract-zip": "npm:@electron-internal/extract-zip@1.0.5"` swaps an ESM-only package into a slot that packager 18 reaches by `require()`, and the fork ships no CommonJS entry point.
+
+The risk is accepted in the meantime. `extract-zip` is dev-scope and build-time only, never present in the packaged app, and packager feeds it archives fetched from the Electron release feed rather than untrusted input. `@electron-forge/core@8.0.0-alpha.10` declares `@electron/packager: ^20.0.1`, so the fix arrives with the Forge 8 line. Removing `extract-zip` for real is tracked in #1212.
+
 ## Pre-push checklist
 
 Run the same checks CI runs, in this order:
