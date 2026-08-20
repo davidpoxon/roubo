@@ -542,6 +542,40 @@ export function isBenchLive(projectId: string, benchId: number): boolean {
   return benches.has(benchKey(projectId, benchId));
 }
 
+/**
+ * Bench ids currently tracked in the in-memory map for a project, i.e. exactly what
+ * the Benches view renders via {@link getBenches}. `unregisterProject`'s active-bench
+ * guard reads persisted state, which lags memory during the reservation window
+ * (a bench is in the map from `createBench` but has no record until the workspace
+ * exists) and forever for a bench whose provisioning failed. Exposing the live ids
+ * lets the guard union the two so the two surfaces cannot disagree (issue #830).
+ */
+export function getLiveBenchIds(projectId: string): number[] {
+  const ids: number[] = [];
+  for (const bench of benches.values()) {
+    if (bench.projectId === projectId) ids.push(bench.id);
+  }
+  return ids;
+}
+
+/**
+ * Drop every in-memory bench entry for a project and return how many were removed.
+ * Called on `unregisterProject`'s force path: the map is what `readGlobalBenchCap`
+ * measures (`benches.size`), so entries left behind keep consuming global-cap slots
+ * until the app restarts (issue #830). Map-entry removal only, matching the force
+ * path's existing no-filesystem-cleanup contract; it does not tear down components.
+ */
+export function dropProjectBenches(projectId: string): number {
+  let removed = 0;
+  for (const [key, bench] of benches) {
+    if (bench.projectId === projectId) {
+      benches.delete(key);
+      removed++;
+    }
+  }
+  return removed;
+}
+
 export interface CreateBenchOptions {
   // TestBench variant discriminator. When "testbench", focusedSpecPath is
   // required and validated for containment before the bench is reserved.

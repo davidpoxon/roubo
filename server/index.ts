@@ -170,6 +170,15 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Initializing project registry...");
   projectRegistry.initialize();
 
+  // Wire the registry's unregister guard to the in-memory bench map (issue #830).
+  // `bench-manager` imports `project-registry`, so the registry cannot import it
+  // back; the composition root injects the accessor instead. This must land before
+  // `app.listen()` so no DELETE /projects/:id can arrive with the seam unwired.
+  projectRegistry.registerLiveBenchSource({
+    listBenchIds: benchManager.getLiveBenchIds,
+    dropBenches: benchManager.dropProjectBenches,
+  });
+
   // FR-018 (issue #558): capture the fresh-install signal BEFORE the migration
   // check runs, because `migrate.run()` writes state.json even on the greenfield
   // path. The notice seeding below uses this to decide whether to show the
