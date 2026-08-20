@@ -1294,6 +1294,14 @@ async function runTeardownBackground(
   const { projectId, id: benchId } = bench;
   const key = benchKey(projectId, benchId);
 
+  // What Clear would have removed but may still be on disk if a later step
+  // throws (#831). Set when the remove-workspace step starts and cleared as each
+  // target is confirmed gone, so the catch names only what genuinely remains
+  // instead of leaving it orphaned without a word to the user.
+  let leftoverWorkspacePath: string | undefined;
+  let leftoverBranch: string | undefined;
+  let leftoverWorkspaceReason: string | undefined;
+
   try {
     // Step 1: Close terminals
     updateStep(bench.teardownSteps, "terminals", "running");
@@ -1384,6 +1392,8 @@ async function runTeardownBackground(
     // Step 5: Remove workspace and branch
     if (removeWorkspace && project) {
       updateStep(bench.teardownSteps, "remove-workspace", "running");
+      leftoverWorkspacePath = bench.workspacePath;
+      leftoverBranch = bench.branch;
 
       const wtList = await execGit(["worktree", "list", "--porcelain"], project.repoPath);
 
@@ -1395,6 +1405,7 @@ async function runTeardownBackground(
           project.repoPath,
           { benchId, workspacePath: bench.workspacePath },
         );
+        leftoverWorkspacePath = undefined;
       } else {
         const isRegistered = wtList.stdout
           .split("\n")
@@ -1410,18 +1421,23 @@ async function runTeardownBackground(
             project.repoPath,
             { benchId, workspacePath: bench.workspacePath },
           );
+          leftoverWorkspacePath = undefined;
         } else if (existsOnDisk) {
           // Orphaned directory: not tracked as a worktree but still on disk
           try {
             fs.rmSync(bench.workspacePath, { recursive: true, force: true });
+            leftoverWorkspacePath = undefined;
           } catch (err) {
             console.warn(
               `[bench-manager] Could not remove orphaned workspace directory ` +
                 `${bench.workspacePath} for bench ${benchId}: ${err}`,
             );
+            leftoverWorkspaceReason = (err as Error).message;
           }
+        } else {
+          // Neither on disk nor registered: nothing to remove, nothing left over.
+          leftoverWorkspacePath = undefined;
         }
-        // else: neither on disk nor registered: nothing to remove
       }
 
       // Best-effort branch delete: tolerate "branch not found" in case the
@@ -1436,6 +1452,20 @@ async function runTeardownBackground(
           );
           throw new Error(`git branch -D ${bench.branch} failed: ${detail}`);
         }
+      }
+      // Deleted, or already gone: either way nothing is left behind.
+      leftoverBranch = undefined;
+
+      // An orphaned directory rmSync could not remove is the one leftover the
+      // code already knows about, and swallowing it here would carry on to
+      // step 6 and drop the bench from both representations, orphaning the
+      // directory with nothing left to report it against (#831, AC2). Fail the
+      // step instead, so the catch names it and the bench stays retryable.
+      if (leftoverWorkspacePath) {
+        throw new Error(
+          `could not remove workspace directory ${leftoverWorkspacePath}` +
+            (leftoverWorkspaceReason ? `: ${leftoverWorkspaceReason}` : ""),
+        );
       }
 
       updateStep(bench.teardownSteps, "remove-workspace", "done");
@@ -1454,9 +1484,34 @@ async function runTeardownBackground(
       failedStep.status = "error";
       failedStep.error = (err as Error).message;
     }
-    bench.error = `Teardown failed: ${(err as Error).message}`;
+    // Deliberately no `stateService.removeBench` / `benches.delete` here (#831):
+    // the persisted record and the in-memory bench have to end up agreeing, and
+    // dropping both while a workspace directory or branch may still be on disk
+    // would orphan them with no bench left to report them against (every
+    // notification and SSE channel is bench-scoped). #829 was the mirror image of
+    // that divergence; do not reintroduce it from this side. The bench instead
+    // stays as a clearable card so Clear can simply be run again.
+    const leftovers: string[] = [];
+    if (leftoverWorkspacePath) leftovers.push(`workspace directory ${leftoverWorkspacePath}`);
+    if (leftoverBranch) leftovers.push(`branch ${leftoverBranch}`);
+    bench.error =
+      `Teardown failed: ${(err as Error).message}\n` +
+      (leftovers.length > 0
+        ? `Still on disk: ${leftovers.join(" and ")}.`
+        : "Nothing was left behind on disk.") +
+      `\nThe bench was kept, so you can clear it again to retry.`;
     bench.status = "error";
-    notificationService.createNotification(bench, "bench-error");
+    notificationService.createNotification(bench, "bench-error", undefined, {
+      leftoverWorkspacePath,
+      leftoverBranch,
+      retryable: true,
+    });
+    // createNotification short-circuits on an existing bench-error of the same
+    // type, so on a repeat failure it updates the metadata in memory but neither
+    // persists nor broadcasts. Do both explicitly so a retry's refreshed leftover
+    // report still reaches state.json and the client.
+    stateService.updateBench(stateService.toPersistedBench(bench));
+    sseService.broadcastBenchStatus(bench);
   }
 }
 
