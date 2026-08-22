@@ -29,13 +29,15 @@ import {
   UnsafePathError,
 } from "./safe-path.js";
 import { validateTestCases } from "@roubo/shared/testbench-contracts";
-import type { CaseStatus, TestCasesPlan } from "@roubo/shared/testbench-contracts";
+import type { Case, CaseStatus, TestCasesPlan } from "@roubo/shared/testbench-contracts";
+import { caseStateOf } from "@roubo/shared/lifecycle-resolver";
 import { computePlanHash, loadResultsFile } from "./testbench-store.js";
 import { readSpecLifecycle } from "./testbench-spec-lifecycle.js";
 
 // Per-status case tally for one spec (#482). Non-negative integers keyed by the
-// five CaseStatus values; the tally is computed over the CURRENT plan's case ids
-// only, so it always sums to the spec's caseCount.
+// five CaseStatus values; the tally is computed over the CURRENT plan's LIVE case
+// ids only (#835), so it always sums to the spec's caseCount, which counts the
+// same live cases.
 export interface SpecStatusCounts {
   not_started: number;
   in_progress: number;
@@ -47,9 +49,11 @@ export interface SpecStatusCounts {
 // The read-only, fail-open verification state discovery computes per spec (#482,
 // TSPF-FR-001/FR-002). It carries classification inputs, not presentation strings:
 //   - classification: "all-passed" iff a readable, schema-valid, hash-matching
-//     results sidecar is present AND every current-plan case is effectively
-//     passed; everything else (including aggregationError) is "needs-attention".
-//   - statusCounts: effective-status tally over the current plan (sums to caseCount).
+//     results sidecar is present AND every LIVE current-plan case is effectively
+//     passed; everything else (including aggregationError) is "needs-attention". A
+//     spec with no live cases left is needs-attention, never vacuously all-passed.
+//   - statusCounts: effective-status tally over the current plan's live cases
+//     (sums to caseCount).
 //   - resultsPresent: a sidecar exists on disk (the loader did not report "missing").
 //   - resultsValid: the sidecar parsed and passed schema validation.
 //   - planHashMatch: the sidecar's recorded planHash matches computePlanHash(plan).
@@ -85,7 +89,8 @@ export interface SpecLifecycleState {
 }
 
 // One discovered, contract-valid spec: the slug naming its `.specifications/<slug>/`
-// folder, the absolute path to its test-cases.json, the number of cases in it,
+// folder, the absolute path to its test-cases.json, the number of LIVE cases in it
+// (retired and superseded cases are excluded, #835),
 // its read-only per-spec verification state (#482), and its read-only lifecycle
 // state (#765).
 export interface DiscoveredSpec {
@@ -115,8 +120,8 @@ export interface SpecDiscovery {
   invalid: InvalidSpec[];
 }
 
-// The shape returned by validateManualPath: on success the resolved slug + count,
-// on failure a flat list of human-readable errors (no path/slug fields).
+// The shape returned by validateManualPath: on success the resolved slug + live
+// case count, on failure a flat list of human-readable errors (no path/slug fields).
 export type ManualPathValidation =
   { ok: true; slug: string; caseCount: number } | { ok: false; errors: string[] };
 
@@ -131,17 +136,29 @@ function zeroStatusCounts(): SpecStatusCounts {
 //   - Results IO is delegated to the store's read-only loadResultsFile (the sole
 //     owner of test-results.json IO); no plan re-read happens (planHashMatch reuses
 //     the already-parsed plan via computePlanHash).
-//   - Effective status per case = statusOverride.status ?? derivedStatus; a plan
-//     case with no caseResults entry counts as not_started; caseResults entries for
-//     cases no longer in the plan are ignored (tally is over current plan ids only).
+//   - The tally covers the plan's LIVE cases only (#835, SATCA-FR-005). A retired
+//     or superseded case has no live obligation, so counting it let a recorded
+//     failure on an ended case hold the whole spec in needs-attention. Live-ness is
+//     read from the shared LifecycleResolver (caseStateOf), never by branching on
+//     the raw state, matching the convention rollup.ts documents. The live cases
+//     arrive already filtered so the caller can reuse the same array for caseCount;
+//     `plan` stays the WHOLE plan because computePlanHash must keep hashing every
+//     case (the hash is the results-staleness contract, #767).
+//   - Effective status per case = statusOverride.status ?? derivedStatus; a live
+//     plan case with no caseResults entry counts as not_started; caseResults entries
+//     for cases that are no longer live, or no longer in the plan at all, are
+//     ignored (the tally is over the current plan's live ids only).
 //   - The whole aggregation is wrapped in try/catch so any throw (notably the
 //     loader's path-safety assertion on a symlinked sidecar escaping repoPath)
 //     degrades ONLY this spec to { needs-attention, aggregationError: true } and
-//     never fails discovery.
+//     never fails discovery. The live filter therefore runs in the CALLER, above
+//     the try, so the catch branch can size its fallback tally without re-deriving
+//     (and so it can never itself throw).
 function computeVerification(
   repoPath: string,
   slug: string,
   plan: TestCasesPlan,
+  liveCases: readonly Case[],
 ): SpecVerification {
   try {
     const { file, recoveryReason } = loadResultsFile(repoPath, slug);
@@ -153,10 +170,11 @@ function computeVerification(
 
     const caseResults = file?.caseResults ?? {};
     const statusCounts = zeroStatusCounts();
-    for (const planCase of plan.cases) {
-      // A plan case absent from caseResults counts as not_started; orphaned
-      // caseResults entries (cases no longer in the plan) are ignored because we
-      // iterate the current plan's ids, not the sidecar's keys.
+    for (const planCase of liveCases) {
+      // A live plan case absent from caseResults counts as not_started; orphaned
+      // caseResults entries (cases no longer live, or no longer in the plan) are
+      // ignored because we iterate the current plan's live ids, not the sidecar's
+      // keys.
       const caseResult = Object.prototype.hasOwnProperty.call(caseResults, planCase.id)
         ? caseResults[planCase.id]
         : undefined;
@@ -166,11 +184,18 @@ function computeVerification(
     }
 
     // all-passed only when a readable, schema-valid, hash-matching sidecar is
-    // present AND every current-plan case is effectively passed. A zero-case plan is
-    // therefore vacuously all-passed only under such a sidecar. Everything else is
-    // needs-attention.
+    // present AND every LIVE case is effectively passed. A spec with NO live cases
+    // (an empty plan, or one whose every case has been retired or superseded) is
+    // deliberately not vacuously all-passed: there is no evidence of anything
+    // passing, so it stays needs-attention, matching evaluateGate's fail-closed
+    // treatment of an emptied gating set (verify-gate NFR-007). Everything else is
+    // needs-attention too.
     const allPassed =
-      resultsPresent && resultsValid && planHashMatch && statusCounts.passed === plan.cases.length;
+      liveCases.length > 0 &&
+      resultsPresent &&
+      resultsValid &&
+      planHashMatch &&
+      statusCounts.passed === liveCases.length;
 
     return {
       classification: allPassed ? "all-passed" : "needs-attention",
@@ -183,11 +208,11 @@ function computeVerification(
     };
   } catch {
     // Per-spec degrade (TSPF-FR-002): any throw leaves this one spec needs-attention
-    // with safe defaults. The tally defaults to every case not_started so statusCounts
-    // still sums to caseCount.
+    // with safe defaults. The tally defaults to every LIVE case not_started so
+    // statusCounts still sums to the (live-only) caseCount.
     return {
       classification: "needs-attention",
-      statusCounts: { ...zeroStatusCounts(), not_started: plan.cases.length },
+      statusCounts: { ...zeroStatusCounts(), not_started: liveCases.length },
       resultsPresent: false,
       resultsValid: false,
       planHashMatch: false,
@@ -312,13 +337,17 @@ export function discoverSpecs(repoPath: string): SpecDiscovery {
     }
 
     const plan = validation.data;
+    // Live cases only (#835, SATCA-FR-005): a retired or superseded case is excluded
+    // from caseCount and from the verification tally alike, so the two keep moving
+    // together and the picker card counts the obligations that are still open.
+    const liveCases = plan.cases.filter((planCase) => caseStateOf(planCase) === "live");
     specs.push({
       slug,
       path: casesPath,
-      caseCount: plan.cases.length,
+      caseCount: liveCases.length,
       // Per-spec, read-only, fail-open verification state (#482). Computed here in
       // the existing loop where the parsed, contract-valid plan is already in hand.
-      verification: computeVerification(repoPath, slug, plan),
+      verification: computeVerification(repoPath, slug, plan, liveCases),
       // Per-spec, read-only, fail-open lifecycle state (#765). Computed in the
       // same loop, on the same already-allowlisted slug.
       lifecycle: computeLifecycle(repoPath, slug),
@@ -382,7 +411,8 @@ export function resolveFocusedSpec(
 //      allowlist,
 //   3. read as JSON and validate against the published test-cases contract.
 // Any failure returns { ok: false, errors }. On success it returns the resolved
-// slug + case count, the same shape discoverSpecs reports per entry.
+// slug + LIVE case count, the same shape and the same live-only basis discoverSpecs
+// reports per entry (#835), so the escape hatch agrees with the discovered rows.
 export function validateManualPath(repoPath: string, rawPath: string): ManualPathValidation {
   if (typeof rawPath !== "string" || rawPath.trim().length === 0) {
     return { ok: false, errors: ["path must be a non-empty string"] };
@@ -441,5 +471,6 @@ export function validateManualPath(repoPath: string, rawPath: string): ManualPat
     return { ok: false, errors: validation.errors };
   }
 
-  return { ok: true, slug, caseCount: validation.data.cases.length };
+  const liveCases = validation.data.cases.filter((planCase) => caseStateOf(planCase) === "live");
+  return { ok: true, slug, caseCount: liveCases.length };
 }
