@@ -13,6 +13,7 @@ import {
   TEST_CASES_SCHEMA_VERSION,
   TEST_RESULTS_SCHEMA_ID,
   TEST_RESULTS_SCHEMA_VERSION,
+  type CaseLifecycle,
   type CaseStatus,
   type TestCasesPlan,
 } from "@roubo/shared/testbench-contracts";
@@ -425,16 +426,22 @@ describe("discoverSpecs verification aggregation (#482)", () => {
     expect(v.statusCounts.not_started).toBe(2);
   });
 
-  it("treats a zero-case plan as all-passed only under a valid hash-matching sidecar", () => {
+  // #835: a plan with no LIVE cases is never vacuously all-passed, even under a
+  // clean hash-matching sidecar. There is no evidence of anything passing, so it
+  // stays needs-attention, matching evaluateGate's fail-closed treatment of an
+  // emptied gating set (verify-gate NFR-007).
+  it("does not treat a zero-case plan as all-passed even under a valid hash-matching sidecar", () => {
     const plan = planFor("empty", []);
     writeSpec("empty", plan);
-    // Matching-hash, empty results: vacuously all-passed.
     writeResults("empty", plan, {});
 
     const spec = discoverSpecs(repo).specs[0];
     expect(spec.caseCount).toBe(0);
     const v = spec.verification;
-    expect(v.classification).toBe("all-passed");
+    expect(v.resultsPresent).toBe(true);
+    expect(v.resultsValid).toBe(true);
+    expect(v.planHashMatch).toBe(true);
+    expect(v.classification).toBe("needs-attention");
     expect(v.statusCounts).toEqual({
       not_started: 0,
       in_progress: 0,
@@ -528,6 +535,145 @@ describe("discoverSpecs verification aggregation (#482)", () => {
     ).toBe(false);
     // And left the existing sidecar byte-identical.
     expect(fs.readFileSync(resultsPath).equals(before)).toBe(true);
+  });
+});
+
+// ── Live-case filtering in discovery (#835, SATCA-FR-005) ──
+
+// Attach a lifecycle block to one case of an already-built plan, returning a new
+// plan. Mirrors the schema's discriminated union: `retired` carries a reason,
+// `superseded` a replacement pointer.
+function withLifecycle(
+  plan: TestCasesPlan,
+  caseId: string,
+  lifecycle: CaseLifecycle,
+): TestCasesPlan {
+  return {
+    ...plan,
+    cases: plan.cases.map((c) => (c.id === caseId ? { ...c, lifecycle } : c)),
+  };
+}
+
+const RETIRED: CaseLifecycle = {
+  state: "retired",
+  reason: "the convention it covered no longer exists",
+};
+const SUPERSEDED: CaseLifecycle = { state: "superseded", replacement: "TC-001" };
+
+describe("discoverSpecs live-case filtering (#835)", () => {
+  it("classifies all-passed when the only non-passed case is retired", () => {
+    // The reported repro in miniature: every live case passed, and the one
+    // recorded failure belongs to a case whose obligation has ended.
+    const plan = withLifecycle(planFor("feat", ["TC-001", "TC-002", "TC-003"]), "TC-003", RETIRED);
+    writeSpec("feat", plan);
+    writeResults("feat", plan, {
+      "TC-001": caseResult("passed"),
+      "TC-002": caseResult("passed"),
+      "TC-003": caseResult("failed"),
+    });
+
+    const spec = discoverSpecs(repo).specs[0];
+    expect(spec.caseCount).toBe(2);
+    const v = spec.verification;
+    expect(v.classification).toBe("all-passed");
+    expect(v.statusCounts).toEqual({
+      not_started: 0,
+      in_progress: 0,
+      passed: 2,
+      failed: 0,
+      blocked: 0,
+    });
+    const sum = Object.values(v.statusCounts).reduce((a, b) => a + b, 0);
+    expect(sum).toBe(spec.caseCount);
+  });
+
+  it("excludes retired AND superseded cases from caseCount and the tally", () => {
+    let plan = planFor("feat", ["TC-001", "TC-002", "TC-003", "TC-004"]);
+    plan = withLifecycle(plan, "TC-003", RETIRED);
+    plan = withLifecycle(plan, "TC-004", SUPERSEDED);
+    writeSpec("feat", plan);
+    writeResults("feat", plan, {
+      "TC-001": caseResult("passed"),
+      "TC-002": caseResult("failed"),
+      "TC-003": caseResult("failed"),
+      "TC-004": caseResult("blocked"),
+    });
+
+    const spec = discoverSpecs(repo).specs[0];
+    expect(spec.caseCount).toBe(2);
+    expect(spec.verification.statusCounts).toEqual({
+      not_started: 0,
+      in_progress: 0,
+      passed: 1,
+      failed: 1,
+      blocked: 0,
+    });
+    expect(spec.verification.classification).toBe("needs-attention");
+  });
+
+  it("classifies a spec whose every case is non-live as needs-attention, not all-passed", () => {
+    const plan = withLifecycle(planFor("gone", ["TC-001"]), "TC-001", RETIRED);
+    writeSpec("gone", plan);
+    writeResults("gone", plan, { "TC-001": caseResult("passed") });
+
+    const spec = discoverSpecs(repo).specs[0];
+    expect(spec.caseCount).toBe(0);
+    const v = spec.verification;
+    // The sidecar is clean; the spec is still fail-closed because nothing live
+    // remains to have passed.
+    expect(v.resultsPresent).toBe(true);
+    expect(v.resultsValid).toBe(true);
+    expect(v.planHashMatch).toBe(true);
+    expect(v.classification).toBe("needs-attention");
+  });
+
+  it("sizes the degraded catch-branch tally to the live case count", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-live-escape-"));
+    try {
+      // Two cases, one retired. The sidecar symlinks outside the repo, so the
+      // store's path-safety assertion throws and the per-spec catch degrades this
+      // spec; its safe-default tally must still sum to the live caseCount.
+      const plan = withLifecycle(planFor("evil", ["TC-001", "TC-002"]), "TC-002", RETIRED);
+      writeSpec("evil", plan);
+      fs.writeFileSync(
+        path.join(outside, "test-results.json"),
+        JSON.stringify(
+          {
+            $schema: TEST_RESULTS_SCHEMA_ID,
+            schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
+            planHash: computePlanHash(plan),
+            caseResults: { "TC-001": caseResult("passed") },
+            updatedAt: FIXED_TS,
+          },
+          null,
+          2,
+        ),
+      );
+      fs.symlinkSync(
+        path.join(outside, "test-results.json"),
+        path.join(repo, ".specifications", "evil", "test-results.json"),
+      );
+
+      const spec = discoverSpecs(repo).specs[0];
+      expect(spec.caseCount).toBe(1);
+      const v = spec.verification;
+      expect(v.aggregationError).toBe(true);
+      expect(v.classification).toBe("needs-attention");
+      expect(v.statusCounts.not_started).toBe(1);
+      const sum = Object.values(v.statusCounts).reduce((a, b) => a + b, 0);
+      expect(sum).toBe(spec.caseCount);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("counts live cases only in validateManualPath, matching the discovered row", () => {
+    const plan = withLifecycle(planFor("feat", ["TC-001", "TC-002"]), "TC-002", RETIRED);
+    const target = writeSpec("feat", plan);
+
+    const manual = validateManualPath(repo, target);
+    expect(manual).toEqual({ ok: true, slug: "feat", caseCount: 1 });
+    expect(discoverSpecs(repo).specs[0].caseCount).toBe(1);
   });
 });
 

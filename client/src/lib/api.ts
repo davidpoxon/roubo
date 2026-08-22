@@ -1641,8 +1641,9 @@ export function fetchMigrationStatus(): Promise<MigrationStatusResponse> {
 
 // Per-status case tally for one spec (#482), mirrored from the server's
 // `SpecStatusCounts` (server/lib/testbench-spec-discovery.ts). Non-negative
-// integers keyed by the five CaseStatus values; the tally sums to the spec's
-// caseCount. The client cannot import from the server package, so the shape is
+// integers keyed by the five CaseStatus values; the tally covers the spec's LIVE
+// cases only (#835) and sums to the spec's caseCount, which counts the same live
+// cases. The client cannot import from the server package, so the shape is
 // restated here.
 export interface SpecStatusCounts {
   not_started: number;
@@ -1657,9 +1658,11 @@ export interface SpecStatusCounts {
 // presentation strings: the picker keys its partition on `classification` and
 // derives each row's pass-state summary from these fields client-side.
 //   - classification: "all-passed" iff a readable, schema-valid, hash-matching
-//     results sidecar is present AND every current-plan case is effectively
-//     passed; everything else (including aggregationError) is "needs-attention".
-//   - statusCounts: effective-status tally over the current plan (sums to caseCount).
+//     results sidecar is present AND every LIVE current-plan case is effectively
+//     passed; everything else (including aggregationError) is "needs-attention". A
+//     spec with no live cases left is needs-attention, never vacuously all-passed.
+//   - statusCounts: effective-status tally over the current plan's live cases
+//     (sums to caseCount).
 //   - resultsPresent: a sidecar exists on disk (the loader did not report "missing").
 //   - resultsValid: the sidecar parsed and passed schema validation.
 //   - planHashMatch: the sidecar's recorded planHash matches the current plan hash.
@@ -1697,8 +1700,9 @@ export interface SpecLifecycleState {
 
 // One discovered, contract-valid spec: the slug naming its
 // `.specifications/<slug>/` folder, the absolute path to its test-cases.json, the
-// number of cases in it, its read-only per-spec verification state (#482), and
-// its read-only lifecycle state (#765).
+// number of LIVE cases in it (retired and superseded cases are excluded, #835),
+// its read-only per-spec verification state (#482), and its read-only lifecycle
+// state (#765).
 export interface DiscoveredSpec {
   slug: string;
   path: string;
@@ -1716,8 +1720,8 @@ export interface InvalidSpec {
   errors: string[];
 }
 
-// Result of validating a manual path: on success the resolved slug + case count,
-// on failure a flat list of human-readable error messages.
+// Result of validating a manual path: on success the resolved slug + live case
+// count (#835), on failure a flat list of human-readable error messages.
 export type ManualPathValidation =
   { ok: true; slug: string; caseCount: number } | { ok: false; errors: string[] };
 
