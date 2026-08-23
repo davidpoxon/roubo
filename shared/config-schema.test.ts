@@ -205,6 +205,43 @@ describe("benches.max", () => {
   });
 });
 
+describe("benches.shell (#836)", () => {
+  it("accepts an omitted shell", () => {
+    expect(
+      RouboConfigSchema.safeParse(makeConfig({ benches: { max: 5, setup: "npm ci" } })).success,
+    ).toBe(true);
+  });
+
+  it("accepts a boolean shell", () => {
+    expect(
+      RouboConfigSchema.safeParse(makeConfig({ benches: { max: 5, setup: "npm ci", shell: true } }))
+        .success,
+    ).toBe(true);
+  });
+
+  it("accepts a string shell invocation", () => {
+    expect(
+      RouboConfigSchema.safeParse(
+        makeConfig({ benches: { max: 5, setup: "nvm use && npm ci", shell: "zsh -i" } }),
+      ).success,
+    ).toBe(true);
+  });
+
+  it("rejects an empty string shell", () => {
+    expect(
+      RouboConfigSchema.safeParse(makeConfig({ benches: { max: 5, setup: "npm ci", shell: "" } }))
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects a numeric shell", () => {
+    expect(
+      RouboConfigSchema.safeParse(makeConfig({ benches: { max: 5, setup: "npm ci", shell: 1 } }))
+        .success,
+    ).toBe(false);
+  });
+});
+
 describe("ports.base", () => {
   it("accepts 1", () => {
     expect(RouboConfigSchema.safeParse(makeConfig({ ports: { web: { base: 1 } } })).success).toBe(

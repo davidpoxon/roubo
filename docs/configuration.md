@@ -123,6 +123,48 @@ Each component binds to a component plugin and hands it an opaque config block.
 
 The contents of `config` depend entirely on the bound plugin: a `process` plugin reads `command` / `setup` / `env` / `directory`, a `database` plugin reads `composeFile` / `service` / `migration` / `connection`, and so on. Roubo validates that `plugin.id` resolves to a loaded component plugin and that `config` satisfies that plugin's `configSchema`. A binding to an unknown plugin, or a `config` block the plugin rejects, fails validation with a clear, path-keyed error.
 
+### Component commands are argv by default
+
+Every command line a component declares (`command`, `setup`, and a database `migration.command`) is **tokenized into argv and spawned directly**, not handed to a shell. The first token is the executable and the rest are its arguments, so `&&`, `;`, `|`, redirection, globs, `$VAR` and `~` are passed through as literal arguments rather than interpreted, and a shell function such as `nvm` is invisible because no shell ever ran. `command: nvm use && npm run dev` therefore tries to spawn a binary called `nvm` and fails with `spawn nvm ENOENT`.
+
+The optional `shell` key on those components is the opt-in that changes it. It takes either form:
+
+```yaml
+components:
+  frontend:
+    plugin:
+      id: process
+    config:
+      # boolean: run through `/bin/sh -c`. Operators, redirection, globs and $VAR work.
+      command: cd web && npm run dev
+      shell: true
+  backend:
+    plugin:
+      id: process
+    config:
+      # string: the shell invocation the command is appended to as `-c`,
+      # so this runs `zsh -i -c "nvm use && npm run dev"`.
+      command: nvm use && npm run dev
+      shell: zsh -i
+```
+
+| `shell`  | What Roubo spawns               | What it fixes                                                                                               |
+| -------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| omitted  | `<argv[0]> <argv[1:]>`          | Nothing changes. This is today's behaviour and stays the default.                                           |
+| `true`   | `/bin/sh -c "<command>"`        | Operators (`&&`, `;`, `\|`), redirection, globs and `$VAR`.                                                 |
+| a string | `<shell tokens> -c "<command>"` | Everything `true` fixes, plus whatever the named shell's flags reach. Only this form can pass `-i` or `-l`. |
+
+Read the third column carefully: **`shell: true` will not make `nvm use` work.** Node runs `/bin/sh -c`, which is neither an interactive nor a login shell, so it sources no `~/.zshrc` or `~/.bashrc`, and a version manager installed as a shell function (nvm, and anything else defined as `foo()` in an rc file) never gets defined. Only the string form reaches an interactive shell: `shell: zsh -i` runs `zsh -i -c "<command>"`, `~/.zshrc` loads, and `nvm use` resolves and honours `.nvmrc`.
+
+Two costs come with an interactive shell, so reach for it only when a plain `shell: true` is not enough:
+
+- The shell sources the user's whole rc file on every component start. A heavy prompt framework (powerlevel10k, oh-my-zsh) adds startup latency to the component, and any rc line that writes to stdout lands verbatim in that component's logs.
+- rc files that assume a TTY can misbehave under piped stdio.
+
+`shell` accepts an absolute path (`/bin/zsh -ilc`) or a bare command name resolved through `PATH` (`zsh -i`); anything else is rejected at start. On a `process` component the same `shell` applies to both `command` and `setup`, since they are the same kind of command line. On a `database` component it lives on `migration`, where it also changes how `migration.args` are applied: in argv mode they extend the parsed argv, and in shell mode they are appended to the command line the shell interprets.
+
+When an argv-mode spawn fails and the command contains shell syntax, Roubo names the metacharacter it found and points at `shell` rather than leaving you with a bare `ENOENT` against the wrong binary.
+
 ### Template substitution
 
 Any string value inside a component's `config` block, and in tool URLs, may reference:
@@ -287,11 +329,12 @@ benches:
   autoClear: true
 ```
 
-| Field       | Required | Type    | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ----------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `max`       | yes      | integer | 1–99. Hard cap on concurrent benches for this project.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `setup`     | no       | string  | Command run once after worktree creation, before components start. Typically `npm ci` or workspace bootstrapping. Runs through your login shell, so shell syntax works: `&&` chaining, redirection, and pipes. On zsh the shell is also interactive so `~/.zshrc` loads, which is what makes version managers such as `nvm`, `fnm`, and `asdf` resolve. On bash and other shells only the login profile files load (`~/.bash_profile`, `~/.profile`, not `~/.bashrc`), so a version-manager snippet installed into `~/.bashrc` must be moved into the profile file to resolve here. |
-| `autoClear` | no       | boolean | When `true` (default), benches are cleared automatically when the linked GitHub issue moves to Done / is closed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Field       | Required | Type              | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------- | -------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max`       | yes      | integer           | 1–99. Hard cap on concurrent benches for this project.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `setup`     | no       | string            | Command run once after worktree creation, before components start. Typically `npm ci` or workspace bootstrapping. Runs through your login shell, so shell syntax works: `&&` chaining, redirection, and pipes. On zsh the shell is also interactive so `~/.zshrc` loads, which is what makes version managers such as `nvm`, `fnm`, and `asdf` resolve. On bash and other shells only the login profile files load (`~/.bash_profile`, `~/.profile`, not `~/.bashrc`), so a version-manager snippet installed into `~/.bashrc` must be moved into the profile file to resolve here.                                                                                   |
+| `shell`     | no       | boolean \| string | Overrides the shell `setup` runs through. Omitted (the recommended default), `setup` keeps the login shell described above. `true` runs it through `/bin/sh -c` instead, which sources no rc file and therefore cannot see `nvm`. A string is the shell invocation `setup` is appended to as `-c`, for example `bash -lc` or `zsh -i`, for a project whose version manager lives somewhere the default does not reach. `false` opts out of a shell entirely and runs `setup` as argv, so shell syntax in it becomes literal arguments again. Unlike a component's `command`, `setup` already runs through a shell by default, so this key is a correction, not a fix. |
+| `autoClear` | no       | boolean           | When `true` (default), benches are cleared automatically when the linked GitHub issue moves to Done / is closed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ---
 

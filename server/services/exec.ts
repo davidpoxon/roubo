@@ -29,6 +29,81 @@ export function parseCommand(command: string): string[] {
   return args;
 }
 
+/** Shell invocations accepted for a descriptor's `shell` string: either an
+ *  absolute path (`/bin/zsh`) or a bare command name resolved through PATH
+ *  (`zsh`), of safe characters only. This widens env.ts's SAFE_SHELL_PATH_RE by
+ *  the unqualified-basename case, and is the same barrier CodeQL's
+ *  js/command-line-injection suite recognises as a sanitizer at the spawn site
+ *  (see code-scanning alert #106). */
+const SAFE_SHELL_RE = /^(?:\/[\w./-]+|[\w.-]+)$/;
+
+/**
+ * Resolves how a configured command line is spawned (#836).
+ *
+ * Commands in `roubo.yaml` are ARGV BY DEFAULT: `parseCommand` tokenizes the
+ * string and the first token is the executable, so `&&`, `;`, globs and `$VAR`
+ * are literal arguments and a shell function such as `nvm` never resolves.
+ * `shell` is the opt-in that changes that, in either of two forms:
+ *
+ * - `true`: run through `/bin/sh -c <command>`. Operators, redirection, globs
+ *   and `$VAR` work. The shell is neither interactive nor login, so it sources
+ *   no rc file and rc-defined functions (nvm, fnm, asdf) stay invisible.
+ * - a string: the shell invocation the command is appended to as `-c`, so
+ *   `zsh -i` spawns `zsh -i -c <command>`. This is the only form that can reach
+ *   an INTERACTIVE shell, and therefore the only one that makes an
+ *   nvm-in-`.zshrc` setup work.
+ *
+ * Omitting `shell` (or setting it `false`) leaves today's argv behaviour
+ * byte-identical. An empty command yields an empty `file`; callers own the
+ * "command is empty" error so each keeps its own wording.
+ */
+export function resolveSpawn(
+  command: string,
+  shell?: boolean | string,
+): { file: string; args: string[] } {
+  if (shell === undefined || shell === false) {
+    const parts = parseCommand(command);
+    return { file: parts[0] ?? "", args: parts.slice(1) };
+  }
+
+  if (shell === true) {
+    return { file: "/bin/sh", args: ["-c", command] };
+  }
+
+  const shellParts = parseCommand(shell);
+  const file = shellParts[0];
+  if (!file) {
+    throw new Error("shell is empty: expected a shell invocation such as 'zsh -i'");
+  }
+  if (!SAFE_SHELL_RE.test(file)) {
+    throw new Error(
+      `shell '${file}' is not a usable shell: expected an absolute path (/bin/zsh) or a bare command name (zsh).`,
+    );
+  }
+  return { file, args: [...shellParts.slice(1), "-c", command] };
+}
+
+/** Shell-significant characters that are inert in argv mode. Used to explain a
+ *  failed argv-mode spawn in terms of the missing shell (#836). */
+const SHELL_METACHARACTER_RE = /[&|;<>$`*?(){}[\]~\n]|^cd\s/;
+
+/**
+ * Explains an argv-mode spawn failure when the command carries shell syntax
+ * that argv mode cannot honour (#836, AC7). Returns undefined when the command
+ * holds no shell metacharacter, so an ordinary typo keeps its ordinary error.
+ */
+export function shellHintForCommand(command: string): string | undefined {
+  const match = SHELL_METACHARACTER_RE.exec(command);
+  if (!match) return undefined;
+  const found = match[0].trim();
+  return (
+    `The command contains '${found}', which is shell syntax. Commands run as argv by default, ` +
+    `so it was passed through as a literal argument rather than interpreted. ` +
+    `Add 'shell: true' to run it through /bin/sh, or 'shell: zsh -i' to run it through an ` +
+    `interactive shell (needed for rc-defined tools such as nvm).`
+  );
+}
+
 export function runCommand(
   cmd: string,
   args: string[],

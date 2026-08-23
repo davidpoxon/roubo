@@ -599,6 +599,26 @@ export interface PluginHandle {
 export const SUPPORTED_CONTRACT_VERSION = 1 as const;
 
 /**
+ * Opt-in shell interpretation for a descriptor's command line (#836).
+ *
+ * Commands are ARGV BY DEFAULT: the host tokenizes the string and spawns the
+ * first token directly, so `&&`, `;`, globs and `$VAR` are literal arguments
+ * and a shell function such as `nvm` never resolves. Omitting `shell` keeps
+ * that behaviour unchanged.
+ *
+ * `true` runs the command through `/bin/sh -c`, which makes operators,
+ * redirection, globs and `$VAR` work but sources no rc file, so rc-defined
+ * functions stay invisible. A string is the shell invocation the command is
+ * appended to as `-c`, so `"zsh -i"` spawns `zsh -i -c <command>`; only that
+ * form reaches an INTERACTIVE shell, which is what an nvm-in-`.zshrc` setup
+ * needs. The host validates a string down to an absolute path (`/bin/zsh`) or
+ * a bare command name (`zsh`).
+ *
+ * MUST stay in sync with `ShellSchema` in `shared/provision-descriptor-schema.ts`.
+ */
+export type DescriptorShell = boolean | string;
+
+/**
  * The declarative route to a runtime URL (#834). A `translate`-only plugin
  * never holds the reportStatus sink (translate runs once, before the descriptor
  * executes), so the descriptor declares the URL and the host's LifecycleEngine
@@ -641,7 +661,7 @@ export interface DockerProvisionDescriptor {
   service: string;
   initService?: string;
   portEnvVar?: string;
-  migration?: { command: string; args?: string[] };
+  migration?: { command: string; args?: string[]; shell?: DescriptorShell };
   connection?: { template: string };
   url?: DescriptorUrl;
   assignedContainerId?: string;
@@ -669,6 +689,8 @@ export interface ProcessProvisionDescriptor {
    * descriptor is rejected at the host's validation gate (#834).
    */
   url?: { template: string };
+  /** Applies to both `command` and `setup`. See {@link DescriptorShell}. */
+  shell?: DescriptorShell;
 }
 
 export interface OneshotProvisionDescriptor {
@@ -681,6 +703,8 @@ export interface OneshotProvisionDescriptor {
   dependsOn?: string[];
   timeoutMs?: number;
   url?: DescriptorUrl;
+  /** See {@link DescriptorShell}. */
+  shell?: DescriptorShell;
 }
 
 /**
