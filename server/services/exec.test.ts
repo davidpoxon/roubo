@@ -6,7 +6,7 @@ vi.mock("node:child_process", () => ({
 }));
 
 import { spawn } from "node:child_process";
-import { runCommand, parseCommand } from "./exec.js";
+import { runCommand, parseCommand, resolveSpawn, shellHintForCommand } from "./exec.js";
 
 describe("runCommand", () => {
   const originalEnv = process.env;
@@ -217,5 +217,81 @@ describe("parseCommand", () => {
       "spaced arg",
       "plain",
     ]);
+  });
+});
+
+// #836: resolveSpawn is the single owner of the argv-vs-shell branch every
+// descriptor spawn site routes through.
+describe("resolveSpawn", () => {
+  it("splits the command into argv when shell is omitted (AC1)", () => {
+    expect(resolveSpawn("npm run dev")).toEqual({ file: "npm", args: ["run", "dev"] });
+  });
+
+  it("splits the command into argv when shell is explicitly false", () => {
+    expect(resolveSpawn("npm run dev", false)).toEqual({ file: "npm", args: ["run", "dev"] });
+  });
+
+  it("leaves shell metacharacters as literal argv entries in argv mode", () => {
+    expect(resolveSpawn("nvm use && npm run dev")).toEqual({
+      file: "nvm",
+      args: ["use", "&&", "npm", "run", "dev"],
+    });
+  });
+
+  it("returns an empty file for an empty command so callers own the error", () => {
+    expect(resolveSpawn("")).toEqual({ file: "", args: [] });
+  });
+
+  it("runs the command through /bin/sh -c when shell is true (AC2)", () => {
+    expect(resolveSpawn("cd web && npm run dev", true)).toEqual({
+      file: "/bin/sh",
+      args: ["-c", "cd web && npm run dev"],
+    });
+  });
+
+  it("appends the command as -c to a string shell invocation (AC3)", () => {
+    expect(resolveSpawn("nvm use && npm run dev", "zsh -i")).toEqual({
+      file: "zsh",
+      args: ["-i", "-c", "nvm use && npm run dev"],
+    });
+  });
+
+  it("accepts a bare shell name with no flags", () => {
+    expect(resolveSpawn("echo hi", "bash")).toEqual({ file: "bash", args: ["-c", "echo hi"] });
+  });
+
+  it("accepts an absolute shell path", () => {
+    expect(resolveSpawn("echo hi", "/bin/zsh -ilc")).toEqual({
+      file: "/bin/zsh",
+      args: ["-ilc", "-c", "echo hi"],
+    });
+  });
+
+  it("rejects a shell string that is only whitespace", () => {
+    expect(() => resolveSpawn("echo hi", "   ")).toThrow(/shell is empty/);
+  });
+
+  it("rejects a shell whose executable carries unsafe characters", () => {
+    expect(() => resolveSpawn("echo hi", "zsh;rm -rf /")).toThrow(/not a usable shell/);
+  });
+});
+
+describe("shellHintForCommand", () => {
+  it("names the metacharacter and suggests both shell forms", () => {
+    const hint = shellHintForCommand("nvm use && npm run dev");
+    expect(hint).toContain("'&'");
+    expect(hint).toContain("shell: true");
+    expect(hint).toContain("shell: zsh -i");
+  });
+
+  it.each(["cd web && npm run dev", "a; b", "cat x > y", "echo $HOME", "ls *.ts", "cd web"])(
+    "detects shell syntax in %j",
+    (command) => {
+      expect(shellHintForCommand(command)).toBeDefined();
+    },
+  );
+
+  it("returns undefined for a plain argv command line", () => {
+    expect(shellHintForCommand("npm run dev -- --port 3000")).toBeUndefined();
   });
 });

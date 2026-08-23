@@ -6961,6 +6961,35 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     );
   });
 
+  it("runs bench setup through benches.shell when the project overrides it (#836)", async () => {
+    // `benches.setup` already runs through the user's login shell (#628). The
+    // override exists for a project the login shell does not suit, and it goes
+    // through the same resolveSpawn helper the component command lines use.
+    const config = makeConfig({
+      benches: { max: 5, setup: "nvm use && npm ci", shell: "zsh -i" },
+      components: {
+        backend: { type: "process", command: "npm start" },
+      },
+    });
+    setupBenchWithSetupState(config, { backend: true });
+    setupProcessMocks();
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+
+    benchManager.startAllComponents("test-project", 1);
+
+    await vi.waitFor(() => {
+      expect(benchManager.getBench("test-project", 1)?.status).toBe("active");
+    });
+
+    expect(execModule.runCommand).toHaveBeenCalledWith(
+      "zsh",
+      ["-i", "-c", "nvm use && npm ci"],
+      "/home/.roubo/workspaces/test-project/bench-1",
+      undefined,
+      600_000,
+    );
+  });
+
   it("does not re-seed or re-run bench setup on a second Start (#630)", async () => {
     // `benches.setup` is documented as running once per bench, after worktree
     // creation. Re-running it on every Start re-executes commands such as

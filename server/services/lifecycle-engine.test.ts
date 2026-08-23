@@ -1035,3 +1035,206 @@ describe("lifecycle-engine runDescriptor", () => {
     });
   });
 });
+
+// #836: `shell` is honoured at every descriptor spawn site, and omitting it
+// leaves the argv behaviour above byte-identical.
+describe("lifecycle-engine shell option (#836)", () => {
+  it("spawns a process command as argv when shell is omitted", async () => {
+    const h = setup({ componentName: "web", ports: { web: 3000 } });
+
+    await runDescriptor({ schemaVersion: 1, kind: "process", command: "npm run dev" }, h.ctx, {
+      processManager: h.pm,
+      docker: h.docker,
+      ledger: h.led,
+    });
+
+    expect(h.pm.startProcess).toHaveBeenCalledWith(
+      "db-plugin:3:web",
+      "npm",
+      ["run", "dev"],
+      {},
+      "/tmp/ws",
+    );
+  });
+
+  it("runs a process command through /bin/sh -c when shell is true", async () => {
+    const h = setup({ componentName: "web", ports: { web: 3000 } });
+
+    await runDescriptor(
+      { schemaVersion: 1, kind: "process", command: "cd web && npm run dev", shell: true },
+      h.ctx,
+      { processManager: h.pm, docker: h.docker, ledger: h.led },
+    );
+
+    expect(h.pm.startProcess).toHaveBeenCalledWith(
+      "db-plugin:3:web",
+      "/bin/sh",
+      ["-c", "cd web && npm run dev"],
+      {},
+      "/tmp/ws",
+    );
+  });
+
+  it("runs a process command through the named shell when shell is a string", async () => {
+    const h = setup({ componentName: "web", ports: { web: 3000 } });
+
+    await runDescriptor(
+      { schemaVersion: 1, kind: "process", command: "nvm use && npm run dev", shell: "zsh -i" },
+      h.ctx,
+      { processManager: h.pm, docker: h.docker, ledger: h.led },
+    );
+
+    expect(h.pm.startProcess).toHaveBeenCalledWith(
+      "db-plugin:3:web",
+      "zsh",
+      ["-i", "-c", "nvm use && npm run dev"],
+      {},
+      "/tmp/ws",
+    );
+  });
+
+  it("applies the same shell to the one-time setup command", async () => {
+    const h = setup({ componentName: "web", ports: { web: 3000 } });
+
+    await runDescriptor(
+      {
+        schemaVersion: 1,
+        kind: "process",
+        command: "npm run dev",
+        setup: "nvm use && npm ci",
+        shell: "zsh -i",
+      },
+      h.ctx,
+      { processManager: h.pm, docker: h.docker, ledger: h.led },
+    );
+
+    expect(h.pm.runProcess).toHaveBeenCalledWith(
+      "db-plugin:3:web:setup",
+      "zsh",
+      ["-i", "-c", "nvm use && npm ci"],
+      {},
+      "/tmp/ws",
+      0,
+    );
+  });
+
+  it("runs a oneshot command through the named shell", async () => {
+    const h = setup({ componentName: "deploy", ports: {} });
+
+    await runDescriptor(
+      { schemaVersion: 1, kind: "oneshot", command: "deploy.sh && echo done", shell: true },
+      h.ctx,
+      { processManager: h.pm, docker: h.docker, ledger: h.led },
+    );
+
+    expect(h.pm.runProcess).toHaveBeenCalledWith(
+      "db-plugin:3:deploy",
+      "/bin/sh",
+      ["-c", "deploy.sh && echo done"],
+      {},
+      "/tmp/ws",
+      0,
+    );
+  });
+
+  it("runs a docker migration through the named shell, folding args into the shell command line", async () => {
+    const h = setup();
+
+    await runDescriptor(
+      {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "docker-compose.yml",
+        service: "postgres",
+        migration: { command: "nvm use && npm run migrate", args: ["--latest"], shell: "zsh -i" },
+      },
+      h.ctx,
+      { processManager: h.pm, docker: h.docker, ledger: h.led },
+    );
+
+    expect(h.pm.runProcess).toHaveBeenCalledWith(
+      "db-plugin:3:db:migration",
+      "zsh",
+      ["-i", "-c", "nvm use && npm run migrate --latest"],
+      { HOST_PORT: "5433" },
+      "/tmp/ws",
+      300_000,
+    );
+  });
+
+  it("leaves migration argv behaviour unchanged when migration.shell is omitted", async () => {
+    const h = setup();
+
+    await runDescriptor(
+      {
+        schemaVersion: 1,
+        kind: "docker",
+        composeFile: "docker-compose.yml",
+        service: "postgres",
+        migration: { command: "npm run migrate", args: ["--latest"] },
+      },
+      h.ctx,
+      { processManager: h.pm, docker: h.docker, ledger: h.led },
+    );
+
+    expect(h.pm.runProcess).toHaveBeenCalledWith(
+      "db-plugin:3:db:migration",
+      "npm",
+      ["run", "migrate", "--latest"],
+      { HOST_PORT: "5433" },
+      "/tmp/ws",
+      300_000,
+    );
+  });
+
+  // AC7: an argv-mode failure on a command carrying shell syntax names the
+  // missing shell rather than the binary the tokenizer happened to pick.
+  it("enriches an argv-mode spawn failure with a shell suggestion", async () => {
+    const h = setup({ componentName: "web", ports: { web: 3000 } });
+    h.pm.startProcess = vi.fn(async () => {
+      throw new Error("spawn nvm ENOENT");
+    });
+
+    await runDescriptor(
+      { schemaVersion: 1, kind: "process", command: "nvm use && npm run dev" },
+      h.ctx,
+      { processManager: h.pm, docker: h.docker, ledger: h.led },
+    );
+
+    const final = h.statuses.at(-1);
+    expect(final?.status).toBe("error");
+    expect(final?.error).toContain("spawn nvm ENOENT");
+    expect(final?.error).toContain("shell syntax");
+    expect(final?.error).toContain("shell: zsh -i");
+  });
+
+  it("leaves a spawn failure untouched when the command carries no shell syntax", async () => {
+    const h = setup({ componentName: "web", ports: { web: 3000 } });
+    h.pm.startProcess = vi.fn(async () => {
+      throw new Error("spawn npmm ENOENT");
+    });
+
+    await runDescriptor({ schemaVersion: 1, kind: "process", command: "npmm run dev" }, h.ctx, {
+      processManager: h.pm,
+      docker: h.docker,
+      ledger: h.led,
+    });
+
+    expect(h.statuses.at(-1)?.error).toBe("spawn npmm ENOENT");
+  });
+
+  it("leaves a spawn failure untouched when shell was already requested", async () => {
+    const h = setup({ componentName: "web", ports: { web: 3000 } });
+    h.pm.startProcess = vi.fn(async () => {
+      throw new Error("spawn zsh ENOENT");
+    });
+
+    await runDescriptor(
+      { schemaVersion: 1, kind: "process", command: "nvm use && npm run dev", shell: "zsh -i" },
+      h.ctx,
+      { processManager: h.pm, docker: h.docker, ledger: h.led },
+    );
+
+    expect(h.statuses.at(-1)?.error).toBe("spawn zsh ENOENT");
+  });
+});

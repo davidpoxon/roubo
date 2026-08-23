@@ -9,7 +9,7 @@ import {
   type OneshotProvisionDescriptor,
 } from "@roubo/shared/provision-descriptor-schema";
 import type { ComponentLogLine, ComponentPhase, ComponentStatus } from "@roubo/shared";
-import { parseCommand } from "./exec.js";
+import { resolveSpawn, shellHintForCommand } from "./exec.js";
 import * as processManager from "./process-manager.js";
 import * as dockerService from "./docker.js";
 import * as ledger from "./resource-ownership-ledger.js";
@@ -157,6 +157,33 @@ export async function runDescriptor(
   }
 }
 
+// --- shell-aware spawn helper (#836) ----------------------------------------
+
+/**
+ * Runs a spawn and, when it fails in ARGV mode on a command that carries shell
+ * syntax, rethrows with the metacharacter named and `shell` suggested (#836).
+ *
+ * Without this, `command: nvm use && npm run dev` dies with `spawn nvm ENOENT`,
+ * which names the wrong thing: the binary is missing because there is no shell
+ * to define it, not because the command is misspelled. In shell mode, and on a
+ * command holding no shell syntax, the original error passes through untouched.
+ */
+async function withShellHint<T>(
+  command: string,
+  shell: boolean | string | undefined,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (shell !== undefined && shell !== false) throw err;
+    const hint = shellHintForCommand(command);
+    if (!hint) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`${message}. ${hint}`, { cause: err });
+  }
+}
+
 // --- docker phase machine (AC1) --------------------------------------------
 
 async function runDocker(
@@ -258,21 +285,34 @@ async function runDocker(
 
   if (descriptor.migration) {
     push(ctx, "starting", phases, "Running migrations");
-    const parts = parseCommand(descriptor.migration.command);
-    if (parts.length === 0) {
+    // `args` are extra arguments appended to the migration command. In argv
+    // mode they extend the parsed argv; in shell mode there is no argv to
+    // extend (the whole command is one `-c` script), so they extend the command
+    // line the shell interprets instead (#836).
+    const extraArgs = descriptor.migration.args ?? [];
+    const shell = descriptor.migration.shell;
+    const useShell = shell !== undefined && shell !== false;
+    const migrationCommand = useShell
+      ? [descriptor.migration.command, ...extraArgs].join(" ")
+      : descriptor.migration.command;
+    const { file, args } = resolveSpawn(migrationCommand, shell);
+    if (!file) {
       throw new Error("migration command is empty");
     }
+    const migrationArgs = useShell ? args : [...args, ...extraArgs];
     const migrationId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}:migration`;
     // Record before spawning (AC5): a host crash mid-migration (up to
     // MIGRATION_TIMEOUT_MS) must leave a ledger entry the orphan sweep can reap.
     led.recordProcess(ctx.pluginId, ctx.benchId, migrationId);
-    const { exitCode } = await pm.runProcess(
-      migrationId,
-      parts[0],
-      parts.slice(1).concat(descriptor.migration.args ?? []),
-      portOverrides,
-      ctx.workspacePath,
-      MIGRATION_TIMEOUT_MS,
+    const { exitCode } = await withShellHint(migrationCommand, shell, () =>
+      pm.runProcess(
+        migrationId,
+        file,
+        migrationArgs,
+        portOverrides,
+        ctx.workspacePath,
+        MIGRATION_TIMEOUT_MS,
+      ),
     );
     // runProcess buffered the migration output under `migrationId`, which the
     // logs route never reads (it keys on the component id). Forward it into the
@@ -339,27 +379,32 @@ async function runProcess(
   // Optional one-time setup, skipped on a Stop -> Start cycle (FR-007 parity).
   if (needsSetup) {
     push(ctx, "starting", phases, "Installing dependencies");
-    const parts = parseCommand(descriptor.setup as string);
-    if (parts.length === 0) {
+    const setupCommand = descriptor.setup as string;
+    const { file, args } = resolveSpawn(setupCommand, descriptor.shell);
+    if (!file) {
       throw new Error("setup command is empty");
     }
     const setupId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}:setup`;
     // Record before spawning (AC5): an unbounded setup (e.g. `npm install`)
     // interrupted by a host crash must be reapable by the orphan sweep.
     led.recordProcess(ctx.pluginId, ctx.benchId, setupId);
-    const { exitCode } = await pm.runProcess(setupId, parts[0], parts.slice(1), env, cwd, 0);
+    const { exitCode } = await withShellHint(setupCommand, descriptor.shell, () =>
+      pm.runProcess(setupId, file, args, env, cwd, 0),
+    );
     if (exitCode !== 0) {
       throw new Error(`setup failed with exit code ${exitCode}`);
     }
   }
 
   push(ctx, "starting", phases, "Starting process");
-  const parts = parseCommand(descriptor.command);
-  if (parts.length === 0) {
+  const { file, args } = resolveSpawn(descriptor.command, descriptor.shell);
+  if (!file) {
     throw new Error("process command is empty");
   }
   const processId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}`;
-  const { pid } = await pm.startProcess(processId, parts[0], parts.slice(1), env, cwd);
+  const { pid } = await withShellHint(descriptor.command, descriptor.shell, () =>
+    pm.startProcess(processId, file, args, env, cwd),
+  );
   led.recordProcess(ctx.pluginId, ctx.benchId, processId);
 
   // `process` declares a `url.template` only: startProcess returns as soon as
@@ -385,20 +430,15 @@ async function runOneshot(
   const phases: ComponentPhase[] = [{ label: "Running", status: "pending" }];
   push(ctx, "starting", phases, "Running");
 
-  const parts = parseCommand(descriptor.command);
-  if (parts.length === 0) {
+  const { file, args } = resolveSpawn(descriptor.command, descriptor.shell);
+  if (!file) {
     throw new Error("oneshot command is empty");
   }
   const processId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}`;
   led.recordProcess(ctx.pluginId, ctx.benchId, processId);
 
-  const { exitCode, timedOut } = await pm.runProcess(
-    processId,
-    parts[0],
-    parts.slice(1),
-    env,
-    cwd,
-    descriptor.timeoutMs ?? 0,
+  const { exitCode, timedOut } = await withShellHint(descriptor.command, descriptor.shell, () =>
+    pm.runProcess(processId, file, args, env, cwd, descriptor.timeoutMs ?? 0),
   );
 
   if (exitCode !== 0) {

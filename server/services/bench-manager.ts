@@ -43,7 +43,7 @@ import {
   resolveServiceEnv,
   type ResolvedTemplateContext,
 } from "./config-parser.js";
-import { runCommand } from "./exec.js";
+import { resolveSpawn, runCommand } from "./exec.js";
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
@@ -744,13 +744,17 @@ async function runComponentsInOrder(
     // does not widen the trust boundary: this field already spawned an
     // arbitrary user-named binary with user-named arguments, and it comes
     // from the project's own checked-in roubo.yaml.
-    const result = await runCommand(
-      getLoginShell(),
-      loginShellScriptArgs(config.benches.setup),
-      bench.workspacePath,
-      undefined,
-      600_000,
-    );
+    //
+    // `benches.shell` overrides that default for a project the login shell does
+    // not suit (#836), resolved through the same helper the component command
+    // lines use, which validates a string shell down to an absolute path or a
+    // bare command name of safe characters.
+    const setupShell = config.benches.shell;
+    const { file: setupFile, args: setupArgs } =
+      setupShell === undefined
+        ? { file: getLoginShell(), args: loginShellScriptArgs(config.benches.setup) as string[] }
+        : resolveSpawn(config.benches.setup, setupShell);
+    const result = await runCommand(setupFile, setupArgs, bench.workspacePath, undefined, 600_000);
     processManager.storeCommandLogs(
       `${bench.projectId}:${bench.id}:bench-setup`,
       result.stdout,

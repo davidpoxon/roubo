@@ -13,6 +13,25 @@ import { z } from "zod";
 
 export const SUPPORTED_PROVISION_SCHEMA_VERSION = 1 as const;
 
+// ── shell (#836) ──
+// Opt-in shell interpretation for a descriptor's command line. Commands are
+// ARGV BY DEFAULT: the host tokenizes the string and spawns the first token
+// directly, so `&&`, `;`, globs and `$VAR` are literal arguments and a shell
+// function such as `nvm` never resolves. Omitting `shell` keeps that behaviour
+// unchanged.
+//
+//   - `true`: run through `/bin/sh -c <command>`. Operators, redirection,
+//     globs and `$VAR` work. The shell is neither interactive nor login, so it
+//     sources no rc file and rc-defined functions stay invisible.
+//   - a string: the shell invocation the command is appended to as `-c`, e.g.
+//     `zsh -i` spawns `zsh -i -c <command>`. Only this form can reach an
+//     INTERACTIVE shell, which is what an nvm-in-`.zshrc` setup needs.
+//
+// The host resolves the two forms in one place (`resolveSpawn` in
+// server/services/exec.ts), which also validates a string shell down to an
+// absolute path or a bare command name of safe characters.
+const ShellSchema = z.union([z.boolean(), z.string().min(1)]);
+
 // ── docker ──
 // A compose-backed component: the host brings up `service` in `composeFile`,
 // optionally running `initService` first, optionally running a `migration`
@@ -23,6 +42,10 @@ const DockerMigrationSchema = z
   .object({
     command: z.string().min(1),
     args: z.array(z.string()).optional(),
+    // In argv mode `args` are appended to the parsed argv. In shell mode there
+    // is no argv to append to (the whole command is one `-c` script), so the
+    // host appends them to the command line the shell interprets instead.
+    shell: ShellSchema.optional(),
   })
   .strict();
 
@@ -112,6 +135,9 @@ export const ProcessProvisionDescriptorSchema = z
     setup: z.string().min(1).optional(),
     dependsOn: z.array(z.string()).optional(),
     url: ProcessDescriptorUrlSchema.optional(),
+    // Applies to both `command` and `setup`: they are the same kind of
+    // configured command line and share one opt-in.
+    shell: ShellSchema.optional(),
   })
   .strict();
 export type ProcessProvisionDescriptor = z.infer<typeof ProcessProvisionDescriptorSchema>;
@@ -131,6 +157,7 @@ export const OneshotProvisionDescriptorSchema = z
     dependsOn: z.array(z.string()).optional(),
     timeoutMs: z.number().int().positive().optional(),
     url: DescriptorUrlSchema.optional(),
+    shell: ShellSchema.optional(),
   })
   .strict();
 export type OneshotProvisionDescriptor = z.infer<typeof OneshotProvisionDescriptorSchema>;

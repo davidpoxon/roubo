@@ -282,6 +282,16 @@ export const BenchesConfigSchema = z
      * into `~/.bashrc` must be moved into the profile file to resolve here.
      */
     setup: z.string().optional(),
+    /**
+     * Optional override for the shell `setup` runs through (#836). Omitted,
+     * `setup` keeps the login-shell default described above. `true` runs it
+     * through `/bin/sh -c` instead, which sources no rc file. A string is the
+     * shell invocation `setup` is appended to as `-c`, e.g. `bash -lc` or
+     * `zsh -i`, for a project whose version manager lives somewhere the default
+     * does not reach. `false` opts out of a shell entirely and runs `setup` as
+     * argv, so shell syntax in it becomes literal arguments again.
+     */
+    shell: z.union([z.boolean(), z.string().min(1)]).optional(),
     enforceIssueDependencies: z.boolean().optional(),
   })
   .strict();

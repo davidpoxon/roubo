@@ -334,3 +334,103 @@ describe("discriminated union", () => {
     ).toThrow();
   });
 });
+
+// #836: `shell` is an optional opt-in on every descriptor that carries a
+// command line. The schemas are `.strict()`, so this is the gate that admits it.
+describe("shell option (#836)", () => {
+  it("accepts shell: true on a process descriptor", () => {
+    const parsed = ProcessProvisionDescriptorSchema.parse({
+      schemaVersion: V,
+      kind: "process",
+      command: "cd web && npm run dev",
+      shell: true,
+    });
+    expect(parsed.shell).toBe(true);
+  });
+
+  it("accepts a string shell invocation on a process descriptor", () => {
+    const parsed = ProcessProvisionDescriptorSchema.parse({
+      schemaVersion: V,
+      kind: "process",
+      command: "nvm use && npm run dev",
+      shell: "zsh -i",
+    });
+    expect(parsed.shell).toBe("zsh -i");
+  });
+
+  it("leaves shell undefined when omitted", () => {
+    const parsed = ProcessProvisionDescriptorSchema.parse({
+      schemaVersion: V,
+      kind: "process",
+      command: "npm run dev",
+    });
+    expect(parsed.shell).toBeUndefined();
+  });
+
+  it("rejects an empty string shell", () => {
+    expect(() =>
+      ProcessProvisionDescriptorSchema.parse({
+        schemaVersion: V,
+        kind: "process",
+        command: "npm run dev",
+        shell: "",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a non-boolean, non-string shell", () => {
+    expect(() =>
+      ProcessProvisionDescriptorSchema.parse({
+        schemaVersion: V,
+        kind: "process",
+        command: "npm run dev",
+        shell: 1,
+      }),
+    ).toThrow();
+  });
+
+  it("accepts shell on an oneshot descriptor", () => {
+    const parsed = OneshotProvisionDescriptorSchema.parse({
+      schemaVersion: V,
+      kind: "oneshot",
+      command: "deploy.sh && echo done",
+      shell: true,
+    });
+    expect(parsed.shell).toBe(true);
+  });
+
+  it("accepts shell inside a docker migration", () => {
+    const parsed = DockerProvisionDescriptorSchema.parse({
+      schemaVersion: V,
+      kind: "docker",
+      composeFile: "c.yml",
+      service: "db",
+      migration: { command: "nvm use && npm run migrate", shell: "zsh -i" },
+    });
+    expect(parsed.migration?.shell).toBe("zsh -i");
+  });
+
+  it("rejects an empty string shell inside a docker migration", () => {
+    expect(() =>
+      DockerProvisionDescriptorSchema.parse({
+        schemaVersion: V,
+        kind: "docker",
+        composeFile: "c.yml",
+        service: "db",
+        migration: { command: "migrate", shell: "" },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects shell at the top level of a docker descriptor (.strict)", () => {
+    expect(() =>
+      DockerProvisionDescriptorSchema.parse({
+        schemaVersion: V,
+        kind: "docker",
+        composeFile: "c.yml",
+        service: "db",
+        shell: true,
+      }),
+    ).toThrow();
+  });
+});
