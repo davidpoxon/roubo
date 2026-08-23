@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
+## [0.4.0] - 2026-08-23
+
+Two additive fields on the component provision descriptor. Both landed on `main` after `0.3.0` was tagged, so this release carries them together. Nothing is removed or narrowed, every `0.3.0` descriptor still validates, and there are no breaking changes.
+
+### Added
+
+- **`DescriptorShell` and an optional `shell` on the process, oneshot and docker-migration descriptors** (#836). A component command has always been spawned argv-only: the host executes the first token directly, so `&&`, `;`, globs, `$VAR` and a shell function such as `nvm` never resolve, and `nvm use && npm run dev` fails with a misleading `spawn nvm ENOENT`. `shell` is the opt-in out of that. `true` runs the command through `/bin/sh -c`, which makes operators, redirection, globs and `$VAR` work but sources no rc file; a string is the shell invocation the command is appended to as `-c`, so `"zsh -i"` spawns `zsh -i -c <command>` and is the only form that reaches an interactive shell, which an nvm-in-`.zshrc` setup needs. The host validates a string down to an absolute path (`/bin/zsh`) or a bare command name (`zsh`).
+
+  The host owns the argv-vs-shell branch; a plugin only declares the field. `shell` is optional everywhere it appears (`ProcessProvisionDescriptor`, applying to both `command` and `setup`; `OneshotProvisionDescriptor`; and `DockerProvisionDescriptor.migration`), and omitting it leaves argv behaviour byte-identical, so a plugin that never sets it is unaffected.
+
+- **`DescriptorUrl` and an optional `url` on every descriptor kind** (#834). A `translate`-only plugin never holds the `reportStatus` sink, because `translate` runs once before the descriptor executes, so it had no way to report a runtime URL. The descriptor now declares one and the host's `LifecycleEngine` sets `ComponentStatus.url`, which is what `{{urls.<componentName>}}` resolves to. Set exactly one of two forms: `template`, a static or `{{port}}` / `{{ports.<componentName>}}` templated URL the host fills from the allocated port, or `fromOutput`, a regular expression run over the output the command already captured. `ProcessProvisionDescriptor.url` accepts `template` only, since a long-running process has produced no completed output to match by the time the host reports `running`.
+
+- **New exported types:** `DescriptorShell`, `DescriptorUrl` (both from `@roubo/plugin-sdk`).
+
 ## [0.3.0] - 2026-07-30
 
 ### Breaking
