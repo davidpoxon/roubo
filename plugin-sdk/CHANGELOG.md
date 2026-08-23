@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 ## [0.4.0] - 2026-08-23
 
-Two additive fields on the component provision descriptor. Both already sat on `main` under the unpublished `0.3.0`, so this release carries them together. Nothing is removed or narrowed, every `0.3.0` descriptor still validates, and there are no breaking changes.
+Two additive fields on the component provision descriptor. Both landed on `main` after `0.3.0` was tagged, so this release carries them together. Nothing is removed or narrowed, every `0.3.0` descriptor still validates, and there are no breaking changes.
 
 ### Added
 
