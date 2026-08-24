@@ -1079,7 +1079,7 @@ describe("cross-page unblocked-first ordering (#844)", () => {
     expect(page1.items.map((i) => i.externalId)).toEqual(["pu"]);
   });
 
-  it("round-trips the host cursor: page 2 resumes exactly where page 1 ended", async () => {
+  it("round-trips the host cursor and degrades an unreadable token to the first page", () => {
     expect(decodeCutListCursor(encodeCutListCursor(37))).toBe(37);
     // Anything the host cannot read degrades to the first page rather than throwing.
     expect(decodeCutListCursor("a-plugin-issued-token")).toBe(0);
@@ -1103,6 +1103,29 @@ describe("cross-page unblocked-first ordering (#844)", () => {
     });
     // Next slices the set already in hand: no further plugin traffic.
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-walks rather than serving the materialisation when a later page is force-refreshed", async () => {
+    mixedTwoPageSource();
+    const page1 = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 2,
+      filters: {},
+    });
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+
+    // The refresh control is reachable from any page, not just the first, and a
+    // refresh is a request for current data. Answering it from the memo would
+    // return the same items with no plugin traffic at all, so the control would
+    // spin and change nothing.
+    mixedTwoPageSource();
+    await service.queryFirstOrPage("p1", active, {
+      cursor: page1.nextCursor,
+      pageSize: 2,
+      filters: {},
+      refresh: true,
+    });
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(4);
   });
 
   it("aggregates warnings and excludedCount across every walked page", async () => {

@@ -94,6 +94,7 @@ function warmResult(items: NormalizedIssue[]): ReturnType<typeof useIssues> {
     nextCursor: null,
     error: null,
     stalled: false,
+    walkTruncated: null,
     stale: false,
     snapshotCapturedAt: "2026-06-01T12:00:00Z",
     excludedCount: 0,

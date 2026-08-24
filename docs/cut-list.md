@@ -136,7 +136,7 @@ The cut list puts work you can start ahead of work you cannot. Across all result
 
 Blocked state is not something a source can sort on. A plugin resolves `blockedBy` for the items on a page it has already fetched, so partitioning a single page can only ever order that page. To make the guarantee global, **the host, not the plugin, owns the page the user sees**: on a query it walks the plugin's cursor chain to exhaustion, deduplicates and partitions the whole set once, and then serves pages as slices of that ordered set. The cursor the browser holds is therefore the host's own token (an offset into the ordered set), not the plugin's composite cursor. Nothing about the plugin contract changes: the plugin still receives its own cursor and returns its own `nextCursor`, and it is still the only layer that knows how sources paginate.
 
-The walk is bounded (20 plugin pages or 2000 items, whichever comes first). Past the cap the list is truncated and carries a warning, and the unblocked-first guarantee holds over the walked prefix only.
+The walk is bounded (20 plugin pages or 2000 items, whichever comes first). Past the cap the list is truncated and the unblocked-first guarantee holds over the walked prefix only. Truncation is never silent: the host attaches a non-fatal warning to the response and the cut list renders it above the items, so the user is told the list stops short rather than being left to read a short list as a complete one.
 
 ### Stale and legacy cursors
 

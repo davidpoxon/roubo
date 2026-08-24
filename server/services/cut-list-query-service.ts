@@ -4,6 +4,7 @@ import type {
   NormalizedIssue,
   PaginatedIssues,
 } from "@roubo/shared";
+import { WALK_TRUNCATED_CATEGORY } from "@roubo/shared";
 import { partitionUnblockedFirst } from "@roubo/shared/cut-list-order";
 import * as pluginManager from "./plugin-manager.js";
 import {
@@ -38,11 +39,12 @@ export const MAX_WALK_PAGES = 20;
 /** Item-count cap for the same walk; the walk stops once the set reaches it. */
 export const MAX_WALK_ITEMS = 2000;
 /**
- * Category of the non-fatal warning emitted when the walk hits a cap. Host-owned
- * rather than source-owned, so `sourceExternalId` is empty: the truncation is a
- * property of the walk across every configured source, not of any one of them.
+ * Category of the non-fatal warning emitted when the walk hits a cap. Defined in
+ * `@roubo/shared` because the cut list matches on it to tell the user the list
+ * is truncated, so it is a server-to-client contract rather than a walk-local
+ * constant. Re-exported here so the walk and its tests keep one import site.
  */
-export const WALK_TRUNCATED_CATEGORY = "cut-list-walk-truncated";
+export { WALK_TRUNCATED_CATEGORY };
 
 /**
  * Lifetime of an in-process materialised set. Long enough that Prev/Next paging
@@ -465,7 +467,20 @@ export class CutListQueryService {
     // page per click. A first page reaching this branch (bypassed disk, or an
     // unhealthy plugin) always re-walks, so the memo never shadows the disk
     // snapshot's stale-while-revalidate behaviour.
-    const result = await this.pageFrom(active.pluginId, memoKey, params, offset, !isFirstPage);
+    //
+    // An explicit force-refresh (#653) bypasses the memo here for the same
+    // reason it bypasses the disk snapshot above: a refresh is a request for
+    // current data, and the refresh control is reachable from any page, not
+    // just the first. Reading the memo on this path would answer a refresh
+    // from a set up to MATERIALIZATION_TTL_MS old with no plugin traffic at
+    // all, so the control would spin and return the same items.
+    const result = await this.pageFrom(
+      active.pluginId,
+      memoKey,
+      params,
+      offset,
+      !isFirstPage && input.refresh !== true,
+    );
     return { ...result, cacheStatus: "miss" };
   }
 

@@ -17,6 +17,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     nextCursor: null,
     error: null,
     stalled: false,
+    walkTruncated: null as string | null,
     stale: false,
     snapshotCapturedAt: null,
     excludedCount: 0,
@@ -242,6 +243,28 @@ describe("IssuePickerModal", () => {
       <IssuePickerModal isOpen onClose={vi.fn()} onSelect={vi.fn()} projectId="p1" benches={[]} />,
     );
     expect(screen.getByTestId("stalled-note")).toHaveTextContent(/plugin paging appears stuck/i);
+  });
+
+  it("surfaces the walk-truncation note so a capped picker never reads as complete (#844)", () => {
+    mockUseIssues.mockReturnValue(
+      defaultResult({
+        walkTruncated: "Ordering covers the first 2000 item(s): the cut list exceeded the limit.",
+      }),
+    );
+    render(
+      <IssuePickerModal isOpen onClose={vi.fn()} onSelect={vi.fn()} projectId="p1" benches={[]} />,
+    );
+    expect(screen.getByTestId("walk-truncated-note")).toHaveTextContent(
+      /ordering covers the first 2000 item\(s\)/i,
+    );
+  });
+
+  it("shows no walk-truncation note when the whole cut list was walked (#844)", () => {
+    mockUseIssues.mockReturnValue(defaultResult({ walkTruncated: null }));
+    render(
+      <IssuePickerModal isOpen onClose={vi.fn()} onSelect={vi.fn()} projectId="p1" benches={[]} />,
+    );
+    expect(screen.queryByTestId("walk-truncated-note")).not.toBeInTheDocument();
   });
 
   describe("FR-007/FR-008: Prev/Next pagination", () => {

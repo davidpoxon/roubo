@@ -66,6 +66,7 @@ export default function IssueQueuePanel({
     error: itemsError,
     nextCursor,
     stalled,
+    walkTruncated,
     stale,
     snapshotCapturedAt,
     excludedCount,
@@ -481,6 +482,16 @@ export default function IssueQueuePanel({
           className="mx-3 mt-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-[11px] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
         >
           Plugin paging appears stuck. Try a refresh.
+        </div>
+      )}
+
+      {walkTruncated && (
+        <div
+          role="status"
+          data-testid="walk-truncated-note"
+          className="mx-3 mt-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-[11px] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+        >
+          {walkTruncated}
         </div>
       )}
 
