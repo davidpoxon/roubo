@@ -2360,6 +2360,20 @@ export interface ListIssuesWarning {
 }
 
 /**
+ * Category of the non-fatal warning the host emits when its whole-set cut-list
+ * materialisation hits a walk cap (#844). Host-owned rather than source-owned,
+ * so `sourceExternalId` is empty: the truncation is a property of the walk
+ * across every configured source, not of any one of them.
+ *
+ * It lives here rather than beside the walk because it is a server-to-client
+ * contract: the server tags the warning with it and the cut list matches on it
+ * to tell the user the list is truncated. Past the cap the pager ends at the
+ * walked prefix, so items beyond it are unreachable and the unblocked-first
+ * guarantee covers the prefix only.
+ */
+export const WALK_TRUNCATED_CATEGORY = "cut-list-walk-truncated";
+
+/**
  * Descriptor returned by the active integration plugin's `filterFacets` RPC
  * (host-API 1.1.0+). The cut-list filter row renders one section per facet;
  * `enum-async` sections load their options lazily via `getFacetOptions`.

@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
 import type { NormalizedIssue, PaginatedIssues } from "@roubo/shared";
+import { WALK_TRUNCATED_CATEGORY } from "@roubo/shared";
 import * as api from "../lib/api";
 
 export interface UseIssuesFilters {
@@ -26,6 +27,15 @@ export interface UseIssuesResult {
   error: Error | null;
   /** True when the retrieved page reported `stalled` (IP-TC-071). */
   stalled: boolean;
+  /**
+   * The `cause` of the host's walk-truncation warning when the whole-set
+   * materialisation hit a cap (#844), else null. Past the cap the cut list
+   * holds only the walked prefix and the pager ends there, so items beyond it
+   * are unreachable and the unblocked-first guarantee covers the prefix only.
+   * That is data the user cannot otherwise see is missing, so the cut list
+   * surfaces it rather than truncating silently.
+   */
+  walkTruncated: string | null;
   /**
    * True when the response was served from the issue-snapshot cache because
    * the active plugin is `errored` or `disabled` (IP-FR-014 / IP-TC-016). Surface
@@ -141,6 +151,8 @@ export function useIssues(
   const snapshotCapturedAt = (stale ? page?.snapshotCapturedAt : undefined) ?? null;
   const excludedCount = page?.excludedCount ?? 0;
   const cacheStatus = page?.cacheStatus ?? null;
+  const walkTruncated =
+    page?.warnings?.find((w) => w.category === WALK_TRUNCATED_CATEGORY)?.cause ?? null;
 
   // Force-refresh callback (#653). Set the one-shot flag, then refetch: the
   // next fetch carries `refresh=true` so the server bypasses its warm snapshot.
@@ -157,6 +169,7 @@ export function useIssues(
     nextCursor: page?.nextCursor ?? null,
     error: query.error,
     stalled,
+    walkTruncated,
     stale,
     snapshotCapturedAt,
     excludedCount,

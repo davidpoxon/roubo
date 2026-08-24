@@ -18,6 +18,7 @@
   "types": "./types.ts",
   "exports": {
     ".": "./types.ts",
+    "./cut-list-order": "./cut-list-order.ts",
     "./agent-launch-descriptor-schema": "./agent-launch-descriptor-schema.ts",
     "./provision-descriptor-schema": "./provision-descriptor-schema.ts",
     "./testbench-contracts": "./testbench-contracts.ts",

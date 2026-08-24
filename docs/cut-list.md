@@ -31,7 +31,7 @@ Each repository source independently carries opt-ins for the three alert categor
 
 Retrieval follows a deliberately simple contract between two layers:
 
-- **The host** (Roubo's server and UI) owns the cut list as the user sees it. It requests one page at a time. It holds a single **cursor**, which it treats as an opaque token: it never inspects or constructs it. It stops when a page comes back with no next cursor.
+- **The host** (Roubo's server and UI) owns the cut list as the user sees it. It requests one page at a time, holding a single **cursor** that it treats as an opaque token: it never inspects or constructs the plugin's cursor. It stops when a page comes back with no next cursor. What the host does with those pages before showing them is covered under [Unblocked first, across every page](#unblocked-first-across-every-page).
 - **The integration plugin** owns the sources. Given the full set of configured sources and a cursor, it returns one page of normalized items plus the next cursor. All knowledge of "which sources exist, how each one paginates, where alerts come from" lives here.
 
 ```
@@ -126,13 +126,21 @@ In practice alert counts are small, so this is rarely a problem, but it is a rea
 
 ### Ordering and deduplication
 
-Within a page, order is stable and predictable: sources appear in configuration order, and within each source its issues come first, followed by its alerts in a fixed category order (code scanning, then secret scanning, then Dependabot).
+Within a page returned by the plugin, order is stable and predictable: sources appear in configuration order, and within each source its issues come first, followed by its alerts in a fixed category order (code scanning, then secret scanning, then Dependabot).
 
-Items are deduplicated by their integration and external identity, so if two sources happen to surface the same underlying item (for example a repository and a GitHub Project that both contain the same issue), it appears once.
+Items are deduplicated by their integration and external identity, so if two sources happen to surface the same underlying item (for example a repository and a GitHub Project that both contain the same issue), it appears once. The deduplication spans the whole result set, not one page, so an item surfaced by two sources on two different plugin pages still occupies a single slot.
+
+### Unblocked first, across every page
+
+The cut list puts work you can start ahead of work you cannot. Across all results and all pages, every unblocked item sorts before every blocked item: page 1 holds unblocked items until they run out, and blocked items begin only after the last unblocked one. The requested sort (created, updated, comments, either direction) is preserved inside each of the two partitions.
+
+Blocked state is not something a source can sort on. A plugin resolves `blockedBy` for the items on a page it has already fetched, so partitioning a single page can only ever order that page. To make the guarantee global, **the host, not the plugin, owns the page the user sees**: on a query it walks the plugin's cursor chain to exhaustion, deduplicates and partitions the whole set once, and then serves pages as slices of that ordered set. The cursor the browser holds is therefore the host's own token (an offset into the ordered set), not the plugin's composite cursor. Nothing about the plugin contract changes: the plugin still receives its own cursor and returns its own `nextCursor`, and it is still the only layer that knows how sources paginate.
+
+The walk is bounded (20 plugin pages or 2000 items, whichever comes first). Past the cap the list is truncated and the unblocked-first guarantee holds over the walked prefix only. Truncation is never silent: the host attaches a non-fatal warning to the response and the cut list renders it above the items, so the user is told the list stops short rather than being left to read a short list as a complete one.
 
 ### Stale and legacy cursors
 
-Cursors are ephemeral. The UI starts every fresh load from the beginning, and a page request is only meaningful against the source set it was produced from. A cursor that cannot be understood (a malformed token, or a token from an older Roubo version that predates the composite scheme) is treated as "no active sources": it yields an empty final page, which the host reads as the end of the list. The next fresh load starts cleanly. There is no migration step and no error surfaced to the user.
+Cursors are ephemeral. The UI starts every fresh load from the beginning, and a page request is only meaningful against the source set it was produced from. A cursor the host cannot read (a malformed token, or a token from an older Roubo version that predates the host-owned offset scheme) is treated as the first page rather than an error. Inside the plugin the same rule holds one level down: a composite cursor it cannot understand is treated as "no active sources", which yields an empty final page. Either way the next fresh load starts cleanly, with no migration step and no error surfaced to the user.
 
 ## Worked examples
 
@@ -292,4 +300,5 @@ How a single source contributes over its lifetime:
 ## Known limitations
 
 - **Filter facets reflect the primary source only.** The label, issue-type, and other facet options offered in the cut list's filter UI are currently derived from the first source, not the union of all sources. In a multi-source project a label that exists only in a submodule may not be offered as a filter even though items carrying it appear in the list. Tracked in [issue #369](https://github.com/davidpoxon/roubo/issues/369).
+- **A cold load walks every plugin page.** Ordering unblocked-first across the whole list requires the whole list, so the first query after a cache miss walks the plugin's cursor chain to exhaustion before it can answer. On a large multi-source project that is several sequential calls, each with its own blocking-relationships lookup. Paging with Prev and Next reuses the walk rather than repeating it.
 - **The first page is not bounded by the page-size setting.** As described under [Page size and how alerts fit](#page-size-and-how-alerts-fit), the first page carries up to `pageSize` issues per source plus every open alert from every source, so it can be substantially larger than a single page-size worth of items. This is usually negligible but grows with the number of sources and alerts.

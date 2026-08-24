@@ -20,7 +20,11 @@ import * as pluginManager from "./plugin-manager.js";
 import * as pluginActivation from "./plugin-activation.js";
 import {
   CutListQueryService,
+  decodeCutListCursor,
   defaultDiscard,
+  encodeCutListCursor,
+  MAX_WALK_PAGES,
+  WALK_TRUNCATED_CATEGORY,
   type CacheObserveEvent,
 } from "./cut-list-query-service.js";
 import { DiskSnapshotStore } from "./disk-snapshot-store.js";
@@ -237,26 +241,35 @@ describe("sort change is a cache miss (CLI-FR-003)", () => {
 
 describe("queryFirstOrPage delegation + disk miss/hit", () => {
   it("on a disk miss, invokes listIssues with the resolved params and reports disk-miss", async () => {
-    vi.mocked(pluginManager.invoke).mockResolvedValue({
-      items: [makeIssue({ externalId: "1" })],
-      nextCursor: "next",
-    });
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce({ items: [makeIssue({ externalId: "1" })], nextCursor: "next" })
+      .mockResolvedValueOnce({ items: [makeIssue({ externalId: "2" })], nextCursor: null });
     const result = await service.queryFirstOrPage("p1", active, {
       cursor: null,
-      pageSize: 50,
+      pageSize: 1,
       filters: { labels: ["bug"] },
     });
+    // The walk opens on the plugin's first page (cursor null) with the resolved
+    // params, then follows the plugin's own cursor for the rest of the chain.
     expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "listIssues", {
       sources: [{ kind: "repo", externalId: "foo/bar" }],
       cursor: null,
-      pageSize: 50,
+      pageSize: 1,
       filters: { labels: ["bug"] },
       excludedStatusCategories: [],
       excludedStatuses: [],
     });
+    expect(pluginManager.invoke).toHaveBeenCalledWith(
+      "github-com",
+      "listIssues",
+      expect.objectContaining({ cursor: "next" }),
+    );
     expect(result.cacheStatus).toBe("miss");
     expect(result.items.map((i) => i.externalId)).toEqual(["1"]);
-    expect(result.nextCursor).toBe("next");
+    // The cursor handed back to the client is the host's own offset token, not
+    // the plugin's (#844), and it round-trips to the next page.
+    expect(result.nextCursor).not.toBe("next");
+    expect(decodeCutListCursor(result.nextCursor)).toBe(1);
   });
 
   it("serves the persisted snapshot on the next call (cacheStatus revalidating) without an extra synchronous invoke", async () => {
@@ -529,6 +542,27 @@ describe("runtime disk-cache toggle (setDiskCacheEnabled / restoreBypassDefault)
 });
 
 describe("dedup + stall-detection parity with prior route behaviour", () => {
+  it("dedupes across the whole walk, not just within one page (IP-TC-023)", async () => {
+    // The same issue surfaces on two walked pages (a multi-source composite
+    // cursor can do this). It must occupy one slot in the ordered set, so the
+    // second page's copy never reappears further down the paged sequence.
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce({
+        items: [makeIssue({ externalId: "dupe" }), makeIssue({ externalId: "only-1" })],
+        nextCursor: "p2",
+      })
+      .mockResolvedValueOnce({
+        items: [makeIssue({ externalId: "dupe" }), makeIssue({ externalId: "only-2" })],
+        nextCursor: null,
+      });
+    const result = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+    });
+    expect(result.items.map((i) => i.externalId)).toEqual(["dupe", "only-1", "only-2"]);
+  });
+
   it("dedupes items within a page by (integrationId, externalId) (IP-TC-023)", async () => {
     vi.mocked(pluginManager.invoke).mockResolvedValue({
       items: [
@@ -561,19 +595,18 @@ describe("dedup + stall-detection parity with prior route behaviour", () => {
     expect(result.cacheStatus).toBe("miss");
   });
 
-  it("does not mark stalled when the cursor changes even if items repeat", async () => {
+  it("does not mark stalled when the cursor keeps changing even if items repeat", async () => {
     const dup = makeIssue({ externalId: "5" });
-    vi.mocked(pluginManager.invoke).mockResolvedValue({
-      items: [dup, dup],
-      nextCursor: "different",
-    });
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce({ items: [dup, dup], nextCursor: "second" })
+      .mockResolvedValueOnce({ items: [dup, dup], nextCursor: null });
     const result = await service.queryFirstOrPage("p1", active, {
-      cursor: "before",
+      cursor: null,
       pageSize: 50,
       filters: {},
     });
     expect(result.stalled).toBeUndefined();
-    expect(result.nextCursor).toBe("different");
+    expect(result.nextCursor).toBeNull();
     expect(result.items).toHaveLength(1);
   });
 
@@ -913,5 +946,232 @@ describe("integration reconfiguration self-invalidates via the cache key", () =>
     const after = await service.queryFirstOrPage("p1", active, input);
     expect(after.cacheStatus).toBe("miss");
     expect(after.items[0].externalId).toBe("sources-b");
+  });
+});
+
+// #844: unblocked-first ordering must hold across the whole paged sequence, not
+// just within whatever page happened to be fetched. The host materialises the
+// plugin's whole cursor chain, orders it once, and serves host-owned pages as
+// slices of that ordered set.
+describe("cross-page unblocked-first ordering (#844)", () => {
+  /** Two plugin pages that each mix blocked and unblocked items. */
+  function mixedTwoPageSource(): void {
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce({
+        items: [makeIssue({ externalId: "u1" }), makeIssue({ externalId: "b1", blockedBy: ["x"] })],
+        nextCursor: "plugin-p2",
+      })
+      .mockResolvedValueOnce({
+        items: [makeIssue({ externalId: "b2", blockedBy: ["y"] }), makeIssue({ externalId: "u2" })],
+        nextCursor: null,
+      });
+  }
+
+  it("page 1 holds only unblocked items when unblocked items span several plugin pages", async () => {
+    mixedTwoPageSource();
+    const page1 = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 2,
+      filters: {},
+    });
+    // Before #844 this page was `u1, b1`: the fetched page was partitioned on its
+    // own, so a blocked item shipped on page 1 while `u2` sat on page 2.
+    expect(page1.items.map((i) => i.externalId)).toEqual(["u1", "u2"]);
+    expect(page1.items.every((i) => i.blockedBy.length === 0)).toBe(true);
+    expect(page1.nextCursor).not.toBeNull();
+  });
+
+  it("blocked items begin only after the last unblocked item, on the next page", async () => {
+    mixedTwoPageSource();
+    const page1 = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 2,
+      filters: {},
+    });
+    const page2 = await service.queryFirstOrPage("p1", active, {
+      cursor: page1.nextCursor,
+      pageSize: 2,
+      filters: {},
+    });
+    expect(page2.items.map((i) => i.externalId)).toEqual(["b1", "b2"]);
+    expect(page2.nextCursor).toBeNull();
+    // No item appears on both pages.
+    const ids = [...page1.items, ...page2.items].map((i) => i.externalId);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("preserves the requested sort inside the unblocked and the blocked partition", async () => {
+    // The plugin returns its pages already in the requested order (created-desc
+    // here, expressed as a descending externalId). The partition is stable, so
+    // that order must survive inside each partition.
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce({
+        items: [
+          makeIssue({ externalId: "90" }),
+          makeIssue({ externalId: "80", blockedBy: ["x"] }),
+          makeIssue({ externalId: "70" }),
+        ],
+        nextCursor: "plugin-p2",
+      })
+      .mockResolvedValueOnce({
+        items: [makeIssue({ externalId: "60", blockedBy: ["y"] }), makeIssue({ externalId: "50" })],
+        nextCursor: null,
+      });
+    const page1 = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 5,
+      filters: {},
+      sortBy: "created",
+      sortDir: "desc",
+    });
+    expect(page1.items.map((i) => i.externalId)).toEqual(["90", "70", "50", "80", "60"]);
+  });
+
+  it("orders across sources for a multi-source project whose cursor spans several sources", async () => {
+    vi.mocked(pluginActivation.resolveSources).mockReturnValue([
+      { kind: "repo", externalId: "org/one" },
+      { kind: "repo", externalId: "org/two" },
+    ]);
+    // A composite cursor walks source one, then source two. Source one's tail is
+    // blocked and source two's head is unblocked, so only a whole-set partition
+    // can put `two-u` on page 1.
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce({
+        items: [
+          makeIssue({ externalId: "one-u" }),
+          makeIssue({ externalId: "one-b", blockedBy: ["x"] }),
+        ],
+        nextCursor: "composite:one-exhausted",
+      })
+      .mockResolvedValueOnce({
+        items: [
+          makeIssue({ externalId: "two-u" }),
+          makeIssue({ externalId: "two-b", blockedBy: ["y"] }),
+        ],
+        nextCursor: null,
+      });
+    const page1 = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 2,
+      filters: {},
+    });
+    expect(page1.items.map((i) => i.externalId)).toEqual(["one-u", "two-u"]);
+  });
+
+  it("holds for a project source just as it does for a repo source", async () => {
+    vi.mocked(pluginActivation.resolveSources).mockReturnValue([
+      { kind: "project", externalId: "org/projects/7" },
+    ]);
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce({
+        items: [makeIssue({ externalId: "pb", blockedBy: ["x"] })],
+        nextCursor: "project-p2",
+      })
+      .mockResolvedValueOnce({
+        items: [makeIssue({ externalId: "pu" })],
+        nextCursor: null,
+      });
+    const page1 = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 1,
+      filters: {},
+    });
+    expect(page1.items.map((i) => i.externalId)).toEqual(["pu"]);
+  });
+
+  it("round-trips the host cursor and degrades an unreadable token to the first page", () => {
+    expect(decodeCutListCursor(encodeCutListCursor(37))).toBe(37);
+    // Anything the host cannot read degrades to the first page rather than throwing.
+    expect(decodeCutListCursor("a-plugin-issued-token")).toBe(0);
+    expect(decodeCutListCursor(null)).toBe(0);
+  });
+
+  it("serves page 2 from the in-process materialisation without re-walking the plugin", async () => {
+    mixedTwoPageSource();
+    const page1 = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 2,
+      filters: {},
+    });
+    // Two plugin calls walked the chain for page 1.
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+
+    await service.queryFirstOrPage("p1", active, {
+      cursor: page1.nextCursor,
+      pageSize: 2,
+      filters: {},
+    });
+    // Next slices the set already in hand: no further plugin traffic.
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-walks rather than serving the materialisation when a later page is force-refreshed", async () => {
+    mixedTwoPageSource();
+    const page1 = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 2,
+      filters: {},
+    });
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
+
+    // The refresh control is reachable from any page, not just the first, and a
+    // refresh is a request for current data. Answering it from the memo would
+    // return the same items with no plugin traffic at all, so the control would
+    // spin and change nothing.
+    mixedTwoPageSource();
+    await service.queryFirstOrPage("p1", active, {
+      cursor: page1.nextCursor,
+      pageSize: 2,
+      filters: {},
+      refresh: true,
+    });
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(4);
+  });
+
+  it("aggregates warnings and excludedCount across every walked page", async () => {
+    const shared = { category: "code-scanning", sourceExternalId: "foo/bar", cause: "x" };
+    const extra = { category: "dependabot", sourceExternalId: "foo/bar", cause: "y" };
+    vi.mocked(pluginManager.invoke)
+      .mockResolvedValueOnce({
+        items: [makeIssue({ externalId: "1" })],
+        nextCursor: "p2",
+        warnings: [shared],
+        excludedCount: 2,
+      })
+      .mockResolvedValueOnce({
+        items: [makeIssue({ externalId: "2" })],
+        nextCursor: null,
+        warnings: [shared, extra],
+        excludedCount: 3,
+      });
+    const result = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+    });
+    // The per-source warning repeats on every page; it is reported once.
+    expect(result.warnings).toEqual([shared, extra]);
+    expect(result.excludedCount).toBe(5);
+  });
+
+  it("stops at the page cap, orders what it walked, and warns that the ordering is partial", async () => {
+    let page = 0;
+    vi.mocked(pluginManager.invoke).mockImplementation(async () => {
+      page += 1;
+      return {
+        items: [makeIssue({ externalId: `i${page}`, blockedBy: page === 1 ? ["x"] : [] })],
+        nextCursor: `plugin-c${page}`,
+      };
+    });
+    const result = await service.queryFirstOrPage("p1", active, {
+      cursor: null,
+      pageSize: 50,
+      filters: {},
+    });
+    expect(pluginManager.invoke).toHaveBeenCalledTimes(MAX_WALK_PAGES);
+    expect(result.items).toHaveLength(MAX_WALK_PAGES);
+    // The walked prefix is still ordered unblocked-first.
+    expect(result.items[result.items.length - 1].externalId).toBe("i1");
+    expect(result.warnings?.map((w) => w.category)).toContain(WALK_TRUNCATED_CATEGORY);
   });
 });

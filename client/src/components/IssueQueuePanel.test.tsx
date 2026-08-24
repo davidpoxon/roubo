@@ -104,6 +104,7 @@ function defaultResult(overrides: Partial<ReturnType<typeof useIssues>> = {}) {
     nextCursor: null,
     error: null,
     stalled: false,
+    walkTruncated: null as string | null,
     stale: false,
     snapshotCapturedAt: null,
     excludedCount: 0,
@@ -251,6 +252,28 @@ describe("IssueQueuePanel", () => {
       <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
     );
     expect(screen.getByTestId("stalled-note")).toHaveTextContent(/plugin paging appears stuck/i);
+  });
+
+  it("surfaces the walk-truncation note so a capped cut list never reads as complete (#844)", () => {
+    mockedUseIssues.mockReturnValue(
+      defaultResult({
+        walkTruncated: "Ordering covers the first 2000 item(s): the cut list exceeded the limit.",
+      }),
+    );
+    renderWithProviders(
+      <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+    );
+    expect(screen.getByTestId("walk-truncated-note")).toHaveTextContent(
+      /ordering covers the first 2000 item\(s\)/i,
+    );
+  });
+
+  it("shows no walk-truncation note when the whole cut list was walked (#844)", () => {
+    mockedUseIssues.mockReturnValue(defaultResult({ walkTruncated: null }));
+    renderWithProviders(
+      <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
+    );
+    expect(screen.queryByTestId("walk-truncated-note")).not.toBeInTheDocument();
   });
 
   it("shows the excluded-count note when issues were filtered out in-query (#358)", () => {

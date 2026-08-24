@@ -66,6 +66,7 @@ export default function IssueQueuePanel({
     error: itemsError,
     nextCursor,
     stalled,
+    walkTruncated,
     stale,
     snapshotCapturedAt,
     excludedCount,
@@ -228,11 +229,15 @@ export default function IssueQueuePanel({
 
   const filteredItems = useMemo(() => applyFilters(baseItems, filters), [baseItems, filters]);
 
-  // Unblocked-first ordering (#653). Regardless of the requested sort, place all
-  // unblocked items ahead of all blocked items, preserving the requested sort
-  // within each partition. Feed this ordered list to both the flat render and
-  // `groupItems` (which buckets in input order) so the order holds within groups
-  // too. `filteredItems` is still used for the length-only count and pager.
+  // Unblocked-first ordering (#653, #844). The server owns the authoritative
+  // ordering: it materialises the whole result set and partitions it once, so
+  // every page of the paged sequence already arrives unblocked-first. This
+  // re-application covers the client-side passes the server cannot see: it
+  // restores the partition over `applyFilters` output and feeds `groupItems`
+  // (which buckets in input order) so the order holds within groups too. The
+  // partition is stable and idempotent, so re-applying it to an already-ordered
+  // page is a no-op. `filteredItems` is still used for the length-only count and
+  // pager.
   const orderedItems = useMemo(() => partitionUnblockedFirst(filteredItems), [filteredItems]);
 
   const groups = useMemo(() => {
@@ -477,6 +482,16 @@ export default function IssueQueuePanel({
           className="mx-3 mt-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-[11px] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
         >
           Plugin paging appears stuck. Try a refresh.
+        </div>
+      )}
+
+      {walkTruncated && (
+        <div
+          role="status"
+          data-testid="walk-truncated-note"
+          className="mx-3 mt-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-[11px] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+        >
+          {walkTruncated}
         </div>
       )}
 
