@@ -4,6 +4,7 @@ import type {
   NormalizedIssue,
   PaginatedIssues,
 } from "@roubo/shared";
+import { partitionUnblockedFirst } from "@roubo/shared/cut-list-order";
 import * as pluginManager from "./plugin-manager.js";
 import {
   resolveSources,
@@ -14,10 +15,86 @@ import {
 import {
   DiskSnapshotStore,
   buildCacheKey,
+  hashCacheKey,
   type CacheKey,
   type DiscardLogEvent,
   type ProjectEvictReason,
 } from "./disk-snapshot-store.js";
+
+/**
+ * Bounded page-walk caps for the whole-set materialisation (#844).
+ *
+ * Cross-page unblocked-first ordering is only decidable with every result in one
+ * place: blocked state is knowable per fetched page (the GitHub plugin resolves
+ * `blockedBy` with a per-page call over that page's ids) and no source can sort
+ * on it, so the host walks the plugin's cursor chain to exhaustion and orders
+ * the whole set before slicing pages out of it. A cold load therefore costs one
+ * plugin call per source page, so the walk is bounded: it stops at whichever cap
+ * it reaches first, orders what it walked, and reports the truncation as a
+ * non-fatal warning. Past the cap the unblocked-first guarantee holds only over
+ * the walked prefix.
+ */
+export const MAX_WALK_PAGES = 20;
+/** Item-count cap for the same walk; the walk stops once the set reaches it. */
+export const MAX_WALK_ITEMS = 2000;
+/**
+ * Category of the non-fatal warning emitted when the walk hits a cap. Host-owned
+ * rather than source-owned, so `sourceExternalId` is empty: the truncation is a
+ * property of the walk across every configured source, not of any one of them.
+ */
+export const WALK_TRUNCATED_CATEGORY = "cut-list-walk-truncated";
+
+/**
+ * Lifetime of an in-process materialised set. Long enough that Prev/Next paging
+ * slices an already-walked set instead of re-walking every page, short enough
+ * that a page served minutes later is not silently ancient. Deliberately not the
+ * disk snapshot: `DiskSnapshotStore` caps an entry at `PER_ENTRY_MAX_BYTES` and
+ * skips anything larger, so a whole result set would evict itself and make every
+ * Next click re-walk. The disk snapshot stays first-ordered-page-only.
+ */
+const MATERIALIZATION_TTL_MS = 60_000;
+/** LRU bound on the in-process materialisation cache. */
+const MATERIALIZATION_MAX_ENTRIES = 4;
+
+/** Version tag on the host-issued cut-list cursor, so a format change is detectable. */
+const CURSOR_VERSION = 1;
+
+/**
+ * Encode a host-owned cut-list cursor: an offset into the ordered, materialised
+ * result set (#844). The host, not the plugin, now owns the cursor the client
+ * echoes back, because a page is a slice of the host's ordered set rather than
+ * whatever window the plugin would return for its own cursor.
+ */
+export function encodeCutListCursor(offset: number): string {
+  return Buffer.from(JSON.stringify({ v: CURSOR_VERSION, o: offset }), "utf8").toString(
+    "base64url",
+  );
+}
+
+/**
+ * Decode a host-owned cut-list cursor back into an offset. Anything unreadable
+ * (a plugin-issued cursor from a client that has not reloaded since the format
+ * changed, a truncated token, a hand-edited query string) degrades to offset 0,
+ * mirroring how the plugin-side composite cursor decodes malformed input rather
+ * than throwing. The worst case is a re-render of page 1.
+ */
+export function decodeCutListCursor(cursor: string | null): number {
+  if (typeof cursor !== "string" || cursor.length === 0) return 0;
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      (parsed as { v?: unknown }).v === CURSOR_VERSION
+    ) {
+      const offset = (parsed as { o?: unknown }).o;
+      if (typeof offset === "number" && Number.isSafeInteger(offset) && offset >= 0) return offset;
+    }
+  } catch {
+    // Fall through to the first page.
+  }
+  return 0;
+}
 
 /** The active plugin descriptor the route resolves and hands to the service. */
 export interface ActivePluginContext {
@@ -102,6 +179,24 @@ interface RawListIssues {
 }
 
 /**
+ * The whole result set for one query: every page the plugin would have returned,
+ * deduped once across the walk and ordered unblocked-first across the lot
+ * (#844). Host pages are slices of `items`.
+ */
+interface MaterializedSet {
+  items: NormalizedIssue[];
+  stalled?: boolean;
+  warnings?: ListIssuesWarning[];
+  excludedCount?: number;
+}
+
+/** An in-process materialisation cache entry, with the time it was walked. */
+interface MemoEntry {
+  at: number;
+  set: MaterializedSet;
+}
+
+/**
  * Owns the cut-list query path: source/exclusion resolution, the persistent
  * first-page disk cache (DiskSnapshotStore), the `listIssues` RPC, and the
  * per-request dedup + stall detection the route used to carry inline. The
@@ -136,6 +231,16 @@ export class CutListQueryService {
    * events can be asserted without emitting into test stdout.
    */
   private readonly onObserve: (event: CacheObserveEvent) => void;
+  /**
+   * In-process materialisation cache (#844), keyed by the same cache-key hash
+   * the disk snapshot uses so it discriminates plugin, instance, project,
+   * sources, filters, exclusions, sort, and pageSize exactly as the disk store
+   * does. It exists so Prev/Next slices an already-walked set rather than
+   * re-walking every plugin page per click; first-page loads always re-walk, so
+   * it never shadows the disk snapshot's stale-while-revalidate behaviour.
+   * Process-local and short-lived by design; never persisted.
+   */
+  private readonly memo = new Map<string, MemoEntry>();
 
   constructor(opts?: {
     disk?: DiskSnapshotStore;
@@ -275,9 +380,10 @@ export class CutListQueryService {
    * Resolve the first page (or a paginated page) for the cut list. On a
    * first-page request the persistent disk snapshot is consulted first and
    * served immediately on a hit (including after an application restart); on a
-   * miss the live `listIssues` RPC runs, the page is deduped + stall-checked,
-   * and the first page is persisted. Paginated requests (cursor set) bypass the
-   * disk cache, which is first-page-only.
+   * miss the plugin's whole cursor chain is walked, deduped, ordered
+   * unblocked-first, and the first ordered page is persisted. Paginated requests
+   * (cursor set) bypass the disk cache, which is first-page-only, and slice
+   * their page out of the materialised set instead.
    */
   async queryFirstOrPage(
     projectId: string,
@@ -296,6 +402,11 @@ export class CutListQueryService {
         : (persistedSort ?? (await this.resolvePersistedSort(projectId, active.pluginId)));
     const params = this.buildListParams(projectId, input, resolvedPersistedSort);
     const isFirstPage = input.cursor === null;
+    // The cursor is host-owned (#844): an offset into the ordered materialised
+    // set, not a plugin token. A cursor the host cannot read degrades to 0.
+    const offset = isFirstPage ? 0 : decodeCutListCursor(input.cursor);
+    const key = this.buildKey(projectId, active.pluginId, params);
+    const memoKey = hashCacheKey(key);
 
     // Only serve the persistent disk snapshot while the plugin is healthy. When
     // the plugin is errored/disabled (or otherwise not enabled), serving a
@@ -308,14 +419,13 @@ export class CutListQueryService {
     const healthy = pluginManager.getRecord(active.pluginId)?.status === "enabled";
 
     if (isFirstPage && healthy && !this.bypassDisk) {
-      const key = this.buildKey(projectId, active.pluginId, params);
       // Force-refresh (#653): an explicit refresh is a request for current
       // data, so skip the warm-serve entirely. Run the live RPC synchronously,
       // persist the fresh result so the cache stays warm with current data, and
       // report a `miss`. The disk snapshot is never read on this path, so a
       // stale snapshot can never shadow the fresh fetch.
       if (input.refresh) {
-        const result = await this.fetchAndShape(active.pluginId, params, input.cursor);
+        const result = await this.pageFrom(active.pluginId, memoKey, params, offset, false);
         this.disk.put(key, this.toPersistable(result));
         this.observe({ kind: "cache", status: "miss", pluginId: active.pluginId, projectId });
         return { ...result, cacheStatus: "miss" };
@@ -332,7 +442,7 @@ export class CutListQueryService {
           pluginId: active.pluginId,
           projectId,
         });
-        this.reval(active.pluginId, projectId, key, params);
+        this.reval(active.pluginId, projectId, key, memoKey, params);
         return {
           items: cached.response.items,
           nextCursor: cached.response.nextCursor,
@@ -344,13 +454,18 @@ export class CutListQueryService {
         };
       }
 
-      const result = await this.fetchAndShape(active.pluginId, params, input.cursor);
+      const result = await this.pageFrom(active.pluginId, memoKey, params, offset, false);
       this.disk.put(key, this.toPersistable(result));
       this.observe({ kind: "cache", status: "miss", pluginId: active.pluginId, projectId });
       return { ...result, cacheStatus: "miss" };
     }
 
-    const result = await this.fetchAndShape(active.pluginId, params, input.cursor);
+    // Paginated requests slice the materialised set, reusing the in-process
+    // walk when one is still fresh so Prev/Next does not re-walk every plugin
+    // page per click. A first page reaching this branch (bypassed disk, or an
+    // unhealthy plugin) always re-walks, so the memo never shadows the disk
+    // snapshot's stale-while-revalidate behaviour.
+    const result = await this.pageFrom(active.pluginId, memoKey, params, offset, !isFirstPage);
     return { ...result, cacheStatus: "miss" };
   }
 
@@ -365,21 +480,23 @@ export class CutListQueryService {
 
   /**
    * Fire-and-forget background revalidation for a served disk-hit (FR-002). It
-   * re-runs the live `listIssues`, re-shapes the page, and overwrites the disk
-   * snapshot so the next read serves fresher data. It is deliberately not
-   * awaited by the request: a `.catch` logs (NFR-009) and discards any rejection
-   * so it never rejects into the request and never crashes Node on the
-   * unhandled-rejection default (NFR-006 / CLI-TC-014).
+   * re-walks the plugin's pages, re-orders the whole set, and overwrites the
+   * disk snapshot with the fresh first ordered page so the next read serves
+   * fresher data. It is deliberately not awaited by the request: a `.catch` logs
+   * (NFR-009) and discards any rejection so it never rejects into the request
+   * and never crashes Node on the unhandled-rejection default (NFR-006 /
+   * CLI-TC-014).
    */
   private reval(
     pluginId: string,
     projectId: string,
     key: CacheKey,
+    memoKey: string,
     params: ListIssuesParams,
   ): void {
     const run = async (): Promise<void> => {
-      // A first-page revalidation always replays the first-page cursor (null).
-      const fresh = await this.fetchAndShape(pluginId, params, null);
+      // A first-page revalidation always re-walks from offset 0.
+      const fresh = await this.pageFrom(pluginId, memoKey, params, 0, false);
       this.disk.put(key, this.toPersistable(fresh));
     };
     void run().catch((err: unknown) => {
@@ -392,35 +509,151 @@ export class CutListQueryService {
     });
   }
 
-  /** Run the RPC and apply the per-request dedup + stall detection. */
-  private async fetchAndShape(
+  /**
+   * Resolve one host-owned page: the slice of the ordered materialised set that
+   * starts at `offset`. `useMemo` decides whether an in-process materialisation
+   * may serve it; a fresh walk always refreshes the memo either way.
+   */
+  private async pageFrom(
     pluginId: string,
+    memoKey: string,
     params: ListIssuesParams,
-    requestCursor: string | null,
+    offset: number,
+    useMemo: boolean,
   ): Promise<Omit<CutListQueryResult, "cacheStatus">> {
-    const raw = await pluginManager.invoke<RawListIssues>(pluginId, "listIssues", params);
+    let set = useMemo ? this.readMemo(memoKey) : undefined;
+    if (!set) {
+      set = await this.materialize(pluginId, params);
+      this.writeMemo(memoKey, set);
+    }
+    return this.slicePage(set, offset, params.pageSize);
+  }
 
-    // Per-request dedup keyed on (integrationId, externalId) (FR-020 / TC-023).
+  /**
+   * Walk the plugin's whole cursor chain, dedup across the walk, and order the
+   * result unblocked-first (#844).
+   *
+   * The ordering has to sit above the page boundary: `blockedBy` is resolved by
+   * the plugin per fetched page and no source can sort on it, so partitioning a
+   * single page can only ever order that page. Walking to exhaustion puts the
+   * whole result set in one place, so the partition is global and page 1 holds
+   * unblocked items until they run out.
+   *
+   * Bounded three ways: the page cap, the item cap, and the stall check (a
+   * plugin that echoes back the cursor it was given ends the chain rather than
+   * looping forever, IP-TC-071). Hitting either cap truncates the set and adds a
+   * `WALK_TRUNCATED_CATEGORY` warning.
+   */
+  private async materialize(pluginId: string, params: ListIssuesParams): Promise<MaterializedSet> {
+    // Dedup keyed on (integrationId, externalId) across the whole walk, not just
+    // one page (FR-020 / IP-TC-023): a multi-source composite cursor can surface
+    // the same issue on two pages, and a duplicate would otherwise consume a
+    // slot in the ordered set.
     const seen = new Set<string>();
-    const items = raw.items.filter((item) => {
-      const dedupKey = `${item.integrationId}::${item.externalId}`;
-      if (seen.has(dedupKey)) return false;
-      seen.add(dedupKey);
-      return true;
-    });
+    const items: NormalizedIssue[] = [];
+    const warnings: ListIssuesWarning[] = [];
+    const warningKeys = new Set<string>();
+    let excludedCount: number | undefined;
+    let stalled = false;
+    let truncated = false;
+    let cursor: string | null = null;
 
-    // Stall detection (TC-071): the host marks the page stalled when the plugin
-    // echoes back the same cursor it was given.
-    const stalled = raw.nextCursor !== null && raw.nextCursor === requestCursor;
+    for (let page = 0; ; page += 1) {
+      if (page >= MAX_WALK_PAGES) {
+        truncated = true;
+        break;
+      }
+      const raw: RawListIssues = await pluginManager.invoke<RawListIssues>(pluginId, "listIssues", {
+        ...params,
+        cursor,
+      });
+      for (const item of raw.items) {
+        const dedupKey = `${item.integrationId}::${item.externalId}`;
+        if (seen.has(dedupKey)) continue;
+        seen.add(dedupKey);
+        items.push(item);
+      }
+      for (const warning of raw.warnings ?? []) {
+        // Warnings repeat per page (they describe a source, not a page), so keep
+        // one of each rather than one per walked page.
+        const warningKey = JSON.stringify(warning);
+        if (warningKeys.has(warningKey)) continue;
+        warningKeys.add(warningKey);
+        warnings.push(warning);
+      }
+      if (typeof raw.excludedCount === "number") {
+        excludedCount = (excludedCount ?? 0) + raw.excludedCount;
+      }
 
+      if (raw.nextCursor === null) break;
+      // Stall detection (IP-TC-071): the plugin echoed back the cursor it was
+      // given, so following it would fetch the same window forever.
+      if (raw.nextCursor === cursor) {
+        stalled = true;
+        break;
+      }
+      if (items.length >= MAX_WALK_ITEMS) {
+        truncated = true;
+        break;
+      }
+      cursor = raw.nextCursor;
+    }
+
+    if (truncated) {
+      warnings.push({
+        category: WALK_TRUNCATED_CATEGORY,
+        sourceExternalId: "",
+        cause: `Ordering covers the first ${items.length} item(s): the cut list exceeded the ${MAX_WALK_PAGES}-page / ${MAX_WALK_ITEMS}-item walk limit, so items beyond it are not listed.`,
+      });
+    }
+
+    const set: MaterializedSet = { items: partitionUnblockedFirst(items) };
+    if (stalled) set.stalled = true;
+    if (warnings.length > 0) set.warnings = warnings;
+    if (typeof excludedCount === "number") set.excludedCount = excludedCount;
+    return set;
+  }
+
+  /** Cut one host page out of the ordered set and mint the next offset cursor. */
+  private slicePage(
+    set: MaterializedSet,
+    offset: number,
+    pageSize: number,
+  ): Omit<CutListQueryResult, "cacheStatus"> {
+    const start = Math.min(offset, set.items.length);
+    const end = Math.min(start + pageSize, set.items.length);
     const shaped: Omit<CutListQueryResult, "cacheStatus"> = {
-      items,
-      nextCursor: stalled ? null : raw.nextCursor,
-      stalled: stalled || undefined,
+      items: set.items.slice(start, end),
+      nextCursor: end < set.items.length ? encodeCutListCursor(end) : null,
     };
-    if (raw.warnings && raw.warnings.length > 0) shaped.warnings = raw.warnings;
-    if (typeof raw.excludedCount === "number") shaped.excludedCount = raw.excludedCount;
+    if (set.stalled) shaped.stalled = true;
+    if (set.warnings) shaped.warnings = set.warnings;
+    if (typeof set.excludedCount === "number") shaped.excludedCount = set.excludedCount;
     return shaped;
+  }
+
+  /** Read a still-fresh materialisation, refreshing its LRU recency. */
+  private readMemo(memoKey: string): MaterializedSet | undefined {
+    const entry = this.memo.get(memoKey);
+    if (!entry) return undefined;
+    if (Date.now() - entry.at > MATERIALIZATION_TTL_MS) {
+      this.memo.delete(memoKey);
+      return undefined;
+    }
+    this.memo.delete(memoKey);
+    this.memo.set(memoKey, entry);
+    return entry.set;
+  }
+
+  /** Store a materialisation, evicting the least recently used over the bound. */
+  private writeMemo(memoKey: string, set: MaterializedSet): void {
+    this.memo.delete(memoKey);
+    this.memo.set(memoKey, { at: Date.now(), set });
+    while (this.memo.size > MATERIALIZATION_MAX_ENTRIES) {
+      const oldest = this.memo.keys().next().value;
+      if (oldest === undefined) break;
+      this.memo.delete(oldest);
+    }
   }
 
   /** Project a shaped result down to the `PaginatedIssues` the disk store persists. */

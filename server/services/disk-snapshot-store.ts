@@ -26,8 +26,13 @@ import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
  * canonicalisation rule for any keyed field changes, or the cached
  * `PaginatedIssues` payload shape changes in a way the reader cannot tolerate.
  * A stored value older than this is a cold miss on read.
+ *
+ * v2 (#844): the persisted `nextCursor` changed owner. It used to be the
+ * plugin's own token; it is now a host-issued offset into the ordered
+ * materialised result set. A v1 file's cursor is unreadable by the host decoder
+ * (it degrades to offset 0), so serving one would make Next re-render page 1.
  */
-export const CACHE_SCHEMA_VERSION = 1;
+export const CACHE_SCHEMA_VERSION = 2;
 
 /** Per-entry serialised-size cap. Over-cap entries are skipped, never persisted. */
 export const PER_ENTRY_MAX_BYTES = 1024 * 1024; // 1 MB
