@@ -87,7 +87,7 @@ Earlier builds shipped a Claude Code launch path inside Roubo itself, configured
 
 ## Project status
 
-Roubo is **early**. The current release is `v0.1.0`, the surface area is small but real, and the data format (`roubo.yaml`, `~/.roubo/state.json`) may still change before a 1.0. Bug reports and design feedback are welcome; please open an [issue](https://github.com/davidpoxon/roubo/issues) before sending a large PR so we can align on direction.
+Roubo is **early**. See the [latest release](https://github.com/davidpoxon/roubo/releases/latest) for what is currently shipping; the surface area is small but real, and the data format (`roubo.yaml`, `~/.roubo/state.json`) may still change before a 1.0. Bug reports and design feedback are welcome; please open an [issue](https://github.com/davidpoxon/roubo/issues) before sending a large PR so we can align on direction.
 
 ## The name
 
