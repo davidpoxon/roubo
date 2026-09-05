@@ -32,6 +32,12 @@ jobs:
       # AP-NFR-006: fail the build if core (server/ + shared/) regrows an
       # agent-specific identifier or assembles an agent CLI flag itself.
       - run: npm run lint:agent-guard
+      # Fail the build if a dependency spec is not an exact pin, or if
+      # package-lock.json records a spec that differs from the package.json it
+      # mirrors. Dependabot writes exact pins into the manifest but carets into
+      # the lock, and `npm ci` accepts that because the recorded range still
+      # SATISFIES the manifest, so no other gate here can see the drift.
+      - run: npm run lint:dep-pins
 
   format:
     runs-on: ubuntu-latest
