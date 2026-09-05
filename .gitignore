@@ -38,3 +38,7 @@ playwright-report/
 
 # claude
 .claude/scheduled_tasks.lock
+
+# ui-design: generated from DESIGN.md by /ui-design:render
+DESIGN.html
+DESIGN.json

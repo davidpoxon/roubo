@@ -18,3 +18,7 @@ specs/projects-settings-prototypes-v2.html
 # A byte-identical copy of the marketplace's shared pointer corpus. Reformatting
 # it here would break the copy it exists to be (davidpoxon/roubo#1181).
 shared/lifecycle-pointer-fixtures.json
+# Written by the ui-design flow and regenerated wholesale on every write-back, with
+# its own compact serialization. Prettier's reflow expands the machine-checked token
+# block from 564 to 666 lines, past the 600-line budget conform.py enforces (FR-012).
+DESIGN.md
