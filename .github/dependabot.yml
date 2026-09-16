@@ -35,6 +35,10 @@ updates:
           - "react"
           - "react-dom"
           - "@types/react"
+      codemirror:
+        patterns:
+          - "codemirror"
+          - "@codemirror/*"
       dev-dependencies:
         dependency-type: "development"
         update-types:
