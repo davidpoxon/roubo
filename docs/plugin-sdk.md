@@ -203,6 +203,16 @@ choiceProbes:
 
 Each probe has the same three fields as [`agentCompatibility.probe`](#agent-compatibility): `command` (a bare name or an absolute path, resolved the same way a launch resolves it), `args` (spawned as argv, never through a shell), and `parse`. All three are required. `parse` names the shape of the output, not the tool that produces it, and it takes no options. The one mode today is `dash-line-pairs`: a listing where each choice is one `<value> - <label>` line. Any other `parse` value fails manifest validation with an error at the `parse` field.
 
+The host runs a choice probe the same way it runs the version probe: it resolves `command` the way a launch resolves it, spawns it with your `args` only, gives it no stdin, and kills it if it has not finished within 5s. A killed probe reports a timeout, even when the CLI printed nothing. For `dash-line-pairs` the host then reads the output under these rules:
+
+- It reads stdout only, and only when the CLI exits with code 0. A nonzero exit is a probe failure, and the first line of stderr is its reason, so print the reason there.
+- Each line that matches `^(\S+) - (.+)$` becomes one choice: the value before `-` and the label after it. Every other line, such as a heading, a blank line or a trailing tip, is skipped.
+- Output larger than 256 KiB, or longer than 2000 lines, is refused.
+- Output with no matching line is a failure, not an empty list.
+- Values and labels are kept as the exact text the CLI printed. The host never interprets markup or control characters in them.
+
+A successful result is reused for about 60 seconds, so opening the settings screen twice in that window spawns the CLI once. A failed result is never kept: the next read runs the probe again, and it reports the failure rather than a list an earlier run returned.
+
 The declaration lives on the manifest rather than on the descriptor because the host runs it when the settings screen needs the choices, before any launch context exists. It is optional, so a manifest that omits it validates unchanged.
 
 Note the `roubo` range. The key landed in host API **1.6.0**, and the manifest schema is strict, so the same rule as [`agentInstallLocations`](#where-your-agent-cli-installs) applies: declare `^1.6.0` (or higher) whenever you declare `choiceProbes`.
@@ -538,7 +548,7 @@ capabilities: {
 }
 ```
 
-The host resolves the same binary the launch will spawn (step 9 below), runs the probe with a 5s timeout, and scans the merged stdout and stderr for the first `X.Y.Z`. Resolution and the probe spawn both use the PATH the launch will use, so a descriptor that sets `env.PATH` is gated against its own binary rather than a same-named one on the host's PATH. A templated `env.PATH` is resolved first, against the same context the launch itself resolves against, so declaring `{{workspace}}/node_modules/.bin` still gets a real gate. One exception: `command` is resolved only at spawn time, so a `command` still carrying an unresolved `{{...}}` template cannot be probed at all and reports `probe-failed` rather than being gated. The lenient scan is why one probe shape works across agents whose `--version` output looks nothing alike. The result is cached per resolved binary (and, when that resolves to a bare name, per PATH), so repeated launches and the AI Agents screen reuse one spawn.
+The host resolves the same binary the launch will spawn (step 9 below), runs the probe with no stdin, kills it if it has not finished within 5s, reads at most 256 KiB of its output, and scans the merged stdout and stderr for the first `X.Y.Z`. A version found in the output counts even when the CLI exits nonzero, and a date-based version such as `2026.09.12-abc123` reads as `2026.09.12` and compares by year, then month, then day. Resolution and the probe spawn both use the PATH the launch will use, so a descriptor that sets `env.PATH` is gated against its own binary rather than a same-named one on the host's PATH. A templated `env.PATH` is resolved first, against the same context the launch itself resolves against, so declaring `{{workspace}}/node_modules/.bin` still gets a real gate. One exception: `command` is resolved only at spawn time, so a `command` still carrying an unresolved `{{...}}` template cannot be probed at all and reports `probe-failed` rather than being gated. The lenient scan is why one probe shape works across agents whose `--version` output looks nothing alike. The result is cached per resolved binary (and, when that resolves to a bare name, per PATH), so repeated launches and the AI Agents screen reuse one spawn.
 
 There are four verdicts:
 
