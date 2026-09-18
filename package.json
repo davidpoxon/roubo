@@ -106,6 +106,7 @@
   "overrides": {
     "tar": "7.5.22",
     "tmp": "0.2.7",
+    "extract-zip": "npm:@electron-internal/extract-zip@1.0.5",
     "@electron/rebuild": "4.2.0",
     "protobufjs": "7.6.5",
     "esbuild": "0.28.1",
