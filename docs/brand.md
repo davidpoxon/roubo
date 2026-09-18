@@ -97,11 +97,11 @@ The canonical SVG is at [`client/src/assets/roubo-logo.svg`](../client/src/asset
 
 ### Usage
 
-| Context                          | Size        | Colour                   |
-| -------------------------------- | ----------- | ------------------------ |
-| Sidebar header (next to "ROUBO") | 18px        | `--roubo-accent` (amber) |
-| Browser favicon                  | 32px / 16px | `--roubo-text-primary`   |
-| README / documentation           | 48px        | `--roubo-text-primary`   |
+| Context                          | Size        | Colour           |
+| -------------------------------- | ----------- | ---------------- |
+| Sidebar header (next to "ROUBO") | 18px        | `accent` (amber) |
+| Browser favicon                  | 32px / 16px | `text-primary`   |
+| README / documentation           | 48px        | `text-primary`   |
 
 ### Rules
 
@@ -134,71 +134,56 @@ Icons that reference physical tools (wrench, hammer, hand-plane) are acceptable 
 
 ## Colour Palette
 
-Roubo uses a warm, dark foundation. The shift from zinc (cool blue-grey) to a warmer neutral is subtle; felt more than seen. Status colours remain bold and purely functional.
+Roubo uses a warm stone foundation, designed dark first because dark is the default theme. The neutrals are warm rather than cool blue-grey; the difference is subtle, felt more than seen. Status colours remain bold and purely functional.
 
-### Foundation (Dark Mode, primary)
+Every colour value lives in [`DESIGN.md`](../DESIGN.md#colour), which is the single source of truth and is machine-checked for contrast in both themes. This section records the intent; it does not repeat the values.
 
-| Token                    | Value                     | Usage                  |
-| ------------------------ | ------------------------- | ---------------------- |
-| `--roubo-bg-base`        | `stone-950`               | Page background        |
-| `--roubo-bg-surface`     | `stone-900` / 50% opacity | Cards, panels          |
-| `--roubo-bg-sidebar`     | `stone-950` / 60% opacity | Sidebar background     |
-| `--roubo-bg-hover`       | `stone-800` / 70% opacity | Hover states           |
-| `--roubo-border`         | `stone-800` / 40% opacity | Borders, dividers      |
-| `--roubo-text-primary`   | `stone-100`               | Primary text           |
-| `--roubo-text-secondary` | `stone-400`               | Secondary text, labels |
-| `--roubo-text-muted`     | `stone-600`               | Disabled, placeholder  |
+### Foundation
 
-### Foundation (Light Mode)
-
-| Token                    | Value       | Usage           |
-| ------------------------ | ----------- | --------------- |
-| `--roubo-bg-base`        | `stone-50`  | Page background |
-| `--roubo-bg-surface`     | `white`     | Cards, panels   |
-| `--roubo-bg-hover`       | `stone-100` | Hover states    |
-| `--roubo-border`         | `stone-200` | Borders         |
-| `--roubo-text-primary`   | `stone-900` | Primary text    |
-| `--roubo-text-secondary` | `stone-500` | Secondary text  |
+Three grounds step from the app (`bg-base`) to panels (`bg-surface`) to the hover wash (`bg-hover`), separated by a hairline `border`. Text has three tones: `text-primary` for headings, `text-body` for prose, and `text-secondary` for labels and metadata. There is no dimmer tone: disabled content is the whole control at reduced opacity, not a fourth grey.
 
 ### Accent: Warm Brass
 
-A single accent colour inspired by aged brass hardware, the kind found on quality hand tools and traditional bench fittings. Used sparingly for primary actions and focused states.
+A single accent colour inspired by aged brass hardware, the kind found on quality hand tools and traditional bench fittings. Used sparingly.
 
-| Token                  | Value                     | Usage                                               |
-| ---------------------- | ------------------------- | --------------------------------------------------- |
-| `--roubo-accent`       | `amber-500`               | Primary buttons, active tab indicators, focus rings |
-| `--roubo-accent-hover` | `amber-400`               | Button hover                                        |
-| `--roubo-accent-muted` | `amber-500` / 15% opacity | Subtle accent backgrounds                           |
-| `--roubo-accent-text`  | `amber-200`               | Accent text on dark backgrounds                     |
+| Token          | Usage                                                      |
+| -------------- | ---------------------------------------------------------- |
+| `accent`       | Primary buttons and the selected-tab indicator             |
+| `accent-text`  | Accent-coloured text, always on `accent-muted` or a ground |
+| `accent-muted` | Subtle accent grounds, such as the selected nav item       |
+| `focus-ring`   | Every focus ring, on every control, tuned per theme        |
 
 ### Status Colours
 
-These are functional, not decorative. They remain at full saturation for clarity.
+These are functional, not decorative. A status colour never appears without its text label.
 
-| Status               | Colour                    | Usage                              |
-| -------------------- | ------------------------- | ---------------------------------- |
-| Active (running)     | `green-500`               | Bench border, component status dot |
-| Preparing / Clearing | `amber-500`               | Bench border, progress indicators  |
-| Error                | `red-500`                 | Bench border, error states         |
-| Idle                 | `stone-300` / `stone-700` | Bench border (light / dark mode)   |
+| Status               | Token              | Usage                              |
+| -------------------- | ------------------ | ---------------------------------- |
+| Active (running)     | `status-active`    | Bench border, component status dot |
+| Preparing / Clearing | `status-preparing` | Bench border, progress indicators  |
+| Error                | `status-error`     | Bench border, error states         |
+| Idle                 | `status-idle`      | Bench border                       |
 
 ---
 
 ## Typography
 
+Sizes, weights, leading, and tracking live in [`DESIGN.md`](../DESIGN.md#type). The roles:
+
 | Role             | Font           | Weight         | Size    | Tracking | Usage                                |
 | ---------------- | -------------- | -------------- | ------- | -------- | ------------------------------------ |
-| Product name     | Inter          | 700 (bold)     | 11px    | 0.2em    | Sidebar header "ROUBO"               |
-| Section headers  | Inter          | 600 (semibold) | 11px    | 0.15em   | Sidebar section labels               |
-| UI text          | Inter          | 400–500        | 13px    | Normal   | Navigation, labels, body             |
+| Product name     | IBM Plex Sans  | 700 (bold)     | 11px    | 0.2em    | Sidebar header "ROUBO"               |
+| Section headers  | IBM Plex Sans  | 600 (semibold) | 11px    | 0.12em   | Sidebar section labels               |
+| UI text          | IBM Plex Sans  | 400–500        | 13px    | Normal   | Navigation, labels, body             |
 | Technical values | JetBrains Mono | 400            | Inherit | Normal   | Ports, paths, branch names, commands |
-| Status badges    | Inter          | 500 (medium)   | 10px    | Normal   | Status pills, counts                 |
+| Status badges    | IBM Plex Sans  | 500 (medium)   | 11px    | Normal   | Status pills, counts                 |
 
 ### Rules
 
-- Use **Inter** for all interface text. It is clean, legible at small sizes, and has the quiet precision the brand requires.
+- Use **IBM Plex Sans** for all interface text. It is an engineered face, with squared terminals and visibly constructed joins, legible at small sizes, and it has the quiet precision the brand requires.
 - Use **JetBrains Mono** for any value that a developer might copy, type, or reference: port numbers, file paths, branch names, git commands.
-- Hierarchy is created through **weight, size, and opacity**, never through decoration (underlines, backgrounds, borders on text).
+- Both families are bundled with the app. Roubo never fetches a font from the network.
+- Hierarchy is created through **weight, size, and tone**, never through decoration (underlines, backgrounds, borders on text).
 - The product name "ROUBO" in the sidebar uses uppercase with wide tracking. It should feel like an engraving: precise, deliberate, permanent.
 
 ---
