@@ -106,7 +106,8 @@ function readDashLinePairs(output: ProbeSpawnOutput): ProbeReading<ProbeChoice[]
       detail: `exited with code ${output.code}` + (first ? `: ${first}` : ""),
     };
   }
-  const lines = output.stdout.split(/\r?\n/);
+  // One trailing terminator ends the last line; it does not start another one.
+  const lines = output.stdout.replace(/\r?\n$/, "").split(/\r?\n/);
   if (lines.length > DASH_LINE_PAIRS_MAX_LINES) {
     return {
       ok: false,

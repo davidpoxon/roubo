@@ -103,6 +103,14 @@ describe("dash-line-pairs reader (spike #848)", () => {
     });
   });
 
+  it(`reads a listing of exactly ${DASH_LINE_PAIRS_MAX_LINES} lines that ends in a newline`, () => {
+    const full =
+      Array.from({ length: DASH_LINE_PAIRS_MAX_LINES }, (_, i) => `m${i} - M`).join("\n") + "\n";
+    const reading = readProbeOutput("dash-line-pairs", ok(full));
+    expect(reading.ok).toBe(true);
+    expect(reading.ok && reading.value).toHaveLength(DASH_LINE_PAIRS_MAX_LINES);
+  });
+
   it(`refuses a listing longer than ${DASH_LINE_PAIRS_MAX_LINES} lines`, () => {
     const long = Array.from({ length: DASH_LINE_PAIRS_MAX_LINES + 1 }, (_, i) => `m${i} - M`).join(
       "\n",
