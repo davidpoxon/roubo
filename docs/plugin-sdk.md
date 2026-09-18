@@ -223,7 +223,7 @@ A resolved probe keeps every other key on that property. The host changes only t
 
 The settings form draws each probed field in one of three states from that map, and the rest of the form stays usable in all three:
 
-- **Loading.** The field shows an empty choice control and a status line saying the choices are being read. While any field is loading, the screen re-reads the list every second, so the field leaves this state as soon as the probe answers, and never later than the 5s kill.
+- **Loading.** The field shows an empty choice control and a status line saying the choices are being read. While any field is loading, the screen re-reads the list every second, so the field leaves this state as soon as the probe answers, and never later than the 5s kill. The host runs probes only for an agent it can run, so an unavailable agent's fields stay loading and the screen does not re-read the list for them.
 - **Resolved.** The field is the ordinary choice control, filled with the probed choices.
 - **Failed.** The field is empty and offers no free-text entry, because an unset field already means the account default. A status line states the cause and a remedy. For `command-not-found`, `timeout` and `parse-error` the host writes both. For `probe-error` the cause is the first line your CLI printed to stderr, shown to the user as written, so make that line a sentence a user can act on, such as `Not signed in. Run the login command first.` That line is how a sign-in problem reads differently from a missing command.
 

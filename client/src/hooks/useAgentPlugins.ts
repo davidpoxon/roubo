@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AgentPluginsResponse } from "@roubo/shared";
 import * as api from "../lib/api";
@@ -5,11 +6,25 @@ import * as api from "../lib/api";
 /** How often the list is re-read while any choice probe is still loading. */
 export const PROBE_POLL_INTERVAL_MS = 1_000;
 
-/** True while any agent's choice probe has not produced an outcome yet. */
+/**
+ * The most reads one loading episode makes before polling gives up. The server
+ * kills a probe at 5s, so a warm that answers settles well inside this; the cap
+ * only stops a warm that never writes an outcome from polling for as long as the
+ * screen is open.
+ */
+export const PROBE_POLL_MAX_READS = 10;
+
+/**
+ * True while any runnable agent's choice probe has not produced an outcome yet.
+ * An unavailable agent is skipped: the server never warms its probes, so its
+ * fields report `loading` on every read and polling would never settle.
+ */
 function anyProbeLoading(data: AgentPluginsResponse | undefined): boolean {
   return (
-    data?.agents.some((agent) =>
-      Object.values(agent.choiceProbes ?? {}).some((probe) => probe.state === "loading"),
+    data?.agents.some(
+      (agent) =>
+        !agent.unavailable &&
+        Object.values(agent.choiceProbes ?? {}).some((probe) => probe.state === "loading"),
     ) ?? false
   );
 }
@@ -28,12 +43,23 @@ function anyProbeLoading(data: AgentPluginsResponse | undefined): boolean {
  * window without the user reopening the screen (#853, APCC-TC-019).
  */
 export function useAgentPlugins() {
+  // The read count at which the current loading episode began, so the cap
+  // counts only this episode's reads and never earlier saves or refetches.
+  const loadingSince = useRef<number | null>(null);
   return useQuery({
     queryKey: ["agent-plugins"],
     queryFn: api.fetchAgentPlugins,
     staleTime: 30_000,
-    refetchInterval: (query) =>
-      anyProbeLoading(query.state.data) ? PROBE_POLL_INTERVAL_MS : false,
+    refetchInterval: (query) => {
+      if (!anyProbeLoading(query.state.data)) {
+        loadingSince.current = null;
+        return false;
+      }
+      loadingSince.current ??= query.state.dataUpdateCount;
+      return query.state.dataUpdateCount - loadingSince.current < PROBE_POLL_MAX_READS
+        ? PROBE_POLL_INTERVAL_MS
+        : false;
+    },
   });
 }
 

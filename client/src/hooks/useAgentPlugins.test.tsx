@@ -13,7 +13,12 @@ vi.mock("../lib/api", async () => {
 });
 
 import * as api from "../lib/api";
-import { PROBE_POLL_INTERVAL_MS, useAgentPlugins, useSaveAgentConfig } from "./useAgentPlugins";
+import {
+  PROBE_POLL_INTERVAL_MS,
+  PROBE_POLL_MAX_READS,
+  useAgentPlugins,
+  useSaveAgentConfig,
+} from "./useAgentPlugins";
 
 const mockedApi = vi.mocked(api);
 
@@ -91,6 +96,55 @@ describe("useAgentPlugins: choice-probe polling (#853, APCC-TC-019)", () => {
 
     await new Promise((resolve) => setTimeout(resolve, PROBE_POLL_INTERVAL_MS * 1.5));
     expect(mockedApi.fetchAgentPlugins).toHaveBeenCalledTimes(2);
+  });
+
+  it("still polls a later loading episode after many earlier settled reads", async () => {
+    mockedApi.fetchAgentPlugins.mockResolvedValue(agentWith("resolved") as never);
+
+    const queryClient = makeQueryClient();
+    const { result } = renderHookWithProviders(() => useAgentPlugins(), { queryClient });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    for (let i = 0; i < PROBE_POLL_MAX_READS + 2; i++) {
+      await act(async () => {
+        await queryClient.invalidateQueries({ queryKey: ["agent-plugins"] });
+      });
+    }
+    expect(queryClient.getQueryState(["agent-plugins"])?.dataUpdateCount).toBeGreaterThan(
+      PROBE_POLL_MAX_READS,
+    );
+
+    mockedApi.fetchAgentPlugins
+      .mockResolvedValueOnce(agentWith("loading") as never)
+      .mockResolvedValue(agentWith("failed") as never);
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agent-plugins"] });
+    });
+    const callsAtLoading = mockedApi.fetchAgentPlugins.mock.calls.length;
+
+    await waitFor(
+      () => expect(result.current.data?.agents[0]?.choiceProbes?.model?.state).toBe("failed"),
+      { timeout: PROBE_POLL_INTERVAL_MS * 3 },
+    );
+    expect(mockedApi.fetchAgentPlugins.mock.calls.length).toBe(callsAtLoading + 1);
+  });
+
+  it("does not poll for an unavailable agent, whose probe the server never warms", async () => {
+    const payload = agentWith("loading");
+    mockedApi.fetchAgentPlugins.mockResolvedValue({
+      agents: [
+        {
+          ...payload.agents[0],
+          unavailable: { reason: "plugin-unavailable", message: "The plugin is not running." },
+        },
+      ],
+    } as never);
+
+    const { result } = renderHookWithProviders(() => useAgentPlugins());
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await new Promise((resolve) => setTimeout(resolve, PROBE_POLL_INTERVAL_MS * 1.5));
+    expect(mockedApi.fetchAgentPlugins).toHaveBeenCalledTimes(1);
   });
 
   it("does not poll when no probe is loading", async () => {
