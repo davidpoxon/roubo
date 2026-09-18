@@ -20,6 +20,8 @@ import {
 import { validateAgentConfig } from "../services/agent-config-validator.js";
 import { buildCompatibilityState, warmAgentVersion } from "../services/agent-version-probe.js";
 import { listAgentPresets } from "../services/agent-presets.js";
+import { readChoiceProbe, warmChoiceProbes } from "../services/agent-probe-runner.js";
+import { materializeChoices } from "../services/choice-materializer.js";
 
 // App-level agent configuration API (AP-FR-002, AP-FR-003, issue #508).
 //
@@ -63,16 +65,28 @@ function toState(manifest: PluginManifest): AgentPluginState {
   // plugin is one the host refuses to run, so it must not get a manifest-declared
   // command spawned on its behalf either. Its card still renders the declared
   // window, just without a detected version.
+  //
+  // Choice probes (#852) follow the same rule: warmed in the background under the
+  // same gate, read from the cache only. A resolved field's choices are merged
+  // into a copy of the schema as oneOf const/title branches, so the form draws it
+  // like any static choice list; the sibling map reports each probed field's
+  // state. Saving still validates against the manifest's static schema.
   if (!isAgentNotAvailable(resolved)) {
     warmAgentVersion(manifest.id, manifest.agentCompatibility, manifest.agentInstallLocations);
+    warmChoiceProbes(manifest.id, manifest.choiceProbes, manifest.agentInstallLocations);
   }
   const compatibility = buildCompatibilityState(manifest.id, manifest.agentCompatibility);
+  const { configSchema, choiceProbes } = materializeChoices(
+    manifest.configSchema,
+    manifest.choiceProbes,
+    (field) => readChoiceProbe(manifest.id, field),
+  );
   return {
     id: manifest.id,
     name: manifest.name,
     version: manifest.version,
     description: manifest.description,
-    configSchema: manifest.configSchema,
+    configSchema,
     // Read per plugin id, so an unreadable file for one agent degrades to an
     // empty form for that agent alone and never breaks the whole list.
     config: getEffectiveAgentConfig(manifest.id),
@@ -80,6 +94,7 @@ function toState(manifest: PluginManifest): AgentPluginState {
       ? { reason: resolved.reason, message: describeAgentNotAvailable(resolved) }
       : null,
     ...(compatibility !== undefined && { compatibility }),
+    ...(choiceProbes !== undefined && { choiceProbes }),
   };
 }
 

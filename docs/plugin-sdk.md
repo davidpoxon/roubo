@@ -213,6 +213,14 @@ The host runs a choice probe the same way it runs the version probe: it resolves
 
 A successful result is reused for about 60 seconds, so opening the settings screen twice in that window spawns the CLI once. A failed result is never kept: the next read runs the probe again, and it reports the failure rather than a list an earlier run returned.
 
+When a probe resolves, the host writes its choices into the `configSchema` that the **Settings > AI Agents** screen reads. The field's property gets a `oneOf` of `{ const, title }` branches, one per choice, with the value as `const` and the label as `title`. That is the same shape a static choice list uses, so the form draws a probed field with the same control as any other choice field and marks neither as probed. The form shows each label and saves the value. For the `model` example above, a CLI that prints `gpt-5 - GPT-5` serves this property:
+
+```json
+{ "type": "string", "oneOf": [{ "const": "gpt-5", "title": "GPT-5" }] }
+```
+
+A resolved probe keeps every other key on that property. The host changes only the served copy of the schema, never your manifest, and it validates a save against the schema your manifest declares, so a user can still save the field while its probe is loading or has failed. For the same reason, declare a probed field as a plain `{ "type": "string" }` with no `enum` or `oneOf` of its own: a static list in the manifest would reject every probed value it does not name. Beside `configSchema`, each agent in the response carries a `choiceProbes` map with one entry per probed field: `{ "state": "loading" }` before the first result, `{ "state": "resolved" }` when the choices are in the schema, and `{ "state": "failed", "cause": "...", "reason": "..." }` when the probe failed, where `cause` is `command-not-found`, `probe-error`, `parse-error` or `timeout`. The map is absent for a plugin that declares no `choiceProbes`.
+
 The declaration lives on the manifest rather than on the descriptor because the host runs it when the settings screen needs the choices, before any launch context exists. It is optional, so a manifest that omits it validates unchanged.
 
 Note the `roubo` range. The key landed in host API **1.6.0**, and the manifest schema is strict, so the same rule as [`agentInstallLocations`](#where-your-agent-cli-installs) applies: declare `^1.6.0` (or higher) whenever you declare `choiceProbes`.

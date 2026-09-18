@@ -38,6 +38,14 @@ vi.mock("../services/agent-launch-pipeline.js", async (importOriginal) => {
   return { ...actual, resolveLaunchAgentId: vi.fn() };
 });
 
+// The choice probe is mocked at its two route-facing calls, so a case can set
+// each field's cached outcome directly and assert the warm without spawning. The
+// runner itself (which the version probe also uses) stays real.
+vi.mock("../services/agent-probe-runner.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/agent-probe-runner.js")>();
+  return { ...actual, warmChoiceProbes: vi.fn(), readChoiceProbe: vi.fn() };
+});
+
 import router from "./agents.js";
 import { loadSettings } from "../services/state.js";
 import { resolveLaunchAgentId } from "../services/agent-launch-pipeline.js";
@@ -45,6 +53,7 @@ import * as registry from "../services/agent-plugin-registry.js";
 import * as overrides from "../services/agent-overrides.js";
 import { probeAgentVersion, resetAgentVersionProbeCache } from "../services/agent-version-probe.js";
 import { resetAgentConfigValidatorCache } from "../services/agent-config-validator.js";
+import { readChoiceProbe, warmChoiceProbes } from "../services/agent-probe-runner.js";
 
 function app() {
   const a = express();
@@ -443,5 +452,121 @@ describe("GET /api/agents compatibility block (AP-TC-113, AP-TC-114)", () => {
     const res = await request(app()).get("/api/agents");
 
     expect(res.body.agents[0].compatibility).toBeUndefined();
+  });
+});
+
+describe("GET /api/agents probed choices (#852, APCC-TC-002, APCC-TC-003)", () => {
+  const CHOICE_PROBES = {
+    model: { command: "agent", args: ["models"], parse: "dash-line-pairs" as const },
+  };
+
+  const PROBED_SCHEMA = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      model: { type: "string", title: "Model" },
+      effort: {
+        type: "string",
+        title: "Effort",
+        oneOf: [
+          { const: "low", title: "Low" },
+          { const: "high", title: "High" },
+        ],
+      },
+    },
+  };
+
+  const PROBED = {
+    ...manifest("cursor-cli", "Cursor CLI", PROBED_SCHEMA),
+    choiceProbes: CHOICE_PROBES,
+    agentInstallLocations: ["~/.local/bin"],
+  } as PluginManifest;
+
+  it("warms the declared choice probes and reports a field with no outcome yet as loading", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([PROBED]);
+    vi.mocked(readChoiceProbe).mockReturnValue(undefined);
+
+    const res = await request(app()).get("/api/agents");
+
+    expect(vi.mocked(warmChoiceProbes)).toHaveBeenCalledWith("cursor-cli", CHOICE_PROBES, [
+      "~/.local/bin",
+    ]);
+    expect(res.body.agents[0].choiceProbes).toEqual({ model: { state: "loading" } });
+    expect(res.body.agents[0].configSchema).toEqual(PROBED_SCHEMA);
+  });
+
+  it("serves resolved choices in the same oneOf shape a static choice field uses", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([PROBED]);
+    vi.mocked(readChoiceProbe).mockImplementation((pluginId, field) =>
+      pluginId === "cursor-cli" && field === "model"
+        ? {
+            status: "ok",
+            value: [
+              { value: "gpt-5", label: "GPT-5" },
+              { value: "sonnet-4", label: "Sonnet 4" },
+            ],
+            at: Date.now(),
+          }
+        : undefined,
+    );
+
+    const res = await request(app()).get("/api/agents");
+    const { model, effort } = res.body.agents[0].configSchema.properties;
+
+    expect(res.body.agents[0].choiceProbes).toEqual({ model: { state: "resolved" } });
+    expect(model).toEqual({
+      type: "string",
+      title: "Model",
+      oneOf: [
+        { const: "gpt-5", title: "GPT-5" },
+        { const: "sonnet-4", title: "Sonnet 4" },
+      ],
+    });
+    // Same keys, same branch shape: the form cannot tell the two apart.
+    expect(Object.keys(model).sort()).toEqual(Object.keys(effort).sort());
+    expect(Object.keys(model.oneOf[0]).sort()).toEqual(Object.keys(effort.oneOf[0]).sort());
+    // The shared registry object is never rewritten by a read.
+    expect(PROBED_SCHEMA.properties.model).toEqual({ type: "string", title: "Model" });
+  });
+
+  it("reports a failed probe with its cause and serves the declared property unchanged", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([PROBED]);
+    vi.mocked(readChoiceProbe).mockReturnValue({
+      status: "failed",
+      cause: "command-not-found",
+      reason: "Command not found: agent",
+      at: Date.now(),
+    });
+
+    const res = await request(app()).get("/api/agents");
+
+    expect(res.body.agents[0].choiceProbes).toEqual({
+      model: { state: "failed", cause: "command-not-found", reason: "Command not found: agent" },
+    });
+    expect(res.body.agents[0].configSchema).toEqual(PROBED_SCHEMA);
+  });
+
+  it("omits the state map for a manifest that declares no choice probes", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([CLAUDE]);
+
+    const res = await request(app()).get("/api/agents");
+
+    expect(res.body.agents[0]).not.toHaveProperty("choiceProbes");
+    expect(res.body.agents[0].configSchema).toEqual(CLAUDE_SCHEMA);
+    expect(vi.mocked(readChoiceProbe)).not.toHaveBeenCalled();
+  });
+
+  it("never warms a choice probe for an agent the host refuses to run", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([PROBED]);
+    vi.mocked(registry.resolveAgent).mockReturnValue({
+      reason: "not-consented",
+      pluginId: "cursor-cli",
+    } as ReturnType<typeof registry.resolveAgent>);
+    vi.mocked(readChoiceProbe).mockReturnValue(undefined);
+
+    const res = await request(app()).get("/api/agents");
+
+    expect(vi.mocked(warmChoiceProbes)).not.toHaveBeenCalled();
+    expect(res.body.agents[0].unavailable).toMatchObject({ reason: "not-consented" });
   });
 });
