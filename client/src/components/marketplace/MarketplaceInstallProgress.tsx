@@ -26,7 +26,7 @@ const STAGE_LABELS = [
 
 const BADGE_CLASS: Record<StageStatus, string> = {
   pending:
-    "bg-stone-50 dark:bg-stone-800/60 text-stone-300 dark:text-stone-300 border-stone-200 dark:border-stone-700",
+    "bg-stone-50 dark:bg-stone-800/60 text-stone-500 dark:text-stone-400 border-stone-200 dark:border-stone-700",
   active:
     "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/50",
   done: "bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-900/50",
