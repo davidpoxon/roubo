@@ -11,7 +11,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import type { AddressInfo } from "node:net";
 
@@ -85,13 +85,23 @@ describe("ensureNotifierInstalled (issue #698)", () => {
 });
 
 describe("the notifier script itself", () => {
-  it("rejects an invocation carrying no event payload", () => {
+  it("rejects an invocation carrying no arguments with a usage exit", () => {
     const script = path.join(home, "probe-arity");
     fs.writeFileSync(script, buildNotifierScript("http://127.0.0.1:1/api/hooks/x"), {
       mode: 0o755,
     });
 
-    expect(() => execFileSync(script, ["token-only"], { stdio: "pipe" })).toThrow();
+    let status: number | null = null;
+    try {
+      execFileSync(script, [], { stdio: "pipe" });
+    } catch (err) {
+      status = (err as { status: number | null }).status;
+    }
+    expect(status).toBe(2);
+  });
+
+  it("selects the stdin path by argument count alone, never by a terminal test", () => {
+    expect(buildNotifierScript("http://127.0.0.1:1/api/hooks/x")).not.toContain("[ -t");
   });
 
   it("exits cleanly when the host is not listening, so a turn never fails on it", () => {
@@ -161,5 +171,137 @@ describe("the notifier script itself", () => {
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }
+  });
+
+  // Issue roubo-development#855 (APCC-TC-005, APCC-TC-006): a token as the
+  // only argument reads the event JSON from standard input and posts the same
+  // body to the same endpoint as the argument path.
+  describe("with the payload on standard input", () => {
+    const token = "4d2e8a10-7b3c-4f1e-a9d0-2c5b6e7f8a9b";
+
+    async function withListener(
+      fn: (endpoint: string, next: () => Promise<string>) => Promise<void>,
+    ): Promise<void> {
+      const bodies: string[] = [];
+      const waiters: ((body: string) => void)[] = [];
+      const server = http.createServer((req, res) => {
+        let raw = "";
+        req.setEncoding("utf-8");
+        req.on("data", (chunk: string) => {
+          raw += chunk;
+        });
+        req.on("end", () => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end("{}");
+          const waiter = waiters.shift();
+          if (waiter) waiter(raw);
+          else bodies.push(raw);
+        });
+      });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const port = (server.address() as AddressInfo).port;
+      const next = () => {
+        const queued = bodies.shift();
+        if (queued !== undefined) return Promise.resolve(queued);
+        return new Promise<string>((resolve) => waiters.push(resolve));
+      };
+      try {
+        await fn(`http://127.0.0.1:${port}/api/hooks/agent-notification`, next);
+      } finally {
+        await new Promise((resolve) => server.close(resolve));
+      }
+    }
+
+    function writeScript(name: string, endpoint: string): string {
+      const script = path.join(home, name);
+      fs.writeFileSync(script, buildNotifierScript(endpoint), { mode: 0o755 });
+      return script;
+    }
+
+    function runWithStdin(script: string, args: string[], input: string): Promise<number | null> {
+      return new Promise((resolve, reject) => {
+        const child = spawn(script, args, { stdio: ["pipe", "ignore", "ignore"] });
+        child.on("error", reject);
+        child.on("exit", (code) => resolve(code));
+        child.stdin.end(input);
+      });
+    }
+
+    it("posts the token and the stdin payload to the endpoint", async () => {
+      await withListener(async (endpoint, next) => {
+        const script = writeScript("probe-stdin", endpoint);
+        const payload = '{"type":"stop","msg":"she said \\"go\\"\nlog at C:\\\\tmp"}';
+
+        expect(await runWithStdin(script, [token], payload)).toBe(0);
+
+        const body = JSON.parse(await next());
+        expect(body).toEqual({ token, payload });
+      });
+    });
+
+    it("posts the same body as the payload-argument path", async () => {
+      await withListener(async (endpoint, next) => {
+        const script = writeScript("probe-stdin-parity", endpoint);
+        const payload = '{"type":"stop","status":"completed"}';
+
+        await execFileAsync(script, [token, payload]);
+        const fromArgv = await next();
+        // A trailing newline, as a writer piping JSON usually sends, is not
+        // part of the payload on either path.
+        expect(await runWithStdin(script, [token], `${payload}\n`)).toBe(0);
+        const fromStdin = await next();
+
+        expect(fromStdin).toBe(fromArgv);
+      });
+    });
+
+    it("posts an empty payload when stdin closes without data", async () => {
+      await withListener(async (endpoint, next) => {
+        const script = writeScript("probe-stdin-empty", endpoint);
+
+        expect(await runWithStdin(script, [token], "")).toBe(0);
+
+        expect(JSON.parse(await next())).toEqual({ token, payload: "" });
+      });
+    });
+
+    it("stops within the bound when stdin is held open, leaving no live child", async () => {
+      const script = writeScript("probe-stdin-held", "http://127.0.0.1:1/api/hooks/x");
+      // Detached, so the notifier leads its own process group and any reader
+      // it starts in the background is a member of that group.
+      const child = spawn(script, ["held"], {
+        stdio: ["pipe", "ignore", "ignore"],
+        detached: true,
+      });
+      const pgid = child.pid;
+      if (pgid === undefined) throw new Error("the notifier did not start");
+      const started = Date.now();
+
+      // Stdin is written to but never ended, so no end of file arrives.
+      child.stdin.write('{"type":"stop"');
+      const code = await new Promise<number | null>((resolve) => child.on("exit", resolve));
+      const elapsed = Date.now() - started;
+
+      expect(code).toBe(0);
+      expect(elapsed).toBeLessThan(10_000);
+
+      // The leader has been reaped, so the group is empty only if no child of
+      // the notifier outlived it.
+      let groupAlive = true;
+      try {
+        process.kill(-pgid, 0);
+      } catch (err) {
+        groupAlive = (err as NodeJS.ErrnoException).code !== "ESRCH";
+      }
+      if (groupAlive) {
+        try {
+          process.kill(-pgid, "SIGKILL");
+        } catch {
+          // Already gone.
+        }
+      }
+      expect(groupAlive).toBe(false);
+      child.stdin.destroy();
+    }, 20_000);
   });
 });
