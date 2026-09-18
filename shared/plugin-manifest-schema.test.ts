@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import {
   PluginManifestSchema,
   PluginDefaultIntegrationConfigSchema,
+  ChoiceProbeParseModeSchema,
   isValidAgentInstallLocation,
   type PluginManifest,
 } from "./plugin-manifest-schema.js";
@@ -701,6 +702,89 @@ describe("PluginManifestSchema: agent kind may not declare processes (#632, AP-N
   });
 });
 
+// #850, APCC-TC-001: a configuration field may bind a host-executed choice
+// probe. The directive mirrors agentCompatibility.probe field for field, with a
+// closed set of shape-named parse modes in place of `semver`.
+describe("PluginManifestSchema: choiceProbes (#850, APCC-TC-001)", () => {
+  const directive = {
+    command: "example-cli",
+    args: ["models", "--list"],
+    parse: "dash-line-pairs" as const,
+  };
+
+  it("S001: accepts a choice probe and reads back command, args and parse", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ kind: "agent", choiceProbes: { model: directive } }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const probe = result.data.choiceProbes?.model;
+      expect(probe?.command).toBe("example-cli");
+      expect(probe?.args).toEqual(["models", "--list"]);
+      expect(probe?.parse).toBe("dash-line-pairs");
+    }
+  });
+
+  it("S002: rejects an unrecognised parse mode with an error naming the parse field", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        kind: "agent",
+        choiceProbes: {
+          model: { ...directive, parse: "csv" } as unknown as typeof directive,
+        },
+      }),
+    );
+    expectFieldError(result, "choiceProbes.model.parse");
+  });
+
+  it("rejects the version-probe literal, which reads a version rather than choices", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        choiceProbes: { model: { ...directive, parse: "semver" } as unknown as typeof directive },
+      }),
+    );
+    expectFieldError(result, "choiceProbes.model.parse");
+  });
+
+  it("is optional: a manifest with no choiceProbes still validates", () => {
+    const result = PluginManifestSchema.safeParse(makeManifest());
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.choiceProbes).toBeUndefined();
+  });
+
+  it("is not kind-gated: an integration manifest may declare one", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ choiceProbes: { model: directive } }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty command naming the field", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ choiceProbes: { model: { ...directive, command: "" } } }),
+    );
+    expectFieldError(result, "choiceProbes.model.command");
+  });
+
+  it("rejects an empty args list naming the field", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({ choiceProbes: { model: { ...directive, args: [] } } }),
+    );
+    expectFieldError(result, "choiceProbes.model.args");
+  });
+
+  it("rejects an unknown key inside a directive (strict)", () => {
+    const result = PluginManifestSchema.safeParse(
+      makeManifest({
+        choiceProbes: {
+          model: { ...directive, options: {} } as unknown as typeof directive,
+        },
+      }),
+    );
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-013, AP-NFR-004)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const pluginsDir = resolve(here, "..", "plugins");
@@ -730,6 +814,7 @@ describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-01
       // The agent-only block is absent on every existing manifest (zero new
       // required fields imposed on them).
       expect(manifest.agentCompatibility).toBeUndefined();
+      expect(manifest.choiceProbes).toBeUndefined();
     });
   }
 });
@@ -1085,6 +1170,22 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     expect(probeProps.command.type).toBe("string");
     expect(probeProps.args.type).toBe("array");
     expect(probeProps.parse.const).toBe("semver");
+  });
+
+  it("declares an optional choiceProbes map of strict directives (lockstep with zod, #850)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const choiceProbes = properties.choiceProbes;
+    expect(choiceProbes.type).toBe("object");
+    expect((jsonSchema.required as string[]).includes("choiceProbes")).toBe(false);
+    const probe = choiceProbes.additionalProperties as Record<string, unknown>;
+    expect(probe.type).toBe("object");
+    expect(probe.additionalProperties).toBe(false);
+    expect(probe.required).toEqual(["command", "args", "parse"]);
+    const probeProps = probe.properties as Record<string, Record<string, unknown>>;
+    expect(Object.keys(probeProps).sort()).toEqual(["args", "command", "parse"]);
+    expect(probeProps.command.type).toBe("string");
+    expect(probeProps.args.type).toBe("array");
+    expect(probeProps.parse.enum).toEqual(ChoiceProbeParseModeSchema.options);
   });
 
   // Same reason as the processes gate above: this artifact is hand-authored and

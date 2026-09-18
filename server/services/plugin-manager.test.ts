@@ -230,8 +230,8 @@ afterEach(async () => {
 });
 
 describe("host-API version", () => {
-  it("reports host-API 1.5.0 (agentInstallLocations floor: issue #715)", () => {
-    expect(pluginManager.HOST_API_VERSION).toBe("1.5.0");
+  it("reports host-API 1.6.0 (choiceProbes floor: issue #850)", () => {
+    expect(pluginManager.HOST_API_VERSION).toBe("1.6.0");
   });
 });
 

@@ -85,7 +85,13 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // `roubo: ^1.5.0`. Teaching the host to answer with the version it needs
 // instead of an unknown-key error, so the gate stops resting on release order,
 // is #719.
-export const HOST_API_VERSION = "1.5.0";
+// 1.6.0 (issue #850): the optional `choiceProbes` manifest key lands, binding a
+// configuration field to a host-executed probe with a named parse mode. Same
+// additive class and the same reason for its own version as 1.5.0: the key is
+// optional, so every plugin built against 1.0.0 through 1.5.0 keeps working
+// unchanged, but the strict manifest schema means a manifest declaring it must
+// pin `roubo: ^1.6.0` for a clean, version-named refusal from an older host.
+export const HOST_API_VERSION = "1.6.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
 export const SHUTDOWN_GRACE_MS = 5000;
