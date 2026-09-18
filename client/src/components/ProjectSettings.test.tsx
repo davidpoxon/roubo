@@ -196,6 +196,16 @@ describe("ProjectSettings", () => {
       expect(screen.getByRole("tab", { name: "Marketplaces" })).toBeInTheDocument();
     });
 
+    it("renders inactive tabs in the text-secondary token for both themes (#885)", () => {
+      render();
+      const inactive = screen.getByRole("tab", { name: "Appearance" });
+      expect(inactive).toHaveAttribute("aria-selected", "false");
+      // stone-500 on light and stone-400 on dark both clear WCAG AA 4.5:1.
+      expect(inactive.className).toContain("text-stone-500");
+      expect(inactive.className).toContain("dark:text-stone-400");
+      expect(inactive.className).not.toContain("dark:text-stone-500");
+    });
+
     it("no longer renders the legacy Integrations tab", () => {
       render();
       expect(screen.queryByRole("tab", { name: "Integrations" })).toBeNull();

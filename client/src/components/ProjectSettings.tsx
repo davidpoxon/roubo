@@ -727,7 +727,7 @@ export default function ProjectSettings() {
                   "px-4 py-2.5 text-[13px] font-medium capitalize outline-none transition-colors duration-100 -mb-px border-b-2",
                   isSelected
                     ? "text-stone-900 dark:text-stone-100 border-amber-500"
-                    : "text-stone-400 dark:text-stone-500 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
+                    : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
                   isFocusVisible
                     ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
                     : "",
