@@ -18,7 +18,8 @@
 // Two rules:
 //
 //   1. Unpinned spec. A dependency spec in any first-party `package.json`
-//      (root or workspace) that is not an exact `x.y.z`. This is the "no `^`
+//      (root or workspace) that is not an exact `x.y.z`, directly or through
+//      an `npm:<name>@x.y.z` alias. This is the "no `^`
 //      ranges" rule in CLAUDE.md, enforced at its source.
 //
 //   2. Lock drift. The lockfile's record of a first-party spec disagrees with
@@ -47,6 +48,23 @@ const DEP_KINDS = ["dependencies", "devDependencies", "optionalDependencies", "p
 // else (`^1.2.3`, `~1.2.3`, `>=1.2.3`, `1.x`, `*`, a git or file URL) is a
 // range or an alternate protocol, and is not an exact pin.
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+// An npm alias (`npm:<name>@<version>`) swaps in a different package, as the
+// `extract-zip` override does. It is a pin when its version part is exact:
+// `npm:@scope/pkg@1.2.3` passes, `npm:@scope/pkg@^1.2.3` and a bare
+// `npm:pkg` do not.
+const NPM_ALIAS = /^npm:((?:@[^/@]+\/)?[^/@]+)@(.+)$/;
+
+/**
+ * Whether a spec pins exactly one version, directly or through an npm alias.
+ *
+ * @param {string} spec
+ * @returns {boolean}
+ */
+function isExactPin(spec) {
+  const alias = NPM_ALIAS.exec(spec);
+  return EXACT_VERSION.test(alias ? alias[2] : spec);
+}
 
 /**
  * The lockfile key mirroring a workspace's manifest. The root manifest is
@@ -115,7 +133,7 @@ export function scanPins(lock, manifests) {
         if (ownPackages.has(dependency)) continue;
 
         // Rule 1: the manifest itself must carry an exact pin.
-        if (!EXACT_VERSION.test(spec)) {
+        if (!isExactPin(spec)) {
           findings.push({
             file,
             dependency,
@@ -176,7 +194,7 @@ export function scanPins(lock, manifests) {
   // A range here would let that pair drift apart silently. The lockfile does
   // not mirror `overrides`, so only the exact-pin rule applies.
   walkOverrides(manifests[""]?.overrides ?? {}, [], (path, dependency, spec) => {
-    if (EXACT_VERSION.test(spec)) return;
+    if (isExactPin(spec)) return;
     findings.push({
       file: "package.json",
       dependency,
