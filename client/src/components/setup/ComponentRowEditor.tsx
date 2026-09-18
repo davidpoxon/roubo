@@ -412,7 +412,7 @@ export default function ComponentRowEditor({
                 </Button>
               </div>
               {envDraft.length === 0 ? (
-                <p className="text-[11px] text-stone-500 dark:text-stone-700">
+                <p className="text-[11px] text-stone-500 dark:text-stone-400">
                   No environment variables.
                 </p>
               ) : (
@@ -452,7 +452,7 @@ export default function ComponentRowEditor({
             <div>
               <span className={FIELD_LABEL}>Depends on</span>
               {otherComponentNames.length === 0 ? (
-                <p className="text-[11px] text-stone-500 dark:text-stone-700">
+                <p className="text-[11px] text-stone-500 dark:text-stone-400">
                   No other components.
                 </p>
               ) : (
@@ -520,7 +520,7 @@ export default function ComponentRowEditor({
                         />
                       </TextField>
                     </div>
-                    <p className="text-[11px] text-stone-500 dark:text-stone-700 italic">
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 italic">
                       Migration, env file, and compose variables are preserved from YAML.
                     </p>
                   </div>
@@ -529,7 +529,7 @@ export default function ComponentRowEditor({
             )}
 
             {component.type === "database" && (
-              <p className="text-[11px] text-stone-500 dark:text-stone-700 italic">
+              <p className="text-[11px] text-stone-500 dark:text-stone-400 italic">
                 Init service, build env vars, and compose variables are preserved from YAML.
               </p>
             )}

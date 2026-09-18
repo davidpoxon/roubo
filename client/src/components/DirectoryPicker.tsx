@@ -170,7 +170,7 @@ export default function DirectoryPicker({ value, onChange, onSubmit }: Directory
                 )}
 
                 {data.entries.length === 0 && (
-                  <div className="px-4 py-6 text-sm text-stone-300 dark:text-stone-700 text-center">
+                  <div className="px-4 py-6 text-sm text-stone-500 dark:text-stone-400 text-center">
                     No subdirectories
                   </div>
                 )}

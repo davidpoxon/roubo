@@ -87,7 +87,7 @@ function ComponentStatusText({ status, startedAt }: { status: string; startedAt?
   if (status === "starting" && elapsed) {
     return (
       <span className="text-[11px] text-stone-600 dark:text-stone-400">
-        {status} <span className="text-stone-500 dark:text-stone-700 font-mono">{elapsed}</span>
+        {status} <span className="text-stone-500 dark:text-stone-400 font-mono">{elapsed}</span>
       </span>
     );
   }
@@ -102,7 +102,7 @@ function ComponentePhaseDetail({ detail, startedAt }: { detail: string; startedA
         <span className="w-1 h-1 rounded-full bg-amber-500/50" />
         <span className="text-[11px] text-amber-500/70">{detail}</span>
         {elapsed && (
-          <span className="text-[11px] text-stone-500 dark:text-stone-700 font-mono">
+          <span className="text-[11px] text-stone-500 dark:text-stone-400 font-mono">
             {elapsed}
           </span>
         )}

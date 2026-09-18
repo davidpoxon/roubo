@@ -288,7 +288,7 @@ export default function SpecPickerModal({
 
   // Render one selectable spec row. Shared by both groups so selection stays a
   // single controlled ToggleButtonGroup; `muted` de-emphasizes the all-passed
-  // rows via colour hierarchy (slug and icon drop to muted stone). Every text
+  // rows via colour hierarchy (the slug drops to muted stone). Every text
   // class holds the per-theme AA floor (text-stone-500 on white, dark:text-stone-400
   // on the stone-900 modal, both >= 4.5:1); the path sits at that floor in both
   // groups, so muting collapses there and the hierarchy reads via the slug (#493).
@@ -313,12 +313,7 @@ export default function SpecPickerModal({
             : "border-stone-200 dark:border-stone-800/60 hover:border-stone-300 dark:hover:border-stone-700/60 hover:bg-stone-50 dark:hover:bg-stone-800/40"
         }`}
       >
-        <FileText
-          size={15}
-          className={`shrink-0 mt-0.5 ${
-            muted ? "text-stone-300 dark:text-stone-400" : "text-stone-500 dark:text-stone-400"
-          }`}
-        />
+        <FileText size={15} className="shrink-0 mt-0.5 text-stone-500 dark:text-stone-400" />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <span

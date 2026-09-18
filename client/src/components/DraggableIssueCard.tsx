@@ -147,7 +147,7 @@ export default function DraggableIssueCard({
             {issue.title}
           </span>
           <span
-            className={`block text-[11px] font-mono mb-1.5 ${isAssigned ? "text-stone-300 dark:text-stone-700" : "text-stone-600 dark:text-stone-400"}`}
+            className={`block text-[11px] font-mono mb-1.5 ${isAssigned ? "text-stone-500 dark:text-stone-400" : "text-stone-600 dark:text-stone-400"}`}
           >
             {shortIssueRef(issue.externalId)}
           </span>
@@ -186,7 +186,7 @@ export default function DraggableIssueCard({
         <div onPointerDown={(e) => e.stopPropagation()}>
           <Button
             onPress={() => window.open(issue.externalUrl, "_blank")}
-            className="shrink-0 p-1 text-stone-300 dark:text-stone-700 hover:text-stone-500 dark:hover:text-stone-400 transition-colors outline-none opacity-0 group-hover:opacity-100"
+            className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none opacity-0 group-hover:opacity-100"
             aria-label={`Open ${issue.externalId} in browser`}
           >
             <ExternalLink size={11} />
