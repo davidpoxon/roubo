@@ -217,6 +217,42 @@ describe("scanPins overrides (DependencyPinGuard)", () => {
     expect(findings[0].reason).toMatch(/not an exact version/);
   });
 
+  it("accepts an npm alias override pinned to an exact version", () => {
+    const findings = scanPins(
+      { packages: { "": {} } },
+      {
+        "": {
+          name: "roubo",
+          workspaces: [],
+          overrides: {
+            "extract-zip": "npm:@electron-internal/extract-zip@1.0.5",
+            foo: "npm:bar@2.0.0-rc.1",
+          },
+        },
+      },
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it("flags an npm alias override that is a range or carries no version", () => {
+    const findings = scanPins(
+      { packages: { "": {} } },
+      {
+        "": {
+          name: "roubo",
+          workspaces: [],
+          overrides: {
+            "extract-zip": "npm:@electron-internal/extract-zip@^1.0.5",
+            foo: "npm:bar",
+            baz: "npm:@scope/qux",
+          },
+        },
+      },
+    );
+    expect(findings.map((f) => f.dependency)).toEqual(["extract-zip", "foo", "baz"]);
+    expect(findings[0].reason).toMatch(/not an exact version/);
+  });
+
   it("recurses into a nested override scope and reports its path", () => {
     const findings = scanPins(
       { packages: { "": {} } },
