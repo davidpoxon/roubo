@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import {
@@ -815,6 +815,49 @@ describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-01
       // required fields imposed on them).
       expect(manifest.agentCompatibility).toBeUndefined();
       expect(manifest.choiceProbes).toBeUndefined();
+    });
+  }
+});
+
+// Issue #856 (APCC-NFR-004, APCC-TC-007 S001): the two contract additions
+// (`choiceProbes` on the manifest, the `file-notifier` wiring on the launch
+// descriptor) break nothing already shipped. Every manifest in this repo that a
+// host loads, the first-party plugins and the agent overlays the e2e suite
+// installs in place of the published agent plugins, is enumerated from disk
+// rather than listed, so a plugin added later is covered without editing this
+// test. Each one must validate byte-for-byte unchanged and must not need the new
+// key to do so.
+describe("PluginManifestSchema: every shipped manifest validates unchanged (issue #856, APCC-TC-007)", () => {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const MANIFEST_ROOTS = ["plugins", "e2e/fixtures/bundled-overlays"];
+
+  const manifests = MANIFEST_ROOTS.flatMap((root) =>
+    readdirSync(resolve(repoRoot, root), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => `${root}/${entry.name}/roubo-plugin.yaml`)
+      .filter((file) => existsSync(resolve(repoRoot, file))),
+  );
+
+  it("finds the first-party plugins and the agent overlays", () => {
+    expect(manifests).toEqual(
+      expect.arrayContaining([
+        "plugins/github-com/roubo-plugin.yaml",
+        "plugins/process/roubo-plugin.yaml",
+        "plugins/database/roubo-plugin.yaml",
+        "e2e/fixtures/bundled-overlays/claude-code/roubo-plugin.yaml",
+        "e2e/fixtures/bundled-overlays/codex-cli/roubo-plugin.yaml",
+      ]),
+    );
+  });
+
+  for (const file of manifests) {
+    it(`${file} validates unchanged and declares none of the new fields`, async () => {
+      const { parseManifest } = await import("./plugin-manifest.js");
+      const path = resolve(repoRoot, file);
+      const result = parseManifest(readFileSync(path, "utf-8"), path);
+      if (!result.ok) throw new Error(`${file} no longer validates: ${result.error.message}`);
+      // Parsed as written, with no new key added, so no manifest needs a new field.
+      expect(result.manifest.choiceProbes).toBeUndefined();
     });
   }
 });

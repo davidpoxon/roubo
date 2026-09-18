@@ -8,9 +8,10 @@
 // Three rule sets:
 //
 //   1. Agent-specific identifier. A declaration, property, or member access
-//      whose NAME embeds a vendor agent name (claude / codex), e.g.
-//      `ClaudeCodeSettings`, `getClaudeBinary`, `writeClaudeSettingsLocal`,
-//      `settings.claudeCode`, `codexBinary`. Core names no agent, so an
+//      whose NAME embeds a vendor agent name (claude / codex / cursor-cli /
+//      cursor-agent), e.g. `ClaudeCodeSettings`, `getClaudeBinary`,
+//      `writeClaudeSettingsLocal`, `settings.claudeCode`, `codexBinary`,
+//      `CursorCliSettings`, `cursorAgentBinary`. Core names no agent, so an
 //      identifier that does means an agent-specific branch has come back.
 //
 //   2. Inline agent CLI flag. A native agent CLI flag assembled in core
@@ -70,10 +71,21 @@ import { readFileSync } from "node:fs";
 
 const ROOTS = ["server", "shared"];
 
+// The vendor agent names the rules match, as one regex alternation.
+//
+// Cursor is matched only as `cursor-cli` / `cursor-agent` (and the joined or
+// underscored spellings an identifier uses, `CursorCli`, `cursor_agent`), never
+// as bare `cursor` (#856, APCC-NFR-006). Core already says `cursor` hundreds of
+// times for pagination (`nextCursor`, `cursor: string | null`), so a bare match
+// would drown the guard in false positives and be allowlisted into uselessness.
+// The qualified spellings are the ones a Cursor-specific branch would actually
+// carry: the settings type, the binary lookup, the `cursor-agent` CLI name.
+const AGENT_NAMES = "claude|codex|cursor[-_]?(?:cli|agent)";
+
 // Rule 1: an identifier token embedding a vendor agent name. Anchored on word
 // boundaries so it matches the whole identifier, and case-insensitive so both
 // `ClaudeCodeSettings` and `claudeCode` are caught.
-const AGENT_IDENTIFIER = /\b[A-Za-z0-9_$]*(?:claude|codex)[A-Za-z0-9_$]*\b/gi;
+const AGENT_IDENTIFIER = new RegExp(`\\b[A-Za-z0-9_$]*(?:${AGENT_NAMES})[A-Za-z0-9_$]*\\b`, "gi");
 
 // Rule 2: a native agent CLI flag assembled inline in core.
 const AGENT_CLI_FLAGS = [
@@ -96,7 +108,7 @@ const AGENT_CLI_FLAG = new RegExp(`(${AGENT_CLI_FLAGS.map(escapeRegExp).join("|"
 // agent. Three alternatives (operand on the right, a `case` label, operand on
 // the left); each carries its own quote-delimiter backreference, so the group
 // numbers are 1, 2, 3 in source order.
-const AGENT_STRING = `[^'"\`\\n]*(?:claude|codex)[^'"\`\\n]*`;
+const AGENT_STRING = `[^'"\`\\n]*(?:${AGENT_NAMES})[^'"\`\\n]*`;
 const AGENT_STRING_DISPATCH = new RegExp(
   [
     `[!=]==?\\s*(['"\`])${AGENT_STRING}\\1`,

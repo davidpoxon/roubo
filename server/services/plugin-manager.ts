@@ -91,6 +91,14 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // optional, so every plugin built against 1.0.0 through 1.5.0 keeps working
 // unchanged, but the strict manifest schema means a manifest declaring it must
 // pin `roubo: ^1.6.0` for a clean, version-named refusal from an older host.
+// The `file-notifier` notification variant (#854) and the notifier's stdin
+// payload mode (#855) ride the same 1.6.0: both are additive members of the
+// launch descriptor rather than manifest keys, so no existing plugin sees them,
+// and a plugin that emits one declares `roubo: ^1.6.0` alongside `choiceProbes`.
+// #856 turns the version-named refusal into a gate: a manifest fixture test
+// drives a Cursor-shaped manifest through a simulated pre-1.6.0 host (both one
+// whose schema lacks the key and one that knows it but sits below the floor)
+// and asserts the refusal names `^1.6.0` rather than an unrecognised key.
 export const HOST_API_VERSION = "1.6.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
@@ -560,6 +568,11 @@ function makeEmptyEntry(record: PluginRecord): PluginEntry {
   };
 }
 
+// Test-only stand-in for an older host (#856): the version the range gate below
+// compares against when a test simulates a host below a manifest's floor. Null
+// in production, so the gate always reads HOST_API_VERSION there.
+let hostApiVersionOverride: string | null = null;
+
 /**
  * The actionable host-incompatibility message for a declared `roubo` range, or
  * null when there is no incompatibility to report (issue #719).
@@ -574,11 +587,14 @@ function makeEmptyEntry(record: PluginRecord): PluginEntry {
  * marketplace listing BEFORE it is downloaded needs the range on the catalog
  * entry, which is #720.
  */
-function incompatibleRangeMessage(declared: string | undefined): string | null {
+function incompatibleRangeMessage(
+  declared: string | undefined,
+  hostVersion: string = hostApiVersionOverride ?? HOST_API_VERSION,
+): string | null {
   if (declared === undefined) return null;
   if (!semver.validRange(declared)) return null;
-  if (semver.satisfies(HOST_API_VERSION, declared, { includePrerelease: false })) return null;
-  return `Plugin requires roubo "${declared}" but host is ${HOST_API_VERSION}`;
+  if (semver.satisfies(hostVersion, declared, { includePrerelease: false })) return null;
+  return `Plugin requires roubo "${declared}" but host is ${hostVersion}`;
 }
 
 interface BuiltEntry {
@@ -2432,6 +2448,17 @@ export const __test = {
     sandboxAuditLog.clear();
     brokerContexts.clear();
     mountUnsharedNoticed.clear();
+    hostApiVersionOverride = null;
+  },
+  // #856: simulate a host below a manifest's declared `roubo` floor, so the
+  // version-named refusal is asserted by a fixture test rather than resting on
+  // release order. Only the discovery-time range gate reads it. Null restores
+  // HOST_API_VERSION; `reset()` also clears it.
+  setHostApiVersion(version: string | null): void {
+    hostApiVersionOverride = version;
+  },
+  incompatibleRangeMessage(declared: string | undefined, hostVersion?: string): string | null {
+    return incompatibleRangeMessage(declared, hostVersion);
   },
   // #677 / #685: the per-call resolver the broker handlers read, exposed so tests
   // can assert which bench context a multiplexed connection resolves the named

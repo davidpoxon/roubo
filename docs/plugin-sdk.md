@@ -541,6 +541,8 @@ The program reads its own argv positionally, so declare the carrier to match: th
 
 Whichever shape you declare, the host raises the same bench notification, and the waiting state clears itself when the session produces fresh output. Quiescence stays armed behind all three, on the 8000ms fallback window rather than the generic 2000ms one, because a turn-complete signal never fires for an agent sitting on an approval prompt.
 
+Note the `roubo` range for `file-notifier` too. The variant, and the notifier's standard-input path it relies on, landed in host API **1.6.0**. Neither is a manifest key, so the manifest schema has nothing to reject, but a host below 1.6.0 does not know the variant, so it rejects a descriptor that declares it and the launch fails. Declare `^1.6.0` (or higher) whenever your descriptor can return `file-notifier`, as you would for `choiceProbes`. A host below the floor then refuses the plugin at install time with a message naming the version it needs.
+
 ### The version probe and its gate
 
 `capabilities.versionProbe` is how a plugin gets the host to check the installed CLI **before** it spawns anything. The plugin declares; the host spawns, parses, and decides. Plugin code never runs a process.

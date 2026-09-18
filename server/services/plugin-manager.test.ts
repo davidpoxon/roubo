@@ -120,6 +120,29 @@ vi.mock("node:child_process", async (importOriginal) => {
   };
 });
 
+// Issue #856 (APCC-TC-009): simulate a host that predates the 1.6.0
+// `choiceProbes` manifest key. The switch swaps the strict manifest schema for
+// the same strict schema with that one key removed, which is the schema every
+// pre-1.6.0 host shipped, so a manifest declaring the key fails the parse on an
+// unrecognised key exactly as it would there. Off by default: every other test
+// in this file sees the real schema.
+const manifestSchemaControl = vi.hoisted(() => ({ preFloor: false }));
+vi.mock("../../shared/plugin-manifest-schema.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../shared/plugin-manifest-schema.js")>();
+  const { z } = await import("zod");
+  const preFloorShape: Partial<typeof actual.PluginManifestSchema.shape> = {
+    ...actual.PluginManifestSchema.shape,
+  };
+  delete preFloorShape.choiceProbes;
+  const preFloorSchema = z.object(preFloorShape).strict();
+  return {
+    ...actual,
+    get PluginManifestSchema() {
+      return manifestSchemaControl.preFloor ? preFloorSchema : actual.PluginManifestSchema;
+    },
+  };
+});
+
 beforeEach(() => {
   enableStateMocks.loadEnableState.mockReset().mockReturnValue(null);
   enableStateMocks.saveEnableState.mockReset();
@@ -476,6 +499,93 @@ permissions:
       code: "incompatible-host",
       message: `Plugin requires roubo "^2.0.0" but host is ${pluginManager.HOST_API_VERSION}`,
     });
+  });
+});
+
+// Issue #856 (APCC-NFR-004, APCC-TC-009): a plugin declaring the 1.6.0
+// `choiceProbes` key pins `roubo: ^1.6.0`, and a host below that floor must
+// refuse it with the version it needs, never with an unrecognised-key error.
+// Both kinds of older host are simulated: one whose strict schema does not know
+// the key (the refusal has to come from the declared range before the schema
+// error wins, #719) and one that knows the key but sits below the floor. The
+// fixture is a real on-disk manifest, so this is a gate on the behaviour rather
+// than a release-order convention.
+describe("a below-floor host refuses a choice-probe manifest by version (issue #856)", () => {
+  const FIXTURE = "agent-choice-probe";
+  const PRE_FLOOR_HOST = "1.5.0";
+  const REFUSAL = `Plugin requires roubo "^1.6.0" but host is ${PRE_FLOOR_HOST}`;
+
+  afterEach(() => {
+    manifestSchemaControl.preFloor = false;
+  });
+
+  it("the fixture declares the 1.6.0 key and pins the 1.6.0 floor", async () => {
+    const { parseManifest } = await import("@roubo/shared");
+    const { readFile } = await import("node:fs/promises");
+    const manifestPath = path.join(FIXTURES_ROOT, FIXTURE, "roubo-plugin.yaml");
+    const parsed = parseManifest(await readFile(manifestPath, "utf8"), manifestPath);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.manifest.kind).toBe("agent");
+    expect(parsed.manifest.roubo).toBe("^1.6.0");
+    expect(parsed.manifest.choiceProbes).toEqual({
+      model: { command: "probe-agent", args: ["models"], parse: "dash-line-pairs" },
+    });
+
+    // The simulated older host genuinely fails the strict parse on that key.
+    manifestSchemaControl.preFloor = true;
+    const preFloor = parseManifest(await readFile(manifestPath, "utf8"), manifestPath);
+    expect(preFloor.ok).toBe(false);
+    if (preFloor.ok) return;
+    expect(preFloor.error.message).toContain("choiceProbes");
+    expect(preFloor.error.declaredRoubo).toBe("^1.6.0");
+  });
+
+  it("a host whose schema lacks the key names the version it needs, not the unrecognised key", async () => {
+    manifestSchemaControl.preFloor = true;
+    sandbox = await makeSandbox({ bundled: [FIXTURE] });
+    mgr = await loadManager();
+    mgr.__test.setHostApiVersion(PRE_FLOOR_HOST);
+    await mgr.initialize();
+    const installed = mgr.listInstalled();
+    expect(installed).toHaveLength(1);
+    const record = installed[0];
+    expect(record.status).toBe("incompatible");
+    expect(record.lastError?.code).toBe("incompatible-host");
+    expect(record.lastError?.message).toBe(REFUSAL);
+    expect(record.lastError?.message).not.toContain("choiceProbes");
+    expect(record.lastError?.message).not.toMatch(/unrecognized|unrecognised/i);
+    expect(record.pid).toBeNull();
+  });
+
+  it("a host that knows the key but sits below the floor gives the same refusal", async () => {
+    sandbox = await makeSandbox({ bundled: [FIXTURE] });
+    mgr = await loadManager();
+    mgr.__test.setHostApiVersion(PRE_FLOOR_HOST);
+    await mgr.initialize();
+    const record = findRecord(mgr.listInstalled(), FIXTURE);
+    expect(record.status).toBe("incompatible");
+    expect(record.manifest?.choiceProbes).toBeDefined();
+    expect(record.lastError).toEqual({ code: "incompatible-host", message: REFUSAL });
+    expect(record.pid).toBeNull();
+  });
+
+  it("the current host accepts the manifest and spawns the plugin", async () => {
+    sandbox = await makeSandbox({ bundled: [FIXTURE] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const record = findRecord(mgr.listInstalled(), FIXTURE);
+    expect(record.lastError).toBeFalsy();
+    expect(record.status).toBe("enabled");
+    expect(record.manifest?.choiceProbes?.model.parse).toBe("dash-line-pairs");
+    expect(typeof record.pid).toBe("number");
+  });
+
+  it("the range gate takes the host version it compares against", () => {
+    const gate = pluginManager.__test.incompatibleRangeMessage;
+    expect(gate("^1.6.0", PRE_FLOOR_HOST)).toBe(REFUSAL);
+    expect(gate("^1.6.0", "1.6.0")).toBeNull();
+    expect(gate("^1.6.0")).toBeNull();
   });
 });
 
