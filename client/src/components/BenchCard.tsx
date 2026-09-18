@@ -33,7 +33,7 @@ const borderColor: Record<string, string> = {
   preparing: "border-l-amber-500",
   error: "border-l-red-500",
   clearing: "border-l-amber-500",
-  idle: "border-l-stone-200 dark:border-l-stone-800",
+  idle: "border-l-border",
 };
 
 export default function BenchCard({
@@ -97,9 +97,7 @@ export default function BenchCard({
       >
         <div
           className={`border-l-[3px] ${
-            bench.error
-              ? "border-l-red-500"
-              : (borderColor[bench.status] ?? "border-l-stone-200 dark:border-l-stone-800")
+            bench.error ? "border-l-red-500" : (borderColor[bench.status] ?? "border-l-border")
           } bg-stone-100 dark:bg-stone-900/50 group-hover:bg-stone-200 dark:group-hover:bg-stone-800/70 rounded-xl transition-colors duration-150 h-full ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/30`}
         >
           <div className="p-4 flex flex-col h-full">
@@ -111,15 +109,13 @@ export default function BenchCard({
                 </p>
               )}
               <div className="flex items-center gap-1.5">
-                <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                  Bench {bench.id}
-                </p>
+                <p className="text-sm font-semibold text-text-primary">Bench {bench.id}</p>
                 <NotificationIndicator notifications={bench.notifications} />
               </div>
             </div>
 
             {/* Branch */}
-            <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mt-2.5 shrink-0">
+            <div className="flex items-center gap-1.5 text-xs text-text-secondary mt-2.5 shrink-0">
               <GitBranch size={12} className="shrink-0 text-stone-600 dark:text-stone-400" />
               <span className="truncate">{bench.branch}</span>
             </div>
@@ -127,7 +123,7 @@ export default function BenchCard({
             {/* Assigned issue */}
             {bench.assignedIssue && (
               <div className="flex items-center gap-1.5 text-xs text-stone-500 mt-2.5 shrink-0">
-                <span className="font-mono text-amber-800 dark:text-amber-200 shrink-0">
+                <span className="font-mono text-accent-text shrink-0">
                   {displayIssueRef(bench.assignedIssue)}
                 </span>
                 <span className="truncate">{bench.assignedIssue.title}</span>
@@ -169,7 +165,7 @@ export default function BenchCard({
                   {componentEntries.map(([name, component]) => (
                     <span key={name} className="flex items-center gap-1.5">
                       <ComponentStatusDot status={component.status} label={name} />
-                      <span className="text-[11px] text-stone-500 dark:text-stone-400">{name}</span>
+                      <span className="text-[11px] text-text-secondary">{name}</span>
                       {matchedPorts.has(name) && (
                         <span className="text-[11px] font-mono text-stone-600 dark:text-stone-400">
                           :{matchedPorts.get(name)}
@@ -217,7 +213,7 @@ export default function BenchCard({
             )}
 
             {isPrimaryStartCTA && (
-              <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-2 shrink-0 truncate">
+              <p className="text-[11px] text-text-secondary mt-2 shrink-0 truncate">
                 Idle · click Start to run components
               </p>
             )}
@@ -243,7 +239,7 @@ export default function BenchCard({
                 >
                   {isRunning ? <Square size={13} /> : <Play size={13} />}
                 </Button>
-                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
+                <Tooltip className="bg-tooltip-bg text-tooltip-text text-xs px-2 py-1 rounded-md shadow-lg">
                   {isRunning ? "Stop all components" : "Start all components on this bench"}
                 </Tooltip>
               </TooltipTrigger>
@@ -256,7 +252,7 @@ export default function BenchCard({
                 >
                   {isProvisioning ? <X size={13} /> : <Trash2 size={13} />}
                 </Button>
-                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
+                <Tooltip className="bg-tooltip-bg text-tooltip-text text-xs px-2 py-1 rounded-md shadow-lg">
                   {isProvisioning ? "Cancel preparing" : "Clear bench"}
                 </Tooltip>
               </TooltipTrigger>
@@ -274,15 +270,12 @@ export default function BenchCard({
         <Modal className="w-full max-w-sm mx-4">
           <Dialog
             ref={stampAriaModal}
-            className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+            className="bg-bg-surface border border-border rounded-xl shadow-2xl outline-none"
           >
             {({ close }) => (
               <>
                 <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                  <Heading
-                    slot="title"
-                    className="text-sm font-semibold text-stone-900 dark:text-stone-100"
-                  >
+                  <Heading slot="title" className="text-sm font-semibold text-text-primary">
                     {isProvisioning ? "Cancel preparing" : "Clear bench"}
                   </Heading>
                 </div>
@@ -298,7 +291,7 @@ export default function BenchCard({
                 <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                   <Button
                     onPress={close}
-                    className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                    className="px-3 py-1.5 text-sm text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
                   >
                     Cancel
                   </Button>
