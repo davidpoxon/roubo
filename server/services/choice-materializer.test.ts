@@ -18,7 +18,7 @@ function schema(): Record<string, unknown> {
     type: "object",
     additionalProperties: false,
     properties: {
-      model: { type: "string", title: "Model", description: "Which model", enum: ["auto"] },
+      model: { type: "string", title: "Model", description: "Which model" },
       effort: {
         type: "string",
         title: "Effort",
@@ -50,11 +50,10 @@ describe("materializeChoices (#852)", () => {
     ]);
   });
 
-  it("drops the static enum and keeps every other key on the probed property", () => {
+  it("keeps every other key on the probed property", () => {
     const { configSchema } = materializeChoices(schema(), PROBES, reader({ model: ok(CHOICES) }));
     const model = (configSchema?.properties as Record<string, Record<string, unknown>>).model;
 
-    expect(model).not.toHaveProperty("enum");
     expect(model).toMatchObject({ type: "string", title: "Model", description: "Which model" });
   });
 

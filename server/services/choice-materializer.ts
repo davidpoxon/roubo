@@ -39,9 +39,11 @@ function stateOf(outcome: ProbeResult<ProbeChoice[]> | undefined): AgentChoicePr
  * Merge each resolved choice probe into a copy of `configSchema`, and report
  * every probed field's state beside it.
  *
- * A resolved field's property gets `oneOf: [{ const, title }]` and loses any
- * static `enum` (which the seam would otherwise read first); every other key on
- * the property is kept. A loading or failed field's property is left as the
+ * A resolved field's property gets `oneOf: [{ const, title }]`; every other key
+ * on the property is kept. A stray static `enum` is dropped defensively (the
+ * seam would otherwise read it first), but a probed field should declare none:
+ * saves validate against the manifest's own schema, which a static list would
+ * narrow below the probed choices. A loading or failed field's property is left as the
  * manifest declared it. A probed field with no matching property is ignored in
  * the schema but still reported in the state map. No probe marker is written
  * into the schema.
