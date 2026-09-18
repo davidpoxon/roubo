@@ -23,12 +23,16 @@ import {
 // "AP-TC-102".
 const observe = makeObserve("AP-TC-102");
 
-// AP-TC-102 (#530, AP-WU-029) - E2E: an existing user upgrades, sees the
-// first-run notice, configures the plugin, and launches with parity intact.
+// AP-TC-102 (#530, AP-WU-029) - E2E: an existing user upgrades, configures the
+// plugin, and launches with parity intact.
+//
+// #1277 removed the first-run agent migration notice from the UI, so S001 now
+// asserts that no such notice renders for an upgrading install, and the
+// notice-dismissal step (S006) is gone.
 //
 // One of the three integration-level drift guards for the AP-US-007 journey
 // (AP-FR-018, AP-FR-021). It walks the authoritative AP-TC-102 e2e_flow steps
-// S001-S006 as ordered, attributable observations against the REAL built app. On
+// S001-S005 as ordered, attributable observations against the REAL built app. On
 // divergence each observation routes through the FR-020 failure-output contract
 // (see ../component-plugins/_support/step-runner.ts): the failure reports which
 // step diverged, the expected-vs-actual, and the owning slice issue(s) from this
@@ -37,7 +41,7 @@ const observe = makeObserve("AP-TC-102");
 // HOW THE UPGRADE PRECONDITION IS MET. "The user is upgrading from a build that
 // had built-in agent settings" is a state nothing in the product can produce any
 // more: #521 deleted the field and left only a reader behind the
-// `legacyAgentSettingsPresent` flag the notice is gated on. `POST
+// `legacyAgentSettingsPresent` flag the (now removed) notice was gated on. `POST
 // /test/__seed-legacy-agent-settings` (ROUBO_E2E only) plants that residue, and
 // the teardown removes it, because `/test/__reset` does not truncate
 // `settings.json` and a seeded upgrade would otherwise leak into every later
@@ -50,17 +54,9 @@ const observe = makeObserve("AP-TC-102");
 // manifest, so the config form renders the real fields and the launch descriptor
 // carries the real notification wiring. This guard therefore cannot prove the
 // shipped plugin's own mapping; it proves the HOST-side integrated path across
-// the upgrade: the notice appearing exactly once, the config form opening on the
+// the upgrade: no migration notice rendering, the config form opening on the
 // PLUGIN's defaults rather than anything derived from the residue, and a
 // jig-driven launch still injecting and still wiring its hook afterwards.
-//
-// ONE PLACE THE SHIPPED COPY IS NARROWER THAN THE CASE'S WORDING, asserted
-// against what ships rather than silently reworded: S001-O02 says the notice
-// states that "auto mode, plan mode" were not migrated. The shipped notice says
-// "Your previous agent preferences were not carried over" without enumerating
-// them, which is deliberate: since #521 no user-facing string in core names a
-// specific agent's modes (docs/brand.md). The observation asserts the
-// non-migration statement, not the enumeration.
 
 const PROJECT_ID = "ap-tc-102-upgrade-parity";
 const BENCH_ID = 1;
@@ -89,6 +85,7 @@ const PLUGIN_DEFAULTS = { model: "Account default", effort: "CLI default", mode:
 const CHOSEN = { model: "opus", effort: "high", mode: "plan" } as const;
 const EXPECTED_FLAGS = ["--model", "opus", "--effort", "high", "--permission-mode", "plan"];
 
+/** The removed first-run notice's testid; S001 asserts it no longer renders. */
 const NOTICE_TESTID = "agent-migration-notice";
 const SETTINGS_REL_PATH = path.join(".claude", "settings.local.json");
 const HOOK_ENDPOINT = "/api/hooks/claude-notification";
@@ -135,12 +132,6 @@ const STEPS: Record<string, JourneyStep> = {
     id: "S005",
     instruction: "Let the session reach a waiting state and inspect the bench workspace",
     owners: [SLICE.notify, SLICE.permissions],
-  },
-  S006: {
-    id: "S006",
-    instruction:
-      "Dismiss the first-run notice and navigate away from and back to the AI Agents screen",
-    owners: [SLICE.removal],
   },
 };
 
@@ -246,10 +237,7 @@ test.beforeEach(async ({ request }) => {
   expect(reset.status(), "POST /test/__reset").toBe(200);
 
   // Precondition: "The user is upgrading from a build that had built-in agent
-  // settings (auto mode on, plan mode on)" and "The first-run notice has not yet
-  // been shown". The residue is planted here; the notice's own dismissal marker
-  // lives in localStorage, which every Playwright test gets fresh, so nothing
-  // has to clear it.
+  // settings (auto mode on, plan mode on)". The residue is planted here.
   await seedLegacyAgentSettings(request, LEGACY_AGENT_SETTINGS);
 
   await consentAgent(request, CLAUDE_PLUGIN_ID);
@@ -298,7 +286,7 @@ test.afterEach(async ({ request }) => {
   await destroyAllSessions(request);
   // Hand the environment back as a FRESH install. `settings.json` outlives
   // `/test/__reset`, so a residue left here would make every later spec's AI
-  // Agents screen render the upgrade notice (NFR-018).
+  // Agents screen run as an upgrade (NFR-018).
   await seedLegacyAgentSettings(request, null);
   await setDefaultJig(request, null);
   await setDefaultAgent(request, null);
@@ -307,41 +295,31 @@ test.afterEach(async ({ request }) => {
   clearCapturedArgv();
 });
 
-test("AP-TC-102: an upgrading user sees the first-run notice once, configures the plugin, and launches with parity intact (S001-S006)", async ({
+test("AP-TC-102: an upgrading user sees no migration notice, configures the plugin, and launches with parity intact (S001-S005)", async ({
   page,
   request,
 }) => {
-  // Six steps across three surfaces, a PTY spawn and a notification round trip,
+  // Five steps across three surfaces, a PTY spawn and a notification round trip,
   // so the default 30s budget is not the thing under test.
   test.setTimeout(180_000);
 
   const workspacePath = await readBenchWorkspacePath(request, PROJECT_ID, BENCH_ID);
 
-  // --- S001: the first-run notice on the AI Agents screen -------------------
+  // --- S001: the AI Agents screen shows no migration notice ------------------
   await openAgentsScreen(page);
-  const notice = page.getByTestId(NOTICE_TESTID);
-  // A TOLERATED wait, not an assertion: a notice that never renders leaves the
-  // observations below to report the divergence through the FR-020 block rather
-  // than failing here as an unattributed Playwright timeout.
-  await notice.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
-  // Text is read ONCE so the booleans and the reported actual cannot disagree.
-  const noticeCount = await notice.count();
-  const noticeText = noticeCount === 1 ? ((await notice.textContent()) ?? "").trim() : "";
+  // Wait for the screen to settle before reading the count, so a zero read is
+  // not taken before the screen has rendered at all.
+  await page
+    .getByTestId(`agent-plugin-card-${CLAUDE_PLUGIN_ID}`)
+    .waitFor({ state: "visible", timeout: 15_000 })
+    .catch(() => {});
+  const noticeCount = await page.getByTestId(NOTICE_TESTID).count();
   observe(
     STEPS.S001,
     "S001-O01",
-    noticeCount === 1 &&
-      /agent plugin/i.test(noticeText) &&
-      /set its defaults here/i.test(noticeText),
-    "a first-run notice banner states that agent configuration moved to plugin settings",
-    noticeCount === 1 ? JSON.stringify(noticeText) : "no first-run notice rendered",
-  );
-  observe(
-    STEPS.S001,
-    "S001-O02",
-    noticeCount === 1 && /not carried over/i.test(noticeText),
-    "the notice states that the previous preferences were not migrated (see the header note on the copy)",
-    noticeCount === 1 ? JSON.stringify(noticeText) : "no first-run notice rendered",
+    noticeCount === 0,
+    "no first-run agent migration notice renders on the AI Agents screen (#1277)",
+    `notices on screen=${noticeCount}`,
   );
 
   // --- S002: the config form opens on the PLUGIN's own defaults -------------
@@ -373,8 +351,8 @@ test("AP-TC-102: an upgrading user sees the first-run notice once, configures th
   };
   // The stored record is the other half of the evidence: a form showing the
   // schema's defaults over a config silently derived from the residue would be
-  // indistinguishable on screen, and this is exactly the migration the notice
-  // promises did not happen.
+  // indistinguishable on screen, and this is exactly the migration that must
+  // not happen.
   const configRes = await request.get(`/api/agents/${CLAUDE_PLUGIN_ID}/config`);
   expect(configRes.status(), `GET /api/agents/${CLAUDE_PLUGIN_ID}/config`).toBe(200);
   const stored = (await configRes.json()) as { config?: Record<string, unknown> };
@@ -503,35 +481,5 @@ test("AP-TC-102: an upgrading user sees the first-run notice once, configures th
     workspaceSettings === null
       ? `no readable ${settingsFile}`
       : `permissions=${JSON.stringify({ allow, ask, deny })}, hooks.Notification=${notificationHook}`,
-  );
-
-  // --- S006: dismissing the notice is remembered ----------------------------
-  const dismiss = page.getByRole("button", { name: "Dismiss agent settings notice" });
-  await expect(dismiss, "the first-run notice offers a dismiss action").toBeVisible();
-  await dismiss.click();
-  await page.goto("/");
-  await openAgentsScreen(page);
-  // Give the notice every chance to come back before reading the count: it is
-  // gated on a settings fetch, so a zero read too early would pass for the wrong
-  // reason.
-  await page
-    .getByTestId(`agent-plugin-card-${CLAUDE_PLUGIN_ID}`)
-    .waitFor({ state: "visible", timeout: 15_000 })
-    .catch(() => {});
-  const reappeared = await page.getByTestId(NOTICE_TESTID).count();
-  // The residue is still on disk (nothing removes it), so the server still
-  // reports the install as an upgrade. Only the remembered dismissal keeps the
-  // notice down, which is what makes this "exactly once" rather than "until the
-  // signal goes away".
-  const settingsRes = await request.get("/api/settings");
-  expect(settingsRes.status(), "GET /api/settings").toBe(200);
-  const stillUpgrading = ((await settingsRes.json()) as { legacyAgentSettingsPresent?: boolean })
-    .legacyAgentSettingsPresent;
-  observe(
-    STEPS.S006,
-    "S006-O01",
-    reappeared === 0 && stillUpgrading === true,
-    "the first-run notice does not reappear after navigating away and back, even though the install still reports as an upgrade",
-    `notices on screen=${reappeared}, legacyAgentSettingsPresent=${String(stillUpgrading)}`,
   );
 });
