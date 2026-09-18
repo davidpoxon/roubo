@@ -95,6 +95,7 @@ The manifest is validated by [`schema/roubo-plugin.schema.json`](../schema/roubo
 | `defaultIntegrationConfig`      | object                                  | Optional. Plugin-global defaults seeded into the three-layer effective-config merge (per-project and per-source layers override these). See [Default integration config](#default-integration-config)                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `agentCompatibility`            | object                                  | Optional (agent plugins). Agent-CLI compatibility window `{ minVersion?, testedCeiling?, probe? }`; the two versions are exact semver. The host blocks a launch below `minVersion`, warns above `testedCeiling`, and uses `probe` to detect the installed version without launching. See [Agent compatibility](#agent-compatibility)                                                                                                                                                                                                                                                                                                             |
 | `agentInstallLocations`         | string[]                                | Optional (agent plugins). Where your agent CLI installs itself, probed in declared order when it is not on the `PATH` the server inherits. Each entry is absolute or `~/`-prefixed, with no `..` segment and no `{{ }}` template. Rejected on a non-`agent` manifest. See [Where your agent CLI installs](#where-your-agent-cli-installs)                                                                                                                                                                                                                                                                                                        |
+| `choiceProbes`                  | object                                  | Optional. Binds a `configSchema` field to a host-executed probe whose output populates that field's choices, keyed by field name. Each value is `{ command, args, parse }`, all three required. See [Configuration choice probes](#configuration-choice-probes)                                                                                                                                                                                                                                                                                                                                                                                  |
 
 `host.fetch` to a host outside `network.hosts` is rejected with a structured error before any DNS lookup. `host.credentials.get/set` to a slot not declared in `permissions.credentials.slots` is rejected before the keyring is touched.
 
@@ -178,6 +179,33 @@ The list belongs on the manifest rather than on the descriptor because it is ins
 Every entry is a **candidate, not an instruction**. The host does the probing throughout: a candidate counts only when it is a regular file the host may execute, the first such candidate wins, and a total miss still fails the launch with an error naming every location tried. Nothing outside the list you declared is ever spawned, and a malformed entry is refused at manifest validation rather than probed. Declaring the list does not let your plugin spawn anything it could not already name.
 
 A plugin that declares nothing keeps today's behaviour: `PATH`, then Roubo's own legacy table, which is frozen at one base name. When you do declare a list, it **replaces** that table for your CLI rather than adding to it, so your plugin's answer is the whole answer for its own binary. The same list is used by the version probe, so the AI Agents card detects the version of the binary a launch would actually spawn.
+
+### Configuration choice probes
+
+Some configuration fields take a value from a list that only the installed CLI knows, such as the models it can run. `choiceProbes` binds such a field to a probe the host runs, so the list comes from the CLI rather than from a hard-coded enum in your manifest:
+
+```yaml
+roubo: ^1.6.0
+configSchema:
+  type: object
+  properties:
+    model:
+      type: string
+choiceProbes:
+  # Keyed by the configuration field name the probe populates.
+  model:
+    command: example-cli
+    args:
+      - models
+      - --list
+    parse: dash-line-pairs
+```
+
+Each probe has the same three fields as [`agentCompatibility.probe`](#agent-compatibility): `command` (a bare name or an absolute path, resolved the same way a launch resolves it), `args` (spawned as argv, never through a shell), and `parse`. All three are required. `parse` names the shape of the output, not the tool that produces it, and it takes no options. The one mode today is `dash-line-pairs`: a listing where each choice is one `<value> - <label>` line. Any other `parse` value fails manifest validation with an error at the `parse` field.
+
+The declaration lives on the manifest rather than on the descriptor because the host runs it when the settings screen needs the choices, before any launch context exists. It is optional, so a manifest that omits it validates unchanged.
+
+Note the `roubo` range. The key landed in host API **1.6.0**, and the manifest schema is strict, so the same rule as [`agentInstallLocations`](#where-your-agent-cli-installs) applies: declare `^1.6.0` (or higher) whenever you declare `choiceProbes`.
 
 ## Agent contract
 

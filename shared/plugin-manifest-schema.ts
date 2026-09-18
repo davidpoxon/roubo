@@ -215,6 +215,43 @@ export const AgentVersionProbeDirectiveSchema = z
   .strict();
 export type AgentVersionProbeDirective = z.infer<typeof AgentVersionProbeDirectiveSchema>;
 
+// ── Choice probes ──
+
+// A plugin may bind a configuration field to a host-executed probe whose output
+// populates that field's choices (#850, APCC-FR-001). The declaration mirrors
+// `AgentVersionProbeDirectiveSchema` field for field, differing only in the
+// parse literal, and it lives on the manifest rather than on the launch
+// descriptor because a settings-time probe runs before any launch context
+// exists. Keys are configuration field names.
+//
+// `parse` is a closed set of literals that each name an OUTPUT SHAPE, never an
+// agent, so the set stays agent-agnostic and `lint:agent-guard` has nothing to
+// catch. `dash-line-pairs` (spike #848) is a listing of `<value> - <label>`
+// lines; the line rule itself belongs to the probe runner (#851), and the
+// literal takes no options. An unrecognised mode is rejected at the `parse`
+// path rather than ignored: a probe the host cannot read is an authoring error.
+//
+// Optional, so every existing manifest validates unchanged. Executing the probe
+// and rendering its choices are separate slices.
+export const ChoiceProbeParseModeSchema = z.enum(["dash-line-pairs"]);
+export type ChoiceProbeParseMode = z.infer<typeof ChoiceProbeParseModeSchema>;
+
+export const ChoiceProbeDirectiveSchema = z
+  .object({
+    /** The bare CLI name (or absolute path); the host resolves it as the launch does. */
+    command: z.string().min(1, "Required"),
+    args: z.array(z.string()).min(1, "Required"),
+    parse: ChoiceProbeParseModeSchema,
+  })
+  .strict();
+export type ChoiceProbeDirective = z.infer<typeof ChoiceProbeDirectiveSchema>;
+
+export const ChoiceProbesSchema = z.record(
+  z.string().min(1, "Required"),
+  ChoiceProbeDirectiveSchema,
+);
+export type ChoiceProbes = z.infer<typeof ChoiceProbesSchema>;
+
 // ── Agent install locations ──
 
 // Where an agent plugin's own CLI installs itself when it is not on the PATH the
@@ -326,6 +363,10 @@ export const PluginManifestSchema = z
     // Optional, so every existing manifest validates unchanged; a plugin that
     // declares nothing resolves through PATH alone, as it does today.
     agentInstallLocations: AgentInstallLocationsSchema.optional(),
+    // Configuration fields whose choices a host-executed probe populates (#850),
+    // keyed by configuration field name. Optional, so every existing manifest
+    // validates unchanged. Not kind-gated: the declaration names no agent.
+    choiceProbes: ChoiceProbesSchema.optional(),
   })
   .strict()
   // An agent plugin may not declare a `processes` permission (issue #632,

@@ -169,6 +169,33 @@
       "description": "Agent-plugin field: where this plugin's agent CLI installs itself, probed in order when the CLI is not on the PATH the server inherits. Each entry is an absolute or ~/-prefixed path, with no .. segment and no {{ }} template. Candidates only: the host still requires an executable regular file and still fails a total miss with an error naming every location tried. Optional; a plugin that declares nothing resolves through PATH alone. Kept in lockstep with AgentInstallLocationsSchema in shared/plugin-manifest-schema.ts.",
       "examples": [["~/.local/bin/codex", "/opt/homebrew/bin/codex", "/usr/local/bin/codex"]]
     },
+    "choiceProbes": {
+      "type": "object",
+      "description": "Configuration fields whose choices a host-executed probe populates, keyed by configuration field name. Each value mirrors agentCompatibility.probe with a different parse mode. Optional; every existing manifest validates unchanged. Kept in lockstep with ChoiceProbesSchema in shared/plugin-manifest-schema.ts.",
+      "propertyNames": { "minLength": 1 },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "args", "parse"],
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The CLI to run, as a bare name or an absolute path. Resolved the same way the launch resolves it."
+          },
+          "args": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" },
+            "description": "Arguments passed to the probe command, spawned as argv and never through a shell."
+          },
+          "parse": {
+            "enum": ["dash-line-pairs"],
+            "description": "How to read choices out of the probe output. dash-line-pairs reads a listing of `<value> - <label>` lines."
+          }
+        }
+      }
+    },
     "permissions": {
       "type": "object",
       "description": "Manifest-declared permissions. Additional categories may appear in future host versions and are accepted without error.",

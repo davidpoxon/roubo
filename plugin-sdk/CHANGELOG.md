@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
+## [Unreleased]
+
+### Added
+
+- **`choiceProbes` on the plugin manifest, and the `ChoiceProbeDirective`, `ChoiceProbeParseMode` and `ChoiceProbes` types** (#850). A manifest may bind a configuration field to a host-executed probe, keyed by field name. Each directive mirrors `agentCompatibility.probe` field for field (`command`, `args`, `parse`), with a closed set of shape-named parse modes in place of `semver`; the one mode today is `dash-line-pairs`. An unrecognised mode fails validation with an error at the `parse` field. The key is optional, so every existing manifest validates unchanged, but the manifest schema is strict, so a manifest declaring it needs host API `^1.6.0` (the host API moves to 1.6.0 with this change). The declaration only: running the probe is #851.
+
 ## [0.4.0] - 2026-08-23
 
 Two additive fields on the component provision descriptor. Both landed on `main` after `0.3.0` was tagged, so this release carries them together. Nothing is removed or narrowed, every `0.3.0` descriptor still validates, and there are no breaking changes.

@@ -102,6 +102,9 @@ export type {
   PluginLifecycle,
   AgentCompatibility,
   AgentVersionProbeDirective,
+  ChoiceProbeDirective,
+  ChoiceProbeParseMode,
+  ChoiceProbes,
 } from "./plugin-manifest-schema.js";
 
 export { parseManifest } from "./plugin-manifest.js";
