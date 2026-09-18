@@ -23,7 +23,7 @@ const ALLOWLIST = new Set([
   // The dialog must never render an em dash; this assertion checks its absence.
   "client/src/components/ClearBenchDirtyDialog.test.tsx:88",
   // The brand guide states the rule and shows the forbidden glyph as an example.
-  "docs/brand.md:230",
+  "docs/brand.md:215",
   // The plugin SDK doc states the same rule and shows the glyph as an example.
   "docs/plugin-sdk.md:1095",
 ]);

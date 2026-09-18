@@ -12,20 +12,25 @@
  * DESIGN.md gains or loses a semantic colour.
  */
 .dark {
-  --color-accent-border: var(--color-accent-border-dark);
-  --color-accent-surface: var(--color-accent-surface-dark);
   --color-accent-text: var(--color-accent-text-dark);
+  --color-agent-swatch-1: var(--color-agent-swatch-1-dark);
+  --color-agent-swatch-2: var(--color-agent-swatch-2-dark);
+  --color-agent-swatch-3: var(--color-agent-swatch-3-dark);
+  --color-agent-swatch-4: var(--color-agent-swatch-4-dark);
+  --color-agent-swatch-5: var(--color-agent-swatch-5-dark);
+  --color-agent-swatch-6: var(--color-agent-swatch-6-dark);
   --color-bg-base: var(--color-bg-base-dark);
+  --color-bg-field: var(--color-bg-field-dark);
   --color-bg-hover: var(--color-bg-hover-dark);
-  --color-bg-hover-strong: var(--color-bg-hover-strong-dark);
+  --color-bg-inverse: var(--color-bg-inverse-dark);
+  --color-bg-pressed: var(--color-bg-pressed-dark);
   --color-bg-surface: var(--color-bg-surface-dark);
   --color-border: var(--color-border-dark);
   --color-border-strong: var(--color-border-strong-dark);
   --color-danger-border: var(--color-danger-border-dark);
-  --color-danger-callout-text: var(--color-danger-callout-text-dark);
   --color-danger-surface: var(--color-danger-surface-dark);
   --color-danger-text: var(--color-danger-text-dark);
-  --color-idle: var(--color-idle-dark);
+  --color-focus-ring: var(--color-focus-ring-dark);
   --color-issue-label-text: var(--color-issue-label-text-dark);
   --color-issue-milestone: var(--color-issue-milestone-dark);
   --color-issue-milestone-text: var(--color-issue-milestone-text-dark);
@@ -36,14 +41,17 @@
   --color-kind-agent-border: var(--color-kind-agent-border-dark);
   --color-kind-agent-surface: var(--color-kind-agent-surface-dark);
   --color-kind-agent-text: var(--color-kind-agent-text-dark);
+  --color-project-status-in-progress: var(--color-project-status-in-progress-dark);
+  --color-project-status-ready: var(--color-project-status-ready-dark);
+  --color-project-status-todo: var(--color-project-status-todo-dark);
+  --color-status-active: var(--color-status-active-dark);
+  --color-status-error: var(--color-status-error-dark);
+  --color-status-idle: var(--color-status-idle-dark);
+  --color-status-preparing: var(--color-status-preparing-dark);
   --color-success-border: var(--color-success-border-dark);
   --color-success-surface: var(--color-success-surface-dark);
   --color-success-text: var(--color-success-text-dark);
   --color-text-body: var(--color-text-body-dark);
-  --color-text-muted: var(--color-text-muted-dark);
   --color-text-primary: var(--color-text-primary-dark);
   --color-text-secondary: var(--color-text-secondary-dark);
-  --color-text-secondary-raised: var(--color-text-secondary-raised-dark);
-  --color-tooltip-bg: var(--color-tooltip-bg-dark);
-  --color-tooltip-text: var(--color-tooltip-text-dark);
 }
