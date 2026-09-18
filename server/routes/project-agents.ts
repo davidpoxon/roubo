@@ -21,6 +21,8 @@ import {
 } from "../services/agent-project-overrides.js";
 import { getEffectiveAgentConfig } from "../services/agent-overrides.js";
 import { validateAgentConfig } from "../services/agent-config-validator.js";
+import { readChoiceProbe, warmChoiceProbes } from "../services/agent-probe-runner.js";
+import { materializeChoices } from "../services/choice-materializer.js";
 
 // Project-level agent configuration API (AP-FR-004, issue #509).
 //
@@ -29,6 +31,12 @@ import { validateAgentConfig } from "../services/agent-config-validator.js";
 // per-field overlay of the two. The PUT body carries the override SUBSET, not a
 // whole config: a key present means the project overrides that field, and an
 // empty object clears every override for that plugin.
+//
+// Probed choices (#884) are served exactly as GET /api/agents serves them: the
+// probes are warmed in the background only for an agent that resolves, read
+// from the cache only, and a resolved field's choices are merged into a copy of
+// the schema beside a `choiceProbes` state map. Save validation and the
+// `misconfigured` check stay on the manifest's declared schema.
 
 const router = Router();
 
@@ -75,12 +83,23 @@ router.get("/:projectId/agents", (req, res) => {
     // A plugin declaring no `configSchema` accepts anything, so it always reads
     // as configured, matching `agent-config-validator.ts`.
     const configErrors = validateAgentConfig(manifest, effective);
+    // Same gate and same cache-only read as the app-level route (APCC-NFR-002):
+    // a warm never runs for an agent the host refuses to run, and the read never
+    // waits on a spawn.
+    if (!isAgentNotAvailable(resolved)) {
+      warmChoiceProbes(manifest.id, manifest.choiceProbes, manifest.agentInstallLocations);
+    }
+    const { configSchema, choiceProbes } = materializeChoices(
+      manifest.configSchema,
+      manifest.choiceProbes,
+      (field) => readChoiceProbe(manifest.id, field),
+    );
     return {
       id: manifest.id,
       name: manifest.name,
       version: manifest.version,
       description: manifest.description,
-      configSchema: manifest.configSchema,
+      configSchema,
       appDefaults: entry?.appDefaults ?? {},
       overrides: entry?.overrides ?? {},
       effective,
@@ -95,6 +114,7 @@ router.get("/:projectId/agents", (req, res) => {
                 .join("; "),
             }
           : null,
+      ...(choiceProbes !== undefined && { choiceProbes }),
     };
   });
 
