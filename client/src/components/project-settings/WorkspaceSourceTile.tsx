@@ -35,7 +35,7 @@ export function WorkspaceSourceTile({
       isDirty={isDirty}
     >
       {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-stone-400 dark:text-stone-600 py-2">
+        <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-2">
           <Spinner />
           Loading...
         </div>
@@ -53,7 +53,7 @@ export function WorkspaceSourceTile({
               description="When creating a new bench, start from the repo's default branch (e.g. main) instead of the currently checked-out branch."
             />
             {draft.branchFromDefault && (
-              <p className="mt-2 text-[11px] text-stone-400 dark:text-stone-600 font-mono leading-relaxed">
+              <p className="mt-2 text-[11px] text-stone-500 dark:text-stone-400 font-mono leading-relaxed">
                 git worktree add &lt;workspacePath&gt; -b &lt;benchBranch&gt;{" "}
                 {settings?.defaultBranch ? settings.defaultBranch : <>&lt;defaultBranch&gt;</>}
               </p>
@@ -82,7 +82,7 @@ export function WorkspaceSourceTile({
               description="Fetch and fast-forward the source branch before creating the new workspace so the bench starts from the latest commit."
             />
             {draft.pullLatest && (
-              <p className="mt-2 text-[11px] text-stone-400 dark:text-stone-600 font-mono leading-relaxed">
+              <p className="mt-2 text-[11px] text-stone-500 dark:text-stone-400 font-mono leading-relaxed">
                 {`git fetch origin ${draft.branchFromDefault ? (settings?.defaultBranch ?? "<defaultBranch>") : "<currentBranch>"} && git merge --ff-only origin/${draft.branchFromDefault ? (settings?.defaultBranch ?? "<defaultBranch>") : "<currentBranch>"}`}
               </p>
             )}

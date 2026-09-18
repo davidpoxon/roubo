@@ -165,7 +165,7 @@ export default function MarketplaceConsentModal({
             </div>
 
             <div className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
                 {STRINGS.progressHeading}
               </p>
               <MarketplaceInstallProgress

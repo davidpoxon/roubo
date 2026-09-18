@@ -102,7 +102,7 @@ interface Props {
 function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between text-[12.5px]">
-      <dt className="text-stone-400 dark:text-stone-500">{label}</dt>
+      <dt className="text-stone-500 dark:text-stone-400">{label}</dt>
       <dd className="text-stone-700 dark:text-stone-200">{children}</dd>
     </div>
   );
@@ -172,7 +172,7 @@ export default function MarketplaceDrawer({
                 <h3 className="text-[16px] font-semibold text-stone-900 dark:text-stone-100">
                   {listing.name}
                 </h3>
-                <p className="mt-0.5 font-mono text-[11px] text-stone-400 dark:text-stone-500">
+                <p className="mt-0.5 font-mono text-[11px] text-stone-500 dark:text-stone-400">
                   {listing.id} · v{listing.version}
                 </p>
               </div>
@@ -262,7 +262,7 @@ export default function MarketplaceDrawer({
 
             {declaredPermissions !== null && (
               <div className="mt-6" data-testid="marketplace-drawer-permissions">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
                   {STRINGS.permissionsHeading}
                 </p>
                 {permissionCategories.length === 0 ? (

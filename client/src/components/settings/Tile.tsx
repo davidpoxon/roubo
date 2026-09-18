@@ -54,7 +54,7 @@ export default function Tile({
               {title}
             </div>
             {secondary && (
-              <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
+              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
                 {secondary}
               </div>
             )}

@@ -195,7 +195,7 @@ function GateCard({
             </Button>
           )}
           <GateStateIndicator status={gate.status} />
-          <ChevronRight aria-hidden="true" className="w-4 h-4 text-stone-400 dark:text-stone-600" />
+          <ChevronRight aria-hidden="true" className="w-4 h-4 text-stone-600 dark:text-stone-400" />
         </div>
       </div>
       {gatingCount > 0 && (
@@ -288,7 +288,7 @@ function SplitDialog({
               onPress={onClose}
               isDisabled={isPending}
               aria-label="Close"
-              className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+              className="text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
             >
               <X size={16} aria-hidden />
             </Button>
@@ -431,7 +431,7 @@ export default function GatesOverview({
   if (specSlug === undefined) {
     return (
       <div className="py-8">
-        <p className="text-sm text-stone-500 dark:text-stone-600">
+        <p className="text-sm text-stone-500 dark:text-stone-400">
           Focus a spec to see its batches.
         </p>
       </div>
@@ -440,7 +440,7 @@ export default function GatesOverview({
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-600 py-8">
+      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-8">
         <Spinner />
         Loading batches...
       </div>
@@ -468,7 +468,7 @@ export default function GatesOverview({
   if (gates.length === 0 && invalidSpecs.length === 0) {
     return (
       <div className="py-8">
-        <p className="text-sm text-stone-500 dark:text-stone-600">
+        <p className="text-sm text-stone-500 dark:text-stone-400">
           This project has no verify gates yet.
         </p>
       </div>
@@ -512,7 +512,7 @@ export default function GatesOverview({
           </>
         ) : (
           <>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
               Batches
             </span>
             {gates.length >= 2 && (

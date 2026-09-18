@@ -240,7 +240,7 @@ export default function TestBenchPanel({
               </span>
             )}
           </p>
-          <p className="text-[11px] font-mono text-stone-400 dark:text-stone-500 truncate">
+          <p className="text-[11px] font-mono text-stone-600 dark:text-stone-400 truncate">
             {focusedSpecPath}
           </p>
           {lifecycle?.archived && lifecycle.supersededBy && (
@@ -345,7 +345,7 @@ export default function TestBenchPanel({
   // BEFORE the error branch so a disabled query is never mistaken for a failure.
   if (!ready) {
     return frame(
-      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-600 py-8">
+      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-8">
         <Spinner />
         Preparing test cases...
       </div>,
@@ -354,7 +354,7 @@ export default function TestBenchPanel({
 
   if (isLoading) {
     return frame(
-      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-600 py-8">
+      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-8">
         <Spinner />
         Loading test cases...
       </div>,
@@ -374,7 +374,7 @@ export default function TestBenchPanel({
   if (data.plan.cases.length === 0) {
     return frame(
       <div className="py-8">
-        <p className="text-sm text-stone-500 dark:text-stone-600">
+        <p className="text-sm text-stone-500 dark:text-stone-400">
           This spec has no test cases yet.
         </p>
       </div>,

@@ -63,7 +63,7 @@ export default function BenchesTab() {
         <div className="flex items-start justify-between mb-8">
           <div>
             <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">Benches</h2>
-            <p className="text-[12px] text-stone-400 dark:text-stone-500 mt-1">
+            <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-1">
               Active and available bench slots.
             </p>
           </div>
@@ -102,14 +102,14 @@ export default function BenchesTab() {
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-stone-400 dark:text-stone-600 py-12">
+          <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-12">
             <Spinner />
             Loading...
           </div>
         )}
 
         {!isLoading && !benchPositions && (
-          <p className="text-sm text-stone-400 dark:text-stone-600 py-12">
+          <p className="text-sm text-stone-500 dark:text-stone-400 py-12">
             No bench configuration found. Check your roubo.yaml.
           </p>
         )}

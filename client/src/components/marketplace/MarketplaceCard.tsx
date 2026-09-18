@@ -148,7 +148,7 @@ function AgentCompatibilityLine({
       data-declared={bounds.length > 0}
       className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500 dark:text-stone-400"
     >
-      <span className="text-stone-400 dark:text-stone-500">{STRINGS.compatibilityLabel}</span>
+      <span className="text-stone-500 dark:text-stone-400">{STRINGS.compatibilityLabel}</span>
       {bounds.length > 0 ? (
         <span className="font-mono">{bounds.join(" · ")}</span>
       ) : (
@@ -219,7 +219,7 @@ export default function MarketplaceCard({
             </Button>
             <KindPill kind={listing.kind} />
           </div>
-          <p className="mt-0.5 font-mono text-[11px] text-stone-400 dark:text-stone-500">
+          <p className="mt-0.5 font-mono text-[11px] text-stone-500 dark:text-stone-400">
             {listing.id}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -242,10 +242,14 @@ export default function MarketplaceCard({
         <div className="flex items-center gap-2 text-[11px]">
           {listing.updateAvailable && listing.installedVersion ? (
             <span data-testid="marketplace-card-version">
-              <span className="font-mono text-stone-400 dark:text-stone-500 line-through">
+              <span className="font-mono text-stone-500 dark:text-stone-400 line-through">
                 v{listing.installedVersion}
               </span>{" "}
-              <ArrowRight size={11} className="inline text-stone-400" aria-hidden />{" "}
+              <ArrowRight
+                size={11}
+                className="inline text-stone-500 dark:text-stone-400"
+                aria-hidden
+              />{" "}
               <span className="font-mono text-amber-700 dark:text-amber-400">
                 v{listing.version}
               </span>

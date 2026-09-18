@@ -30,7 +30,7 @@ export default function SectionBenches({ benches, ports, dispatch }: Props) {
           min={1}
           max={99}
           placeholder="9"
-          className="w-24 rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+          className="w-24 rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
         />
         {max > 0 && (max < 1 || max > 99) && (
           <p className="mt-1 text-[11px] text-red-400">Must be between 1 and 99</p>
@@ -53,7 +53,7 @@ export default function SectionBenches({ benches, ports, dispatch }: Props) {
         <Label className="block text-xs text-stone-500 mb-1.5">Setup command</Label>
         <Input
           placeholder="e.g. cd app && npm ci"
-          className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+          className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
         />
         <p className="text-[10px] text-stone-500 mt-1">
           Runs once at workspace root before components start, through your login shell, so shell
@@ -68,7 +68,7 @@ export default function SectionBenches({ benches, ports, dispatch }: Props) {
             {portEntries.map(([name, port]) => (
               <div key={name} className="flex items-center gap-3 text-[12px] font-mono">
                 <span className="text-stone-500 dark:text-stone-400 shrink-0">{name}</span>
-                <span className="text-stone-400 dark:text-stone-600 tabular-nums">
+                <span className="text-stone-500 dark:text-stone-400 tabular-nums">
                   {port.base} – {port.base + max - 1}
                 </span>
               </div>

@@ -238,12 +238,12 @@ function ProjectAgentOverrideCard({
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Bot size={14} className="shrink-0 text-stone-400 dark:text-stone-600" />
+            <Bot size={14} className="shrink-0 text-stone-500 dark:text-stone-400" />
             <h3 className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
               {agent.name}
             </h3>
           </div>
-          <p className="mt-0.5 text-[11px] text-stone-400 dark:text-stone-600 font-mono">
+          <p className="mt-0.5 text-[11px] text-stone-500 dark:text-stone-400 font-mono">
             {agent.id}
           </p>
         </div>
@@ -302,7 +302,7 @@ function ProjectAgentOverrideCard({
                   </Checkbox>
                   <span
                     data-testid={`project-agent-app-default-${agent.id}-${key}`}
-                    className="text-[11px] text-stone-400 dark:text-stone-600 shrink-0"
+                    className="text-[11px] text-stone-500 dark:text-stone-400 shrink-0"
                   >
                     {STRINGS.appDefaultPrefix}
                     {formatValue(agent.appDefaults[key])}
@@ -343,12 +343,12 @@ function ProjectAgentOverrideCard({
           className="rounded-lg bg-stone-50 dark:bg-stone-900/50 px-3 py-2"
         >
           <p className="text-[11px] leading-relaxed">
-            <span className="text-stone-400 dark:text-stone-600">{STRINGS.effectiveLabel} </span>
+            <span className="text-stone-500 dark:text-stone-400">{STRINGS.effectiveLabel} </span>
             <span className="font-mono text-stone-700 dark:text-stone-300">
               {fields.map(([key]) => `${key}=${formatValue(effective[key])}`).join(", ")}
             </span>
           </p>
-          <p className="mt-1 text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+          <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
             {STRINGS.effectiveHint}
           </p>
         </div>

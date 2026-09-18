@@ -68,7 +68,7 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-600">
+            <p className="text-[10px] uppercase tracking-wider text-stone-600 dark:text-stone-400">
               Unresolved cases
             </p>
             {unresolved.length > 0 ? (
@@ -88,7 +88,7 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-600">
+            <p className="text-[10px] uppercase tracking-wider text-stone-600 dark:text-stone-400">
               Covering units
             </p>
             {covering.length > 0 ? (

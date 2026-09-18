@@ -37,7 +37,7 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
                 </Heading>
                 <Button
                   onPress={close}
-                  className="p-1 text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
+                  className="p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
                 >
                   <X size={16} />
                 </Button>
@@ -68,7 +68,7 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
                           {v.description}
                         </p>
                         {v.formula && (
-                          <p className="text-[10px] text-stone-400 dark:text-stone-600">
+                          <p className="text-[10px] text-stone-600 dark:text-stone-400">
                             Formula: <code className="font-mono text-stone-500">{v.formula}</code>
                           </p>
                         )}
@@ -135,7 +135,7 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
                     <div className="rounded-lg bg-stone-100 dark:bg-stone-800/40 px-3 py-2.5 space-y-1">
                       {[1, 2, 3].map((benchNumber) => (
                         <div key={benchNumber} className="flex items-center gap-3">
-                          <span className="text-[10px] text-stone-400 dark:text-stone-600 w-10 shrink-0">
+                          <span className="text-[10px] text-stone-600 dark:text-stone-400 w-10 shrink-0">
                             Bench {benchNumber}
                           </span>
                           <code className="text-[10px] font-mono text-stone-500 dark:text-stone-400 truncate">

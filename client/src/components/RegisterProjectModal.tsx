@@ -106,7 +106,7 @@ export default function RegisterProjectModal({
                   onPress={close}
                   isDisabled={setupHandlers?.isSaving ?? false}
                   aria-label="Close"
-                  className="p-1.5 rounded-md text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-1.5 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <svg
                     width="13"
@@ -224,14 +224,14 @@ export default function RegisterProjectModal({
                         </div>
                         <dl className="text-[11px] divide-y divide-stone-200 dark:divide-stone-800/80">
                           <div className="flex justify-between py-1.5">
-                            <dt className="text-stone-400 dark:text-stone-500">Name</dt>
+                            <dt className="text-stone-500 dark:text-stone-400">Name</dt>
                             <dd className="font-mono text-stone-700 dark:text-stone-300">
                               {preview.displayName}
                             </dd>
                           </div>
                           {preview.ports.map((port) => (
                             <div key={port.name} className="flex justify-between py-1.5">
-                              <dt className="text-stone-400 dark:text-stone-500">
+                              <dt className="text-stone-500 dark:text-stone-400">
                                 Port · {port.name}
                               </dt>
                               <dd className="font-mono text-stone-700 dark:text-stone-300">
@@ -241,12 +241,12 @@ export default function RegisterProjectModal({
                           ))}
                           {preview.ports.length === 0 && (
                             <div className="flex justify-between py-1.5">
-                              <dt className="text-stone-400 dark:text-stone-500">Ports</dt>
+                              <dt className="text-stone-500 dark:text-stone-400">Ports</dt>
                               <dd className="font-mono text-stone-700 dark:text-stone-300">·</dd>
                             </div>
                           )}
                           <div className="flex justify-between py-1.5">
-                            <dt className="text-stone-400 dark:text-stone-500">Bench cap</dt>
+                            <dt className="text-stone-500 dark:text-stone-400">Bench cap</dt>
                             <dd className="font-mono text-stone-700 dark:text-stone-300">
                               {preview.benchCap}
                             </dd>

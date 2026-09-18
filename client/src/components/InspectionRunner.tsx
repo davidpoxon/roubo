@@ -18,9 +18,9 @@ const statusConfig = {
   failed: { icon: <X size={14} className="text-red-400" />, text: "Failed", color: "text-red-400" },
   error: { icon: <X size={14} className="text-red-400" />, text: "Error", color: "text-red-400" },
   aborted: {
-    icon: <Square size={14} className="text-stone-400" />,
+    icon: <Square size={14} className="text-stone-600 dark:text-stone-400" />,
     text: "Aborted",
-    color: "text-stone-400",
+    color: "text-stone-600 dark:text-stone-400",
   },
 };
 
@@ -86,7 +86,7 @@ export default function InspectionRunner({
         >
           <Input
             placeholder="Filter tests (grep pattern)..."
-            className="w-full px-3 py-2 text-sm bg-stone-100 dark:bg-stone-900/50 border border-stone-300 dark:border-stone-800 rounded-lg text-stone-900 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-600 outline-none focus:border-stone-400 dark:focus:border-stone-600 transition-colors disabled:opacity-50"
+            className="w-full px-3 py-2 text-sm bg-stone-100 dark:bg-stone-900/50 border border-stone-300 dark:border-stone-800 rounded-lg text-stone-900 dark:text-stone-200 placeholder:text-stone-600 dark:placeholder:text-stone-400 outline-none focus:border-stone-400 dark:focus:border-stone-600 transition-colors disabled:opacity-50"
           />
         </TextField>
         {isRunning ? (

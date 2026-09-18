@@ -60,7 +60,7 @@ export default function IssueTransitionDropdown({
             }}
           >
             <Button
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-500/15 text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-1 focus-visible:ring-amber-500"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-1 focus-visible:ring-amber-500"
               data-testid="transition-trigger"
             >
               <span>{optimisticState}</span>
@@ -84,7 +84,7 @@ export default function IssueTransitionDropdown({
         ) : (
           <span
             data-testid="transition-pill-readonly"
-            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-500/15 text-stone-400"
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400"
           >
             {optimisticState}
           </span>
@@ -92,7 +92,7 @@ export default function IssueTransitionDropdown({
       </div>
 
       {!hasTransitions && (
-        <p className="text-[11px] text-stone-500 dark:text-stone-600">
+        <p className="text-[11px] text-stone-500 dark:text-stone-400">
           No transitions available from this state.
         </p>
       )}

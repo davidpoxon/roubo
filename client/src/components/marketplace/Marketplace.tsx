@@ -380,12 +380,12 @@ export default function Marketplace() {
           <Search
             size={16}
             aria-hidden
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 dark:text-stone-400"
           />
           <Input
             data-testid="marketplace-search"
             placeholder={STRINGS.searchPlaceholder}
-            className="w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 py-2 pl-9 pr-3 text-[13px] text-stone-900 dark:text-stone-100 placeholder:text-stone-400 outline-none transition-colors focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 hover:border-stone-300 dark:hover:border-stone-600"
+            className="w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 py-2 pl-9 pr-3 text-[13px] text-stone-900 dark:text-stone-100 placeholder:text-stone-500 dark:placeholder:text-stone-400 outline-none transition-colors focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 hover:border-stone-300 dark:hover:border-stone-600"
           />
         </SearchField>
 
@@ -485,7 +485,10 @@ export default function Marketplace() {
           ))}
 
         {data && listings.length === 0 && (
-          <p data-testid="marketplace-empty" className="py-16 text-center text-sm text-stone-400">
+          <p
+            data-testid="marketplace-empty"
+            className="py-16 text-center text-sm text-stone-500 dark:text-stone-400"
+          >
             {STRINGS.empty}
           </p>
         )}

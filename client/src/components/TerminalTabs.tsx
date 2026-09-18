@@ -90,7 +90,7 @@ function JigMenu({ jigs, onSelect }: { jigs: JigMeta[]; onSelect: (id: string) =
               <SourceBadge source={jig.source} />
             </div>
             {jig.description && (
-              <span className="text-[11px] text-stone-400 dark:text-stone-600 truncate leading-relaxed">
+              <span className="text-[11px] text-stone-600 dark:text-stone-300 truncate leading-relaxed">
                 {jig.description}
               </span>
             )}
@@ -605,7 +605,7 @@ export default function TerminalTabs({
                 session.status === "ended"
                   ? activeTab === session.id
                     ? "bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
-                    : "text-stone-400 dark:text-stone-600 hover:text-stone-500 dark:hover:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/50"
+                    : "text-stone-600 dark:text-stone-300 hover:text-stone-500 dark:hover:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/50"
                   : activeTab === session.id
                     ? "bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-200"
                     : "text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/50"
@@ -646,8 +646,8 @@ export default function TerminalTabs({
                   aria-label="Inject jig"
                   className="flex items-center gap-1 px-2 py-1.5 rounded-md text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
                 >
-                  <Bot size={13} className="text-stone-400" />
-                  <ChevronDown size={10} className="text-stone-400" />
+                  <Bot size={13} className="text-stone-500 dark:text-stone-400" />
+                  <ChevronDown size={10} className="text-stone-500 dark:text-stone-400" />
                 </Button>
                 <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
                   Inject jig
@@ -688,7 +688,7 @@ export default function TerminalTabs({
             <MenuTrigger>
               <Button
                 aria-label="Choose launch option"
-                className="flex items-center px-1 py-1.5 text-stone-400 dark:text-stone-600 rounded-r-md border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="flex items-center px-1 py-1.5 text-stone-500 dark:text-stone-400 rounded-r-md border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 <ChevronDown size={10} />
               </Button>

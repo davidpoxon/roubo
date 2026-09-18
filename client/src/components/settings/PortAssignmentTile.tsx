@@ -24,7 +24,7 @@ export default function PortAssignmentTile({ projectId }: Props) {
         </div>
       )}
       {notConfigured && (
-        <p className="text-[12px] text-stone-400 dark:text-stone-600">Not configured</p>
+        <p className="text-[12px] text-stone-500 dark:text-stone-400">Not configured</p>
       )}
       {!isLoading && portEntries && (
         <div className="space-y-1.5">
@@ -39,7 +39,7 @@ export default function PortAssignmentTile({ projectId }: Props) {
               </span>
             </div>
           ))}
-          <p className="text-[10px] text-stone-400 dark:text-stone-600 pt-1">
+          <p className="text-[10px] text-stone-500 dark:text-stone-400 pt-1">
             Each port increments by 1 per bench
           </p>
         </div>

@@ -69,7 +69,7 @@ function LayerLine({ layer }: { layer: ResolutionLayer }) {
   const isPerLaunch = layer.id === "perLaunch";
   return (
     <div data-testid={`resolution-layer-${layer.id}`}>
-      <span className="text-stone-400 dark:text-stone-600">
+      <span className="text-stone-600 dark:text-stone-400">
         {layer.id === "app" ? "" : "→ "}
         {layer.label}
       </span>{" "}
@@ -246,7 +246,7 @@ export default function LaunchOverridesDialog({
             >
               Launch with overrides
             </Heading>
-            <p className="mt-1 text-[11px] text-stone-400 dark:text-stone-600">
+            <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
               One session only. Nothing is saved.
             </p>
           </div>
@@ -349,7 +349,7 @@ export default function LaunchOverridesDialog({
             >
               <div
                 id={RESOLUTION_LABEL_ID}
-                className="text-[10px] uppercase tracking-[0.15em] text-stone-400 dark:text-stone-600 font-semibold mb-1.5"
+                className="text-[10px] uppercase tracking-[0.15em] text-stone-600 dark:text-stone-400 font-semibold mb-1.5"
               >
                 Resolution
               </div>

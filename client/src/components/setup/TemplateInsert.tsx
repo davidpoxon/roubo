@@ -21,7 +21,7 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
     <>
       <DialogTrigger isOpen={isOpen} onOpenChange={setIsOpen}>
         <Button
-          className="p-1 text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none"
+          className="p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none"
           aria-label="Insert template variable"
         >
           <Braces size={14} />
@@ -54,15 +54,15 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
                       {v.example &&
                         v.example !== "unavailable" &&
                         v.example !== "Not configured" && (
-                          <span className="text-[10px] font-mono text-stone-400 dark:text-stone-600 tabular-nums shrink-0">
+                          <span className="text-[10px] font-mono text-stone-500 dark:text-stone-300 tabular-nums shrink-0">
                             {v.example.length > 24 ? v.example.slice(0, 24) + "..." : v.example}
                           </span>
                         )}
                     </div>
-                    <p className="text-[10px] text-stone-500 dark:text-stone-600 mt-0.5 group-hover/item:text-stone-400 dark:group-hover/item:text-stone-500 transition-colors">
+                    <p className="text-[10px] text-stone-500 dark:text-stone-300 mt-0.5 group-hover/item:text-stone-400 dark:group-hover/item:text-stone-500 transition-colors">
                       {v.description}
                       {v.formula && (
-                        <span className="text-stone-400 dark:text-stone-700 group-hover/item:text-stone-500 dark:group-hover/item:text-stone-600">
+                        <span className="text-stone-500 dark:text-stone-300 group-hover/item:text-stone-500 dark:group-hover/item:text-stone-600">
                           {" "}
                           · {v.formula}
                         </span>
@@ -79,7 +79,7 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
                 setIsOpen(false);
                 setShowReference(true);
               }}
-              className="flex items-center gap-1.5 text-[10px] text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none"
+              className="flex items-center gap-1.5 text-[10px] text-stone-500 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none"
             >
               Learn more about template variables
               <ArrowRight size={10} />

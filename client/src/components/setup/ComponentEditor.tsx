@@ -120,7 +120,7 @@ export default function ComponentEditor({
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <label className="block text-[11px] text-stone-500 dark:text-stone-600 mb-1">
+        <label className="block text-[11px] text-stone-500 dark:text-stone-400 mb-1">
           Base port
         </label>
         <div className="flex items-center gap-3">
@@ -135,7 +135,7 @@ export default function ComponentEditor({
             <Input type="number" min={1} max={65535} placeholder="e.g. 3000" className={INPUT} />
           </TextField>
           {portBase !== null && maxBenches > 1 && (
-            <span className="text-[11px] text-stone-500 dark:text-stone-600 font-mono tabular-nums">
+            <span className="text-[11px] text-stone-500 dark:text-stone-400 font-mono tabular-nums">
               {portBase}–{portBase + maxBenches - 1}
             </span>
           )}
@@ -229,7 +229,7 @@ export default function ComponentEditor({
           </legend>
           {!hideComposeFile && (
             <div>
-              <label className="block text-[11px] text-stone-500 dark:text-stone-600 mb-1">
+              <label className="block text-[11px] text-stone-500 dark:text-stone-400 mb-1">
                 Compose file
               </label>
               {detected?.dockerComposeFiles.length ? (
@@ -375,13 +375,13 @@ export default function ComponentEditor({
               })
             }
           >
-            <Label className="block text-[11px] text-stone-500 dark:text-stone-600 mb-1">
+            <Label className="block text-[11px] text-stone-500 dark:text-stone-400 mb-1">
               Command
             </Label>
             <Input placeholder="dotnet run --project ..." className={INPUT} />
           </TextField>
           <div className="space-y-1">
-            <label className="block text-[11px] text-stone-500 dark:text-stone-600">
+            <label className="block text-[11px] text-stone-500 dark:text-stone-400">
               Arguments
             </label>
             {(component.migration?.args ?? [""]).map((arg, i) => {
@@ -436,7 +436,7 @@ export default function ComponentEditor({
                           },
                         });
                       }}
-                      className="p-1 text-stone-400 dark:text-stone-600 hover:text-red-400 transition-colors shrink-0"
+                      className="p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0"
                     >
                       <X size={14} />
                     </Button>
@@ -624,7 +624,7 @@ export default function ComponentEditor({
                   {/* Read-only key with inline badge */}
                   <div className="w-1/3 shrink-0">
                     <div
-                      className={`${INPUT} font-mono text-stone-400 dark:text-stone-500 select-all cursor-default flex items-center gap-1.5`}
+                      className={`${INPUT} font-mono text-stone-500 dark:text-stone-400 select-all cursor-default flex items-center gap-1.5`}
                     >
                       <span className="truncate">{varName}</span>
                       {isEnvFile && (
@@ -645,7 +645,7 @@ export default function ComponentEditor({
                   {/* Editable value (or read-only if in .env) */}
                   {isEnvFile ? (
                     <div
-                      className={`${INPUT} flex-1 text-stone-500 dark:text-stone-600 font-mono text-[11px] cursor-not-allowed select-none`}
+                      className={`${INPUT} flex-1 text-stone-500 dark:text-stone-400 font-mono text-[11px] cursor-not-allowed select-none`}
                     >
                       set in ~/.roubo/.env
                     </div>
@@ -916,7 +916,7 @@ export default function ComponentEditor({
         !showDirectory &&
         !showEnv &&
         !showEnvVars && (
-          <p className="text-[11px] text-stone-400 dark:text-stone-600">
+          <p className="text-[11px] text-stone-500 dark:text-stone-400">
             Select a type to see relevant fields.
           </p>
         )}

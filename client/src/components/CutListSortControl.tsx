@@ -65,7 +65,7 @@ export default function CutListSortControl({
           "relative flex items-center gap-1 rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
           active
             ? "px-1.5 py-1 text-amber-500 dark:text-amber-400 hover:bg-amber-500/10"
-            : "p-1.5 text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50",
+            : "p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50",
         ].join(" ")}
       >
         <ArrowDownUp size={13} />
@@ -87,7 +87,7 @@ export default function CutListSortControl({
               {active && (
                 <Button
                   onPress={() => onSelectionChange(null)}
-                  className="text-[11px] text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+                  className="text-[11px] text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
                 >
                   Clear
                 </Button>

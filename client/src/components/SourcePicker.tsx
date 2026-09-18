@@ -378,7 +378,7 @@ function MineSourceControl({
       )}
 
       {enabled && !hasProjects && (
-        <p className="text-[11px] text-stone-400 dark:text-stone-600">Pick a project first.</p>
+        <p className="text-[11px] text-stone-500 dark:text-stone-400">Pick a project first.</p>
       )}
     </div>
   );
@@ -436,7 +436,7 @@ function setCategoryEntries(
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+    <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
       {children}
     </span>
   );

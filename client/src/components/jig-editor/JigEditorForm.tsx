@@ -73,7 +73,7 @@ const tabClassName = ({ isSelected }: { isSelected: boolean }) =>
   `px-3 py-2 text-xs font-medium transition-colors outline-none cursor-default border-b-2 -mb-px ${
     isSelected
       ? "text-stone-800 dark:text-stone-200 border-amber-500"
-      : "text-stone-500 dark:text-stone-600 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
+      : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
   }`;
 
 export default function JigEditorForm({ initial, scope, mode, projectId }: Props) {
@@ -321,12 +321,12 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
               </div>
               {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
               {mode === "edit" && jigId && (
-                <p className="text-[10px] font-mono text-stone-400 dark:text-stone-600 leading-relaxed">
+                <p className="text-[10px] font-mono text-stone-500 dark:text-stone-400 leading-relaxed">
                   ID: {jigId} · stays the same even if the name changes
                 </p>
               )}
               {mode === "create" && jigId && (
-                <p className="text-[10px] font-mono text-stone-400 dark:text-stone-600">
+                <p className="text-[10px] font-mono text-stone-500 dark:text-stone-400">
                   ID will be: {jigId}
                 </p>
               )}
@@ -359,12 +359,12 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
                     ? "text-red-500"
                     : sizeSoftWarn
                       ? "text-amber-500"
-                      : "text-stone-400 dark:text-stone-600"
+                      : "text-stone-500 dark:text-stone-400"
                 }`}
               >
                 {formatBytes(contentBytes)} / 200 KB
               </p>
-              <p className="text-[10px] font-mono text-stone-400 dark:text-stone-600">
+              <p className="text-[10px] font-mono text-stone-500 dark:text-stone-400">
                 ~{approxTokens.toLocaleString()} tokens · {tokenPercent}% of{" "}
                 {formatContextWindow(contextWindow)} context
               </p>

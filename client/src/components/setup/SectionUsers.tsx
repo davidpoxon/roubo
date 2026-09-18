@@ -66,7 +66,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
   return (
     <div className="space-y-4">
       {users.length === 0 && (
-        <p className="text-sm text-stone-500 dark:text-stone-600 py-4">
+        <p className="text-sm text-stone-500 dark:text-stone-400 py-4">
           No users configured. This section is optional.
         </p>
       )}
@@ -80,7 +80,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
           <span className="flex-1 text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
             {user.name || "Untitled"}
           </span>
-          <span className="text-[11px] text-stone-400 dark:text-stone-600">
+          <span className="text-[11px] text-stone-600 dark:text-stone-400">
             {Object.keys(user.properties).length}{" "}
             {Object.keys(user.properties).length === 1 ? "property" : "properties"}
           </span>
@@ -118,7 +118,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
             <Button
               onPress={() => removeUser(i)}
               aria-label="Remove user"
-              className="p-1 text-stone-400 dark:text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none"
+              className="p-1 text-stone-600 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none"
             >
               <Trash2 size={13} />
             </Button>
@@ -153,7 +153,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
                   onPress={() => removeProperty(i, key)}
                   aria-label="Remove property"
                   isDisabled={rawEntries.length === 0}
-                  className="p-1 text-stone-400 dark:text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none disabled:pointer-events-none disabled:opacity-30"
+                  className="p-1 text-stone-600 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none disabled:pointer-events-none disabled:opacity-30"
                 >
                   <X size={14} />
                 </Button>

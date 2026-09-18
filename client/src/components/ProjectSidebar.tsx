@@ -72,7 +72,7 @@ export default function ProjectSidebar() {
             onPress={() => setCollapsed(false)}
             aria-label="Expand sidebar"
             aria-expanded={false}
-            className="flex items-center justify-center w-9 h-9 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="flex items-center justify-center w-9 h-9 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
             <PanelLeftOpen size={16} />
           </Button>
@@ -107,13 +107,13 @@ export default function ProjectSidebar() {
         {(projects?.length ?? 0) > 0 && (
           <div className="mt-6">
             <div className="flex items-center justify-between px-3 pb-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-400 dark:text-stone-600">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
                 Projects
               </p>
               <Button
                 onPress={openRegisterModal}
                 aria-label="Register project"
-                className="p-0.5 rounded text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500"
+                className="p-0.5 rounded text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500"
               >
                 <Plus size={13} />
               </Button>
@@ -134,7 +134,7 @@ export default function ProjectSidebar() {
             </div>
             <Button
               onPress={openRegisterModal}
-              className="w-full flex items-center gap-2 px-3 py-1.5 mt-0.5 rounded-lg text-[12px] text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors duration-100 outline-none"
+              className="w-full flex items-center gap-2 px-3 py-1.5 mt-0.5 rounded-lg text-[12px] text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors duration-100 outline-none"
             >
               <Plus size={12} />
               Register project
@@ -155,7 +155,7 @@ export default function ProjectSidebar() {
           onPress={() => setCollapsed(true)}
           aria-label="Collapse sidebar"
           aria-expanded={true}
-          className="shrink-0 flex items-center justify-center p-2 rounded-lg text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="shrink-0 flex items-center justify-center p-2 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           <PanelLeftClose size={15} />
         </Button>
@@ -191,7 +191,7 @@ function ProjectSidebarRow({
         <div className="flex items-center gap-1.5 shrink-0">
           <NotificationIndicator notifications={collectActionNeeded(projectBenches)} />
           {projectBenches.length > 0 && (
-            <span className="text-[10px] font-medium text-stone-500 dark:text-stone-600 bg-stone-200 dark:bg-stone-800/80 rounded-full px-1.5 py-px min-w-[18px] text-center">
+            <span className="text-[10px] font-medium text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800/80 rounded-full px-1.5 py-px min-w-[18px] text-center">
               {projectBenches.length}
             </span>
           )}

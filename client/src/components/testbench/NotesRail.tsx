@@ -101,7 +101,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
 
       <ol className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {notes.length === 0 ? (
-          <li className="text-sm text-stone-400">No notes yet.</li>
+          <li className="text-sm text-stone-500 dark:text-stone-400">No notes yet.</li>
         ) : (
           notes.map((note) => (
             <li
@@ -145,7 +145,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
             placeholder="Append an immutable note"
             // ring-inset draws the focus ring inside the field's box, so a
             // clipping ancestor never shaves the left/right edges off it (#508).
-            className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:ring-inset"
+            className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-500 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:ring-inset"
           />
         </TextField>
         {submitError && (

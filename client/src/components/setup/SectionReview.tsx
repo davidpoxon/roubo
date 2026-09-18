@@ -52,7 +52,7 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <Icon size={13} className="text-stone-400 dark:text-stone-600" />
+      <Icon size={13} className="text-stone-600 dark:text-stone-400" />
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
         {label}
       </h3>
@@ -76,7 +76,7 @@ function Row({
   return (
     <div className={`flex gap-4 ${mono ? "items-start" : "items-center"}`}>
       <span
-        className={`text-[11px] text-stone-500 dark:text-stone-600 shrink-0 w-28 ${mono ? "pt-1" : ""}`}
+        className={`text-[11px] text-stone-600 dark:text-stone-400 shrink-0 w-28 ${mono ? "pt-1" : ""}`}
       >
         {label}
       </span>
@@ -299,7 +299,7 @@ export default function SectionReview({
             ))}
           </div>
         ) : (
-          <p className="text-[12px] text-stone-400 dark:text-stone-600">None configured</p>
+          <p className="text-[12px] text-stone-600 dark:text-stone-400">None configured</p>
         )}
       </div>
 
@@ -318,7 +318,7 @@ export default function SectionReview({
             ))}
           </div>
         ) : (
-          <p className="text-[12px] text-stone-400 dark:text-stone-600">None configured</p>
+          <p className="text-[12px] text-stone-600 dark:text-stone-400">None configured</p>
         )}
       </div>
 
@@ -339,7 +339,7 @@ export default function SectionReview({
             <Row label="Command" value={config.inspection.command} mono />
             {config.inspection.env && Object.keys(config.inspection.env).length > 0 && (
               <div>
-                <span className="text-[11px] text-stone-500 dark:text-stone-600">Environment</span>
+                <span className="text-[11px] text-stone-600 dark:text-stone-400">Environment</span>
                 <div className="mt-1 space-y-0.5 pl-2">
                   {Object.entries(config.inspection.env).map(([k, v]) => (
                     <div
@@ -347,7 +347,7 @@ export default function SectionReview({
                       className="text-[12px] font-mono text-stone-700 dark:text-stone-300"
                     >
                       <span className="text-stone-500 dark:text-stone-400">{k}</span>
-                      <span className="text-stone-400 dark:text-stone-600">=</span>
+                      <span className="text-stone-600 dark:text-stone-400">=</span>
                       {v}
                     </div>
                   ))}
@@ -356,7 +356,7 @@ export default function SectionReview({
             )}
           </div>
         ) : (
-          <p className="text-[12px] text-stone-400 dark:text-stone-600">None configured</p>
+          <p className="text-[12px] text-stone-600 dark:text-stone-400">None configured</p>
         )}
       </div>
 
@@ -368,12 +368,12 @@ export default function SectionReview({
             <Row label="Max concurrent" value={config.benches.max} />
             {config.ports && Object.keys(config.ports).length > 0 && config.benches.max && (
               <div>
-                <span className="text-[11px] text-stone-500 dark:text-stone-600">Port ranges</span>
+                <span className="text-[11px] text-stone-600 dark:text-stone-400">Port ranges</span>
                 <div className="mt-1 space-y-0.5 pl-2">
                   {Object.entries(config.ports).map(([name, port]) => (
                     <div key={name} className="flex items-center gap-3 text-[12px] font-mono">
                       <span className="text-stone-500 dark:text-stone-400 shrink-0">{name}</span>
-                      <span className="text-stone-400 dark:text-stone-600 tabular-nums">
+                      <span className="text-stone-600 dark:text-stone-400 tabular-nums">
                         {port.base} &ndash; {port.base + (config.benches?.max ?? 1) - 1}
                       </span>
                     </div>

@@ -63,7 +63,7 @@ export default function ToolChipList({
   return (
     <div className="space-y-2">
       {tools.length === 0 && (
-        <p className="text-sm text-stone-500 dark:text-stone-600 py-2">
+        <p className="text-sm text-stone-500 dark:text-stone-400 py-2">
           No tools configured. This section is optional.
         </p>
       )}
@@ -86,7 +86,7 @@ export default function ToolChipList({
               <span className="flex-1 text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
                 {tool.name || "Untitled"}
               </span>
-              <span className="text-[11px] text-stone-400 dark:text-stone-600 shrink-0">
+              <span className="text-[11px] text-stone-600 dark:text-stone-400 shrink-0">
                 {tool.type}
               </span>
             </Button>

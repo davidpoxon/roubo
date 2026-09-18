@@ -58,15 +58,15 @@ export default function YamlOutlinePanel({ rawYaml, onSectionClick }: Props) {
 
   return (
     <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/30 p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-600 mb-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">
         Outline
       </div>
       {parseError ? (
-        <p className="text-[11px] text-stone-400 dark:text-stone-600 italic">
+        <p className="text-[11px] text-stone-500 dark:text-stone-400 italic">
           YAML unreadable: fix errors in the editor
         </p>
       ) : items.length === 0 ? (
-        <p className="text-[11px] text-stone-400 dark:text-stone-600 italic">Empty document</p>
+        <p className="text-[11px] text-stone-500 dark:text-stone-400 italic">Empty document</p>
       ) : (
         <div className="space-y-1">
           {items.map(({ key, line, summary }) => (
@@ -76,7 +76,7 @@ export default function YamlOutlinePanel({ rawYaml, onSectionClick }: Props) {
               className="w-full flex items-center justify-between text-[12px] rounded px-1 py-0.5 -mx-1 hover:bg-stone-200 dark:hover:bg-stone-800 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400"
             >
               <span className="text-stone-700 dark:text-stone-300">{key}</span>
-              <span className="font-mono text-stone-400 dark:text-stone-500 truncate max-w-[10rem] text-right">
+              <span className="font-mono text-stone-500 dark:text-stone-400 truncate max-w-[10rem] text-right">
                 {summary}
               </span>
             </Button>

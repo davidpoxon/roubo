@@ -57,7 +57,10 @@ export default function StatusOverrideControl({
         <Label className="sr-only">Case status</Label>
         <Button className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2.5 py-1 text-xs font-medium text-stone-700 dark:text-stone-200 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-600 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-800/40 disabled:text-stone-400 dark:disabled:text-stone-600">
           <SelectValue>{({ selectedText }) => selectedText ?? STATUS_LABEL[selected]}</SelectValue>
-          <ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-stone-400" />
+          <ChevronDown
+            aria-hidden="true"
+            className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400"
+          />
         </Button>
         <Popover className="min-w-[--trigger-width] rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-lg outline-none">
           <ListBox className="p-1 outline-none">
@@ -70,7 +73,7 @@ export default function StatusOverrideControl({
               >
                 <span>{STATUS_LABEL[status]}</span>
                 {status === derivedStatus && (
-                  <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                  <span className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-400">
                     derived
                   </span>
                 )}

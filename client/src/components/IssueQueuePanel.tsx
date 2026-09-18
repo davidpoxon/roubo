@@ -382,7 +382,7 @@ export default function IssueQueuePanel({
                   cacheState === "stale"
                     ? "text-amber-600 dark:text-amber-400"
                     : cacheState === "revalidating"
-                      ? "text-stone-400 dark:text-stone-600"
+                      ? "text-stone-500 dark:text-stone-400"
                       : "text-green-600 dark:text-green-500"
                 }`}
               >
@@ -396,7 +396,7 @@ export default function IssueQueuePanel({
                 className={`text-[10px] font-mono whitespace-nowrap ${
                   stale
                     ? "text-amber-600 dark:text-amber-400"
-                    : "text-stone-400 dark:text-stone-600"
+                    : "text-stone-500 dark:text-stone-400"
                 }`}
               >
                 {lastUpdatedLabel}
@@ -405,7 +405,7 @@ export default function IssueQueuePanel({
             <Button
               onPress={handleRefresh}
               isDisabled={isRefetching}
-              className="p-1.5 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none disabled:opacity-60 disabled:cursor-default"
+              className="p-1.5 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none disabled:opacity-60 disabled:cursor-default"
               aria-label="Refresh cut list"
             >
               <RefreshCw size={13} className={isRefetching ? "animate-spin" : undefined} />
@@ -413,7 +413,7 @@ export default function IssueQueuePanel({
             {onCollapse && (
               <Button
                 onPress={onCollapse}
-                className="p-1.5 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none"
+                className="p-1.5 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none"
                 aria-label="Hide cut list"
               >
                 <PanelLeftClose size={14} />
@@ -458,13 +458,13 @@ export default function IssueQueuePanel({
             />
             {!isFiltersEmpty(filters) && (
               <>
-                <span className="text-[11px] font-mono text-stone-500 dark:text-stone-600 whitespace-nowrap">
+                <span className="text-[11px] font-mono text-stone-500 dark:text-stone-400 whitespace-nowrap">
                   {filteredItems.length}/{baseItems.length}
                 </span>
                 <Button
                   onPress={() => updateFilters(createEmptyFilters())}
                   aria-label="Clear all filters"
-                  className="p-1 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none"
+                  className="p-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none"
                 >
                   <X size={12} />
                 </Button>
@@ -561,7 +561,7 @@ export default function IssueQueuePanel({
                             return new Map(prev).set(collapseStateKey, next);
                           })
                         }
-                        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-600 hover:text-stone-700 dark:hover:text-stone-400 transition-colors outline-none"
+                        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 transition-colors outline-none"
                       >
                         {isCollapsed ? (
                           <ChevronRight size={11} className="shrink-0" />
@@ -569,7 +569,7 @@ export default function IssueQueuePanel({
                           <ChevronDown size={11} className="shrink-0" />
                         )}
                         <span className="truncate">{group.label}</span>
-                        <span className="font-mono text-[10px] text-stone-400 dark:text-stone-600 ml-auto shrink-0">
+                        <span className="font-mono text-[10px] text-stone-500 dark:text-stone-400 ml-auto shrink-0">
                           {group.items.length}
                         </span>
                       </Button>
@@ -599,7 +599,7 @@ export default function IssueQueuePanel({
               )
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-                <p className="text-xs text-stone-500 dark:text-stone-600 mb-2">
+                <p className="text-xs text-stone-500 dark:text-stone-400 mb-2">
                   {baseItems.length > 0
                     ? "No cuts match the active filters"
                     : "No open cuts available"}
@@ -639,7 +639,7 @@ export default function IssueQueuePanel({
           </Button>
           <span
             data-testid="cut-list-page-indicator"
-            className="text-[11px] font-mono text-stone-500 dark:text-stone-600 whitespace-nowrap"
+            className="text-[11px] font-mono text-stone-500 dark:text-stone-400 whitespace-nowrap"
           >
             Page {pageNumber} &middot; {filteredItems.length} item
             {filteredItems.length === 1 ? "" : "s"}

@@ -316,7 +316,7 @@ export default function SpecPickerModal({
         <FileText
           size={15}
           className={`shrink-0 mt-0.5 ${
-            muted ? "text-stone-300 dark:text-stone-600" : "text-stone-400 dark:text-stone-500"
+            muted ? "text-stone-300 dark:text-stone-400" : "text-stone-500 dark:text-stone-400"
           }`}
         />
         <div className="min-w-0 flex-1">
@@ -503,7 +503,7 @@ export default function SpecPickerModal({
                         </Label>
                         <Input
                           placeholder="Shipped in #212, all issues closed"
-                          className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                          className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                         />
                       </TextField>
                     )}
@@ -833,7 +833,7 @@ export default function SpecPickerModal({
                       </Label>
                       <Input
                         placeholder=".specifications/<slug>/test-cases.json"
-                        className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                       />
                       <div
                         id="manual-path-status"

@@ -234,10 +234,10 @@ export default function CaseList({
             return (
               <div key={row.key} {...common}>
                 <div className="flex items-center gap-2 px-4 py-1.5 pl-8 h-full">
-                  <span className="text-[10px] uppercase tracking-wider font-medium text-stone-400 dark:text-stone-600">
+                  <span className="text-[10px] uppercase tracking-wider font-medium text-stone-500 dark:text-stone-400">
                     {row.priority}
                   </span>
-                  <span className="text-[10px] font-mono text-stone-400 dark:text-stone-600 tabular-nums">
+                  <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400 tabular-nums">
                     {row.counts.total}
                   </span>
                 </div>

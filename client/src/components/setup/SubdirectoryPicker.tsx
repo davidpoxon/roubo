@@ -129,7 +129,7 @@ export default function SubdirectoryPicker({
               ref={inputRef}
               placeholder={placeholder}
               onBlur={() => setIsEditing(false)}
-              className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+              className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
             />
           </TextField>
         )}
@@ -174,7 +174,7 @@ export default function SubdirectoryPicker({
             </div>
             <Button
               onPress={() => setShowHidden(!showHidden)}
-              className="p-1 rounded text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none shrink-0"
+              className="p-1 rounded text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none shrink-0"
               aria-label={showHidden ? "Hide hidden directories" : "Show hidden directories"}
             >
               {showHidden ? <Eye size={13} /> : <EyeOff size={13} />}
@@ -183,7 +183,7 @@ export default function SubdirectoryPicker({
 
           <div className="max-h-64 overflow-y-auto">
             {isLoading && (
-              <div className="flex items-center gap-2 px-4 py-6 text-sm text-stone-500 dark:text-stone-600">
+              <div className="flex items-center gap-2 px-4 py-6 text-sm text-stone-500 dark:text-stone-400">
                 <Spinner />
                 Loading...
               </div>
@@ -202,7 +202,7 @@ export default function SubdirectoryPicker({
                   >
                     <CornerLeftUp
                       size={14}
-                      className="text-stone-400 dark:text-stone-600 group-hover:text-stone-600 dark:group-hover:text-stone-400"
+                      className="text-stone-500 dark:text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-400"
                     />
                     <span className="text-sm text-stone-500 group-hover:text-stone-700 dark:group-hover:text-stone-300">
                       ..
@@ -225,7 +225,7 @@ export default function SubdirectoryPicker({
                   >
                     <Folder
                       size={14}
-                      className="text-stone-400 dark:text-stone-600 group-hover:text-stone-500"
+                      className="text-stone-500 dark:text-stone-400 group-hover:text-stone-500"
                     />
                     <span className="text-sm text-stone-700 dark:text-stone-300 flex-1 truncate">
                       {entry.name}
@@ -237,7 +237,7 @@ export default function SubdirectoryPicker({
           </div>
 
           <div className="flex items-center gap-3 px-3 py-2.5 border-t border-stone-200 dark:border-stone-800">
-            <p className="text-[11px] font-mono text-stone-500 dark:text-stone-600 truncate flex-1 min-w-0">
+            <p className="text-[11px] font-mono text-stone-500 dark:text-stone-400 truncate flex-1 min-w-0">
               {relativeCurrent || "."}
             </p>
             <Button

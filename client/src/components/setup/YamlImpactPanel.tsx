@@ -11,7 +11,7 @@ export default function YamlImpactPanel({ impact, totalBenches }: Props) {
 
   return (
     <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/30 p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-600 mb-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">
         Impact on benches
       </div>
 
@@ -32,7 +32,7 @@ export default function YamlImpactPanel({ impact, totalBenches }: Props) {
                 <div className="text-[11px] font-mono text-stone-700 dark:text-stone-300">
                   {bench.displayName}
                 </div>
-                <div className="text-[10px] text-stone-400 dark:text-stone-600 ml-1">
+                <div className="text-[10px] text-stone-500 dark:text-stone-400 ml-1">
                   {bench.reasons.slice(0, 3).join(", ")}
                   {bench.reasons.length > 3 && ` +${bench.reasons.length - 3} more`}
                 </div>
@@ -42,7 +42,7 @@ export default function YamlImpactPanel({ impact, totalBenches }: Props) {
         </div>
       )}
 
-      <div className="text-[11px] font-mono text-stone-400 dark:text-stone-500">
+      <div className="text-[11px] font-mono text-stone-500 dark:text-stone-400">
         {activeCount} active · {idleCount} idle
       </div>
     </div>

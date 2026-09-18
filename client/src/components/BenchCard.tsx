@@ -106,7 +106,7 @@ export default function BenchCard({
             {/* Header */}
             <div className="space-y-0.5 shrink-0">
               {projectName && (
-                <p className="text-[10px] font-medium uppercase tracking-widest text-stone-400 dark:text-stone-600">
+                <p className="text-[10px] font-medium uppercase tracking-widest text-stone-600 dark:text-stone-400">
                   {projectName}
                 </p>
               )}
@@ -120,7 +120,7 @@ export default function BenchCard({
 
             {/* Branch */}
             <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mt-2.5 shrink-0">
-              <GitBranch size={12} className="shrink-0 text-stone-400 dark:text-stone-600" />
+              <GitBranch size={12} className="shrink-0 text-stone-600 dark:text-stone-400" />
               <span className="truncate">{bench.branch}</span>
             </div>
 
@@ -171,7 +171,7 @@ export default function BenchCard({
                       <ComponentStatusDot status={component.status} label={name} />
                       <span className="text-[11px] text-stone-500 dark:text-stone-400">{name}</span>
                       {matchedPorts.has(name) && (
-                        <span className="text-[11px] font-mono text-stone-400 dark:text-stone-600">
+                        <span className="text-[11px] font-mono text-stone-600 dark:text-stone-400">
                           :{matchedPorts.get(name)}
                         </span>
                       )}
@@ -180,7 +180,7 @@ export default function BenchCard({
                   {orphanPorts.map(([name, port]) => (
                     <span key={name} className="flex items-center gap-1.5">
                       <span className="text-[11px] text-stone-500">{name}</span>
-                      <span className="text-[11px] font-mono text-stone-400 dark:text-stone-600">
+                      <span className="text-[11px] font-mono text-stone-600 dark:text-stone-400">
                         :{port}
                       </span>
                     </span>
@@ -252,7 +252,7 @@ export default function BenchCard({
                 <Button
                   isDisabled={!canTeardown}
                   onPress={() => setConfirmOpen(true)}
-                  className="p-1.5 rounded-md text-stone-400 dark:text-stone-600 not-disabled:hover:text-red-400 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
+                  className="p-1.5 rounded-md text-stone-600 dark:text-stone-400 not-disabled:hover:text-red-400 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
                 >
                   {isProvisioning ? <X size={13} /> : <Trash2 size={13} />}
                 </Button>

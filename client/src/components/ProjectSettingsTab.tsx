@@ -76,7 +76,7 @@ function ProjectCustomJigsList({ projectId }: { projectId: string }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
           Custom jigs
         </h3>
         <Link
@@ -89,9 +89,9 @@ function ProjectCustomJigsList({ projectId }: { projectId: string }) {
       </div>
 
       {isLoading ? (
-        <p className="text-xs text-stone-400 dark:text-stone-600">Loading…</p>
+        <p className="text-xs text-stone-500 dark:text-stone-400">Loading…</p>
       ) : projectJigs.length === 0 ? (
-        <p className="text-xs text-stone-400 dark:text-stone-600 leading-relaxed">
+        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
           No project jigs yet. Create one to override or supplement app-level jigs for this project.
         </p>
       ) : (
@@ -112,7 +112,7 @@ function ProjectCustomJigsList({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <p className="mt-4 text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+      <p className="mt-4 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
         Project jigs live in{" "}
         <span className="font-mono text-stone-500 dark:text-stone-500">
           &lt;repo&gt;/.roubo/jigs/*.md
@@ -230,7 +230,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
                 Bench behaviour
               </h2>
             </div>
-            <p className="text-[11px] text-stone-400 dark:text-stone-600">
+            <p className="text-[11px] text-stone-500 dark:text-stone-400">
               Project overrides are marked{" "}
               <span className="text-amber-500 font-medium">override</span>
             </p>
@@ -271,7 +271,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
               onChange={setDraftJig}
             />
             <div className="mt-8">
-              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600 mb-3">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400 mb-3">
                 Issue type mappings
               </h3>
               <IssueTypeMappingsSection
@@ -281,7 +281,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
                 embedded
               />
             </div>
-            <p className="text-[11px] text-stone-400 dark:text-stone-600 mt-6 leading-relaxed">
+            <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-6 leading-relaxed">
               Changes write to{" "}
               <span className="font-mono text-stone-500 dark:text-stone-500">
                 {"<repo>/.roubo/roubo.yaml"}
@@ -302,7 +302,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
               </h2>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-[10px] text-stone-400 dark:text-stone-600">
+              <span className="text-[10px] text-stone-500 dark:text-stone-400">
                 Mapped onto the agent's own permission mechanism on bench setup
               </span>
               <Button
@@ -323,7 +323,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
                 Agent overrides
               </h2>
             </div>
-            <span className="text-[10px] text-stone-400 dark:text-stone-600">
+            <span className="text-[10px] text-stone-500 dark:text-stone-400">
               App defaults from <span className="font-mono">Settings &gt; AI Agents</span>, overlaid
               per field
             </span>
@@ -365,7 +365,7 @@ export default function ProjectSettingsTab() {
 
   if (isLoading) {
     return (
-      <div className="h-full overflow-y-auto overscroll-contain flex items-center gap-2 p-8 text-xs text-stone-400 dark:text-stone-600">
+      <div className="h-full overflow-y-auto overscroll-contain flex items-center gap-2 p-8 text-xs text-stone-500 dark:text-stone-400">
         <Spinner />
         Loading…
       </div>
@@ -374,7 +374,7 @@ export default function ProjectSettingsTab() {
 
   if (!project) {
     return (
-      <div className="h-full overflow-y-auto overscroll-contain p-8 text-xs text-stone-400 dark:text-stone-600">
+      <div className="h-full overflow-y-auto overscroll-contain p-8 text-xs text-stone-500 dark:text-stone-400">
         Project not found.
       </div>
     );

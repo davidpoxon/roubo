@@ -48,7 +48,7 @@ const STRINGS = {
 
 function CaseList({ ids }: { ids: string[] }) {
   if (ids.length === 0) {
-    return <p className="text-[12px] text-stone-400 dark:text-stone-600">{STRINGS.none}</p>;
+    return <p className="text-[12px] text-stone-500 dark:text-stone-400">{STRINGS.none}</p>;
   }
   return (
     <ul className="flex flex-col gap-1">
@@ -80,7 +80,7 @@ function Section({
     <div className="flex flex-col gap-1.5" data-testid={testId}>
       <div className="flex items-center gap-2">
         {icon}
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
           {heading}
         </span>
         <span
@@ -191,7 +191,13 @@ export default function ReconcileDialog({
 
                     <Section
                       testId="reconcile-section-added"
-                      icon={<Plus size={13} className="text-stone-400 shrink-0" aria-hidden />}
+                      icon={
+                        <Plus
+                          size={13}
+                          className="text-stone-500 dark:text-stone-400 shrink-0"
+                          aria-hidden
+                        />
+                      }
                       heading={STRINGS.addedHeading}
                       help={STRINGS.addedHelp}
                       count={classification.added.length}

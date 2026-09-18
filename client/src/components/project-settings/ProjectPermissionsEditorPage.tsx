@@ -186,7 +186,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             <ChevronLeft size={12} />
             Settings
           </Link>
-          <span className="text-stone-400 dark:text-stone-600">/</span>
+          <span className="text-stone-500 dark:text-stone-400">/</span>
           <span className="text-stone-700 dark:text-stone-300">Agent permissions</span>
         </div>
 
@@ -195,7 +195,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             <h2 className="text-[18px] font-semibold text-stone-900 dark:text-stone-100">
               Agent permissions
             </h2>
-            <p className="text-[12px] text-stone-400 dark:text-stone-500 mt-1 max-w-2xl leading-relaxed">
+            <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-1 max-w-2xl leading-relaxed">
               How much {agentLabel} may do on its own in this project, and the fine-grained rules it
               works within. Roubo maps both onto whatever mechanism the agent uses. Changes apply to
               new benches immediately; existing benches can be re-synced.
@@ -221,7 +221,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
       </div>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-600">
+        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
           <Spinner />
           Loading…
         </div>
@@ -281,7 +281,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                 >
                   <Input
                     placeholder="Bash(pytest:*)"
-                    className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-[13px] text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 font-mono data-[invalid]:border-red-400 dark:data-[invalid]:border-red-500"
+                    className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-[13px] text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 font-mono data-[invalid]:border-red-400 dark:data-[invalid]:border-red-500"
                   />
                 </TextField>
               </div>
@@ -301,7 +301,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
               </p>
             )}
             <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] items-center">
-              <span className="text-stone-500 dark:text-stone-600">Templates:</span>
+              <span className="text-stone-600 dark:text-stone-400">Templates:</span>
               {TEMPLATES.map((tpl) => (
                 <Button
                   key={tpl}
@@ -346,7 +346,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             </div>
           </div>
 
-          <p className="text-[11px] text-stone-500 dark:text-stone-600 leading-relaxed">
+          <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
             Re-syncing adds any missing rules to existing benches. Removed rules take effect when a
             bench is cleared.
           </p>

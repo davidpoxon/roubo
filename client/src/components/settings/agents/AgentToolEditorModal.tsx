@@ -237,7 +237,7 @@ export default function AgentToolEditorModal({
               </p>
             )}
 
-            <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+            <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
               Saved to app settings. Add to{" "}
               <span className="font-mono text-stone-500">roubo.yaml tools:</span> to share it with
               the project.

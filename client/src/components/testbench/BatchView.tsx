@@ -147,7 +147,7 @@ export default function BatchView({
 
   if (gateQuery.isLoading || planQuery.isLoading) {
     return frame(
-      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-600 py-8">
+      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-8">
         <Spinner />
         Loading batch...
       </div>,

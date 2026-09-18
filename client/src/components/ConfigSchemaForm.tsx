@@ -114,7 +114,7 @@ function ProbePendingField({
         <span id={valueId} className="truncate">
           {loading ? PROBE_LOADING_PLACEHOLDER : PROBE_FAILED_PLACEHOLDER}
         </span>
-        <ChevronDown size={14} className="shrink-0 ml-2 text-stone-400 dark:text-stone-600" />
+        <ChevronDown size={14} className="shrink-0 ml-2 text-stone-500 dark:text-stone-400" />
       </button>
       <div
         id={statusId}
@@ -222,7 +222,7 @@ export default function ConfigSchemaForm({
                   <SelectValue className="truncate data-[placeholder]:text-stone-500 dark:data-[placeholder]:text-stone-400" />
                   <ChevronDown
                     size={14}
-                    className="shrink-0 ml-2 text-stone-400 dark:text-stone-600"
+                    className="shrink-0 ml-2 text-stone-500 dark:text-stone-400"
                   />
                 </Button>
                 <Popover className="w-[var(--trigger-width)] rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-xl py-1 z-50 overflow-auto max-h-60">

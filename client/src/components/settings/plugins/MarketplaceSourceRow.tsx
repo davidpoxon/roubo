@@ -72,7 +72,7 @@ export default function MarketplaceSourceRow({ source, onRemove }: Props) {
     >
       <span
         aria-hidden
-        className="mt-0.5 flex-none text-stone-400 dark:text-stone-500"
+        className="mt-0.5 flex-none text-stone-500 dark:text-stone-400"
         data-testid="marketplace-source-icon"
       >
         {isFirstParty ? <BadgeCheck size={18} /> : <Boxes size={18} />}
@@ -94,7 +94,7 @@ export default function MarketplaceSourceRow({ source, onRemove }: Props) {
         </p>
         <p
           data-testid="marketplace-source-meta"
-          className="text-[11px] text-stone-400 dark:text-stone-500"
+          className="text-[11px] text-stone-500 dark:text-stone-400"
         >
           {isFirstParty
             ? STRINGS.firstPartyMeta

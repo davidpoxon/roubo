@@ -108,7 +108,7 @@ export default function SectionProjectInfo({
           scanResult &&
           layout?.type &&
           layout.type === scanResult.detected.structureType && (
-            <p className="mt-1 text-[10px] text-stone-400 dark:text-stone-600">Auto-detected</p>
+            <p className="mt-1 text-[10px] text-stone-500 dark:text-stone-400">Auto-detected</p>
           )
         )}
       </div>
@@ -126,11 +126,11 @@ function DefaultBranchField({ projectId }: { projectId: string }) {
   return (
     <div>
       <Label className="text-xs text-stone-500 mb-1.5 flex items-center gap-1.5">
-        <GitBranch size={11} className="text-stone-400" />
+        <GitBranch size={11} className="text-stone-500 dark:text-stone-400" />
         Default branch
       </Label>
       {isLoading ? (
-        <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-600">
+        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
           <Spinner />
           Detecting…
         </div>
@@ -139,12 +139,12 @@ function DefaultBranchField({ projectId }: { projectId: string }) {
       ) : branch ? (
         <div>
           <code className="font-mono text-sm text-stone-800 dark:text-stone-200">{branch}</code>
-          <p className="text-[10px] text-stone-400 dark:text-stone-600 mt-0.5">
+          <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
             Detected from <code className="text-[10px]">origin/HEAD</code>
           </p>
         </div>
       ) : (
-        <span className="text-stone-400 dark:text-stone-600 text-sm">·</span>
+        <span className="text-stone-500 dark:text-stone-400 text-sm">·</span>
       )}
     </div>
   );

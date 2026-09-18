@@ -29,10 +29,10 @@ export default function SubmodulesEditor({ value, onChange, errorText }: Props) 
       <Label className="block text-xs text-stone-500 mb-1.5">Submodules</Label>
       {entries.length > 0 && (
         <div className="flex items-center gap-2 mb-1">
-          <span className="flex-1 flex items-center gap-1 text-[11px] text-stone-500 dark:text-stone-600">
+          <span className="flex-1 flex items-center gap-1 text-[11px] text-stone-500 dark:text-stone-400">
             Alias
             <TooltipTrigger delay={500}>
-              <Button className="text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded">
+              <Button className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded">
                 <Info size={11} />
               </Button>
               <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg max-w-56">

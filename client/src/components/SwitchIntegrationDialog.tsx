@@ -182,7 +182,7 @@ function SwitchFlow({
                         <div className="text-sm font-medium text-stone-900 dark:text-stone-100">
                           {p.name}
                         </div>
-                        <div className="text-[11px] font-mono text-stone-400 dark:text-stone-600 truncate">
+                        <div className="text-[11px] font-mono text-stone-500 dark:text-stone-400 truncate">
                           {p.id}
                         </div>
                       </div>
