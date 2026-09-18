@@ -198,6 +198,58 @@ describe("ConfigSchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith({ retries: 3 });
   });
 
+  // #852: the server merges a probed field's resolved choices into the schema as
+  // oneOf const/title branches. Rendered here beside a static oneOf field, the
+  // two must be indistinguishable (APCC-TC-003) and the probed one must save the
+  // choice id, not its label (APCC-TC-002).
+  it("renders a materialized probed field exactly like a static oneOf field and saves the id", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ConfigSchemaForm
+        schema={{
+          properties: {
+            // As served by GET /api/agents once the model probe resolved.
+            model: {
+              type: "string",
+              title: "Model",
+              oneOf: [
+                { const: "gpt-5", title: "GPT-5" },
+                { const: "sonnet-4", title: "Sonnet 4" },
+              ],
+            },
+            // A plain static choice list.
+            effort: {
+              type: "string",
+              title: "Effort",
+              oneOf: [
+                { const: "low", title: "Low" },
+                { const: "high", title: "High" },
+              ],
+            },
+          },
+        }}
+        values={{}}
+        onChange={onChange}
+      />,
+    );
+
+    const probed = screen.getByTestId("config-field-model");
+    const staticField = screen.getByTestId("config-field-effort");
+    const attrNames = (el: Element) => el.getAttributeNames().sort();
+    expect(probed.tagName).toBe(staticField.tagName);
+    expect(probed.className).toBe(staticField.className);
+    expect(attrNames(probed)).toEqual(attrNames(staticField));
+    expect(attrNames(triggerIn("config-field-model"))).toEqual(
+      attrNames(triggerIn("config-field-effort")),
+    );
+    expect(probed.outerHTML).not.toMatch(/probe/i);
+
+    await user.click(triggerIn("config-field-model"));
+    await user.click(await screen.findByRole("option", { name: "Sonnet 4" }));
+    expect(onChange).toHaveBeenLastCalledWith({ model: "sonnet-4" });
+  });
+
   it("renders a per-field error message when one is supplied", () => {
     render(
       <ConfigSchemaForm

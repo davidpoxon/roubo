@@ -777,6 +777,36 @@ export interface AgentPluginState {
    * manifest declares no window and for which no probe has ever run.
    */
   compatibility?: AgentCompatibilityState;
+  /**
+   * Each probed configuration field's state, keyed by field name (#852,
+   * APCC-FR-002). A resolved field's choices are already merged into
+   * `configSchema` as `oneOf` const/title branches, so the form reads them like
+   * any static choice list; this map only says which fields are still loading or
+   * failed. Absent when the manifest declares no choice probes.
+   */
+  choiceProbes?: Record<string, AgentChoiceProbeState>;
+}
+
+/**
+ * Why a configuration choice probe produced no choices. Mirrors the host probe
+ * runner's failure causes: `command-not-found` (nothing ran), `probe-error` (the
+ * CLI ran and failed, or was refused), `parse-error` (its output did not read),
+ * `timeout` (killed at the time bound).
+ */
+export type AgentChoiceProbeFailureCause =
+  "command-not-found" | "probe-error" | "parse-error" | "timeout";
+
+/**
+ * One probed configuration field's state as the settings response serves it
+ * (#852). `loading` means no probe outcome exists yet, `resolved` means the
+ * field's choices are in the schema, `failed` carries the cause and reason.
+ */
+export interface AgentChoiceProbeState {
+  state: "loading" | "resolved" | "failed";
+  /** Present only when `state` is `failed`. */
+  cause?: AgentChoiceProbeFailureCause;
+  /** Present only when `state` is `failed`. */
+  reason?: string;
 }
 
 /**
