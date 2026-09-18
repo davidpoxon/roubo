@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import type { PluginPermissions } from "@roubo/shared";
+import type { AgentChoiceProbeState, PluginPermissions } from "@roubo/shared";
 import ConfigSchemaForm from "./ConfigSchemaForm";
 import { passwordFieldKeys } from "./config-schema-utils";
 
@@ -268,5 +268,188 @@ describe("ConfigSchemaForm", () => {
 
   it("emits the field keys whose definitions are format:password", () => {
     expect(passwordFieldKeys(schema)).toEqual(["token"]);
+  });
+});
+
+describe("ConfigSchemaForm: choice-probe states (#853)", () => {
+  const probedSchema = {
+    type: "object",
+    properties: {
+      model: { type: "string", title: "Model" },
+      label: { type: "string", title: "Label" },
+    },
+  };
+  const resolvedSchema = {
+    type: "object",
+    properties: {
+      model: {
+        type: "string",
+        title: "Model",
+        oneOf: [
+          { const: "gpt-5", title: "GPT-5" },
+          { const: "sonnet-4", title: "Sonnet 4" },
+        ],
+      },
+      label: { type: "string", title: "Label" },
+    },
+  };
+
+  function ProbeHarness({
+    probe,
+    probedFieldSchema = probedSchema,
+    initial = {},
+  }: {
+    probe: AgentChoiceProbeState;
+    probedFieldSchema?: Record<string, unknown>;
+    initial?: Record<string, unknown>;
+  }) {
+    const [values, setValues] = useState(initial);
+    return (
+      <ConfigSchemaForm
+        schema={probedFieldSchema}
+        values={values}
+        onChange={setValues}
+        probes={{ model: probe }}
+      />
+    );
+  }
+
+  it("reports loading on the probed field while every other field still accepts input (APCC-TC-018)", async () => {
+    const user = userEvent.setup();
+    render(<ProbeHarness probe={{ state: "loading" }} />);
+
+    const field = screen.getByTestId("config-field-model");
+    expect(field).toHaveAttribute("data-probe-state", "loading");
+    expect(screen.getByTestId("config-field-model-probe-status")).toHaveTextContent(
+      "Reading the available choices",
+    );
+    expect(field.querySelector("input")).toBeNull();
+
+    const other = inputIn("config-field-label");
+    await user.type(other, "hello");
+    expect(other).toHaveValue("hello");
+  });
+
+  it("renders the probed choices through the ordinary select once resolved", async () => {
+    const user = userEvent.setup();
+    render(<ProbeHarness probe={{ state: "resolved" }} probedFieldSchema={resolvedSchema} />);
+
+    expect(screen.queryByTestId("config-field-model-probe-status")).toBeNull();
+    await user.click(triggerIn("config-field-model"));
+    await user.click(await screen.findByRole("option", { name: "Sonnet 4" }));
+    expect(selectedValueIn("config-field-model")).toBe("sonnet-4");
+  });
+
+  it("empties a failed field, offers no free-text entry, and states the cause and the remedy (APCC-TC-016)", () => {
+    render(
+      <ProbeHarness
+        probe={{ state: "failed", cause: "command-not-found", reason: "not on PATH" }}
+        initial={{ model: "gpt-5" }}
+      />,
+    );
+
+    const field = screen.getByTestId("config-field-model");
+    expect(field).toHaveAttribute("data-probe-state", "failed");
+    expect(field.querySelector("input")).toBeNull();
+    expect(field).not.toHaveTextContent("gpt-5");
+
+    const status = screen.getByTestId("config-field-model-probe-status");
+    expect(status).toHaveAttribute("role", "status");
+    expect(status).toHaveTextContent("the CLI command was not found");
+    expect(status).toHaveTextContent("add its folder to your PATH");
+    expect(status).toHaveTextContent("account default");
+  });
+
+  it("reads a CLI-reported sign-in failure differently from a missing command (APCC-TC-016)", () => {
+    const { unmount } = render(
+      <ProbeHarness probe={{ state: "failed", cause: "command-not-found", reason: "missing" }} />,
+    );
+    const notFound = screen.getByTestId("config-field-model-probe-status").textContent;
+    unmount();
+
+    render(
+      <ProbeHarness
+        probe={{
+          state: "failed",
+          cause: "probe-error",
+          reason: "`/usr/local/bin/tool models` exited with code 1: Not signed in. Run login first",
+        }}
+      />,
+    );
+    const status = screen.getByTestId("config-field-model-probe-status");
+    expect(status).toHaveTextContent("Could not read the choices: Not signed in. Run login first.");
+    expect(status).not.toHaveTextContent("/usr/local/bin/tool");
+    expect(status.textContent).not.toBe(notFound);
+  });
+
+  it("names the timeout and the empty listing as their own causes", () => {
+    const { unmount } = render(
+      <ProbeHarness probe={{ state: "failed", cause: "timeout", reason: "killed" }} />,
+    );
+    expect(screen.getByTestId("config-field-model-probe-status")).toHaveTextContent(
+      "did not answer within 5 seconds",
+    );
+    unmount();
+
+    render(<ProbeHarness probe={{ state: "failed", cause: "parse-error", reason: "none" }} />);
+    expect(screen.getByTestId("config-field-model-probe-status")).toHaveTextContent(
+      "the CLI listed no choices",
+    );
+  });
+
+  it("exposes the failure text to assistive technology through the field's description", () => {
+    render(<ProbeHarness probe={{ state: "failed", cause: "timeout" }} />);
+    const control = screen.getByRole("button", { name: /Model/ });
+    expect(control).toHaveAttribute("aria-disabled", "true");
+    expect(control).toHaveAccessibleDescription(/did not answer within 5 seconds/);
+  });
+
+  it("keeps the same status region across the loading-to-failed change so it is announced", () => {
+    const { rerender } = render(
+      <ConfigSchemaForm
+        schema={probedSchema}
+        values={{}}
+        onChange={() => {}}
+        probes={{ model: { state: "loading" } }}
+      />,
+    );
+    const before = screen.getByTestId("config-field-model-probe-status");
+    rerender(
+      <ConfigSchemaForm
+        schema={probedSchema}
+        values={{}}
+        onChange={() => {}}
+        probes={{ model: { state: "failed", cause: "timeout" } }}
+      />,
+    );
+    expect(screen.getByTestId("config-field-model-probe-status")).toBe(before);
+  });
+
+  it("keeps every field reachable by keyboard alone in each state (APCC-TC-023)", async () => {
+    for (const probe of [
+      { state: "loading" },
+      { state: "failed", cause: "probe-error", reason: "exited with code 1: Not signed in" },
+    ] as AgentChoiceProbeState[]) {
+      const user = userEvent.setup();
+      const { unmount } = render(<ProbeHarness probe={probe} />);
+      await user.tab();
+      expect(screen.getByRole("button", { name: /Model/ })).toHaveFocus();
+      await user.keyboard("{Enter}");
+      expect(screen.queryByRole("listbox")).toBeNull();
+      await user.tab();
+      expect(inputIn("config-field-label")).toHaveFocus();
+      await user.keyboard("typed");
+      expect(inputIn("config-field-label")).toHaveValue("typed");
+      unmount();
+    }
+
+    const user = userEvent.setup();
+    render(<ProbeHarness probe={{ state: "resolved" }} probedFieldSchema={resolvedSchema} />);
+    await user.tab();
+    expect(triggerIn("config-field-model")).toHaveFocus();
+    await user.keyboard("{Enter}");
+    await screen.findByRole("listbox");
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(selectedValueIn("config-field-model")).toBe("sonnet-4");
   });
 });

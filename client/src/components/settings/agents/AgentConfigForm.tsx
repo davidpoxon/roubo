@@ -118,6 +118,7 @@ export default function AgentConfigForm({ agent }: { agent: AgentPluginState }) 
         values={draft}
         onChange={handleChange}
         errors={errors}
+        probes={agent.choiceProbes}
       />
 
       {formError && (

@@ -13,7 +13,7 @@ vi.mock("../lib/api", async () => {
 });
 
 import * as api from "../lib/api";
-import { useAgentPlugins, useSaveAgentConfig } from "./useAgentPlugins";
+import { PROBE_POLL_INTERVAL_MS, useAgentPlugins, useSaveAgentConfig } from "./useAgentPlugins";
 
 const mockedApi = vi.mocked(api);
 
@@ -55,6 +55,52 @@ describe("useAgentPlugins", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isError).toBe(false);
     expect(result.current.data).toEqual({ agents: [] });
+  });
+});
+
+describe("useAgentPlugins: choice-probe polling (#853, APCC-TC-019)", () => {
+  function agentWith(state: "loading" | "resolved" | "failed") {
+    return {
+      agents: [
+        {
+          id: "probed-agent",
+          name: "Probed Agent",
+          version: "1.0.0",
+          status: "enabled",
+          available: true,
+          configSchema: { type: "object", properties: { model: { type: "string" } } },
+          config: {},
+          choiceProbes: { model: { state } },
+        },
+      ],
+    };
+  }
+
+  it("re-reads the list while a probe is loading and stops once every probe settles", async () => {
+    mockedApi.fetchAgentPlugins
+      .mockResolvedValueOnce(agentWith("loading") as never)
+      .mockResolvedValue(agentWith("failed") as never);
+
+    const { result } = renderHookWithProviders(() => useAgentPlugins());
+
+    await waitFor(
+      () => expect(result.current.data?.agents[0]?.choiceProbes?.model?.state).toBe("failed"),
+      { timeout: PROBE_POLL_INTERVAL_MS * 3 },
+    );
+    expect(mockedApi.fetchAgentPlugins).toHaveBeenCalledTimes(2);
+
+    await new Promise((resolve) => setTimeout(resolve, PROBE_POLL_INTERVAL_MS * 1.5));
+    expect(mockedApi.fetchAgentPlugins).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not poll when no probe is loading", async () => {
+    mockedApi.fetchAgentPlugins.mockResolvedValue(agentWith("resolved") as never);
+
+    const { result } = renderHookWithProviders(() => useAgentPlugins());
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await new Promise((resolve) => setTimeout(resolve, PROBE_POLL_INTERVAL_MS * 1.5));
+    expect(mockedApi.fetchAgentPlugins).toHaveBeenCalledTimes(1);
   });
 });
 

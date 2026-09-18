@@ -10,10 +10,17 @@ import {
   SelectValue,
   TextField,
 } from "react-aria-components";
-import { Check, ChevronDown } from "lucide-react";
-import type { PluginPermissions } from "@roubo/shared";
+import { useId } from "react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
+import type { AgentChoiceProbeState, PluginPermissions } from "@roubo/shared";
 import { titleCase } from "../lib/title-case";
 import { enumOptions, isPasswordProperty } from "./config-schema-utils";
+import {
+  PROBE_FAILED_PLACEHOLDER,
+  PROBE_LOADING_PLACEHOLDER,
+  PROBE_LOADING_TEXT,
+  probeFailureCopy,
+} from "./probe-state-copy";
 
 interface PropertyDef {
   type?: "string" | "boolean" | "number" | "integer";
@@ -41,6 +48,14 @@ export interface ConfigSchemaFormProps {
    * field plus its allowed values.
    */
   errors?: Record<string, string>;
+  /**
+   * Optional choice-probe state per probed field, as the agent settings response
+   * serves it (#852). A field whose probe is `loading` or `failed` renders an
+   * empty choice control with a status line instead of a free-text input: an
+   * unset field already means the account default (#853). A `resolved` field
+   * needs nothing here, because its choices are already in `schema`.
+   */
+  probes?: Record<string, AgentChoiceProbeState>;
 }
 
 function slotDescription(
@@ -51,6 +66,87 @@ function slotDescription(
 }
 
 const FIELD_ERROR_CLASS = "mt-1 text-[11px] text-red-600 dark:text-red-400 leading-relaxed";
+
+/**
+ * A probe-bound field whose choices are not available yet (loading) or could
+ * not be read (failed). The control stays in the tab order, marked
+ * `aria-disabled` rather than `disabled`, so a keyboard user still reaches it
+ * and hears the status line it points at (APCC-TC-023). It holds no value and
+ * opens nothing, so there is no free-text entry (APCC-TC-016). The status line
+ * is a `role="status"` region that persists across the loading-to-failed
+ * change, so assistive technology announces the failure text (APCC-TC-022).
+ */
+function ProbePendingField({
+  fieldKey,
+  label,
+  help,
+  probe,
+}: {
+  fieldKey: string;
+  label: string;
+  help: string | undefined;
+  probe: AgentChoiceProbeState;
+}) {
+  const id = useId();
+  const labelId = `${id}-label`;
+  const valueId = `${id}-value`;
+  const statusId = `${id}-status`;
+  const helpId = `${id}-help`;
+  const loading = probe.state === "loading";
+  const failure = loading ? undefined : probeFailureCopy(probe.cause, probe.reason);
+
+  return (
+    <div
+      className="space-y-0"
+      data-testid={`config-field-${fieldKey}`}
+      data-probe-state={probe.state}
+    >
+      <span id={labelId} className="block text-xs text-stone-500 dark:text-stone-400 mb-1.5">
+        {label}
+      </span>
+      <button
+        type="button"
+        aria-disabled="true"
+        aria-labelledby={`${labelId} ${valueId}`}
+        aria-describedby={help ? `${statusId} ${helpId}` : statusId}
+        className="w-full flex items-center justify-between px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/20 text-sm text-stone-500 dark:text-stone-400 cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+      >
+        <span id={valueId} className="truncate">
+          {loading ? PROBE_LOADING_PLACEHOLDER : PROBE_FAILED_PLACEHOLDER}
+        </span>
+        <ChevronDown size={14} className="shrink-0 ml-2 text-stone-400 dark:text-stone-600" />
+      </button>
+      <div
+        id={statusId}
+        role="status"
+        data-testid={`config-field-${fieldKey}-probe-status`}
+        className={`mt-1 flex items-start gap-1.5 text-[11px] leading-relaxed ${
+          loading ? "text-stone-500 dark:text-stone-400" : "text-red-600 dark:text-red-400"
+        }`}
+      >
+        {loading ? (
+          <>
+            <Loader2 size={12} aria-hidden="true" className="mt-0.5 shrink-0 animate-spin" />
+            <span>{PROBE_LOADING_TEXT}</span>
+          </>
+        ) : (
+          <span>
+            <span className="block font-medium">{failure?.cause}</span>
+            <span className="block text-stone-600 dark:text-stone-300">{failure?.remedy}</span>
+          </span>
+        )}
+      </div>
+      {help && (
+        <p
+          id={helpId}
+          className="mt-1 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed"
+        >
+          {help}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /**
  * Minimal JSON-Schema → React Aria form renderer. Handles the five field
@@ -65,6 +161,7 @@ export default function ConfigSchemaForm({
   values,
   onChange,
   errors,
+  probes,
 }: ConfigSchemaFormProps) {
   const properties = (schema as { properties?: Record<string, unknown> } | undefined)?.properties;
 
@@ -91,6 +188,20 @@ export default function ConfigSchemaForm({
           def.oneOf !== undefined || def.anyOf !== undefined || def.allOf !== undefined;
         const fieldError = errors?.[key];
         const choices = enumOptions(def);
+        const probe = probes?.[key];
+
+        if (probe && probe.state !== "resolved") {
+          return (
+            <div key={key} className="space-y-0">
+              <ProbePendingField fieldKey={key} label={label} help={help} probe={probe} />
+              {fieldError && (
+                <p role="alert" className={FIELD_ERROR_CLASS}>
+                  {fieldError}
+                </p>
+              )}
+            </div>
+          );
+        }
 
         if (choices) {
           const selectedKey = value === "" ? null : String(value);
