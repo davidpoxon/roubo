@@ -21,7 +21,6 @@ import {
 } from "../hooks/useJigs";
 import { useAgentPlugins } from "../hooks/useAgentPlugins";
 import { JigPickerOption, INHERIT_JIG_ID } from "./ProjectDefaultJigTile";
-import FirstNSessionsBanner from "./FirstNSessionsBanner";
 import {
   DEFAULT_JIG_SETTINGS,
   DEFAULT_BENCH_SETTINGS,
@@ -689,18 +688,13 @@ const HASH_TAB_IDS = new Set([
 
 export default function ProjectSettings() {
   const { hash } = useLocation();
-  // Allow deep links like /settings#plugins to pre-select a tab on mount
-  // (e.g. the rolled-back migration banner sends users here).
+  // Allow deep links like /settings#plugins to pre-select a tab on mount.
   const initialTab =
     hash.startsWith("#") && HASH_TAB_IDS.has(hash.slice(1)) ? hash.slice(1) : undefined;
 
   return (
     <div className="p-8 w-full">
       <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100 mb-6">Settings</h2>
-
-      <FirstNSessionsBanner routeKey="global-settings" sessionCount={5} label="Settings overview">
-        Application-wide defaults. Per-project settings live on each project&apos;s page.
-      </FirstNSessionsBanner>
 
       <Tabs defaultSelectedKey={initialTab}>
         <TabList
