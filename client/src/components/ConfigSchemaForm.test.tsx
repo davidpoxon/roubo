@@ -172,6 +172,24 @@ describe("ConfigSchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith({ model: "opus" });
   });
 
+  it("renders the select placeholder in the text-secondary token for both themes (#887)", () => {
+    render(
+      <ConfigSchemaForm
+        schema={{
+          properties: { model: { type: "string", title: "Model", enum: ["sonnet", "opus"] } },
+        }}
+        values={{}}
+        onChange={vi.fn()}
+      />,
+    );
+    const placeholder = screen.getByText("Select an item").closest("[data-placeholder]");
+    expect(placeholder).not.toBeNull();
+    // stone-500 on light and stone-400 on dark both clear WCAG AA 4.5:1.
+    expect(placeholder?.className).toContain("data-[placeholder]:text-stone-500");
+    expect(placeholder?.className).toContain("dark:data-[placeholder]:text-stone-400");
+    expect(placeholder?.className).not.toContain("dark:data-[placeholder]:text-stone-500");
+  });
+
   it("renders a oneOf of consts as a select and preserves each const's own type", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

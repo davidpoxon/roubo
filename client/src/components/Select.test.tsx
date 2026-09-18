@@ -17,6 +17,16 @@ describe("Select", () => {
     expect(screen.getByText("Choose…")).toBeInTheDocument();
   });
 
+  it("renders the placeholder in the text-secondary token for both themes (#887)", () => {
+    render(<Select items={items} value="" onChange={vi.fn()} placeholder="Choose…" />);
+    const placeholder = screen.getByText("Choose…").closest("[data-placeholder]");
+    expect(placeholder).not.toBeNull();
+    // stone-500 on light and stone-400 on dark both clear WCAG AA 4.5:1.
+    expect(placeholder?.className).toContain("data-[placeholder]:text-stone-500");
+    expect(placeholder?.className).toContain("dark:data-[placeholder]:text-stone-400");
+    expect(placeholder?.className).not.toContain("dark:data-[placeholder]:text-stone-500");
+  });
+
   it("shows the clear button when allowClear is true and a value is selected", () => {
     render(<Select items={items} value="alpha" onChange={vi.fn()} allowClear />);
     expect(screen.getByRole("button", { name: /clear selection/i })).toBeInTheDocument();
