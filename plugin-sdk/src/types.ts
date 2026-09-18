@@ -983,9 +983,14 @@ export interface WorkspaceWriteSpec {
  * How the agent signals the host. `http-hook` covers an agent that POSTs to the
  * host itself (the hook registration rides a workspace write); `spawned-notifier`
  * covers an agent that spawns a notifier program per event (the registration
- * rides argv). Carrier strings may embed `{{sessionId}}` / `{{port}}` /
- * `{{workspace}}`, which the host resolves: a plugin declares shape and never
- * learns a real port or mints a session id.
+ * rides argv). `file-notifier` covers an agent whose hook is registered by a
+ * workspace file and that spawns the notifier with the event JSON on stdin: the
+ * host resolves `carrier.args`, shell-quotes each element, joins them into one
+ * command string, and substitutes that string for `{{notifierCommand}}` in the
+ * carrier write, because such an agent runs its hook command through a shell.
+ * Carrier strings may embed `{{sessionId}}` / `{{port}}` / `{{workspace}}`,
+ * which the host resolves: a plugin declares shape and never learns a real port
+ * or mints a session id. `{{notifier}}` resolves only for the two notifier kinds.
  */
 export type NotificationWiring =
   | {
@@ -999,6 +1004,14 @@ export type NotificationWiring =
       event: "turn-complete";
       carrier: { args: string[] };
       payload: "json-arg";
+      correlation: { source: "template"; template: string };
+    }
+  | {
+      kind: "file-notifier";
+      event: "turn-complete";
+      /** `args` must be non-empty; the host's Zod schema enforces it. */
+      carrier: { workspaceWrite: WorkspaceWriteSpec; args: string[] };
+      payload: "json-stdin";
       correlation: { source: "template"; template: string };
     };
 

@@ -69,8 +69,9 @@ export function validateDescriptor(raw: unknown): AgentLaunchDescriptor {
 /**
  * Every workspace write a descriptor declares, in execution order: the plain
  * `capabilities.workspaceWrites`, then the selected posture's writes, then the
- * notification wiring's carrier write when the agent uses the `http-hook` shape
- * (its hook registration lives in a settings file). Capability absence is
+ * notification wiring's carrier write when the agent uses the `http-hook` or
+ * `file-notifier` shape (both register their hook in a workspace file, so both
+ * travel this one path-validated route). Capability absence is
  * first-class, so a descriptor declaring none yields an empty list and no file
  * is touched.
  */
@@ -88,11 +89,31 @@ export function collectWorkspaceWrites(
     if (binding?.workspaceWrites) writes.push(...binding.workspaceWrites);
   }
 
-  if (capabilities.notification?.kind === "http-hook") {
-    writes.push(capabilities.notification.carrier.workspaceWrite);
+  const notification = capabilities.notification;
+  if (notification?.kind === "http-hook" || notification?.kind === "file-notifier") {
+    writes.push(notification.carrier.workspaceWrite);
   }
 
   return writes;
+}
+
+/**
+ * Join a `file-notifier` carrier's resolved args into the one command string its
+ * registration write embeds as `{{notifierCommand}}` (issue #854). The agent
+ * runs that string through a shell, so every element is POSIX-quoted: an element
+ * made only of characters no shell treats specially passes through bare, and
+ * anything else (whitespace, quotes, `$`, `;`, an empty string) is wrapped in
+ * single quotes with each embedded single quote written as `'\''`. A workspace
+ * path with a space in it therefore stays one word, and nothing a template
+ * resolves to can inject a second command.
+ */
+export function joinShellCommand(args: string[]): string {
+  return args.map(quoteShellWord).join(" ");
+}
+
+function quoteShellWord(word: string): string {
+  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word)) return word;
+  return `'${word.replace(/'/g, "'\\''")}'`;
 }
 
 /**

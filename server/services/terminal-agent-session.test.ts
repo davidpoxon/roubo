@@ -1032,6 +1032,144 @@ describe("spawned-notifier launch wiring (issue #698)", () => {
   });
 });
 
+// ── The file-notifier wiring (issue #854) ──
+
+/**
+ * The third arm: the hook is registered by a workspace file, as the http-hook
+ * one is, and the agent spawns core's notifier, as the spawned-notifier one
+ * does. The agent runs the registered command through a shell, so the carrier
+ * args reach the file as one shell-quoted string, never as argv.
+ */
+function fileNotifier(overrides: Record<string, unknown> = {}) {
+  return {
+    kind: "file-notifier",
+    event: "turn-complete",
+    carrier: {
+      workspaceWrite: {
+        relPath: ".acme/hooks.json",
+        format: "json",
+        ops: [{ op: "set", path: "hooks.stop", value: [{ command: "{{notifierCommand}}" }] }],
+      },
+      args: ["{{notifier}}", "{{sessionId}}"],
+    },
+    payload: "json-stdin",
+    correlation: { source: "template", template: "{{sessionId}}" },
+    ...overrides,
+  };
+}
+
+/** The hook command the carrier write registered, read back from the write sink. */
+function registeredHookCommand(): string {
+  const call = stateMocks.atomicWrite.mock.calls.find(([target]) =>
+    String(target).endsWith(path.join(".acme", "hooks.json")),
+  );
+  if (call === undefined) throw new Error("expected the carrier write to reach the workspace");
+  const doc = JSON.parse(String(call[1])) as { hooks: { stop: { command: string }[] } };
+  return doc.hooks.stop[0].command;
+}
+
+describe("file-notifier launch wiring (issue #854)", () => {
+  it("writes the resolved, joined notifier command into the registration file", async () => {
+    prepare({ capabilities: { notification: fileNotifier() } });
+
+    const session = await launch();
+
+    expect(registeredHookCommand()).toBe(`${getNotifierPath()} ${session.id}`);
+  });
+
+  it("shell-quotes each resolved arg, so a workspace path with a space stays one word", async () => {
+    const spaced = fs.mkdtempSync(path.join(os.tmpdir(), "roubo agent ws "));
+    try {
+      prepare({
+        capabilities: {
+          notification: fileNotifier({
+            carrier: {
+              ...fileNotifier().carrier,
+              args: ["{{notifier}}", "--cwd={{workspace}}", "it's", "{{sessionId}}"],
+            },
+          }),
+        },
+      });
+
+      const session = await launch({ workspacePath: spaced });
+
+      expect(registeredHookCommand()).toBe(
+        `${getNotifierPath()} '--cwd=${spaced}' 'it'\\''s' ${session.id}`,
+      );
+    } finally {
+      fs.rmSync(spaced, { recursive: true, force: true });
+    }
+  });
+
+  it("adds nothing to the agent's argv", async () => {
+    prepare({
+      args: ["--flag"],
+      initialPrompt: { mode: "argv-positional" },
+      capabilities: { notification: fileNotifier() },
+    });
+
+    await launch({ initialInput: "do the thing" });
+
+    expect(spawnCall().args).toEqual(["--flag", "do the thing"]);
+  });
+
+  it("registers the session against the token the joined command carries", async () => {
+    prepare({ capabilities: { notification: fileNotifier() } });
+
+    const session = await launch();
+
+    // One resolution: the token core registered is byte-identical to the one
+    // the registered command hands the notifier.
+    const token = registeredHookCommand().split(" ")[1];
+    expect(token).toBe(session.id);
+    expect(resolveNotifierSession(token)?.id).toBe(session.id);
+    expect(isNotifierNotificationEligible(token)).toBe(true);
+    // It is a notifier wiring, never an http-hook one.
+    expect(isHookNotificationEligible(session.id)).toBe(false);
+  });
+
+  it("honours a correlation template that is not the bare session id", async () => {
+    prepare({
+      capabilities: {
+        notification: fileNotifier({
+          carrier: { ...fileNotifier().carrier, args: ["roubo-notify", "roubo:{{sessionId}}"] },
+          correlation: { source: "template", template: "roubo:{{sessionId}}" },
+        }),
+      },
+    });
+
+    const session = await launch();
+
+    expect(registeredHookCommand()).toBe(`roubo-notify roubo:${session.id}`);
+    expect(isNotifierNotificationEligible(`roubo:${session.id}`)).toBe(true);
+    expect(isNotifierNotificationEligible(session.id)).toBe(false);
+  });
+
+  it("leads the child PATH with the notifier's directory, so a bare name resolves", async () => {
+    prepare({ capabilities: { notification: fileNotifier() } });
+
+    await launch();
+
+    const env = spawnCall().opts.env as Record<string, string>;
+    expect(env.PATH.startsWith(`${getNotifierDir()}${path.delimiter}`)).toBe(true);
+  });
+
+  it("drops the registration write with the rest of the wiring when the notifier cannot be installed", async () => {
+    stateMocks.atomicWrite.mockImplementation((target: unknown) => {
+      if (String(target) === getNotifierPath()) throw new Error("EACCES");
+    });
+    prepare({ capabilities: { notification: fileNotifier() } });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const session = await launch();
+    warnSpy.mockRestore();
+
+    const targets = stateMocks.atomicWrite.mock.calls.map(([t]) => String(t));
+    expect(targets.some((t) => t.endsWith(path.join(".acme", "hooks.json")))).toBe(false);
+    expect(isNotifierNotificationEligible(session.id)).toBe(false);
+  });
+});
+
 describe("per-agent quiescence debounce (AP-TC-065)", () => {
   it("honours a quiescence-only agent's declared debounce", async () => {
     prepare({ capabilities: { waitingDetection: { kind: "quiescence-only", debounceMs: 3500 } } });

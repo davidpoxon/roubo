@@ -135,11 +135,19 @@ export interface ResolvedTemplateContext {
   /**
    * The absolute path of the notifier program core installed for this launch,
    * supplied only when resolving a descriptor whose notification wiring is
-   * `spawned-notifier` (issue #698). A plugin declares `{{notifier}}` when it
+   * `spawned-notifier` (issue #698) or `file-notifier` (issue #854). A plugin declares `{{notifier}}` when it
    * needs the program by path rather than by PATH lookup, and never learns
    * where core keeps it.
    */
   notifier?: string;
+  /**
+   * The shell-quoted, space-joined notifier invocation, supplied only when
+   * resolving a descriptor whose notification wiring is `file-notifier` (issue
+   * #854). Its registration write declares `{{notifierCommand}}` where the hook
+   * command goes, because the agent runs that command through a shell rather
+   * than from an argv array.
+   */
+  notifierCommand?: string;
 }
 
 export function resolveTemplate(template: string, ctx: ResolvedTemplateContext): string {
@@ -174,6 +182,9 @@ export function resolveTemplate(template: string, ctx: ResolvedTemplateContext):
     if (key === "sessionId" && ctx.sessionId !== undefined) return ctx.sessionId;
     if (key === "port" && ctx.port !== undefined) return ctx.port;
     if (key === "notifier" && ctx.notifier !== undefined) return ctx.notifier;
+    if (key === "notifierCommand" && ctx.notifierCommand !== undefined) {
+      return ctx.notifierCommand;
+    }
 
     if (key.startsWith("user.")) {
       const propName = key.slice("user.".length);

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -7,6 +8,7 @@ import {
   AgentDescriptorError,
   collectWorkspaceWrites,
   executeWorkspaceWrites,
+  joinShellCommand,
   runLaunchDescriptor,
   validateDescriptor,
 } from "./agent-launch-executor.js";
@@ -76,7 +78,79 @@ describe("collectWorkspaceWrites", () => {
     expect(collectWorkspaceWrites(validateDescriptor(minimalDescriptor))).toEqual([]);
   });
 
-  it("orders plain writes, then the selected posture's writes, then the http-hook carrier", () => {
+  // Both notification arms that register their hook in a workspace file put the
+  // carrier write through this one collection, so it reaches the same
+  // path-validated executeWorkspaceWrites route (issue #854).
+  const CARRIER_WRITE = {
+    relPath: "c.json",
+    format: "json",
+    ops: [{ op: "set", path: "hooks", value: "{{notifierCommand}}" }],
+  } as const;
+
+  it.each([
+    {
+      name: "http-hook",
+      notification: {
+        kind: "http-hook",
+        event: "waiting",
+        carrier: { workspaceWrite: CARRIER_WRITE },
+        correlation: { field: "session_id", source: "agent-native" },
+      },
+    },
+    {
+      name: "file-notifier",
+      notification: {
+        kind: "file-notifier",
+        event: "turn-complete",
+        carrier: { workspaceWrite: CARRIER_WRITE, args: ["{{notifier}}", "{{sessionId}}"] },
+        payload: "json-stdin",
+        correlation: { source: "template", template: "{{sessionId}}" },
+      },
+    },
+  ])(
+    "orders plain writes, then the selected posture's writes, then the $name carrier",
+    ({ notification }) => {
+      const descriptor = validateDescriptor({
+        ...minimalDescriptor,
+        capabilities: {
+          workspaceWrites: [
+            { relPath: "a.json", format: "json", ops: [{ op: "delete", path: "x" }] },
+          ],
+          notification,
+          permissions: {
+            postures: {
+              guarded: {
+                workspaceWrites: [
+                  { relPath: "b.json", format: "json", ops: [{ op: "delete", path: "y" }] },
+                ],
+              },
+            },
+          },
+        },
+      });
+      expect(
+        collectWorkspaceWrites(descriptor, { posture: "guarded" }).map((w) => w.relPath),
+      ).toEqual(["a.json", "b.json", "c.json"]);
+    },
+  );
+
+  it("adds no write for a spawned-notifier, whose carrier rides argv", () => {
+    const descriptor = validateDescriptor({
+      ...minimalDescriptor,
+      capabilities: {
+        notification: {
+          kind: "spawned-notifier",
+          event: "turn-complete",
+          carrier: { args: ["--notify", "{{notifier}}"] },
+          payload: "json-arg",
+          correlation: { source: "template", template: "{{sessionId}}" },
+        },
+      },
+    });
+    expect(collectWorkspaceWrites(descriptor)).toEqual([]);
+  });
+
+  it("rejects a file-notifier carrier write that escapes the workspace, writing nothing", () => {
     const descriptor = validateDescriptor({
       ...minimalDescriptor,
       capabilities: {
@@ -84,31 +158,21 @@ describe("collectWorkspaceWrites", () => {
           { relPath: "a.json", format: "json", ops: [{ op: "delete", path: "x" }] },
         ],
         notification: {
-          kind: "http-hook",
-          event: "waiting",
+          kind: "file-notifier",
+          event: "turn-complete",
           carrier: {
-            workspaceWrite: {
-              relPath: "c.json",
-              format: "json",
-              ops: [{ op: "set", path: "hooks", value: 1 }],
-            },
+            workspaceWrite: { ...CARRIER_WRITE, relPath: "../escape.json" },
+            args: ["{{notifier}}"],
           },
-          correlation: { field: "session_id", source: "agent-native" },
-        },
-        permissions: {
-          postures: {
-            guarded: {
-              workspaceWrites: [
-                { relPath: "b.json", format: "json", ops: [{ op: "delete", path: "y" }] },
-              ],
-            },
-          },
+          payload: "json-stdin",
+          correlation: { source: "template", template: "{{sessionId}}" },
         },
       },
     });
-    expect(
-      collectWorkspaceWrites(descriptor, { posture: "guarded" }).map((w) => w.relPath),
-    ).toEqual(["a.json", "b.json", "c.json"]);
+    expect(() => executeWorkspaceWrites(workspace, collectWorkspaceWrites(descriptor))).toThrow(
+      /escapes the bench workspace/,
+    );
+    expect(fs.existsSync(path.join(workspace, "a.json"))).toBe(false);
   });
 
   it("omits a posture's writes when that posture is not selected", () => {
@@ -380,5 +444,37 @@ describe("the plugin itself still cannot write the workspace (AP-TC-014 S003-O02
     } finally {
       fs.rmSync(pluginDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("joinShellCommand (issue #854)", () => {
+  it("leaves plain words bare and joins them with single spaces", () => {
+    expect(joinShellCommand(["/home/u/.roubo/bin/roubo-notify", "abc-123", "--x=1"])).toBe(
+      "/home/u/.roubo/bin/roubo-notify abc-123 --x=1",
+    );
+  });
+
+  it("single-quotes a word carrying whitespace or shell metacharacters", () => {
+    expect(joinShellCommand(["/Users/a b/roubo-notify", "x;rm -rf /", "$HOME", "`id`"])).toBe(
+      "'/Users/a b/roubo-notify' 'x;rm -rf /' '$HOME' '`id`'",
+    );
+  });
+
+  it("escapes an embedded single quote so the word stays one word", () => {
+    expect(joinShellCommand(["it's"])).toBe("'it'\\''s'");
+  });
+
+  it("keeps an empty element as an explicit empty word", () => {
+    expect(joinShellCommand(["a", ""])).toBe("a ''");
+  });
+
+  it("round-trips through a real POSIX shell as the original argv", () => {
+    const words = ["plain", "with space", "it's", "$HOME", "a;b", "", 'dq"x', "back\\slash"];
+    const out = execFileSync(
+      "/bin/sh",
+      ["-c", `for a in ${joinShellCommand(words)}; do printf '%s\\0' "$a"; done`],
+      { encoding: "utf-8" },
+    );
+    expect(out.split("\0").slice(0, -1)).toEqual(words);
   });
 });
