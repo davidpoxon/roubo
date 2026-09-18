@@ -40,7 +40,7 @@ const STATUS_MAP: Record<string, StatusColors> = {
 
 const DEFAULT_COLORS: StatusColors = {
   dot: "bg-stone-500",
-  text: "text-stone-500",
+  text: "text-text-muted",
   activeBg: "bg-stone-500/10",
   activeBorder: "border-stone-500/30",
 };

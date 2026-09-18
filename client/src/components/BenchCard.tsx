@@ -122,7 +122,7 @@ export default function BenchCard({
 
             {/* Assigned issue */}
             {bench.assignedIssue && (
-              <div className="flex items-center gap-1.5 text-xs text-stone-500 mt-2.5 shrink-0">
+              <div className="flex items-center gap-1.5 text-xs text-text-muted mt-2.5 shrink-0">
                 <span className="font-mono text-accent-text shrink-0">
                   {displayIssueRef(bench.assignedIssue)}
                 </span>
@@ -175,7 +175,7 @@ export default function BenchCard({
                   ))}
                   {orphanPorts.map(([name, port]) => (
                     <span key={name} className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-stone-500">{name}</span>
+                      <span className="text-[11px] text-text-muted">{name}</span>
                       <span className="text-[11px] font-mono text-stone-600 dark:text-stone-400">
                         :{port}
                       </span>
@@ -234,7 +234,7 @@ export default function BenchCard({
                   className={
                     isPrimaryStartCTA
                       ? "p-1.5 rounded-md bg-amber-500 text-stone-950 not-disabled:hover:bg-amber-400 not-disabled:active:bg-amber-600 disabled:opacity-30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
-                      : "p-1.5 rounded-md text-stone-500 not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
+                      : "p-1.5 rounded-md text-text-muted not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
                   }
                 >
                   {isRunning ? <Square size={13} /> : <Play size={13} />}

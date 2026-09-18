@@ -105,7 +105,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
             <Button
               onPress={onClose}
               aria-label={STRINGS.closeAriaLabel}
-              className="p-1 rounded text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="p-1 rounded text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               <X size={16} />
             </Button>
@@ -150,7 +150,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
               onPress={() => logs.refetch()}
               isDisabled={logs.isFetching}
               aria-label={STRINGS.refreshAriaLabel}
-              className="p-1.5 rounded text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="p-1.5 rounded text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               <RefreshCw size={14} className={logs.isFetching ? "animate-spin" : ""} />
             </Button>

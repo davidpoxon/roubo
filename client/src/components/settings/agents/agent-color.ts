@@ -37,7 +37,7 @@ const PALETTE: Swatch[] = [
   { bg: "bg-sky-400", text: "text-sky-400" },
 ];
 
-const UNKNOWN: Swatch = { bg: "bg-stone-500", text: "text-stone-500" };
+const UNKNOWN: Swatch = { bg: "bg-stone-500", text: "text-text-muted" };
 
 function swatch(pluginId: string | undefined): Swatch {
   if (!pluginId) return UNKNOWN;

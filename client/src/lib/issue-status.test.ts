@@ -28,10 +28,10 @@ describe("statusColor", () => {
     expect(result.text).toBe("text-stone-600");
   });
 
-  it("returns default stone-500 colors for unknown status", () => {
+  it("returns default stone-500 colors, with theme-switched muted text, for unknown status", () => {
     const result = statusColor("unknown-status");
     expect(result.dot).toBe("bg-stone-500");
-    expect(result.text).toBe("text-stone-500");
+    expect(result.text).toBe("text-text-muted");
     expect(result.activeBg).toBe("bg-stone-500/10");
     expect(result.activeBorder).toBe("border-stone-500/30");
   });

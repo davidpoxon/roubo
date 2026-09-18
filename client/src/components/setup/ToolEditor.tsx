@@ -81,7 +81,7 @@ export default function ToolEditor({
                     className={`p-1.5 rounded-lg transition-colors duration-150 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-500 ${
                       isSelected
                         ? "bg-stone-700 text-stone-100 ring-1 ring-stone-600"
-                        : "text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/60"
+                        : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/60"
                     }`}
                   >
                     <IconComponent size={14} />
@@ -102,7 +102,7 @@ export default function ToolEditor({
                   className={`px-3 py-1.5 text-xs rounded-lg transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 ${
                     tool.type === t
                       ? "bg-stone-700 text-stone-100"
-                      : "text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
+                      : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
                   }`}
                 >
                   {t}

@@ -53,7 +53,7 @@ function SectionHeader({
   return (
     <div className="flex items-center gap-2 mb-3">
       <Icon size={13} className="text-stone-600 dark:text-stone-400" />
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
         {label}
       </h3>
       {status && <StatusDot status={status} />}
@@ -109,7 +109,7 @@ function ItemHeader({
 }) {
   return (
     <div className="flex items-center gap-2">
-      {Icon && <Icon size={14} className="text-stone-500 shrink-0" />}
+      {Icon && <Icon size={14} className="text-text-muted shrink-0" />}
       <span className="text-[12px] text-stone-800 dark:text-stone-200 font-mono font-medium">
         {name}
       </span>
@@ -136,7 +136,7 @@ function ComponentMiniCard({
         <Row label="Docker">
           <span className="inline-flex items-center gap-2 min-w-0">
             <FilePathLabel path={component.docker.composeFile} />
-            <span className="text-[12px] font-mono text-stone-500">
+            <span className="text-[12px] font-mono text-text-muted">
               / {component.docker.service}
             </span>
           </span>

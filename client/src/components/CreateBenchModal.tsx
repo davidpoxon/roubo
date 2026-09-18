@@ -80,7 +80,7 @@ export default function CreateBenchModal({
               <div className="px-5 py-4 space-y-4">
                 {!fixedProjectId && (
                   <div>
-                    <label className="block text-xs text-stone-500 mb-1.5">Project</label>
+                    <label className="block text-xs text-text-muted mb-1.5">Project</label>
                     <Select
                       items={validProjects.map((p) => ({
                         value: p.id,
@@ -94,7 +94,7 @@ export default function CreateBenchModal({
                 )}
 
                 <TextField value={branch} onChange={setBranch}>
-                  <Label className="block text-xs text-stone-500 mb-1.5">Branch name</Label>
+                  <Label className="block text-xs text-text-muted mb-1.5">Branch name</Label>
                   <Input
                     autoFocus={!!fixedProjectId}
                     placeholder="Leave empty for auto-generated"

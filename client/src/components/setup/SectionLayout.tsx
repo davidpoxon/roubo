@@ -44,7 +44,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
   return (
     <div className="space-y-5">
       <div>
-        <label className="block text-xs text-stone-500 mb-1.5">Repository structure</label>
+        <label className="block text-xs text-text-muted mb-1.5">Repository structure</label>
         <div className="flex gap-1">
           {STRUCTURE_TYPES.map((t) => (
             <Button
@@ -53,7 +53,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
               className={`px-3 py-1.5 text-xs rounded-lg transition-colors outline-none ${
                 structure.type === t
                   ? "bg-stone-700 text-stone-100"
-                  : "text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
+                  : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
               }`}
             >
               {t}
@@ -67,7 +67,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
 
       {structure.type === "meta-repo" && (
         <div>
-          <label className="block text-xs text-stone-500 mb-1.5">Submodules</label>
+          <label className="block text-xs text-text-muted mb-1.5">Submodules</label>
           {subEntries.length > 0 && (
             <div className="flex items-center gap-2 mb-1">
               <span className="flex-1 flex items-center gap-1 text-[11px] text-stone-500 dark:text-stone-400">
@@ -115,7 +115,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
           </div>
           <Button
             onPress={addSubmodule}
-            className="flex items-center gap-1 mt-2 text-[11px] text-stone-500 hover:text-stone-300 transition-colors outline-none"
+            className="flex items-center gap-1 mt-2 text-[11px] text-text-muted hover:text-stone-300 transition-colors outline-none"
           >
             <Plus size={12} />
             Add submodule
