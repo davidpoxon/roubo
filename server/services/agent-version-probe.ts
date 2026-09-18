@@ -1,5 +1,3 @@
-import os from "node:os";
-import path from "node:path";
 import type {
   AgentCompatibility,
   AgentCompatibilityState,
@@ -7,8 +5,16 @@ import type {
   AgentVersionStatus,
 } from "@roubo/shared";
 import type { VersionProbeSpec } from "@roubo/shared/agent-launch-descriptor-schema";
-import { runCommand } from "./exec.js";
-import { AgentCommandNotFoundError, resolveAgentCommand } from "./env.js";
+import {
+  readProbe,
+  invalidateProbe,
+  resetProbeRunnerCache,
+  runProbe,
+  type ProbeFailureCause,
+  type ProbeResult,
+} from "./agent-probe-runner.js";
+
+export { parseVersion } from "./probe-parse-registry.js";
 
 // Agent version probe (issue #519, AP-FR-014, AP-NFR-006).
 //
@@ -24,43 +30,13 @@ import { AgentCommandNotFoundError, resolveAgentCommand } from "./env.js";
 // auto-mode detection it also served, so this probe is the only version gate
 // left.
 //
-// Caching is keyed by RESOLVED BINARY plus probe argv, not by plugin, so two
-// plugins pointing at the same CLI probe it once and `GET /api/agents` can render
-// a detected version without spawning anything per request. When the resolution
-// lands on a bare name, the key also carries the search path it was resolved
-// against (#660): a bare name is only fully identified together with its PATH, so
-// two launches whose PATH differs name two different binaries under one name.
-
-const PROBE_TIMEOUT_MS = 5000;
-
-/**
- * How long a detection is reused before a launch re-probes.
- *
- * An agent CLI is updated in place, so the resolved binary path does not change
- * and a cache with no expiry would keep reporting the pre-update version for the
- * life of the server process. That directly defeats the below-floor guidance
- * ("update the agent CLI, then launch again") and strands a transient probe
- * failure permanently. A minute is long enough that a burst of launches still
- * costs one ~50ms spawn, and short enough that "update, then retry" works.
- */
-const DETECTION_TTL_MS = 60_000;
-
-/** The outcome of one probe against one binary, before any range is applied. */
-interface Detection {
-  version?: string;
-  /** Why no version could be read. Present exactly when `version` is absent. */
-  reason?: string;
-  /**
-   * WHICH kind of failure this was, present exactly when `version` is absent
-   * (AP-TC-122, issue #522). `probe-failed` alone conflates two states a surface
-   * must not describe with one sentence: a CLI that could not be found at all,
-   * and a CLI that was found, ran, and could not be read. Only the first is
-   * fixed by installing the agent's command-line tool.
-   */
-  cause?: AgentVersionProbeFailureCause;
-  /** When this detection was taken, for TTL expiry. */
-  at: number;
-}
+// Since #851 this module no longer spawns anything itself. Resolution, the
+// bounded spawn, the `semver` reader and the per-binary cache all live in the
+// shared probe runner (agent-probe-runner.ts), which the configuration choice
+// probe uses too. What stays here is what makes it a VERSION probe: the
+// comparison, the floor and ceiling verdict, the per-plugin bookkeeping the AI
+// Agents screen reads, and the policy that a failed detection is kept for the TTL
+// like a successful one.
 
 export interface AgentVersionProbeResult {
   status: AgentVersionStatus;
@@ -73,23 +49,8 @@ export interface AgentVersionProbeResult {
   cause?: AgentVersionProbeFailureCause;
 }
 
-/**
- * Detections keyed by the resolved binary, the probe argv and (for a bare-name
- * resolution) the search path, joined with control characters (NUL between
- * fields, SOH between argv elements) so no command, argument or PATH value can
- * forge a key collision. Written as `\u0000` /
- * `\u0001` escapes rather than literal bytes: literal control characters make git
- * classify this file as binary, which suppresses its diff and blame entirely.
- */
-const detections = new Map<string, Detection>();
-/** The binary + spec each agent plugin last probed with, so a cached read can reclassify. */
+/** The runner key + spec each agent plugin last probed with, so a cached read can reclassify. */
 const lastProbe = new Map<string, { key: string; spec: VersionProbeSpec }>();
-
-/** Parse the first semver anywhere in arbitrary command output (claude-version.ts regex). */
-export function parseVersion(output: string): string | null {
-  const match = output.match(/(\d+\.\d+\.\d+)/);
-  return match ? match[1] : null;
-}
 
 /** Negative, zero or positive as `a` sorts before, equal to, or after `b`. */
 export function compareVersions(a: string, b: string): number {
@@ -143,19 +104,26 @@ function probeFailed(
   };
 }
 
-/** True when `binary` names a location rather than something PATH has to find. */
-function isPathShaped(binary: string): boolean {
-  return binary.includes(path.sep) || binary.includes("/");
+/**
+ * The runner's four causes folded onto the two a version surface distinguishes
+ * (AP-TC-122, issue #522). Only a missing command is fixed by installing the CLI;
+ * a probe error, unreadable output and a timeout all mean the CLI was found and
+ * could not be read, which is what `probe-error` has always meant here.
+ */
+function versionCause(cause: ProbeFailureCause | undefined): AgentVersionProbeFailureCause {
+  return cause === "command-not-found" ? "command-not-found" : "probe-error";
 }
 
-function cacheKey(binary: string, spec: VersionProbeSpec, searchPath: string | undefined): string {
-  // A path-shaped binary is already fully identified, so it keeps sharing one
-  // detection across every caller: that is what lets two plugins pointing at the
-  // same CLI probe it once. A bare name is not, because `resolveAgentCommand`
-  // returns it unchanged once it finds it on the search path, so that path is
-  // part of which binary the detection is actually about (#660).
-  const scope = isPathShaped(binary) ? "" : (searchPath ?? "");
-  return `${binary}\u0000${spec.args.join("\u0001")}\u0000${scope}`;
+/** Classify one runner result against the spec's window. */
+function verdict(result: ProbeResult<string>, spec: VersionProbeSpec): AgentVersionProbeResult {
+  if (result.value === undefined) {
+    return probeFailed(
+      spec,
+      result.reason ?? "The version probe did not report a version",
+      versionCause(result.cause),
+    );
+  }
+  return classifyVersion(result.value, spec);
 }
 
 /**
@@ -190,120 +158,25 @@ export async function probeAgentVersion(
   searchPath: string | undefined = process.env.PATH,
   installLocations?: readonly string[],
 ): Promise<AgentVersionProbeResult> {
-  // A templated command cannot be resolved before the launch context exists, so
-  // there is nothing to probe. Reported honestly rather than probed blind.
-  if (command.includes("{{")) {
-    return probeFailed(
-      spec,
-      `Command "${command}" is templated and cannot be probed before launch`,
-    );
-  }
+  // The runner owns the refusals (a templated command or search path is reported,
+  // never probed blind), the resolution, the spawn and the cache. A failed
+  // detection is kept for the TTL, so a CLI that cannot be read is not re-spawned
+  // on every launch; a cached `command-not-found` miss is the exception, dropped
+  // the moment resolution succeeds, because the user just installed the CLI.
+  const { key, result } = await runProbe({
+    command,
+    args: spec.args,
+    parse: spec.parse,
+    failurePolicy: "keep-for-ttl",
+    searchPath,
+    installLocations,
+  });
 
-  // A descriptor's `env` values are templates too, resolved only once the launch
-  // context exists. Probing against an unresolved PATH would resolve, run and
-  // cache the wrong binary just as silently as ignoring it did, so it gets the
-  // same honest treatment as a templated command.
-  if (searchPath?.includes("{{") === true) {
-    return probeFailed(
-      spec,
-      "The launch environment's PATH is templated and cannot be probed before launch",
-    );
-  }
-
-  let binary: string;
-  try {
-    // The same resolution the spawn uses (#645): PATH, then the well-known
-    // install locations. That chain already covers what claude-version.ts hedged
-    // with an `sh -lc` retry, and resolving here means the probe and the spawn
-    // agree on which binary they are talking about.
-    binary = resolveAgentCommand(command, searchPath, installLocations);
-  } catch (err) {
-    if (err instanceof AgentCommandNotFoundError) {
-      // Cache the miss before returning (AP-TC-122, issue #522). This branch used
-      // to return without touching `lastProbe` / `detections`, so an agent whose
-      // CLI is simply not installed left NOTHING for `getCachedAgentVersion` to
-      // read: the AI Agents screen fell back to `unknown` and rendered "Ready"
-      // for an agent that cannot launch. The declared `command` keys the entry
-      // (there is no resolved binary to key it by), which is the same shape a
-      // bare-name resolution would have produced anyway.
-      const missKey = cacheKey(command, spec, searchPath);
-      lastProbe.set(pluginId, { key: missKey, spec });
-      detections.set(missKey, { at: Date.now(), reason: err.message, cause: "command-not-found" });
-      return probeFailed(spec, err.message, "command-not-found");
-    }
-    throw err;
-  }
-
-  const key = cacheKey(binary, spec, searchPath);
-  lastProbe.set(pluginId, { key, spec });
-
-  // Expiry is applied HERE and not in `getCachedAgentVersion`: a launch is worth
-  // one fresh spawn, whereas the AI Agents card is a display and is better served
-  // a stale-but-known version than nothing at all.
-  let detection = detections.get(key);
-  // A cached `command-not-found` miss is discarded on sight rather than waited
-  // out: resolution just SUCCEEDED, so that entry is provably stale (the user
-  // installed the CLI). Without this, a bare name that resolves to itself reuses
-  // its own miss under the same key and keeps reporting "not detected" for up to
-  // a TTL after the fix (issue #522).
-  if (detection?.cause === "command-not-found") detection = undefined;
-  if (detection === undefined || Date.now() - detection.at > DETECTION_TTL_MS) {
-    detection = await detect(binary, spec, searchPath);
-    detections.set(key, detection);
-  }
-
-  if (detection.version === undefined) {
-    return probeFailed(
-      spec,
-      detection.reason ?? "The version probe did not report a version",
-      detection.cause,
-    );
-  }
-  return classifyVersion(detection.version, spec);
-}
-
-async function detect(
-  binary: string,
-  spec: VersionProbeSpec,
-  searchPath: string | undefined,
-): Promise<Detection> {
-  // Resolution alone does not pin the binary down: `resolveAgentCommand` returns
-  // a bare name unchanged when it finds it on the search path, and `runCommand`
-  // otherwise spawns with the SERVER's environment. PATH is overridden here so
-  // the exec's own lookup lands on the same file the resolution just found (#660).
-  const { code, stdout, stderr } = await runCommand(
-    binary,
-    spec.args,
-    os.homedir(),
-    searchPath !== undefined ? { PATH: searchPath } : undefined,
-    PROBE_TIMEOUT_MS,
-  );
-
-  // Merged, because agents split version output across the two streams
-  // inconsistently and the semver scan is lenient by design.
-  const output = `${stdout}\n${stderr}`;
-  const version = parseVersion(output);
-  const at = Date.now();
-
-  // Both failure shapes below are `probe-error`, never `command-not-found`: this
-  // function only runs once `resolveAgentCommand` found the binary, so the CLI
-  // demonstrably exists and was executed. What failed is reading its output.
-  if (version !== null) return { version, at };
-  if (code !== 0) {
-    const detail = output.trim().split("\n")[0] ?? "";
-    return {
-      at,
-      cause: "probe-error",
-      reason:
-        `\`${binary} ${spec.args.join(" ")}\` exited with code ${code}` +
-        (detail ? `: ${detail}` : ""),
-    };
-  }
-  return {
-    at,
-    cause: "probe-error",
-    reason: `\`${binary} ${spec.args.join(" ")}\` produced no recognisable version number`,
-  };
+  // A refused probe has no key and leaves nothing to read back, as before. Every
+  // other outcome, a missing CLI included (AP-TC-122), is recorded so the AI
+  // Agents screen's cache-only read can see it.
+  if (key !== undefined) lastProbe.set(pluginId, { key, spec });
+  return verdict(result, spec);
 }
 
 /**
@@ -315,7 +188,7 @@ async function detect(
  */
 export function invalidateAgentVersionProbe(pluginId: string): void {
   const last = lastProbe.get(pluginId);
-  if (last) detections.delete(last.key);
+  if (last) invalidateProbe(last.key);
 }
 
 /**
@@ -380,11 +253,10 @@ const warming = new Set<string>();
  * restarted. Re-asking is cheap, because the not-found path throws inside
  * `resolveAgentCommand` and never reaches a spawn.
  *
- * The rejection is caught HERE rather than left to the caller. `probeAgentVersion`
- * reports an unresolvable command and a failed probe as `probe-failed` results,
- * but it deliberately rethrows anything else, and this call is `void`ed from
- * server boot and from a polled route, where an unhandled rejection would take the
- * process down. `.finally()` alone would re-propagate it.
+ * The rejection is caught HERE as well. The probe runner reports every failure
+ * as a result rather than throwing, but this call is `void`ed from server boot and
+ * from a polled route, where an unhandled rejection would take the process down,
+ * so it does not rely on that alone. `.finally()` by itself would re-propagate it.
  */
 export function warmAgentVersion(
   pluginId: string,
@@ -411,16 +283,9 @@ export function warmAgentVersion(
 export function getCachedAgentVersion(pluginId: string): AgentVersionProbeResult | undefined {
   const last = lastProbe.get(pluginId);
   if (!last) return undefined;
-  const detection = detections.get(last.key);
-  if (!detection) return undefined;
-  if (detection.version === undefined) {
-    return probeFailed(
-      last.spec,
-      detection.reason ?? "The version probe did not report a version",
-      detection.cause,
-    );
-  }
-  return classifyVersion(detection.version, last.spec);
+  const result = readProbe<string>(last.key);
+  if (!result) return undefined;
+  return verdict(result, last.spec);
 }
 
 /**
@@ -450,6 +315,6 @@ export function buildCompatibilityState(
 
 /** Drops every cached detection. Tests, and any future re-probe trigger. */
 export function resetAgentVersionProbeCache(): void {
-  detections.clear();
+  resetProbeRunnerCache();
   lastProbe.clear();
 }

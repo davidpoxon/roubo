@@ -56,9 +56,15 @@ vi.mock("./notification.js", () => ({
 }));
 vi.mock("./bench-manager.js", () => ({ getBench: vi.fn(() => undefined) }));
 
-/** The agent CLI's own `--version` output, simulated. */
 const execMocks = vi.hoisted(() => ({ runCommand: vi.fn() }));
 vi.mock("./exec.js", () => execMocks);
+
+/** The agent CLI's own `--version` output, simulated at the probe runner's spawn (#851). */
+const probeSpawnMocks = vi.hoisted(() => ({ spawnProbe: vi.fn() }));
+vi.mock("./probe-spawn.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./probe-spawn.js")>()),
+  ...probeSpawnMocks,
+}));
 
 const envMocks = vi.hoisted(() => ({
   resolveAgentCommand: vi.fn((command: string) => command),
@@ -140,7 +146,9 @@ beforeEach(() => {
   resetAgentVersionProbeCache();
   spawnMock.mockReset().mockImplementation(() => mockPty());
   envMocks.resolveAgentCommand.mockReset().mockImplementation((command: string) => command);
-  execMocks.runCommand.mockReset().mockResolvedValue({ code: 0, stdout: "2.1.180", stderr: "" });
+  probeSpawnMocks.spawnProbe
+    .mockReset()
+    .mockResolvedValue({ code: 0, stdout: "2.1.180", stderr: "" });
   stateMocks.atomicWrite.mockReset();
   pluginManagerMocks.getRecord.mockReset().mockReturnValue({
     id: "acme-agent",
@@ -200,7 +208,7 @@ describe("AP-TC-076: every launch-failure class is detected and surfaced", () =>
   });
 
   it("S002: a below-floor version is surfaced before spawn", async () => {
-    execMocks.runCommand.mockResolvedValue({ code: 0, stdout: "2.1.100", stderr: "" });
+    probeSpawnMocks.spawnProbe.mockResolvedValue({ code: 0, stdout: "2.1.100", stderr: "" });
 
     const err = (await launch().catch((e: unknown) => e)) as AgentLaunchFailureError;
 
@@ -245,7 +253,7 @@ describe("AP-TC-076: every launch-failure class is detected and surfaced", () =>
   });
 
   it("an in-range launch produces no failure at all (the control)", async () => {
-    execMocks.runCommand.mockResolvedValue({ code: 0, stdout: "2.1.180", stderr: "" });
+    probeSpawnMocks.spawnProbe.mockResolvedValue({ code: 0, stdout: "2.1.180", stderr: "" });
 
     const { session, compatibility } = await launch();
 

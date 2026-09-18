@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("./exec.js");
+vi.mock("./probe-spawn.js");
 vi.mock("./env.js", () => ({
   resolveAgentCommand: vi.fn((command: string) => command),
   AgentCommandNotFoundError: class AgentCommandNotFoundError extends Error {
@@ -15,7 +15,7 @@ vi.mock("./env.js", () => ({
 }));
 
 import type { VersionProbeSpec } from "@roubo/shared/agent-launch-descriptor-schema";
-import { runCommand } from "./exec.js";
+import { spawnProbe } from "./probe-spawn.js";
 import { AgentCommandNotFoundError, resolveAgentCommand } from "./env.js";
 import {
   buildCompatibilityState,
@@ -39,7 +39,7 @@ const SPEC: VersionProbeSpec = {
 };
 
 function probeOutput(stdout: string, code = 0) {
-  vi.mocked(runCommand).mockResolvedValue({ code, stdout, stderr: "" });
+  vi.mocked(spawnProbe).mockResolvedValue({ code, stdout, stderr: "" });
 }
 
 beforeEach(() => {
@@ -107,15 +107,15 @@ describe("probeAgentVersion", () => {
     const result = await probeAgentVersion("claude-code", "claude", SPEC);
     expect(result.status).toBe("within-tested-range");
     expect(result.detectedVersion).toBe("2.1.180");
-    expect(vi.mocked(runCommand).mock.calls[0][0]).toBe("claude");
-    expect(vi.mocked(runCommand).mock.calls[0][1]).toEqual(["--version"]);
+    expect(vi.mocked(spawnProbe).mock.calls[0][0]).toBe("claude");
+    expect(vi.mocked(spawnProbe).mock.calls[0][1]).toEqual(["--version"]);
   });
 
   it("caches per resolved binary so a second launch does not spawn again", async () => {
     probeOutput("2.1.180 (Claude Code)");
     await probeAgentVersion("claude-code", "claude", SPEC);
     await probeAgentVersion("claude-code", "claude", SPEC);
-    expect(runCommand).toHaveBeenCalledTimes(1);
+    expect(spawnProbe).toHaveBeenCalledTimes(1);
   });
 
   it("re-probes once the cache is reset", async () => {
@@ -123,7 +123,7 @@ describe("probeAgentVersion", () => {
     await probeAgentVersion("claude-code", "claude", SPEC);
     resetAgentVersionProbeCache();
     await probeAgentVersion("claude-code", "claude", SPEC);
-    expect(runCommand).toHaveBeenCalledTimes(2);
+    expect(spawnProbe).toHaveBeenCalledTimes(2);
   });
 
   it("re-probes once the detection has aged past its TTL", async () => {
@@ -140,7 +140,7 @@ describe("probeAgentVersion", () => {
       probeOutput("2.1.180 (Claude Code)");
       const fresh = await probeAgentVersion("claude-code", "claude", SPEC);
 
-      expect(runCommand).toHaveBeenCalledTimes(2);
+      expect(spawnProbe).toHaveBeenCalledTimes(2);
       expect(fresh.status).toBe("within-tested-range");
       expect(fresh.detectedVersion).toBe("2.1.180");
     } finally {
@@ -155,7 +155,7 @@ describe("probeAgentVersion", () => {
       await probeAgentVersion("claude-code", "claude", SPEC);
       vi.advanceTimersByTime(30_000);
       await probeAgentVersion("claude-code", "claude", SPEC);
-      expect(runCommand).toHaveBeenCalledTimes(1);
+      expect(spawnProbe).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
@@ -171,7 +171,57 @@ describe("probeAgentVersion", () => {
     probeOutput("2.1.180 (Claude Code)");
     const result = await probeAgentVersion("claude-code", "claude", SPEC);
 
-    expect(runCommand).toHaveBeenCalledTimes(2);
+    expect(spawnProbe).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("within-tested-range");
+  });
+});
+
+// APCC-TC-053: a CLI that versions by date prints something like
+// `2026.09.12-abc123`. The `semver` reader already reads its date part, and the
+// numeric comparison orders day, month and year correctly, so no new parse mode
+// is needed for it.
+describe("a date-based version (APCC-TC-053)", () => {
+  it("reads the date part despite the build suffix", async () => {
+    expect(parseVersion("example-cli 2026.09.12-abc123")).toBe("2026.09.12");
+
+    probeOutput("2026.09.12-abc123");
+    const result = await probeAgentVersion("dated-agent", "dated", {
+      args: ["--version"],
+      parse: "semver",
+      minVersion: "2026.9.1",
+    });
+    expect(result.status).toBe("within-tested-range");
+    expect(result.detectedVersion).toBe("2026.09.12");
+  });
+
+  it("orders a later day, a later month and a later year after an earlier one", () => {
+    expect(compareVersions("2026.09.12", "2026.09.03")).toBeGreaterThan(0);
+    expect(compareVersions("2026.10.01", "2026.09.30")).toBeGreaterThan(0);
+    expect(compareVersions("2027.01.01", "2026.12.31")).toBeGreaterThan(0);
+    expect(compareVersions("2026.09.03", "2026.09.12")).toBeLessThan(0);
+    expect(compareVersions("2026.09.12", "2026.9.12")).toBe(0);
+  });
+});
+
+describe("probeAgentVersion through the probe runner (#851)", () => {
+  it("reports a probe killed at the time bound as probe-failed, cause probe-error", async () => {
+    vi.mocked(spawnProbe).mockResolvedValue({ code: 1, stdout: "", stderr: "", timedOut: true });
+    const result = await probeAgentVersion("claude-code", "claude", SPEC);
+    expect(result.status).toBe("probe-failed");
+    expect(result.reason).toContain("did not finish");
+    expect(result.cause).toBe("probe-error");
+  });
+
+  it("keeps a failed detection for the TTL, so a launch burst spawns once", async () => {
+    probeOutput("this build has no version number");
+    await probeAgentVersion("claude-code", "claude", SPEC);
+    await probeAgentVersion("claude-code", "claude", SPEC);
+    expect(spawnProbe).toHaveBeenCalledTimes(1);
+  });
+
+  it("still reads a version printed before a nonzero exit", async () => {
+    vi.mocked(spawnProbe).mockResolvedValue({ code: 2, stdout: "2.1.180", stderr: "warning" });
+    const result = await probeAgentVersion("claude-code", "claude", SPEC);
     expect(result.status).toBe("within-tested-range");
   });
 });
@@ -184,7 +234,7 @@ describe("probeAgentVersion against the launch's PATH (issue #660)", () => {
     expect(resolveAgentCommand).toHaveBeenCalledWith("claude", "/opt/agent/bin", undefined);
     // Resolution alone is not enough: a bare name comes back unchanged, so the
     // exec would otherwise look it up on the server's PATH all over again.
-    expect(vi.mocked(runCommand).mock.calls[0][3]).toEqual({ PATH: "/opt/agent/bin" });
+    expect(vi.mocked(spawnProbe).mock.calls[0][3]).toEqual({ PATH: "/opt/agent/bin" });
   });
 
   it("defaults to the server's PATH when no search path is supplied", async () => {
@@ -216,7 +266,7 @@ describe("probeAgentVersion against the launch's PATH (issue #660)", () => {
     probeOutput("2.1.100 (Claude Code)");
     const second = await probeAgentVersion("other-agent", "claude", SPEC, "/opt/b/bin");
 
-    expect(runCommand).toHaveBeenCalledTimes(2);
+    expect(spawnProbe).toHaveBeenCalledTimes(2);
     expect(first.detectedVersion).toBe("2.1.180");
     expect(second.detectedVersion).toBe("2.1.100");
   });
@@ -226,7 +276,7 @@ describe("probeAgentVersion against the launch's PATH (issue #660)", () => {
     await probeAgentVersion("claude-code", "/opt/a/bin/claude", SPEC, "/opt/a/bin");
     await probeAgentVersion("other-agent", "/opt/a/bin/claude", SPEC, "/opt/b/bin");
 
-    expect(runCommand).toHaveBeenCalledTimes(1);
+    expect(spawnProbe).toHaveBeenCalledTimes(1);
   });
 
   it("reports probe-failed for a templated search path (AP-TC-074)", async () => {
@@ -235,7 +285,7 @@ describe("probeAgentVersion against the launch's PATH (issue #660)", () => {
     expect(result.status).toBe("probe-failed");
     expect(result.reason).toContain("templated");
     expect(resolveAgentCommand).not.toHaveBeenCalled();
-    expect(runCommand).not.toHaveBeenCalled();
+    expect(spawnProbe).not.toHaveBeenCalled();
   });
 });
 
@@ -251,7 +301,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     const result = await probeDeclaredAgentVersion("claude-code", DECLARED);
     expect(result?.status).toBe("within-tested-range");
     expect(result?.detectedVersion).toBe("2.1.180");
-    expect(vi.mocked(runCommand).mock.calls[0][0]).toBe("claude");
+    expect(vi.mocked(spawnProbe).mock.calls[0][0]).toBe("claude");
   });
 
   it("carries the manifest's declared bounds into the verdict (AP-TC-114)", async () => {
@@ -288,7 +338,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     expect(
       await probeDeclaredAgentVersion("claude-code", { minVersion: "2.1.111" }),
     ).toBeUndefined();
-    expect(runCommand).not.toHaveBeenCalled();
+    expect(spawnProbe).not.toHaveBeenCalled();
   });
 
   it("warms the cache so the card shows a detected version without a launch (AP-TC-113)", async () => {
@@ -309,12 +359,12 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     await vi.waitFor(() => expect(getCachedAgentVersion("claude-code")).toBeDefined());
     warmAgentVersion("claude-code", DECLARED);
 
-    expect(runCommand).toHaveBeenCalledTimes(1);
+    expect(spawnProbe).toHaveBeenCalledTimes(1);
   });
 
   it("is a no-op for a manifest that declares no probe", () => {
     warmAgentVersion("claude-code", { minVersion: "2.1.111" });
-    expect(runCommand).not.toHaveBeenCalled();
+    expect(spawnProbe).not.toHaveBeenCalled();
   });
 
   // The one cached state that must NOT end warming (issue #522). The card tells a
@@ -329,7 +379,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     await vi.waitFor(() =>
       expect(getCachedAgentVersion("claude-code")?.cause).toBe("command-not-found"),
     );
-    expect(runCommand).not.toHaveBeenCalled();
+    expect(spawnProbe).not.toHaveBeenCalled();
 
     // The user installs the CLI. Warming is called per poll of GET /api/agents,
     // so the retry loop here IS the caller: it keeps polling until the re-probe
@@ -359,7 +409,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
   });
 
   it("reports probe-failed with the exit detail on a nonzero probe exit", async () => {
-    vi.mocked(runCommand).mockResolvedValue({ code: 127, stdout: "", stderr: "not found" });
+    vi.mocked(spawnProbe).mockResolvedValue({ code: 127, stdout: "", stderr: "not found" });
     const result = await probeAgentVersion("claude-code", "claude", SPEC);
     expect(result.status).toBe("probe-failed");
     expect(result.reason).toContain("127");
@@ -373,7 +423,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     const result = await probeAgentVersion("claude-code", "claude", SPEC);
     expect(result.status).toBe("probe-failed");
     expect(result.cause).toBe("command-not-found");
-    expect(runCommand).not.toHaveBeenCalled();
+    expect(spawnProbe).not.toHaveBeenCalled();
   });
 
   // AP-TC-122 (issue #522). This outcome used to return WITHOUT caching, so the
@@ -416,7 +466,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
   it("does not probe a templated command", async () => {
     const result = await probeAgentVersion("claude-code", "{{workspace}}/claude", SPEC);
     expect(result.status).toBe("probe-failed");
-    expect(runCommand).not.toHaveBeenCalled();
+    expect(spawnProbe).not.toHaveBeenCalled();
   });
 });
 
@@ -428,10 +478,10 @@ describe("getCachedAgentVersion / buildCompatibilityState", () => {
   it("reads back the last probe without spawning again", async () => {
     probeOutput("2.1.207 (Claude Code)");
     await probeAgentVersion("claude-code", "claude", SPEC);
-    vi.mocked(runCommand).mockClear();
+    vi.mocked(spawnProbe).mockClear();
 
     expect(getCachedAgentVersion("claude-code")?.status).toBe("above-tested-ceiling");
-    expect(runCommand).not.toHaveBeenCalled();
+    expect(spawnProbe).not.toHaveBeenCalled();
   });
 
   it("renders the manifest window with status unknown before any probe (AP-TC-113)", () => {
