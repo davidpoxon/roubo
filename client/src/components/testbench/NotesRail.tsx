@@ -108,7 +108,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
               key={note.id}
               className="rounded-lg px-2 py-1.5 transition-colors hover:bg-stone-50"
             >
-              <div className="flex items-center gap-2 font-mono text-xs text-stone-500">
+              <div className="flex items-center gap-2 font-mono text-xs text-text-muted">
                 <span
                   className={`inline-block h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[note.statusAtWrite]}`}
                   aria-hidden="true"

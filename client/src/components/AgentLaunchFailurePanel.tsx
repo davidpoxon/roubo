@@ -46,7 +46,7 @@ export default function AgentLaunchFailurePanel({
         <div className="min-w-0">
           <p className="text-[13px] text-stone-200">{failure.message}</p>
           {failure.guidance && (
-            <p className="mt-1 text-xs text-stone-500 leading-relaxed">{failure.guidance}</p>
+            <p className="mt-1 text-xs text-stone-400 leading-relaxed">{failure.guidance}</p>
           )}
           {failure.capturedOutput && (
             <pre

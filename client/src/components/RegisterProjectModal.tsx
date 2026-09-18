@@ -140,7 +140,7 @@ export default function RegisterProjectModal({
                     />
 
                     {trimmed && (isChecking || isFetching) && !checkResult && (
-                      <div className="flex items-center gap-2 text-sm text-stone-500">
+                      <div className="flex items-center gap-2 text-sm text-text-muted">
                         <Loader2 size={14} className="animate-spin" />
                         <span>Checking for configuration...</span>
                       </div>
@@ -172,7 +172,7 @@ export default function RegisterProjectModal({
                               navigate(`/projects/${id}`);
                             }
                           }}
-                          className="text-xs text-stone-500 hover:text-amber-500 transition-colors outline-none"
+                          className="text-xs text-text-muted hover:text-amber-500 transition-colors outline-none"
                         >
                           Go to project →
                         </Button>
@@ -181,7 +181,7 @@ export default function RegisterProjectModal({
 
                     {noYaml && (
                       <div className="rounded-lg bg-stone-50 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800 px-4 py-3 space-y-3">
-                        <p className="text-sm text-stone-500">
+                        <p className="text-sm text-text-muted">
                           No <span className="font-mono text-[12px]">.roubo/roubo.yaml</span> found
                           in this repo
                         </p>
@@ -206,7 +206,7 @@ export default function RegisterProjectModal({
                               close();
                               navigate(`/projects/${checkResult.project?.id}/settings/setup`);
                             }}
-                            className="text-xs text-stone-500 hover:text-amber-500 transition-colors outline-none"
+                            className="text-xs text-text-muted hover:text-amber-500 transition-colors outline-none"
                           >
                             Edit config →
                           </Button>

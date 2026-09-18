@@ -112,7 +112,7 @@ export default function ToolChipList({
 
       <Button
         onPress={addTool}
-        className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded mt-1"
+        className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded mt-1"
       >
         <Plus size={12} /> Add tool
       </Button>

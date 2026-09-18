@@ -89,7 +89,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
 
       <Button
         onPress={onAddUser}
-        className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+        className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
       >
         <Plus size={12} /> Add user
       </Button>
@@ -125,7 +125,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
           </div>
 
           <fieldset className="space-y-2">
-            <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-stone-500 mb-3">
+            <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
               <span className="size-1.5 rounded-full bg-stone-400/70" />
               Properties
             </legend>
@@ -161,7 +161,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
             ))}
             <Button
               onPress={() => addProperty(i)}
-              className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+              className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
             >
               <Plus size={12} /> Add property
             </Button>

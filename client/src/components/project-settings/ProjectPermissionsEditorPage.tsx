@@ -177,7 +177,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
   return (
     <div className="max-w-[1100px] w-full p-8 space-y-5">
       <div>
-        <div className="flex items-center gap-2 text-[12px] text-stone-500 mb-5">
+        <div className="flex items-center gap-2 text-[12px] text-text-muted mb-5">
           <Link
             to=".."
             relative="path"
@@ -229,7 +229,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
 
       {!isLoading && showPosture && (
         <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900/40 p-4">
-          <div className="text-[11px] text-stone-500 mb-2 font-medium">Posture</div>
+          <div className="text-[11px] text-text-muted mb-2 font-medium">Posture</div>
           <div className="grid grid-cols-12 gap-2 items-center">
             <div className="col-span-4">
               <Select
@@ -256,7 +256,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
         <>
           {/* Add rule container */}
           <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900/40 p-4">
-            <div className="text-[11px] text-stone-500 mb-2 font-medium">Add rule</div>
+            <div className="text-[11px] text-text-muted mb-2 font-medium">Add rule</div>
             <div className="grid grid-cols-12 gap-2 items-center">
               <div className="col-span-2">
                 <Select
@@ -329,7 +329,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
 
             {/* Resync row: separate from the table card, no border-merge */}
             <div className="mt-3 flex items-center justify-between">
-              <div className="text-[11px] text-stone-500">
+              <div className="text-[11px] text-text-muted">
                 {rules.length > 0
                   ? `${rules.length} rule${rules.length !== 1 ? "s" : ""} · ${currentPermissions.allow.length} allow · ${currentPermissions.deny.length} deny · ${(currentPermissions.ask ?? []).length} ask`
                   : "No rules"}

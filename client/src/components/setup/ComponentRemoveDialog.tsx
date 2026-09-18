@@ -63,7 +63,7 @@ export default function ComponentRemoveDialog({
                       className="text-sm text-stone-600 dark:text-stone-400 list-disc"
                     >
                       bench #{ref.benchId}{" "}
-                      <span className="font-mono text-stone-500">({ref.branch})</span>
+                      <span className="font-mono text-text-muted">({ref.branch})</span>
                     </li>
                   ))}
                 </ul>

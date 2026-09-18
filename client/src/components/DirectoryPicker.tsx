@@ -82,7 +82,7 @@ export default function DirectoryPicker({ value, onChange, onSubmit }: Directory
   return (
     <div>
       <TextField value={value} onChange={onChange}>
-        <Label className="block text-xs text-stone-500 mb-1.5">Repository path</Label>
+        <Label className="block text-xs text-text-muted mb-1.5">Repository path</Label>
         <div className="flex items-center gap-2">
           <Input
             onKeyDown={(e) => e.key === "Enter" && onSubmit?.()}
@@ -123,7 +123,7 @@ export default function DirectoryPicker({ value, onChange, onSubmit }: Directory
                     className={`text-[11px] px-1 py-0.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none ${
                       i === segments.length - 1
                         ? "text-stone-700 dark:text-stone-300 font-medium"
-                        : "text-stone-500 hover:text-stone-700 dark:hover:text-stone-300"
+                        : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300"
                     }`}
                   >
                     {seg.name}
@@ -163,7 +163,7 @@ export default function DirectoryPicker({ value, onChange, onSubmit }: Directory
                       size={14}
                       className="text-stone-500 dark:text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-400"
                     />
-                    <span className="text-sm text-stone-500 group-hover:text-stone-700 dark:group-hover:text-stone-300">
+                    <span className="text-sm text-text-muted group-hover:text-stone-700 dark:group-hover:text-stone-300">
                       ..
                     </span>
                   </Button>
@@ -210,7 +210,7 @@ export default function DirectoryPicker({ value, onChange, onSubmit }: Directory
             </p>
             <Button
               onPress={() => setIsOpen(false)}
-              className="text-[11px] text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 px-2 py-1 rounded transition-colors outline-none"
+              className="text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 px-2 py-1 rounded transition-colors outline-none"
             >
               Cancel
             </Button>

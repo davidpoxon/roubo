@@ -52,7 +52,7 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
 
                 {groups.map((group) => (
                   <section key={group.category} className="space-y-2.5">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
                       {group.label}
                     </h3>
 
@@ -64,12 +64,12 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
                         <code className="block text-[11px] font-mono text-stone-700 dark:text-stone-300">
                           {v.syntax}
                         </code>
-                        <p className="text-[11px] text-stone-500 leading-relaxed">
+                        <p className="text-[11px] text-text-muted leading-relaxed">
                           {v.description}
                         </p>
                         {v.formula && (
                           <p className="text-[10px] text-stone-600 dark:text-stone-400">
-                            Formula: <code className="font-mono text-stone-500">{v.formula}</code>
+                            Formula: <code className="font-mono text-text-muted">{v.formula}</code>
                           </p>
                         )}
                       </div>
@@ -79,23 +79,23 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
 
                 {benchExamples.length > 0 && (
                   <section className="space-y-2.5">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
                       Port values across benches
                     </h3>
                     <div className="rounded-lg bg-stone-100 dark:bg-stone-800/40 overflow-hidden">
                       <table className="w-full text-[11px]">
                         <thead>
                           <tr className="border-b border-stone-200 dark:border-stone-700/40">
-                            <th className="text-left font-medium text-stone-500 px-3 py-2">
+                            <th className="text-left font-medium text-text-muted px-3 py-2">
                               Variable
                             </th>
-                            <th className="text-right font-medium text-stone-500 px-3 py-2">
+                            <th className="text-right font-medium text-text-muted px-3 py-2">
                               Bench 1
                             </th>
-                            <th className="text-right font-medium text-stone-500 px-3 py-2">
+                            <th className="text-right font-medium text-text-muted px-3 py-2">
                               Bench 2
                             </th>
-                            <th className="text-right font-medium text-stone-500 px-3 py-2">
+                            <th className="text-right font-medium text-text-muted px-3 py-2">
                               Bench 3
                             </th>
                           </tr>
@@ -129,7 +129,7 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
 
                 {ctx.projectName && (
                   <section className="space-y-2.5">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
                       Workspace paths across benches
                     </h3>
                     <div className="rounded-lg bg-stone-100 dark:bg-stone-800/40 px-3 py-2.5 space-y-1">

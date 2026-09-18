@@ -109,7 +109,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
   if (compact) {
     toolsContent = (
       <MenuTrigger>
-        <Button className="p-1.5 rounded-md text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none">
+        <Button className="p-1.5 rounded-md text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none">
           <ExternalLink size={13} />
         </Button>
         <ToolMenu tools={launchable.map((entry) => entry.tool)} onAction={executeLaunchable} />
@@ -121,7 +121,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
       <Button
         isDisabled={!primary.enabled}
         onPress={() => executeLaunchable(0)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-500 rounded-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-muted rounded-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
       >
         {PrimaryIcon && <PrimaryIcon size={12} />}
         {primary.name}
@@ -134,7 +134,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
         <Button
           isDisabled={!primary.enabled}
           onPress={() => executeLaunchable(0)}
-          className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-xs font-medium text-stone-500 rounded-l-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
+          className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-xs font-medium text-text-muted rounded-l-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
         >
           {PrimaryIcon && <PrimaryIcon size={12} />}
           {primary.name}

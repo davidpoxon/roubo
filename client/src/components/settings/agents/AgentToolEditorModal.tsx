@@ -119,7 +119,7 @@ export default function AgentToolEditorModal({
             <div>
               <label
                 htmlFor="agent-tool-name"
-                className="block text-[11px] font-medium text-stone-500 mb-1.5"
+                className="block text-[11px] font-medium text-text-muted mb-1.5"
               >
                 Name
               </label>
@@ -144,7 +144,7 @@ export default function AgentToolEditorModal({
             <div>
               <label
                 htmlFor="agent-tool-agent"
-                className="block text-[11px] font-medium text-stone-500 mb-1.5"
+                className="block text-[11px] font-medium text-text-muted mb-1.5"
               >
                 Agent
               </label>
@@ -172,7 +172,7 @@ export default function AgentToolEditorModal({
                   <div key={field.key}>
                     <label
                       htmlFor={id}
-                      className="block text-[11px] font-medium text-stone-500 mb-1.5"
+                      className="block text-[11px] font-medium text-text-muted mb-1.5"
                     >
                       {field.label}
                     </label>
@@ -211,7 +211,7 @@ export default function AgentToolEditorModal({
             <div>
               <label
                 htmlFor="agent-tool-jig"
-                className="block text-[11px] font-medium text-stone-500 mb-1.5"
+                className="block text-[11px] font-medium text-text-muted mb-1.5"
               >
                 Jig
               </label>
@@ -239,7 +239,7 @@ export default function AgentToolEditorModal({
 
             <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
               Saved to app settings. Add to{" "}
-              <span className="font-mono text-stone-500">roubo.yaml tools:</span> to share it with
+              <span className="font-mono text-text-muted">roubo.yaml tools:</span> to share it with
               the project.
             </p>
           </div>

@@ -12,7 +12,7 @@ export default function VariableInsertionPanel({ scope, onInsert }: Props) {
   return (
     <div className="h-full overflow-auto">
       <div className="px-4 pt-4 pb-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
           Variables
         </h3>
         <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-1 leading-relaxed">

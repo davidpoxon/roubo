@@ -142,7 +142,7 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
     <div className="flex flex-col h-full gap-3">
       {/* Context picker */}
       <div className="flex items-center gap-3 shrink-0">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 shrink-0">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted shrink-0">
           Context
         </span>
         <Select

@@ -56,7 +56,7 @@ interface Props {
   onLaunch: (selection: LaunchOverridesSelection) => void;
 }
 
-const LABEL_CLASS = "block text-[11px] font-medium text-stone-500 mb-1.5";
+const LABEL_CLASS = "block text-[11px] font-medium text-text-muted mb-1.5";
 
 /** The empty select value that spells "layer three contributes nothing". */
 const NO_PRESET = "";

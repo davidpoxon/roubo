@@ -90,7 +90,7 @@ export default function DangerZoneTile({ projectId }: Props) {
           <div className="text-[13px] font-medium text-stone-800 dark:text-stone-200">
             Unregister project
           </div>
-          <div className="text-[11px] text-stone-500 mt-0.5">
+          <div className="text-[11px] text-text-muted mt-0.5">
             Removes from Roubo. Does not touch the repository, benches, or git state.
           </div>
         </div>
@@ -180,7 +180,7 @@ export default function DangerZoneTile({ projectId }: Props) {
                     </div>
                   )}
                   <TextField value={typedName} onChange={setTypedName}>
-                    <Label className="block text-xs text-stone-500 mb-1.5">
+                    <Label className="block text-xs text-text-muted mb-1.5">
                       Type{" "}
                       <span className="font-semibold text-stone-700 dark:text-stone-300">
                         {displayName}

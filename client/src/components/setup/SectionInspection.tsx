@@ -54,7 +54,7 @@ export default function SectionInspection({
         </p>
         <Button
           onPress={addInspection}
-          className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+          className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
         >
           <Plus size={12} /> Add inspection
         </Button>
@@ -82,7 +82,7 @@ export default function SectionInspection({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-stone-500">Inspection settings</span>
+        <span className="text-xs text-text-muted">Inspection settings</span>
         <Button
           onPress={removeInspection}
           aria-label="Remove inspection"
@@ -93,7 +93,7 @@ export default function SectionInspection({
       </div>
 
       <TextField value={inspection.framework} onChange={(v) => update({ framework: v })}>
-        <Label className="block text-xs text-stone-500 mb-1.5">Framework</Label>
+        <Label className="block text-xs text-text-muted mb-1.5">Framework</Label>
         <Input placeholder="playwright" className={INPUT} />
       </TextField>
 
@@ -106,12 +106,12 @@ export default function SectionInspection({
       />
 
       <TextField value={inspection.command} onChange={(v) => update({ command: v })}>
-        <Label className="block text-xs text-stone-500 mb-1.5">Command</Label>
+        <Label className="block text-xs text-text-muted mb-1.5">Command</Label>
         <Input placeholder="npx playwright test" className={INPUT} />
       </TextField>
 
       <fieldset className="space-y-2">
-        <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-stone-500 mb-3">
+        <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
           <span className="size-1.5 rounded-full bg-stone-400/70" />
           Environment variables
         </legend>
@@ -176,7 +176,7 @@ export default function SectionInspection({
         })}
         <Button
           onPress={() => update({ env: { ...inspection.env, "": "" } })}
-          className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+          className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
         >
           <Plus size={12} /> Add variable
         </Button>

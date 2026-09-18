@@ -136,7 +136,7 @@ export default function SetupGuided({
         <div className="px-8 pt-5 pb-2 shrink-0">
           <nav
             aria-label="Breadcrumb"
-            className="flex items-center gap-2 text-[12px] text-stone-500 mb-2"
+            className="flex items-center gap-2 text-[12px] text-text-muted mb-2"
           >
             <Link
               to=".."
@@ -408,7 +408,7 @@ function BenchCapacityFields({
           value={max > 0 ? String(max) : ""}
           onChange={(v) => updateBenches({ max: parseInt(v, 10) || 0 })}
         >
-          <Label className="block text-xs text-stone-500 mb-1.5">Maximum concurrent benches</Label>
+          <Label className="block text-xs text-text-muted mb-1.5">Maximum concurrent benches</Label>
           <Input
             type="number"
             min={1}
@@ -425,14 +425,14 @@ function BenchCapacityFields({
           value={benches.setup ?? ""}
           onChange={(v) => updateBenches({ setup: v || undefined })}
         >
-          <Label className="block text-xs text-stone-500 mb-1.5">Setup command</Label>
+          <Label className="block text-xs text-text-muted mb-1.5">Setup command</Label>
           <Input
             type="text"
             placeholder="e.g. cd app && npm ci"
             className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
           />
         </TextField>
-        <p className="text-[10px] text-stone-500 mt-1">
+        <p className="text-[10px] text-text-muted mt-1">
           Runs once at workspace root before components start, through your login shell, so shell
           syntax works (e.g. <span className="font-mono">cd app &amp;&amp; npm ci</span>)
         </p>

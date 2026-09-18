@@ -31,15 +31,15 @@ export default function FilePathLabel({ path, className }: { path: string; class
       title={path}
       className={`inline-flex items-center gap-1.5 font-mono ${className ?? "text-[12px]"} min-w-0 max-w-full`}
     >
-      {createElement(getIcon(path), { size: 14, className: "shrink-0 text-stone-500" })}
+      {createElement(getIcon(path), { size: 14, className: "shrink-0 text-text-muted" })}
       {leading.length === 1 && (
-        <span className="shrink min-w-0 truncate text-stone-500">
+        <span className="shrink min-w-0 truncate text-text-muted">
           {leading[0]}
           <span className="text-stone-600 dark:text-stone-300 mx-0.5">{"\u203A"}</span>
         </span>
       )}
       {leading.length > 1 && (
-        <span className="shrink-0 text-stone-500">
+        <span className="shrink-0 text-text-muted">
           <span className="truncate">{leading[0]}</span>
           <span className="text-stone-600 dark:text-stone-300 mx-0.5">{"\u203A"}</span>
           <span className="text-stone-600 dark:text-stone-300">{"\u2026"}</span>

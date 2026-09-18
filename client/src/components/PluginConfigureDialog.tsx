@@ -686,7 +686,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                   value={fields.repo ?? ""}
                   onChange={(v) => setFields({ ...fields, repo: v })}
                 >
-                  <Label className="block text-xs text-stone-500 mb-1.5">
+                  <Label className="block text-xs text-text-muted mb-1.5">
                     {STRINGS.repositoryLabel}
                   </Label>
                   <Input placeholder={STRINGS.repositoryPlaceholder} className={INPUT} />
@@ -931,7 +931,7 @@ function ResultStrip({
         role="status"
         className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40"
       >
-        <Loader2 size={14} className="animate-spin text-stone-500" />
+        <Loader2 size={14} className="animate-spin text-text-muted" />
         <p className="text-[12px] text-stone-600 dark:text-stone-400">{STRINGS.testing}</p>
       </div>
     );

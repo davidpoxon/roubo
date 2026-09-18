@@ -333,7 +333,7 @@ export default function SectionComponents({
               >
                 {COMPONENT_TYPE_LABELS[type] ?? type}
                 {count > 0 && (
-                  <span className="ml-1.5 text-[10px] bg-stone-200 dark:bg-stone-800 text-stone-500 px-1.5 py-0.5 rounded-full tabular-nums">
+                  <span className="ml-1.5 text-[10px] bg-stone-200 dark:bg-stone-800 text-text-muted px-1.5 py-0.5 rounded-full tabular-nums">
                     {count}
                   </span>
                 )}
@@ -348,7 +348,7 @@ export default function SectionComponents({
               {type !== "other" && (renderItemsForType[type] ?? []).length === 0 ? (
                 <Button
                   onPress={() => addComponent(type as ComponentType)}
-                  className="w-full flex items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-stone-300 dark:border-stone-700 hover:border-stone-500 text-sm text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+                  className="w-full flex items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-stone-300 dark:border-stone-700 hover:border-stone-500 text-sm text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
                 >
                   <Plus size={16} />
                   Add {COMPONENT_TYPE_LABELS[type] ?? type}
@@ -376,7 +376,7 @@ export default function SectionComponents({
                     className="border-l-2 border-stone-300 dark:border-stone-700 rounded-lg bg-stone-100/50 dark:bg-stone-900/30 p-3 space-y-2"
                   >
                     <div>
-                      <label className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-stone-500 mb-3">
+                      <label className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
                         <span className="size-1.5 rounded-full bg-stone-400/70" />
                         Docker Compose
                       </label>

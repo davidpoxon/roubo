@@ -306,7 +306,7 @@ function ComponentsTab({
                       if (isRunning) stopComponent.mutate({ projectId, benchId, component: name });
                       else startComponentWithRecovery(name);
                     }}
-                    className="px-2.5 py-1 rounded-md text-xs text-stone-500 not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
+                    className="px-2.5 py-1 rounded-md text-xs text-text-muted not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
                   >
                     {isRunning ? "Stop" : "Start"}
                   </Button>
@@ -412,7 +412,7 @@ function InfoTab({ bench }: { bench: Bench }) {
         <div className="flex flex-wrap gap-x-5 gap-y-1">
           {Object.entries(bench.ports).map(([name, port]) => (
             <span key={name} className="text-sm">
-              <span className="text-stone-500">{name}</span>
+              <span className="text-text-muted">{name}</span>
               <span className="text-stone-800 dark:text-stone-200 font-mono ml-1.5">{port}</span>
             </span>
           ))}
@@ -451,7 +451,7 @@ function InfoTab({ bench }: { bench: Bench }) {
           <div className="flex flex-wrap gap-x-5 gap-y-1">
             {Object.entries(bench.assignedContainers).map(([componentName, assigned]) => (
               <span key={componentName} className="text-sm">
-                <span className="text-stone-500">{componentName}</span>
+                <span className="text-text-muted">{componentName}</span>
                 <span className="text-stone-800 dark:text-stone-200 font-mono ml-1.5">
                   {assigned.containerName}
                 </span>
@@ -616,7 +616,7 @@ export default function BenchDetail() {
         <p className="text-sm text-stone-500 dark:text-stone-400">Bench not found.</p>
         <Button
           onPress={() => navigate(projectId ? `/projects/${projectId}` : "/")}
-          className="mt-3 text-sm text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+          className="mt-3 text-sm text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
         >
           Go back
         </Button>
@@ -664,7 +664,7 @@ export default function BenchDetail() {
                 </p>
               )}
               {bench.assignedIssue && (
-                <div className="flex items-center gap-1.5 text-xs text-stone-500">
+                <div className="flex items-center gap-1.5 text-xs text-text-muted">
                   <span className="font-mono text-amber-800 dark:text-amber-200">
                     {displayIssueRef(bench.assignedIssue)}
                   </span>
@@ -731,7 +731,7 @@ export default function BenchDetail() {
               if (isRunning) stopBench.mutate({ projectId, benchId });
               else startBench.mutate({ projectId, benchId });
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-500 rounded-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-muted rounded-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
           >
             {isRunning ? <Square size={12} /> : <Play size={12} />}
             {isRunning ? "Stop All" : "Start All"}
