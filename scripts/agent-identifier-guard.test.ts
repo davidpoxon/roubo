@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { NotificationWiringSchema } from "../shared/agent-launch-descriptor-schema.js";
+import { ChoiceProbeParseModeSchema } from "../shared/plugin-manifest-schema.js";
 import { scanFiles } from "./agent-identifier-guard.mjs";
 
 // Build a readFn over an in-memory file map so the scanner can be exercised
@@ -189,5 +191,103 @@ describe("scanFiles (AgentIdentifierGuard, AP-NFR-006, AP-TC-112)", () => {
       "shared/types.ts": ["export interface TerminalSession { id: string }"].join("\n"),
     });
     expect(findings).toEqual([]);
+  });
+});
+
+// Issue #856 (APCC-NFR-006, APCC-TC-008): the guard can only keep a third agent
+// out of core if it can see that agent's name. Cursor is matched in its qualified
+// spellings (`cursor-cli`, `cursor-agent`, `CursorCli`, `cursorAgent`), never as
+// bare `cursor`, which core uses for pagination.
+describe("scanFiles recognises a Cursor-specific identifier (APCC-TC-008)", () => {
+  it("flags a Cursor-specific settings type", () => {
+    const findings = scan({
+      "shared/types.ts": ["export interface CursorCliSettings { model: string }"].join("\n"),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toMatch(/agent-specific identifier 'CursorCliSettings'/);
+  });
+
+  it("flags a Cursor-specific binary lookup", () => {
+    const findings = scan({
+      "server/services/env.ts": [
+        "export function getCursorAgentBinary(): string {", // line 1: violation
+        '  return "cursor-agent";',
+        "}",
+      ].join("\n"),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(1);
+    expect(findings[0].reason).toMatch(/getCursorAgentBinary/);
+  });
+
+  it("flags an underscored Cursor identifier", () => {
+    const findings = scan({
+      "server/services/terminal.ts": ["const cursor_agent_args = [];"].join("\n"),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toMatch(/cursor_agent_args/);
+  });
+
+  it('flags a dispatch on the Cursor CLI name, `command === "cursor-agent"`', () => {
+    const findings = scan({
+      "server/routes/terminal.ts": [
+        "function isBuiltIn(command: string): boolean {",
+        '  return command === "cursor-agent";', // line 2: violation
+        "}",
+      ].join("\n"),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].reason).toMatch(/agent-name dispatch '=== "cursor-agent"'/);
+  });
+
+  it("flags a Cursor `case` label", () => {
+    const findings = scan({
+      "server/services/terminal.ts": ["switch (agentId) {", '  case "cursor-cli":', "}"].join("\n"),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toMatch(/agent-name dispatch 'case "cursor-cli"'/);
+  });
+
+  it("does NOT flag pagination cursors", () => {
+    const findings = scan({
+      "server/services/cut-list.ts": [
+        "export interface Page { items: string[]; nextCursor: string | null }",
+        "function next(cursor: string | null, pageCursor?: string) {",
+        '  if (cursor === "") return null;',
+        "  return { cursor, cursors: [pageCursor], hasCursor: cursor !== null };",
+        "}",
+      ].join("\n"),
+    });
+    expect(findings).toEqual([]);
+  });
+
+  it("does NOT flag the Cursor CLI name inside a string literal", () => {
+    const findings = scan({
+      "server/services/env.ts": ['const INSTALL = "~/.local/bin/cursor-agent";'].join("\n"),
+    });
+    expect(findings).toEqual([]);
+  });
+});
+
+// Issue #856 (APCC-NFR-006, APCC-TC-008): the two contract additions introduce
+// identifiers that name an output shape and a carrier, never an agent. Read them
+// off the live schemas so a later literal that names an agent fails here.
+describe("the contract additions name no agent (APCC-TC-008)", () => {
+  const AGENT_NAME = /claude|codex|cursor|gemini/i;
+
+  it("every choice-probe parse mode names an output shape, not an agent", () => {
+    expect(ChoiceProbeParseModeSchema.options).toContain("dash-line-pairs");
+    for (const mode of ChoiceProbeParseModeSchema.options) {
+      expect(mode).not.toMatch(AGENT_NAME);
+    }
+  });
+
+  it("every notification wiring variant names a carrier, not an agent", () => {
+    const kinds = NotificationWiringSchema.options.map((variant) => variant.shape.kind.value);
+    expect(kinds).toContain("file-notifier");
+    for (const kind of kinds) {
+      expect(kind).not.toMatch(AGENT_NAME);
+    }
   });
 });

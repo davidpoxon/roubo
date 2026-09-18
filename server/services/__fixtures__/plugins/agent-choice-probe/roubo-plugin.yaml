@@ -1,0 +1,35 @@
+# An agent plugin shaped like the third agent plugin (#856, APCC-TC-009): it
+# declares the 1.6.0 `choiceProbes` key and pins `roubo: ^1.6.0` as the SDK
+# contract documentation tells it to. The manifest fixture test drives it
+# through a simulated pre-1.6.0 host to prove the refusal names the version it
+# needs rather than the unrecognised key. It names no real agent.
+id: agent-choice-probe
+name: Agent Choice Probe Fixture
+version: 0.0.0
+description: An agent-kind fixture whose model field is populated by a choice probe
+kind: agent
+roubo: ^1.6.0
+entry: ./index.cjs
+contractVersion: 1
+configSchema:
+  type: object
+  properties:
+    model:
+      type: string
+      title: Model
+choiceProbes:
+  model:
+    command: probe-agent
+    args:
+      - models
+    parse: dash-line-pairs
+agentInstallLocations:
+  - ~/.local/bin/probe-agent
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
