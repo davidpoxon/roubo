@@ -213,7 +213,7 @@ The host runs a choice probe the same way it runs the version probe: it resolves
 
 A successful result is reused for about 60 seconds, so opening the settings screen twice in that window spawns the CLI once. A failed result is never kept: the next read runs the probe again, and it reports the failure rather than a list an earlier run returned.
 
-When a probe resolves, the host writes its choices into the `configSchema` that the **Settings > AI Agents** screen reads. The field's property gets a `oneOf` of `{ const, title }` branches, one per choice, with the value as `const` and the label as `title`. That is the same shape a static choice list uses, so the form draws a probed field with the same control as any other choice field and marks neither as probed. The form shows each label and saves the value. For the `model` example above, a CLI that prints `gpt-5 - GPT-5` serves this property:
+When a probe resolves, the host writes its choices into the `configSchema` that the **Settings > AI Agents** screen and a project's agent overrides section read. The field's property gets a `oneOf` of `{ const, title }` branches, one per choice, with the value as `const` and the label as `title`. That is the same shape a static choice list uses, so the form draws a probed field with the same control as any other choice field and marks neither as probed. The form shows each label and saves the value. For the `model` example above, a CLI that prints `gpt-5 - GPT-5` serves this property:
 
 ```json
 { "type": "string", "oneOf": [{ "const": "gpt-5", "title": "GPT-5" }] }

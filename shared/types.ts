@@ -939,6 +939,15 @@ export interface ProjectAgentState {
    * validation is Ajv against the plugin manifest, and the client has neither.
    */
   misconfigured: { message: string } | null;
+  /**
+   * Each probed configuration field's state, keyed by field name (#884), the
+   * same map `AgentPluginState.choiceProbes` carries. A resolved field's choices
+   * are already merged into `configSchema` as `oneOf` const/title branches; this
+   * map only says which fields are still loading or failed. Absent when the
+   * manifest declares no choice probes. `misconfigured` is still derived from
+   * the manifest's declared schema, not the probed one.
+   */
+  choiceProbes?: Record<string, AgentChoiceProbeState>;
 }
 
 /**
