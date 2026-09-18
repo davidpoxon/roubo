@@ -288,7 +288,7 @@ export default function SpecPickerModal({
 
   // Render one selectable spec row. Shared by both groups so selection stays a
   // single controlled ToggleButtonGroup; `muted` de-emphasizes the all-passed
-  // rows via colour hierarchy (slug and icon drop to muted stone). Every text
+  // rows via colour hierarchy (the slug drops to muted stone). Every text
   // class holds the per-theme AA floor (text-stone-500 on white, dark:text-stone-400
   // on the stone-900 modal, both >= 4.5:1); the path sits at that floor in both
   // groups, so muting collapses there and the hierarchy reads via the slug (#493).
