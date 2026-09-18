@@ -17,12 +17,14 @@ describe("Select", () => {
     expect(screen.getByText("Choose…")).toBeInTheDocument();
   });
 
-  it("renders the placeholder in the text-secondary token for both themes (#887)", () => {
+  it("renders the placeholder in a WCAG AA shade on the raised trigger for both themes (#887)", () => {
     render(<Select items={items} value="" onChange={vi.fn()} placeholder="Choose…" />);
     const placeholder = screen.getByText("Choose…").closest("[data-placeholder]");
     expect(placeholder).not.toBeNull();
-    // stone-500 on light and stone-400 on dark both clear WCAG AA 4.5:1.
-    expect(placeholder?.className).toContain("data-[placeholder]:text-stone-500");
+    // The trigger sits on the stone-100 raised ground, where stone-500 is only 4.40:1,
+    // so light uses text-secondary-raised (stone-600). stone-400 clears 4.5:1 on dark.
+    expect(placeholder?.className).toContain("data-[placeholder]:text-stone-600");
+    expect(placeholder?.className).not.toContain("data-[placeholder]:text-stone-500");
     expect(placeholder?.className).toContain("dark:data-[placeholder]:text-stone-400");
     expect(placeholder?.className).not.toContain("dark:data-[placeholder]:text-stone-500");
   });
