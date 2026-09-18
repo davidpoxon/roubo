@@ -77,7 +77,7 @@ export default function TemplateHighlightInput({
                   className={`rounded-sm ${
                     invalidVariables?.includes(seg.text)
                       ? "text-red-500 dark:text-red-400 bg-red-500/10 dark:bg-red-400/10"
-                      : "text-cyan-600 dark:text-cyan-300 bg-cyan-600/10 dark:bg-cyan-400/10"
+                      : "text-amber-800 dark:text-amber-200 bg-amber-500/10 dark:bg-amber-400/10"
                   }`}
                 >
                   {seg.text}

@@ -5,7 +5,7 @@ import type { PluginStatus } from "@roubo/shared";
 import StatusPill from "./StatusPill";
 
 const cases: { status: PluginStatus; label: string; tint: string }[] = [
-  { status: "enabled", label: "Enabled", tint: "emerald" },
+  { status: "enabled", label: "Enabled", tint: "green" },
   { status: "disabled", label: "Disabled", tint: "stone" },
   { status: "errored", label: "Errored", tint: "red" },
   { status: "incompatible", label: "Incompatible", tint: "amber" },

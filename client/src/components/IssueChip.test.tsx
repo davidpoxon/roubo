@@ -201,7 +201,7 @@ describe("IssueChip", () => {
   });
 
   describe("security-category variant (IP-WU-033)", () => {
-    it("uses slate family for codeql", () => {
+    it("uses stone family for codeql", () => {
       const { container } = render(
         <IssueChip variant="security-category" securityCategory="codeql" icon={Shield}>
           CodeQL
@@ -212,7 +212,7 @@ describe("IssueChip", () => {
       ) as HTMLElement;
       expect(chip).not.toBeNull();
       expect(chip.className).toContain("rounded-full");
-      expect(chip.className).toMatch(/slate-/);
+      expect(chip.className).toMatch(/stone-/);
       expect(chip.querySelector("svg")).not.toBeNull();
     });
 
@@ -228,7 +228,7 @@ describe("IssueChip", () => {
       expect(chip.className).toMatch(/amber-/);
     });
 
-    it("uses zinc family for dependabot", () => {
+    it("uses stone family for dependabot", () => {
       const { container } = render(
         <IssueChip variant="security-category" securityCategory="dependabot" icon={Package}>
           Dependabot
@@ -237,7 +237,7 @@ describe("IssueChip", () => {
       const chip = container.querySelector(
         '[data-chip-category="security-category"]',
       ) as HTMLElement;
-      expect(chip.className).toMatch(/zinc-/);
+      expect(chip.className).toMatch(/stone-/);
     });
 
     it("wraps in a focusable Button when tooltip is provided", () => {

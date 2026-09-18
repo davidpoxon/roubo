@@ -128,7 +128,7 @@ describe("DraggableIssueCard", () => {
     ) as HTMLElement;
     expect(codeqlChip).not.toBeNull();
     expect(codeqlChip.querySelector("svg")).not.toBeNull();
-    expect(codeqlChip.className).toMatch(/slate-/);
+    expect(codeqlChip.className).toMatch(/stone-/);
     expect(getCodeQLText("CodeQL")).toBeInTheDocument();
     // Tooltip provided => keyboard-focusable Button wrapper.
     expect(codeqlChip.tagName).toBe("BUTTON");
@@ -148,7 +148,7 @@ describe("DraggableIssueCard", () => {
       '[data-chip-category="security-category"]',
     ) as HTMLElement;
     expect(depChip.querySelector("svg")).not.toBeNull();
-    expect(depChip.className).toMatch(/zinc-/);
+    expect(depChip.className).toMatch(/stone-/);
     expect(getDepText("Dependabot")).toBeInTheDocument();
     expect(depChip.tagName).toBe("BUTTON");
     expect(depContainer.querySelector('[data-chip-category="issue-type"]')).toBeNull();

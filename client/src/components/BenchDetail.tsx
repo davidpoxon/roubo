@@ -665,7 +665,7 @@ export default function BenchDetail() {
               )}
               {bench.assignedIssue && (
                 <div className="flex items-center gap-1.5 text-xs text-stone-500">
-                  <span className="font-mono text-violet-400">
+                  <span className="font-mono text-amber-800 dark:text-amber-200">
                     {displayIssueRef(bench.assignedIssue)}
                   </span>
                   <span>{bench.assignedIssue.title}</span>
@@ -692,7 +692,7 @@ export default function BenchDetail() {
                         <div className="flex flex-col gap-0.5">
                           <span className="text-stone-400 mb-0.5">Blocked by:</span>
                           {bench.assignedIssue.blockedBy.map((ref) => (
-                            <span key={ref} className="font-mono text-violet-400">
+                            <span key={ref} className="font-mono text-amber-200">
                               {shortIssueRef(ref)}
                             </span>
                           ))}

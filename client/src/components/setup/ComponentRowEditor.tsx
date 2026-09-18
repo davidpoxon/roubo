@@ -64,7 +64,7 @@ function RoleBadge({ role }: { role: ComponentType | undefined }) {
       className={
         "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide border " +
         (isDb
-          ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/25"
+          ? "bg-amber-500/10 text-amber-800 dark:text-amber-200 border-amber-500/25"
           : "bg-stone-500/10 text-stone-600 dark:text-stone-400 border-stone-500/25")
       }
     >

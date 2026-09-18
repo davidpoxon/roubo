@@ -17,7 +17,7 @@ interface VariantCase {
 }
 
 const VARIANTS: VariantCase[] = [
-  { state: "connected", label: "Connected", wrapToken: "bg-emerald-700" },
+  { state: "connected", label: "Connected", wrapToken: "bg-green-700" },
   { state: "disconnected", label: "Not connected", wrapToken: "bg-stone-300" },
   { state: "auth-problem", label: "Sign in again", wrapToken: "bg-amber-500" },
   { state: "errored", label: "Error", wrapToken: "bg-red-700" },
@@ -63,8 +63,8 @@ describe("ConnectionStatusPill: WCAG 2.1 AA contrast (IP-TC-142, IP-NFR-016)", (
   // 'Connected' pill at 2.34:1 (issue #448). At 12px/normal these pills are not
   // WCAG "large text", so the 4.5:1 threshold applies to every variant.
   const TAILWIND_HEX: Record<string, string> = {
-    "emerald-50": "#ecfdf5",
-    "emerald-700": "#007a55",
+    "green-50": "#f0fdf4",
+    "green-700": "#008236",
     "amber-500": "#fe9a00",
     "amber-950": "#461901",
     "red-50": "#fef2f2",

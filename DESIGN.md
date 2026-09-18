@@ -13,7 +13,7 @@
 **Chosen dimensions.**
 
 - **Typography.** Inter for interface text, JetBrains Mono for anything a developer might copy: ports, paths, branch names, commands. Hierarchy comes from weight, size, and opacity, never from underlines, backgrounds, or borders on text.
-- **Colour.** A warm stone spine (3,518 utility uses) carrying one amber accent (544), red for danger (357), and green for success (41).
+- **Colour.** A warm stone spine (3,518 utility uses) carrying one amber accent (544), red for danger (357), and green for success (41). A small categorical set (emerald, violet, cyan, indigo, sky, rose, blue, fuchsia) appears only where the hue identifies something: Issue chip tones, the agent kind pill, agent swatches, and project-status dots.
 - **Motion.** Colour transitions on state change. No bounce, and no overshoot easing is recorded, which is why the `motion.primitives.easings` set deliberately omits one.
 - **Elevation.** Shadow is reserved for surfaces that genuinely float: dialogs, popovers, tooltips. Flat surfaces stay flat.
 
@@ -23,7 +23,14 @@
 
 The block records the palette twice, deliberately. The **scale keys** (`stone-400`, `amber-500`, `red-950`) are the ramp exactly as the utilities spell it, so any shade the code uses resolves. The **semantic keys** are `docs/brand.md`'s own names, and they are where dark mode lives: each carries a `-dark` sibling holding its dark-mode value.
 
-Clustering preserved every step of the stone ramp (adjacent ΔE 0.05 and above, well clear of the 0.02 merge threshold) and proposed no cross-role merges. Tier-1 utility-prefix inference resolved every cluster at high confidence; the value-bucketing fallback never fired. Two off-palette families were dropped as incidental: `violet-400` (6 uses, one mono label) and `emerald-100/400/700` (1 use each, a single badge).
+Clustering preserved every step of the stone ramp (adjacent ΔE 0.05 and above, well clear of the 0.02 merge threshold) and proposed no cross-role merges. Tier-1 utility-prefix inference resolved every cluster at high confidence; the value-bucketing fallback never fired.
+
+**Categorical hues are recorded where the hue carries meaning, and replaced where it does not** (#1281). The client used eight hue families outside the stone, amber, red, and green spine (emerald, violet, cyan, indigo, sky, rose, blue, fuchsia), plus slate and zinc.
+
+- **Recorded.** The Issue chip tones, each a tint with a `-text` pair: `issue-open` (emerald), `issue-label` (cyan, a border), `issue-milestone` (indigo), `issue-type` (violet). The agent kind pill in the marketplace (`kind-agent-*`, sky). The six agent swatches (`agent-swatch-1` to `-6`, in the `agent-color.ts` palette order). The three project-status hues in `lib/issue-status.ts` (`project-status-*`). Swatches and project-status hues are dots and glyphs, so they carry no text role: violet-400 is 2.7:1 and emerald-400 is 1.9:1 on white. The open-state label moved from emerald-700 to emerald-800, because emerald-700 on its tint over stone-50 measured 4.58:1, and 4.47:1 in Tailwind v4's rendered values.
+- **Replaced.** Emerald used for success (plugin status pills, the connected pill, the `git` badge and folder icon, terminal log text) is now the `green` shade at the same step. The violet mono issue references, the jig source badges, the template-variable highlight, and the database role badge are now the accent: `accent-text` (amber-800, amber-200 dark) on `accent-muted`. The setup section dots are now stone-400, and green for Connection. Slate and zinc, which are near-duplicates of stone, are now stone on the CodeQL and Dependabot chips.
+
+Every recorded text pair clears AA on its tint over white, stone-50, and stone-100 in light, and over stone-800, stone-900, and stone-950 in dark. The lowest is `issue-label-text` at 4.91:1 on stone-100.
 
 | Role | Light | Dark | Notes |
 | --- | --- | --- | --- |
@@ -39,6 +46,11 @@ Clustering preserved every step of the stone ramp (adjacent ΔE 0.05 and above, 
 | Danger | `danger` red-500, `danger-text` red-600 | red-400 | `danger-callout-text` red-700 on the callout ground, 5.91:1 |
 | Success | `success` green-500, `success-text` green-800 | green-400 | |
 | Idle status | `idle` stone-300 | stone-700 | Bench border when nothing is running |
+| Issue chip tones | `issue-open`, `issue-milestone`, `issue-type` at 15% | same hues at 20% | Text: emerald-800 / emerald-300, indigo-700 / indigo-300, violet-700 / violet-300 |
+| Issue chip label | `issue-label-border` cyan-500 at 40%, `issue-label-text` cyan-700 | cyan-300 | Outlined, no fill |
+| Agent kind pill | `kind-agent-surface` sky-50, `kind-agent-text` sky-800 | sky-950 at 20%, sky-200 | 7.09:1 light |
+| Agent swatch | `agent-swatch-1` to `-6`: violet, cyan, emerald, amber, rose, sky, all 400 | same | Dots and glyphs, no text role |
+| Project status | `project-status-*`: blue, fuchsia, cyan, all 400 | same | Dots, no text role |
 
 **One accent, one alpha.** `accent-muted` is the single alpha-bearing token: amber-500 at 15%, as `docs/brand.md` specifies for subtle accent grounds.
 
@@ -201,7 +213,28 @@ Breakpoints `mobile 480 / tablet 768 / desktop 1024` are _(question-filled)_: th
     "text-secondary-raised": {"hex": "#57534E", "role": "text-secondary"},
     "text-secondary-raised-dark": {"hex": "#D6D3D1", "role": "text-secondary"},
     "danger-callout-text": {"hex": "#B91C1C", "role": "text-danger"},
-    "danger-callout-text-dark": {"hex": "#FCA5A5", "role": "text-danger"}
+    "danger-callout-text-dark": {"hex": "#FCA5A5", "role": "text-danger"},
+    "emerald-300": {"hex": "#6EE7B7", "role": "categorical"}, "emerald-400": {"hex": "#34D399", "role": "categorical"}, "emerald-500": {"hex": "#10B981", "role": "categorical"}, "emerald-800": {"hex": "#065F46", "role": "categorical"},
+    "violet-300": {"hex": "#C4B5FD", "role": "categorical"}, "violet-400": {"hex": "#A78BFA", "role": "categorical"}, "violet-500": {"hex": "#8B5CF6", "role": "categorical"}, "violet-700": {"hex": "#6D28D9", "role": "categorical"},
+    "cyan-300": {"hex": "#67E8F9", "role": "categorical"}, "cyan-400": {"hex": "#22D3EE", "role": "categorical"}, "cyan-500": {"hex": "#06B6D4", "role": "categorical"}, "cyan-700": {"hex": "#0E7490", "role": "categorical"},
+    "indigo-300": {"hex": "#A5B4FC", "role": "categorical"}, "indigo-500": {"hex": "#6366F1", "role": "categorical"}, "indigo-700": {"hex": "#4338CA", "role": "categorical"},
+    "sky-50": {"hex": "#F0F9FF", "role": "categorical"}, "sky-200": {"hex": "#BAE6FD", "role": "categorical"}, "sky-400": {"hex": "#38BDF8", "role": "categorical"},
+    "sky-800": {"hex": "#075985", "role": "categorical"}, "sky-900": {"hex": "#0C4A6E", "role": "categorical"}, "sky-950": {"hex": "#082F49", "role": "categorical"},
+    "rose-400": {"hex": "#FB7185", "role": "categorical"}, "blue-400": {"hex": "#60A5FA", "role": "categorical"}, "fuchsia-400": {"hex": "#E879F9", "role": "categorical"},
+    "issue-open": {"hex": "#10B981", "role": "surface-issue-open", "alpha": 0.15}, "issue-open-dark": {"hex": "#10B981", "role": "surface-issue-open", "alpha": 0.2},
+    "issue-open-text": {"hex": "#065F46", "role": "text-issue-open"}, "issue-open-text-dark": {"hex": "#6EE7B7", "role": "text-issue-open"},
+    "issue-label-border": {"hex": "#06B6D4", "role": "border-issue-label", "alpha": 0.4},
+    "issue-label-text": {"hex": "#0E7490", "role": "text-issue-label"}, "issue-label-text-dark": {"hex": "#67E8F9", "role": "text-issue-label"},
+    "issue-milestone": {"hex": "#6366F1", "role": "surface-issue-milestone", "alpha": 0.15}, "issue-milestone-dark": {"hex": "#6366F1", "role": "surface-issue-milestone", "alpha": 0.2},
+    "issue-milestone-text": {"hex": "#4338CA", "role": "text-issue-milestone"}, "issue-milestone-text-dark": {"hex": "#A5B4FC", "role": "text-issue-milestone"},
+    "issue-type": {"hex": "#8B5CF6", "role": "surface-issue-type", "alpha": 0.15}, "issue-type-dark": {"hex": "#8B5CF6", "role": "surface-issue-type", "alpha": 0.2},
+    "issue-type-text": {"hex": "#6D28D9", "role": "text-issue-type"}, "issue-type-text-dark": {"hex": "#C4B5FD", "role": "text-issue-type"},
+    "kind-agent-surface": {"hex": "#F0F9FF", "role": "surface-kind-agent"}, "kind-agent-surface-dark": {"hex": "#082F49", "role": "surface-kind-agent", "alpha": 0.2},
+    "kind-agent-border": {"hex": "#BAE6FD", "role": "border-kind-agent"}, "kind-agent-border-dark": {"hex": "#0C4A6E", "role": "border-kind-agent", "alpha": 0.4},
+    "kind-agent-text": {"hex": "#075985", "role": "text-kind-agent"}, "kind-agent-text-dark": {"hex": "#BAE6FD", "role": "text-kind-agent"},
+    "agent-swatch-1": {"hex": "#A78BFA", "role": "swatch-agent"}, "agent-swatch-2": {"hex": "#22D3EE", "role": "swatch-agent"}, "agent-swatch-3": {"hex": "#34D399", "role": "swatch-agent"},
+    "agent-swatch-4": {"hex": "#FBBF24", "role": "swatch-agent"}, "agent-swatch-5": {"hex": "#FB7185", "role": "swatch-agent"}, "agent-swatch-6": {"hex": "#38BDF8", "role": "swatch-agent"},
+    "project-status-in-progress": {"hex": "#60A5FA", "role": "swatch-project-status"}, "project-status-ready": {"hex": "#E879F9", "role": "swatch-project-status"}, "project-status-todo": {"hex": "#22D3EE", "role": "swatch-project-status"}
   },
   "type": {
     "family": "Inter, system-ui, -apple-system, sans-serif",
@@ -628,7 +661,7 @@ Breakpoints `mobile 480 / tablet 768 / desktop 1024` are _(question-filled)_: th
     ],
     "chosen_dimensions": {
       "typography": "Inter for interface text, JetBrains Mono for any value a developer might copy: ports, paths, branch names, commands.",
-      "colour": "A warm stone neutral spine (3,518 utility uses) with one amber accent (544), red for danger (357) and green for success (41).",
+      "colour": "A warm stone neutral spine (3,518 utility uses) with one amber accent (544), red for danger (357) and green for success (41); categorical hues only where the hue identifies something (Issue chip tones, agent kind, agent swatches, project status).",
       "hierarchy": "Weight, size and opacity; never underlines, backgrounds or borders on text.",
       "motion": "Colour transitions on state change, no bounce and no overshoot easing.",
       "elevation": "Shadow is reserved for surfaces that genuinely float: dialogs, popovers and tooltips. Flat surfaces stay flat."

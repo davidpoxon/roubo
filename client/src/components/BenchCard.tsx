@@ -127,7 +127,7 @@ export default function BenchCard({
             {/* Assigned issue */}
             {bench.assignedIssue && (
               <div className="flex items-center gap-1.5 text-xs text-stone-500 mt-2.5 shrink-0">
-                <span className="font-mono text-violet-400 shrink-0">
+                <span className="font-mono text-amber-800 dark:text-amber-200 shrink-0">
                   {displayIssueRef(bench.assignedIssue)}
                 </span>
                 <span className="truncate">{bench.assignedIssue.title}</span>

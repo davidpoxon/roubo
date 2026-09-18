@@ -10,8 +10,8 @@ const LABELS: Record<PluginStatus, string> = {
 
 const STYLES: Record<PluginStatus, { wrap: string; dot: string }> = {
   enabled: {
-    wrap: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400",
-    dot: "bg-emerald-500",
+    wrap: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/50 text-green-700 dark:text-green-400",
+    dot: "bg-green-500",
   },
   disabled: {
     wrap: "bg-stone-100 dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300",

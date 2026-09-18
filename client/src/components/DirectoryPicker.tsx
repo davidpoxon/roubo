@@ -186,7 +186,7 @@ export default function DirectoryPicker({ value, onChange, onSubmit }: Directory
                       size={14}
                       className={
                         entry.hasGit
-                          ? "text-emerald-500/70"
+                          ? "text-green-500/70"
                           : "text-stone-500 dark:text-stone-400 group-hover:text-stone-500"
                       }
                     />
@@ -194,7 +194,7 @@ export default function DirectoryPicker({ value, onChange, onSubmit }: Directory
                       {entry.name}
                     </span>
                     {entry.hasGit && (
-                      <span className="text-[10px] font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded px-1.5 py-0.5">
+                      <span className="text-[10px] font-medium bg-green-50 dark:bg-green-900/40 text-green-700 dark:text-green-400 rounded px-1.5 py-0.5">
                         git
                       </span>
                     )}

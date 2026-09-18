@@ -13,7 +13,7 @@ export const INHERIT_JIG_ID = "__inherit__";
 export function JigDefaultSourceLabel({ source }: { source: JigDefaultSource }) {
   if (source === "project") {
     return (
-      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400">
+      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-200">
         From project settings
       </span>
     );
