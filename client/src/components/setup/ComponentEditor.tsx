@@ -198,7 +198,7 @@ export default function ComponentEditor({
           <TemplateValidationError
             invalidVariables={validateTemplateVariables(component.command ?? "", templateCtx)}
           />
-          <p className="text-[10px] text-stone-500 dark:text-stone-700 mt-1">
+          <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">
             Executable and arguments. Supports template variables like{" "}
             <span className="font-mono">{"{{ports.name}}"}</span>.
           </p>
@@ -215,7 +215,7 @@ export default function ComponentEditor({
           >
             <Input placeholder="e.g. npm ci, dotnet restore" className={INPUT} />
           </TextField>
-          <p className="text-[10px] text-stone-500 dark:text-stone-700 mt-1">
+          <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">
             Runs once during bench preparing before the component starts
           </p>
         </div>
@@ -753,7 +753,7 @@ export default function ComponentEditor({
           </Button>
 
           {detectedVarKeys.length === 0 && customVarEntries.length === 0 && (
-            <p className="text-[10px] text-stone-600 dark:text-stone-700">
+            <p className="text-[10px] text-stone-600 dark:text-stone-400">
               Select a compose service above to detect variables from the compose file.
             </p>
           )}

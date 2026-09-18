@@ -155,7 +155,7 @@ export default function InspectionRunner({
           className="bg-stone-950 rounded-lg p-3 font-mono text-[11px] leading-5 text-green-400/70 max-h-[500px] min-h-[200px] overflow-auto"
         >
           {output.length === 0 ? (
-            <span className="text-stone-600 dark:text-stone-700 italic">
+            <span className="text-stone-400 italic">
               {inspectionRun ? "Waiting for output..." : "Run tests to see output here"}
             </span>
           ) : (

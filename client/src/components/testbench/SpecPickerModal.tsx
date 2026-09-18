@@ -313,12 +313,7 @@ export default function SpecPickerModal({
             : "border-stone-200 dark:border-stone-800/60 hover:border-stone-300 dark:hover:border-stone-700/60 hover:bg-stone-50 dark:hover:bg-stone-800/40"
         }`}
       >
-        <FileText
-          size={15}
-          className={`shrink-0 mt-0.5 ${
-            muted ? "text-stone-300 dark:text-stone-400" : "text-stone-500 dark:text-stone-400"
-          }`}
-        />
+        <FileText size={15} className="shrink-0 mt-0.5 text-stone-500 dark:text-stone-400" />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <span

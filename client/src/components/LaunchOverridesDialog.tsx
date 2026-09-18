@@ -74,7 +74,7 @@ function LayerLine({ layer }: { layer: ResolutionLayer }) {
         {layer.label}
       </span>{" "}
       {layer.entries.length === 0 ? (
-        <span className="text-stone-300 dark:text-stone-700">nothing</span>
+        <span className="text-stone-500 dark:text-stone-400">nothing</span>
       ) : (
         layer.entries.map((entry) => (
           <span
@@ -83,7 +83,7 @@ function LayerLine({ layer }: { layer: ResolutionLayer }) {
             data-superseded={entry.superseded ? "true" : "false"}
             className={
               entry.superseded
-                ? "text-stone-300 dark:text-stone-700 line-through mr-2"
+                ? "text-stone-500 dark:text-stone-400 line-through mr-2"
                 : isPerLaunch
                   ? "text-amber-600 dark:text-amber-200 font-semibold mr-2"
                   : "text-stone-500 dark:text-stone-400 mr-2"

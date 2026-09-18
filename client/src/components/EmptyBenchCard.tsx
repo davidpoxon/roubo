@@ -38,11 +38,11 @@ export default function EmptyBenchCard({
         >
           <div className="p-4 space-y-2.5">
             <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-stone-300 dark:text-stone-700">
+              <p className="text-sm font-semibold text-stone-500 dark:text-stone-400">
                 Bench {position}
               </p>
             </div>
-            <p className="text-xs text-stone-300 dark:text-stone-700">Available</p>
+            <p className="text-xs text-stone-500 dark:text-stone-400">Available</p>
           </div>
         </Button>
         <Popover
