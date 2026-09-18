@@ -76,8 +76,12 @@ export type WorkspaceWriteSpec = z.infer<typeof WorkspaceWriteSpecSchema>;
 //
 // Discriminated on `kind`, covering the two real shapes spike #502 validated: an
 // agent that POSTs to core itself (Claude Code's Notification hook) and an agent
-// that spawns a notifier program per event (Codex `notify`). The `event` field
-// tells core what the signal means, so waiting semantics never leak into plugins.
+// that spawns a notifier program per event (Codex `notify`). A third shape
+// (issue #854, APCC-FR-004) pairs the first one's registration carrier with the
+// second one's execution model: the hook is registered by a workspace file, the
+// agent spawns core's notifier, and the payload arrives on the notifier's stdin.
+// The `event` field tells core what the signal means, so waiting semantics never
+// leak into plugins.
 
 export const NotificationWiringSchema = z.discriminatedUnion("kind", [
   z
@@ -102,9 +106,9 @@ export const NotificationWiringSchema = z.discriminatedUnion("kind", [
       // Argv the host appends when spawning the agent; string elements may carry
       // {{sessionId}} / {{port}} / {{workspace}} / {{notifier}} for core to
       // resolve. {{notifier}} is the absolute path of the notifier program core
-      // installs for this launch, and is exclusive to this arm; the program's
-      // directory also leads the agent's PATH, so a bare `roubo-notify` resolves
-      // without it (issue #698).
+      // installs for this launch, and is exclusive to the two notifier arms; the
+      // program's directory also leads the agent's PATH, so a bare
+      // `roubo-notify` resolves without it (issue #698).
       carrier: z.object({ args: z.array(z.string()) }).strict(),
       payload: z.literal("json-arg"),
       // Resolved through the same substitution, in the same context, as the
@@ -112,6 +116,38 @@ export const NotificationWiringSchema = z.discriminatedUnion("kind", [
       // the host later looks up. Declare something session-derived: a constant
       // is guessable, and the host refuses a token another live session already
       // owns rather than let two agents share one.
+      correlation: z
+        .object({
+          source: z.literal("template"),
+          template: z.string().min(1),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("file-notifier"),
+      event: z.literal("turn-complete"),
+      // Two halves, and both are needed. `workspaceWrite` registers the hook in
+      // a workspace file, executed core-side through the same path-validated
+      // route as the http-hook carrier. `args` is the notifier invocation: core
+      // resolves each element through the same substitution as the spawned-
+      // notifier carrier ({{notifier}} included), shell-quotes it, and joins the
+      // result into one command string. That string is what {{notifierCommand}}
+      // resolves to inside the write, because an agent that reads its hook
+      // command from a file runs it through a shell and has no argv array.
+      carrier: z
+        .object({
+          workspaceWrite: WorkspaceWriteSpecSchema,
+          args: z.array(z.string()).min(1),
+        })
+        .strict(),
+      // The agent writes the event JSON to the notifier's stdin rather than
+      // appending it to argv.
+      payload: z.literal("json-stdin"),
+      // Reused verbatim from the spawned-notifier arm: resolved in the same
+      // context as `carrier.args`, so the token the notifier is invoked with is
+      // the one the host later looks up.
       correlation: z
         .object({
           source: z.literal("template"),
@@ -275,8 +311,10 @@ export type AgentCapabilities = z.infer<typeof AgentCapabilitiesSchema>;
 // never shell-interpreted (AP-NFR-001); string elements may carry
 // {{sessionId}} / {{port}} / {{workspace}}, which core resolves so a plugin
 // declares shape and never learns a real port or mints a session id.
-// {{notifier}} resolves too, but only inside a spawned-notifier carrier: it
-// names a program core installs for that wiring and nothing else.
+// {{notifier}} resolves too, but only for a spawned-notifier or file-notifier
+// wiring: it names a program core installs for that wiring and nothing else.
+// {{notifierCommand}} resolves only for a file-notifier wiring, to the shell-
+// quoted, space-joined `carrier.args` its registration write embeds.
 
 export const AgentLaunchDescriptorSchema = z
   .object({

@@ -18,6 +18,7 @@ import { resolveTemplate, type ResolvedTemplateContext } from "./config-parser.j
 import {
   collectWorkspaceWrites,
   executeWorkspaceWrites,
+  joinShellCommand,
   resolveWriteTemplates,
 } from "./agent-launch-executor.js";
 import {
@@ -131,8 +132,8 @@ interface InternalSession {
   // `waitingDetection` is the agent's declared detection spec, absent when
   // the agent declares none.
   hookNotification: boolean;
-  // The resolved correlation token for a `spawned-notifier` agent (issue #698),
-  // absent for every other session. Unlike the http-hook path, whose
+  // The resolved correlation token for a `spawned-notifier` (issue #698) or
+  // `file-notifier` (issue #854) agent, absent for every other session. Unlike the http-hook path, whose
   // `correlation.source: "agent-native"` makes the session id itself the token,
   // this token is whatever the plugin's `correlation.template` resolved to, so
   // it is registered in `notifierTokens` and traded back for this session when
@@ -147,7 +148,7 @@ interface InternalSession {
 }
 
 const sessions = new Map<string, InternalSession>();
-// Correlation token -> session id, for the `spawned-notifier` wiring only. The
+// Correlation token -> session id, for the two notifier wirings only. The
 // http-hook path needs no such registry: its token IS the session id.
 const notifierTokens = new Map<string, string>();
 const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -305,9 +306,9 @@ function dismissWaitingNotificationsForSession(internal: InternalSession): void 
  * the debounce it declared, and a `hook-driven` one gets its declared fallback
  * (quiescence is only a safety net behind its hook). An agent declaring no
  * waiting detection falls back on its wiring: a notification-wired one (a plugin
- * declaring `notification.kind` of either `http-hook` or `spawned-notifier`)
- * gets the same 8000ms fallback window, and anything else gets the generic
- * terminal debounce. A spawned-notifier agent counts because its own signal
+ * declaring any `notification.kind`: `http-hook`, `spawned-notifier`, or
+ * `file-notifier`) gets the same 8000ms fallback window, and anything else gets
+ * the generic terminal debounce. A notifier agent counts because its own signal
  * fires on turn completion only, so quiescence is its fallback rather than its
  * primary mechanism, exactly as it is for a hook.
  */
@@ -464,8 +465,8 @@ interface RegisterSessionOptions {
   /** The agent POSTs waiting events to core's hook endpoint. */
   hookNotification?: boolean;
   /**
-   * The resolved correlation token a `spawned-notifier` agent's notifier program
-   * will quote back (issue #698). Registered here so the token, minted at launch
+   * The resolved correlation token a `spawned-notifier` or `file-notifier`
+   * agent's notifier program will quote back (issues #698, #854). Registered here so the token, minted at launch
    * from the same template context as the carrier argv, is the one core looks up.
    */
   notifierCorrelation?: string;
@@ -675,13 +676,16 @@ export async function createAgentSession(
   const { descriptor } = prepared;
   const notification = descriptor.capabilities?.notification;
   const port = process.env.ROUBO_PORT || DEFAULT_ROUBO_PORT;
-  // A spawned-notifier agent spawns a program core has to supply, so the program
-  // is installed BEFORE templates resolve: `{{notifier}}` is an absolute path and
-  // there is nothing to point at until it exists (issue #698). The endpoint it
-  // POSTs to is baked in at that write, for the same reason the hook URL is baked
-  // into the Claude settings write: ROUBO_PORT never reaches a child.
+  // A spawned-notifier or file-notifier agent spawns a program core has to
+  // supply, so the program is installed BEFORE templates resolve: `{{notifier}}`
+  // is an absolute path and there is nothing to point at until it exists (issues
+  // #698, #854). The endpoint it POSTs to is baked in at that write, for the
+  // same reason the hook URL is baked into the Claude settings write: ROUBO_PORT
+  // never reaches a child.
   const notifierPath =
-    notification?.kind === "spawned-notifier" ? installNotifier(port) : undefined;
+    notification?.kind === "spawned-notifier" || notification?.kind === "file-notifier"
+      ? installNotifier(port)
+      : undefined;
   const ctx: ResolvedTemplateContext = {
     ports: {},
     portHttps: {},
@@ -721,6 +725,19 @@ export async function createAgentSession(
     }
     notifierCorrelation = resolveTemplate(notification.correlation.template, ctx);
   }
+  // The file-notifier carrier contributes nothing to argv (issue #854). Its
+  // registration rides a workspace write, and the agent runs the hook command
+  // it finds there through a shell, so the carrier args are resolved from the
+  // same ctx, shell-quoted, and joined into the one string `{{notifierCommand}}`
+  // stands for in that write. The single-pass substitution never re-scans what
+  // it inserted, so a resolved value cannot smuggle in a second placeholder.
+  // The correlation token comes from the same ctx, exactly as above.
+  if (notification?.kind === "file-notifier" && notifierPath !== undefined) {
+    ctx.notifierCommand = joinShellCommand(
+      notification.carrier.args.map((arg) => resolveTemplate(arg, ctx)),
+    );
+    notifierCorrelation = resolveTemplate(notification.correlation.template, ctx);
+  }
   // The initial prompt is positional, so it stays last, after every flag. The
   // descriptor's declared limit is capped by core's own MAX_CLI_PROMPT_LENGTH:
   // a plugin can ask for a shorter prompt than core would allow, never a longer
@@ -739,10 +756,16 @@ export async function createAgentSession(
   // Workspace writes run BEFORE the spawn: a descriptor whose relPath escapes
   // the bench workspace aborts the whole batch (and this launch) with nothing
   // written anywhere (AP-NFR-001, AP-TC-082).
-  executeWorkspaceWrites(
-    opts.workspacePath,
-    resolveWriteTemplates(collectWorkspaceWrites(descriptor, posture ? { posture } : {}), ctx),
-  );
+  //
+  // A file-notifier whose program could not be installed drops its registration
+  // write along with the rest of the wiring, rather than registering a hook
+  // command that points at nothing.
+  let writes = collectWorkspaceWrites(descriptor, posture ? { posture } : {});
+  if (notification?.kind === "file-notifier" && notifierPath === undefined) {
+    const carrierWrite = notification.carrier.workspaceWrite;
+    writes = writes.filter((write) => write !== carrierWrite);
+  }
+  executeWorkspaceWrites(opts.workspacePath, resolveWriteTemplates(writes, ctx));
 
   const env: Record<string, string> = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -836,8 +859,9 @@ export async function createAgentSession(
   };
 
   // Notification wiring comes straight off the descriptor: an http-hook agent
-  // is the only kind whose hook POSTs core will honour, a spawned-notifier one
-  // is reachable only through the correlation token resolved above, and
+  // is the only kind whose hook POSTs core will honour, a spawned-notifier or
+  // file-notifier one is reachable only through the correlation token resolved
+  // above, and
   // whichever waiting detection it declared drives the quiescence debounce
   // (AP-FR-013, issue #698).
   const capabilities = descriptor.capabilities;

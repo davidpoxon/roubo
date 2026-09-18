@@ -229,6 +229,84 @@ describe("NotificationWiring", () => {
   });
 });
 
+// Issue #854 (APCC-FR-004, APCC-TC-004): the file-registered, stdin-payload
+// variant. The registration rides a workspace write, as the http-hook one does,
+// and the notifier is spawned with the event on stdin.
+describe("NotificationWiring: file-notifier (APCC-TC-004)", () => {
+  const REGISTRATION = {
+    relPath: ".agent/hooks.json",
+    format: "json",
+    ops: [
+      {
+        op: "set",
+        path: "hooks.stop",
+        value: [{ command: "{{notifierCommand}}" }],
+      },
+    ],
+  } as const;
+
+  function fileNotifier(overrides: Record<string, unknown> = {}) {
+    return {
+      kind: "file-notifier",
+      event: "turn-complete",
+      carrier: { workspaceWrite: REGISTRATION, args: ["{{notifier}}", "{{sessionId}}"] },
+      payload: "json-stdin",
+      correlation: { source: "template", template: "{{sessionId}}" },
+      ...overrides,
+    };
+  }
+
+  it("validates inside a descriptor, with its registration write and template readable", () => {
+    const parsed = AgentLaunchDescriptorSchema.parse({
+      ...minimal(),
+      capabilities: { notification: fileNotifier() },
+    });
+
+    const notification = parsed.capabilities?.notification;
+    expect(notification?.kind).toBe("file-notifier");
+    if (notification?.kind !== "file-notifier") throw new Error("unreachable");
+    expect(notification.carrier.workspaceWrite).toEqual(REGISTRATION);
+    expect(notification.carrier.args).toEqual(["{{notifier}}", "{{sessionId}}"]);
+    expect(notification.correlation.template).toBe("{{sessionId}}");
+    expect(notification.payload).toBe("json-stdin");
+  });
+
+  it.each(["json-arg", "json-file", "text-stdin"])(
+    "rejects a payload mode the contract does not carry (%s), naming the payload field",
+    (payload) => {
+      const result = AgentLaunchDescriptorSchema.safeParse({
+        ...minimal(),
+        capabilities: { notification: fileNotifier({ payload }) },
+      });
+
+      expect(result.success).toBe(false);
+      const paths = result.error?.issues.map((issue) => issue.path) ?? [];
+      expect(paths).toContainEqual(["capabilities", "notification", "payload"]);
+    },
+  );
+
+  it("rejects a carrier missing either half", () => {
+    const withoutWrite = fileNotifier({ carrier: { args: ["{{notifier}}"] } });
+    const withoutArgs = fileNotifier({ carrier: { workspaceWrite: REGISTRATION } });
+    const emptyArgs = fileNotifier({ carrier: { workspaceWrite: REGISTRATION, args: [] } });
+
+    expect(NotificationWiringSchema.safeParse(withoutWrite).success).toBe(false);
+    expect(NotificationWiringSchema.safeParse(withoutArgs).success).toBe(false);
+    expect(NotificationWiringSchema.safeParse(emptyArgs).success).toBe(false);
+  });
+
+  it("rejects an agent-native correlation, which only the http-hook arm carries", () => {
+    const result = NotificationWiringSchema.safeParse(
+      fileNotifier({ correlation: { field: "session_id", source: "agent-native" } }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an unknown key on the variant", () => {
+    expect(NotificationWiringSchema.safeParse(fileNotifier({ agent: "x" })).success).toBe(false);
+  });
+});
+
 describe("VersionProbeSpec", () => {
   it("accepts a ceiling-only probe", () => {
     expect(

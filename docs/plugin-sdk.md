@@ -393,7 +393,7 @@ Every agent-contract name this document describes is a named export of `@roubo/p
 | `AgentCapabilities`                | type  | The optional `capabilities` block on the descriptor. See [Declared capabilities](#declared-capabilities)                                             |
 | `VersionProbeSpec`                 | type  | `capabilities.versionProbe`. See [The version probe and its gate](#the-version-probe-and-its-gate)                                                   |
 | `WaitingDetectionSpec`             | type  | `capabilities.waitingDetection`: `hook-driven` or `quiescence-only`                                                                                  |
-| `NotificationWiring`               | type  | `capabilities.notification`: `http-hook` or `spawned-notifier`                                                                                       |
+| `NotificationWiring`               | type  | `capabilities.notification`: `http-hook`, `spawned-notifier`, or `file-notifier`                                                                     |
 | `PermissionsCapability`            | type  | `capabilities.permissions`: the per-posture bindings and the optional `rules` declaration                                                            |
 | `AgentPosture`                     | type  | `"read-only" \| "guarded" \| "auto-edit" \| "full-auto"`                                                                                             |
 | `AgentPermissionsModel`            | type  | The model the host layers onto the config as `config.permissions`: an optional `posture` plus `allow` / `ask` / `deny` rules                         |
@@ -440,7 +440,7 @@ Everything else the launch needs is an optional declared capability, and **absen
 | ------------------ | ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `initialPrompt`    | How jig content reaches the agent: `argv-positional`, with an optional `maxLength`. | No jig content is injected; the session launches normally. |
 | `workspaceWrites`  | Files to write in the bench workspace, as ordered ops.                              | No workspace file is touched.                              |
-| `notification`     | How the agent signals the host (`http-hook` or `spawned-notifier`).                 | Nothing is wired; quiescence detection only.               |
+| `notification`     | How the agent signals the host (`http-hook`, `spawned-notifier`, `file-notifier`).  | Nothing is wired; quiescence detection only.               |
 | `versionProbe`     | The probe args, the semver floor, and the tested ceiling.                           | No version gate; the launch proceeds.                      |
 | `waitingDetection` | `hook-driven` (with a quiescence fallback) or `quiescence-only`.                    | 8000ms if hook-wired, else the generic 2000ms.             |
 | `permissions`      | How the agent realises each permission posture, and whether it honours rules.       | No permission controls render; nothing is injected.        |
@@ -469,7 +469,7 @@ permissions: {
 
 ### Notification wiring
 
-`capabilities.notification` is how your agent tells the host it is done, rather than leaving the host to infer it from an idle terminal. Two shapes, and the host executes both:
+`capabilities.notification` is how your agent tells the host it is done, rather than leaving the host to infer it from an idle terminal. Three shapes, and the host executes all of them:
 
 ```ts
 // The agent can POST for itself, and already knows the host's session id.
@@ -492,15 +492,36 @@ capabilities: {
     correlation: { source: "template", template: "{{sessionId}}" },
   },
 }
+
+// The agent reads its hook from a workspace file, runs the hook command through
+// a shell when a turn ends, and writes the event to that command's stdin.
+capabilities: {
+  notification: {
+    kind: "file-notifier",
+    event: "turn-complete",
+    carrier: {
+      workspaceWrite: {
+        relPath: ".agent/hooks.json",
+        format: "json",
+        ops: [{ op: "set", path: "hooks.stop", value: [{ command: "{{notifierCommand}}" }] }],
+      },
+      args: ["roubo-notify", "{{sessionId}}"],
+    },
+    payload: "json-stdin",
+    correlation: { source: "template", template: "{{sessionId}}" },
+  },
+}
 ```
 
 With `http-hook` the registration rides a workspace write and the correlation is `agent-native`: the agent quotes back the session id the host already gave it, so there is nothing else to track.
 
 With `spawned-notifier` the registration rides argv, and the host supplies the program. It writes `roubo-notify` into `~/.roubo/bin` at launch with its own endpoint baked in (nothing can read the port at runtime, because the host strips it from every child environment), leads the agent's `PATH` with that directory so a bare `roubo-notify` in your carrier resolves, and appends your `carrier.args` to argv. Your `correlation.template` is resolved through the same substitution, in the same context, as those args, so the token the program is invoked with is exactly the one the host registered. Declare something session-derived: a constant is guessable, and the host refuses a token another live session already owns rather than let two agents share one. `payload: "json-arg"` states what every such agent does, which is to append the event JSON as one final argument; the host forwards it and does not read it.
 
-The program reads its own argv positionally, so declare the carrier to match: the resolved correlation token must be the **first** argument the agent passes it, the event JSON is the **last**, and anything in between is ignored. Fewer than two arguments exits `2`. Nothing validates this at launch, because the invocation is buried inside your agent's own configuration string, so a carrier that puts a flag where the token belongs reports nothing and raises nothing.
+With `file-notifier` the registration rides a workspace write, as it does for `http-hook`, and the host installs the same `roubo-notify` program, leads `PATH` with its directory, and resolves `{{notifier}}`, as it does for `spawned-notifier`. What differs is how the invocation reaches the agent. An agent that reads its hook from a file has no argv array to fill: it runs the hook's command string through a shell. So the host resolves each element of `carrier.args`, shell-quotes it, joins the results with single spaces, and substitutes that one string for `{{notifierCommand}}` wherever your carrier write declares it. An element made only of characters no shell treats specially passes through bare; anything else is single-quoted, so a workspace path with a space in it stays one word and nothing a template resolves to can start a second command. The carrier contributes nothing to argv. `correlation` is the same `template` shape as `spawned-notifier`'s and is resolved in the same context as `carrier.args`, so the token in the registered command is the one the host looks up. `payload: "json-stdin"` states that the agent writes the event JSON to the command's standard input and appends nothing to its argv. Declare the resolved correlation token as the first argument after the program. Reading the payload from stdin is the notifier program's side of this contract, which roubo-development#855 adds. If the host cannot install the program, it drops the registration write together with the rest of the wiring, and the session falls back to quiescence.
 
-Either way the host raises the same bench notification, and the waiting state clears itself when the session produces fresh output. Quiescence stays armed behind both, on the 8000ms fallback window rather than the generic 2000ms one, because a turn-complete signal never fires for an agent sitting on an approval prompt.
+The `spawned-notifier` program reads its own argv positionally, so declare the carrier to match: the resolved correlation token must be the **first** argument the agent passes it, the event JSON is the **last**, and anything in between is ignored. Fewer than two arguments exits `2`. Nothing validates this at launch, because the invocation is buried inside your agent's own configuration string, so a carrier that puts a flag where the token belongs reports nothing and raises nothing.
+
+Whichever shape you declare, the host raises the same bench notification, and the waiting state clears itself when the session produces fresh output. Quiescence stays armed behind all three, on the 8000ms fallback window rather than the generic 2000ms one, because a turn-complete signal never fires for an agent sitting on an approval prompt.
 
 ### The version probe and its gate
 
@@ -573,9 +594,9 @@ Ops mutate the parsed existing file rather than replacing it, so unknown keys th
 3. **Effective config.** Four shallow overlays, in this order, later layers winning per field: application defaults (`~/.roubo/agents/_global/<pluginId>.yaml`), project overrides (`~/.roubo/agents/<projectId>/<pluginId>.yaml`), the preset, then per-launch overrides. A field a layer does not mention falls through, so it keeps tracking the layer beneath it. The result arrives as both `config` and `context.effectiveConfig`.
 4. **`translateLaunch`.** One round trip. Your plugin returns a descriptor; the host validates it against the Zod schema before touching anything.
 5. **Version gate.** When the descriptor declares a `versionProbe`, the host probes the CLI here, in the spawn-free half of the launch. Below the floor the launch is refused outright with a structured error; above the ceiling, or on a probe that could not decide, the verdict is carried forward as a non-blocking notice. This step is why "no PTY is spawned for a below-floor launch" is structural rather than incidental.
-6. **Template resolution.** `{{sessionId}}`, `{{port}}`, and `{{workspace}}` are resolved through `command`, every element of `args`, every `env` value, `cwd`, and both the `relPath` and the values of every workspace write. `{{port}}` is the port the host is actually listening on. A fourth, `{{notifier}}`, resolves in all the same places, but only for a descriptor whose `capabilities.notification.kind` is `spawned-notifier`: it is the absolute path of the program the host installed for that launch, and is left verbatim for every other descriptor. An unrecognised `{{...}}` is left verbatim rather than blanked.
+6. **Template resolution.** `{{sessionId}}`, `{{port}}`, and `{{workspace}}` are resolved through `command`, every element of `args`, every `env` value, `cwd`, and both the `relPath` and the values of every workspace write. `{{port}}` is the port the host is actually listening on. A fourth, `{{notifier}}`, resolves in all the same places, but only for a descriptor whose `capabilities.notification.kind` is `spawned-notifier` or `file-notifier`: it is the absolute path of the program the host installed for that launch, and is left verbatim for every other descriptor. A fifth, `{{notifierCommand}}`, resolves only for a `file-notifier` descriptor, to the shell-quoted, space-joined `carrier.args` (each already resolved), and belongs in that carrier's workspace write. An unrecognised `{{...}}` is left verbatim rather than blanked.
 7. **Workspace writes.** Executed core-side, path-validated, and **before** the spawn, so a descriptor that tries to escape the bench workspace aborts the launch with nothing written anywhere rather than leaving a half-configured agent running.
-8. **Posture bindings, then the notification carrier.** When the effective config selects a `posture` your descriptor declares a binding for, **both** carriers of that binding are applied: its `args` are appended to argv (after your descriptor's own `args`), and its `workspaceWrites` join the write batch in step 7. Declare whichever carrier your agent uses; a binding is never half-applied. A `spawned-notifier` notification carrier's `args` are appended after those, and a positional initial prompt still comes last of all.
+8. **Posture bindings, then the notification carrier.** When the effective config selects a `posture` your descriptor declares a binding for, **both** carriers of that binding are applied: its `args` are appended to argv (after your descriptor's own `args`), and its `workspaceWrites` join the write batch in step 7. Declare whichever carrier your agent uses; a binding is never half-applied. A `spawned-notifier` notification carrier's `args` are appended after those, and a positional initial prompt still comes last of all. An `http-hook` or `file-notifier` carrier adds nothing to argv: its `workspaceWrite` joins the end of the write batch in step 7, after the posture binding's writes.
 9. **Command resolution.** A `command` containing a path separator is an explicit path and is spawned exactly as given. A bare name is looked for on the child's `PATH` first, then in the host's well-known install locations for that CLI, so a bare command resolves on installs the server's own `PATH` would miss (a shim under the agent's home directory, or a Dock launch whose `PATH` the server never inherits). A candidate counts only when it is a regular file the host may execute, so a directory or an unchmodded file at one of those locations is skipped rather than spawned and does not shadow a working install further down the list. A command found nowhere fails the launch with an error naming every location tried, before the PTY is opened. The well-known list comes from your manifest's [`agentInstallLocations`](#where-your-agent-cli-installs) when you declare one, and otherwise from a host-side table keyed on the command's base name and frozen at one base name, so an agent that declares nothing and is not that one resolves through `PATH` alone. Keep declaring a bare command, and never hardcode an absolute install path in a descriptor: the manifest is where an install location belongs.
 10. **Spawn.** `args` reaches the PTY as an **array**. Nothing joins it into a shell string, so shell metacharacters anywhere in the effective config, including a free-form extra-arguments field, arrive at your agent as literal argv elements. There is no shell, so there is nothing to expand.
 
