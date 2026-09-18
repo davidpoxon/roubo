@@ -22,3 +22,7 @@ shared/lifecycle-pointer-fixtures.json
 # its own compact serialization. Prettier's reflow expands the machine-checked token
 # block from 564 to 666 lines, past the 600-line budget conform.py enforces (FR-012).
 DESIGN.md
+# Emitted from DESIGN.md by ui-design emit_tokens.py inside a managed region that is
+# never hand-edited. Prettier would lowercase every hex value and the next emit would
+# rewrite them, so the file keeps the emitter's own formatting (davidpoxon/roubo#1283).
+design-tokens/tokens.tailwind.css
