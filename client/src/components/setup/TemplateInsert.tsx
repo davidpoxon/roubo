@@ -59,10 +59,10 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
                           </span>
                         )}
                     </div>
-                    <p className="text-[10px] text-stone-500 dark:text-stone-300 mt-0.5 group-hover/item:text-stone-400 dark:group-hover/item:text-stone-500 transition-colors">
+                    <p className="text-[10px] text-stone-500 dark:text-stone-300 mt-0.5 group-hover/item:text-stone-600 dark:group-hover/item:text-stone-300 transition-colors">
                       {v.description}
                       {v.formula && (
-                        <span className="text-stone-500 dark:text-stone-300 group-hover/item:text-stone-500 dark:group-hover/item:text-stone-600">
+                        <span className="text-stone-500 dark:text-stone-300 group-hover/item:text-stone-600 dark:group-hover/item:text-stone-300">
                           {" "}
                           · {v.formula}
                         </span>

@@ -33,4 +33,25 @@ describe("TemplateInsert", () => {
     await userEvent.click(screen.getByText("{{ports.frontend}}"));
     expect(onInsert).toHaveBeenCalledWith("{{ports.frontend}}");
   });
+
+  // #1286: hover must keep the item text at WCAG AA (text-secondary-raised in DESIGN.md).
+  it("keeps the description and formula at AA contrast on item hover", async () => {
+    render(<TemplateInsert ctx={ctxWithPorts} onInsert={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /insert template variable/i }));
+
+    const description = screen.getByText(/Allocated port for frontend/).closest("p");
+    const formula = screen.getByText(/base \+ \(bench - 1\)/);
+    expect(description).not.toBeNull();
+
+    for (const el of [description as HTMLElement, formula]) {
+      expect(el).toHaveClass(
+        "group-hover/item:text-stone-600",
+        "dark:group-hover/item:text-stone-300",
+      );
+      expect(el).not.toHaveClass("group-hover/item:text-stone-400");
+      expect(el).not.toHaveClass("group-hover/item:text-stone-500");
+      expect(el).not.toHaveClass("dark:group-hover/item:text-stone-500");
+      expect(el).not.toHaveClass("dark:group-hover/item:text-stone-600");
+    }
+  });
 });
