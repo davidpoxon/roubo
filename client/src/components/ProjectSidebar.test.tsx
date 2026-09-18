@@ -84,6 +84,15 @@ describe("ProjectSidebar", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
+  it("renders an inactive All Projects link in the text-secondary token for both themes (#885)", () => {
+    stubNoData();
+    renderSidebar("/settings");
+    const link = screen.getByText("All Projects").closest("button");
+    // stone-500 on light and stone-400 on dark both clear WCAG AA 4.5:1.
+    expect(link?.className).toContain("text-stone-500");
+    expect(link?.className).toContain("dark:text-stone-400");
+  });
+
   it("renders project displayName when available", () => {
     mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
       RegisteredProject[]
