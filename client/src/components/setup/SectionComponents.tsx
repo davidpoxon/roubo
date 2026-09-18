@@ -252,11 +252,11 @@ export default function SectionComponents({
           {scanResult?.detected.suggestedComponents?.some(
             (s) => s.key === key && s.config.type === component.type,
           ) && (
-            <span className="text-[10px] text-stone-400 dark:text-stone-600">Auto-detected</span>
+            <span className="text-[10px] text-stone-500 dark:text-stone-400">Auto-detected</span>
           )}
           <Button
             onPress={() => dispatch({ type: "REMOVE_COMPONENT", payload: key })}
-            className="ml-auto p-1 text-stone-400 dark:text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none"
+            className="ml-auto p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none"
           >
             <Trash2 size={13} />
           </Button>
@@ -327,7 +327,7 @@ export default function SectionComponents({
                   `px-3 py-2 text-xs font-medium transition-colors outline-none cursor-default border-b-2 -mb-px ${
                     isSelected
                       ? "text-stone-800 dark:text-stone-200 border-stone-600 dark:border-stone-400"
-                      : "text-stone-500 dark:text-stone-600 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
+                      : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
                   }`
                 }
               >
@@ -395,7 +395,7 @@ export default function SectionComponents({
                         >
                           <Input
                             placeholder="path/to/docker-compose.yml"
-                            className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+                            className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
                           />
                         </TextField>
                       )}
@@ -421,10 +421,10 @@ export default function SectionComponents({
         <span className="flex-1 text-sm font-medium text-stone-700 dark:text-stone-300 font-mono truncate">
           {key}
         </span>
-        <span className="text-[11px] text-stone-400 dark:text-stone-600">
+        <span className="text-[11px] text-stone-600 dark:text-stone-400">
           {componentTypeBadge(component)}
         </span>
-        <ChevronRight size={13} className="text-stone-400 dark:text-stone-600 shrink-0" />
+        <ChevronRight size={13} className="text-stone-600 dark:text-stone-400 shrink-0" />
       </Button>
     );
   }

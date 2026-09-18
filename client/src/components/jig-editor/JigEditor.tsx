@@ -77,7 +77,7 @@ function EditLoader({ jigId, scope, projectId, backHref, backLabel }: EditLoader
   if (isPending) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-sm text-stone-400 dark:text-stone-600">Loading jig…</p>
+        <p className="text-sm text-stone-500 dark:text-stone-400">Loading jig…</p>
       </div>
     );
   }

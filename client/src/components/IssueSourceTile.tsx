@@ -187,12 +187,12 @@ function ConfiguredBody({
       </div>
 
       {Object.keys(sources).length === 0 ? (
-        <p className="text-xs text-stone-400 dark:text-stone-600">{STRINGS.noSources}</p>
+        <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.noSources}</p>
       ) : (
         <dl className="space-y-2">
           {Object.entries(sources).map(([key, values]) => (
             <div key={key} className="flex flex-col gap-1.5">
-              <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                 {titleCase(key)}
               </dt>
               <dd className="flex flex-wrap gap-1.5">
@@ -213,7 +213,7 @@ function ConfiguredBody({
                     >
                       <span>{primary}</span>
                       {secondary && (
-                        <span className="font-mono text-stone-400 dark:text-stone-600">
+                        <span className="font-mono text-stone-600 dark:text-stone-300">
                           {secondary}
                         </span>
                       )}
@@ -227,7 +227,7 @@ function ConfiguredBody({
       )}
 
       {caption && (
-        <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">{caption}</p>
+        <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">{caption}</p>
       )}
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -258,7 +258,7 @@ function UnconfiguredBody({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-stone-600 dark:text-stone-400">{STRINGS.noIssueSource}</p>
-      <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+      <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
         {STRINGS.noIssueSourceHint}
       </p>
       <div>
@@ -323,7 +323,7 @@ export default function IssueSourceTile({
       data-testid="issue-source-tile"
     >
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-600">
+        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
           <Spinner />
           {STRINGS.loading}
         </div>

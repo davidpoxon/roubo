@@ -176,12 +176,12 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
       <div className="flex-1 min-h-0">
         {isPending && content.trim().length > 0 && (
           <div className="h-full rounded-lg border border-stone-200 dark:border-stone-800/60 flex items-center justify-center">
-            <span className="text-xs text-stone-400 dark:text-stone-600">Generating preview…</span>
+            <span className="text-xs text-stone-500 dark:text-stone-400">Generating preview…</span>
           </div>
         )}
         {isError && (
           <div className="h-full rounded-lg border border-stone-200 dark:border-stone-800/60 flex items-center justify-center">
-            <span className="text-xs text-stone-400 dark:text-stone-600">
+            <span className="text-xs text-stone-500 dark:text-stone-400">
               Failed to generate preview.
             </span>
           </div>
@@ -189,7 +189,7 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
         {!isPending && !isError && data && <ReadonlyMarkdownViewer value={data.resolved} />}
         {!isPending && !isError && !data && (
           <div className="h-full rounded-lg border border-stone-200 dark:border-stone-800/60 flex items-center justify-center">
-            <span className="text-xs text-stone-400 dark:text-stone-600">
+            <span className="text-xs text-stone-500 dark:text-stone-400">
               Start typing to see a preview.
             </span>
           </div>

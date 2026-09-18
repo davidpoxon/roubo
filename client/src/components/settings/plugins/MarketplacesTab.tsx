@@ -101,7 +101,7 @@ export default function MarketplacesTab({ onAddSource, onRemoveSource }: Props =
         </div>
       )}
 
-      <p className="text-[11px] text-stone-400 dark:text-stone-500 leading-relaxed max-w-2xl">
+      <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed max-w-2xl">
         {STRINGS.note}
       </p>
     </section>

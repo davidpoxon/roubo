@@ -71,13 +71,13 @@ export default function SetupValidationPanel({
   return (
     <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/30 p-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-600">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
           Validation
         </div>
         <Button
           onPress={onValidate}
           isDisabled={isValidating}
-          className="text-[10px] text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline disabled:opacity-40 disabled:cursor-default flex items-center gap-1"
+          className="text-[10px] text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline disabled:opacity-40 disabled:cursor-default flex items-center gap-1"
         >
           {isValidating ? <Loader size={9} className="animate-spin" /> : null}
           Check
@@ -93,7 +93,7 @@ export default function SetupValidationPanel({
                 <Check size={12} />
                 Valid
               </div>
-              <div className="text-[11px] text-stone-400 dark:text-stone-600 mt-1.5">
+              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">
                 Ready to save.
               </div>
             </>
@@ -123,13 +123,13 @@ export default function SetupValidationPanel({
           }
         >
           {yamlStatus === "idle" && mode === "yaml" && (
-            <p className="text-[11px] text-stone-400 dark:text-stone-600">
+            <p className="text-[11px] text-stone-500 dark:text-stone-400">
               Click Check to validate the schema.
             </p>
           )}
 
           {yamlStatus === "pending" && (
-            <div className="flex items-center gap-2 text-[12px] text-stone-400 dark:text-stone-600">
+            <div className="flex items-center gap-2 text-[12px] text-stone-500 dark:text-stone-400">
               <Loader size={12} className="animate-spin" />
               Checking…
             </div>
@@ -142,7 +142,7 @@ export default function SetupValidationPanel({
                 Schema valid
               </div>
               {lastCheckedAt && (
-                <div className="text-[11px] text-stone-400 dark:text-stone-600 mt-1.5">
+                <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">
                   Last checked: {formatLastChecked(lastCheckedAt)}
                 </div>
               )}
@@ -162,7 +162,7 @@ export default function SetupValidationPanel({
                     className="text-[11px] font-mono text-red-500 dark:text-red-400 leading-snug"
                   >
                     {err.line != null && (
-                      <span className="text-stone-400 dark:text-stone-600">
+                      <span className="text-stone-500 dark:text-stone-400">
                         roubo.yaml:{err.line}{" "}
                       </span>
                     )}
@@ -173,7 +173,7 @@ export default function SetupValidationPanel({
                 ))}
               </div>
               {lastCheckedAt && (
-                <div className="text-[11px] text-stone-400 dark:text-stone-600 mt-2">
+                <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-2">
                   Last checked: {formatLastChecked(lastCheckedAt)}
                 </div>
               )}

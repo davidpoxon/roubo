@@ -37,10 +37,10 @@ function TeardownCard({ bench, exiting }: { bench: Bench; exiting: boolean }) {
           <span className="text-xs font-medium text-stone-800 dark:text-stone-200">
             Bench {bench.id}
           </span>
-          <span className="text-[11px] font-mono text-stone-400 dark:text-stone-600 truncate">
+          <span className="text-[11px] font-mono text-stone-500 dark:text-stone-300 truncate">
             {bench.branch}
           </span>
-          <span className="text-[11px] font-mono text-stone-400 dark:text-stone-600 ml-auto shrink-0">
+          <span className="text-[11px] font-mono text-stone-500 dark:text-stone-300 ml-auto shrink-0">
             {doneCount} / {steps.length}
           </span>
         </div>

@@ -24,7 +24,7 @@ export default function ProgressBar({ counts, label }: { counts: StatusCounts; l
 
   return (
     <div className={`flex items-center gap-3 ${isEmpty ? "opacity-30" : ""}`}>
-      <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-600 shrink-0">
+      <span className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-400 shrink-0">
         {label}
       </span>
       <div

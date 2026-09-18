@@ -49,7 +49,7 @@ export default function SectionInspection({
   if (!inspection) {
     return (
       <div className="py-2">
-        <p className="text-sm text-stone-500 dark:text-stone-600 mb-3">
+        <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">
           No inspection configured. This section is optional.
         </p>
         <Button
@@ -86,7 +86,7 @@ export default function SectionInspection({
         <Button
           onPress={removeInspection}
           aria-label="Remove inspection"
-          className="flex items-center gap-1 text-[11px] text-stone-400 hover:text-red-400 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+          className="flex items-center gap-1 text-[11px] text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
         >
           <Trash2 size={12} /> Remove
         </Button>
@@ -165,7 +165,7 @@ export default function SectionInspection({
                       env: Object.keys(env).length > 0 ? env : undefined,
                     });
                   }}
-                  className="p-1 text-stone-400 dark:text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+                  className="p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
                 >
                   <X size={14} />
                 </Button>

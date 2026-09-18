@@ -55,7 +55,7 @@ export default function WizardSidebar({
     <nav className="w-44 shrink-0 pt-8 pl-8">
       <Button
         onPress={() => navigate(projectId ? `/projects/${projectId}/settings` : "/settings")}
-        className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-stone-600 hover:text-stone-700 dark:hover:text-stone-400 transition-colors mb-8"
+        className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 transition-colors mb-8"
       >
         <ArrowLeft size={12} />
         Settings
@@ -87,12 +87,12 @@ export default function WizardSidebar({
                       ? "text-green-500"
                       : status === "invalid"
                         ? "text-red-400"
-                        : "text-stone-400 dark:text-stone-700"
+                        : "text-stone-500 dark:text-stone-400"
                   }`}
                 />
                 {SECTION_LABELS[section]}
                 {optional && (
-                  <span className="text-[10px] text-stone-400 dark:text-stone-700">opt</span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400">opt</span>
                 )}
               </Button>
 
@@ -108,19 +108,19 @@ export default function WizardSidebar({
                         className={`w-full text-left px-2 py-1 rounded text-[12px] transition-colors flex items-center gap-1.5 ${
                           subActive
                             ? "text-amber-600 dark:text-amber-400 bg-amber-500/8"
-                            : "text-stone-400 dark:text-stone-600 hover:text-stone-700 dark:hover:text-stone-300"
+                            : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
                         }`}
                       >
                         <ComponentIcon
                           size={11}
-                          className="shrink-0 text-stone-400 dark:text-stone-600"
+                          className="shrink-0 text-stone-500 dark:text-stone-400"
                         />
                         <span className="truncate">{key}</span>
                       </Button>
                     );
                   })}
                   <DialogTrigger isOpen={addComponentOpen} onOpenChange={setAddComponentOpen}>
-                    <Button className="w-full text-left px-2 py-1 rounded text-[11px] text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1">
+                    <Button className="w-full text-left px-2 py-1 rounded text-[11px] text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1">
                       <Plus size={10} />
                       Add
                     </Button>
@@ -137,7 +137,7 @@ export default function WizardSidebar({
                       >
                         <Database
                           size={12}
-                          className="text-stone-400 dark:text-stone-500 shrink-0"
+                          className="text-stone-500 dark:text-stone-300 shrink-0"
                         />
                         Database
                       </Button>
@@ -148,7 +148,7 @@ export default function WizardSidebar({
                         }}
                         className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500 rounded"
                       >
-                        <Server size={12} className="text-stone-400 dark:text-stone-500 shrink-0" />
+                        <Server size={12} className="text-stone-500 dark:text-stone-300 shrink-0" />
                         Process
                       </Button>
                     </Popover>
@@ -169,12 +169,12 @@ export default function WizardSidebar({
                         className={`w-full text-left px-2 py-1 rounded text-[12px] transition-colors flex items-center gap-1.5 ${
                           subActive
                             ? "text-amber-600 dark:text-amber-400 bg-amber-500/8"
-                            : "text-stone-400 dark:text-stone-600 hover:text-stone-700 dark:hover:text-stone-300"
+                            : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
                         }`}
                       >
                         <ToolIcon
                           size={11}
-                          className="shrink-0 text-stone-400 dark:text-stone-600"
+                          className="shrink-0 text-stone-500 dark:text-stone-400"
                         />
                         <span className="truncate">{tool.name || "Untitled"}</span>
                       </Button>
@@ -182,7 +182,7 @@ export default function WizardSidebar({
                   })}
                   <Button
                     onPress={onAddTool}
-                    className="w-full text-left px-2 py-1 rounded text-[11px] text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1"
+                    className="w-full text-left px-2 py-1 rounded text-[11px] text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1"
                   >
                     <Plus size={10} />
                     Add
@@ -202,17 +202,17 @@ export default function WizardSidebar({
                         className={`w-full text-left px-2 py-1 rounded text-[12px] transition-colors flex items-center gap-1.5 ${
                           subActive
                             ? "text-amber-600 dark:text-amber-400 bg-amber-500/8"
-                            : "text-stone-400 dark:text-stone-600 hover:text-stone-700 dark:hover:text-stone-300"
+                            : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
                         }`}
                       >
-                        <Users size={11} className="shrink-0 text-stone-400 dark:text-stone-600" />
+                        <Users size={11} className="shrink-0 text-stone-500 dark:text-stone-400" />
                         <span className="truncate">{user.name || "Untitled"}</span>
                       </Button>
                     );
                   })}
                   <Button
                     onPress={onAddUser}
-                    className="w-full text-left px-2 py-1 rounded text-[11px] text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1"
+                    className="w-full text-left px-2 py-1 rounded text-[11px] text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1"
                   >
                     <Plus size={10} />
                     Add

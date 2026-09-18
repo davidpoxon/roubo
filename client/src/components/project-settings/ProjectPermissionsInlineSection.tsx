@@ -21,7 +21,7 @@ export function ProjectPermissionsInlineSection({
   return (
     <div>
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-600">
+        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
           <Spinner />
           Loading…
         </div>

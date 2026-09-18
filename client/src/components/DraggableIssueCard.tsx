@@ -142,12 +142,12 @@ export default function DraggableIssueCard({
       <div className="flex items-start gap-2 px-3 py-2.5">
         <div className="flex-1 min-w-0">
           <span
-            className={`block truncate text-xs font-medium ${isAssigned ? "text-stone-400 dark:text-stone-600" : "text-stone-800 dark:text-stone-200"}`}
+            className={`block truncate text-xs font-medium ${isAssigned ? "text-stone-600 dark:text-stone-400" : "text-stone-800 dark:text-stone-200"}`}
           >
             {issue.title}
           </span>
           <span
-            className={`block text-[11px] font-mono mb-1.5 ${isAssigned ? "text-stone-300 dark:text-stone-700" : "text-stone-400 dark:text-stone-600"}`}
+            className={`block text-[11px] font-mono mb-1.5 ${isAssigned ? "text-stone-300 dark:text-stone-700" : "text-stone-600 dark:text-stone-400"}`}
           >
             {shortIssueRef(issue.externalId)}
           </span>

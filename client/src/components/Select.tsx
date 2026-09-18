@@ -57,7 +57,7 @@ export default function Select({
               return match?.renderLabel ?? selectedText;
             }}
           </SelectValue>
-          <ChevronDown size={16} className="shrink-0 ml-2 text-stone-400 dark:text-stone-600" />
+          <ChevronDown size={16} className="shrink-0 ml-2 text-stone-600 dark:text-stone-300" />
         </Button>
         <Popover className="w-[var(--trigger-width)] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 overflow-auto max-h-60 transition-opacity duration-150 data-[entering]:opacity-0">
           <ListBox className="outline-none">
@@ -88,7 +88,7 @@ export default function Select({
         <Button
           aria-label="Clear selection"
           onPress={() => onChange("")}
-          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded outline-none transition-colors duration-150 text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400"
+          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded outline-none transition-colors duration-150 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400"
         >
           <X size={14} />
         </Button>

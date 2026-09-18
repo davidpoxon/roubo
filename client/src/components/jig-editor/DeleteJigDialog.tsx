@@ -73,7 +73,7 @@ export default function DeleteJigDialog({
                         </li>
                       ))}
                     </ul>
-                    <p className="text-xs text-stone-400 dark:text-stone-600">
+                    <p className="text-xs text-stone-500 dark:text-stone-400">
                       Remove those references first, then delete this jig.
                     </p>
                   </>

@@ -15,7 +15,7 @@ export default function VariableInsertionPanel({ scope, onInsert }: Props) {
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500">
           Variables
         </h3>
-        <p className="text-[10px] text-stone-400 dark:text-stone-600 mt-1 leading-relaxed">
+        <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-1 leading-relaxed">
           Click to insert at cursor
         </p>
       </div>
@@ -24,7 +24,7 @@ export default function VariableInsertionPanel({ scope, onInsert }: Props) {
         {groups.map((group, gi) => (
           <div key={group.category} className={gi > 0 ? "mt-3" : ""}>
             <div className="px-4 py-1">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-stone-400 dark:text-stone-600">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
                 {group.label}
               </span>
             </div>
@@ -38,11 +38,11 @@ export default function VariableInsertionPanel({ scope, onInsert }: Props) {
                 <code className="block text-[11px] font-mono text-stone-700 dark:text-stone-300 leading-tight">
                   {v.syntax}
                 </code>
-                <p className="text-[10px] text-stone-400 dark:text-stone-600 mt-0.5 leading-relaxed">
+                <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5 leading-relaxed">
                   {v.description}
                 </p>
                 {v.note && (
-                  <p className="text-[10px] text-stone-400 dark:text-stone-600 mt-0.5 leading-relaxed italic">
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5 leading-relaxed italic">
                     {v.note}
                   </p>
                 )}
@@ -50,7 +50,7 @@ export default function VariableInsertionPanel({ scope, onInsert }: Props) {
             ))}
 
             {group.footnote && (
-              <p className="px-4 pt-1 pb-0.5 text-[10px] text-stone-400 dark:text-stone-600 leading-relaxed italic">
+              <p className="px-4 pt-1 pb-0.5 text-[10px] text-stone-500 dark:text-stone-400 leading-relaxed italic">
                 {group.footnote}
               </p>
             )}

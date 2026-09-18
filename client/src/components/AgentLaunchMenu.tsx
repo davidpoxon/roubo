@@ -24,7 +24,7 @@ const PRESET_KEY_PREFIX = "preset:";
 const AGENT_KEY_PREFIX = "agent:";
 
 const SECTION_HEADER_CLASS =
-  "px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-[0.15em] text-stone-400 dark:text-stone-600 font-semibold";
+  "px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400 font-semibold";
 
 const ITEM_CLASS = (isFocused: boolean, isDisabled: boolean) =>
   [
@@ -106,7 +106,7 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
       ) : (
         <span
           data-testid="launch-preset-summary"
-          className="ml-auto text-[10px] font-mono text-stone-400 dark:text-stone-600 truncate"
+          className="ml-auto text-[10px] font-mono text-stone-500 dark:text-stone-400 truncate"
         >
           {presetSummary(preset, target)}
         </span>
@@ -139,7 +139,7 @@ function AgentItem({ agent }: { agent: ProjectAgentState }) {
           {blocked.label}
         </span>
       ) : (
-        <span className="ml-auto text-[10px] font-mono text-stone-400 dark:text-stone-600 truncate">
+        <span className="ml-auto text-[10px] font-mono text-stone-500 dark:text-stone-400 truncate">
           {describeEffectiveParams(agent.effective)}
         </span>
       )}
@@ -233,7 +233,7 @@ export default function AgentLaunchMenu({
           isDisabled={!hasLaunchableAgent}
           className={({ isFocused, isDisabled }) => ITEM_CLASS(isFocused, isDisabled)}
         >
-          <SlidersHorizontal size={12} className="text-stone-400 dark:text-stone-600 shrink-0" />
+          <SlidersHorizontal size={12} className="text-stone-500 dark:text-stone-400 shrink-0" />
           <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
             Launch with overrides&hellip;
           </span>

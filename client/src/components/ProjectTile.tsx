@@ -26,7 +26,7 @@ export default function ProjectTile({
           <div className="text-[14px] font-medium text-stone-900 dark:text-stone-100 truncate">
             {displayName}
           </div>
-          <div className="text-[11px] font-mono text-stone-400 dark:text-stone-500 mt-0.5 truncate">
+          <div className="text-[11px] font-mono text-stone-500 dark:text-stone-400 mt-0.5 truncate">
             {project.id} · {project.repoPath}
           </div>
         </div>
@@ -45,7 +45,7 @@ export default function ProjectTile({
         </span>
       </div>
 
-      <div className="flex items-center gap-3 text-[11px] text-stone-400 dark:text-stone-500">
+      <div className="flex items-center gap-3 text-[11px] text-stone-500 dark:text-stone-400">
         <span>
           {usedBenches} / {maxBenches} benches
         </span>
@@ -65,7 +65,7 @@ export default function ProjectTile({
               style={{ width: `${fillPct}%` }}
             />
           </div>
-          <span className="text-[10px] font-mono text-stone-400 dark:text-stone-500">
+          <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400">
             {fillPct}%
           </span>
         </div>

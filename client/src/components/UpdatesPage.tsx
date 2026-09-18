@@ -17,7 +17,7 @@ export default function UpdatesPage() {
 
       <div className="flex items-start gap-4">
         <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/50 shrink-0 mt-0.5">
-          <RefreshCw size={18} className="text-stone-400 dark:text-stone-500" />
+          <RefreshCw size={18} className="text-stone-600 dark:text-stone-300" />
         </div>
 
         <div>

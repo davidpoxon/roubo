@@ -164,7 +164,7 @@ export default function FileFixIssuePanel({
             <TextArea
               rows={3}
               placeholder="Describe the failure"
-              className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:ring-inset"
+              className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-500 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:ring-inset"
             />
           </TextField>
           {notesRequired && (

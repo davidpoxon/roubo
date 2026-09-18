@@ -28,7 +28,7 @@ export function SettingToggle({
             >
               {label}
             </div>
-            <div className="text-xs text-stone-400 dark:text-stone-600 leading-relaxed">
+            <div className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
               {description}
             </div>
           </div>

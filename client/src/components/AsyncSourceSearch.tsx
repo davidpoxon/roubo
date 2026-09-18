@@ -120,14 +120,14 @@ export default function AsyncSourceSearch({
           aria-expanded={isOpen}
           className="flex items-center gap-1.5 rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-2.5 py-1.5 text-xs text-stone-700 dark:text-stone-300 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed"
         >
-          <Search size={13} className="shrink-0 text-stone-400 dark:text-stone-600" />
+          <Search size={13} className="shrink-0 text-stone-600 dark:text-stone-300" />
           Search
-          <ChevronDown size={13} className="shrink-0 text-stone-400 dark:text-stone-600" />
+          <ChevronDown size={13} className="shrink-0 text-stone-600 dark:text-stone-300" />
         </Button>
       </div>
 
       {!enabled && disabledHint && (
-        <p className="text-[11px] text-stone-400 dark:text-stone-600">{disabledHint}</p>
+        <p className="text-[11px] text-stone-500 dark:text-stone-400">{disabledHint}</p>
       )}
 
       {enabled && selectedItems.length > 0 && (
@@ -142,7 +142,7 @@ export default function AsyncSourceSearch({
                   {item.label}
                 </span>
                 {item.sublabel && (
-                  <span className="text-[10px] font-mono text-stone-400 dark:text-stone-600 break-words">
+                  <span className="text-[10px] font-mono text-stone-600 dark:text-stone-300 break-words">
                     {item.sublabel}
                   </span>
                 )}
@@ -150,7 +150,7 @@ export default function AsyncSourceSearch({
               <Button
                 aria-label={`Remove ${item.label}`}
                 onPress={() => onChange([], [item.externalId])}
-                className="shrink-0 p-0.5 rounded text-stone-400 dark:text-stone-600 transition-colors hover:text-stone-600 dark:hover:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="shrink-0 p-0.5 rounded text-stone-600 dark:text-stone-300 transition-colors hover:text-stone-600 dark:hover:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 <X size={14} />
               </Button>
@@ -186,10 +186,10 @@ export default function AsyncSourceSearch({
             </p>
           )}
           {!error && isLoading && (
-            <p className="px-3 py-2 text-xs text-stone-400 dark:text-stone-600">Searching…</p>
+            <p className="px-3 py-2 text-xs text-stone-500 dark:text-stone-300">Searching…</p>
           )}
           {!error && !isLoading && items.length === 0 && (
-            <p className="px-3 py-2 text-xs text-stone-400 dark:text-stone-600">No matches.</p>
+            <p className="px-3 py-2 text-xs text-stone-500 dark:text-stone-300">No matches.</p>
           )}
           {/* Always-present live region so the readout's first appearance and
               every later update announce reliably (JSS-NFR-002); empty until a page
@@ -201,7 +201,7 @@ export default function AsyncSourceSearch({
               aria-live="polite"
               className={
                 items.length > 0
-                  ? "flex items-baseline gap-1 px-3 pb-1 text-[11px] text-stone-400 dark:text-stone-600"
+                  ? "flex items-baseline gap-1 px-3 pb-1 text-[11px] text-stone-500 dark:text-stone-300"
                   : "sr-only"
               }
             >
@@ -239,7 +239,7 @@ export default function AsyncSourceSearch({
                       <span className="min-w-0 flex flex-col">
                         <span className="break-words">{item.label}</span>
                         {item.sublabel && (
-                          <span className="text-[10px] font-mono text-stone-400 dark:text-stone-600 break-words">
+                          <span className="text-[10px] font-mono text-stone-500 dark:text-stone-300 break-words">
                             {item.sublabel}
                           </span>
                         )}

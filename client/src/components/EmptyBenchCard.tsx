@@ -57,7 +57,7 @@ export default function EmptyBenchCard({
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
             >
-              <Plus size={14} className="text-stone-400 dark:text-stone-500" />
+              <Plus size={14} className="text-stone-500 dark:text-stone-300" />
               Set up blank bench
             </Button>
             <Button
@@ -67,7 +67,7 @@ export default function EmptyBenchCard({
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
             >
-              <ListTodo size={14} className="text-stone-400 dark:text-stone-500" />
+              <ListTodo size={14} className="text-stone-500 dark:text-stone-300" />
               Pick an issue
             </Button>
             {testBenchEnabled && onCreateTestBench && (
@@ -78,7 +78,7 @@ export default function EmptyBenchCard({
                 }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
               >
-                <FlaskConical size={14} className="text-stone-400 dark:text-stone-500" />
+                <FlaskConical size={14} className="text-stone-500 dark:text-stone-300" />
                 Create a TestBench
               </Button>
             )}

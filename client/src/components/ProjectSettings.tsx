@@ -84,7 +84,7 @@ function SettingToggle({
             >
               {label}
             </div>
-            <div className="text-xs text-stone-400 dark:text-stone-600 leading-relaxed">
+            <div className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
               {description}
             </div>
           </div>
@@ -179,7 +179,7 @@ function GlobalBenchLimitSection({
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 mb-2">
         Global bench limit
       </h3>
-      <p className="text-xs text-stone-400 dark:text-stone-600 mb-5 leading-relaxed">
+      <p className="text-xs text-stone-500 dark:text-stone-400 mb-5 leading-relaxed">
         Cap the total number of initialised benches across every project. Per-project limits in{" "}
         <span className="font-mono text-stone-500 dark:text-stone-500">roubo.yaml</span> still
         apply.
@@ -214,7 +214,7 @@ function GlobalBenchLimitSection({
                 >
                   {label}
                 </div>
-                <div className="text-[10px] text-stone-400 dark:text-stone-600 leading-none">
+                <div className="text-[10px] text-stone-500 dark:text-stone-400 leading-none">
                   {description}
                 </div>
               </div>
@@ -241,7 +241,7 @@ function GlobalBenchLimitSection({
             />
           </TextField>
           <span
-            className={`text-xs ${disabled ? "text-stone-300 dark:text-stone-700" : "text-stone-400 dark:text-stone-600"}`}
+            className={`text-xs ${disabled ? "text-stone-300 dark:text-stone-700" : "text-stone-500 dark:text-stone-400"}`}
           >
             benches
           </span>
@@ -310,7 +310,7 @@ function BenchesTab() {
           />
         </div>
 
-        <p className="text-xs text-stone-400 dark:text-stone-600 mt-4 leading-relaxed">
+        <p className="text-xs text-stone-500 dark:text-stone-400 mt-4 leading-relaxed">
           Individual projects can override this in their{" "}
           <span className="font-mono text-stone-500 dark:text-stone-500">roubo.yaml</span>{" "}
           configuration.
@@ -445,7 +445,7 @@ function JigsTab() {
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 mb-4">
           Default agent
         </h3>
-        <p className="text-xs text-stone-400 dark:text-stone-600 mb-4 leading-relaxed">
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
           The AI coding agent a jig launches with when the jig names none of its own. Only installed
           and configured agents are listed.
         </p>
@@ -463,7 +463,7 @@ function JigsTab() {
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-stone-500 mb-4">
           App Default
         </h3>
-        <p className="text-xs text-stone-400 dark:text-stone-600 mb-4 leading-relaxed">
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
           The default jig used across all projects. Individual projects can override this below.
         </p>
 
@@ -533,7 +533,7 @@ function JigsTab() {
             ))}
         </div>
 
-        <p className="mt-4 text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+        <p className="mt-4 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
           App-level jigs live in{" "}
           <span className="font-mono text-stone-500 dark:text-stone-500">~/.roubo/jigs/*.md</span>.
           Repo-level jigs can also be placed in{" "}
@@ -588,7 +588,7 @@ function TestBenchTab() {
         </div>
 
         {!enabled && (
-          <p className="text-xs text-stone-400 dark:text-stone-600 mt-4 leading-relaxed">
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-4 leading-relaxed">
             Disabled. The create-TestBench option and the TestBench surface are hidden.
           </p>
         )}
@@ -639,7 +639,7 @@ function AppearanceTab() {
                   className={
                     isSelected
                       ? "text-stone-700 dark:text-stone-200"
-                      : "text-stone-400 dark:text-stone-600"
+                      : "text-stone-500 dark:text-stone-400"
                   }
                   strokeWidth={1.5}
                 />
@@ -653,7 +653,7 @@ function AppearanceTab() {
                   >
                     {label}
                   </div>
-                  <div className="text-[10px] text-stone-400 dark:text-stone-600 leading-none">
+                  <div className="text-[10px] text-stone-500 dark:text-stone-400 leading-none">
                     {description}
                   </div>
                 </div>

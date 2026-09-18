@@ -43,7 +43,7 @@ export default function GuidedYamlToggle({ mode, onChange }: Props) {
       >
         <Code size={12} />
         YAML
-        <span className="text-[9px] text-stone-400 dark:text-stone-500 font-mono px-1 py-px rounded bg-stone-100 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800">
+        <span className="text-[9px] text-stone-600 dark:text-stone-400 font-mono px-1 py-px rounded bg-stone-100 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800">
           advanced
         </span>
       </Radio>

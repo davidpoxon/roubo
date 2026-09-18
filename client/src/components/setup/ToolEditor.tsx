@@ -58,7 +58,7 @@ export default function ToolEditor({
           <Button
             aria-label="Remove tool"
             onPress={() => onRemove(index)}
-            className="p-1 text-stone-400 dark:text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+            className="p-1 text-stone-600 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
           >
             <Trash2 size={13} />
           </Button>
@@ -66,7 +66,7 @@ export default function ToolEditor({
 
         <div className="flex gap-3">
           <div className="flex-1">
-            <Label className="block text-[11px] text-stone-500 dark:text-stone-600 mb-1">
+            <Label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">
               Icon
             </Label>
             <div role="group" aria-label="Icon" className="flex gap-1">
@@ -91,7 +91,7 @@ export default function ToolEditor({
             </div>
           </div>
           <div className="flex-1">
-            <Label className="block text-[11px] text-stone-500 dark:text-stone-600 mb-1">
+            <Label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">
               Type
             </Label>
             <div role="group" aria-label="Type" className="flex gap-1">
@@ -119,7 +119,7 @@ export default function ToolEditor({
         )}
 
         <div>
-          <Label className="block text-[11px] text-stone-500 dark:text-stone-600 mb-1">
+          <Label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">
             Requires component
           </Label>
           <Select
@@ -138,7 +138,7 @@ export default function ToolEditor({
 
 const INPUT_WRAPPER =
   "w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm flex items-center gap-1";
-const LABEL_CLASS = "block text-[11px] text-stone-500 dark:text-stone-600 mb-1";
+const LABEL_CLASS = "block text-[11px] text-stone-600 dark:text-stone-400 mb-1";
 
 function BrowserUrlField({
   tool,

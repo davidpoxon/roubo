@@ -140,7 +140,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
           {primary.name}
         </Button>
         <MenuTrigger>
-          <Button className="flex items-center px-1.5 py-1.5 text-stone-400 dark:text-stone-600 rounded-r-lg border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none">
+          <Button className="flex items-center px-1.5 py-1.5 text-stone-600 dark:text-stone-400 rounded-r-lg border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none">
             <ChevronDown size={11} />
           </Button>
           <ToolMenu tools={launchable.map((entry) => entry.tool)} onAction={executeLaunchable} />

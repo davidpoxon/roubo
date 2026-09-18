@@ -179,7 +179,7 @@ export default function CaseDetail({
               <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">
                 {testCase.title}
               </h2>
-              <div className="flex items-center gap-3 mt-1 font-mono text-[11px] text-stone-400 dark:text-stone-600">
+              <div className="flex items-center gap-3 mt-1 font-mono text-[11px] text-stone-500 dark:text-stone-400">
                 <span>{testCase.id}</span>
                 <span>L{testCase.level}</span>
                 <span>{testCase.type}</span>
@@ -256,7 +256,7 @@ export default function CaseDetail({
                 className="py-3.5 border-t border-stone-100 dark:border-stone-800 first:border-t-0"
               >
                 <div className="flex items-baseline gap-2.5">
-                  <span className="font-mono text-xs text-stone-400 dark:text-stone-600 shrink-0">
+                  <span className="font-mono text-xs text-stone-500 dark:text-stone-400 shrink-0">
                     {index + 1}
                   </span>
                   <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
@@ -271,7 +271,7 @@ export default function CaseDetail({
                         <span className="flex-1 text-[13px] text-stone-700 dark:text-stone-300 min-w-0">
                           {observation.expected}
                         </span>
-                        <span className="font-mono text-[11px] text-stone-400 dark:text-stone-600 tabular-nums min-w-[3.5rem] text-right">
+                        <span className="font-mono text-[11px] text-stone-500 dark:text-stone-400 tabular-nums min-w-[3.5rem] text-right">
                           {mark ? formatTimestamp(mark.timestamp) : ""}
                         </span>
                         <ObservationMarkControl

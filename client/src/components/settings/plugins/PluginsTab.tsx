@@ -123,7 +123,7 @@ function PluginList({
         {user.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stone-200 dark:border-stone-800 px-4 py-6 text-center">
             <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.noThirdParty}</p>
-            <p className="mt-1 text-[11px] text-stone-400 dark:text-stone-600">
+            <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
               {STRINGS.thirdPartyHintPrefix}
               <span className="font-medium">{STRINGS.thirdPartyHintCta}</span>
               {STRINGS.thirdPartyHintSuffix}

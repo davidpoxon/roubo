@@ -12,7 +12,7 @@ interface Props {
 function YamlPreviewLine({ label, value }: { label: string; value: string }) {
   return (
     <span>
-      <span className="text-stone-400 dark:text-stone-500">{label}: </span>
+      <span className="text-stone-500 dark:text-stone-400">{label}: </span>
       {value + "\n"}
     </span>
   );
@@ -28,14 +28,14 @@ function YamlPreview({ config }: { config: RouboConfig }) {
   return (
     <pre className="text-[11px] font-mono leading-relaxed bg-stone-50 dark:bg-stone-950/50 rounded-md p-3 overflow-hidden">
       <YamlPreviewLine label="name" value={config.project.name} />
-      <span className="text-stone-400 dark:text-stone-500">{"components:\n"}</span>
+      <span className="text-stone-500 dark:text-stone-400">{"components:\n"}</span>
       {shownKeys.map((k) => (
         <span key={k}>{`  ${k}\n`}</span>
       ))}
       {hasMore && <span>{"  …\n"}</span>}
       {lowestBase !== null && (
         <>
-          <span className="text-stone-400 dark:text-stone-500">{"ports:\n"}</span>
+          <span className="text-stone-500 dark:text-stone-400">{"ports:\n"}</span>
           <span>{`  base: ${lowestBase}`}</span>
         </>
       )}
@@ -76,7 +76,7 @@ export default function SetupTile({ projectId }: Props) {
         </div>
       )}
       {!isLoading && !project && (
-        <p className="text-[12px] text-stone-400 dark:text-stone-600">Project not found</p>
+        <p className="text-[12px] text-stone-500 dark:text-stone-400">Project not found</p>
       )}
       {!isLoading && project && !validConfig && (
         <div role="alert" className="flex items-start gap-2">
@@ -90,7 +90,7 @@ export default function SetupTile({ projectId }: Props) {
               Config missing or invalid
             </p>
             {project.configError && (
-              <p className="text-[11px] font-mono text-stone-500 dark:text-stone-600 mt-1">
+              <p className="text-[11px] font-mono text-stone-500 dark:text-stone-400 mt-1">
                 {project.configError}
               </p>
             )}

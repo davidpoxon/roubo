@@ -67,7 +67,7 @@ export default function ComponentRemoveDialog({
                     </li>
                   ))}
                 </ul>
-                <p className="text-xs text-stone-400 dark:text-stone-600">
+                <p className="text-xs text-stone-500 dark:text-stone-400">
                   Removing it will stop tracking it in those benches. The benches themselves will
                   not be cleared.
                 </p>

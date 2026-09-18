@@ -642,7 +642,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
           {STRINGS.titlePrefix}
           {manifest?.name ?? plugin.id}
           {mode === "global" && (
-            <span className="ml-2 text-[11px] font-normal text-stone-400 dark:text-stone-500">
+            <span className="ml-2 text-[11px] font-normal text-stone-500 dark:text-stone-400">
               {STRINGS.globalSuffix}
             </span>
           )}
@@ -679,7 +679,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 
             {showIntegrationFields && (
               <div className="flex flex-col gap-4" data-testid="integration-fields-section">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                   {STRINGS.integrationFieldsHeading}
                 </span>
                 <TextField
@@ -715,7 +715,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             {showStatusExclusion && (
               <div className="flex flex-col gap-2.5" data-testid="status-exclusion-section">
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                     {STRINGS.statusExclusionHeading}
                   </span>
                   <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed mt-1">
@@ -724,7 +724,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                   {statusCategoriesQuery.data?.supported === false && (
                     <p
                       data-testid="status-name-fallback-note"
-                      className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed mt-1"
+                      className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed mt-1"
                     >
                       {STRINGS.statusNameFallbackNote}
                     </p>
@@ -758,7 +758,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                             {category}
                           </span>
                           {actionable && (
-                            <span className="text-[11px] text-stone-400 dark:text-stone-600">
+                            <span className="text-[11px] text-stone-500 dark:text-stone-400">
                               {STRINGS.statusActionableHint}
                             </span>
                           )}
@@ -772,7 +772,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 
             {showStatusMappingNote && (
               <div className="flex flex-col gap-1" data-testid="status-mapping-note-section">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 dark:text-stone-600">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                   {STRINGS.statusExclusionHeading}
                 </span>
                 <p
@@ -883,7 +883,7 @@ export function CategoryRow({ category }: { category: IntegrationCategoryReport 
       break;
     case "not-enabled":
       Icon = MinusCircle;
-      iconColor = "text-stone-400 dark:text-stone-500";
+      iconColor = "text-stone-500 dark:text-stone-400";
       textColor = "text-stone-500 dark:text-stone-500";
       break;
     case "timed-out":
@@ -903,7 +903,7 @@ export function CategoryRow({ category }: { category: IntegrationCategoryReport 
       <div className="min-w-0 flex-1">
         <p className={textColor}>
           <span className="font-medium">{category.label}</span>
-          <span className="mx-1.5 text-stone-400 dark:text-stone-600">·</span>
+          <span className="mx-1.5 text-stone-500 dark:text-stone-400">·</span>
           <span>{STATUS_TEXT[category.status]}</span>
         </p>
         {category.detail && (
@@ -1104,7 +1104,7 @@ function GithubOauthSection({
         </p>
       )}
       {!connected && (
-        <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+        <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
           {STRINGS.postOauthHintPrefix}
           <span className="font-medium">{STRINGS.postOauthHintCta}</span>
           {STRINGS.postOauthHintSuffix}
@@ -1127,7 +1127,7 @@ function SourcePickerSection({
 }) {
   if (query.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-[11px] text-stone-400 dark:text-stone-600">
+      <div className="flex items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400">
         <Spinner />
         {STRINGS.sourcesLoading}
       </div>
@@ -1157,14 +1157,14 @@ function DerivedSourcesPreview({
 
   if (trimmedRepo.length === 0) {
     return (
-      <p className="text-[11px] text-stone-400 dark:text-stone-600 leading-relaxed">
+      <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
         {STRINGS.derivedSourcesNoRepo}
       </p>
     );
   }
   if (query.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-[11px] text-stone-400 dark:text-stone-600">
+      <div className="flex items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400">
         <Spinner />
         {STRINGS.derivedSourcesLoading}
       </div>

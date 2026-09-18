@@ -26,7 +26,7 @@ export function JigDefaultSourceLabel({ source }: { source: JigDefaultSource }) 
     );
   }
   return (
-    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-900 text-stone-400 dark:text-stone-600">
+    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-900 text-stone-600 dark:text-stone-400">
       Global default
     </span>
   );
@@ -69,7 +69,7 @@ export function JigPickerOption({
             {label}
           </span>
           {sublabel && (
-            <span className="ml-auto text-[11px] font-mono text-stone-400 dark:text-stone-600">
+            <span className="ml-auto text-[11px] font-mono text-stone-500 dark:text-stone-400">
               {sublabel}
             </span>
           )}
@@ -149,7 +149,7 @@ export function ProjectDefaultJigTile({
     <>
       {!isLoading && effectiveDefault && (
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-stone-400 dark:text-stone-600">Effective:</span>
+          <span className="text-xs text-stone-500 dark:text-stone-400">Effective:</span>
           <span
             className={`text-xs font-medium ${isOverridden ? "text-amber-500 dark:text-amber-400" : "text-stone-700 dark:text-stone-300"}`}
           >
@@ -161,7 +161,7 @@ export function ProjectDefaultJigTile({
       )}
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-600 mb-3">
+        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 mb-3">
           <Spinner />
           Loading...
         </div>
@@ -191,7 +191,7 @@ export function ProjectDefaultJigTile({
       )}
 
       {!embedded && (
-        <p className="text-[11px] text-stone-400 dark:text-stone-600 mt-3 leading-relaxed">
+        <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-3 leading-relaxed">
           Changes write to{" "}
           <span className="font-mono text-stone-500 dark:text-stone-500">
             {"<repo>/.roubo/roubo.yaml"}

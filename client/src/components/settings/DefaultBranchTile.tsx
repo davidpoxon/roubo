@@ -53,7 +53,7 @@ export default function DefaultBranchTile({ projectId }: Props) {
       {status === "missing" && (
         <span
           aria-label="No default branch detected"
-          className="text-stone-400 dark:text-stone-600"
+          className="text-stone-500 dark:text-stone-400"
         >
           ·
         </span>

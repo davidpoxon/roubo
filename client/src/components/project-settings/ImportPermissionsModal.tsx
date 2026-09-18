@@ -132,7 +132,7 @@ export function ImportPermissionsModal({
                 <Button
                   onPress={handleClose}
                   aria-label="Close"
-                  className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none text-[18px] leading-none transition-colors shrink-0"
+                  className="text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none text-[18px] leading-none transition-colors shrink-0"
                 >
                   ×
                 </Button>
@@ -159,7 +159,7 @@ export function ImportPermissionsModal({
                   </div>
 
                   {!selectedProjectId ? (
-                    <p className="text-[12px] text-stone-400 dark:text-stone-500 py-8 text-center">
+                    <p className="text-[12px] text-stone-500 dark:text-stone-400 py-8 text-center">
                       {otherProjects.length === 0
                         ? "No other registered projects found."
                         : "Choose a source project to see importable rules."}

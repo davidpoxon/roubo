@@ -49,7 +49,7 @@ export default function UserPickerModal({
                     {user.name}
                   </span>
                   {secondaryDetail && (
-                    <span className="text-xs font-mono text-stone-400 dark:text-stone-600 truncate">
+                    <span className="text-xs font-mono text-stone-500 dark:text-stone-400 truncate">
                       {secondaryDetail}
                     </span>
                   )}

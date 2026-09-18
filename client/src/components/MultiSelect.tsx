@@ -52,13 +52,13 @@ export default function MultiSelect({
         <span className="truncate">
           {triggerLabel ?? <span className="text-stone-600">{placeholder}</span>}
         </span>
-        <ChevronDown size={16} className="shrink-0 ml-2 text-stone-400 dark:text-stone-600" />
+        <ChevronDown size={16} className="shrink-0 ml-2 text-stone-600 dark:text-stone-300" />
       </Button>
       {selectedKeys.size > 0 && (
         <Button
           aria-label="Clear selection"
           onPress={() => onChange(new Set())}
-          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded text-stone-400 dark:text-stone-600 transition-colors duration-150 hover:text-stone-600 dark:hover:text-stone-400 outline-none"
+          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded text-stone-600 dark:text-stone-300 transition-colors duration-150 hover:text-stone-600 dark:hover:text-stone-400 outline-none"
         >
           <X size={14} />
         </Button>

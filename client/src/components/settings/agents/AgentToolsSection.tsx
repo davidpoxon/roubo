@@ -101,7 +101,7 @@ function AgentToolRow({
             </span>
           )}
         </div>
-        <div className="text-[11px] font-mono text-stone-400 dark:text-stone-600 truncate">
+        <div className="text-[11px] font-mono text-stone-500 dark:text-stone-400 truncate">
           {/* The binding is its own element so a browser-driven check can read
               it apart from the params that follow it (AP-TC-025 S003-O02, which
               is specifically about the "default agent → <current default>"
@@ -142,7 +142,7 @@ function AgentToolRow({
         <Button
           onPress={onEdit}
           aria-label={`Edit ${preset.name}`}
-          className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+          className="p-1.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
         >
           <Pencil size={13} />
         </Button>
@@ -151,7 +151,7 @@ function AgentToolRow({
         <Button
           onPress={onDelete}
           aria-label={`Delete ${preset.name}`}
-          className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+          className="p-1.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-red-500 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
         >
           <Trash2 size={13} />
         </Button>
@@ -214,7 +214,7 @@ export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props)
         </Button>
       </div>
 
-      <p className="text-xs text-stone-400 dark:text-stone-600 mb-4 leading-relaxed">
+      <p className="text-xs text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
         Named launch presets shown in every bench&apos;s Terminal tab. Built-in presets follow the
         default agent; project presets come from{" "}
         <span className="font-mono text-stone-500 dark:text-stone-500">roubo.yaml</span>.

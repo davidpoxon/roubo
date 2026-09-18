@@ -55,13 +55,13 @@ export default function AssignContainerModal({
 
               <div className="px-5 py-4 max-h-64 overflow-y-auto">
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-8 gap-2 text-sm text-stone-500 dark:text-stone-600">
+                  <div className="flex items-center justify-center py-8 gap-2 text-sm text-stone-500 dark:text-stone-400">
                     <Spinner />
                     Loading containers...
                   </div>
                 ) : runningContainers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-stone-500 dark:text-stone-600">
-                    <Container size={24} className="text-stone-400 dark:text-stone-700" />
+                  <div className="flex flex-col items-center justify-center py-8 gap-2 text-stone-500 dark:text-stone-400">
+                    <Container size={24} className="text-stone-500 dark:text-stone-400" />
                     <span className="text-sm">No running database containers found.</span>
                   </div>
                 ) : (
@@ -94,7 +94,7 @@ export default function AssignContainerModal({
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] text-stone-500 dark:text-stone-600 font-mono truncate block">
+                            <span className="text-[11px] text-stone-600 dark:text-stone-300 font-mono truncate block">
                               {c.image}
                             </span>
                           </div>

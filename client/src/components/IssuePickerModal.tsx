@@ -27,7 +27,7 @@ function IssueRow({
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-mono text-stone-400 dark:text-stone-600 shrink-0">
+          <span className="text-xs font-mono text-stone-500 dark:text-stone-400 shrink-0">
             {issue.externalId}
           </span>
           {securityCategory && typeChip && (
@@ -82,7 +82,7 @@ function IssueRow({
         target="_blank"
         rel="noopener noreferrer"
         onPointerDown={(e) => e.stopPropagation()}
-        className="shrink-0 p-1 text-stone-400 dark:text-stone-700 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
+        className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
       >
         <ExternalLink size={11} />
       </a>
@@ -226,7 +226,7 @@ export default function IssuePickerModal({
 
                 {!isLoading && error && (
                   <div className="flex items-center justify-center py-12">
-                    <p className="text-sm text-stone-400 dark:text-stone-600">
+                    <p className="text-sm text-stone-500 dark:text-stone-400">
                       Could not load issues.
                     </p>
                   </div>
@@ -240,7 +240,7 @@ export default function IssuePickerModal({
                       ))
                     ) : (
                       <div className="flex items-center justify-center py-12">
-                        <p className="text-sm text-stone-400 dark:text-stone-600">No open issues</p>
+                        <p className="text-sm text-stone-500 dark:text-stone-400">No open issues</p>
                       </div>
                     )}
                   </div>
@@ -268,7 +268,7 @@ export default function IssuePickerModal({
                   </Button>
                   <span
                     data-testid="picker-page-indicator"
-                    className="text-[11px] font-mono text-stone-500 dark:text-stone-600 whitespace-nowrap"
+                    className="text-[11px] font-mono text-stone-500 dark:text-stone-400 whitespace-nowrap"
                   >
                     Page {pageNumber} &middot; {items.length} item{items.length === 1 ? "" : "s"}
                   </span>

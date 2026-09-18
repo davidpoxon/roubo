@@ -14,7 +14,7 @@ export const stepTextColor: Record<ProvisioningStepStatus, string> = {
   running: "text-stone-700 dark:text-stone-300",
   error: "text-red-400",
   pending: "text-stone-300 dark:text-stone-700",
-  cancelled: "text-stone-400 dark:text-stone-600",
+  cancelled: "text-stone-600 dark:text-stone-400",
 };
 
 export const phaseIcon: Record<ComponentPhaseStatus, React.ReactNode> = {
@@ -25,7 +25,7 @@ export const phaseIcon: Record<ComponentPhaseStatus, React.ReactNode> = {
 };
 
 export const phaseTextColor: Record<ComponentPhaseStatus, string> = {
-  done: "text-stone-400 dark:text-stone-600",
+  done: "text-stone-600 dark:text-stone-400",
   running: "text-amber-500/70",
   error: "text-red-400",
   pending: "text-stone-300 dark:text-stone-700",

@@ -213,7 +213,7 @@ export default function GitHubErrorState({
   return (
     <div className={className}>
       <p className="text-xs text-stone-500 dark:text-stone-500 mb-1">{copy.title}</p>
-      <p className="text-xs text-stone-400 dark:text-stone-600 mb-2 leading-relaxed">
+      <p className="text-xs text-stone-500 dark:text-stone-400 mb-2 leading-relaxed">
         {copy.description}
       </p>
       <div className="flex items-center gap-2">

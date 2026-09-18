@@ -27,7 +27,7 @@ export function SettingsSaveBar({ hasAnyDirty, isSaving, saveErrors, onSave, onD
               Failed to save: <span className="font-medium">{saveErrors.join(", ")}</span>
             </p>
           ) : (
-            <p className="text-[12px] text-stone-400 dark:text-stone-500">
+            <p className="text-[12px] text-stone-500 dark:text-stone-400">
               You have unsaved changes
             </p>
           )}

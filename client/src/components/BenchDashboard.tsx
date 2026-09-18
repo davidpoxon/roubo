@@ -59,7 +59,7 @@ const tabClassName = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-2 text-xs font-medium transition-colors outline-none cursor-pointer border-b-2 -mb-px ${
     isActive
       ? "text-stone-800 dark:text-stone-200 border-amber-500"
-      : "text-stone-500 dark:text-stone-600 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
+      : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
   }`;
 
 export default function BenchDashboard() {
@@ -434,7 +434,7 @@ export default function BenchDashboard() {
             <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">
               All Projects
             </h2>
-            <p className="text-[12px] text-stone-400 dark:text-stone-500 mt-1">
+            <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-1">
               Registered projects. Click one to view its benches and settings.
             </p>
           </div>
@@ -448,7 +448,7 @@ export default function BenchDashboard() {
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-stone-400 dark:text-stone-600 py-12">
+          <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-12">
             <Spinner />
             Loading...
           </div>
@@ -488,7 +488,7 @@ export default function BenchDashboard() {
           <Link to="/" className="hover:text-stone-900 dark:hover:text-stone-200 transition-colors">
             All Projects
           </Link>
-          <span aria-hidden="true" className="mx-2 text-stone-400 dark:text-stone-600">
+          <span aria-hidden="true" className="mx-2 text-stone-500 dark:text-stone-400">
             /
           </span>
           <span aria-current="page" className="text-stone-700 dark:text-stone-300">
@@ -500,7 +500,7 @@ export default function BenchDashboard() {
             {hasConfig && hasGitHub && issueQueueCollapsed && !isOnSettings && (
               <Button
                 onPress={onToggleIssueQueue}
-                className="p-1.5 rounded-md text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none mr-1"
+                className="p-1.5 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none mr-1"
                 aria-label="Show cut list"
               >
                 <PanelLeft size={16} />
@@ -526,7 +526,7 @@ export default function BenchDashboard() {
         {draggingIssue && (
           <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3 py-2 shadow-xl max-w-[280px] opacity-90">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-stone-400 dark:text-stone-500">
+              <span className="text-[11px] font-mono text-stone-500 dark:text-stone-300">
                 {draggingIssue.externalId}
               </span>
               <span className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">

@@ -25,7 +25,7 @@ export default function GuidedSummaryPanel({ config }: Props) {
 
   return (
     <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/30 p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-600 mb-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">
         Summary
       </div>
 

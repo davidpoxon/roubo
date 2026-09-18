@@ -142,7 +142,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
               <Label className="sr-only">{STRINGS.filterLabel}</Label>
               <Input
                 placeholder={STRINGS.filterPlaceholder}
-                className="w-full px-2.5 py-1 text-xs rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 placeholder:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="w-full px-2.5 py-1 text-xs rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 placeholder:text-stone-500 dark:placeholder:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               />
             </TextField>
 
@@ -169,7 +169,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
             {filtered.map((line, idx) => (
               <div key={idx} className={`flex gap-2 px-2 py-0.5 rounded ${lineClass(line)}`}>
                 <span
-                  className="shrink-0 text-stone-400 dark:text-stone-500"
+                  className="shrink-0 text-stone-500 dark:text-stone-400"
                   title={line.ts || undefined}
                 >
                   {formatTimestamp(line.ts)}

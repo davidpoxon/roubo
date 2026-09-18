@@ -51,7 +51,7 @@ interface Props {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-600 mb-4">
+    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-4">
       {children}
     </h3>
   );
@@ -146,7 +146,7 @@ export default function SetupGuided({
               <ChevronLeft size={12} />
               Settings
             </Link>
-            <span aria-hidden="true" className="text-stone-400 dark:text-stone-600">
+            <span aria-hidden="true" className="text-stone-500 dark:text-stone-400">
               /
             </span>
             <span aria-current="page" className="text-stone-700 dark:text-stone-300">
@@ -166,7 +166,7 @@ export default function SetupGuided({
             {!isCreateMode && (
               <>
                 <GuidedYamlToggle mode={mode} onChange={onModeChange} />
-                <span className="text-[10px] text-stone-400 dark:text-stone-500 hidden sm:block">
+                <span className="text-[10px] text-stone-500 dark:text-stone-400 hidden sm:block">
                   {modeHint}
                 </span>
               </>
@@ -261,7 +261,7 @@ export default function SetupGuided({
                     <span id="section-ports">Ports</span>
                   </SectionHeading>
                   {portEntries.length === 0 ? (
-                    <p className="text-sm text-stone-500 dark:text-stone-600">
+                    <p className="text-sm text-stone-500 dark:text-stone-400">
                       No ports configured. Add components to assign ports.
                     </p>
                   ) : (
@@ -273,18 +273,18 @@ export default function SetupGuided({
                               {name}
                             </span>
                             {benchMax > 0 ? (
-                              <span className="text-stone-400 dark:text-stone-600 tabular-nums">
+                              <span className="text-stone-500 dark:text-stone-400 tabular-nums">
                                 {port.base} – {port.base + benchMax - 1}
                               </span>
                             ) : (
-                              <span className="text-stone-400 dark:text-stone-600 tabular-nums">
+                              <span className="text-stone-500 dark:text-stone-400 tabular-nums">
                                 {port.base}
                               </span>
                             )}
                           </div>
                         ))}
                       </div>
-                      <p className="mt-2 text-[10px] text-stone-400 dark:text-stone-600">
+                      <p className="mt-2 text-[10px] text-stone-500 dark:text-stone-400">
                         Stride: +1 per bench. Component port bases are set in roubo.yaml.
                       </p>
                     </div>
@@ -414,7 +414,7 @@ function BenchCapacityFields({
             min={1}
             max={99}
             placeholder="9"
-            className="w-24 rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+            className="w-24 rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
           />
         </TextField>
         {max > 99 && <p className="mt-1 text-[11px] text-red-400">Must be between 1 and 99</p>}
@@ -429,7 +429,7 @@ function BenchCapacityFields({
           <Input
             type="text"
             placeholder="e.g. cd app && npm ci"
-            className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+            className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
           />
         </TextField>
         <p className="text-[10px] text-stone-500 mt-1">

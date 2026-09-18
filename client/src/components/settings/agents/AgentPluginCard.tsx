@@ -183,7 +183,7 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Bot size={14} className="shrink-0 text-stone-400 dark:text-stone-600" />
+            <Bot size={14} className="shrink-0 text-stone-500 dark:text-stone-400" />
             <h4 className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
               {agent.name}
             </h4>

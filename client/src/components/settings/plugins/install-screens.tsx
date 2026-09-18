@@ -102,7 +102,7 @@ export function SourceScreen({
                     "px-4 py-2 text-[13px] font-medium outline-none transition-colors duration-100 -mb-px border-b-2",
                     isSelected
                       ? "text-stone-900 dark:text-stone-100 border-amber-500"
-                      : "text-stone-400 dark:text-stone-500 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
+                      : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
                     isFocusVisible
                       ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
                       : "",
@@ -126,7 +126,7 @@ export function SourceScreen({
               <Input
                 data-testid="install-plugin-git-url"
                 placeholder={STRINGS.repoUrlPlaceholder}
-                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
               <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-500">
                 {STRINGS.repoUrlHelp}
@@ -146,7 +146,7 @@ export function SourceScreen({
               <Input
                 data-testid="install-plugin-local-path"
                 placeholder={STRINGS.localPathPlaceholder}
-                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
               <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-500">
                 {STRINGS.localPathHelpPrefix}

@@ -125,7 +125,7 @@ export default function ComponentsList({
   return (
     <div>
       {componentEntries.length === 0 ? (
-        <p className="text-sm text-stone-500 dark:text-stone-600 py-2">
+        <p className="text-sm text-stone-500 dark:text-stone-400 py-2">
           No components configured yet.
         </p>
       ) : (
