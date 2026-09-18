@@ -224,7 +224,7 @@ export default function ComponentEditor({
       {showDocker && (
         <fieldset className="space-y-3">
           <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-stone-500 mb-3">
-            <span className="size-1.5 rounded-full bg-blue-400/70" />
+            <span className="size-1.5 rounded-full bg-stone-400/70" />
             Docker
           </legend>
           {!hideComposeFile && (
@@ -466,7 +466,7 @@ export default function ComponentEditor({
       {showConnection && (
         <fieldset className="space-y-2">
           <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-stone-500 mb-3">
-            <span className="size-1.5 rounded-full bg-emerald-400/70" />
+            <span className="size-1.5 rounded-full bg-green-400/70" />
             Connection
           </legend>
           {connectionPairs.map(([key, value], i) => {
@@ -607,7 +607,7 @@ export default function ComponentEditor({
       {showEnv && isType("database") && (
         <fieldset className="space-y-2">
           <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-stone-500 mb-3">
-            <span className="size-1.5 rounded-full bg-violet-400/70" />
+            <span className="size-1.5 rounded-full bg-stone-400/70" />
             Compose variables
           </legend>
 
@@ -634,7 +634,7 @@ export default function ComponentEditor({
                         </span>
                       )}
                       {isPortVar && !isEnvFile && (
-                        <span className="flex items-center gap-0.5 text-[10px] text-blue-400/70 font-mono leading-none shrink-0">
+                        <span className="flex items-center gap-0.5 text-[10px] text-stone-500 dark:text-stone-400 font-mono leading-none shrink-0">
                           <Zap size={9} />
                           port
                         </span>
@@ -763,7 +763,7 @@ export default function ComponentEditor({
       {showEnv && !isType("database") && (
         <fieldset className="space-y-2">
           <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-stone-500 mb-3">
-            <span className="size-1.5 rounded-full bg-violet-400/70" />
+            <span className="size-1.5 rounded-full bg-stone-400/70" />
             Environment variables
           </legend>
           {envEntries.map(([key, value], i) => {
@@ -836,7 +836,7 @@ export default function ComponentEditor({
       {showEnvVars && (
         <fieldset className="space-y-2">
           <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-stone-500 mb-3">
-            <span className="size-1.5 rounded-full bg-rose-400/70" />
+            <span className="size-1.5 rounded-full bg-stone-400/70" />
             Build env vars
           </legend>
           {envVarEntries.map(([key, value], i) => {

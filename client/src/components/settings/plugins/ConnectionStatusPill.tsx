@@ -35,7 +35,7 @@ const ICONS: Record<ConnectionState, ComponentType<IconProps>> = {
 // The solid variants keep near-white text on a darkened brand background; the muted
 // stone variants keep dark-on-light text one step darker than the eye-catching tint.
 const WRAP_STYLES: Record<ConnectionState, string> = {
-  connected: "bg-emerald-700 text-emerald-50",
+  connected: "bg-green-700 text-green-50",
   disconnected: "bg-stone-300 text-stone-700 dark:bg-stone-700 dark:text-stone-200",
   "auth-problem": "bg-amber-500 text-amber-950",
   errored: "bg-red-700 text-red-50",

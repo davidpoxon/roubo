@@ -53,7 +53,7 @@ function sessionAgentId(session: TerminalSession): string | undefined {
 function SourceBadge({ source }: { source: JigMeta["source"] }) {
   if (source === "app") return null;
   return (
-    <span className="ml-auto text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 bg-violet-500/15 text-violet-400">
+    <span className="ml-auto text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 bg-amber-500/15 text-amber-800 dark:text-amber-200">
       {source}
     </span>
   );

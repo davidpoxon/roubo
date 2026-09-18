@@ -74,7 +74,7 @@ export default function LogStream({
       </div>
       <div
         ref={scrollRef}
-        className="bg-stone-950 rounded-lg p-3 font-mono text-[11px] leading-5 text-emerald-400/70 max-h-72 overflow-auto"
+        className="bg-stone-950 rounded-lg p-3 font-mono text-[11px] leading-5 text-green-400/70 max-h-72 overflow-auto"
       >
         {logs.length === 0 ? (
           <span className="text-stone-600 italic">Waiting for output...</span>

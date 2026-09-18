@@ -33,13 +33,13 @@ function ProvenancePill({ verified }: { verified: boolean }) {
       data-verified={verified}
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-none ${
         verified
-          ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400"
+          ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/50 text-green-700 dark:text-green-400"
           : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400"
       }`}
     >
       <span
         aria-hidden
-        className={`h-1.5 w-1.5 rounded-full ${verified ? "bg-emerald-500" : "bg-amber-500"}`}
+        className={`h-1.5 w-1.5 rounded-full ${verified ? "bg-green-500" : "bg-amber-500"}`}
       />
       {verified ? STRINGS.firstPartyPill : STRINGS.unverifiedPill}
     </span>

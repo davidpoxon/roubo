@@ -126,7 +126,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
 
           <fieldset className="space-y-2">
             <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-stone-500 mb-3">
-              <span className="size-1.5 rounded-full bg-violet-400/70" />
+              <span className="size-1.5 rounded-full bg-stone-400/70" />
               Properties
             </legend>
             {entries.map(([key, value], rowIndex) => (

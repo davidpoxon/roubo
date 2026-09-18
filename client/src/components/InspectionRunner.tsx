@@ -152,7 +152,7 @@ export default function InspectionRunner({
         )}
         <div
           ref={scrollRef}
-          className="bg-stone-950 rounded-lg p-3 font-mono text-[11px] leading-5 text-emerald-400/70 max-h-[500px] min-h-[200px] overflow-auto"
+          className="bg-stone-950 rounded-lg p-3 font-mono text-[11px] leading-5 text-green-400/70 max-h-[500px] min-h-[200px] overflow-auto"
         >
           {output.length === 0 ? (
             <span className="text-stone-600 dark:text-stone-700 italic">

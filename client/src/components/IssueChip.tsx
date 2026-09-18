@@ -12,7 +12,7 @@ interface IssueChipProps {
   icon?: LucideIcon;
   tone?: StatusTone;
   // IP-WU-033: required when variant === "security-category". Drives the
-  // per-category color (CodeQL slate, Secret amber, Dependabot zinc).
+  // per-category color (CodeQL and Dependabot stone, Secret amber; #1281).
   securityCategory?: SecurityCategory;
   ariaDescription?: string;
   // IP-WU-031: when provided, the chip renders as an interactive React Aria
@@ -28,7 +28,7 @@ interface IssueChipProps {
 }
 
 const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
-  open: "bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+  open: "bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300",
   "in-progress": "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
   blocked: "bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-300",
   done: "bg-stone-500/15 text-stone-600 dark:bg-stone-500/20 dark:text-stone-300",
@@ -37,9 +37,9 @@ const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
 };
 
 const SECURITY_CATEGORY_CLASSES: Record<SecurityCategory, string> = {
-  codeql: "bg-slate-500/15 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300",
+  codeql: "bg-stone-500/15 text-stone-700 dark:bg-stone-500/20 dark:text-stone-300",
   "secret-scanning": "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
-  dependabot: "bg-zinc-500/15 text-zinc-700 dark:bg-zinc-500/20 dark:text-zinc-300",
+  dependabot: "bg-stone-500/15 text-stone-700 dark:bg-stone-500/20 dark:text-stone-300",
 };
 
 const BASE_CLASSES =
