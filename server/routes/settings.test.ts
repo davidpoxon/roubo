@@ -15,7 +15,6 @@ app.use("/", router);
 
 describe("GET /", () => {
   beforeEach(() => {
-    vi.mocked(state.hasLegacyAgentSettings).mockReturnValue(false);
     vi.mocked(env.getContextWindow).mockReturnValue(200_000);
   });
 
@@ -52,37 +51,6 @@ describe("GET /", () => {
     expect(res.status).toBe(200);
     expect(state.loadSettings).toHaveBeenCalled();
     expect(res.body).toMatchObject({ theme: "light" });
-  });
-});
-
-describe("GET / legacyAgentSettingsPresent (AP-FR-021, #521)", () => {
-  beforeEach(() => {
-    vi.mocked(env.getContextWindow).mockReturnValue(200_000);
-    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark" });
-  });
-
-  it("reports false on a fresh install, so the upgrade notice never shows (AP-TC-110)", async () => {
-    vi.mocked(state.hasLegacyAgentSettings).mockReturnValue(false);
-
-    const res = await request(app).get("/");
-    expect(res.status).toBe(200);
-    expect(res.body.legacyAgentSettingsPresent).toBe(false);
-  });
-
-  it("reports true when the raw settings file still carries the legacy block", async () => {
-    vi.mocked(state.hasLegacyAgentSettings).mockReturnValue(true);
-
-    const res = await request(app).get("/");
-    expect(res.status).toBe(200);
-    expect(res.body.legacyAgentSettingsPresent).toBe(true);
-  });
-
-  it("never echoes the legacy preferences back, since nothing is migrated (AP-TC-111)", async () => {
-    vi.mocked(state.hasLegacyAgentSettings).mockReturnValue(true);
-
-    const res = await request(app).get("/");
-    expect(res.status).toBe(200);
-    expect(res.body).not.toHaveProperty("claudeCode");
   });
 });
 

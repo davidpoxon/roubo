@@ -2,7 +2,7 @@
 
 # Route inventory
 
-Every HTTP route the Roubo server registers: 167 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
+Every HTTP route the Roubo server registers: 165 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
 
 This file is generated. Run `npm run generate:routes` after adding, removing, or renaming a route; the `route-inventory-drift` job in `pr-check` fails when the committed inventory does not match the source.
 
@@ -33,7 +33,6 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/api/marketplace/sources`                                                                 | `server/routes/marketplace.ts`          |
 | POST   | `/api/marketplace/sources`                                                                 | `server/routes/marketplace.ts`          |
 | DELETE | `/api/marketplace/sources/:id`                                                             | `server/routes/marketplace.ts`          |
-| GET    | `/api/migration/status`                                                                    | `server/routes/migration.ts`            |
 | GET    | `/api/notifications/stream`                                                                | `server/routes/notifications.ts`        |
 | GET    | `/api/plugins`                                                                             | `server/routes/plugins.ts`              |
 | DELETE | `/api/plugins/:id`                                                                         | `server/routes/plugins.ts`              |
@@ -173,7 +172,6 @@ Request and response shapes are not derivable from the route registrations, so t
 | POST   | `/test/__rewrite-spec-cases`                                                               | `server/routes/test.ts`                 |
 | POST   | `/test/__seed-legacy-agent-settings`                                                       | `server/routes/test.ts`                 |
 | POST   | `/test/__seed-marketplace-source`                                                          | `server/routes/test.ts`                 |
-| POST   | `/test/__seed-notice`                                                                      | `server/routes/test.ts`                 |
 | POST   | `/test/__seed-source-catalog`                                                              | `server/routes/test.ts`                 |
 | POST   | `/test/__seed-spec-results`                                                                | `server/routes/test.ts`                 |
 | POST   | `/test/__set-cut-list-disk-cache`                                                          | `server/routes/test.ts`                 |
