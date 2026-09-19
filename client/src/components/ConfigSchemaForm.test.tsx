@@ -184,10 +184,9 @@ describe("ConfigSchemaForm", () => {
     );
     const placeholder = screen.getByText("Select an item").closest("[data-placeholder]");
     expect(placeholder).not.toBeNull();
-    // stone-500 on light and stone-400 on dark both clear WCAG AA 4.5:1.
-    expect(placeholder?.className).toContain("data-[placeholder]:text-stone-500");
-    expect(placeholder?.className).toContain("dark:data-[placeholder]:text-stone-400");
-    expect(placeholder?.className).not.toContain("dark:data-[placeholder]:text-stone-500");
+    // The semantic token switches shade under .dark, so no dark: pair is needed.
+    expect(placeholder?.className).toContain("data-[placeholder]:text-text-secondary");
+    expect(placeholder?.className).not.toContain("text-stone-");
   });
 
   it("renders a oneOf of consts as a select and preserves each const's own type", async () => {

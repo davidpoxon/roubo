@@ -219,7 +219,7 @@ export default function ConfigSchemaForm({
                   {label}
                 </Label>
                 <Button className="w-full flex items-center justify-between px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-sm text-stone-900 dark:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
-                  <SelectValue className="truncate data-[placeholder]:text-stone-500 dark:data-[placeholder]:text-stone-400" />
+                  <SelectValue className="truncate data-[placeholder]:text-text-secondary" />
                   <ChevronDown
                     size={14}
                     className="shrink-0 ml-2 text-stone-500 dark:text-stone-400"
