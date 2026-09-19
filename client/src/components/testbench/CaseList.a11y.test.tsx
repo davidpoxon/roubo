@@ -215,7 +215,7 @@ describe("CaseList selection (#420)", () => {
     expect(pressed.length).toBe(1);
   });
 
-  it("highlights the selected row with the shared bench/sidebar amber token (#522)", () => {
+  it("highlights the selected row with the accent-muted role (#522)", () => {
     const rows = rowsFor(20);
     const firstCase = rows.find((r) => r.kind === "case");
     const selectedId = firstCase?.kind === "case" ? firstCase.row.case.id : undefined;

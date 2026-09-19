@@ -489,7 +489,7 @@ function LifecycleControls({
           <div
             id={retirePanelId}
             data-testid="case-retire-panel"
-            className="flex flex-col gap-2 rounded-md bg-bg-base p-3"
+            className="flex flex-col gap-2 rounded-md bg-bg-surface ring-1 ring-inset ring-border p-3"
           >
             <TextField
               value={reason}
@@ -517,7 +517,7 @@ function LifecycleControls({
           <div
             id={supersedePanelId}
             data-testid="case-supersede-panel"
-            className="flex flex-col gap-2 rounded-md bg-bg-base p-3"
+            className="flex flex-col gap-2 rounded-md bg-bg-surface ring-1 ring-inset ring-border p-3"
           >
             <div className="flex flex-col gap-1">
               <span className={FIELD_LABEL_CLASS}>Replacement case</span>

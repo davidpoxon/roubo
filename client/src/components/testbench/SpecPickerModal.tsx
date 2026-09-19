@@ -331,11 +331,7 @@ export default function SpecPickerModal({
             )}
           </p>
           <p className="text-11 font-mono truncate text-text-secondary">{spec.path}</p>
-          <p
-            className={`mt-0.5 flex items-center gap-1.5 text-11 ${
-              muted ? "text-text-secondary" : "text-text-secondary"
-            }`}
-          >
+          <p className="mt-0.5 flex items-center gap-1.5 text-11 text-text-secondary">
             <SummaryMarker marker={summary.marker} />
             <span
               className={summary.marker === "stale" ? "font-medium text-accent-text" : undefined}
@@ -370,7 +366,7 @@ export default function SpecPickerModal({
             aria-label={`Actions for ${spec.slug}`}
             className={({ isHovered, isPressed, isFocusVisible }) =>
               `shrink-0 mt-1 p-1.5 rounded-control text-text-secondary outline-none transition-colors ${
-                isPressed ? "bg-bg-pressed" : isHovered ? "bg-bg-hover" : ""
+                isPressed ? "bg-bg-pressed text-text-body" : isHovered ? "bg-bg-hover" : ""
               } ${isFocusVisible ? "ring-2 ring-focus-ring" : ""}`
             }
           >
@@ -679,7 +675,11 @@ export default function SpecPickerModal({
                                 onPress={() => setAllPassedExpanded((open) => !open)}
                                 className={({ isHovered, isPressed, isFocusVisible }) =>
                                   `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium text-text-secondary outline-none transition-colors ${
-                                    isPressed ? "bg-bg-pressed" : isHovered ? "bg-bg-hover" : ""
+                                    isPressed
+                                      ? "bg-bg-pressed text-text-body"
+                                      : isHovered
+                                        ? "bg-bg-hover"
+                                        : ""
                                   } ${
                                     isFocusVisible
                                       ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-surface"
@@ -732,7 +732,11 @@ export default function SpecPickerModal({
                                 onPress={() => setShowArchived((open) => !open)}
                                 className={({ isHovered, isPressed, isFocusVisible }) =>
                                   `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium text-text-secondary outline-none transition-colors ${
-                                    isPressed ? "bg-bg-pressed" : isHovered ? "bg-bg-hover" : ""
+                                    isPressed
+                                      ? "bg-bg-pressed text-text-body"
+                                      : isHovered
+                                        ? "bg-bg-hover"
+                                        : ""
                                   } ${
                                     isFocusVisible
                                       ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-surface"

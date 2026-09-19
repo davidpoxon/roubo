@@ -3,7 +3,7 @@ import type { StatusCounts } from "./rollup";
 // Slim segmented progress bar (DESIGN.md "Progress bar", lines 382-404).
 //
 // A non-interactive, non-focusable readout: passed / failed / in-progress
-// segments over a stone track, with a JetBrains Mono count label. Remaining
+// segments over a bg-pressed track, with a JetBrains Mono count label. Remaining
 // (not_started + blocked) is the bare track. Colour is paired with an
 // accessible text summary so the readout never relies on colour alone
 // (WCAG 2.1 AA). When the group has no cases the whole bar dims to 30% per the

@@ -228,7 +228,7 @@ export default function ReconcileDialog({
                         isDisabled={isBusy}
                         onPress={onApply}
                         data-testid="reconcile-apply"
-                        className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
+                        className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
                       >
                         {isApplying ? STRINGS.applying : STRINGS.apply}
                       </Button>
@@ -291,7 +291,7 @@ function PurgeConfirmation({
           isDisabled={isPurging}
           onPress={onConfirm}
           data-testid="reconcile-purge-confirm-action"
-          className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-danger-active"
+          className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface not-disabled:active:bg-danger-active"
         >
           {isPurging ? STRINGS.purging : STRINGS.purgeConfirmAction}
         </Button>
