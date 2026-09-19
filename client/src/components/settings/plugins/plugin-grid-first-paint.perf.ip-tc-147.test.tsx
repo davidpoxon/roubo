@@ -12,7 +12,7 @@
  *   - First contentful paint of the grid < 100ms (IP-NFR-017)
  *
  * Pattern mirrors IP-TC-151 / IP-TC-145 / IP-TC-098: RUN_PERF_HARNESS=1 gates the latency
- * assertion, an inline p95 helper, a warmup render plus measured iterations, a
+ * assertion, an inline p95 helper, warmup renders plus measured iterations, a
  * structured perf-evidence JSON log, and a sentinel test so the file always
  * contributes one passing assertion under the default coverage run.
  *
@@ -33,6 +33,9 @@ import { renderWithProviders } from "../../../test/renderWithProviders";
 
 const RUN = process.env.RUN_PERF_HARNESS === "1";
 const RENDERS = 50;
+// One warmup render is not enough: a render takes several passes to reach its
+// steady state, and p95 over a short sample run otherwise reports a cold one.
+const WARMUP_ITERATIONS = 10;
 const GRID_SIZE = 5;
 const P95_BUDGET_MS = 100;
 
@@ -85,8 +88,8 @@ afterEach(() => {
 test.runIf(RUN)(
   "IP-TC-147: plugin grid (5 cards) first-paint p95 < 100ms",
   () => {
-    // Warmup render (not measured) to amortize first-render/module cost.
-    renderWithProviders(<Grid />).unmount();
+    // Warmup renders (not measured) to amortize first-render/module/JIT cost.
+    for (let i = 0; i < WARMUP_ITERATIONS; i++) renderWithProviders(<Grid />).unmount();
 
     const samples: number[] = [];
     for (let i = 0; i < RENDERS; i++) {
@@ -105,6 +108,7 @@ test.runIf(RUN)(
           kind: "perf-evidence",
           tc: "IP-TC-147",
           renders: RENDERS,
+          warmupIterations: WARMUP_ITERATIONS,
           gridSize: GRID_SIZE,
           p95Ms,
           maxMs,
