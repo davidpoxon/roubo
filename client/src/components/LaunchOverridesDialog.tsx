@@ -69,12 +69,12 @@ function LayerLine({ layer }: { layer: ResolutionLayer }) {
   const isPerLaunch = layer.id === "perLaunch";
   return (
     <div data-testid={`resolution-layer-${layer.id}`}>
-      <span className="text-stone-600 dark:text-stone-400">
+      <span className="text-text-secondary">
         {layer.id === "app" ? "" : "→ "}
         {layer.label}
       </span>{" "}
       {layer.entries.length === 0 ? (
-        <span className="text-stone-600 dark:text-stone-400">nothing</span>
+        <span className="text-text-secondary">nothing</span>
       ) : (
         layer.entries.map((entry) => (
           <span
@@ -83,10 +83,10 @@ function LayerLine({ layer }: { layer: ResolutionLayer }) {
             data-superseded={entry.superseded ? "true" : "false"}
             className={
               entry.superseded
-                ? "text-stone-600 dark:text-stone-400 line-through mr-2"
+                ? "text-text-secondary line-through mr-2"
                 : isPerLaunch
-                  ? "text-amber-600 dark:text-amber-200 font-semibold mr-2"
-                  : "text-stone-700 dark:text-stone-300 mr-2"
+                  ? "text-accent-text font-semibold mr-2"
+                  : "text-text-body mr-2"
             }
           >
             {entry.key}={entry.value}
@@ -239,16 +239,11 @@ export default function LaunchOverridesDialog({
           ref={stampAriaModal}
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-            <Heading
-              slot="title"
-              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-            >
+          <div className="px-5 py-4 border-b border-border">
+            <Heading slot="title" className="text-16 font-semibold text-text-primary">
               Launch with overrides
             </Heading>
-            <p className="mt-1 text-11 text-stone-500 dark:text-stone-400">
-              One session only. Nothing is saved.
-            </p>
+            <p className="mt-1 text-11 text-text-secondary">One session only. Nothing is saved.</p>
           </div>
 
           <div className="px-5 py-4 space-y-4">
@@ -345,11 +340,11 @@ export default function LaunchOverridesDialog({
               role="group"
               aria-labelledby={RESOLUTION_LABEL_ID}
               data-testid="launch-overrides-resolution"
-              className="rounded-lg bg-stone-100 dark:bg-stone-950/60 border border-stone-200 dark:border-stone-800/60 px-3.5 py-2.5"
+              className="rounded-lg bg-bg-base border border-border px-3.5 py-2.5"
             >
               <div
                 id={RESOLUTION_LABEL_ID}
-                className="text-11 uppercase tracking-label text-stone-600 dark:text-stone-400 font-semibold mb-1.5"
+                className="text-11 uppercase tracking-label text-text-secondary font-semibold mb-1.5"
               >
                 Resolution
               </div>
@@ -372,10 +367,10 @@ export default function LaunchOverridesDialog({
             </div>
           </div>
 
-          <div className="px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 flex justify-end gap-2">
+          <div className="px-5 py-3 border-t border-border flex justify-end gap-2">
             <Button
               onPress={onCancel}
-              className="px-3 py-1.5 text-12 font-medium rounded-control text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="px-3 py-1.5 text-12 font-medium rounded-control text-text-secondary hover:bg-bg-hover hover:text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Cancel
             </Button>

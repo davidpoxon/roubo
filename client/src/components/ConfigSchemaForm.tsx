@@ -65,7 +65,7 @@ function slotDescription(
   return permissions?.credentials.slots.find((s) => s.slot === fieldKey)?.description;
 }
 
-const FIELD_ERROR_CLASS = "mt-1 text-11 text-red-600 dark:text-red-400 leading-relaxed";
+const FIELD_ERROR_CLASS = "mt-1 text-11 text-danger-text leading-relaxed";
 
 /**
  * A probe-bound field whose choices are not available yet (loading) or could
@@ -101,7 +101,7 @@ function ProbePendingField({
       data-testid={`config-field-${fieldKey}`}
       data-probe-state={probe.state}
     >
-      <span id={labelId} className="block text-12 text-stone-500 dark:text-stone-400 mb-1.5">
+      <span id={labelId} className="block text-12 text-text-secondary mb-1.5">
         {label}
       </span>
       <button
@@ -109,19 +109,19 @@ function ProbePendingField({
         aria-disabled="true"
         aria-labelledby={`${labelId} ${valueId}`}
         aria-describedby={help ? `${statusId} ${helpId}` : statusId}
-        className="w-full flex items-center justify-between px-3 py-1.5 rounded-control border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/20 text-13 text-stone-500 dark:text-stone-400 cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="w-full flex items-center justify-between px-3 py-1.5 rounded-control border border-border-control bg-bg-field opacity-40 text-13 text-text-secondary cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <span id={valueId} className="truncate">
           {loading ? PROBE_LOADING_PLACEHOLDER : PROBE_FAILED_PLACEHOLDER}
         </span>
-        <ChevronDown size={14} className="shrink-0 ml-2 text-stone-500 dark:text-stone-400" />
+        <ChevronDown size={14} className="shrink-0 ml-2 text-text-secondary" />
       </button>
       <div
         id={statusId}
         role="status"
         data-testid={`config-field-${fieldKey}-probe-status`}
         className={`mt-1 flex items-start gap-1.5 text-11 leading-relaxed ${
-          loading ? "text-stone-500 dark:text-stone-400" : "text-red-600 dark:text-red-400"
+          loading ? "text-text-secondary" : "text-danger-text"
         }`}
       >
         {loading ? (
@@ -132,12 +132,12 @@ function ProbePendingField({
         ) : (
           <span>
             <span className="block font-medium">{failure?.cause}</span>
-            <span className="block text-stone-600 dark:text-stone-300">{failure?.remedy}</span>
+            <span className="block text-text-body">{failure?.remedy}</span>
           </span>
         )}
       </div>
       {help && (
-        <p id={helpId} className="mt-1 text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p id={helpId} className="mt-1 text-11 text-text-secondary leading-relaxed">
           {help}
         </p>
       )}
@@ -149,7 +149,7 @@ function ProbePendingField({
  * Minimal JSON-Schema → React Aria form renderer. Handles the five field
  * shapes it is asked for: string, password-string, boolean, number/integer,
  * and a closed choice list (`enum`, or a `oneOf` of consts) rendered as a
- * select. Anything else renders a stone-500 caption explaining the field is
+ * select. Anything else renders a text-secondary caption explaining the field is
  * managed per project and edited in the override file rather than inline here.
  */
 export default function ConfigSchemaForm({
@@ -164,7 +164,7 @@ export default function ConfigSchemaForm({
 
   if (!properties || Object.keys(properties).length === 0) {
     return (
-      <p className="text-12 text-stone-500 dark:text-stone-400">
+      <p className="text-12 text-text-secondary">
         This plugin does not declare any configuration fields.
       </p>
     );
@@ -212,15 +212,10 @@ export default function ConfigSchemaForm({
                 }}
                 data-testid={`config-field-${key}`}
               >
-                <Label className="block text-12 text-stone-500 dark:text-stone-400 mb-1.5">
-                  {label}
-                </Label>
-                <Button className="w-full flex items-center justify-between px-3 py-1.5 rounded-control border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-13 text-stone-900 dark:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
-                  <SelectValue className="truncate data-[placeholder]:text-text-secondary" />
-                  <ChevronDown
-                    size={14}
-                    className="shrink-0 ml-2 text-stone-500 dark:text-stone-400"
-                  />
+                <Label className="block text-12 text-text-secondary mb-1.5">{label}</Label>
+                <Button className="group w-full flex items-center justify-between px-3 py-1.5 rounded-control border border-border-control bg-bg-field text-13 text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring data-[pressed]:bg-bg-pressed">
+                  <SelectValue className="truncate data-[placeholder]:text-text-secondary group-data-[pressed]:data-[placeholder]:text-text-body" />
+                  <ChevronDown size={14} className="shrink-0 ml-2 text-text-secondary" />
                 </Button>
                 <Popover className="animate-rise-in w-[var(--trigger-width)] rounded-control border border-border bg-bg-surface shadow-elevation-0 py-1 z-50 overflow-auto max-h-60">
                   <ListBox className="outline-none">
@@ -229,13 +224,13 @@ export default function ConfigSchemaForm({
                         key={choice.key}
                         id={choice.key}
                         textValue={choice.label}
-                        className="flex items-center justify-between px-3 py-1.5 text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50"
+                        className="flex items-center justify-between px-3 py-1.5 text-13 text-text-body outline-none cursor-default data-[hovered]:bg-bg-hover data-[focused]:bg-bg-hover data-[selected]:text-text-primary"
                       >
                         {({ isSelected }) => (
                           <>
                             <span className="truncate">{choice.label}</span>
                             {isSelected && (
-                              <Check size={14} className="shrink-0 ml-2 text-text-secondary" />
+                              <Check size={14} className="shrink-0 ml-2 text-accent" />
                             )}
                           </>
                         )}
@@ -244,11 +239,7 @@ export default function ConfigSchemaForm({
                   </ListBox>
                 </Popover>
               </Select>
-              {help && (
-                <p className="mt-1 text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
-                  {help}
-                </p>
-              )}
+              {help && <p className="mt-1 text-11 text-text-secondary leading-relaxed">{help}</p>}
               {fieldError && (
                 <p role="alert" className={FIELD_ERROR_CLASS}>
                   {fieldError}
@@ -273,22 +264,16 @@ export default function ConfigSchemaForm({
                   <>
                     <div
                       className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                        isSelected
-                          ? "bg-stone-600 border-stone-500"
-                          : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
+                        isSelected ? "bg-accent border-accent" : "bg-bg-field border-border-control"
                       }`}
                     >
-                      {isSelected && <Check size={12} className="text-stone-100" />}
+                      {isSelected && <Check size={12} className="text-on-accent" />}
                     </div>
-                    <span className="text-13 text-stone-700 dark:text-stone-300">{label}</span>
+                    <span className="text-13 text-text-body">{label}</span>
                   </>
                 )}
               </Checkbox>
-              {help && (
-                <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed pl-6">
-                  {help}
-                </p>
-              )}
+              {help && <p className="text-11 text-text-secondary leading-relaxed pl-6">{help}</p>}
               {fieldError && (
                 <p role="alert" className={`${FIELD_ERROR_CLASS} pl-6`}>
                   {fieldError}
@@ -309,17 +294,13 @@ export default function ConfigSchemaForm({
               onChange={(v) => setField(key, v === "" ? undefined : Number(v))}
               data-testid={`config-field-${key}`}
             >
-              <Label className="block text-12 text-stone-500 dark:text-stone-400 mb-1.5">
-                {label}
-              </Label>
+              <Label className="block text-12 text-text-secondary mb-1.5">{label}</Label>
               <Input
                 type="number"
                 className="w-full px-3 py-1.5 rounded-control border border-border-control bg-bg-field text-13 text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
               />
               {helpText && (
-                <p className="mt-1 text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
-                  {helpText}
-                </p>
+                <p className="mt-1 text-11 text-text-secondary leading-relaxed">{helpText}</p>
               )}
               {fieldError && (
                 <p role="alert" className={FIELD_ERROR_CLASS}>
@@ -338,17 +319,13 @@ export default function ConfigSchemaForm({
               onChange={(v) => setField(key, v)}
               data-testid={`config-field-${key}`}
             >
-              <Label className="block text-12 text-stone-500 dark:text-stone-400 mb-1.5">
-                {label}
-              </Label>
+              <Label className="block text-12 text-text-secondary mb-1.5">{label}</Label>
               <Input
                 type={isPassword ? "password" : "text"}
                 className="w-full px-3 py-1.5 rounded-control border border-border-control bg-bg-field text-13 text-text-primary font-mono outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
               />
               {helpText && (
-                <p className="mt-1 text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
-                  {helpText}
-                </p>
+                <p className="mt-1 text-11 text-text-secondary leading-relaxed">{helpText}</p>
               )}
               {fieldError && (
                 <p role="alert" className={FIELD_ERROR_CLASS}>
@@ -360,7 +337,7 @@ export default function ConfigSchemaForm({
         }
 
         return (
-          <p key={key} className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
+          <p key={key} className="text-11 text-text-secondary leading-relaxed">
             {label} is managed per project and configured automatically. To set it by hand, edit the
             override file.
           </p>

@@ -359,7 +359,7 @@ function MissingPluginDialogContent({
                   {STRINGS.descriptionPrefix}
                   <span className="font-mono">{STRINGS.descriptionRoubo}</span>
                   {STRINGS.descriptionReferences}
-                  <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>
+                  <span className="font-mono text-text-body">{pluginId}</span>
                   {STRINGS.sourceDescriptionSuffix}
                 </>
               }
@@ -425,15 +425,15 @@ function MarketplaceSourceScreen({
 
   return (
     <>
-      <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-        <Heading slot="title" className="text-16 font-semibold text-stone-900 dark:text-stone-100">
+      <div className="px-5 py-4 border-b border-border">
+        <Heading slot="title" className="text-16 font-semibold text-text-primary">
           {componentName ? STRINGS.componentTitle : STRINGS.title}
         </Heading>
-        <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+        <p className="mt-1 text-12 text-text-secondary">
           {componentName ? (
             <>
               {STRINGS.componentDescriptionPrefix}
-              <span className="font-mono text-stone-700 dark:text-stone-200">{componentName}</span>
+              <span className="font-mono text-text-body">{componentName}</span>
               {STRINGS.componentDescriptionBinds}
             </>
           ) : (
@@ -443,13 +443,13 @@ function MarketplaceSourceScreen({
               {STRINGS.descriptionReferences}
             </>
           )}
-          <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>
+          <span className="font-mono text-text-body">{pluginId}</span>
           {ambiguous ? STRINGS.ambiguousSuffix : STRINGS.singleSourceSuffix}
         </p>
       </div>
 
       <div className="px-5 py-4 space-y-3">
-        <div className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+        <div className="text-11 font-semibold uppercase tracking-label text-text-secondary">
           {ambiguous ? STRINGS.pickASourceHeading : STRINGS.availableFromHeading}
         </div>
 
@@ -457,16 +457,12 @@ function MarketplaceSourceScreen({
           {sources.map((source) => (
             <div
               key={source.sourceId}
-              className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40 px-3 py-2.5"
+              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-base px-3 py-2.5"
             >
               <div className="min-w-0">
-                <div className="text-13 text-stone-800 dark:text-stone-200 truncate">
-                  {source.label}
-                </div>
+                <div className="text-13 text-text-primary truncate">{source.label}</div>
                 {source.registered && (
-                  <div className="text-11 text-stone-500 dark:text-stone-400">
-                    {STRINGS.registeredMarker}
-                  </div>
+                  <div className="text-11 text-text-secondary">{STRINGS.registeredMarker}</div>
                 )}
               </div>
               <Button
@@ -488,7 +484,7 @@ function MarketplaceSourceScreen({
           <div
             role="alert"
             data-testid="missing-plugin-error"
-            className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300 flex items-start gap-2"
+            className="rounded-lg border border-danger-border bg-danger-surface px-3 py-2 text-13 text-danger-text flex items-start gap-2"
           >
             <AlertTriangle size={14} className="shrink-0 mt-0.5" />
             <span>{error}</span>
@@ -496,12 +492,12 @@ function MarketplaceSourceScreen({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+      <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border">
         <Button
           onPress={onSkip}
           isDisabled={installing}
           data-testid="missing-plugin-skip"
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.skipForNow}
         </Button>
@@ -509,7 +505,7 @@ function MarketplaceSourceScreen({
           onPress={onViewInMarketplace}
           isDisabled={installing}
           data-testid="missing-plugin-view-in-marketplace"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Store size={14} />
           {STRINGS.viewInMarketplace}
@@ -538,27 +534,27 @@ function PromptScreen({
 }) {
   return (
     <>
-      <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-        <Heading slot="title" className="text-16 font-semibold text-stone-900 dark:text-stone-100">
+      <div className="px-5 py-4 border-b border-border">
+        <Heading slot="title" className="text-16 font-semibold text-text-primary">
           {STRINGS.title}
         </Heading>
-        <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+        <p className="mt-1 text-12 text-text-secondary">
           {STRINGS.descriptionPrefix}
           <span className="font-mono">{STRINGS.descriptionRoubo}</span>
           {STRINGS.descriptionReferences}
-          <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>
+          <span className="font-mono text-text-body">{pluginId}</span>
           {STRINGS.promptDescriptionSuffix}
         </p>
       </div>
 
       <div className="px-5 py-4 space-y-4">
         {pluginSource && (
-          <div className="rounded-lg border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40 px-3 py-3">
-            <div className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+          <div className="rounded-lg border border-border bg-bg-base px-3 py-3">
+            <div className="text-11 font-semibold uppercase tracking-label text-text-secondary">
               {STRINGS.suggestedSourceHeading}
             </div>
             <div
-              className="mt-1 text-13 font-mono text-stone-800 dark:text-stone-200 break-all"
+              className="mt-1 text-13 font-mono text-text-primary break-all"
               data-testid="missing-plugin-suggested-source"
             >
               {pluginSource}
@@ -570,7 +566,7 @@ function PromptScreen({
           <div
             role="alert"
             data-testid="missing-plugin-error"
-            className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300 flex items-start gap-2"
+            className="rounded-lg border border-danger-border bg-danger-surface px-3 py-2 text-13 text-danger-text flex items-start gap-2"
           >
             <AlertTriangle size={14} className="shrink-0 mt-0.5" />
             <span>{error}</span>
@@ -578,12 +574,12 @@ function PromptScreen({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+      <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border">
         <Button
           onPress={onSkip}
           isDisabled={installing}
           data-testid="missing-plugin-skip"
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.skipForNow}
         </Button>
@@ -592,7 +588,7 @@ function PromptScreen({
             onPress={onUseDifferentSource}
             isDisabled={installing}
             data-testid="missing-plugin-use-different-source"
-            className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {pluginSource ? STRINGS.useDifferentSource : STRINGS.chooseASource}
           </Button>

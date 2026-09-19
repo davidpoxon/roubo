@@ -68,11 +68,8 @@ export default function CreateBenchModal({
         >
           {({ close }) => (
             <>
-              <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                <Heading
-                  slot="title"
-                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-                >
+              <div className="px-5 py-4 border-b border-border">
+                <Heading slot="title" className="text-16 font-semibold text-text-primary">
                   Set up bench
                 </Heading>
               </div>
@@ -114,13 +111,13 @@ export default function CreateBenchModal({
                   />
                 </TextField>
 
-                {error && <p className="text-13 text-red-400">{error}</p>}
+                {error && <p className="text-13 text-danger-text">{error}</p>}
               </div>
 
-              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
                 <Button
                   onPress={close}
-                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Cancel
                 </Button>
