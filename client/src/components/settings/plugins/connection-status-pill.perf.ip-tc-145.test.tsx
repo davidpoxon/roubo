@@ -31,6 +31,9 @@ import ConnectionStatusPill from "./ConnectionStatusPill";
 
 const RUN = process.env.RUN_PERF_HARNESS === "1";
 const MOUNTS = 100;
+// One warmup render is not enough: a render takes several passes to reach its
+// steady state, and a short sample run otherwise reports a cold one.
+const WARMUP_ITERATIONS = 10;
 const P95_BUDGET_MS = 50;
 
 function p95(values: number[]): number {
@@ -62,9 +65,12 @@ afterEach(() => {
 test.runIf(RUN)(
   "IP-TC-145: cached status chip render p95 < 50ms across 100 mounts",
   () => {
-    // Warmup mount (not measured) to amortize first-render/module cost.
-    const warm = render(<ConnectionStatusPill status={CACHED_STATUSES[0]} />);
-    warm.unmount();
+    // Warmup mounts (not measured) to amortize first-render/module/JIT cost.
+    for (let i = 0; i < WARMUP_ITERATIONS; i++) {
+      render(
+        <ConnectionStatusPill status={CACHED_STATUSES[i % CACHED_STATUSES.length]} />,
+      ).unmount();
+    }
 
     const samples: number[] = [];
     for (let i = 0; i < MOUNTS; i++) {
@@ -80,7 +86,14 @@ test.runIf(RUN)(
 
     console.log(
       JSON.stringify(
-        { kind: "perf-evidence", tc: "IP-TC-145", mounts: MOUNTS, p95Ms, maxMs },
+        {
+          kind: "perf-evidence",
+          tc: "IP-TC-145",
+          mounts: MOUNTS,
+          warmupIterations: WARMUP_ITERATIONS,
+          p95Ms,
+          maxMs,
+        },
         null,
         2,
       ),

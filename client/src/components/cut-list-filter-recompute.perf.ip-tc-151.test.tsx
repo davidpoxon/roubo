@@ -47,6 +47,11 @@ const mockedFetch = vi.mocked(api.fetchIssuesPage);
 
 const RUN = process.env.RUN_PERF_HARNESS === "1";
 const TOGGLE_ITERATIONS = 50;
+// One warmup toggle is not enough: reconciliation takes several passes to reach
+// its steady state. Odd, so the warmup (which starts from a Bug selection and
+// alternates Feature / Bug) ends on Feature and the first measured toggle, to
+// Bug, is a real swap.
+const WARMUP_TOGGLES = 11;
 const ITEM_COUNT = 500;
 const P95_BUDGET_MS = 50;
 
@@ -156,11 +161,14 @@ test.runIf(RUN)(
       setFilters(active);
     });
 
-    // One warmup toggle (not measured) to amortize first-reconciliation cost.
-    active = setFacetSelection(active, "type", new Set(["Feature"]));
-    await act(async () => {
-      setFilters(active);
-    });
+    // Warmup toggles (not measured) to amortize first-reconciliation/JIT cost.
+    for (let i = 0; i < WARMUP_TOGGLES; i++) {
+      const warm = setFacetSelection(active, "type", new Set([i % 2 === 0 ? "Feature" : "Bug"]));
+      await act(async () => {
+        setFilters(warm);
+      });
+      active = warm;
+    }
 
     const samples: number[] = [];
     for (let i = 0; i < TOGGLE_ITERATIONS; i++) {
@@ -184,6 +192,7 @@ test.runIf(RUN)(
           kind: "perf-evidence",
           tc: "IP-TC-151",
           iterations: TOGGLE_ITERATIONS,
+          warmupToggles: WARMUP_TOGGLES,
           itemCount: ITEM_COUNT,
           p95Ms,
           maxMs,
