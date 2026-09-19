@@ -86,20 +86,15 @@ export default function MarketplaceSourceRemoveDialog({
           data-testid="marketplace-source-remove-dialog"
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-            <Heading
-              slot="title"
-              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-            >
+          <div className="px-5 py-4 border-b border-border">
+            <Heading slot="title" className="text-16 font-semibold text-text-primary">
               {STRINGS.title(sourceName)}
             </Heading>
-            <p className="mt-1 text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
-              {STRINGS.intro}
-            </p>
+            <p className="mt-1 text-12 text-text-secondary leading-relaxed">{STRINGS.intro}</p>
             <p
               data-testid="marketplace-source-remove-url"
               aria-label={STRINGS.urlLabel}
-              className="mt-2 font-mono text-11 break-all text-stone-500 dark:text-stone-400"
+              className="mt-2 font-mono text-11 break-all text-text-secondary"
             >
               {sourceUrl}
             </p>
@@ -108,9 +103,7 @@ export default function MarketplaceSourceRemoveDialog({
           <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
             <ConsequenceRow
               testId="marketplace-source-remove-keep"
-              icon={
-                <Puzzle size={14} className="shrink-0 mt-0.5 text-stone-500 dark:text-stone-400" />
-              }
+              icon={<Puzzle size={14} className="shrink-0 mt-0.5 text-text-secondary" />}
               tone="neutral"
               lead={STRINGS.keepLead}
               body={STRINGS.keepBody}
@@ -136,7 +129,7 @@ export default function MarketplaceSourceRemoveDialog({
               <div
                 role="alert"
                 data-testid="marketplace-source-remove-error"
-                className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300 flex items-start gap-2"
+                className="rounded-lg border border-danger-border bg-danger-surface px-3 py-2 text-13 text-danger-text flex items-start gap-2"
               >
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                 <span>{error}</span>
@@ -144,7 +137,7 @@ export default function MarketplaceSourceRemoveDialog({
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
             {/* Cancel holds focus on open: declining is the safe answer, so the
                 destructive control never opens focused (CPHMTP-TC-012 S001-O02). */}
             <Button
@@ -152,7 +145,7 @@ export default function MarketplaceSourceRemoveDialog({
               onPress={handleCancel}
               isDisabled={isPending}
               data-testid="marketplace-source-remove-cancel"
-              className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {STRINGS.cancel}
             </Button>
@@ -173,11 +166,9 @@ export default function MarketplaceSourceRemoveDialog({
 }
 
 const TONE_CLASS = {
-  neutral:
-    "border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40 text-stone-700 dark:text-stone-300",
-  warn: "border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200",
-  danger:
-    "border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300",
+  neutral: "border-border bg-bg-base text-text-body",
+  warn: "border-accent-border bg-accent-muted text-accent-text",
+  danger: "border-danger-border bg-danger-surface text-danger-text",
 } as const;
 
 function ConsequenceRow({

@@ -763,9 +763,9 @@ describe("Marketplace multi-source browse (issue #557)", () => {
     const thirdParty = within(cardFor("ghe")).getByTestId("provenance-source");
     expect(firstParty.getAttribute("data-source-id")).toBe(FIRST_PARTY_SOURCE_ID);
     expect(thirdParty.getAttribute("data-source-id")).toBe(ACME_SOURCE_ID);
-    expect(firstParty.className).toContain("green");
-    expect(thirdParty.className).toContain("amber");
-    expect(firstParty.className).not.toContain("amber");
+    expect(firstParty.className).toContain("success");
+    expect(thirdParty.className).toContain("accent");
+    expect(firstParty.className).not.toContain("accent");
   });
 
   // The "Source: " prefix must live in the chip's subtree as sr-only text, not in
@@ -1358,7 +1358,7 @@ describe("Marketplace unverified badge and provenance (issue #563)", () => {
     const thirdParty = within(cardFor("ghe")).getByTestId("provenance-trust");
     expect(thirdParty).toHaveTextContent("Unverified");
     expect(thirdParty).not.toHaveTextContent("first-party");
-    expect(thirdParty.className).not.toContain("green");
+    expect(thirdParty.className).not.toContain("success");
 
     const firstParty = within(cardFor("redis")).getByTestId("provenance-trust");
     expect(firstParty).toHaveTextContent("Verified · first-party");
@@ -1391,7 +1391,7 @@ describe("Marketplace unverified badge and provenance (issue #563)", () => {
       "Source: ACME workplace",
     );
     // CPHMTP-TC-056 S002-O01: no first-party verified styling in this UI state.
-    expect(within(drawer).getByTestId("provenance-trust").className).not.toContain("green");
+    expect(within(drawer).getByTestId("provenance-trust").className).not.toContain("success");
   });
 
   // The drawer's Integrity row claimed "Verified, signed by Roubo" for every entry
@@ -1444,7 +1444,7 @@ describe("Marketplace unverified badge and provenance (issue #563)", () => {
 
     const card = screen.getByTestId("marketplace-card");
     expect(within(card).getByTestId("provenance-trust")).toHaveTextContent("Unverified");
-    expect(within(card).getByTestId("provenance-trust").className).not.toContain("green");
+    expect(within(card).getByTestId("provenance-trust").className).not.toContain("success");
     // CPHMTP-TC-072 S001-O02: the provenance still renders.
     expect(within(card).getByTestId("provenance-source")).toHaveTextContent("ACME workplace");
 
@@ -1508,7 +1508,7 @@ describe("Marketplace unverified badge and provenance (issue #563)", () => {
     const drawer = await screen.findByTestId("marketplace-drawer");
     expect(within(drawer).getByTestId("provenance-source").dataset.sourceId).toBe(ACME_SOURCE_ID);
     expect(within(drawer).getByTestId("provenance-trust")).toHaveTextContent("Unverified");
-    expect(within(drawer).getByTestId("provenance-trust").className).not.toContain("green");
+    expect(within(drawer).getByTestId("provenance-trust").className).not.toContain("success");
     expect(within(drawer).getByTestId("marketplace-drawer-integrity")).not.toHaveTextContent(
       "signed by Roubo",
     );

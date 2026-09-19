@@ -116,8 +116,8 @@ function chipClasses({
   return [
     "cursor-pointer rounded-control px-3 py-1.5 text-12 font-medium outline-none transition-colors",
     isSelected
-      ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
-      : "text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-800 dark:hover:text-stone-200",
+      ? "bg-bg-pressed text-text-primary"
+      : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",
     isFocusVisible ? "ring-2 ring-focus-ring" : "",
   ].join(" ");
 }
@@ -355,16 +355,12 @@ export default function Marketplace() {
     <section aria-label={STRINGS.heading}>
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100">
-            {STRINGS.heading}
-          </h2>
-          <p className="mt-1 max-w-xl text-13 text-stone-500 dark:text-stone-400">
-            {STRINGS.description}
-          </p>
+          <h2 className="text-20 font-semibold text-text-primary">{STRINGS.heading}</h2>
+          <p className="mt-1 max-w-xl text-13 text-text-secondary">{STRINGS.description}</p>
         </div>
         <span
           data-testid="marketplace-curated-badge"
-          className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-2.5 py-1 text-11 font-medium text-amber-800 dark:text-amber-200"
+          className="inline-flex items-center gap-1.5 rounded-full border border-success-border bg-success-surface px-2.5 py-1 text-11 font-medium text-success-text"
         >
           <ShieldCheck size={14} aria-hidden /> {STRINGS.curatedBadge}
         </span>
@@ -380,7 +376,7 @@ export default function Marketplace() {
           <Search
             size={16}
             aria-hidden
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 dark:text-stone-400"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"
           />
           <Input
             data-testid="marketplace-search"
@@ -443,7 +439,7 @@ export default function Marketplace() {
           <div
             role="status"
             data-testid="marketplace-sources-unavailable"
-            className="mb-5 flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-13 text-amber-800 dark:text-amber-200"
+            className="mb-5 flex items-start gap-2 rounded-lg border border-accent-border bg-accent-muted px-3 py-2 text-13 text-accent-text"
           >
             <CloudOff size={14} className="shrink-0 mt-0.5" aria-hidden />
             <span>{STRINGS.sourcesUnavailable(unavailable.map((s) => s.label))}</span>
@@ -457,7 +453,7 @@ export default function Marketplace() {
         )}
 
         {isLoading && (
-          <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
+          <div className="flex items-center gap-2 text-12 text-text-secondary">
             <Loader2 size={14} className="animate-spin" />
             {STRINGS.loading}
           </div>
@@ -468,7 +464,7 @@ export default function Marketplace() {
             <div
               role="alert"
               data-testid="marketplace-unverified"
-              className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300 flex items-start gap-2"
+              className="rounded-lg border border-danger-border bg-danger-surface px-3 py-2 text-13 text-danger-text flex items-start gap-2"
             >
               <ShieldAlert size={14} className="shrink-0 mt-0.5" aria-hidden />
               <span>{STRINGS.catalogUnverified}</span>
@@ -477,7 +473,7 @@ export default function Marketplace() {
             <div
               role="alert"
               data-testid="marketplace-error"
-              className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300"
+              className="rounded-lg border border-danger-border bg-danger-surface px-3 py-2 text-13 text-danger-text"
             >
               {STRINGS.loadFailedPrefix}
               {(error as Error).message}
@@ -487,7 +483,7 @@ export default function Marketplace() {
         {data && listings.length === 0 && (
           <p
             data-testid="marketplace-empty"
-            className="py-16 text-center text-13 text-stone-500 dark:text-stone-400"
+            className="py-16 text-center text-13 text-text-secondary"
           >
             {STRINGS.empty}
           </p>
@@ -556,15 +552,12 @@ export default function Marketplace() {
               data-testid="marketplace-install-progress-modal"
               className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none p-5"
             >
-              <Heading
-                slot="title"
-                className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-              >
+              <Heading slot="title" className="text-16 font-semibold text-text-primary">
                 {staging.mode === "update"
                   ? STRINGS.stagingUpdateTitle(staging.listing.name)
                   : STRINGS.stagingInstallTitle(staging.listing.name)}
               </Heading>
-              <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+              <p className="mt-1 text-12 text-text-secondary">
                 <span className="font-mono">{staging.listing.id}</span> · {staging.listing.kind}{" "}
                 plugin · v{staging.listing.version}
               </p>
@@ -580,12 +573,12 @@ export default function Marketplace() {
                 <div
                   role="alert"
                   data-testid="marketplace-ambiguous-source"
-                  className="mt-4 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 p-3"
+                  className="mt-4 rounded-lg border border-danger-border bg-danger-surface p-3"
                 >
-                  <p className="flex items-center gap-1.5 text-13 font-semibold text-red-800 dark:text-red-300">
+                  <p className="flex items-center gap-1.5 text-13 font-semibold text-danger-text">
                     <ShieldAlert size={14} aria-hidden /> {STRINGS.ambiguousTitle}
                   </p>
-                  <p className="mt-1 text-12 leading-relaxed text-red-700 dark:text-red-300/90">
+                  <p className="mt-1 text-12 leading-relaxed text-danger-text">
                     {staging.mode === "update"
                       ? STRINGS.ambiguousUpdateBody(staging.listing.id, ambiguous.length)
                       : STRINGS.ambiguousBody(staging.listing.id, ambiguous.length)}
@@ -597,7 +590,7 @@ export default function Marketplace() {
                         data-testid="marketplace-ambiguous-choice"
                         data-source-id={id}
                         onPress={() => chooseSource(id)}
-                        className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-12 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+                        className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-12 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
                       >
                         {staging.mode === "update"
                           ? STRINGS.updateFrom(sourceLabels.get(id) ?? id)
@@ -630,7 +623,7 @@ export default function Marketplace() {
                   <p
                     role="alert"
                     data-testid="marketplace-install-progress-failed"
-                    className="text-12 text-red-700 dark:text-red-300"
+                    className="text-12 text-danger-text"
                   >
                     {ambiguous ? STRINGS.ambiguousNothingFetched : STRINGS.stagingFailed}
                   </p>
@@ -638,7 +631,7 @@ export default function Marketplace() {
                     autoFocus
                     onPress={dismissStaging}
                     data-testid="marketplace-install-progress-close"
-                    className="shrink-0 rounded-control px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="shrink-0 rounded-control px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     {STRINGS.stagingClose}
                   </Button>

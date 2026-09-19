@@ -36,10 +36,8 @@ const STRINGS = {
 };
 
 const TRUST_STYLES: Record<TrustTreatment, string> = {
-  verified:
-    "border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-300",
-  unverified:
-    "border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200",
+  verified: "border-success-border bg-success-surface text-success-text",
+  unverified: "border-accent-border bg-accent-muted text-accent-text",
 };
 
 const PILL_CLASS =
@@ -73,7 +71,7 @@ function OrphanedPill() {
   return (
     <span
       data-testid="provenance-orphaned"
-      className={`${PILL_CLASS} border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300`}
+      className={`${PILL_CLASS} border-danger-border bg-danger-surface text-danger-text`}
     >
       <Unplug size={12} aria-hidden className="shrink-0" />
       {STRINGS.orphaned}

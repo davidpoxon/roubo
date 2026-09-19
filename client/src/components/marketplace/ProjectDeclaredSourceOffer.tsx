@@ -141,21 +141,13 @@ export default function ProjectDeclaredSourceOffer({ projectId, project }: Props
           aria-label={`Register the marketplace declared by ${projectName}`}
           data-testid="declared-source-offer"
           data-declared-url={rawUrl}
-          className="flex items-start gap-3 border-b border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-2.5 text-amber-900 dark:text-amber-200"
+          className="flex items-start gap-3 border-b border-accent-border bg-accent-muted px-4 py-2.5 text-accent-text"
         >
-          <ShieldAlert
-            size={16}
-            className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400"
-            aria-hidden
-          />
+          <ShieldAlert size={16} className="shrink-0 mt-0.5 text-accent-text" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-13 leading-relaxed">{STRINGS.lead(projectName)}</p>
-            <p className="mt-1 font-mono text-12 break-all text-amber-800 dark:text-amber-300">
-              {rawUrl}
-            </p>
-            <p className="mt-1.5 text-13 leading-relaxed text-amber-800 dark:text-amber-300">
-              {STRINGS.body}
-            </p>
+            <p className="mt-1 font-mono text-12 break-all text-accent-text">{rawUrl}</p>
+            <p className="mt-1.5 text-13 leading-relaxed text-accent-text">{STRINGS.body}</p>
             <div className="mt-2 flex items-center gap-2">
               <Button
                 onPress={() => handleReview(rawUrl)}
@@ -167,7 +159,7 @@ export default function ProjectDeclaredSourceOffer({ projectId, project }: Props
               <Button
                 onPress={() => handleDecline(href)}
                 data-testid="declared-source-offer-decline"
-                className="px-3 py-1.5 text-12 font-medium rounded-control text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="px-3 py-1.5 text-12 font-medium rounded-control text-accent-text hover:bg-accent-muted transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 {STRINGS.decline}
               </Button>

@@ -7,9 +7,9 @@ import type { MarketplaceCatalogSource } from "@roubo/shared";
 // surfaces the served catalog's `source` / `fetchedAt`, so the Plugins view can
 // tell the user it is offline and how stale the served catalog is.
 //
-// DESIGN.md "Attention banner": amber-50 background, amber-200 border, amber-800
-// message, AlertTriangle marker (matching the testbench StalenessBanner), amber
-// signalling "needs attention" consistent with the system's amber-for-active.
+// An attention banner: the accent-muted ground, accent-border edge, and
+// accent-text message, with an AlertTriangle marker (matching the testbench
+// StalenessBanner) signalling "needs attention".
 // Distinct from that component's shared `staleness-banner` testid: this carries
 // its own `marketplace-offline-banner` id so the two never collide.
 //
@@ -70,19 +70,16 @@ export default function MarketplaceOfflineBanner({
     <div
       role="status"
       data-testid="marketplace-offline-banner"
-      className="flex items-start gap-3 px-4 py-3 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20"
+      className="flex items-start gap-3 px-4 py-3 rounded-lg border border-accent-border bg-accent-muted"
     >
-      <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-500" aria-hidden />
+      <AlertTriangle size={16} className="mt-0.5 shrink-0 text-accent-text" aria-hidden />
       <div className="flex-1 min-w-0 space-y-1">
-        <p
-          data-testid="marketplace-offline-banner-status"
-          className="text-13 text-amber-800 dark:text-amber-200"
-        >
+        <p data-testid="marketplace-offline-banner-status" className="text-13 text-accent-text">
           {lead}
         </p>
         <p
           data-testid="marketplace-offline-banner-availability"
-          className="text-13 text-amber-700 dark:text-amber-300/90"
+          className="text-13 text-accent-text"
         >
           {STRINGS.availability}
         </p>

@@ -25,20 +25,17 @@ const STAGE_LABELS = [
 ] as const;
 
 const BADGE_CLASS: Record<StageStatus, string> = {
-  pending:
-    "bg-stone-50 dark:bg-stone-800/60 text-stone-500 dark:text-stone-400 border-stone-200 dark:border-stone-700",
-  active:
-    "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/50",
-  done: "bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-900/50",
-  failed:
-    "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50",
+  pending: "bg-bg-surface text-text-secondary border-status-idle",
+  active: "bg-bg-surface text-text-primary border-status-preparing",
+  done: "bg-success-surface text-success-text border-status-active",
+  failed: "bg-danger-surface text-danger-text border-status-error",
 };
 
 const LABEL_CLASS: Record<StageStatus, string> = {
-  pending: "text-stone-500 dark:text-stone-400",
-  active: "text-stone-900 dark:text-stone-100 font-medium",
-  done: "text-stone-700 dark:text-stone-300",
-  failed: "text-red-700 dark:text-red-300 font-medium",
+  pending: "text-text-secondary",
+  active: "text-text-primary font-medium",
+  done: "text-text-body",
+  failed: "text-danger-text font-medium",
 };
 
 function badgeContent(status: StageStatus, index: number): ReactNode {
@@ -78,7 +75,7 @@ export default function MarketplaceInstallProgress({
   return (
     <div
       data-testid="marketplace-install-progress"
-      className="overflow-hidden rounded-lg border border-stone-200 dark:border-stone-800"
+      className="overflow-hidden rounded-lg border border-border"
     >
       {Array.from({ length: INSTALL_STAGE_COUNT }, (_unused, index) => {
         const status: StageStatus = statuses[index] ?? "pending";
@@ -90,7 +87,7 @@ export default function MarketplaceInstallProgress({
             data-testid={`marketplace-install-step-${index}`}
             data-step={index}
             data-status={status}
-            className="flex items-center gap-3 border-b border-stone-100 px-4 py-3 last:border-b-0 dark:border-stone-800/60"
+            className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0"
           >
             <span
               aria-hidden
@@ -105,14 +102,14 @@ export default function MarketplaceInstallProgress({
                   <p
                     role="alert"
                     data-testid={`marketplace-install-step-${index}-error`}
-                    className="mt-0.5 text-12 text-red-600 dark:text-red-400"
+                    className="mt-0.5 text-12 text-danger-text"
                   >
                     {stageFailMessage(index, errorCode)}
                   </p>
                   {errorDetail && (
                     <p
                       data-testid={`marketplace-install-step-${index}-detail`}
-                      className="mt-0.5 font-mono text-11 text-red-500/80 dark:text-red-400/70"
+                      className="mt-0.5 font-mono text-11 text-danger-text"
                     >
                       {errorDetail}
                     </p>
@@ -121,9 +118,7 @@ export default function MarketplaceInstallProgress({
               )}
             </div>
             {status !== "failed" && (
-              <span className="shrink-0 font-mono text-11 text-stone-500 dark:text-stone-400">
-                {meta}
-              </span>
+              <span className="shrink-0 font-mono text-11 text-text-secondary">{meta}</span>
             )}
           </div>
         );

@@ -64,8 +64,8 @@ describe("ProvenanceBadge rendering (CPHMTP-TC-030 / CPHMTP-TC-056)", () => {
     expect(trust).toHaveTextContent("Unverified");
     expect(trust.dataset.treatment).toBe("unverified");
     // CPHMTP-TC-030 S001-O02: no first-party verified treatment anywhere on it.
-    expect(trust.className).toContain("amber");
-    expect(trust.className).not.toContain("green");
+    expect(trust.className).toContain("accent");
+    expect(trust.className).not.toContain("success");
     expect(trust).not.toHaveTextContent("first-party");
     // CPHMTP-TC-056 S001-O02: the badge is accompanied by source provenance.
     expect(screen.getByTestId("provenance-source")).toHaveTextContent("Source: ACME workplace");
@@ -76,8 +76,8 @@ describe("ProvenanceBadge rendering (CPHMTP-TC-030 / CPHMTP-TC-056)", () => {
     const trust = screen.getByTestId("provenance-trust");
     expect(trust).toHaveTextContent("Verified · first-party");
     expect(trust.dataset.treatment).toBe("verified");
-    expect(trust.className).toContain("green");
-    expect(trust.className).not.toContain("amber");
+    expect(trust.className).toContain("success");
+    expect(trust.className).not.toContain("accent");
     // CPHMTP-TC-030 S002-O02: a first-party entry shows no Unverified pill.
     expect(trust).not.toHaveTextContent("Unverified");
     expect(screen.getByTestId("provenance-source")).toHaveTextContent("Source: Roubo first-party");
@@ -90,7 +90,7 @@ describe("ProvenanceBadge rendering (CPHMTP-TC-030 / CPHMTP-TC-056)", () => {
     render(<ProvenanceBadge provenance={listingProvenance(hostile, ACME_LABEL)} />);
     const trust = screen.getByTestId("provenance-trust");
     expect(trust).toHaveTextContent("Unverified");
-    expect(trust.className).not.toContain("green");
+    expect(trust.className).not.toContain("success");
     expect(screen.getByTestId("provenance-source")).toHaveTextContent(ACME_LABEL);
   });
 
