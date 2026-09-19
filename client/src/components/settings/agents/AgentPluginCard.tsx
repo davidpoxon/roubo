@@ -77,25 +77,23 @@ function CompatibilityLine({
       data-status={status}
       className="flex flex-wrap items-center gap-2"
     >
-      <span className="text-11 font-mono text-stone-500 dark:text-stone-400">
+      <span className="text-11 font-mono text-text-secondary">
         {detectedVersion
           ? `${detectedVersion} ${STRINGS.detectedSuffix}`
           : STRINGS.versionUndetected}
       </span>
       {bounds.length > 0 && (
-        <span className="text-11 font-mono text-stone-500 dark:text-stone-400">
-          {bounds.join(" · ")}
-        </span>
+        <span className="text-11 font-mono text-text-secondary">{bounds.join(" · ")}</span>
       )}
       {chip && (
         <span
           className={`${CHIP_CLASS} ${
             chip.warn
-              ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-              : // stone-600, not the muted stone-500 the rest of this card uses: the
-                // chip sits on stone-100 rather than the card's white, where
-                // stone-500 measures 4.38:1 and misses AA body (#703).
-                "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400"
+              ? "bg-accent-muted text-accent-text"
+              : // The chip sits on the hover ground rather than the card surface.
+                // text-secondary clears AA body on every ground DESIGN.md defines,
+                // so the chip needs no darker tone of its own (#703).
+                "bg-bg-hover text-text-secondary"
           }`}
         >
           {chip.warn ? (
@@ -133,7 +131,7 @@ function CliNotDetected({ agent }: { agent: AgentPluginState }) {
     <div
       role="status"
       data-testid={`agent-cli-missing-${agent.id}`}
-      className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-11 text-amber-800 dark:text-amber-300 leading-relaxed space-y-1"
+      className="rounded-lg border border-accent-border bg-accent-muted px-3 py-2 text-11 text-accent-text leading-relaxed space-y-1"
     >
       <p className="font-medium">{STRINGS.cliMissingHeadline(agent.name)}</p>
       {agent.compatibility?.reason && (
@@ -147,7 +145,7 @@ function CliNotDetected({ agent }: { agent: AgentPluginState }) {
 }
 
 const DISCLOSURE_BUTTON_CLASS =
-  "inline-flex items-center gap-1 px-2.5 py-1 text-12 font-medium rounded-control text-stone-600 dark:text-stone-300 hover:bg-stone-100 hover:text-stone-900 dark:hover:bg-stone-800 dark:hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
+  "inline-flex items-center gap-1 px-2.5 py-1 text-12 font-medium rounded-control text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 /**
  * One installed agent plugin on the AI Agents screen: identity, availability,
@@ -178,25 +176,23 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
     <section
       aria-label={agent.name}
       data-testid={`agent-plugin-card-${agent.id}`}
-      className="rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 p-4 space-y-3"
+      className="rounded-xl border border-border bg-bg-surface p-4 space-y-3"
     >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Bot size={14} className="shrink-0 text-stone-500 dark:text-stone-400" />
-            <h4 className="text-14 font-medium text-stone-900 dark:text-stone-100 truncate">
-              {agent.name}
-            </h4>
+            <Bot size={14} className="shrink-0 text-text-secondary" />
+            <h4 className="text-14 font-medium text-text-primary truncate">{agent.name}</h4>
             {agent.version && (
-              <span className="text-11 text-stone-500 dark:text-stone-400 font-mono shrink-0">
+              <span className="text-11 text-text-secondary font-mono shrink-0">
                 {STRINGS.versionPrefix}
                 {agent.version}
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-11 text-stone-500 dark:text-stone-400 font-mono">{agent.id}</p>
+          <p className="mt-0.5 text-11 text-text-secondary font-mono">{agent.id}</p>
           {agent.description && (
-            <p className="mt-1.5 text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
+            <p className="mt-1.5 text-12 text-text-secondary leading-relaxed">
               {agent.description}
             </p>
           )}
@@ -221,18 +217,18 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
         <p
           role="status"
           data-testid={`agent-unavailable-${agent.id}`}
-          className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-11 text-amber-800 dark:text-amber-300 leading-relaxed"
+          className="rounded-lg border border-accent-border bg-accent-muted px-3 py-2 text-11 text-accent-text leading-relaxed"
         >
           {agent.unavailable.message}
         </p>
       ) : cliMissing ? (
         <CliNotDetected agent={agent} />
       ) : (
-        <p className="text-11 text-stone-500 dark:text-stone-400">{STRINGS.ready}</p>
+        <p className="text-11 text-text-secondary">{STRINGS.ready}</p>
       )}
 
       {open && (
-        <div id={panelId} className="pt-2 border-t border-stone-100 dark:border-stone-800">
+        <div id={panelId} className="pt-2 border-t border-border">
           <AgentConfigForm agent={agent} />
         </div>
       )}

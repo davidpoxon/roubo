@@ -106,11 +106,8 @@ export default function AgentToolEditorModal({
           ref={stampAriaModal}
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-            <Heading
-              slot="title"
-              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-            >
+          <div className="px-5 py-4 border-b border-border">
+            <Heading slot="title" className="text-16 font-semibold text-text-primary">
               Agent tool
             </Heading>
           </div>
@@ -232,22 +229,22 @@ export default function AgentToolEditorModal({
             </div>
 
             {error && (
-              <p id={ERROR_ID} role="alert" className="text-12 text-red-500">
+              <p id={ERROR_ID} role="alert" className="text-12 text-danger-text">
                 {error}
               </p>
             )}
 
-            <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
+            <p className="text-11 text-text-secondary leading-relaxed">
               Saved to app settings. Add to{" "}
               <span className="font-mono text-text-secondary">roubo.yaml tools:</span> to share it
               with the project.
             </p>
           </div>
 
-          <div className="px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 flex justify-end gap-2">
+          <div className="px-5 py-3 border-t border-border flex justify-end gap-2">
             <Button
               onPress={onCancel}
-              className="px-3 py-1.5 text-12 font-medium rounded-control text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="px-3 py-1.5 text-12 font-medium rounded-control text-text-secondary hover:bg-bg-hover hover:text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Cancel
             </Button>

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -17,11 +19,11 @@ interface VariantCase {
 }
 
 const VARIANTS: VariantCase[] = [
-  { state: "connected", label: "Connected", wrapToken: "bg-green-700" },
-  { state: "disconnected", label: "Not connected", wrapToken: "bg-stone-300" },
-  { state: "auth-problem", label: "Sign in again", wrapToken: "bg-amber-500" },
-  { state: "errored", label: "Error", wrapToken: "bg-red-700" },
-  { state: "disabled", label: "Disabled", wrapToken: "bg-stone-200" },
+  { state: "connected", label: "Connected", wrapToken: "bg-success-surface" },
+  { state: "disconnected", label: "Not connected", wrapToken: "bg-bg-pressed" },
+  { state: "auth-problem", label: "Sign in again", wrapToken: "bg-accent-muted" },
+  { state: "errored", label: "Error", wrapToken: "bg-danger-surface" },
+  { state: "disabled", label: "Disabled", wrapToken: "bg-bg-hover" },
 ];
 
 describe("ConnectionStatusPill: five-variant taxonomy (IP-TC-108)", () => {
@@ -58,82 +60,78 @@ describe("ConnectionStatusPill: five-variant taxonomy (IP-TC-108)", () => {
 });
 
 describe("ConnectionStatusPill: WCAG 2.1 AA contrast (IP-TC-142, IP-NFR-016)", () => {
-  // Tailwind v4 default palette (sRGB). emerald-500/#00bc7d and emerald-50/#ecfdf5
-  // are the exact values axe-core resolved on the plugin grid when it flagged the
-  // 'Connected' pill at 2.34:1 (issue #448). At 12px/normal these pills are not
-  // WCAG "large text", so the 4.5:1 threshold applies to every variant.
-  const TAILWIND_HEX: Record<string, string> = {
-    "green-50": "#f0fdf4",
-    "green-700": "#008236",
-    "amber-500": "#fe9a00",
-    "amber-950": "#461901",
-    "red-50": "#fef2f2",
-    "red-700": "#c10007",
-    "stone-200": "#e7e5e4",
-    "stone-300": "#d6d3d1",
-    "stone-400": "#a6a09b",
-    "stone-600": "#57534d",
-    "stone-700": "#44403b",
-    "stone-800": "#292524",
-  };
+  // The pill paints with DESIGN.md role utilities, so its colours are read from
+  // the emitted token file rather than a hand-kept palette: each role's light
+  // value is `--color-<role>` and its dark value `--color-<role>-dark` (the
+  // switch semantic-dark.css makes under .dark). An alpha ground such as
+  // accent-muted is composited over the card surface the pill sits on. At
+  // 12px/normal these pills are not WCAG "large text", so the 4.5:1 threshold
+  // applies to every variant in both themes (issue #448).
+  const TOKENS_CSS = readFileSync(
+    resolve(process.cwd(), "design-tokens/tokens.tailwind.css"),
+    "utf8",
+  );
 
-  function relativeLuminance(hex: string): number {
-    const n = hex.replace("#", "");
-    const toLinear = (i: number) => {
-      const c = parseInt(n.slice(i, i + 2), 16) / 255;
-      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    };
-    const r = toLinear(0);
-    const g = toLinear(2);
-    const b = toLinear(4);
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  function tokenHex(role: string, theme: "light" | "dark"): string {
+    const read = (name: string) =>
+      TOKENS_CSS.match(new RegExp(`--color-${name}:\\s*(#[0-9A-Fa-f]{6,8});`))?.[1];
+    const hex = (theme === "dark" && read(`${role}-dark`)) || read(role);
+    if (!hex) throw new Error(`unknown DESIGN.md colour role: ${role}`);
+    return hex;
   }
 
-  function contrastRatio(fgToken: string, bgToken: string): number {
-    const fg = TAILWIND_HEX[fgToken];
-    const bg = TAILWIND_HEX[bgToken];
-    if (!fg) throw new Error(`unknown Tailwind colour token: ${fgToken}`);
-    if (!bg) throw new Error(`unknown Tailwind colour token: ${bgToken}`);
+  function rgba(hex: string): [number, number, number, number] {
+    const n = hex.replace("#", "");
+    const c = (i: number) => parseInt(n.slice(i, i + 2), 16);
+    return [c(0), c(2), c(4), n.length === 8 ? c(6) / 255 : 1];
+  }
+
+  function composite(hex: string, under: string): [number, number, number] {
+    const [r, g, b, a] = rgba(hex);
+    const [ur, ug, ub] = rgba(under);
+    return [r * a + ur * (1 - a), g * a + ug * (1 - a), b * a + ub * (1 - a)];
+  }
+
+  function relativeLuminance([r, g, b]: [number, number, number]): number {
+    const toLinear = (v: number) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+  }
+
+  function contrastRatio(fgRole: string, bgRole: string, theme: "light" | "dark"): number {
+    const surface = tokenHex("bg-surface", theme);
+    const bg = composite(tokenHex(bgRole, theme), surface);
+    const fg = composite(tokenHex(fgRole, theme), surface);
     const hi = Math.max(relativeLuminance(fg), relativeLuminance(bg));
     const lo = Math.min(relativeLuminance(fg), relativeLuminance(bg));
     return (hi + 0.05) / (lo + 0.05);
   }
 
-  // Extract the fg/bg colour tokens from a rendered pill's class string for each
-  // theme it supports: the unprefixed pair (light) and any `dark:` pair (dark).
-  // The size token `text-12` is deliberately not matched by these regexes.
-  function colourPairs(className: string): Array<{ theme: string; fg: string; bg: string }> {
+  // The fg/bg role pair in a rendered pill's class string. The size token
+  // `text-12` is deliberately not matched by the text regex.
+  function colourPair(className: string): { fg: string; bg: string } | undefined {
     const tokens = className.split(/\s+/);
-    const pick = (re: RegExp): string | undefined => {
-      for (const t of tokens) {
-        const m = t.match(re);
-        if (m) return m[1];
-      }
-      return undefined;
-    };
-    const lightBg = pick(/^bg-([a-z]+-\d+)$/);
-    const lightFg = pick(/^text-([a-z]+-\d+)$/);
-    const darkBg = pick(/^dark:bg-([a-z]+-\d+)$/);
-    const darkFg = pick(/^dark:text-([a-z]+-\d+)$/);
-    const pairs: Array<{ theme: string; fg: string; bg: string }> = [];
-    if (lightFg && lightBg) pairs.push({ theme: "light", fg: lightFg, bg: lightBg });
-    if (darkFg && darkBg) pairs.push({ theme: "dark", fg: darkFg, bg: darkBg });
-    return pairs;
+    const fg = tokens.map((t) => t.match(/^text-([a-z][a-z-]*)$/)?.[1]).find(Boolean);
+    const bg = tokens.map((t) => t.match(/^bg-([a-z][a-z-]*)$/)?.[1]).find(Boolean);
+    return fg && bg ? { fg, bg } : undefined;
   }
 
   for (const variant of VARIANTS) {
-    it(`renders the ${variant.state} variant at >= 4.5:1 contrast in every theme it supports`, () => {
+    it(`renders the ${variant.state} variant at >= 4.5:1 contrast in both themes`, () => {
       render(
         <ConnectionStatusPill status={{ state: variant.state, checkedAt: FIXED_CHECKED_AT }} />,
       );
       const pill = screen.getByTestId("connection-status-pill");
-      const pairs = colourPairs(pill.className);
-      expect(pairs.length).toBeGreaterThan(0);
-      for (const { theme, fg, bg } of pairs) {
-        const ratio = contrastRatio(fg, bg);
+      const pair = colourPair(pill.className);
+      expect(pair).toBeDefined();
+      if (!pair) return;
+      for (const theme of ["light", "dark"] as const) {
+        const ratio = contrastRatio(pair.fg, pair.bg, theme);
         expect(
           ratio,
-          `${variant.state} (${theme}): ${fg} on ${bg} = ${ratio.toFixed(2)}:1 must clear WCAG AA`,
+          `${variant.state} (${theme}): ${pair.fg} on ${pair.bg} = ${ratio.toFixed(2)}:1 must clear WCAG AA`,
         ).toBeGreaterThanOrEqual(4.5);
       }
     });

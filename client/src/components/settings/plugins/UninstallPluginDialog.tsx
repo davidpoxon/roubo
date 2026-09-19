@@ -29,27 +29,24 @@ export default function UninstallPluginDialog({ pluginName, onConfirm, isPending
         >
           {({ close }) => (
             <>
-              <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                <Heading
-                  slot="title"
-                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-                >
+              <div className="px-5 py-4 border-b border-border">
+                <Heading slot="title" className="text-16 font-semibold text-text-primary">
                   {STRINGS.title(pluginName)}
                 </Heading>
               </div>
 
               <div className="px-5 py-4">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-13 text-stone-700 dark:text-stone-300">{STRINGS.body}</p>
+                  <AlertTriangle size={16} className="text-accent-text shrink-0 mt-0.5" />
+                  <p className="text-13 text-text-body">{STRINGS.body}</p>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
                 <Button
                   isDisabled={isPending}
                   onPress={close}
-                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="px-3 py-1.5 text-13 text-text-secondary not-disabled:hover:text-text-primary disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   {STRINGS.cancel}
                 </Button>

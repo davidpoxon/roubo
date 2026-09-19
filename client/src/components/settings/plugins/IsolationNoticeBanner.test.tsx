@@ -48,8 +48,8 @@ describe("IsolationNoticeBanner (#743)", () => {
     expect(banner.textContent).toContain("/Applications/Roubo.app/Contents/plugin");
     expect(banner.textContent).toContain("Docker Desktop > Settings > Resources > File sharing");
     // Amber (advisory), not red: the plugin keeps running on the floor.
-    expect(banner.className).toContain("amber");
-    expect(banner.className).not.toContain("red");
+    expect(banner.className).toContain("accent");
+    expect(banner.className).not.toContain("danger");
   });
 
   it("lets a long plugin path wrap inside the card instead of overflowing (#754)", () => {

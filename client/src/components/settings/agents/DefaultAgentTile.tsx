@@ -31,34 +31,29 @@ export default function DefaultAgentTile({ agent }: { agent: AgentPluginState })
           className={[
             "flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors cursor-pointer select-none",
             isSelected
-              ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
-              : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40",
+              ? "border-accent-border bg-accent-muted"
+              : "border-border bg-bg-surface hover:border-border-strong hover:bg-bg-hover",
             isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
           ].join(" ")}
         >
           <div
             className={[
               "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-colors",
-              isSelected
-                ? "border-stone-700 dark:border-stone-300 bg-stone-700 dark:bg-stone-300"
-                : "border-stone-300 dark:border-stone-600",
+              isSelected ? "border-accent bg-accent" : "border-border-control",
             ].join(" ")}
           />
           <span
-            className={`text-13 font-medium ${isSelected ? "text-stone-900 dark:text-stone-100" : "text-stone-600 dark:text-stone-400"}`}
+            className={`text-13 font-medium ${isSelected ? "text-text-primary" : "text-text-secondary"}`}
           >
             {agent.name}
           </span>
           {/*
-            stone-600, not the muted stone-500 used elsewhere: the selected tile's
-            background is stone-100, where stone-500 measures 4.38:1 and misses AA
-            body (#703). One colour for both states so the subtitle does not shift
-            weight on selection; the hierarchy against the agent name reads through
-            size and the monospace face instead.
+            text-secondary clears AA body on the selected tile's accent-muted
+            ground as well as on the surface (#703). One colour for both states so
+            the subtitle does not shift weight on selection; the hierarchy against
+            the agent name reads through size and the monospace face instead.
           */}
-          <span className="ml-auto text-11 font-mono text-stone-600 dark:text-stone-400 truncate">
-            {params}
-          </span>
+          <span className="ml-auto text-11 font-mono text-text-secondary truncate">{params}</span>
         </div>
       )}
     </Radio>

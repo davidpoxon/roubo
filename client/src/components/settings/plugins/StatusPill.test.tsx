@@ -5,11 +5,11 @@ import type { PluginStatus } from "@roubo/shared";
 import StatusPill from "./StatusPill";
 
 const cases: { status: PluginStatus; label: string; tint: string }[] = [
-  { status: "enabled", label: "Enabled", tint: "green" },
-  { status: "disabled", label: "Disabled", tint: "stone" },
-  { status: "errored", label: "Errored", tint: "red" },
-  { status: "incompatible", label: "Incompatible", tint: "amber" },
-  { status: "invalid", label: "Invalid", tint: "red" },
+  { status: "enabled", label: "Enabled", tint: "success" },
+  { status: "disabled", label: "Disabled", tint: "bg-hover" },
+  { status: "errored", label: "Errored", tint: "danger" },
+  { status: "incompatible", label: "Incompatible", tint: "accent" },
+  { status: "invalid", label: "Invalid", tint: "danger" },
 ];
 
 describe("StatusPill (TC-001, TC-002, TC-003, TC-013)", () => {

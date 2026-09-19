@@ -15,10 +15,10 @@ const STRINGS = {
 };
 
 const PRIMARY_BUTTON_CLASS =
-  "px-3 py-1 text-12 font-medium rounded-control border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
+  "px-3 py-1 text-12 font-medium rounded-control border border-border-strong bg-bg-surface text-text-primary not-disabled:hover:bg-accent-muted not-disabled:hover:border-accent-border disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 const SECONDARY_BUTTON_CLASS =
-  "px-2.5 py-1 text-12 font-medium rounded-control text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
+  "px-2.5 py-1 text-12 font-medium rounded-control text-text-secondary not-disabled:hover:bg-bg-hover not-disabled:hover:text-text-primary disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 interface PartitionedErrors {
   /** Errors that address a control the form renders, keyed by that control. */
@@ -124,7 +124,7 @@ export default function AgentConfigForm({ agent }: { agent: AgentPluginState }) 
       {formError && (
         <p
           role="alert"
-          className="text-11 text-red-600 dark:text-red-400 leading-relaxed"
+          className="text-11 text-danger-text leading-relaxed"
           data-testid={`agent-config-error-${agent.id}`}
         >
           {STRINGS.saveFailed}
@@ -150,13 +150,11 @@ export default function AgentConfigForm({ agent }: { agent: AgentPluginState }) 
           {STRINGS.reset}
         </Button>
         {justSaved && !dirty && (
-          <span className="text-11 text-stone-500 dark:text-stone-400">{STRINGS.saved}</span>
+          <span className="text-11 text-text-secondary">{STRINGS.saved}</span>
         )}
       </div>
 
-      <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
-        {STRINGS.resetHint}
-      </p>
+      <p className="text-11 text-text-secondary leading-relaxed">{STRINGS.resetHint}</p>
     </div>
   );
 }

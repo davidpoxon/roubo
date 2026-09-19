@@ -40,19 +40,19 @@ interface Props {
 function levelClass(level?: string): string {
   switch (level) {
     case "error":
-      return "text-red-600 dark:text-red-400";
+      return "text-danger-text";
     case "warn":
-      return "text-amber-600 dark:text-amber-400";
+      return "text-accent-text";
     default:
-      return "text-stone-500 dark:text-stone-400";
+      return "text-text-secondary";
   }
 }
 
 function lineClass(line: LogLine): string {
   if (line.level === "error" || line.source === "stderr") {
-    return "bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300";
+    return "bg-danger-surface text-danger-text";
   }
-  return "text-stone-700 dark:text-stone-300";
+  return "text-text-body";
 }
 
 const TIMESTAMP_FORMAT = new Intl.DateTimeFormat(undefined, {
@@ -95,24 +95,21 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
           aria-label={STRINGS.logsAriaLabel(pluginName)}
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
-          <div className="px-5 py-3 border-b border-stone-200 dark:border-stone-800/60 flex items-center justify-between gap-3">
-            <Heading
-              slot="title"
-              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-            >
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3">
+            <Heading slot="title" className="text-16 font-semibold text-text-primary">
               {STRINGS.title(pluginName)}
             </Heading>
             <Button
               onPress={onClose}
               aria-label={STRINGS.closeAriaLabel}
-              className="p-1 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="p-1 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <X size={16} />
             </Button>
           </div>
 
-          <div className="px-5 py-3 border-b border-stone-200 dark:border-stone-800/60 flex items-center gap-3">
-            <div className="flex items-center gap-1 rounded-md border border-stone-200 dark:border-stone-700 p-0.5">
+          <div className="px-5 py-3 border-b border-border flex items-center gap-3">
+            <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
               {(["current", "previous"] as LogFile[]).map((f) => (
                 <Button
                   key={f}
@@ -122,8 +119,8 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
                   className={[
                     "px-2.5 py-1 text-12 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
                     file === f
-                      ? "bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium"
-                      : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200",
+                      ? "bg-bg-pressed text-text-primary font-medium"
+                      : "text-text-secondary hover:text-text-primary",
                   ].join(" ")}
                 >
                   {f}
@@ -150,7 +147,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
               onPress={() => logs.refetch()}
               isDisabled={logs.isFetching}
               aria-label={STRINGS.refreshAriaLabel}
-              className="p-1.5 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="p-1.5 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <RefreshCw size={14} className={logs.isFetching ? "animate-spin" : ""} />
             </Button>
@@ -158,20 +155,15 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
 
           <div
             data-testid="log-content"
-            className="max-h-[480px] overflow-y-auto px-2 py-2 font-mono text-11 leading-relaxed bg-stone-50 dark:bg-stone-950"
+            className="max-h-[480px] overflow-y-auto px-2 py-2 font-mono text-11 leading-relaxed bg-bg-base"
           >
-            {logs.isLoading && (
-              <p className="px-2 py-1 text-stone-500 dark:text-stone-400">{STRINGS.loading}</p>
-            )}
+            {logs.isLoading && <p className="px-2 py-1 text-text-secondary">{STRINGS.loading}</p>}
             {!logs.isLoading && filtered.length === 0 && (
-              <p className="px-2 py-1 text-stone-500 dark:text-stone-400">{STRINGS.noEntries}</p>
+              <p className="px-2 py-1 text-text-secondary">{STRINGS.noEntries}</p>
             )}
             {filtered.map((line, idx) => (
               <div key={idx} className={`flex gap-2 px-2 py-0.5 rounded ${lineClass(line)}`}>
-                <span
-                  className="shrink-0 text-stone-500 dark:text-stone-400"
-                  title={line.ts || undefined}
-                >
+                <span className="shrink-0 text-text-secondary" title={line.ts || undefined}>
                   {formatTimestamp(line.ts)}
                 </span>
                 {line.level && (

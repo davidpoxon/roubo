@@ -27,10 +27,10 @@ import UninstallPluginDialog from "./UninstallPluginDialog";
 import { derivePluginConnectionState, primaryActionLabelFor } from "./derivePluginConnectionState";
 
 const SECONDARY_BUTTON_CLASS =
-  "px-2.5 py-1 text-12 font-medium rounded-control text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
+  "px-2.5 py-1 text-12 font-medium rounded-control text-text-secondary not-disabled:hover:bg-bg-hover not-disabled:hover:text-text-primary disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 const PRIMARY_BUTTON_CLASS =
-  "px-3 py-1 text-12 font-medium rounded-control border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
+  "px-3 py-1 text-12 font-medium rounded-control border border-border-strong bg-bg-surface text-text-primary not-disabled:hover:bg-accent-muted not-disabled:hover:border-accent-border disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 const STRINGS = {
   viewLogs: "View logs",
@@ -121,17 +121,15 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
     <article
       data-testid="plugin-card"
       data-plugin-id={plugin.id}
-      className="rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-4 transition-colors hover:border-amber-500/40"
+      className="rounded-xl border border-border bg-bg-surface p-4 transition-colors hover:border-border-strong"
     >
       <header className="flex items-start gap-3">
         <PluginIcon plugin={plugin} />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <h3 className="text-14 font-semibold text-stone-900 dark:text-stone-100 truncate">
-              {displayName}
-            </h3>
+            <h3 className="text-14 font-semibold text-text-primary truncate">{displayName}</h3>
             {version && (
-              <span className="font-mono text-11 text-stone-500 dark:text-stone-400">
+              <span className="font-mono text-11 text-text-secondary">
                 {STRINGS.versionPrefix}
                 {version}
               </span>
@@ -154,7 +152,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
       </header>
 
       {description && (
-        <p className="mt-3 text-13 text-stone-600 dark:text-stone-400 leading-relaxed line-clamp-2">
+        <p className="mt-3 text-13 text-text-secondary leading-relaxed line-clamp-2">
           {description}
         </p>
       )}
@@ -204,7 +202,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         </div>
       )}
 
-      <div className="mt-4 flex items-center justify-between gap-3 pt-3 border-t border-stone-100 dark:border-stone-800/60">
+      <div className="mt-4 flex items-center justify-between gap-3 pt-3 border-t border-border">
         <EnableSwitch
           isEnabled={isEnabled}
           isDisabled={!canToggle || togglePending}
@@ -305,7 +303,7 @@ function PluginIcon({ plugin }: { plugin: PluginRecord }) {
   return (
     <div
       data-testid="plugin-icon-fallback"
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-hover text-text-body"
     >
       <Fallback size={16} aria-hidden />
     </div>
@@ -334,22 +332,18 @@ function EnableSwitch({
           <div
             className={[
               "relative shrink-0 w-9 h-5 rounded-full border transition-colors",
-              isEnabled
-                ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
-                : "bg-transparent border-stone-300 dark:border-stone-600",
+              isEnabled ? "bg-accent border-accent" : "bg-transparent border-border-control",
               isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
             ].join(" ")}
           >
             <div
               className={[
                 "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-colors",
-                isEnabled
-                  ? "left-[18px] bg-white dark:bg-stone-900"
-                  : "left-0.5 bg-stone-300 dark:bg-stone-600",
+                isEnabled ? "left-[18px] bg-bg-surface" : "left-0.5 bg-border-control",
               ].join(" ")}
             />
           </div>
-          <span className="text-12 font-medium text-stone-700 dark:text-stone-200">
+          <span className="text-12 font-medium text-text-body">
             {isEnabled ? STRINGS.enabled : STRINGS.disabled}
           </span>
         </>
@@ -366,10 +360,7 @@ function ConfigureLoadingDialog() {
           ref={stampAriaModal}
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none px-5 py-6"
         >
-          <div
-            role="status"
-            className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400"
-          >
+          <div role="status" className="flex items-center gap-2 text-12 text-text-secondary">
             <Spinner />
             {STRINGS.loadingConfig}
           </div>
@@ -392,12 +383,10 @@ function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () 
           {({ close }) => (
             <div className="flex flex-col gap-4">
               <div>
-                <h2 className="text-16 font-medium text-stone-900 dark:text-stone-100">
+                <h2 className="text-16 font-medium text-text-primary">
                   {STRINGS.configLoadFailed}
                 </h2>
-                <p className="mt-2 text-12 text-stone-600 dark:text-stone-400 break-words">
-                  {message}
-                </p>
+                <p className="mt-2 text-12 text-text-secondary break-words">{message}</p>
               </div>
               <div className="flex items-center justify-end gap-2">
                 <Button onPress={close} className={SECONDARY_BUTTON_CLASS}>
