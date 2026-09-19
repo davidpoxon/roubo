@@ -36,14 +36,37 @@ afterEach(() => {
   view = null;
 });
 
-function markedLiterals(theme: typeof yamlLightTheme): string[] {
+function mount(theme: typeof yamlLightTheme): HTMLElement {
   const parent = document.createElement("div");
   document.body.appendChild(parent);
   view = new EditorView({
     parent,
     state: EditorState.create({ doc: DOC, extensions: [yaml(), theme] }),
   });
+  return parent;
+}
+
+function markedLiterals(theme: typeof yamlLightTheme): string[] {
+  const parent = mount(theme);
   return [...parent.querySelectorAll(".cm-yaml-literal")].map((el) => el.textContent ?? "");
+}
+
+// The colour the injected CodeMirror style rules give the span holding `text`
+// on the given line. jsdom does not cascade custom properties, so this reads
+// the declared value, for example `var(--color-syntax-key)`.
+function declaredColor(parent: HTMLElement, line: number, text: string): string | undefined {
+  const lineEl = parent.querySelectorAll(".cm-line")[line];
+  const span = [...lineEl.querySelectorAll("span")].find((el) => el.textContent === text);
+  if (!span) return undefined;
+  let color: string | undefined;
+  for (const sheet of [...document.styleSheets]) {
+    for (const rule of [...sheet.cssRules]) {
+      if (rule instanceof CSSStyleRule && rule.style.color && span.matches(rule.selectorText)) {
+        color = rule.style.color;
+      }
+    }
+  }
+  return color;
 }
 
 describe("yamlEditorTheme literal highlighting", () => {
@@ -66,5 +89,16 @@ describe("yamlEditorTheme literal highlighting", () => {
       "8",
       "NULL",
     ]);
+  });
+
+  it.each([
+    ["light", yamlLightTheme],
+    ["dark", yamlDarkTheme],
+  ])("paints keys, strings, and literals with the syntax roles in the %s theme", (_name, theme) => {
+    const parent = mount(theme);
+    expect(declaredColor(parent, 2, "count")).toBe("var(--color-syntax-key)");
+    expect(declaredColor(parent, 1, '"4"')).toBe("var(--color-syntax-string)");
+    expect(declaredColor(parent, 2, "4")).toBe("var(--color-syntax-literal)");
+    expect(declaredColor(parent, 13, "npm i")).toBeUndefined();
   });
 });
