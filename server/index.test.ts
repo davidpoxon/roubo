@@ -78,8 +78,6 @@ vi.mock("./services/catalog-client.js", () => ({
 }));
 vi.mock("./services/migrate.js", () => ({
   run: vi.fn(() => Promise.resolve({ status: "noop" as const })),
-  seedOnlyToDoNotice: vi.fn(() => null),
-  isFreshInstall: vi.fn(() => false),
 }));
 vi.mock("./services/github.js", () => ({
   refreshAuth: vi.fn(() => Promise.resolve()),
@@ -277,8 +275,6 @@ describe.sequential("startServer", () => {
       }));
       vi.doMock("./services/migrate.js", () => ({
         run: vi.fn(() => Promise.resolve({ status: "noop" as const })),
-        seedOnlyToDoNotice: vi.fn(() => null),
-        isFreshInstall: vi.fn(() => false),
       }));
       vi.doMock("./services/github.js", () => ({
         refreshAuth: vi.fn(() => Promise.resolve()),

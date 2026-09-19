@@ -110,7 +110,6 @@ const mockedUsePlugins = vi.mocked(usePlugins);
 const defaultSettings = {
   theme: "dark" as const,
   jigs: DEFAULT_JIG_SETTINGS,
-  legacyAgentSettingsPresent: false,
   contextWindow: 200_000,
 };
 
@@ -270,7 +269,6 @@ describe("ProjectSettings", () => {
         settings: {
           theme: "light",
           jigs: DEFAULT_JIG_SETTINGS,
-          legacyAgentSettingsPresent: false,
           contextWindow: 200_000,
         },
         isLoading: false,
@@ -326,7 +324,6 @@ describe("ProjectSettings", () => {
             autoExecute: false,
             defaultJigId: "feature-dev",
           },
-          legacyAgentSettingsPresent: false,
           contextWindow: 200_000,
         },
         isLoading: false,
@@ -390,7 +387,6 @@ describe("ProjectSettings", () => {
             autoExecute: true,
             defaultJigId: "some-bp",
           },
-          legacyAgentSettingsPresent: false,
           contextWindow: 200_000,
         },
         isLoading: false,

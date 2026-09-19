@@ -26,7 +26,6 @@ import { validateWorkUnits } from "@roubo/shared/work-units-contract";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
 import * as state from "../services/state.js";
-import { ONLY_TO_DO_NOTICE_MARKER } from "@roubo/shared";
 import * as pluginEnableState from "../services/plugin-enable-state.js";
 import { removeOverride, saveOverride } from "../services/integration-overrides.js";
 import { cutListQueryService } from "../services/cut-list-query-service.js";
@@ -625,58 +624,6 @@ router.post("/__reset", async (req: Request, res: Response) => {
   }
 });
 
-// POST /test/__seed-notice (#574): stamp the only-to-do default-change notice
-// marker (FR-018, issue #558) with a fixed ISO 8601 timestamp so the
-// OnlyToDoNoticeBanner renders for the e2e upgrade-banner journey (TC-047).
-//
-// The boot-time `seedOnlyToDoNotice` path either omits the marker, or seeds it
-// as the `"seeded"` sentinel on a fresh install (which the banner never
-// surfaces), and `/test/__reset` truncates state.json entirely, so a spec has
-// no other way to reach the "existing install, banner should show once" state.
-// This route writes the marker directly. The value must be a real ISO timestamp
-// (not `"seeded"`) for the banner to show; the spec passes a fixed one so the
-// localStorage dismissal key is deterministic. Gated by ROUBO_E2E so production
-// builds 404 the URL; the testRouteRateLimiter still applies.
-//
-// Body: { at?: string }. `at` defaults to a fixed ISO timestamp; when supplied
-// it must be a parseable ISO-8601 string and must not be the `"seeded"`
-// sentinel (which would leave the banner hidden and defeat the seed's purpose).
-const DEFAULT_NOTICE_AT = "2026-06-01T12:00:00.000Z";
-const NOTICE_SEEDED_SENTINEL = "seeded";
-router.post("/__seed-notice", (req: Request, res: Response) => {
-  if (process.env.ROUBO_E2E !== "1") {
-    return res.status(404).end();
-  }
-  const body = (req.body ?? {}) as { at?: unknown };
-  let at = DEFAULT_NOTICE_AT;
-  if (body.at !== undefined) {
-    if (typeof body.at !== "string" || body.at.length === 0) {
-      return res.status(400).json({ error: "at must be a non-empty string when provided" });
-    }
-    if (body.at === NOTICE_SEEDED_SENTINEL) {
-      return res
-        .status(400)
-        .json({ error: `at must not be the "${NOTICE_SEEDED_SENTINEL}" sentinel` });
-    }
-    if (Number.isNaN(new Date(body.at).getTime())) {
-      return res.status(400).json({ error: "at must be a parseable ISO-8601 string" });
-    }
-    at = body.at;
-  }
-  try {
-    const current = state.loadState();
-    state.saveState({
-      ...current,
-      notices: { ...(current.notices ?? {}), [ONLY_TO_DO_NOTICE_MARKER]: at },
-    });
-    res.status(200).json({ marker: ONLY_TO_DO_NOTICE_MARKER, at });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("/test/__seed-notice failed:", message);
-    res.status(500).json({ error: message });
-  }
-});
-
 // POST /test/__seed-legacy-agent-settings (#530): plant (or remove) the retired
 // built-in agent preferences block in `settings.json`, which is the ONLY signal
 // that an install is an upgrade rather than a fresh one (AP-FR-021).
@@ -684,8 +631,7 @@ router.post("/__seed-notice", (req: Request, res: Response) => {
 // The AP-TC-102 upgrade journey opens on "the user is upgrading from a build
 // that had built-in agent settings", and nothing in the product writes that
 // block any more: #521 deleted the field, leaving only a reader
-// (`hasLegacyAgentSettings`) behind the `legacyAgentSettingsPresent` flag the
-// first-run notice is gated on. `/test/__reset` does not truncate
+// (`hasLegacyAgentSettings`). `/test/__reset` does not truncate
 // `settings.json` either, so the block also has to be REMOVABLE from a spec's
 // teardown or a seeded upgrade would leak into every later spec (NFR-018).
 //

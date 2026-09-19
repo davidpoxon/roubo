@@ -207,7 +207,6 @@ describe("collectRoutes", () => {
     // The mounts named in #1018 as previously missing from the hand-kept list.
     for (const prefix of [
       "/api/marketplace",
-      "/api/migration",
       "/api/hooks",
       "/api/settings",
       "/api/filesystem/browse",
