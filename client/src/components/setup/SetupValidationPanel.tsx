@@ -71,15 +71,15 @@ export default function SetupValidationPanel({
   return (
     <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/30 p-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+        <div className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
           Validation
         </div>
         <Button
           onPress={onValidate}
           isDisabled={isValidating}
-          className="text-[10px] text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline disabled:opacity-40 disabled:cursor-default flex items-center gap-1"
+          className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline disabled:opacity-40 disabled:cursor-default flex items-center gap-1"
         >
-          {isValidating ? <Loader size={9} className="animate-spin" /> : null}
+          {isValidating ? <Loader size={12} className="animate-spin" /> : null}
           Check
         </Button>
       </div>
@@ -89,22 +89,22 @@ export default function SetupValidationPanel({
         <div className="mb-2">
           {isGuidedValid ? (
             <>
-              <div className="flex items-center gap-2 text-[12px] text-green-600 dark:text-green-400">
+              <div className="flex items-center gap-2 text-12 text-green-600 dark:text-green-400">
                 <Check size={12} />
                 Valid
               </div>
-              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">
+              <div className="text-11 text-stone-500 dark:text-stone-400 mt-1.5">
                 Ready to save.
               </div>
             </>
           ) : (
             <>
-              <div className="flex items-center gap-1.5 text-[12px] text-red-500 dark:text-red-400 mb-1.5">
+              <div className="flex items-center gap-1.5 text-12 text-red-500 dark:text-red-400 mb-1.5">
                 <AlertCircle size={12} />
                 {guidedIssueCount} {guidedIssueCount === 1 ? "issue" : "issues"}
               </div>
               {guidedFirstMessage && (
-                <div className="text-[11px] text-red-500 dark:text-red-400 leading-snug">
+                <div className="text-11 text-red-500 dark:text-red-400 leading-snug">
                   {guidedFirstMessage}
                 </div>
               )}
@@ -123,13 +123,13 @@ export default function SetupValidationPanel({
           }
         >
           {yamlStatus === "idle" && mode === "yaml" && (
-            <p className="text-[11px] text-stone-500 dark:text-stone-400">
+            <p className="text-11 text-stone-500 dark:text-stone-400">
               Click Check to validate the schema.
             </p>
           )}
 
           {yamlStatus === "pending" && (
-            <div className="flex items-center gap-2 text-[12px] text-stone-500 dark:text-stone-400">
+            <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
               <Loader size={12} className="animate-spin" />
               Checking…
             </div>
@@ -137,12 +137,12 @@ export default function SetupValidationPanel({
 
           {yamlStatus === "valid" && (
             <>
-              <div className="flex items-center gap-2 text-[12px] text-green-600 dark:text-green-400">
+              <div className="flex items-center gap-2 text-12 text-green-600 dark:text-green-400">
                 <Check size={12} />
                 Schema valid
               </div>
               {lastCheckedAt && (
-                <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">
+                <div className="text-11 text-stone-500 dark:text-stone-400 mt-1.5">
                   Last checked: {formatLastChecked(lastCheckedAt)}
                 </div>
               )}
@@ -151,7 +151,7 @@ export default function SetupValidationPanel({
 
           {yamlStatus === "errors" && (
             <>
-              <div className="flex items-center gap-1.5 text-[12px] text-red-500 dark:text-red-400 mb-2">
+              <div className="flex items-center gap-1.5 text-12 text-red-500 dark:text-red-400 mb-2">
                 <AlertCircle size={12} />
                 {yamlErrors.length} schema {yamlErrors.length === 1 ? "error" : "errors"}
               </div>
@@ -159,7 +159,7 @@ export default function SetupValidationPanel({
                 {yamlErrors.map((err, i) => (
                   <div
                     key={i}
-                    className="text-[11px] font-mono text-red-500 dark:text-red-400 leading-snug"
+                    className="text-11 font-mono text-red-500 dark:text-red-400 leading-snug"
                   >
                     {err.line != null && (
                       <span className="text-stone-500 dark:text-stone-400">
@@ -173,7 +173,7 @@ export default function SetupValidationPanel({
                 ))}
               </div>
               {lastCheckedAt && (
-                <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-2">
+                <div className="text-11 text-stone-500 dark:text-stone-400 mt-2">
                   Last checked: {formatLastChecked(lastCheckedAt)}
                 </div>
               )}
@@ -186,14 +186,12 @@ export default function SetupValidationPanel({
       {mode === "yaml" && (conflicts.length > 0 || saveError) && (
         <div className="border-t border-stone-200 dark:border-stone-700 pt-2 mt-2 space-y-1.5">
           {conflicts.map((c, i) => (
-            <div key={i} className="text-[11px] text-amber-600 dark:text-amber-400">
+            <div key={i} className="text-11 text-amber-600 dark:text-amber-400">
               Port conflict on "{c.port}"
             </div>
           ))}
           {saveError && (
-            <div className="text-[11px] text-red-500 dark:text-red-400 leading-snug">
-              {saveError}
-            </div>
+            <div className="text-11 text-red-500 dark:text-red-400 leading-snug">{saveError}</div>
           )}
         </div>
       )}

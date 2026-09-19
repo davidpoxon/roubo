@@ -78,9 +78,9 @@ function unresolvedHeadline(resolution: Resolution): string {
   }
 }
 
-const FIELD_LABEL_CLASS = "block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1.5";
+const FIELD_LABEL_CLASS = "block text-12 font-medium text-stone-500 dark:text-stone-400 mb-1.5";
 const INPUT_CLASS =
-  "w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500";
+  "w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500";
 
 export default function ReplacementPicker({
   isOpen,
@@ -263,12 +263,12 @@ export default function ReplacementPicker({
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
               slot="title"
-              className="flex items-center gap-2 text-sm font-semibold text-stone-900 dark:text-stone-100"
+              className="flex items-center gap-2 text-16 font-semibold text-stone-900 dark:text-stone-100"
             >
-              <Replace size={15} className="text-amber-500" aria-hidden />
+              <Replace size={16} className="text-amber-500" aria-hidden />
               Supersede {originCaseId}
             </Heading>
-            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
               Choose the case that replaces it. Gate coverage transfers to your choice, followed
               transitively to the first live case.
             </p>
@@ -276,7 +276,7 @@ export default function ReplacementPicker({
 
           <div className="px-5 py-4 space-y-4">
             {isLoading && (
-              <div className="flex items-center gap-2 py-3 text-sm text-stone-500 dark:text-stone-400">
+              <div className="flex items-center gap-2 py-3 text-13 text-stone-500 dark:text-stone-400">
                 <Spinner />
                 Loading cases...
               </div>
@@ -285,7 +285,7 @@ export default function ReplacementPicker({
             {isError && (
               <div className="flex items-start gap-2 rounded-lg border border-red-300/60 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2">
                 <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" aria-hidden />
-                <p className="text-sm text-red-600 dark:text-red-400">
+                <p className="text-13 text-red-600 dark:text-red-400">
                   {error instanceof Error ? error.message : "Failed to load replacement cases"}
                 </p>
               </div>
@@ -309,7 +309,7 @@ export default function ReplacementPicker({
                   />
                   <p
                     data-testid="replacement-spec-hint"
-                    className="mt-1.5 text-xs text-stone-500 dark:text-stone-400"
+                    className="mt-1.5 text-12 text-stone-500 dark:text-stone-400"
                   >
                     {isOwnSpec
                       ? `Defaults to this case's own specification, ${originSlug}.`
@@ -355,7 +355,7 @@ export default function ReplacementPicker({
                   <p
                     data-testid="replacement-count"
                     aria-live="polite"
-                    className="mt-1.5 text-xs text-stone-500 dark:text-stone-400"
+                    className="mt-1.5 text-12 text-stone-500 dark:text-stone-400"
                   >
                     {hits.length} of {available.length} cases
                     {originArea !== null ? ", same area first" : ""}
@@ -379,7 +379,7 @@ export default function ReplacementPicker({
                     {rows.length === 0 ? (
                       <p
                         data-testid="replacement-empty"
-                        className="px-3 py-5 text-center text-sm text-stone-500 dark:text-stone-400"
+                        className="px-3 py-5 text-center text-13 text-stone-500 dark:text-stone-400"
                       >
                         {available.length === 0
                           ? "This specification has no other case to point at."
@@ -388,7 +388,7 @@ export default function ReplacementPicker({
                     ) : (
                       groups.map(([area, entries]) => (
                         <div key={area} role="group" aria-label={area}>
-                          <p className="sticky top-0 bg-stone-50 dark:bg-stone-800/70 px-3 py-1 font-mono text-[11px] uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                          <p className="sticky top-0 bg-stone-50 dark:bg-stone-800/70 px-3 py-1 font-mono text-11 uppercase tracking-label text-stone-500 dark:text-stone-400">
                             {area}
                             {area === originArea ? " · same area" : ""}
                           </p>
@@ -404,22 +404,22 @@ export default function ReplacementPicker({
                                 role="option"
                                 aria-selected={activeId === entry.id}
                                 onClick={() => setSelectedId(entry.id)}
-                                className={`flex cursor-default items-baseline gap-2 px-3 py-1.5 text-sm ${
+                                className={`flex cursor-default items-baseline gap-2 px-3 py-1.5 text-13 ${
                                   activeIndex === index
                                     ? "bg-amber-50 dark:bg-amber-950/30"
                                     : "hover:bg-stone-50 dark:hover:bg-stone-800/40"
                                 }`}
                               >
-                                <span className="shrink-0 font-mono text-[11px] text-stone-500 dark:text-stone-400">
+                                <span className="shrink-0 font-mono text-11 text-stone-500 dark:text-stone-400">
                                   {entry.id}
                                 </span>
                                 <span className="min-w-0 flex-1 truncate text-stone-700 dark:text-stone-300">
                                   {entry.title}
                                 </span>
-                                <span className="shrink-0 font-mono text-[11px] text-stone-500 dark:text-stone-400">
+                                <span className="shrink-0 font-mono text-11 text-stone-500 dark:text-stone-400">
                                   L{entry.level}
                                 </span>
-                                <span className="shrink-0 rounded-full bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 text-[10px] font-medium text-stone-600 dark:text-stone-300">
+                                <span className="shrink-0 rounded-full bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 text-11 font-medium text-stone-600 dark:text-stone-300">
                                   {state}
                                 </span>
                               </div>
@@ -437,7 +437,7 @@ export default function ReplacementPicker({
                 <div
                   data-testid="replacement-preview"
                   aria-live="polite"
-                  className="rounded-lg border border-stone-200 dark:border-stone-800/60 bg-stone-50 dark:bg-stone-800/40 px-3 py-2.5 text-xs text-stone-600 dark:text-stone-400"
+                  className="rounded-lg border border-stone-200 dark:border-stone-800/60 bg-stone-50 dark:bg-stone-800/40 px-3 py-2.5 text-12 text-stone-600 dark:text-stone-400"
                 >
                   {resolution === null ? (
                     <p>Select a replacement to see how it resolves.</p>
@@ -458,7 +458,7 @@ export default function ReplacementPicker({
                         </span>
                         .
                       </p>
-                      <p className="mt-1 font-mono text-[11px] text-stone-500 dark:text-stone-400">
+                      <p className="mt-1 font-mono text-11 text-stone-500 dark:text-stone-400">
                         {formatChain(resolution.chain, originSlug)}
                       </p>
                     </>
@@ -477,7 +477,7 @@ export default function ReplacementPicker({
                           case there instead.
                         </p>
                       )}
-                      <p className="mt-1 font-mono text-[11px] text-stone-500 dark:text-stone-400">
+                      <p className="mt-1 font-mono text-11 text-stone-500 dark:text-stone-400">
                         {formatChain(resolution.chain, originSlug)}
                       </p>
                     </>
@@ -491,7 +491,7 @@ export default function ReplacementPicker({
             <Button
               data-testid="replacement-cancel"
               onPress={handleClose}
-              className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
+              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
             >
               Cancel
             </Button>
@@ -499,7 +499,7 @@ export default function ReplacementPicker({
               data-testid="replacement-confirm"
               isDisabled={!canConfirm}
               onPress={handleConfirm}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
+              className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
             >
               Use this replacement
             </Button>

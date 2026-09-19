@@ -35,7 +35,7 @@ export default function BranchConflictDialog({
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
                 <Heading
                   slot="title"
-                  className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                 >
                   Branch already exists
                 </Heading>
@@ -45,16 +45,16 @@ export default function BranchConflictDialog({
                 <div className="flex items-start gap-3">
                   <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
                   <div className="space-y-2">
-                    <p className="text-sm text-stone-700 dark:text-stone-300">
+                    <p className="text-13 text-stone-700 dark:text-stone-300">
                       The branch{" "}
-                      <code className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-xs font-mono text-stone-800 dark:text-stone-200">
-                        <GitBranch size={11} />
+                      <code className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-12 font-mono text-stone-800 dark:text-stone-200">
+                        <GitBranch size={12} />
                         {conflict.branchName}
                       </code>{" "}
                       already exists in this repository.
                     </p>
                     {conflict.workspaceExists && (
-                      <p className="text-xs text-amber-400/80">
+                      <p className="text-12 text-amber-400/80">
                         A matching worktree also exists on disk. You may have an orphaned worktree
                         to clean up.
                       </p>
@@ -66,7 +66,7 @@ export default function BranchConflictDialog({
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                 <Button
                   onPress={close}
-                  className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
                 >
                   Cancel
                 </Button>
@@ -75,7 +75,7 @@ export default function BranchConflictDialog({
                     onCreateNew();
                     close();
                   }}
-                  className="px-4 py-1.5 text-sm font-medium text-stone-700 dark:text-stone-200 bg-stone-200 dark:bg-stone-700 hover:bg-stone-300 dark:hover:bg-stone-600 rounded-lg transition-colors outline-none"
+                  className="px-4 py-1.5 text-13 font-medium text-stone-700 dark:text-stone-200 bg-stone-200 dark:bg-stone-700 hover:bg-stone-300 dark:hover:bg-stone-600 rounded-lg transition-colors outline-none"
                 >
                   Create new branch
                 </Button>
@@ -84,7 +84,7 @@ export default function BranchConflictDialog({
                     onResume();
                     close();
                   }}
-                  className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-stone-600 hover:bg-stone-500 rounded-lg transition-colors outline-none"
+                  className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-stone-600 hover:bg-stone-500 rounded-lg transition-colors outline-none"
                 >
                   Resume existing
                 </Button>

@@ -88,7 +88,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
       {hasSentinelAuthor && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-13 text-amber-800"
         >
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>
@@ -101,14 +101,14 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
 
       <ol className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {notes.length === 0 ? (
-          <li className="text-sm text-stone-500 dark:text-stone-400">No notes yet.</li>
+          <li className="text-13 text-stone-500 dark:text-stone-400">No notes yet.</li>
         ) : (
           notes.map((note) => (
             <li
               key={note.id}
               className="rounded-lg px-2 py-1.5 transition-colors hover:bg-stone-50"
             >
-              <div className="flex items-center gap-2 font-mono text-xs text-text-muted">
+              <div className="flex items-center gap-2 font-mono text-12 text-text-muted">
                 <span
                   className={`inline-block h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[note.statusAtWrite]}`}
                   aria-hidden="true"
@@ -119,7 +119,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
                 <span aria-hidden="true">·</span>
                 <span>{STATUS_LABEL[note.statusAtWrite]}</span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-stone-700">{note.text}</p>
+              <p className="mt-1 whitespace-pre-wrap text-13 text-stone-700">{note.text}</p>
             </li>
           ))
         )}
@@ -138,18 +138,18 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
         }}
       >
         <TextField value={text} onChange={setText} className="flex flex-col gap-1">
-          <Label className="text-xs font-medium text-stone-600">Add a note</Label>
+          <Label className="text-12 font-medium text-stone-600">Add a note</Label>
           <TextArea
             ref={textAreaRef}
             rows={3}
             placeholder="Append an immutable note"
             // ring-inset draws the focus ring inside the field's box, so a
             // clipping ancestor never shaves the left/right edges off it (#508).
-            className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-500 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:ring-inset"
+            className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-13 text-stone-900 placeholder-stone-500 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:ring-inset"
           />
         </TextField>
         {submitError && (
-          <p role="alert" className="text-xs text-red-600">
+          <p role="alert" className="text-12 text-red-600">
             {submitError}
           </p>
         )}
@@ -157,7 +157,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
           <Button
             type="submit"
             isDisabled={!canSubmit}
-            className="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-stone-950 outline-none transition-colors not-disabled:hover:bg-amber-400 not-disabled:active:bg-amber-600 disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            className="rounded-md bg-amber-500 px-3 py-1.5 text-13 font-medium text-stone-950 outline-none transition-colors not-disabled:hover:bg-amber-400 not-disabled:active:bg-amber-600 disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
           >
             {append.isPending ? "Adding…" : "Add note"}
           </Button>

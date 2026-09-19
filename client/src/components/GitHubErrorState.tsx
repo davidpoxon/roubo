@@ -181,7 +181,7 @@ export default function GitHubErrorState({
     onRetry && (copy.showSecondaryRetry || !primaryAction) ? (
       <Button
         onPress={onRetry}
-        className="text-xs text-text-muted hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors"
+        className="text-12 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors"
       >
         Retry
       </Button>
@@ -197,8 +197,8 @@ export default function GitHubErrorState({
         ].join(" ")}
       >
         <div className="min-w-0">
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">{copy.title}</p>
-          <p className="text-xs text-amber-700/80 dark:text-amber-400/70 mt-0.5 leading-relaxed">
+          <p className="text-12 font-medium text-amber-700 dark:text-amber-400">{copy.title}</p>
+          <p className="text-12 text-amber-700/80 dark:text-amber-400/70 mt-0.5 leading-relaxed">
             {copy.description}
           </p>
         </div>
@@ -212,8 +212,8 @@ export default function GitHubErrorState({
 
   return (
     <div className={className}>
-      <p className="text-xs text-stone-500 dark:text-stone-500 mb-1">{copy.title}</p>
-      <p className="text-xs text-stone-500 dark:text-stone-400 mb-2 leading-relaxed">
+      <p className="text-12 text-stone-500 dark:text-stone-500 mb-1">{copy.title}</p>
+      <p className="text-12 text-stone-500 dark:text-stone-400 mb-2 leading-relaxed">
         {copy.description}
       </p>
       <div className="flex items-center gap-2">
@@ -225,7 +225,7 @@ export default function GitHubErrorState({
 }
 
 const primaryActionClass = [
-  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors outline-none no-underline shrink-0",
+  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-12 font-medium transition-colors outline-none no-underline shrink-0",
   "bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950",
   "focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950",
 ].join(" ");

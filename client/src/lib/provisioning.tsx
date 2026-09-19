@@ -5,7 +5,7 @@ export const stepIcon: Record<ProvisioningStepStatus, React.ReactNode> = {
   done: <Check size={12} className="text-green-500" />,
   running: <Loader2 size={12} className="text-amber-500 animate-spin" />,
   error: <X size={12} className="text-red-500" />,
-  pending: <Circle size={10} className="text-stone-500 dark:text-stone-400" />,
+  pending: <Circle size={12} className="text-stone-500 dark:text-stone-400" />,
   cancelled: <X size={12} className="text-text-muted" />,
 };
 
@@ -18,10 +18,10 @@ export const stepTextColor: Record<ProvisioningStepStatus, string> = {
 };
 
 export const phaseIcon: Record<ComponentPhaseStatus, React.ReactNode> = {
-  done: <Check size={10} className="text-green-500" />,
-  running: <Loader2 size={10} className="text-amber-500 animate-spin" />,
-  error: <X size={10} className="text-red-500" />,
-  pending: <Circle size={8} className="text-stone-500 dark:text-stone-400" />,
+  done: <Check size={12} className="text-green-500" />,
+  running: <Loader2 size={12} className="text-amber-500 animate-spin" />,
+  error: <X size={12} className="text-red-500" />,
+  pending: <Circle size={12} className="text-stone-500 dark:text-stone-400" />,
 };
 
 export const phaseTextColor: Record<ComponentPhaseStatus, string> = {

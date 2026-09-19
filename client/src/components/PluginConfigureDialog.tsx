@@ -637,12 +637,12 @@ function ConfigureFlow(props: ConfigureFlowProps) {
       >
         <Heading
           slot="title"
-          className="flex-1 min-w-0 text-sm font-semibold text-stone-900 dark:text-stone-100"
+          className="flex-1 min-w-0 text-16 font-semibold text-stone-900 dark:text-stone-100"
         >
           {STRINGS.titlePrefix}
           {manifest?.name ?? plugin.id}
           {mode === "global" && (
-            <span className="ml-2 text-[11px] font-normal text-stone-500 dark:text-stone-400">
+            <span className="ml-2 text-11 font-normal text-stone-500 dark:text-stone-400">
               {STRINGS.globalSuffix}
             </span>
           )}
@@ -679,14 +679,14 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 
             {showIntegrationFields && (
               <div className="flex flex-col gap-4" data-testid="integration-fields-section">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
                   {STRINGS.integrationFieldsHeading}
                 </span>
                 <TextField
                   value={fields.repo ?? ""}
                   onChange={(v) => setFields({ ...fields, repo: v })}
                 >
-                  <Label className="block text-xs text-text-muted mb-1.5">
+                  <Label className="block text-12 text-text-muted mb-1.5">
                     {STRINGS.repositoryLabel}
                   </Label>
                   <Input placeholder={STRINGS.repositoryPlaceholder} className={INPUT} />
@@ -715,16 +715,16 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             {showStatusExclusion && (
               <div className="flex flex-col gap-2.5" data-testid="status-exclusion-section">
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
                     {STRINGS.statusExclusionHeading}
                   </span>
-                  <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed mt-1">
+                  <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed mt-1">
                     {STRINGS.statusExclusionHelp}
                   </p>
                   {statusCategoriesQuery.data?.supported === false && (
                     <p
                       data-testid="status-name-fallback-note"
-                      className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed mt-1"
+                      className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed mt-1"
                     >
                       {STRINGS.statusNameFallbackNote}
                     </p>
@@ -752,13 +752,13 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                                 : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
                             }`}
                           >
-                            {isSelected && <Check size={10} className="text-stone-100" />}
+                            {isSelected && <Check size={12} className="text-stone-100" />}
                           </div>
-                          <span className="text-sm text-stone-700 dark:text-stone-300">
+                          <span className="text-13 text-stone-700 dark:text-stone-300">
                             {category}
                           </span>
                           {actionable && (
-                            <span className="text-[11px] text-stone-500 dark:text-stone-400">
+                            <span className="text-11 text-stone-500 dark:text-stone-400">
                               {STRINGS.statusActionableHint}
                             </span>
                           )}
@@ -772,11 +772,11 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 
             {showStatusMappingNote && (
               <div className="flex flex-col gap-1" data-testid="status-mapping-note-section">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
                   {STRINGS.statusExclusionHeading}
                 </span>
                 <p
-                  className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed mt-1"
+                  className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed mt-1"
                   data-testid="status-mapping-note"
                 >
                   {STRINGS.statusMappingNote}
@@ -787,7 +787,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
         )}
 
         {submitError && (
-          <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
+          <p role="alert" className="text-12 text-red-500 dark:text-red-400">
             {submitError}
           </p>
         )}
@@ -799,7 +799,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             isDisabled={isBusy}
             onPress={() => void runTest(values)}
             data-testid="test-connection"
-            className="px-2.5 py-1 text-[11px] font-medium rounded-md text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="px-2.5 py-1 text-11 font-medium rounded-md text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
             {testMutation.isPending ? STRINGS.verifying : STRINGS.verify}
           </Button>
@@ -810,7 +810,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
           <Button
             isDisabled={isBusy}
             onPress={close}
-            className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
             {STRINGS.cancel}
           </Button>
@@ -818,7 +818,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             isDisabled={!showForm || isBusy}
             onPress={() => void handleSave()}
             data-testid="save-config"
-            className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+            className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
             {saveMutation.isPending || saveFieldsPending || saveSourcesMutation.isPending
               ? STRINGS.saving
@@ -898,8 +898,8 @@ export function CategoryRow({ category }: { category: IntegrationCategoryReport 
       break;
   }
   return (
-    <li data-testid={testId} className="flex items-start gap-2 text-[12px] leading-snug">
-      <Icon size={13} className={`${iconClass} ${iconColor} mt-0.5`} />
+    <li data-testid={testId} className="flex items-start gap-2 text-12 leading-snug">
+      <Icon size={14} className={`${iconClass} ${iconColor} mt-0.5`} />
       <div className="min-w-0 flex-1">
         <p className={textColor}>
           <span className="font-medium">{category.label}</span>
@@ -907,7 +907,7 @@ export function CategoryRow({ category }: { category: IntegrationCategoryReport 
           <span>{STATUS_TEXT[category.status]}</span>
         </p>
         {category.detail && (
-          <p className="text-[11px] text-stone-500 dark:text-stone-500 mt-0.5">{category.detail}</p>
+          <p className="text-11 text-stone-500 dark:text-stone-500 mt-0.5">{category.detail}</p>
         )}
       </div>
     </li>
@@ -932,7 +932,7 @@ function ResultStrip({
         className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40"
       >
         <Loader2 size={14} className="animate-spin text-text-muted" />
-        <p className="text-[12px] text-stone-600 dark:text-stone-400">{STRINGS.testing}</p>
+        <p className="text-12 text-stone-600 dark:text-stone-400">{STRINGS.testing}</p>
       </div>
     );
   }
@@ -948,7 +948,7 @@ function ResultStrip({
           className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20"
         >
           <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-          <p className="text-[12px] text-green-800 dark:text-green-300">
+          <p className="text-12 text-green-800 dark:text-green-300">
             {STRINGS.connectedAs(result.identity.displayName)}
           </p>
         </div>
@@ -963,7 +963,7 @@ function ResultStrip({
       >
         <div className="flex items-center gap-2.5">
           <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-          <p className="text-[12px] text-green-800 dark:text-green-300">
+          <p className="text-12 text-green-800 dark:text-green-300">
             {STRINGS.connectedAs(result.identity.displayName)}
           </p>
         </div>
@@ -985,14 +985,14 @@ function ResultStrip({
     >
       <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
       <div className="min-w-0 flex-1 space-y-2">
-        <p className="text-[12px] text-red-800 dark:text-red-300 leading-relaxed">
+        <p className="text-12 text-red-800 dark:text-red-300 leading-relaxed">
           {result.error.message}
         </p>
         {isTls && tlsFieldKey && (
           <Button
             onPress={onEnableTls}
             data-testid="enable-self-signed-tls"
-            className="px-2.5 py-1 text-[11px] font-medium rounded-md border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="px-2.5 py-1 text-11 font-medium rounded-md border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
             {STRINGS.enableSelfSignedTls}
           </Button>
@@ -1057,18 +1057,18 @@ function GithubOauthSection({
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-500">
+          <p className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-500">
             {STRINGS.githubAccountHeading}
           </p>
           {connected ? (
-            <p className="text-[12px] text-stone-700 dark:text-stone-300 mt-1">
+            <p className="text-12 text-stone-700 dark:text-stone-300 mt-1">
               {STRINGS.connectedAsPrefix}
               <span className="font-mono text-stone-900 dark:text-stone-100">
                 {accountLogin ?? STRINGS.connectedAccountFallback}
               </span>
             </p>
           ) : (
-            <p className="text-[12px] text-stone-500 dark:text-stone-500 mt-1 leading-relaxed">
+            <p className="text-12 text-stone-500 dark:text-stone-500 mt-1 leading-relaxed">
               {STRINGS.connectPrompt}
             </p>
           )}
@@ -1078,7 +1078,7 @@ function GithubOauthSection({
             isDisabled={disconnecting}
             onPress={() => void handleDisconnect()}
             data-testid="github-disconnect"
-            className="inline-flex items-center px-2 py-1 text-[11px] font-medium rounded-md text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
+            className="inline-flex items-center px-2 py-1 text-11 font-medium rounded-md text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
           >
             {disconnecting ? STRINGS.disconnecting : STRINGS.disconnect}
           </Button>
@@ -1087,7 +1087,7 @@ function GithubOauthSection({
             isDisabled={pending}
             onPress={() => void handleConnect()}
             data-testid="github-connect"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-amber-500 bg-amber-500 text-stone-950 hover:bg-amber-400 hover:border-amber-400 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-md border border-amber-500 bg-amber-500 text-stone-950 hover:bg-amber-400 hover:border-amber-400 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
           >
             {pending ? (
               <Loader2 size={12} className="animate-spin" />
@@ -1099,12 +1099,12 @@ function GithubOauthSection({
         )}
       </div>
       {error && (
-        <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
+        <p role="alert" className="text-12 text-red-500 dark:text-red-400">
           {error}
         </p>
       )}
       {!connected && (
-        <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
           {STRINGS.postOauthHintPrefix}
           <span className="font-medium">{STRINGS.postOauthHintCta}</span>
           {STRINGS.postOauthHintSuffix}
@@ -1127,7 +1127,7 @@ function SourcePickerSection({
 }) {
   if (query.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400">
+      <div className="flex items-center gap-2 text-11 text-stone-500 dark:text-stone-400">
         <Spinner />
         {STRINGS.sourcesLoading}
       </div>
@@ -1135,7 +1135,7 @@ function SourcePickerSection({
   }
   if (!query.data) {
     return (
-      <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed">
+      <p className="text-11 text-amber-600 dark:text-amber-500 leading-relaxed">
         {STRINGS.sourcesError}
       </p>
     );
@@ -1157,14 +1157,14 @@ function DerivedSourcesPreview({
 
   if (trimmedRepo.length === 0) {
     return (
-      <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+      <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
         {STRINGS.derivedSourcesNoRepo}
       </p>
     );
   }
   if (query.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400">
+      <div className="flex items-center gap-2 text-11 text-stone-500 dark:text-stone-400">
         <Spinner />
         {STRINGS.derivedSourcesLoading}
       </div>
@@ -1190,7 +1190,7 @@ function DerivedSourcesPreview({
     // Other failures don't block saving; the soft warning sets expectations
     // rather than gating.
     return (
-      <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed">
+      <p className="text-11 text-amber-600 dark:text-amber-500 leading-relaxed">
         {STRINGS.derivedSourcesUnknown}
       </p>
     );
@@ -1200,7 +1200,7 @@ function DerivedSourcesPreview({
   if (repos.length === 0) {
     return (
       <p
-        className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed"
+        className="text-11 text-amber-600 dark:text-amber-500 leading-relaxed"
         data-testid="derived-sources-preview"
       >
         {STRINGS.derivedSourcesNoRepos}
@@ -1215,7 +1215,7 @@ function DerivedSourcesPreview({
 
   return (
     <p
-      className="text-[11px] text-stone-500 dark:text-stone-500 leading-relaxed"
+      className="text-11 text-stone-500 dark:text-stone-500 leading-relaxed"
       data-testid="derived-sources-preview"
     >
       {STRINGS.derivedSourcesPrefix}

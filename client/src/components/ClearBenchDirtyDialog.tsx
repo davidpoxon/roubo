@@ -57,7 +57,7 @@ export default function ClearBenchDirtyDialog({
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
                 <Heading
                   slot="title"
-                  className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                 >
                   Clear Bench {benchId}: uncommitted work detected
                 </Heading>
@@ -66,7 +66,7 @@ export default function ClearBenchDirtyDialog({
               <div className="px-5 py-4 space-y-4">
                 <div className="flex items-start gap-3">
                   <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-stone-700 dark:text-stone-300">
+                  <p className="text-13 text-stone-700 dark:text-stone-300">
                     This bench has work that isn&apos;t committed or pushed. Clearing it now will
                     permanently discard:
                   </p>
@@ -74,16 +74,16 @@ export default function ClearBenchDirtyDialog({
 
                 {workspaceReasons.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide">
+                    <p className="text-11 font-medium text-stone-500 dark:text-stone-400 uppercase tracking-label">
                       Workspace
                     </p>
                     {workspaceReasons.map((r) => (
                       <div
                         key={`${r.kind}-workspace`}
-                        className="text-sm text-stone-700 dark:text-stone-300"
+                        className="text-13 text-stone-700 dark:text-stone-300"
                       >
                         {KIND_LABEL[r.kind]}{" "}
-                        <span className="font-mono text-xs text-stone-500 dark:text-stone-400">
+                        <span className="font-mono text-12 text-stone-500 dark:text-stone-400">
                           {r.detail}
                         </span>
                       </div>
@@ -93,16 +93,16 @@ export default function ClearBenchDirtyDialog({
 
                 {Array.from(submoduleGroups.entries()).map(([location, locationReasons]) => (
                   <div key={location} className="space-y-1.5">
-                    <p className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide font-mono">
+                    <p className="text-11 font-medium text-stone-500 dark:text-stone-400 uppercase tracking-label font-mono">
                       {location}
                     </p>
                     {locationReasons.map((r) => (
                       <div
                         key={`${r.kind}-${location}`}
-                        className="text-sm text-stone-700 dark:text-stone-300"
+                        className="text-13 text-stone-700 dark:text-stone-300"
                       >
                         {KIND_LABEL[r.kind]}{" "}
-                        <span className="font-mono text-xs text-stone-500 dark:text-stone-400">
+                        <span className="font-mono text-12 text-stone-500 dark:text-stone-400">
                           {r.detail}
                         </span>
                       </div>
@@ -113,7 +113,7 @@ export default function ClearBenchDirtyDialog({
 
               {forceError && (
                 <div className="px-5 pb-3">
-                  <p className="text-sm text-red-400">{forceError}</p>
+                  <p className="text-13 text-red-400">{forceError}</p>
                 </div>
               )}
 
@@ -121,14 +121,14 @@ export default function ClearBenchDirtyDialog({
                 <Button
                   isDisabled={isPending}
                   onPress={close}
-                  className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none"
+                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none"
                 >
                   Cancel
                 </Button>
                 <Button
                   isDisabled={isPending}
                   onPress={onConfirmForce}
-                  className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none"
+                  className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none"
                 >
                   Clear anyway
                 </Button>

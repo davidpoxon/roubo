@@ -101,7 +101,7 @@ interface Props {
 
 function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between text-[12.5px]">
+    <div className="flex items-center justify-between text-12">
       <dt className="text-stone-500 dark:text-stone-400">{label}</dt>
       <dd className="text-stone-700 dark:text-stone-200">{children}</dd>
     </div>
@@ -149,7 +149,7 @@ export default function MarketplaceDrawer({
           <div className="sticky top-0 flex h-14 items-center justify-between border-b border-stone-200 dark:border-stone-800 bg-white/90 dark:bg-stone-900/90 px-5 backdrop-blur">
             <Heading
               slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
             >
               {STRINGS.title}
             </Heading>
@@ -166,19 +166,19 @@ export default function MarketplaceDrawer({
           <div className="p-5">
             <div className="flex items-start gap-3">
               <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-                <Package size={22} aria-hidden />
+                <Package size={16} aria-hidden />
               </div>
               <div className="min-w-0">
-                <h3 className="text-[16px] font-semibold text-stone-900 dark:text-stone-100">
+                <h3 className="text-16 font-semibold text-stone-900 dark:text-stone-100">
                   {listing.name}
                 </h3>
-                <p className="mt-0.5 font-mono text-[11px] text-stone-500 dark:text-stone-400">
+                <p className="mt-0.5 font-mono text-11 text-stone-500 dark:text-stone-400">
                   {listing.id} · v{listing.version}
                 </p>
               </div>
             </div>
 
-            <p className="mt-4 text-[13px] leading-relaxed text-stone-600 dark:text-stone-400">
+            <p className="mt-4 text-13 leading-relaxed text-stone-600 dark:text-stone-400">
               {listing.summary}
             </p>
 
@@ -262,11 +262,11 @@ export default function MarketplaceDrawer({
 
             {declaredPermissions !== null && (
               <div className="mt-6" data-testid="marketplace-drawer-permissions">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
+                <p className="text-11 font-medium uppercase tracking-label text-stone-500 dark:text-stone-400">
                   {STRINGS.permissionsHeading}
                 </p>
                 {permissionCategories.length === 0 ? (
-                  <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+                  <p className="mt-2 text-12 text-stone-500 dark:text-stone-400">
                     {STRINGS.noPermissions}
                   </p>
                 ) : (
@@ -281,15 +281,15 @@ export default function MarketplaceDrawer({
                           className="flex items-start gap-2.5 rounded-lg border border-stone-200 dark:border-stone-800 px-3 py-2"
                         >
                           <Icon
-                            size={15}
+                            size={14}
                             aria-hidden
                             className="shrink-0 mt-0.5 text-stone-500 dark:text-stone-400"
                           />
                           <div className="min-w-0">
-                            <p className="text-[13px] font-medium text-stone-900 dark:text-stone-100">
+                            <p className="text-13 font-medium text-stone-900 dark:text-stone-100">
                               {meta.label}
                             </p>
-                            <p className="text-xs text-stone-500 dark:text-stone-400 break-words">
+                            <p className="text-12 text-stone-500 dark:text-stone-400 break-words">
                               {meta.describe(declaredPermissions)}
                             </p>
                           </div>
@@ -305,14 +305,14 @@ export default function MarketplaceDrawer({
               {showInstalled ? (
                 <span
                   data-testid="marketplace-drawer-installed"
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 px-3 py-2 text-[13px] font-medium text-green-800 dark:text-green-300"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 px-3 py-2 text-13 font-medium text-green-800 dark:text-green-300"
                 >
                   <Check size={16} /> {STRINGS.installed}
                 </span>
               ) : incompatibility !== null ? (
                 <span
                   data-testid="marketplace-drawer-incompatible-action"
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] font-medium text-red-800 dark:text-red-300"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 font-medium text-red-800 dark:text-red-300"
                 >
                   <AlertTriangle size={16} aria-hidden /> {STRINGS.incompatibleAction}
                 </span>
@@ -320,7 +320,7 @@ export default function MarketplaceDrawer({
                 <Button
                   data-testid="marketplace-drawer-update"
                   onPress={() => onUpdate(listing)}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-[13px] font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-13 font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                 >
                   <RefreshCw size={16} /> {STRINGS.update}
                 </Button>
@@ -328,7 +328,7 @@ export default function MarketplaceDrawer({
                 <Button
                   data-testid="marketplace-drawer-install"
                   onPress={() => onInstall(listing)}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-[13px] font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-13 font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                 >
                   <Download size={16} /> {STRINGS.install}
                 </Button>

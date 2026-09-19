@@ -27,7 +27,7 @@ function IssueRow({
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-mono text-stone-500 dark:text-stone-400 shrink-0">
+          <span className="text-12 font-mono text-stone-500 dark:text-stone-400 shrink-0">
             {issue.externalId}
           </span>
           {securityCategory && typeChip && (
@@ -44,25 +44,25 @@ function IssueRow({
               {typeChip.label}
             </IssueChip>
           )}
-          <span className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
+          <span className="text-13 font-medium text-stone-800 dark:text-stone-200 truncate">
             {issue.title}
           </span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {issue.issueType && !securityCategory && (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-11 font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
               {issue.issueType}
             </span>
           )}
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-11 font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
             {issue.currentState}
           </span>
           {issue.labels.map((label) => (
             <span
               key={label}
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-11 font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
             >
-              <Tag size={7} />
+              <Tag size={12} />
               {label}
             </span>
           ))}
@@ -70,9 +70,9 @@ function IssueRow({
         {isBlocked && (
           <div
             data-testid="blocked-banner"
-            className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+            className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded text-11 font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
           >
-            <Lock size={9} />
+            <Lock size={12} />
             Blocked by {blockers.join(", ")}
           </div>
         )}
@@ -84,7 +84,7 @@ function IssueRow({
         onPointerDown={(e) => e.stopPropagation()}
         className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
       >
-        <ExternalLink size={11} />
+        <ExternalLink size={12} />
       </a>
     </Button>
   );
@@ -191,7 +191,7 @@ export default function IssuePickerModal({
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
                 <Heading
                   slot="title"
-                  className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                 >
                   Pick an issue
                 </Heading>
@@ -201,7 +201,7 @@ export default function IssuePickerModal({
                 {stalled && (
                   <div
                     data-testid="stalled-note"
-                    className="m-3 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-[11px] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+                    className="m-3 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-11 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
                   >
                     Plugin paging appears stuck. Try a refresh.
                   </div>
@@ -211,7 +211,7 @@ export default function IssuePickerModal({
                   <div
                     role="status"
                     data-testid="walk-truncated-note"
-                    className="m-3 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-[11px] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+                    className="m-3 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-11 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
                   >
                     {walkTruncated}
                   </div>
@@ -220,13 +220,13 @@ export default function IssuePickerModal({
                 {isLoading && (
                   <div className="flex items-center justify-center py-12">
                     <Spinner />
-                    <span className="ml-2 text-xs text-stone-600">Loading...</span>
+                    <span className="ml-2 text-12 text-stone-600">Loading...</span>
                   </div>
                 )}
 
                 {!isLoading && error && (
                   <div className="flex items-center justify-center py-12">
-                    <p className="text-sm text-stone-500 dark:text-stone-400">
+                    <p className="text-13 text-stone-500 dark:text-stone-400">
                       Could not load issues.
                     </p>
                   </div>
@@ -240,7 +240,7 @@ export default function IssuePickerModal({
                       ))
                     ) : (
                       <div className="flex items-center justify-center py-12">
-                        <p className="text-sm text-stone-500 dark:text-stone-400">No open issues</p>
+                        <p className="text-13 text-stone-500 dark:text-stone-400">No open issues</p>
                       </div>
                     )}
                   </div>
@@ -261,14 +261,14 @@ export default function IssuePickerModal({
                     onPress={goPrev}
                     isDisabled={!hasPrev}
                     aria-label="Previous page"
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
                   >
-                    <ChevronLeft size={13} />
+                    <ChevronLeft size={14} />
                     Prev
                   </Button>
                   <span
                     data-testid="picker-page-indicator"
-                    className="text-[11px] font-mono text-stone-500 dark:text-stone-400 whitespace-nowrap"
+                    className="text-11 font-mono text-stone-500 dark:text-stone-400 whitespace-nowrap"
                   >
                     Page {pageNumber} &middot; {items.length} item{items.length === 1 ? "" : "s"}
                   </span>
@@ -276,10 +276,10 @@ export default function IssuePickerModal({
                     onPress={goNext}
                     isDisabled={!hasNext}
                     aria-label="Next page"
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
                   >
                     Next
-                    <ChevronRight size={13} />
+                    <ChevronRight size={14} />
                   </Button>
                 </div>
               )}

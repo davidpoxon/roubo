@@ -24,7 +24,7 @@ const PRESET_KEY_PREFIX = "preset:";
 const AGENT_KEY_PREFIX = "agent:";
 
 const SECTION_HEADER_CLASS =
-  "px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400 font-semibold";
+  "px-2.5 pt-1.5 pb-1 text-11 uppercase tracking-label text-stone-500 dark:text-stone-400 font-semibold";
 
 const ITEM_CLASS = (isFocused: boolean, isDisabled: boolean) =>
   [
@@ -83,30 +83,30 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
       <span
         className={`w-1.5 h-1.5 rounded-full shrink-0 ${agentDotClass(target.agentPluginId)}`}
       />
-      <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate">
+      <span className="text-12 font-medium text-stone-700 dark:text-stone-300 truncate">
         {preset.name}
       </span>
       {blocked ? (
         <span
           title={blocked.message}
-          className="ml-auto flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-500 shrink-0"
+          className="ml-auto flex items-center gap-1 text-11 text-amber-600 dark:text-amber-500 shrink-0"
         >
-          <AlertTriangle size={10} />
+          <AlertTriangle size={12} />
           {blocked.label}
         </span>
       ) : degraded ? (
         <span
           title={degraded.message}
           data-testid="preset-degraded-notice"
-          className="ml-auto flex items-center gap-1 text-[10px] text-stone-500 dark:text-stone-400 shrink-0"
+          className="ml-auto flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400 shrink-0"
         >
-          <Info size={10} />
+          <Info size={12} />
           drops {degraded.droppedParams.join(", ")}
         </span>
       ) : (
         <span
           data-testid="launch-preset-summary"
-          className="ml-auto text-[10px] font-mono text-stone-500 dark:text-stone-400 truncate"
+          className="ml-auto text-11 font-mono text-stone-500 dark:text-stone-400 truncate"
         >
           {presetSummary(preset, target)}
         </span>
@@ -127,19 +127,19 @@ function AgentItem({ agent }: { agent: ProjectAgentState }) {
       className={({ isFocused, isDisabled }) => ITEM_CLASS(isFocused, isDisabled)}
     >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${agentDotClass(agent.id)}`} />
-      <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate">
+      <span className="text-12 font-medium text-stone-700 dark:text-stone-300 truncate">
         {agent.name}
       </span>
       {blocked ? (
         <span
           title={blocked.message}
-          className="ml-auto flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-500 shrink-0"
+          className="ml-auto flex items-center gap-1 text-11 text-amber-600 dark:text-amber-500 shrink-0"
         >
-          <AlertTriangle size={10} />
+          <AlertTriangle size={12} />
           {blocked.label}
         </span>
       ) : (
-        <span className="ml-auto text-[10px] font-mono text-stone-500 dark:text-stone-400 truncate">
+        <span className="ml-auto text-11 font-mono text-stone-500 dark:text-stone-400 truncate">
           {describeEffectiveParams(agent.effective)}
         </span>
       )}
@@ -234,7 +234,7 @@ export default function AgentLaunchMenu({
           className={({ isFocused, isDisabled }) => ITEM_CLASS(isFocused, isDisabled)}
         >
           <SlidersHorizontal size={12} className="text-stone-500 dark:text-stone-400 shrink-0" />
-          <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
+          <span className="text-12 font-medium text-stone-700 dark:text-stone-300">
             Launch with overrides&hellip;
           </span>
         </MenuItem>

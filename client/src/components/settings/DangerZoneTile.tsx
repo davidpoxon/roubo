@@ -87,16 +87,16 @@ export default function DangerZoneTile({ projectId }: Props) {
         className="rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50/50 dark:bg-red-950/10 p-5 flex items-center justify-between gap-4"
       >
         <div>
-          <div className="text-[13px] font-medium text-stone-800 dark:text-stone-200">
+          <div className="text-13 font-medium text-stone-800 dark:text-stone-200">
             Unregister project
           </div>
-          <div className="text-[11px] text-text-muted mt-0.5">
+          <div className="text-11 text-text-muted mt-0.5">
             Removes from Roubo. Does not touch the repository, benches, or git state.
           </div>
         </div>
         <Button
           onPress={() => setIsOpen(true)}
-          className="shrink-0 px-3 py-1.5 rounded-md text-[12px] font-medium text-red-700 dark:text-red-300 border border-red-300 dark:border-red-900/60 hover:bg-red-100/60 dark:hover:bg-red-900/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
+          className="shrink-0 px-3 py-1.5 rounded-md text-12 font-medium text-red-700 dark:text-red-300 border border-red-300 dark:border-red-900/60 hover:bg-red-100/60 dark:hover:bg-red-900/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
         >
           Unregister
         </Button>
@@ -120,20 +120,20 @@ export default function DangerZoneTile({ projectId }: Props) {
                 <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
                   <Heading
                     slot="title"
-                    className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                    className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                   >
                     Unregister {displayName}?
                   </Heading>
                 </div>
                 <div className="px-5 py-4 space-y-4">
                   <div>
-                    <p className="text-sm text-stone-700 dark:text-stone-300 mb-2">
+                    <p className="text-13 text-stone-700 dark:text-stone-300 mb-2">
                       This only removes the project from Roubo. The following will not be touched:
                     </p>
-                    <ul className="list-disc pl-5 space-y-1 text-sm text-stone-600 dark:text-stone-400">
+                    <ul className="list-disc pl-5 space-y-1 text-13 text-stone-600 dark:text-stone-400">
                       <li>
                         Repository at{" "}
-                        <code className="font-mono text-xs bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded">
+                        <code className="font-mono text-12 bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded">
                           {project.repoPath}
                         </code>
                       </li>
@@ -145,7 +145,7 @@ export default function DangerZoneTile({ projectId }: Props) {
                   {benchCount > 0 && !needsForce && (
                     <div className="flex items-start gap-3">
                       <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-stone-700 dark:text-stone-300">
+                      <p className="text-13 text-stone-700 dark:text-stone-300">
                         {benchCount} registered bench
                         {benchCount === 1 ? "" : "es"} will stop being monitored; clear them first
                         if you want Roubo to clean them up.
@@ -158,7 +158,7 @@ export default function DangerZoneTile({ projectId }: Props) {
                       className="flex items-start gap-3 rounded-md border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2"
                     >
                       <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-stone-700 dark:text-stone-300">
+                      <p className="text-13 text-stone-700 dark:text-stone-300">
                         This project&apos;s configuration can&apos;t be loaded. Forcing unregister
                         will drop {benchCount} tracked bench{benchCount === 1 ? "" : "es"} from
                         Roubo&apos;s state but leave any worktree files on disk alone.
@@ -171,7 +171,7 @@ export default function DangerZoneTile({ projectId }: Props) {
                       className="flex items-start gap-3 rounded-md border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2"
                     >
                       <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-stone-700 dark:text-stone-300">
+                      <p className="text-13 text-stone-700 dark:text-stone-300">
                         Roubo still has {persistedBenchCount} persisted bench record
                         {persistedBenchCount === 1 ? "" : "s"} for this project that the Benches
                         view is not showing. Remove {persistedBenchCount === 1 ? "it" : "them"} and
@@ -180,7 +180,7 @@ export default function DangerZoneTile({ projectId }: Props) {
                     </div>
                   )}
                   <TextField value={typedName} onChange={setTypedName}>
-                    <Label className="block text-xs text-text-muted mb-1.5">
+                    <Label className="block text-12 text-text-muted mb-1.5">
                       Type{" "}
                       <span className="font-semibold text-stone-700 dark:text-stone-300">
                         {displayName}
@@ -194,14 +194,14 @@ export default function DangerZoneTile({ projectId }: Props) {
                   <Button
                     isDisabled={unregister.isPending}
                     onPress={close}
-                    className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-stone-400 cursor-pointer"
+                    className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-stone-400 cursor-pointer"
                   >
                     Cancel
                   </Button>
                   <Button
                     isDisabled={!canConfirm}
                     onPress={() => handleConfirm(needsForce || persistedBenchCount !== null)}
-                    className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 not-disabled:hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
+                    className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 not-disabled:hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
                   >
                     {unregister.isPending
                       ? "Unregistering…"

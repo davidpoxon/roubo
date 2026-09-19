@@ -5,6 +5,6 @@ export function filePathItems(paths: string[]): SelectItem[] {
   return paths.map((path) => ({
     value: path,
     label: path,
-    renderLabel: <FilePathLabel path={path} className="text-[14px]" />,
+    renderLabel: <FilePathLabel path={path} className="text-13" />,
   }));
 }

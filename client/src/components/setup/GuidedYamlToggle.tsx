@@ -20,7 +20,7 @@ export default function GuidedYamlToggle({ mode, onChange }: Props) {
       <Radio
         value="guided"
         className={({ isSelected }) =>
-          `px-3 py-1.5 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-amber-400 ${
+          `px-3 py-1.5 rounded-md text-12 font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-amber-400 ${
             isSelected
               ? "bg-stone-200 text-stone-900 dark:bg-stone-800 dark:text-stone-100"
               : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
@@ -34,7 +34,7 @@ export default function GuidedYamlToggle({ mode, onChange }: Props) {
       <Radio
         value="yaml"
         className={({ isSelected }) =>
-          `px-3 py-1.5 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-amber-400 ${
+          `px-3 py-1.5 rounded-md text-12 font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-amber-400 ${
             isSelected
               ? "bg-stone-200 text-stone-900 dark:bg-stone-800 dark:text-stone-100"
               : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
@@ -43,7 +43,7 @@ export default function GuidedYamlToggle({ mode, onChange }: Props) {
       >
         <Code size={12} />
         YAML
-        <span className="text-[9px] text-stone-600 dark:text-stone-400 font-mono px-1 py-px rounded bg-stone-100 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800">
+        <span className="text-11 text-stone-600 dark:text-stone-400 font-mono px-1 py-px rounded bg-stone-100 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800">
           advanced
         </span>
       </Radio>

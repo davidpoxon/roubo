@@ -22,7 +22,7 @@ export default function StaleSnapshotBanner({ pluginName }: Props) {
         className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
         aria-hidden
       />
-      <div className="min-w-0 flex-1 text-[12px] leading-relaxed text-amber-800 dark:text-amber-300">
+      <div className="min-w-0 flex-1 text-12 leading-relaxed text-amber-800 dark:text-amber-300">
         Showing the last successful issue snapshot from {pluginName}. The plugin is currently
         unavailable.{" "}
         <Link

@@ -50,25 +50,25 @@ export default function MarketplacesTab({ onAddSource, onRemoveSource }: Props =
     <section aria-label={STRINGS.sectionAriaLabel} className="space-y-8">
       <header className="flex items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+          <h3 className="text-14 font-semibold text-stone-900 dark:text-stone-100">
             {STRINGS.heading}
           </h3>
-          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+          <p className="mt-1 text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
             {STRINGS.description}
           </p>
         </div>
         <Button
           data-testid="add-marketplace"
           onPress={() => onAddSource?.()}
-          className="inline-flex flex-none items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="inline-flex flex-none items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
-          <Plus size={13} />
+          <Plus size={14} />
           {STRINGS.addCta}
         </Button>
       </header>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
           <Loader2 size={14} className="animate-spin" />
           {STRINGS.loading}
         </div>
@@ -77,7 +77,7 @@ export default function MarketplacesTab({ onAddSource, onRemoveSource }: Props =
       {error && (
         <div
           role="alert"
-          className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300"
+          className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300"
         >
           {STRINGS.loadFailedPrefix}
           {(error as Error).message}
@@ -86,11 +86,11 @@ export default function MarketplacesTab({ onAddSource, onRemoveSource }: Props =
 
       {data && (
         <div className="space-y-3">
-          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+          <h4 className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
             {STRINGS.listHeading}
           </h4>
           {data.sources.length === 0 ? (
-            <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.empty}</p>
+            <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.empty}</p>
           ) : (
             <ul aria-label={STRINGS.listAriaLabel} className="space-y-3">
               {data.sources.map((source) => (
@@ -101,7 +101,7 @@ export default function MarketplacesTab({ onAddSource, onRemoveSource }: Props =
         </div>
       )}
 
-      <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed max-w-2xl">
+      <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed max-w-2xl">
         {STRINGS.note}
       </p>
     </section>

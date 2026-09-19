@@ -62,7 +62,7 @@ function RoleBadge({ role }: { role: ComponentType | undefined }) {
   return (
     <span
       className={
-        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide border " +
+        "shrink-0 rounded-full px-2 py-0.5 text-11 font-medium tracking-wide border " +
         (isDb
           ? "bg-amber-500/10 text-amber-800 dark:text-amber-200 border-amber-500/25"
           : "bg-stone-500/10 text-stone-600 dark:text-stone-400 border-stone-500/25")
@@ -129,7 +129,7 @@ function InlineNameInput({
         ref={inputRef}
         placeholder="component-name"
         className={
-          "w-full bg-transparent font-mono text-sm text-stone-800 dark:text-stone-200 font-medium border rounded px-1.5 py-0.5 outline-none transition-colors " +
+          "w-full bg-transparent font-mono text-13 text-stone-800 dark:text-stone-200 font-medium border rounded px-1.5 py-0.5 outline-none transition-colors " +
           (hasError
             ? "border-red-400/60 focus:border-red-400"
             : "border-transparent hover:border-stone-300 dark:hover:border-stone-700 focus:border-stone-400 dark:focus:border-stone-600 focus:bg-stone-50 dark:focus:bg-stone-950/60")
@@ -140,13 +140,13 @@ function InlineNameInput({
 }
 
 const FIELD_LABEL =
-  "block text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1.5";
+  "block text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400 mb-1.5";
 
 const FIELD_INPUT =
-  "w-full rounded-md bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 px-3 py-1.5 text-[13px] text-stone-900 dark:text-stone-200 placeholder-stone-500 dark:placeholder-stone-400 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-700 focus:border-stone-400 dark:focus:border-stone-600 focus:bg-white dark:focus:bg-stone-900";
+  "w-full rounded-md bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 px-3 py-1.5 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-500 dark:placeholder-stone-400 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-700 focus:border-stone-400 dark:focus:border-stone-600 focus:bg-white dark:focus:bg-stone-900";
 
 const HERO_INPUT =
-  "w-full rounded-md bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 px-3.5 py-2.5 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-500 dark:placeholder-stone-400 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-700 focus:border-amber-500/60 focus:bg-white dark:focus:bg-stone-900";
+  "w-full rounded-md bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 px-3.5 py-2.5 text-13 font-mono text-stone-900 dark:text-stone-200 placeholder-stone-500 dark:placeholder-stone-400 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-700 focus:border-amber-500/60 focus:bg-white dark:focus:bg-stone-900";
 
 export default function ComponentRowEditor({
   componentKey,
@@ -276,12 +276,12 @@ export default function ComponentRowEditor({
             min={1}
             max={65535}
             placeholder="3000"
-            className="w-16 text-right bg-transparent font-mono text-[12px] text-stone-500 dark:text-stone-400 border border-transparent rounded px-1.5 py-0.5 outline-none hover:border-stone-300 dark:hover:border-stone-700 focus:border-stone-400 dark:focus:border-stone-600 focus:text-stone-800 dark:focus:text-stone-200 focus:bg-stone-50 dark:focus:bg-stone-950/60"
+            className="w-16 text-right bg-transparent font-mono text-12 text-stone-500 dark:text-stone-400 border border-transparent rounded px-1.5 py-0.5 outline-none hover:border-stone-300 dark:hover:border-stone-700 focus:border-stone-400 dark:focus:border-stone-600 focus:text-stone-800 dark:focus:text-stone-200 focus:bg-stone-50 dark:focus:bg-stone-950/60"
           />
         </TextField>
 
         {stride > 0 && portBase !== undefined && (
-          <span className="shrink-0 w-8 text-left font-mono tabular-nums text-[10px] text-stone-600 dark:text-stone-400">
+          <span className="shrink-0 w-8 text-left font-mono tabular-nums text-11 text-stone-600 dark:text-stone-400">
             +{stride}
           </span>
         )}
@@ -291,13 +291,13 @@ export default function ComponentRowEditor({
           aria-label={`Remove ${componentKey}`}
           className="shrink-0 p-1 rounded text-stone-600 dark:text-stone-400 opacity-0 group-hover:opacity-100 data-[focus-visible]:opacity-100 hover:text-red-400 hover:bg-stone-200/80 dark:hover:bg-stone-800/80 transition-opacity outline-none"
         >
-          <Trash2 size={13} />
+          <Trash2 size={14} />
         </Button>
       </div>
 
-      {renameError && <p className="ml-[38px] mt-0.5 text-[11px] text-red-400">{renameError}</p>}
+      {renameError && <p className="ml-[38px] mt-0.5 text-11 text-red-400">{renameError}</p>}
       {portConflictLabel && (
-        <p className="ml-[38px] mt-0.5 text-[11px] text-amber-400">{portConflictLabel}</p>
+        <p className="ml-[38px] mt-0.5 text-11 text-amber-400">{portConflictLabel}</p>
       )}
 
       {isExpanded && (
@@ -315,7 +315,7 @@ export default function ComponentRowEditor({
                   />
                 </div>
                 {componentPlugins.length === 0 && (
-                  <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-400">
+                  <p className="mt-1.5 text-11 text-stone-500 dark:text-stone-400">
                     No component plugins are installed. Install one from the Plugins settings to
                     bind this component.
                   </p>
@@ -342,7 +342,7 @@ export default function ComponentRowEditor({
                   <Label className={FIELD_LABEL}>Command</Label>
                   <Input placeholder="e.g. npm run dev" className={HERO_INPUT} />
                 </TextField>
-                <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-400">
+                <p className="mt-1.5 text-11 text-stone-500 dark:text-stone-400">
                   Runs in the bench workspace when the bench starts.
                 </p>
               </div>
@@ -391,7 +391,7 @@ export default function ComponentRowEditor({
                     </TextField>
                   </div>
                 </div>
-                <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+                <p className="mt-1 text-11 text-stone-500 dark:text-stone-400">
                   Brought up via{" "}
                   <span className="font-mono text-stone-600 dark:text-stone-500">
                     docker compose up
@@ -406,13 +406,13 @@ export default function ComponentRowEditor({
                 <span className={`${FIELD_LABEL} mb-0`}>Environment</span>
                 <Button
                   onPress={addEnvRow}
-                  className="inline-flex items-center gap-1 text-[11px] text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors"
+                  className="inline-flex items-center gap-1 text-11 text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors"
                 >
-                  <Plus size={11} /> Add variable
+                  <Plus size={12} /> Add variable
                 </Button>
               </div>
               {envDraft.length === 0 ? (
-                <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                <p className="text-11 text-stone-500 dark:text-stone-400">
                   No environment variables.
                 </p>
               ) : (
@@ -427,7 +427,7 @@ export default function ComponentRowEditor({
                       >
                         <Input placeholder="KEY" className={`${FIELD_INPUT} font-mono`} />
                       </TextField>
-                      <span className="text-stone-500 dark:text-stone-400 text-[12px]">=</span>
+                      <span className="text-stone-500 dark:text-stone-400 text-12">=</span>
                       <TextField
                         value={entry.v}
                         onChange={(v) => editEnvValue(i, v)}
@@ -441,7 +441,7 @@ export default function ComponentRowEditor({
                         aria-label={`Remove environment variable ${i + 1}`}
                         className="p-1 rounded text-stone-500 dark:text-stone-400 opacity-0 group-hover/env:opacity-100 data-[focus-visible]:opacity-100 hover:text-red-400 hover:bg-stone-200/80 dark:hover:bg-stone-800/60 transition-opacity outline-none"
                       >
-                        <X size={11} />
+                        <X size={12} />
                       </Button>
                     </div>
                   ))}
@@ -452,9 +452,7 @@ export default function ComponentRowEditor({
             <div>
               <span className={FIELD_LABEL}>Depends on</span>
               {otherComponentNames.length === 0 ? (
-                <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                  No other components.
-                </p>
+                <p className="text-11 text-stone-500 dark:text-stone-400">No other components.</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {otherComponentNames.map((name) => {
@@ -465,7 +463,7 @@ export default function ComponentRowEditor({
                         onPress={() => toggleDep(name)}
                         aria-pressed={on}
                         className={
-                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-mono transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 " +
+                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-12 font-mono transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 " +
                           (on
                             ? "bg-amber-500/10 text-amber-500 border-amber-500/40 hover:bg-amber-500/15"
                             : "bg-transparent text-text-muted border-stone-300 dark:border-stone-700 hover:text-stone-700 dark:hover:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600")
@@ -484,10 +482,10 @@ export default function ComponentRowEditor({
                 <Button
                   onPress={() => setMoreOpen((p) => !p)}
                   aria-expanded={moreOpen}
-                  className="inline-flex items-center gap-1.5 text-[11px] font-medium text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 py-1.5 outline-none transition-colors"
+                  className="inline-flex items-center gap-1.5 text-11 font-medium text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 py-1.5 outline-none transition-colors"
                 >
                   <ChevronRight
-                    size={11}
+                    size={12}
                     className={"transition-transform duration-150 " + (moreOpen ? "rotate-90" : "")}
                   />
                   More options
@@ -503,7 +501,7 @@ export default function ComponentRowEditor({
                         <Label className={FIELD_LABEL}>Setup command</Label>
                         <Input placeholder="e.g. npm install" className={FIELD_INPUT} />
                       </TextField>
-                      <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+                      <p className="mt-1 text-11 text-stone-500 dark:text-stone-400">
                         Runs once when the bench is first created.
                       </p>
                     </div>
@@ -520,7 +518,7 @@ export default function ComponentRowEditor({
                         />
                       </TextField>
                     </div>
-                    <p className="text-[11px] text-stone-500 dark:text-stone-400 italic">
+                    <p className="text-11 text-stone-500 dark:text-stone-400 italic">
                       Migration, env file, and compose variables are preserved from YAML.
                     </p>
                   </div>
@@ -529,7 +527,7 @@ export default function ComponentRowEditor({
             )}
 
             {component.type === "database" && (
-              <p className="text-[11px] text-stone-500 dark:text-stone-400 italic">
+              <p className="text-11 text-stone-500 dark:text-stone-400 italic">
                 Init service, build env vars, and compose variables are preserved from YAML.
               </p>
             )}
@@ -537,9 +535,9 @@ export default function ComponentRowEditor({
             <div className="pt-2 border-t border-stone-200 dark:border-stone-800/60">
               <Button
                 onPress={onRequestRemove}
-                className="inline-flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-stone-500 hover:text-red-400 outline-none transition-colors"
+                className="inline-flex items-center gap-1.5 text-11 text-stone-500 dark:text-stone-500 hover:text-red-400 outline-none transition-colors"
               >
-                <Trash2 size={11} /> Remove component
+                <Trash2 size={12} /> Remove component
               </Button>
             </div>
           </div>

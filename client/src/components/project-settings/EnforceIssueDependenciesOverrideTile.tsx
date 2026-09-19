@@ -46,8 +46,8 @@ export function EnforceIssueDependenciesOverrideTile({
     >
       {isOverridden && (
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-stone-500 dark:text-stone-400">Effective:</span>
-          <span className="text-xs font-medium text-amber-500 dark:text-amber-400">
+          <span className="text-12 text-stone-500 dark:text-stone-400">Effective:</span>
+          <span className="text-12 font-medium text-amber-500 dark:text-amber-400">
             {effectiveValue ? "On" : "Off"}
           </span>
         </div>
@@ -68,7 +68,7 @@ export function EnforceIssueDependenciesOverrideTile({
         <JigPickerOption value="off" label="Force off" />
       </RadioGroup>
 
-      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-3 leading-relaxed">
+      <p className="text-11 text-stone-500 dark:text-stone-400 mt-3 leading-relaxed">
         Changes write to{" "}
         <span className="font-mono text-stone-500 dark:text-stone-500">
           {"<repo>/.roubo/roubo.yaml"}

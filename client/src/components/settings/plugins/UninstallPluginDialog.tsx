@@ -32,7 +32,7 @@ export default function UninstallPluginDialog({ pluginName, onConfirm, isPending
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
                 <Heading
                   slot="title"
-                  className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                 >
                   {STRINGS.title(pluginName)}
                 </Heading>
@@ -41,7 +41,7 @@ export default function UninstallPluginDialog({ pluginName, onConfirm, isPending
               <div className="px-5 py-4">
                 <div className="flex items-start gap-3">
                   <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-stone-700 dark:text-stone-300">{STRINGS.body}</p>
+                  <p className="text-13 text-stone-700 dark:text-stone-300">{STRINGS.body}</p>
                 </div>
               </div>
 
@@ -49,7 +49,7 @@ export default function UninstallPluginDialog({ pluginName, onConfirm, isPending
                 <Button
                   isDisabled={isPending}
                   onPress={close}
-                  className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                 >
                   {STRINGS.cancel}
                 </Button>
@@ -59,7 +59,7 @@ export default function UninstallPluginDialog({ pluginName, onConfirm, isPending
                     onConfirm();
                     close();
                   }}
-                  className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                   {STRINGS.uninstall}
                 </Button>

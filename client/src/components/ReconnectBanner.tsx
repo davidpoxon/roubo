@@ -20,13 +20,13 @@ export default function ReconnectBanner({
       {state === "reconnecting" ? (
         <>
           <span className="size-1.5 rounded-full bg-amber-500 animate-status-pulse shrink-0" />
-          <span className="text-xs font-mono text-stone-700 dark:text-stone-300">
+          <span className="text-12 font-mono text-stone-700 dark:text-stone-300">
             Reconnecting{attempt > 0 ? ` (attempt ${attempt})` : ""}...
           </span>
           {attempt > 5 && (
             <Button
               onPress={onRetry}
-              className="ml-auto text-xs font-mono text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 px-2 py-0.5 rounded hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
+              className="ml-auto text-12 font-mono text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 px-2 py-0.5 rounded hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
             >
               Retry
             </Button>
@@ -35,7 +35,7 @@ export default function ReconnectBanner({
       ) : (
         <>
           <span className="size-1.5 rounded-full bg-stone-300 dark:bg-stone-600 shrink-0" />
-          <span className="text-xs font-mono text-text-muted">Process ended</span>
+          <span className="text-12 font-mono text-text-muted">Process ended</span>
         </>
       )}
     </div>

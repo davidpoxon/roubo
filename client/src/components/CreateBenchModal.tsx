@@ -71,7 +71,7 @@ export default function CreateBenchModal({
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
                 <Heading
                   slot="title"
-                  className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                 >
                   Set up bench
                 </Heading>
@@ -80,7 +80,7 @@ export default function CreateBenchModal({
               <div className="px-5 py-4 space-y-4">
                 {!fixedProjectId && (
                   <div>
-                    <label className="block text-xs text-text-muted mb-1.5">Project</label>
+                    <label className="block text-12 text-text-muted mb-1.5">Project</label>
                     <Select
                       items={validProjects.map((p) => ({
                         value: p.id,
@@ -94,7 +94,7 @@ export default function CreateBenchModal({
                 )}
 
                 <TextField value={branch} onChange={setBranch}>
-                  <Label className="block text-xs text-text-muted mb-1.5">Branch name</Label>
+                  <Label className="block text-12 text-text-muted mb-1.5">Branch name</Label>
                   <Input
                     autoFocus={!!fixedProjectId}
                     placeholder="Leave empty for auto-generated"
@@ -110,24 +110,24 @@ export default function CreateBenchModal({
                       }
                       if (e.key === "Enter") handleCreate(close);
                     }}
-                    className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+                    className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
                   />
                 </TextField>
 
-                {error && <p className="text-sm text-red-400">{error}</p>}
+                {error && <p className="text-13 text-red-400">{error}</p>}
               </div>
 
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                 <Button
                   onPress={close}
-                  className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
                 >
                   Cancel
                 </Button>
                 <Button
                   onPress={() => handleCreate(close)}
                   isDisabled={createBench.isPending || atCap}
-                  className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-lg transition-colors outline-none"
+                  className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-lg transition-colors outline-none"
                 >
                   {createBench.isPending ? "Setting up..." : "Set up"}
                 </Button>

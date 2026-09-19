@@ -149,25 +149,25 @@ export default function ProjectDeclaredSourceOffer({ projectId, project }: Props
             aria-hidden
           />
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] leading-relaxed">{STRINGS.lead(projectName)}</p>
-            <p className="mt-1 font-mono text-[12px] break-all text-amber-800 dark:text-amber-300">
+            <p className="text-13 leading-relaxed">{STRINGS.lead(projectName)}</p>
+            <p className="mt-1 font-mono text-12 break-all text-amber-800 dark:text-amber-300">
               {rawUrl}
             </p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-amber-800 dark:text-amber-300">
+            <p className="mt-1.5 text-13 leading-relaxed text-amber-800 dark:text-amber-300">
               {STRINGS.body}
             </p>
             <div className="mt-2 flex items-center gap-2">
               <Button
                 onPress={() => handleReview(rawUrl)}
                 data-testid="declared-source-offer-review"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md text-stone-950 bg-amber-500 hover:bg-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-md text-stone-950 bg-amber-500 hover:bg-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 {STRINGS.review}
               </Button>
               <Button
                 onPress={() => handleDecline(href)}
                 data-testid="declared-source-offer-decline"
-                className="px-3 py-1.5 text-xs font-medium rounded-md text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="px-3 py-1.5 text-12 font-medium rounded-md text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 {STRINGS.decline}
               </Button>

@@ -65,10 +65,10 @@ export default function JigRow({
         <JigRowIcon icon={jig.icon} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
+        <p className="text-13 font-medium text-stone-800 dark:text-stone-200 truncate">
           {jig.name}
         </p>
-        <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{jig.description}</p>
+        <p className="text-11 text-stone-500 dark:text-stone-400 truncate">{jig.description}</p>
       </div>
       {showAgentBinding && (
         <div className="w-44 shrink-0" data-testid={`jig-agent-select-${jig.id}`}>
@@ -79,14 +79,14 @@ export default function JigRow({
             ariaLabel={`Agent for ${jig.name}`}
           />
           {boundAgentUnavailable && (
-            <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-500">
+            <p className="mt-1 text-11 text-amber-600 dark:text-amber-500">
               Agent unavailable, launches use the default agent.
             </p>
           )}
         </div>
       )}
       {isBuiltIn ? (
-        <span className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+        <span className="shrink-0 text-11 font-medium px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
           Built-in
         </span>
       ) : (
@@ -96,7 +96,7 @@ export default function JigRow({
             aria-label={`Edit ${jig.name}`}
             className="p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors rounded outline-none focus-visible:ring-1 focus-visible:ring-stone-400"
           >
-            <Pencil size={13} />
+            <Pencil size={14} />
           </Link>
           <Button
             onPress={() => onDuplicate(jig)}
@@ -104,14 +104,14 @@ export default function JigRow({
             isDisabled={isDuplicating}
             className="p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors rounded outline-none focus-visible:ring-1 focus-visible:ring-stone-400 disabled:opacity-40"
           >
-            {isDuplicating ? <Loader2 size={13} className="animate-spin" /> : <Copy size={13} />}
+            {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
           </Button>
           <Button
             onPress={() => onDelete(jig)}
             aria-label={`Delete ${jig.name}`}
             className="p-1.5 text-stone-500 dark:text-stone-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded outline-none focus-visible:ring-1 focus-visible:ring-red-400"
           >
-            <Trash2 size={13} />
+            <Trash2 size={14} />
           </Button>
         </div>
       )}

@@ -86,13 +86,13 @@ export default function InspectionRunner({
         >
           <Input
             placeholder="Filter tests (grep pattern)..."
-            className="w-full px-3 py-2 text-sm bg-stone-100 dark:bg-stone-900/50 border border-stone-300 dark:border-stone-800 rounded-lg text-stone-900 dark:text-stone-200 placeholder:text-stone-600 dark:placeholder:text-stone-400 outline-none focus:border-stone-400 dark:focus:border-stone-600 transition-colors disabled:opacity-50"
+            className="w-full px-3 py-2 text-13 bg-stone-100 dark:bg-stone-900/50 border border-stone-300 dark:border-stone-800 rounded-lg text-stone-900 dark:text-stone-200 placeholder:text-stone-600 dark:placeholder:text-stone-400 outline-none focus:border-stone-400 dark:focus:border-stone-600 transition-colors disabled:opacity-50"
           />
         </TextField>
         {isRunning ? (
           <Button
             onPress={handleAbort}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors outline-none"
+            className="flex items-center gap-1.5 px-4 py-2 text-12 font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors outline-none"
           >
             <Square size={12} />
             Stop
@@ -102,7 +102,7 @@ export default function InspectionRunner({
             <Button
               onPress={() => handleRun(filter)}
               isDisabled={startInspection.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-stone-700 dark:text-stone-200 bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 rounded-lg transition-colors outline-none disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 text-12 font-medium text-stone-700 dark:text-stone-200 bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 rounded-lg transition-colors outline-none disabled:opacity-50"
             >
               <Play size={12} />
               {filter ? "Run Filtered" : "Run All"}
@@ -116,20 +116,20 @@ export default function InspectionRunner({
         <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-stone-100 dark:bg-stone-900/50">
           <div className="flex items-center gap-2">
             {status.icon}
-            <span className={`text-xs font-medium ${status.color}`}>{status.text}</span>
+            <span className={`text-12 font-medium ${status.color}`}>{status.text}</span>
             {inspectionRun?.filter && (
-              <span className="text-[11px] text-stone-600">
+              <span className="text-11 text-stone-600">
                 filter: <span className="font-mono text-text-muted">{inspectionRun.filter}</span>
               </span>
             )}
           </div>
           <div className="flex items-center gap-3">
-            {elapsed && <span className="text-xs font-mono text-text-muted">{elapsed}</span>}
+            {elapsed && <span className="text-12 font-mono text-text-muted">{elapsed}</span>}
             {inspectionRun?.exitCode !== null &&
               inspectionRun?.exitCode !== undefined &&
               inspectionRun.status !== "running" && (
                 <span
-                  className={`text-[11px] font-mono ${inspectionRun.exitCode === 0 ? "text-green-500/70" : "text-red-500/70"}`}
+                  className={`text-11 font-mono ${inspectionRun.exitCode === 0 ? "text-green-500/70" : "text-red-500/70"}`}
                 >
                   exit {inspectionRun.exitCode}
                 </span>
@@ -146,13 +146,13 @@ export default function InspectionRunner({
               onPress={copyOutput}
               className="p-1 rounded bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
             >
-              <Copy size={11} />
+              <Copy size={12} />
             </Button>
           </div>
         )}
         <div
           ref={scrollRef}
-          className="bg-stone-950 rounded-lg p-3 font-mono text-[11px] leading-5 text-green-400/70 max-h-[500px] min-h-[200px] overflow-auto"
+          className="bg-stone-950 rounded-lg p-3 font-mono text-11 leading-5 text-green-400/70 max-h-[500px] min-h-[200px] overflow-auto"
         >
           {output.length === 0 ? (
             <span className="text-stone-400 italic">

@@ -48,10 +48,10 @@ export default function PluginsTab() {
     <div className="space-y-8">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+          <h3 className="text-14 font-semibold text-stone-900 dark:text-stone-100">
             {STRINGS.heading}
           </h3>
-          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+          <p className="mt-1 text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
             {STRINGS.descriptionPrefix}
             <span className="font-mono">{STRINGS.pluginsDir}</span>
             {STRINGS.descriptionSuffix}
@@ -60,9 +60,9 @@ export default function PluginsTab() {
         <DialogTrigger isOpen={installOpen} onOpenChange={setInstallOpen}>
           <Button
             data-testid="install-plugin"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
-            <Plus size={13} />
+            <Plus size={14} />
             {STRINGS.installCta}
           </Button>
           <InstallPluginDialog />
@@ -70,7 +70,7 @@ export default function PluginsTab() {
       </header>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
           <Loader2 size={14} className="animate-spin" />
           {STRINGS.loadingPlugins}
         </div>
@@ -79,7 +79,7 @@ export default function PluginsTab() {
       {error && (
         <div
           role="alert"
-          className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300"
+          className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300"
         >
           {STRINGS.loadFailedPrefix}
           {(error as Error).message}
@@ -102,11 +102,11 @@ function PluginList({
   return (
     <>
       <section aria-label={STRINGS.bundledAriaLabel} className="space-y-3">
-        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+        <h4 className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
           {STRINGS.bundledHeading}
         </h4>
         {bundled.length === 0 ? (
-          <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.noBundled}</p>
+          <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.noBundled}</p>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
             {bundled.map((p) => (
@@ -117,13 +117,13 @@ function PluginList({
       </section>
 
       <section aria-label={STRINGS.thirdPartyAriaLabel} className="space-y-3">
-        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+        <h4 className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
           {STRINGS.thirdPartyHeading}
         </h4>
         {user.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stone-200 dark:border-stone-800 px-4 py-6 text-center">
-            <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.noThirdParty}</p>
-            <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+            <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.noThirdParty}</p>
+            <p className="mt-1 text-11 text-stone-500 dark:text-stone-400">
               {STRINGS.thirdPartyHintPrefix}
               <span className="font-medium">{STRINGS.thirdPartyHintCta}</span>
               {STRINGS.thirdPartyHintSuffix}

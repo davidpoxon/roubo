@@ -114,7 +114,7 @@ export default function SubdirectoryPicker({
 
   return (
     <div>
-      <label className="block text-xs text-text-muted mb-1.5">{label}</label>
+      <label className="block text-12 text-text-muted mb-1.5">{label}</label>
       <div className="flex items-center gap-2">
         {hasValue && !isEditing ? (
           <Button
@@ -129,14 +129,14 @@ export default function SubdirectoryPicker({
               ref={inputRef}
               placeholder={placeholder}
               onBlur={() => setIsEditing(false)}
-              className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+              className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
             />
           </TextField>
         )}
         <Button
           onPress={handleOpen}
           isDisabled={!basePath}
-          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors shrink-0 outline-none ${
+          className={`flex items-center gap-1.5 px-3 py-2 text-12 font-medium rounded-lg transition-colors shrink-0 outline-none ${
             isOpen
               ? "text-stone-100 bg-stone-700 ring-1 ring-stone-600"
               : "text-stone-500 dark:text-stone-400 bg-stone-200 dark:bg-stone-800/80 hover:bg-stone-300 dark:hover:bg-stone-700 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 disabled:hover:bg-stone-200 dark:disabled:hover:bg-stone-800/80 disabled:hover:text-stone-500 dark:disabled:hover:text-stone-400"
@@ -155,13 +155,13 @@ export default function SubdirectoryPicker({
                 <span key={seg.path} className="flex items-center gap-0.5">
                   {i > 0 && (
                     <ChevronRight
-                      size={10}
+                      size={12}
                       className="text-stone-300 dark:text-stone-700 shrink-0"
                     />
                   )}
                   <Button
                     onPress={() => handleNavigate(seg.path)}
-                    className={`text-[11px] px-1 py-0.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none ${
+                    className={`text-11 px-1 py-0.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none ${
                       i === segments.length - 1
                         ? "text-stone-700 dark:text-stone-300 font-medium"
                         : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300"
@@ -177,20 +177,20 @@ export default function SubdirectoryPicker({
               className="p-1 rounded text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none shrink-0"
               aria-label={showHidden ? "Hide hidden directories" : "Show hidden directories"}
             >
-              {showHidden ? <Eye size={13} /> : <EyeOff size={13} />}
+              {showHidden ? <Eye size={14} /> : <EyeOff size={14} />}
             </Button>
           </div>
 
           <div className="max-h-64 overflow-y-auto">
             {isLoading && (
-              <div className="flex items-center gap-2 px-4 py-6 text-sm text-stone-500 dark:text-stone-400">
+              <div className="flex items-center gap-2 px-4 py-6 text-13 text-stone-500 dark:text-stone-400">
                 <Spinner />
                 Loading...
               </div>
             )}
 
             {error && (
-              <div className="px-4 py-4 text-sm text-red-400">{(error as Error).message}</div>
+              <div className="px-4 py-4 text-13 text-red-400">{(error as Error).message}</div>
             )}
 
             {data && !isLoading && (
@@ -204,14 +204,14 @@ export default function SubdirectoryPicker({
                       size={14}
                       className="text-stone-500 dark:text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-400"
                     />
-                    <span className="text-sm text-text-muted group-hover:text-stone-700 dark:group-hover:text-stone-300">
+                    <span className="text-13 text-text-muted group-hover:text-stone-700 dark:group-hover:text-stone-300">
                       ..
                     </span>
                   </Button>
                 )}
 
                 {data.entries.length === 0 && (
-                  <div className="px-4 py-6 text-sm text-stone-500 dark:text-stone-400 text-center">
+                  <div className="px-4 py-6 text-13 text-stone-500 dark:text-stone-400 text-center">
                     No subdirectories
                   </div>
                 )}
@@ -227,7 +227,7 @@ export default function SubdirectoryPicker({
                       size={14}
                       className="text-stone-500 dark:text-stone-400 group-hover:text-stone-500"
                     />
-                    <span className="text-sm text-stone-700 dark:text-stone-300 flex-1 truncate">
+                    <span className="text-13 text-stone-700 dark:text-stone-300 flex-1 truncate">
                       {entry.name}
                     </span>
                   </button>
@@ -237,18 +237,18 @@ export default function SubdirectoryPicker({
           </div>
 
           <div className="flex items-center gap-3 px-3 py-2.5 border-t border-stone-200 dark:border-stone-800">
-            <p className="text-[11px] font-mono text-stone-500 dark:text-stone-400 truncate flex-1 min-w-0">
+            <p className="text-11 font-mono text-stone-500 dark:text-stone-400 truncate flex-1 min-w-0">
               {relativeCurrent || "."}
             </p>
             <Button
               onPress={() => setIsOpen(false)}
-              className="text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 px-2 py-1 rounded transition-colors outline-none"
+              className="text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 px-2 py-1 rounded transition-colors outline-none"
             >
               Cancel
             </Button>
             <Button
               onPress={handleSelect}
-              className="text-[11px] font-medium text-stone-100 bg-stone-700 hover:bg-stone-600 px-3 py-1.5 rounded-md transition-colors outline-none"
+              className="text-11 font-medium text-stone-100 bg-stone-700 hover:bg-stone-600 px-3 py-1.5 rounded-md transition-colors outline-none"
             >
               Select
             </Button>

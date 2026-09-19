@@ -30,7 +30,7 @@ export default function UserPickerModal({
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
               slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
             >
               Select a user
             </Heading>
@@ -45,11 +45,11 @@ export default function UserPickerModal({
                   onPress={() => onSelect(user.name)}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none"
                 >
-                  <span className="text-sm font-medium text-stone-800 dark:text-stone-200">
+                  <span className="text-13 font-medium text-stone-800 dark:text-stone-200">
                     {user.name}
                   </span>
                   {secondaryDetail && (
-                    <span className="text-xs font-mono text-stone-500 dark:text-stone-400 truncate">
+                    <span className="text-12 font-mono text-stone-500 dark:text-stone-400 truncate">
                       {secondaryDetail}
                     </span>
                   )}

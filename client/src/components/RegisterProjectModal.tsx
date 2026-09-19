@@ -97,7 +97,7 @@ export default function RegisterProjectModal({
                   <FolderOpen size={14} className="text-amber-500" />
                   <Heading
                     slot="title"
-                    className="text-sm font-medium text-stone-900 dark:text-stone-100"
+                    className="text-16 font-medium text-stone-900 dark:text-stone-100"
                   >
                     {inSetup ? "Set up project" : "Register project"}
                   </Heading>
@@ -140,14 +140,14 @@ export default function RegisterProjectModal({
                     />
 
                     {trimmed && (isChecking || isFetching) && !checkResult && (
-                      <div className="flex items-center gap-2 text-sm text-text-muted">
+                      <div className="flex items-center gap-2 text-13 text-text-muted">
                         <Loader2 size={14} className="animate-spin" />
                         <span>Checking for configuration...</span>
                       </div>
                     )}
 
                     {directoryError && (
-                      <div className="flex items-center gap-2 text-sm text-red-400/80">
+                      <div className="flex items-center gap-2 text-13 text-red-400/80">
                         <AlertCircle size={14} className="shrink-0" />
                         <span>Directory not found</span>
                       </div>
@@ -155,8 +155,8 @@ export default function RegisterProjectModal({
 
                     {alreadyRegistered && checkResult?.project && (
                       <div className="flex items-center justify-between rounded-lg bg-stone-50 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800 px-4 py-3">
-                        <div className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-400">
-                          <Check size={13} className="text-green-500 shrink-0" />
+                        <div className="flex items-center gap-2 text-13 text-stone-600 dark:text-stone-400">
+                          <Check size={14} className="text-green-500 shrink-0" />
                           <span>
                             <span className="font-medium text-stone-700 dark:text-stone-300">
                               {checkResult.displayName ?? checkResult.projectName}
@@ -172,7 +172,7 @@ export default function RegisterProjectModal({
                               navigate(`/projects/${id}`);
                             }
                           }}
-                          className="text-xs text-text-muted hover:text-amber-500 transition-colors outline-none"
+                          className="text-12 text-text-muted hover:text-amber-500 transition-colors outline-none"
                         >
                           Go to project →
                         </Button>
@@ -181,13 +181,13 @@ export default function RegisterProjectModal({
 
                     {noYaml && (
                       <div className="rounded-lg bg-stone-50 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800 px-4 py-3 space-y-3">
-                        <p className="text-sm text-text-muted">
-                          No <span className="font-mono text-[12px]">.roubo/roubo.yaml</span> found
-                          in this repo
+                        <p className="text-13 text-text-muted">
+                          No <span className="font-mono text-12">.roubo/roubo.yaml</span> found in
+                          this repo
                         </p>
                         <Button
                           onPress={() => setStep("setup")}
-                          className="text-xs font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors outline-none"
+                          className="text-12 font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors outline-none"
                         >
                           Create configuration →
                         </Button>
@@ -196,7 +196,7 @@ export default function RegisterProjectModal({
 
                     {invalidYaml && (
                       <div className="space-y-2">
-                        <div className="flex items-start gap-2 text-sm text-red-400/80">
+                        <div className="flex items-start gap-2 text-13 text-red-400/80">
                           <AlertCircle size={14} className="mt-0.5 shrink-0" />
                           <span>{checkResult.error}</span>
                         </div>
@@ -206,7 +206,7 @@ export default function RegisterProjectModal({
                               close();
                               navigate(`/projects/${checkResult.project?.id}/settings/setup`);
                             }}
-                            className="text-xs text-text-muted hover:text-amber-500 transition-colors outline-none"
+                            className="text-12 text-text-muted hover:text-amber-500 transition-colors outline-none"
                           >
                             Edit config →
                           </Button>
@@ -216,13 +216,13 @@ export default function RegisterProjectModal({
 
                     {preview && !alreadyRegistered && (
                       <div className="rounded-lg bg-stone-50 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800 px-4 py-3">
-                        <div className="flex items-center gap-2 text-[12px] text-stone-600 dark:text-stone-300 mb-2.5">
-                          <Check size={13} className="text-green-500 shrink-0" />
+                        <div className="flex items-center gap-2 text-12 text-stone-600 dark:text-stone-300 mb-2.5">
+                          <Check size={14} className="text-green-500 shrink-0" />
                           <span>
                             Found <span className="font-mono">.roubo/roubo.yaml</span>
                           </span>
                         </div>
-                        <dl className="text-[11px] divide-y divide-stone-200 dark:divide-stone-800/80">
+                        <dl className="text-11 divide-y divide-stone-200 dark:divide-stone-800/80">
                           <div className="flex justify-between py-1.5">
                             <dt className="text-stone-500 dark:text-stone-400">Name</dt>
                             <dd className="font-mono text-stone-700 dark:text-stone-300">
@@ -256,7 +256,7 @@ export default function RegisterProjectModal({
                     )}
 
                     {registerError && (
-                      <div className="flex items-center gap-2 text-sm text-red-400/80">
+                      <div className="flex items-center gap-2 text-13 text-red-400/80">
                         <AlertCircle size={14} className="shrink-0" />
                         <span>{registerError}</span>
                       </div>
@@ -271,14 +271,14 @@ export default function RegisterProjectModal({
                     <Button
                       onPress={() => setStep("path")}
                       isDisabled={setupHandlers?.isSaving ?? false}
-                      className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Cancel
                     </Button>
                     <Button
                       onPress={() => setupHandlers?.save()}
                       isDisabled={setupHandlers?.isSaveDisabled ?? true}
-                      className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none"
+                      className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none"
                     >
                       {setupHandlers?.isSaving ? "Saving…" : "Save & register"}
                     </Button>
@@ -287,14 +287,14 @@ export default function RegisterProjectModal({
                   <>
                     <Button
                       onPress={close}
-                      className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
                     >
                       Cancel
                     </Button>
                     <Button
                       onPress={() => handleRegister(close)}
                       isDisabled={!canRegister}
-                      className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none"
+                      className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none"
                     >
                       {registerProject.isPending
                         ? "Registering..."

@@ -49,7 +49,7 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
       <div className="flex items-center justify-between gap-3 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-          <span className="font-mono text-[11px] text-stone-500 dark:text-stone-400 truncate">
+          <span className="font-mono text-11 text-stone-500 dark:text-stone-400 truncate">
             {gate.gateId}
           </span>
         </div>
@@ -57,18 +57,18 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
       </div>
 
       {isNoGatingCases ? (
-        <p className="text-xs text-stone-500 dark:text-stone-400">
+        <p className="text-12 text-stone-500 dark:text-stone-400">
           No gating cases in scope. Nothing to verify here.
           {emptyReason !== null && ` ${EMPTY_REASON_COPY[emptyReason]}`}
         </p>
       ) : isPassed ? (
-        <p className="text-xs text-stone-500 dark:text-stone-400">
+        <p className="text-12 text-stone-500 dark:text-stone-400">
           All gating cases passed. Nothing outstanding.
         </p>
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] uppercase tracking-wider text-stone-600 dark:text-stone-400">
+            <p className="text-11 uppercase tracking-label text-stone-600 dark:text-stone-400">
               Unresolved cases
             </p>
             {unresolved.length > 0 ? (
@@ -76,19 +76,19 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
                 {unresolved.map((caseId) => (
                   <li
                     key={caseId}
-                    className="font-mono text-[11px] text-stone-700 dark:text-stone-300 rounded-md bg-stone-200/70 dark:bg-stone-800/70 px-1.5 py-0.5"
+                    className="font-mono text-11 text-stone-700 dark:text-stone-300 rounded-md bg-stone-200/70 dark:bg-stone-800/70 px-1.5 py-0.5"
                   >
                     {caseId}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-stone-500 dark:text-stone-400">None.</p>
+              <p className="text-12 text-stone-500 dark:text-stone-400">None.</p>
             )}
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] uppercase tracking-wider text-stone-600 dark:text-stone-400">
+            <p className="text-11 uppercase tracking-label text-stone-600 dark:text-stone-400">
               Covering units
             </p>
             {covering.length > 0 ? (
@@ -96,14 +96,14 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
                 {covering.map((unitId) => (
                   <li
                     key={unitId}
-                    className="font-mono text-[11px] text-stone-700 dark:text-stone-300 rounded-md bg-stone-200/70 dark:bg-stone-800/70 px-1.5 py-0.5"
+                    className="font-mono text-11 text-stone-700 dark:text-stone-300 rounded-md bg-stone-200/70 dark:bg-stone-800/70 px-1.5 py-0.5"
                   >
                     {unitId}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-stone-500 dark:text-stone-400">None.</p>
+              <p className="text-12 text-stone-500 dark:text-stone-400">None.</p>
             )}
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
       {lifecycleExcluded.length > 0 && (
         <p
           data-testid="gate-lifecycle-excluded"
-          className="text-xs text-stone-600 dark:text-stone-400"
+          className="text-12 text-stone-600 dark:text-stone-400"
         >
           {"Excluded by lifecycle: "}
           <span className="font-mono text-stone-700 dark:text-stone-300">

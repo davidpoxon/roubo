@@ -64,7 +64,7 @@ export default function IssueAssignControl({
 
   const label = optimisticAssigned ? "Unassign me" : "Assign to me";
   const buttonClassName =
-    "inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-1 focus-visible:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-stone-500/15";
+    "inline-flex items-center px-2 py-0.5 rounded-md text-11 font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-1 focus-visible:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-stone-500/15";
 
   if (isDisabled) {
     const disabledButton = (
@@ -82,7 +82,7 @@ export default function IssueAssignControl({
         {disabledTooltip ? (
           <TooltipTrigger delay={500}>
             {disabledButton}
-            <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg max-w-xs">
+            <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg max-w-xs">
               {disabledTooltip}
             </Tooltip>
           </TooltipTrigger>
@@ -115,7 +115,7 @@ export default function IssueAssignControl({
           className="flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2.5 py-1.5"
         >
           <AlertCircle size={12} className="text-red-500 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-red-800 dark:text-red-300 leading-relaxed">{error}</p>
+          <p className="text-11 text-red-800 dark:text-red-300 leading-relaxed">{error}</p>
         </div>
       )}
     </div>

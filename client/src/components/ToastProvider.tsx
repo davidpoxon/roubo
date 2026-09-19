@@ -53,13 +53,13 @@ function Toast({
         role="status"
         className="flex items-center gap-3 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-4 py-2.5 shadow-lg shadow-black/10 dark:shadow-black/20"
       >
-        <p className="text-sm text-stone-800 dark:text-stone-200 min-w-0 truncate">
+        <p className="text-13 text-stone-800 dark:text-stone-200 min-w-0 truncate">
           {toast.message}
         </p>
         {toast.action && (
           <Button
             onPress={handleAction}
-            className="shrink-0 text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 transition-colors outline-none px-1.5 py-0.5 rounded"
+            className="shrink-0 text-12 font-medium text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 transition-colors outline-none px-1.5 py-0.5 rounded"
           >
             {toast.action.label}
           </Button>

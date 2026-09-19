@@ -37,7 +37,7 @@ function ToolMenu({
               id={String(index)}
               isDisabled={!tool.enabled}
               className={({ isFocused, isDisabled }) =>
-                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs cursor-default outline-none transition-colors ${
+                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-12 cursor-default outline-none transition-colors ${
                   isDisabled ? "opacity-30" : ""
                 } ${isFocused && !isDisabled ? "bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100" : "text-stone-500 dark:text-stone-400"}`
               }
@@ -110,7 +110,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
     toolsContent = (
       <MenuTrigger>
         <Button className="p-1.5 rounded-md text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none">
-          <ExternalLink size={13} />
+          <ExternalLink size={14} />
         </Button>
         <ToolMenu tools={launchable.map((entry) => entry.tool)} onAction={executeLaunchable} />
       </MenuTrigger>
@@ -121,7 +121,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
       <Button
         isDisabled={!primary.enabled}
         onPress={() => executeLaunchable(0)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-muted rounded-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-muted rounded-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
       >
         {PrimaryIcon && <PrimaryIcon size={12} />}
         {primary.name}
@@ -134,14 +134,14 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
         <Button
           isDisabled={!primary.enabled}
           onPress={() => executeLaunchable(0)}
-          className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-xs font-medium text-text-muted rounded-l-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
+          className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-12 font-medium text-text-muted rounded-l-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
         >
           {PrimaryIcon && <PrimaryIcon size={12} />}
           {primary.name}
         </Button>
         <MenuTrigger>
           <Button className="flex items-center px-1.5 py-1.5 text-stone-600 dark:text-stone-400 rounded-r-lg border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none">
-            <ChevronDown size={11} />
+            <ChevronDown size={12} />
           </Button>
           <ToolMenu tools={launchable.map((entry) => entry.tool)} onAction={executeLaunchable} />
         </MenuTrigger>

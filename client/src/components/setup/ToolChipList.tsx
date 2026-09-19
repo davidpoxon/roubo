@@ -63,7 +63,7 @@ export default function ToolChipList({
   return (
     <div className="space-y-2">
       {tools.length === 0 && (
-        <p className="text-sm text-stone-500 dark:text-stone-400 py-2">
+        <p className="text-13 text-stone-500 dark:text-stone-400 py-2">
           No tools configured. This section is optional.
         </p>
       )}
@@ -82,11 +82,11 @@ export default function ToolChipList({
                   : "bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/60 dark:hover:bg-stone-800/60"
               }`}
             >
-              <IconComponent size={13} className="text-stone-500 dark:text-stone-400 shrink-0" />
-              <span className="flex-1 text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
+              <IconComponent size={12} className="text-stone-500 dark:text-stone-400 shrink-0" />
+              <span className="flex-1 text-13 font-medium text-stone-700 dark:text-stone-300 truncate">
                 {tool.name || "Untitled"}
               </span>
-              <span className="text-[11px] text-stone-600 dark:text-stone-400 shrink-0">
+              <span className="text-11 text-stone-600 dark:text-stone-400 shrink-0">
                 {tool.type}
               </span>
             </Button>
@@ -112,7 +112,7 @@ export default function ToolChipList({
 
       <Button
         onPress={addTool}
-        className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded mt-1"
+        className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded mt-1"
       >
         <Plus size={12} /> Add tool
       </Button>

@@ -31,7 +31,7 @@ interface ObservationMarkControlProps {
 }
 
 const SEGMENT_BASE =
-  "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium cursor-pointer outline-none transition-colors select-none " +
+  "flex items-center gap-1.5 px-2.5 py-1 text-12 font-medium cursor-pointer outline-none transition-colors select-none " +
   "first:rounded-l-md last:rounded-r-md border-r border-stone-200 dark:border-stone-700 last:border-r-0 " +
   "text-stone-500 dark:text-stone-400 " +
   "not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 " +

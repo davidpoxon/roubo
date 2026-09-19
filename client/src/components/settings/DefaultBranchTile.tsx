@@ -23,7 +23,7 @@ export default function DefaultBranchTile({ projectId }: Props) {
   const secondary =
     status === "present" ? (
       <>
-        Detected from <code className="text-[10px]">origin/HEAD</code>
+        Detected from <code className="text-11">origin/HEAD</code>
       </>
     ) : undefined;
 
@@ -41,14 +41,14 @@ export default function DefaultBranchTile({ projectId }: Props) {
       )}
       {status === "error" && (
         <div role="alert">
-          <p className="text-[12px] font-medium text-red-600 dark:text-red-400">Unable to detect</p>
+          <p className="text-12 font-medium text-red-600 dark:text-red-400">Unable to detect</p>
           {branchError && (
-            <p className="text-[11px] text-red-500 dark:text-red-400 mt-1">{branchError}</p>
+            <p className="text-11 text-red-500 dark:text-red-400 mt-1">{branchError}</p>
           )}
         </div>
       )}
       {status === "present" && (
-        <code className="font-mono text-base text-stone-800 dark:text-stone-200">{branch}</code>
+        <code className="font-mono text-16 text-stone-800 dark:text-stone-200">{branch}</code>
       )}
       {status === "missing" && (
         <span

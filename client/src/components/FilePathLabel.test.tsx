@@ -43,15 +43,15 @@ describe("FilePathLabel", () => {
   });
 
   it("applies custom className when provided", () => {
-    const { container } = renderLabel("file.ts", "text-lg");
+    const { container } = renderLabel("file.ts", "text-16");
     const outer = querySpan(container);
-    expect(outer.className).toContain("text-lg");
+    expect(outer.className).toContain("text-16");
   });
 
   it("applies default text size class when className is not provided", () => {
     const { container } = renderLabel("file.ts");
     const outer = querySpan(container);
-    expect(outer.className).toContain("text-[12px]");
+    expect(outer.className).toContain("text-12");
   });
 
   it("applies font-mono class", () => {

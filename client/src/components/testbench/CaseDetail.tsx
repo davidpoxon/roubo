@@ -74,7 +74,7 @@ interface CaseDetailProps {
 }
 
 const SECTION_LABEL =
-  "font-mono text-[11px] uppercase tracking-wider text-stone-500 dark:text-stone-500 mt-6 mb-2";
+  "font-mono text-11 uppercase tracking-label text-stone-500 dark:text-stone-500 mt-6 mb-2";
 
 // Human gloss for the machine-verification method ladder (see
 // VerificationSchema in shared/testbench-contracts.ts): the decisive tier that
@@ -139,7 +139,7 @@ export default function CaseDetail({
           {showNext ? (
             <Button
               onPress={onNext}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 rounded-md px-2 py-1 outline-none transition-colors hover:bg-amber-50 dark:hover:bg-amber-950/30 focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="inline-flex items-center gap-1.5 text-12 font-medium text-amber-700 dark:text-amber-400 rounded-md px-2 py-1 outline-none transition-colors hover:bg-amber-50 dark:hover:bg-amber-950/30 focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               Next case
               <ArrowRight aria-hidden="true" className="w-4 h-4" />
@@ -176,10 +176,10 @@ export default function CaseDetail({
         >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">
+              <h2 className="text-16 font-semibold text-stone-900 dark:text-stone-100">
                 {testCase.title}
               </h2>
-              <div className="flex items-center gap-3 mt-1 font-mono text-[11px] text-stone-500 dark:text-stone-400">
+              <div className="flex items-center gap-3 mt-1 font-mono text-11 text-stone-500 dark:text-stone-400">
                 <span>{testCase.id}</span>
                 <span>L{testCase.level}</span>
                 <span>{testCase.type}</span>
@@ -208,7 +208,7 @@ export default function CaseDetail({
               {verification && (
                 <span
                   title={`Machine-verified: ${TIER_LABELS[verification.tier] ?? verification.tier} at ${verification.confidence} confidence`}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-stone-100/80 dark:bg-stone-800/50 px-2 py-0.5 font-mono text-[11px] text-stone-500 dark:text-stone-400"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-stone-100/80 dark:bg-stone-800/50 px-2 py-0.5 font-mono text-11 text-stone-500 dark:text-stone-400"
                 >
                   <Bot className="w-3 h-3 shrink-0" aria-hidden />
                   tier {verification.tier} · {verification.confidence}
@@ -223,7 +223,7 @@ export default function CaseDetail({
               status readout that updates as observations are marked. */}
           <div
             role="status"
-            className="mt-3 inline-flex items-center gap-2 self-start rounded-md bg-stone-100/80 dark:bg-stone-800/50 px-2.5 py-1 font-mono text-[11px] text-stone-500 dark:text-stone-400 tabular-nums"
+            className="mt-3 inline-flex items-center gap-2 self-start rounded-md bg-stone-100/80 dark:bg-stone-800/50 px-2.5 py-1 font-mono text-11 text-stone-500 dark:text-stone-400 tabular-nums"
             aria-label={`${progress.marked} of ${progress.total} observations marked`}
           >
             <span className="text-stone-700 dark:text-stone-300">
@@ -239,7 +239,7 @@ export default function CaseDetail({
                 {testCase.preconditions.map((pre, i) => (
                   <li
                     key={i}
-                    className="relative pl-4 text-[13px] text-stone-600 dark:text-stone-400 before:absolute before:left-0 before:top-2 before:w-1.5 before:h-1.5 before:rounded-full before:bg-stone-300 dark:before:bg-stone-600"
+                    className="relative pl-4 text-13 text-stone-600 dark:text-stone-400 before:absolute before:left-0 before:top-2 before:w-1.5 before:h-1.5 before:rounded-full before:bg-stone-300 dark:before:bg-stone-600"
                   >
                     {pre}
                   </li>
@@ -256,10 +256,10 @@ export default function CaseDetail({
                 className="py-3.5 border-t border-stone-100 dark:border-stone-800 first:border-t-0"
               >
                 <div className="flex items-baseline gap-2.5">
-                  <span className="font-mono text-xs text-stone-500 dark:text-stone-400 shrink-0">
+                  <span className="font-mono text-12 text-stone-500 dark:text-stone-400 shrink-0">
                     {index + 1}
                   </span>
-                  <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                  <span className="text-13 font-medium text-stone-700 dark:text-stone-300">
                     {step.instruction}
                   </span>
                 </div>
@@ -268,10 +268,10 @@ export default function CaseDetail({
                     const mark = marks[observation.id];
                     return (
                       <li key={observation.id} className="flex items-center gap-3">
-                        <span className="flex-1 text-[13px] text-stone-700 dark:text-stone-300 min-w-0">
+                        <span className="flex-1 text-13 text-stone-700 dark:text-stone-300 min-w-0">
                           {observation.expected}
                         </span>
-                        <span className="font-mono text-[11px] text-stone-500 dark:text-stone-400 tabular-nums min-w-[3.5rem] text-right">
+                        <span className="font-mono text-11 text-stone-500 dark:text-stone-400 tabular-nums min-w-[3.5rem] text-right">
                           {mark ? formatTimestamp(mark.timestamp) : ""}
                         </span>
                         <ObservationMarkControl
@@ -307,7 +307,7 @@ export default function CaseDetail({
             <>
               <div className={SECTION_LABEL}>Machine verification</div>
               <div className="flex flex-col gap-1.5">
-                <div className="font-mono text-[11px] text-stone-500 dark:text-stone-400">
+                <div className="font-mono text-11 text-stone-500 dark:text-stone-400">
                   tier {verification.tier} ({TIER_LABELS[verification.tier] ?? "unknown tier"}) ·{" "}
                   {verification.confidence} confidence · {verification.author.name}
                 </div>
@@ -316,7 +316,7 @@ export default function CaseDetail({
                     {verification.evidence.map((pointer, i) => (
                       <li
                         key={i}
-                        className="relative pl-4 font-mono text-[11px] text-stone-600 dark:text-stone-400 break-all before:absolute before:left-0 before:top-[7px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-stone-300 dark:before:bg-stone-600"
+                        className="relative pl-4 font-mono text-11 text-stone-600 dark:text-stone-400 break-all before:absolute before:left-0 before:top-[7px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-stone-300 dark:before:bg-stone-600"
                       >
                         {pointer}
                       </li>
@@ -370,10 +370,10 @@ export default function CaseDetail({
 }
 
 const FIELD_CLASS =
-  "w-full rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1.5 text-[13px] text-stone-800 dark:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
-const FIELD_LABEL_CLASS = "text-[11px] font-medium text-stone-600 dark:text-stone-400";
+  "w-full rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1.5 text-13 text-stone-800 dark:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+const FIELD_LABEL_CLASS = "text-11 font-medium text-stone-600 dark:text-stone-400";
 const ACTION_CLASS =
-  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-500";
+  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-12 font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-500";
 
 // Lifecycle controls for one live case (#772, SATCA-FR-019, SATCA-US-006).
 //
@@ -437,7 +437,7 @@ function LifecycleControls({
         <div className={SECTION_LABEL}>Lifecycle</div>
         <p
           data-testid="case-lifecycle-archived"
-          className="text-[12px] text-stone-500 dark:text-stone-400"
+          className="text-12 text-stone-500 dark:text-stone-400"
         >
           This case is {testCase.lifecycle.state}. Restore it from the Archived section below.
         </p>
@@ -469,7 +469,7 @@ function LifecycleControls({
     <>
       <div className={SECTION_LABEL}>Lifecycle</div>
       <div className="flex flex-col gap-2">
-        <p className="text-[12px] text-stone-500 dark:text-stone-400">
+        <p className="text-12 text-stone-500 dark:text-stone-400">
           Retiring or superseding writes the record into the spec&apos;s case file and leaves the
           change uncommitted for review. Recorded marks and notes are kept.
         </p>
@@ -543,7 +543,7 @@ function LifecycleControls({
                 </Button>
                 <span
                   data-testid="case-supersede-replacement"
-                  className="font-mono text-[12px] text-stone-600 dark:text-stone-300"
+                  className="font-mono text-12 text-stone-600 dark:text-stone-300"
                 >
                   {replacement.length > 0 ? replacement : "None chosen yet"}
                 </span>
@@ -589,7 +589,7 @@ function LifecycleControls({
           <p
             role="alert"
             data-testid="case-lifecycle-error"
-            className="text-[12px] text-red-600 dark:text-red-400"
+            className="text-12 text-red-600 dark:text-red-400"
           >
             {error}
           </p>
@@ -622,7 +622,7 @@ function NotesDrawer({ projectId, benchId, caseId, notes }: NotesDrawerProps) {
         isSelected={isOpen}
         onChange={setIsOpen}
         aria-controls={panelId}
-        className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-stone-600 dark:text-stone-300 outline-none transition-colors hover:bg-stone-100 dark:hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset ${
+        className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-12 font-medium text-stone-600 dark:text-stone-300 outline-none transition-colors hover:bg-stone-100 dark:hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset ${
           isOpen ? "bg-stone-100 dark:bg-stone-800" : ""
         }`}
       >

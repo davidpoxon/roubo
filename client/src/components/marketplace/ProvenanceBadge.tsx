@@ -43,7 +43,7 @@ const TRUST_STYLES: Record<TrustTreatment, string> = {
 };
 
 const PILL_CLASS =
-  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none";
+  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-11 font-medium leading-none";
 
 function TrustPill({ treatment }: { treatment: TrustTreatment }) {
   const isVerified = treatment === "verified";
@@ -54,7 +54,7 @@ function TrustPill({ treatment }: { treatment: TrustTreatment }) {
       data-treatment={treatment}
       className={`${PILL_CLASS} ${TRUST_STYLES[treatment]}`}
     >
-      <Icon size={11} aria-hidden className="shrink-0" />
+      <Icon size={12} aria-hidden className="shrink-0" />
       {isVerified ? STRINGS.verified : STRINGS.unverified}
       {!isVerified && <span className="sr-only">{STRINGS.unverifiedContext}</span>}
     </span>
@@ -75,7 +75,7 @@ function OrphanedPill() {
       data-testid="provenance-orphaned"
       className={`${PILL_CLASS} border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300`}
     >
-      <Unplug size={11} aria-hidden className="shrink-0" />
+      <Unplug size={12} aria-hidden className="shrink-0" />
       {STRINGS.orphaned}
       <span className="sr-only">{STRINGS.orphanedContext}</span>
     </span>
@@ -104,9 +104,9 @@ function SourceChip({ provenance }: { provenance: PluginProvenance }) {
       }`}
     >
       {isFirstParty ? (
-        <ShieldCheck size={11} aria-hidden className="shrink-0" />
+        <ShieldCheck size={12} aria-hidden className="shrink-0" />
       ) : (
-        <Globe size={11} aria-hidden className="shrink-0" />
+        <Globe size={12} aria-hidden className="shrink-0" />
       )}
       <span className="sr-only">{STRINGS.provenancePrefix}</span>
       <span className="truncate">{provenance.sourceLabel}</span>

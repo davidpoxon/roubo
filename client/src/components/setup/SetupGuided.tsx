@@ -51,7 +51,7 @@ interface Props {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-4">
+    <h3 className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400 mb-4">
       {children}
     </h3>
   );
@@ -136,7 +136,7 @@ export default function SetupGuided({
         <div className="px-8 pt-5 pb-2 shrink-0">
           <nav
             aria-label="Breadcrumb"
-            className="flex items-center gap-2 text-[12px] text-text-muted mb-2"
+            className="flex items-center gap-2 text-12 text-text-muted mb-2"
           >
             <Link
               to=".."
@@ -153,7 +153,7 @@ export default function SetupGuided({
               Project setup
             </span>
           </nav>
-          <h2 className="text-[18px] font-semibold text-stone-900 dark:text-stone-100">
+          <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100">
             Project setup
           </h2>
         </div>
@@ -166,7 +166,7 @@ export default function SetupGuided({
             {!isCreateMode && (
               <>
                 <GuidedYamlToggle mode={mode} onChange={onModeChange} />
-                <span className="text-[10px] text-stone-500 dark:text-stone-400 hidden sm:block">
+                <span className="text-11 text-stone-500 dark:text-stone-400 hidden sm:block">
                   {modeHint}
                 </span>
               </>
@@ -206,7 +206,7 @@ export default function SetupGuided({
               {/* Embedded modals hide the sticky SaveBar (which normally carries the
                   errorSummary), so surface why "Save & register" is disabled here. */}
               {embedded && !saveError && errorSummary && (
-                <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 text-sm text-amber-700 dark:text-amber-400">
+                <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 text-13 text-amber-700 dark:text-amber-400">
                   {errorSummary}
                 </div>
               )}
@@ -214,7 +214,7 @@ export default function SetupGuided({
               {saveError && (
                 <div
                   role="alert"
-                  className="px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-600 dark:text-red-400"
+                  className="px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-13 text-red-600 dark:text-red-400"
                 >
                   {saveError}
                 </div>
@@ -261,14 +261,14 @@ export default function SetupGuided({
                     <span id="section-ports">Ports</span>
                   </SectionHeading>
                   {portEntries.length === 0 ? (
-                    <p className="text-sm text-stone-500 dark:text-stone-400">
+                    <p className="text-13 text-stone-500 dark:text-stone-400">
                       No ports configured. Add components to assign ports.
                     </p>
                   ) : (
                     <div>
                       <div className="space-y-1">
                         {portEntries.map(([name, port]) => (
-                          <div key={name} className="flex items-center gap-3 text-[12px] font-mono">
+                          <div key={name} className="flex items-center gap-3 text-12 font-mono">
                             <span className="text-stone-500 dark:text-stone-400 shrink-0">
                               {name}
                             </span>
@@ -284,7 +284,7 @@ export default function SetupGuided({
                           </div>
                         ))}
                       </div>
-                      <p className="mt-2 text-[10px] text-stone-500 dark:text-stone-400">
+                      <p className="mt-2 text-11 text-stone-500 dark:text-stone-400">
                         Stride: +1 per bench. Component port bases are set in roubo.yaml.
                       </p>
                     </div>
@@ -408,16 +408,16 @@ function BenchCapacityFields({
           value={max > 0 ? String(max) : ""}
           onChange={(v) => updateBenches({ max: parseInt(v, 10) || 0 })}
         >
-          <Label className="block text-xs text-text-muted mb-1.5">Maximum concurrent benches</Label>
+          <Label className="block text-12 text-text-muted mb-1.5">Maximum concurrent benches</Label>
           <Input
             type="number"
             min={1}
             max={99}
             placeholder="9"
-            className="w-24 rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+            className="w-24 rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
           />
         </TextField>
-        {max > 99 && <p className="mt-1 text-[11px] text-red-400">Must be between 1 and 99</p>}
+        {max > 99 && <p className="mt-1 text-11 text-red-400">Must be between 1 and 99</p>}
       </div>
 
       <div>
@@ -425,14 +425,14 @@ function BenchCapacityFields({
           value={benches.setup ?? ""}
           onChange={(v) => updateBenches({ setup: v || undefined })}
         >
-          <Label className="block text-xs text-text-muted mb-1.5">Setup command</Label>
+          <Label className="block text-12 text-text-muted mb-1.5">Setup command</Label>
           <Input
             type="text"
             placeholder="e.g. cd app && npm ci"
-            className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+            className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
           />
         </TextField>
-        <p className="text-[10px] text-text-muted mt-1">
+        <p className="text-11 text-text-muted mt-1">
           Runs once at workspace root before components start, through your login shell, so shell
           syntax works (e.g. <span className="font-mono">cd app &amp;&amp; npm ci</span>)
         </p>

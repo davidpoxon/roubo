@@ -63,18 +63,18 @@ export default function LogStream({
           onPress={copy}
           className="p-1 rounded bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
         >
-          <Copy size={11} />
+          <Copy size={12} />
         </Button>
         <Button
           onPress={() => setLogs([])}
           className="p-1 rounded bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
         >
-          <Eraser size={11} />
+          <Eraser size={12} />
         </Button>
       </div>
       <div
         ref={scrollRef}
-        className="bg-stone-950 rounded-lg p-3 font-mono text-[11px] leading-5 text-green-400/70 max-h-72 overflow-auto"
+        className="bg-stone-950 rounded-lg p-3 font-mono text-11 leading-5 text-green-400/70 max-h-72 overflow-auto"
       >
         {logs.length === 0 ? (
           <span className="text-stone-600 italic">Waiting for output...</span>

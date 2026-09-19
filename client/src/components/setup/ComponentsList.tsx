@@ -125,7 +125,7 @@ export default function ComponentsList({
   return (
     <div>
       {componentEntries.length === 0 ? (
-        <p className="text-sm text-stone-500 dark:text-stone-400 py-2">
+        <p className="text-13 text-stone-500 dark:text-stone-400 py-2">
           No components configured yet.
         </p>
       ) : (
@@ -154,9 +154,9 @@ export default function ComponentsList({
 
       <Button
         onPress={addComponent}
-        className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-stone-500 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-300 outline-none transition-colors data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+        className="mt-3 inline-flex items-center gap-1.5 text-12 text-stone-500 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-300 outline-none transition-colors data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
       >
-        <Plus size={13} /> Add component
+        <Plus size={14} /> Add component
       </Button>
 
       <ComponentRemoveDialog

@@ -38,11 +38,11 @@ export default function EmptyBenchCard({
         >
           <div className="p-4 space-y-2.5">
             <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-stone-600 dark:text-stone-400">
+              <p className="text-14 font-semibold text-stone-600 dark:text-stone-400">
                 Bench {position}
               </p>
             </div>
-            <p className="text-xs text-stone-600 dark:text-stone-400">Available</p>
+            <p className="text-12 text-stone-600 dark:text-stone-400">Available</p>
           </div>
         </Button>
         <Popover
@@ -55,7 +55,7 @@ export default function EmptyBenchCard({
                 setPopoverOpen(false);
                 onCreateBlank();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-13 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
             >
               <Plus size={14} className="text-stone-500 dark:text-stone-300" />
               Set up blank bench
@@ -65,7 +65,7 @@ export default function EmptyBenchCard({
                 setPopoverOpen(false);
                 onPickIssue(position);
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-13 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
             >
               <ListTodo size={14} className="text-stone-500 dark:text-stone-300" />
               Pick an issue
@@ -76,7 +76,7 @@ export default function EmptyBenchCard({
                   setPopoverOpen(false);
                   onCreateTestBench(position);
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-13 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none text-left"
               >
                 <FlaskConical size={14} className="text-stone-500 dark:text-stone-300" />
                 Create a TestBench

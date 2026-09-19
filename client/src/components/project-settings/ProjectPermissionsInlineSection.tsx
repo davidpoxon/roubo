@@ -21,14 +21,14 @@ export function ProjectPermissionsInlineSection({
   return (
     <div>
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
           <Spinner />
           Loading…
         </div>
       )}
 
       {!isLoading && isError && (
-        <p className="text-xs text-red-500 dark:text-red-400 leading-relaxed">
+        <p className="text-12 text-red-500 dark:text-red-400 leading-relaxed">
           Could not load permissions.
         </p>
       )}
@@ -41,7 +41,7 @@ export function ProjectPermissionsInlineSection({
             emptyMessage="No permissions saved. Rules granted in agent sessions appear here automatically."
           />
           {hasRules && (
-            <p className="mt-2 text-[11px] text-stone-500 dark:text-stone-500">
+            <p className="mt-2 text-11 text-stone-500 dark:text-stone-500">
               {total} rule{total !== 1 ? "s" : ""} · {allow.length} allow · {deny.length} deny ·{" "}
               {ask.length} ask
             </p>

@@ -33,10 +33,10 @@ export default function AgentsTab() {
   return (
     <div className="space-y-8">
       <header>
-        <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+        <h3 className="text-14 font-semibold text-stone-900 dark:text-stone-100">
           {STRINGS.heading}
         </h3>
-        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="mt-1 text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
           {STRINGS.description}
           <span className="font-mono">{STRINGS.agentsDir}</span>
           {STRINGS.descriptionSuffix}
@@ -44,7 +44,7 @@ export default function AgentsTab() {
       </header>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
           <Loader2 size={14} className="animate-spin" />
           {STRINGS.loading}
         </div>
@@ -53,7 +53,7 @@ export default function AgentsTab() {
       {error && (
         <div
           role="alert"
-          className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300"
+          className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300"
         >
           {STRINGS.loadFailedPrefix}
           {(error as Error).message}
@@ -62,7 +62,7 @@ export default function AgentsTab() {
 
       {data && (
         <section aria-label={STRINGS.installedAriaLabel} className="space-y-3">
-          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+          <h4 className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
             {STRINGS.installedHeading}
           </h4>
 
@@ -71,8 +71,8 @@ export default function AgentsTab() {
               data-testid="agents-empty-state"
               className="rounded-xl border border-dashed border-stone-200 dark:border-stone-800 px-4 py-6 text-center"
             >
-              <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.emptyTitle}</p>
-              <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+              <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.emptyTitle}</p>
+              <p className="mt-1 text-11 text-stone-500 dark:text-stone-400">
                 {STRINGS.emptyBodyPrefix}
                 <span className="font-medium">{STRINGS.emptyBodyLink}</span>
                 {STRINGS.emptyBodySuffix}

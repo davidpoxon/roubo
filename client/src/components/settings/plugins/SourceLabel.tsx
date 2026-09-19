@@ -16,7 +16,7 @@ export default function SourceLabel({ source, pluginId }: Props) {
       <span
         data-testid="plugin-source-label"
         data-source="bundled"
-        className="text-[11px] text-stone-500 dark:text-stone-400"
+        className="text-11 text-stone-500 dark:text-stone-400"
       >
         {STRINGS.bundled}
       </span>
@@ -26,7 +26,7 @@ export default function SourceLabel({ source, pluginId }: Props) {
     <span
       data-testid="plugin-source-label"
       data-source="user"
-      className="font-mono text-[11px] text-stone-500 dark:text-stone-400"
+      className="font-mono text-11 text-stone-500 dark:text-stone-400"
     >
       {STRINGS.userPath(pluginId)}
     </span>

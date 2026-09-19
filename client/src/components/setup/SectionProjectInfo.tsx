@@ -68,9 +68,9 @@ export default function SectionProjectInfo({
           update(displayNameTouched.current ? { name: v } : { name: v, displayName: v });
         }}
       >
-        <Label className="block text-xs text-text-muted mb-1.5">Name</Label>
+        <Label className="block text-12 text-text-muted mb-1.5">Name</Label>
         <Input placeholder="my-project" className={INPUT} />
-        {nameError && <p className="mt-1 text-[11px] text-red-400">{nameError}</p>}
+        {nameError && <p className="mt-1 text-11 text-red-400">{nameError}</p>}
       </TextField>
 
       <TextField
@@ -80,19 +80,19 @@ export default function SectionProjectInfo({
           update({ displayName: v });
         }}
       >
-        <Label className="block text-xs text-text-muted mb-1.5">Display name</Label>
+        <Label className="block text-12 text-text-muted mb-1.5">Display name</Label>
         <Input placeholder="My Project" className={INPUT} />
-        {displayNameError && <p className="mt-1 text-[11px] text-red-400">{displayNameError}</p>}
+        {displayNameError && <p className="mt-1 text-11 text-red-400">{displayNameError}</p>}
       </TextField>
 
       <div>
-        <Label className="block text-xs text-text-muted mb-1.5">Repository structure</Label>
+        <Label className="block text-12 text-text-muted mb-1.5">Repository structure</Label>
         <div role="group" aria-label="Repository structure" className="flex gap-1">
           {STRUCTURE_TYPES.map((t) => (
             <Button
               key={t}
               onPress={() => updateLayout({ type: t })}
-              className={`px-3 py-1.5 text-xs rounded-lg transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 ${
+              className={`px-3 py-1.5 text-12 rounded-lg transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 ${
                 layout?.type === t
                   ? "bg-stone-700 text-stone-100"
                   : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
@@ -103,12 +103,12 @@ export default function SectionProjectInfo({
           ))}
         </div>
         {layoutTypeError ? (
-          <p className="mt-1 text-[11px] text-red-400">{layoutTypeError}</p>
+          <p className="mt-1 text-11 text-red-400">{layoutTypeError}</p>
         ) : (
           scanResult &&
           layout?.type &&
           layout.type === scanResult.detected.structureType && (
-            <p className="mt-1 text-[10px] text-stone-500 dark:text-stone-400">Auto-detected</p>
+            <p className="mt-1 text-11 text-stone-500 dark:text-stone-400">Auto-detected</p>
           )
         )}
       </div>
@@ -125,26 +125,26 @@ function DefaultBranchField({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <Label className="text-xs text-text-muted mb-1.5 flex items-center gap-1.5">
-        <GitBranch size={11} className="text-stone-500 dark:text-stone-400" />
+      <Label className="text-12 text-text-muted mb-1.5 flex items-center gap-1.5">
+        <GitBranch size={12} className="text-stone-500 dark:text-stone-400" />
         Default branch
       </Label>
       {isLoading ? (
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
           <Spinner />
           Detecting…
         </div>
       ) : branchError ? (
-        <p className="text-[12px] text-red-400">{branchError}</p>
+        <p className="text-12 text-red-400">{branchError}</p>
       ) : branch ? (
         <div>
-          <code className="font-mono text-sm text-stone-800 dark:text-stone-200">{branch}</code>
-          <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
-            Detected from <code className="text-[10px]">origin/HEAD</code>
+          <code className="font-mono text-13 text-stone-800 dark:text-stone-200">{branch}</code>
+          <p className="text-11 text-stone-500 dark:text-stone-400 mt-0.5">
+            Detected from <code className="text-11">origin/HEAD</code>
           </p>
         </div>
       ) : (
-        <span className="text-stone-500 dark:text-stone-400 text-sm">·</span>
+        <span className="text-stone-500 dark:text-stone-400 text-13">·</span>
       )}
     </div>
   );

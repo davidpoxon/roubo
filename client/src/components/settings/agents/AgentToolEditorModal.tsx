@@ -109,7 +109,7 @@ export default function AgentToolEditorModal({
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
               slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
             >
               Agent tool
             </Heading>
@@ -119,7 +119,7 @@ export default function AgentToolEditorModal({
             <div>
               <label
                 htmlFor="agent-tool-name"
-                className="block text-[11px] font-medium text-text-muted mb-1.5"
+                className="block text-11 font-medium text-text-muted mb-1.5"
               >
                 Name
               </label>
@@ -144,7 +144,7 @@ export default function AgentToolEditorModal({
             <div>
               <label
                 htmlFor="agent-tool-agent"
-                className="block text-[11px] font-medium text-text-muted mb-1.5"
+                className="block text-11 font-medium text-text-muted mb-1.5"
               >
                 Agent
               </label>
@@ -172,7 +172,7 @@ export default function AgentToolEditorModal({
                   <div key={field.key}>
                     <label
                       htmlFor={id}
-                      className="block text-[11px] font-medium text-text-muted mb-1.5"
+                      className="block text-11 font-medium text-text-muted mb-1.5"
                     >
                       {field.label}
                     </label>
@@ -211,7 +211,7 @@ export default function AgentToolEditorModal({
             <div>
               <label
                 htmlFor="agent-tool-jig"
-                className="block text-[11px] font-medium text-text-muted mb-1.5"
+                className="block text-11 font-medium text-text-muted mb-1.5"
               >
                 Jig
               </label>
@@ -232,12 +232,12 @@ export default function AgentToolEditorModal({
             </div>
 
             {error && (
-              <p id={ERROR_ID} role="alert" className="text-xs text-red-500">
+              <p id={ERROR_ID} role="alert" className="text-12 text-red-500">
                 {error}
               </p>
             )}
 
-            <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+            <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
               Saved to app settings. Add to{" "}
               <span className="font-mono text-text-muted">roubo.yaml tools:</span> to share it with
               the project.
@@ -247,13 +247,13 @@ export default function AgentToolEditorModal({
           <div className="px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 flex justify-end gap-2">
             <Button
               onPress={onCancel}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+              className="px-3 py-1.5 text-12 font-medium rounded-lg text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
             >
               Cancel
             </Button>
             <Button
               onPress={handleSave}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg text-stone-950 bg-amber-500 hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-3 py-1.5 text-12 font-medium rounded-lg text-stone-950 bg-amber-500 hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               Save
             </Button>

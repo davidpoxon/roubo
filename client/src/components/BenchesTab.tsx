@@ -62,8 +62,8 @@ export default function BenchesTab() {
       <div className="flex-1 overflow-y-auto overscroll-contain p-8">
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">Benches</h2>
-            <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-1">
+            <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100">Benches</h2>
+            <p className="text-12 text-stone-500 dark:text-stone-400 mt-1">
               Active and available bench slots.
             </p>
           </div>
@@ -80,19 +80,19 @@ export default function BenchesTab() {
                     if (!atCap) openCreateBench();
                   }}
                   aria-disabled
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 opacity-50 cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 opacity-50 cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                 >
                   <Plus size={14} />
                   Set up bench
                 </Button>
-                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg max-w-xs">
+                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg max-w-xs">
                   {capTooltip}
                 </Tooltip>
               </TooltipTrigger>
             ) : (
               <Button
                 onPress={openCreateBench}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
               >
                 <Plus size={14} />
                 Set up bench
@@ -102,14 +102,14 @@ export default function BenchesTab() {
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-12">
+          <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-12">
             <Spinner />
             Loading...
           </div>
         )}
 
         {!isLoading && !benchPositions && (
-          <p className="text-sm text-stone-500 dark:text-stone-400 py-12">
+          <p className="text-13 text-stone-500 dark:text-stone-400 py-12">
             No bench configuration found. Check your roubo.yaml.
           </p>
         )}

@@ -56,7 +56,7 @@ export type ProjectOutletContext = {
 };
 
 const tabClassName = ({ isActive }: { isActive: boolean }) =>
-  `px-3 py-2 text-xs font-medium transition-colors outline-none cursor-pointer border-b-2 -mb-px ${
+  `px-3 py-2 text-12 font-medium transition-colors outline-none cursor-pointer border-b-2 -mb-px ${
     isActive
       ? "text-stone-800 dark:text-stone-200 border-amber-500"
       : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
@@ -431,16 +431,16 @@ export default function BenchDashboard() {
       <div className="p-8 max-w-[1200px]">
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100">
+            <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100">
               All Projects
             </h2>
-            <p className="text-[12px] text-stone-500 dark:text-stone-400 mt-1">
+            <p className="text-12 text-stone-500 dark:text-stone-400 mt-1">
               Registered projects. Click one to view its benches and settings.
             </p>
           </div>
           <Button
             onPress={openRegisterModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
           >
             <Plus size={14} />
             Register project
@@ -448,7 +448,7 @@ export default function BenchDashboard() {
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-12">
+          <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-12">
             <Spinner />
             Loading...
           </div>
@@ -483,7 +483,7 @@ export default function BenchDashboard() {
       <div className="flex flex-col h-full">
         <nav
           aria-label="Breadcrumb"
-          className="px-8 pt-5 text-[12px] text-stone-500 dark:text-stone-500"
+          className="px-8 pt-5 text-12 text-stone-500 dark:text-stone-500"
         >
           <Link to="/" className="hover:text-stone-900 dark:hover:text-stone-200 transition-colors">
             All Projects
@@ -526,10 +526,10 @@ export default function BenchDashboard() {
         {draggingIssue && (
           <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3 py-2 shadow-xl max-w-[280px] opacity-90">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-stone-500 dark:text-stone-300">
+              <span className="text-11 font-mono text-stone-500 dark:text-stone-300">
                 {draggingIssue.externalId}
               </span>
-              <span className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
+              <span className="text-12 font-medium text-stone-800 dark:text-stone-200 truncate">
                 {draggingIssue.title}
               </span>
             </div>

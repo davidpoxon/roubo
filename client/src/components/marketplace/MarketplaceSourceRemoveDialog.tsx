@@ -89,17 +89,17 @@ export default function MarketplaceSourceRemoveDialog({
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
               slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
             >
               {STRINGS.title(sourceName)}
             </Heading>
-            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+            <p className="mt-1 text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
               {STRINGS.intro}
             </p>
             <p
               data-testid="marketplace-source-remove-url"
               aria-label={STRINGS.urlLabel}
-              className="mt-2 font-mono text-[11px] break-all text-stone-500 dark:text-stone-400"
+              className="mt-2 font-mono text-11 break-all text-stone-500 dark:text-stone-400"
             >
               {sourceUrl}
             </p>
@@ -136,7 +136,7 @@ export default function MarketplaceSourceRemoveDialog({
               <div
                 role="alert"
                 data-testid="marketplace-source-remove-error"
-                className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300 flex items-start gap-2"
+                className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300 flex items-start gap-2"
               >
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                 <span>{error}</span>
@@ -152,7 +152,7 @@ export default function MarketplaceSourceRemoveDialog({
               onPress={handleCancel}
               isDisabled={isPending}
               data-testid="marketplace-source-remove-cancel"
-              className="px-3 py-1.5 text-sm text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               {STRINGS.cancel}
             </Button>
@@ -160,9 +160,9 @@ export default function MarketplaceSourceRemoveDialog({
               onPress={handleConfirm}
               isDisabled={isPending}
               data-testid="marketplace-source-remove-confirm"
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-500 disabled:opacity-60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium rounded-lg text-white bg-red-600 hover:bg-red-500 disabled:opacity-60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             >
-              <Trash2 size={13} />
+              <Trash2 size={14} />
               {isPending ? STRINGS.removing : STRINGS.confirm}
             </Button>
           </div>
@@ -196,7 +196,7 @@ function ConsequenceRow({
   return (
     <div
       data-testid={testId}
-      className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-relaxed ${TONE_CLASS[tone]}`}
+      className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-12 leading-relaxed ${TONE_CLASS[tone]}`}
     >
       {icon}
       <span>

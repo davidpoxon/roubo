@@ -142,12 +142,12 @@ export default function DraggableIssueCard({
       <div className="flex items-start gap-2 px-3 py-2.5">
         <div className="flex-1 min-w-0">
           <span
-            className={`block truncate text-xs font-medium ${isAssigned ? "text-stone-600 dark:text-stone-400" : "text-stone-800 dark:text-stone-200"}`}
+            className={`block truncate text-12 font-medium ${isAssigned ? "text-stone-600 dark:text-stone-400" : "text-stone-800 dark:text-stone-200"}`}
           >
             {issue.title}
           </span>
           <span
-            className={`block text-[11px] font-mono mb-1.5 ${isAssigned ? "text-stone-500 dark:text-stone-400" : "text-stone-600 dark:text-stone-400"}`}
+            className={`block text-11 font-mono mb-1.5 ${isAssigned ? "text-stone-500 dark:text-stone-400" : "text-stone-600 dark:text-stone-400"}`}
           >
             {shortIssueRef(issue.externalId)}
           </span>
@@ -189,7 +189,7 @@ export default function DraggableIssueCard({
             className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none opacity-0 group-hover:opacity-100"
             aria-label={`Open ${issue.externalId} in browser`}
           >
-            <ExternalLink size={11} />
+            <ExternalLink size={12} />
           </Button>
         </div>
       </div>

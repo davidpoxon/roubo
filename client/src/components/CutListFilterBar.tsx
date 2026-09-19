@@ -72,12 +72,12 @@ export default function CutListFilterBar({
       >
         <div className="relative flex items-center">
           <Search
-            size={11}
+            size={12}
             className="absolute left-2 text-stone-600 dark:text-stone-300 pointer-events-none shrink-0"
           />
           <Input
             placeholder="Search by title or #number…"
-            className="w-full pl-6 pr-6 py-1 text-xs rounded-md bg-stone-100 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700/50 text-stone-700 dark:text-stone-300 placeholder:text-stone-600 dark:placeholder:text-stone-400 outline-none focus:border-amber-500 dark:focus:border-amber-500 focus:bg-white dark:focus:bg-stone-800 transition-colors"
+            className="w-full pl-6 pr-6 py-1 text-12 rounded-md bg-stone-100 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700/50 text-stone-700 dark:text-stone-300 placeholder:text-stone-600 dark:placeholder:text-stone-400 outline-none focus:border-amber-500 dark:focus:border-amber-500 focus:bg-white dark:focus:bg-stone-800 transition-colors"
           />
           {filters.search && (
             <Button
@@ -85,7 +85,7 @@ export default function CutListFilterBar({
               aria-label="Clear search"
               className="absolute right-1.5 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
             >
-              <X size={10} />
+              <X size={12} />
             </Button>
           )}
         </div>
@@ -102,11 +102,11 @@ export default function CutListFilterBar({
                 : "text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50",
             ].join(" ")}
           >
-            <ListFilter size={13} />
+            <ListFilter size={14} />
             {count > 0 && (
               <span
                 aria-hidden="true"
-                className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center px-0.5"
+                className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] rounded-full bg-amber-500 text-11 leading-none font-bold text-white flex items-center justify-center px-0.5"
               >
                 {count}
               </span>
@@ -116,13 +116,13 @@ export default function CutListFilterBar({
             <Dialog className="outline-none">
               <div className="w-72 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/50 shadow-2xl overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200 dark:border-stone-800/60">
-                  <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">
+                  <span className="text-12 font-semibold text-stone-700 dark:text-stone-300">
                     Filters
                   </span>
                   {hasFilters && (
                     <Button
                       onPress={() => onFiltersChange(createEmptyFilters())}
-                      className="text-[11px] text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
+                      className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
                     >
                       Clear all
                     </Button>
@@ -213,7 +213,7 @@ function FacetSection({
   return (
     <div className={isLast ? "" : "border-b border-stone-100 dark:border-stone-800/40"}>
       <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-stone-500 dark:text-stone-400">
+        <span className="text-11 font-medium uppercase tracking-label text-stone-500 dark:text-stone-400">
           {facet.label}
         </span>
         {selection.size > 0 && (
@@ -222,20 +222,20 @@ function FacetSection({
             aria-label={`Clear ${facet.label} filter`}
             className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
           >
-            <X size={10} />
+            <X size={12} />
           </Button>
         )}
       </div>
 
       {asyncQuery.isLoading && (
-        <div className="px-3 py-3 flex items-center gap-2 text-[11px] text-text-muted">
+        <div className="px-3 py-3 flex items-center gap-2 text-11 text-text-muted">
           <Spinner />
           <span>Loading…</span>
         </div>
       )}
 
       {asyncQuery.isError && (
-        <div className="px-3 py-2 text-[11px] text-amber-700 dark:text-amber-500">
+        <div className="px-3 py-2 text-11 text-amber-700 dark:text-amber-500">
           Couldn’t load options. Try reopening the filter.
         </div>
       )}
@@ -254,7 +254,7 @@ function FacetSection({
               key={opt.value}
               id={opt.value}
               textValue={opt.label}
-              className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
+              className="flex items-center justify-between gap-2 px-3 py-1.5 text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
             >
               <span className="flex items-center gap-2 min-w-0">
                 <span className="truncate">{opt.label}</span>
@@ -268,7 +268,7 @@ function FacetSection({
       )}
 
       {showEmpty && (
-        <div className="px-3 py-2 text-[11px] text-stone-500 dark:text-stone-400">
+        <div className="px-3 py-2 text-11 text-stone-500 dark:text-stone-400">
           No options available
         </div>
       )}
@@ -276,7 +276,7 @@ function FacetSection({
       {showSourceExclusionNote && (
         <div
           data-testid="source-exclusion-note"
-          className="px-3 py-2 text-[11px] text-stone-500 dark:text-stone-400"
+          className="px-3 py-2 text-11 text-stone-500 dark:text-stone-400"
         >
           {sourceExclusionNote}
         </div>

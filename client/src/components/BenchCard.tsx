@@ -104,25 +104,25 @@ export default function BenchCard({
             {/* Header */}
             <div className="space-y-0.5 shrink-0">
               {projectName && (
-                <p className="text-[10px] font-medium uppercase tracking-widest text-stone-600 dark:text-stone-400">
+                <p className="text-11 font-medium uppercase tracking-label text-stone-600 dark:text-stone-400">
                   {projectName}
                 </p>
               )}
               <div className="flex items-center gap-1.5">
-                <p className="text-sm font-semibold text-text-primary">Bench {bench.id}</p>
+                <p className="text-14 font-semibold text-text-primary">Bench {bench.id}</p>
                 <NotificationIndicator notifications={bench.notifications} />
               </div>
             </div>
 
             {/* Branch */}
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary mt-2.5 shrink-0">
+            <div className="flex items-center gap-1.5 text-12 text-text-secondary mt-2.5 shrink-0">
               <GitBranch size={12} className="shrink-0 text-stone-600 dark:text-stone-400" />
               <span className="truncate">{bench.branch}</span>
             </div>
 
             {/* Assigned issue */}
             {bench.assignedIssue && (
-              <div className="flex items-center gap-1.5 text-xs text-text-muted mt-2.5 shrink-0">
+              <div className="flex items-center gap-1.5 text-12 text-text-muted mt-2.5 shrink-0">
                 <span className="font-mono text-accent-text shrink-0">
                   {displayIssueRef(bench.assignedIssue)}
                 </span>
@@ -134,7 +134,7 @@ export default function BenchCard({
               <div className="mt-1.5 shrink-0">
                 <span
                   data-testid="previous-integration-badge"
-                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400"
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-11 font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400"
                 >
                   Issue from previous integration
                 </span>
@@ -151,7 +151,7 @@ export default function BenchCard({
                         {stepIcon[step.status]}
                       </span>
                       <span
-                        className={`text-[11px] ${stepTextColor[step.status]} transition-colors duration-200`}
+                        className={`text-11 ${stepTextColor[step.status]} transition-colors duration-200`}
                       >
                         {step.label}
                       </span>
@@ -159,15 +159,15 @@ export default function BenchCard({
                   ))}
                 </div>
               ) : bench.error ? (
-                <p className="text-[11px] text-red-400/80 line-clamp-2">{bench.error}</p>
+                <p className="text-11 text-red-400/80 line-clamp-2">{bench.error}</p>
               ) : (
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   {componentEntries.map(([name, component]) => (
                     <span key={name} className="flex items-center gap-1.5">
                       <ComponentStatusDot status={component.status} label={name} />
-                      <span className="text-[11px] text-text-secondary">{name}</span>
+                      <span className="text-11 text-text-secondary">{name}</span>
                       {matchedPorts.has(name) && (
-                        <span className="text-[11px] font-mono text-stone-600 dark:text-stone-400">
+                        <span className="text-11 font-mono text-stone-600 dark:text-stone-400">
                           :{matchedPorts.get(name)}
                         </span>
                       )}
@@ -175,8 +175,8 @@ export default function BenchCard({
                   ))}
                   {orphanPorts.map(([name, port]) => (
                     <span key={name} className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-text-muted">{name}</span>
-                      <span className="text-[11px] font-mono text-stone-600 dark:text-stone-400">
+                      <span className="text-11 text-text-muted">{name}</span>
+                      <span className="text-11 font-mono text-stone-600 dark:text-stone-400">
                         :{port}
                       </span>
                     </span>
@@ -201,10 +201,10 @@ export default function BenchCard({
                       },
                     )
                   }
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-red-300 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors outline-none disabled:opacity-40 w-full"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-11 font-medium text-red-300 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors outline-none disabled:opacity-40 w-full"
                 >
                   <RotateCcw
-                    size={11}
+                    size={12}
                     className={cleanupAndRetry.isPending ? "animate-spin" : ""}
                   />
                   {cleanupAndRetry.isPending ? "Cleaning up..." : "Cleanup & Retry"}
@@ -213,7 +213,7 @@ export default function BenchCard({
             )}
 
             {isPrimaryStartCTA && (
-              <p className="text-[11px] text-text-secondary mt-2 shrink-0 truncate">
+              <p className="text-11 text-text-secondary mt-2 shrink-0 truncate">
                 Idle · click Start to run components
               </p>
             )}
@@ -237,9 +237,9 @@ export default function BenchCard({
                       : "p-1.5 rounded-md text-text-muted not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
                   }
                 >
-                  {isRunning ? <Square size={13} /> : <Play size={13} />}
+                  {isRunning ? <Square size={14} /> : <Play size={14} />}
                 </Button>
-                <Tooltip className="bg-tooltip-bg text-tooltip-text text-xs px-2 py-1 rounded-md shadow-lg">
+                <Tooltip className="bg-tooltip-bg text-tooltip-text text-12 px-2 py-1 rounded-md shadow-lg">
                   {isRunning ? "Stop all components" : "Start all components on this bench"}
                 </Tooltip>
               </TooltipTrigger>
@@ -250,9 +250,9 @@ export default function BenchCard({
                   onPress={() => setConfirmOpen(true)}
                   className="p-1.5 rounded-md text-stone-600 dark:text-stone-400 not-disabled:hover:text-red-400 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
                 >
-                  {isProvisioning ? <X size={13} /> : <Trash2 size={13} />}
+                  {isProvisioning ? <X size={14} /> : <Trash2 size={14} />}
                 </Button>
-                <Tooltip className="bg-tooltip-bg text-tooltip-text text-xs px-2 py-1 rounded-md shadow-lg">
+                <Tooltip className="bg-tooltip-bg text-tooltip-text text-12 px-2 py-1 rounded-md shadow-lg">
                   {isProvisioning ? "Cancel preparing" : "Clear bench"}
                 </Tooltip>
               </TooltipTrigger>
@@ -275,13 +275,13 @@ export default function BenchCard({
             {({ close }) => (
               <>
                 <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                  <Heading slot="title" className="text-sm font-semibold text-text-primary">
+                  <Heading slot="title" className="text-16 font-semibold text-text-primary">
                     {isProvisioning ? "Cancel preparing" : "Clear bench"}
                   </Heading>
                 </div>
 
                 <div className="px-5 py-4">
-                  <p className="text-sm text-stone-600 dark:text-stone-400">
+                  <p className="text-13 text-stone-600 dark:text-stone-400">
                     {isProvisioning
                       ? "This will cancel preparing and clean up any resources created so far. This action cannot be undone."
                       : "This will stop all components, remove Docker volumes (including any database data), remove the workspace, and delete the branch. This action cannot be undone."}
@@ -291,7 +291,7 @@ export default function BenchCard({
                 <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                   <Button
                     onPress={close}
-                    className="px-3 py-1.5 text-sm text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                    className="px-3 py-1.5 text-13 text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
                   >
                     Cancel
                   </Button>
@@ -309,7 +309,7 @@ export default function BenchCard({
                       );
                       close();
                     }}
-                    className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 hover:bg-red-500 rounded-lg transition-colors outline-none"
+                    className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 hover:bg-red-500 rounded-lg transition-colors outline-none"
                   >
                     {isProvisioning ? "Cancel preparing" : "Clear bench"}
                   </Button>

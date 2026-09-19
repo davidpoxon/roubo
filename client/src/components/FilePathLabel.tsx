@@ -29,7 +29,7 @@ export default function FilePathLabel({ path, className }: { path: string; class
   return (
     <span
       title={path}
-      className={`inline-flex items-center gap-1.5 font-mono ${className ?? "text-[12px]"} min-w-0 max-w-full`}
+      className={`inline-flex items-center gap-1.5 font-mono ${className ?? "text-12"} min-w-0 max-w-full`}
     >
       {createElement(getIcon(path), { size: 14, className: "shrink-0 text-text-muted" })}
       {leading.length === 1 && (
