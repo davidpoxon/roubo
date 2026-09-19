@@ -1,4 +1,4 @@
 {
-  "description": "Paths under client/src that npm run lint:design-tokens skips while the colour migration to DESIGN.md's semantic tokens is in flight (#1297). A directory entry ends in / and covers everything beneath it. The list only shrinks: an entry that covers no violation fails as stale, so remove it in the change that migrates it. Never add an entry to get a new violation past the gate.",
+  "description": "Paths under client/src that npm run lint:design-tokens skips. It held the unmigrated paths while the colour migration to DESIGN.md's semantic tokens was in flight (#1293); that migration is complete and the list is empty. Keep it empty: an entry that covers no violation fails as stale, and a new entry must never be used to get a violation past the gate.",
   "entries": []
 }

@@ -24,17 +24,14 @@
 //      switches with the theme, so any `dark:` colour pair is either a raw
 //      shade in disguise or redundant.
 //
-// The client is mid-migration, so the guard skips the paths listed in
-// `scripts/design-token-allowlist.json`: whole directories that are still
-// unmigrated, and single files where a directory entry would hide too much
-// (the rest of the directory is migrated, or the directory holds subtrees with
-// entries of their own). A directory entry covers everything beneath it, so a
-// new file in an unlisted directory is gated from its first commit. The list
-// only shrinks. An entry that no longer covers any violation fails as
-// stale, so migrating a directory forces its entry out in the same change, and
-// a migrated directory cannot quietly regress. Entries that overlap, or that
-// name a path outside `client/src`, fail too. When the list is empty, delete
-// the entries and keep the gate.
+// The guard skips the paths listed in `scripts/design-token-allowlist.json`,
+// which held the directories and files still unmigrated while the colour
+// migration (#1293) was in flight. That migration is complete and the list is
+// empty, so every file under `client/src` is gated. A directory entry would
+// cover everything beneath it and a file entry one file. The list only
+// shrinks: an entry that no longer covers any violation fails as stale, and
+// entries that overlap, or that name a path outside `client/src`, fail too.
+// Keep it empty rather than adding an entry to get a violation past the gate.
 //
 // The check reads committed files only, so it needs no install and no network,
 // and rides in the existing `lint` job.

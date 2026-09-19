@@ -405,11 +405,16 @@ export default function SectionComponents({
       <Button
         key={key}
         onPress={() => dispatch({ type: "SET_SUB_STEP", payload: key })}
-        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-control bg-bg-hover hover:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="group w-full flex items-center gap-2 px-3 py-2.5 rounded-control bg-bg-hover hover:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <span className="flex-1 text-13 font-medium text-text-body font-mono truncate">{key}</span>
-        <span className="text-11 text-text-secondary">{componentTypeBadge(component)}</span>
-        <ChevronRight size={14} className="text-text-secondary shrink-0" />
+        <span className="text-11 text-text-secondary group-hover:text-text-body">
+          {componentTypeBadge(component)}
+        </span>
+        <ChevronRight
+          size={14}
+          className="text-text-secondary group-hover:text-text-body shrink-0"
+        />
       </Button>
     );
   }

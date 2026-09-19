@@ -75,12 +75,12 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
         <Button
           key={i}
           onPress={() => dispatch({ type: "SET_SUB_STEP", payload: `user-${i}` })}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-control bg-bg-hover hover:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-control bg-bg-hover hover:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <span className="flex-1 text-13 font-medium text-text-body truncate">
             {user.name || "Untitled"}
           </span>
-          <span className="text-11 text-text-secondary">
+          <span className="text-11 text-text-secondary group-hover:text-text-body">
             {Object.keys(user.properties).length}{" "}
             {Object.keys(user.properties).length === 1 ? "property" : "properties"}
           </span>

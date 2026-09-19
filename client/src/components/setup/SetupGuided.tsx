@@ -155,7 +155,7 @@ export default function SetupGuided({
 
       {/* Mode toggle bar: bottom border anchors the scrolling region below it */}
       {!embedded && (
-        <div className="flex items-center justify-between gap-4 px-8 py-3 shrink-0 border-b border-border/40">
+        <div className="flex items-center justify-between gap-4 px-8 py-3 shrink-0 border-b border-border">
           <div className="flex items-center gap-3">
             {!isCreateMode && (
               <>

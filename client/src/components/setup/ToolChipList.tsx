@@ -76,17 +76,24 @@ export default function ToolChipList({
           <div key={i}>
             <Button
               onPress={() => toggleExpand(i)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-control transition-colors text-left outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
+              className={`group w-full flex items-center gap-2 px-3 py-2 rounded-control transition-colors text-left outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                 isExpanded
                   ? "bg-bg-pressed ring-1 ring-border-strong"
                   : "bg-bg-hover hover:bg-bg-pressed"
               }`}
             >
-              <IconComponent size={12} className="text-text-secondary shrink-0" />
+              <IconComponent
+                size={12}
+                className={`shrink-0 ${isExpanded ? "text-text-body" : "text-text-secondary group-hover:text-text-body"}`}
+              />
               <span className="flex-1 text-13 font-medium text-text-body truncate">
                 {tool.name || "Untitled"}
               </span>
-              <span className="text-11 text-text-secondary shrink-0">{tool.type}</span>
+              <span
+                className={`text-11 shrink-0 ${isExpanded ? "text-text-body" : "text-text-secondary group-hover:text-text-body"}`}
+              >
+                {tool.type}
+              </span>
             </Button>
 
             {isExpanded && (

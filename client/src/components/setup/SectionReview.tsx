@@ -1,6 +1,16 @@
 import { useEffect, type Dispatch } from "react";
 import { Button } from "react-aria-components";
-import { Globe, Server, TestTube, Layers, GitFork, Settings, Users } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Globe,
+  Server,
+  TestTube,
+  Layers,
+  GitFork,
+  Settings,
+  Users,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { RouboConfig, ComponentConfig, ToolConfig } from "@roubo/shared";
 import FilePathLabel from "../FilePathLabel";
@@ -30,14 +40,20 @@ interface Props {
   isRegistering?: boolean;
 }
 
+// Section validity is a form state, not a bench or component status, so it
+// takes the message roles with a word label rather than a bare status dot.
 function StatusDot({ status }: { status: SectionStatus }) {
   if (status === "pristine") return null;
-  return (
-    <span
-      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-        status === "valid" ? "bg-status-active" : "bg-status-error"
-      }`}
-    />
+  return status === "valid" ? (
+    <span className="inline-flex items-center gap-1 text-11 text-success-text">
+      <CheckCircle2 size={12} aria-hidden className="shrink-0" />
+      Valid
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-11 text-danger-text">
+      <AlertCircle size={12} aria-hidden className="shrink-0" />
+      Incomplete
+    </span>
   );
 }
 

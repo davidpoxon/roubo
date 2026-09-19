@@ -41,7 +41,7 @@ export default function WizardNavBar({
   const nextLabel = isLastBeforeReview && currentSubStep === null ? "Review" : "Continue";
 
   return (
-    <div className="mt-10 pt-6 border-t border-border/50 flex items-center justify-between">
+    <div className="mt-10 pt-6 border-t border-border flex items-center justify-between">
       {showBack && backLabel ? (
         <Button
           onPress={onBack}

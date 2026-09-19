@@ -62,10 +62,9 @@ function RoleBadge({ role }: { role: ComponentType | undefined }) {
   return (
     <span
       className={
-        "shrink-0 rounded-full px-2 py-0.5 text-11 font-medium tracking-wide border " +
-        (isDb
-          ? "bg-bg-hover text-text-body border-border-strong"
-          : "bg-bg-hover text-text-secondary border-border-strong")
+        // One neutral chip for every kind until DESIGN.md records kind roles for
+        // components; the label carries the distinction.
+        "shrink-0 rounded-full px-2 py-0.5 text-11 font-medium tracking-wide border bg-bg-hover text-text-secondary border-border-strong"
       }
     >
       {isPlugin ? "Plugin" : isDb ? "Database" : "Process"}
@@ -290,7 +289,7 @@ export default function ComponentRowEditor({
         <Button
           onPress={onRequestRemove}
           aria-label={`Remove ${componentKey}`}
-          className="shrink-0 p-1 rounded-control text-text-secondary opacity-0 group-hover:opacity-100 data-[focus-visible]:opacity-100 hover:text-danger-text hover:bg-bg-hover transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="shrink-0 p-1 rounded-control text-text-secondary opacity-0 group-hover:opacity-100 data-[focus-visible]:opacity-100 hover:text-danger-text hover:bg-bg-pressed transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Trash2 size={14} />
         </Button>

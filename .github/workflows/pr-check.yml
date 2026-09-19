@@ -40,8 +40,9 @@ jobs:
       - run: npm run lint:dep-pins
       # #1297: fail the build if client/src paints with a raw palette shade
       # (`text-stone-500`) or a `dark:` colour pair instead of a DESIGN.md
-      # semantic role utility, outside the shrinking allowlist of unmigrated
-      # paths in scripts/design-token-allowlist.json. A stale entry fails too.
+      # semantic role utility, anywhere under client/src. The allowlist in
+      # scripts/design-token-allowlist.json is empty now the migration is done,
+      # and a stale entry fails too.
       - run: npm run lint:design-tokens
       # #1297: fail the build if DESIGN.md records a `-dark` colour that
       # design-tokens/semantic-dark.css never switches to under `.dark`. The
