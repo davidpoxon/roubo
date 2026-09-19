@@ -74,23 +74,18 @@ export default function SourcePicker({
     <div className="flex flex-col gap-2" data-testid="source-picker">
       <SectionLabel>Sources</SectionLabel>
       <Tabs>
-        <TabList
-          aria-label="Source categories"
-          className="flex gap-1 border-b border-stone-200 dark:border-stone-800 mb-3"
-        >
+        <TabList aria-label="Source categories" className="flex gap-1 border-b border-border mb-3">
           {categories.map((category) => {
             const count = selectedSet(value, category.id).size;
             return (
               <Tab
                 key={category.id}
                 id={category.id}
-                className="px-3 py-1.5 text-12 font-medium text-stone-500 dark:text-stone-400 cursor-default outline-none border-b-2 border-transparent -mb-px transition-colors data-[hovered]:text-stone-700 dark:data-[hovered]:text-stone-200 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100 data-[selected]:border-amber-500 data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-t"
+                className="px-3 py-1.5 text-12 font-medium text-text-secondary cursor-default outline-none border-b-2 border-transparent -mb-px transition-colors data-[hovered]:text-text-primary data-[selected]:text-text-primary data-[selected]:border-accent data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-t"
               >
                 {category.label}
                 {count > 0 && (
-                  <span className="ml-1.5 text-11 font-semibold text-amber-600 dark:text-amber-500">
-                    {count}
-                  </span>
+                  <span className="ml-1.5 text-11 font-semibold text-accent-text">{count}</span>
                 )}
               </Tab>
             );
@@ -131,9 +126,7 @@ function SearchableSourcePicker({
 }) {
   if (!projectId) {
     return (
-      <p className="text-12 text-amber-600 dark:text-amber-500">
-        Connect the integration to configure sources.
-      </p>
+      <p className="text-12 text-accent-text">Connect the integration to configure sources.</p>
     );
   }
 
@@ -212,11 +205,7 @@ function SearchableSourcePicker({
   return (
     <div className="flex flex-col gap-4">
       {isStaleConfig && (
-        <p
-          className="text-12 text-amber-600 dark:text-amber-500"
-          role="status"
-          data-testid="stale-sources-notice"
-        >
+        <p className="text-12 text-accent-text" role="status" data-testid="stale-sources-notice">
           Your saved sources use the old format and can no longer be used. Re-pick your sources
           below.
         </p>
@@ -300,7 +289,7 @@ function MineSourceControl({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-12 font-medium text-stone-600 dark:text-stone-400">{label}</span>
+        <span className="text-12 font-medium text-text-secondary">{label}</span>
         <Switch
           isSelected={enabled}
           onChange={(on) =>
@@ -317,18 +306,14 @@ function MineSourceControl({
             <div
               className={[
                 "relative shrink-0 w-9 h-5 rounded-full border transition-colors",
-                isSelected
-                  ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
-                  : "bg-transparent border-stone-300 dark:border-stone-600",
+                isSelected ? "bg-accent border-accent" : "bg-transparent border-border-control",
                 isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
               ].join(" ")}
             >
               <div
                 className={[
                   "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-colors",
-                  isSelected
-                    ? "left-[18px] bg-white dark:bg-stone-900"
-                    : "left-0.5 bg-stone-300 dark:bg-stone-600",
+                  isSelected ? "left-[18px] bg-bg-surface" : "left-0.5 bg-border-control",
                 ].join(" ")}
               />
             </div>
@@ -359,8 +344,8 @@ function MineSourceControl({
                       "px-3 py-1.5 rounded-lg border text-12 select-none transition-colors",
                       isDisabled ? "cursor-not-allowed" : "cursor-pointer",
                       isSelected
-                        ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80 text-stone-900 dark:text-stone-100"
-                        : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 text-stone-600 dark:text-stone-400 hover:border-stone-300 dark:hover:border-stone-700",
+                        ? "border-accent-border bg-accent-muted text-accent-text"
+                        : "border-border bg-bg-surface text-text-secondary hover:border-border-strong hover:bg-bg-hover hover:text-text-primary",
                       isFocusVisible
                         ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base"
                         : "",
@@ -376,7 +361,7 @@ function MineSourceControl({
       )}
 
       {enabled && !hasProjects && (
-        <p className="text-11 text-stone-500 dark:text-stone-400">Pick a project first.</p>
+        <p className="text-11 text-text-secondary">Pick a project first.</p>
       )}
     </div>
   );
@@ -434,7 +419,7 @@ function setCategoryEntries(
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+    <span className="text-11 font-semibold uppercase tracking-label text-text-secondary">
       {children}
     </span>
   );

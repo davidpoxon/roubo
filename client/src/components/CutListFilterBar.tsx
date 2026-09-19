@@ -73,7 +73,7 @@ export default function CutListFilterBar({
         <div className="relative flex items-center">
           <Search
             size={12}
-            className="absolute left-2 text-stone-600 dark:text-stone-300 pointer-events-none shrink-0"
+            className="absolute left-2 text-text-secondary pointer-events-none shrink-0"
           />
           <Input
             placeholder="Search by title or #number…"
@@ -83,7 +83,7 @@ export default function CutListFilterBar({
             <Button
               onPress={() => onFiltersChange({ ...filters, search: "" })}
               aria-label="Clear search"
-              className="absolute right-1.5 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="absolute right-1.5 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <X size={12} />
             </Button>
@@ -98,15 +98,15 @@ export default function CutListFilterBar({
             className={[
               "focus-visible:ring-2 focus-visible:ring-focus-ring relative p-1.5 rounded-control transition-colors outline-none shrink-0",
               count > 0
-                ? "text-amber-500 dark:text-amber-400 hover:bg-amber-500/10"
-                : "text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50",
+                ? "bg-bg-pressed text-text-primary"
+                : "text-text-secondary hover:text-text-primary hover:bg-bg-hover",
             ].join(" ")}
           >
             <ListFilter size={14} />
             {count > 0 && (
               <span
                 aria-hidden="true"
-                className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] rounded-full bg-amber-500 text-11 leading-none font-bold text-white flex items-center justify-center px-0.5"
+                className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] rounded-full bg-accent text-11 leading-none font-bold text-on-accent flex items-center justify-center px-0.5"
               >
                 {count}
               </span>
@@ -115,14 +115,12 @@ export default function CutListFilterBar({
           <Popover placement="bottom end" offset={6} className="animate-rise-in">
             <Dialog className="outline-none">
               <div className="w-72 rounded-control bg-bg-surface border border-border shadow-elevation-0 overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200 dark:border-stone-800/60">
-                  <span className="text-12 font-semibold text-stone-700 dark:text-stone-300">
-                    Filters
-                  </span>
+                <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                  <span className="text-12 font-semibold text-text-primary">Filters</span>
                   {hasFilters && (
                     <Button
                       onPress={() => onFiltersChange(createEmptyFilters())}
-                      className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      className="text-11 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Clear all
                     </Button>
@@ -211,16 +209,16 @@ function FacetSection({
     sourceExclusionNote !== undefined && !asyncQuery.isLoading && !asyncQuery.isError;
 
   return (
-    <div className={isLast ? "" : "border-b border-stone-100 dark:border-stone-800/40"}>
+    <div className={isLast ? "" : "border-b border-border"}>
       <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
-        <span className="text-11 font-medium uppercase tracking-label text-stone-500 dark:text-stone-400">
+        <span className="text-11 font-medium uppercase tracking-label text-text-secondary">
           {facet.label}
         </span>
         {selection.size > 0 && (
           <Button
             onPress={clearSelection}
             aria-label={`Clear ${facet.label} filter`}
-            className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <X size={12} />
           </Button>
@@ -235,7 +233,7 @@ function FacetSection({
       )}
 
       {asyncQuery.isError && (
-        <div className="px-3 py-2 text-11 text-amber-700 dark:text-amber-500">
+        <div className="px-3 py-2 text-11 text-danger-text">
           Couldn’t load options. Try reopening the filter.
         </div>
       )}
@@ -254,30 +252,23 @@ function FacetSection({
               key={opt.value}
               id={opt.value}
               textValue={opt.label}
-              className="flex items-center justify-between gap-2 px-3 py-1.5 text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
+              className="flex items-center justify-between gap-2 px-3 py-1.5 text-13 text-text-body outline-none cursor-default transition-colors data-[hovered]:bg-bg-hover data-[focused]:bg-bg-hover data-[selected]:text-text-primary"
             >
               <span className="flex items-center gap-2 min-w-0">
                 <span className="truncate">{opt.label}</span>
               </span>
-              {selection.has(opt.value) && (
-                <Check size={14} className="text-stone-500 dark:text-stone-400 shrink-0" />
-              )}
+              {selection.has(opt.value) && <Check size={14} className="text-accent shrink-0" />}
             </ListBoxItem>
           ))}
         </ListBox>
       )}
 
       {showEmpty && (
-        <div className="px-3 py-2 text-11 text-stone-500 dark:text-stone-400">
-          No options available
-        </div>
+        <div className="px-3 py-2 text-11 text-text-secondary">No options available</div>
       )}
 
       {showSourceExclusionNote && (
-        <div
-          data-testid="source-exclusion-note"
-          className="px-3 py-2 text-11 text-stone-500 dark:text-stone-400"
-        >
+        <div data-testid="source-exclusion-note" className="px-3 py-2 text-11 text-text-secondary">
           {sourceExclusionNote}
         </div>
       )}

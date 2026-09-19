@@ -27,11 +27,8 @@ export default function UserPickerModal({
           ref={stampAriaModal}
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none overflow-hidden"
         >
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-            <Heading
-              slot="title"
-              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-            >
+          <div className="px-5 py-4 border-b border-border">
+            <Heading slot="title" className="text-16 font-semibold text-text-primary">
               Select a user
             </Heading>
           </div>
@@ -43,13 +40,11 @@ export default function UserPickerModal({
                 <Button
                   key={user.name}
                   onPress={() => onSelect(user.name)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left rounded-control hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left rounded-control hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
-                  <span className="text-13 font-medium text-stone-800 dark:text-stone-200">
-                    {user.name}
-                  </span>
+                  <span className="text-13 font-medium text-text-primary">{user.name}</span>
                   {secondaryDetail && (
-                    <span className="text-12 font-mono text-stone-500 dark:text-stone-400 truncate">
+                    <span className="text-12 font-mono text-text-secondary truncate">
                       {secondaryDetail}
                     </span>
                   )}

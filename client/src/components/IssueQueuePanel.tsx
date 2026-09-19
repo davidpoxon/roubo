@@ -366,7 +366,7 @@ export default function IssueQueuePanel({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-stone-200 dark:border-stone-800/60">
+      <div className="px-4 py-3 border-b border-border">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
             <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
@@ -380,10 +380,10 @@ export default function IssueQueuePanel({
                 data-state={cacheState}
                 className={`text-11 font-medium uppercase tracking-label whitespace-nowrap ${
                   cacheState === "stale"
-                    ? "text-amber-600 dark:text-amber-400"
+                    ? "text-accent-text"
                     : cacheState === "revalidating"
-                      ? "text-stone-500 dark:text-stone-400"
-                      : "text-green-600 dark:text-green-500"
+                      ? "text-text-secondary"
+                      : "text-success-text"
                 }`}
               >
                 {cacheState}
@@ -394,9 +394,7 @@ export default function IssueQueuePanel({
                 data-testid="cut-list-last-updated"
                 data-state={stale ? "stale" : "fresh"}
                 className={`text-11 font-mono whitespace-nowrap ${
-                  stale
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-stone-500 dark:text-stone-400"
+                  stale ? "text-accent-text" : "text-text-secondary"
                 }`}
               >
                 {lastUpdatedLabel}
@@ -405,7 +403,7 @@ export default function IssueQueuePanel({
             <Button
               onPress={handleRefresh}
               isDisabled={isRefetching}
-              className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none disabled:opacity-40 disabled:cursor-default focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="p-1.5 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none disabled:opacity-40 disabled:cursor-default focus-visible:ring-2 focus-visible:ring-focus-ring"
               aria-label="Refresh cut list"
             >
               <RefreshCw size={14} className={isRefetching ? "animate-spin" : undefined} />
@@ -413,7 +411,7 @@ export default function IssueQueuePanel({
             {onCollapse && (
               <Button
                 onPress={onCollapse}
-                className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="p-1.5 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 aria-label="Hide cut list"
               >
                 <PanelLeftClose size={14} />
@@ -434,7 +432,7 @@ export default function IssueQueuePanel({
 
       {/* Filter bar */}
       {!itemsLoading && !itemsError && (
-        <div className="flex items-center border-b border-stone-200 dark:border-stone-800/60">
+        <div className="flex items-center border-b border-border">
           <div className="flex-1 min-w-0">
             <CutListFilterBar
               filters={filters}
@@ -458,13 +456,13 @@ export default function IssueQueuePanel({
             />
             {!isFiltersEmpty(filters) && (
               <>
-                <span className="text-11 font-mono text-stone-500 dark:text-stone-400 whitespace-nowrap">
+                <span className="text-11 font-mono text-text-secondary whitespace-nowrap">
                   {filteredItems.length}/{baseItems.length}
                 </span>
                 <Button
                   onPress={() => updateFilters(createEmptyFilters())}
                   aria-label="Clear all filters"
-                  className="p-1 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="p-1 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <X size={12} />
                 </Button>
@@ -479,7 +477,7 @@ export default function IssueQueuePanel({
       {stalled && (
         <div
           data-testid="stalled-note"
-          className="mx-3 mt-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-11 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+          className="mx-3 mt-2 px-3 py-2 rounded-md bg-accent-muted text-11 text-accent-text border border-accent-border"
         >
           Plugin paging appears stuck. Try a refresh.
         </div>
@@ -489,7 +487,7 @@ export default function IssueQueuePanel({
         <div
           role="status"
           data-testid="walk-truncated-note"
-          className="mx-3 mt-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-11 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+          className="mx-3 mt-2 px-3 py-2 rounded-md bg-accent-muted text-11 text-accent-text border border-accent-border"
         >
           {walkTruncated}
         </div>
@@ -499,7 +497,7 @@ export default function IssueQueuePanel({
         <div
           role="status"
           data-testid="excluded-count-note"
-          className="mx-3 mt-2 px-3 py-2 rounded-md bg-stone-100 dark:bg-stone-800/40 text-11 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700/60"
+          className="mx-3 mt-2 px-3 py-2 rounded-md bg-bg-surface text-11 text-text-secondary border border-border"
         >
           {excludedCount} filtered out by status
         </div>
@@ -542,7 +540,7 @@ export default function IssueQueuePanel({
         {itemsLoading && (
           <div className="flex items-center justify-center py-8">
             <Spinner />
-            <span className="ml-2 text-12 text-stone-600">Loading...</span>
+            <span className="ml-2 text-12 text-text-secondary">Loading...</span>
           </div>
         )}
 
@@ -565,7 +563,7 @@ export default function IssueQueuePanel({
                             return new Map(prev).set(collapseStateKey, next);
                           })
                         }
-                        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-11 font-semibold uppercase tracking-label text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {isCollapsed ? (
                           <ChevronRight size={12} className="shrink-0" />
@@ -573,7 +571,7 @@ export default function IssueQueuePanel({
                           <ChevronDown size={12} className="shrink-0" />
                         )}
                         <span className="truncate">{group.label}</span>
-                        <span className="font-mono text-11 text-stone-500 dark:text-stone-400 ml-auto shrink-0">
+                        <span className="font-mono text-11 text-text-secondary ml-auto shrink-0">
                           {group.items.length}
                         </span>
                       </Button>
@@ -603,7 +601,7 @@ export default function IssueQueuePanel({
               )
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-                <p className="text-12 text-stone-500 dark:text-stone-400 mb-2">
+                <p className="text-12 text-text-secondary mb-2">
                   {baseItems.length > 0
                     ? "No cuts match the active filters"
                     : "No open cuts available"}
@@ -611,7 +609,7 @@ export default function IssueQueuePanel({
                 {baseItems.length > 0 && (
                   <Button
                     onPress={() => updateFilters(createEmptyFilters())}
-                    className="inline-flex items-center gap-1 text-12 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="inline-flex items-center gap-1 text-12 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     Clear filters
                   </Button>
@@ -630,20 +628,20 @@ export default function IssueQueuePanel({
       {!itemsLoading && !itemsError && (filteredItems.length > 0 || hasPrev || hasNext) && (
         <div
           data-testid="cut-list-pager"
-          className="flex items-center justify-between gap-2 px-3 py-2 border-t border-stone-200 dark:border-stone-800/60"
+          className="flex items-center justify-between gap-2 px-3 py-2 border-t border-border"
         >
           <Button
             onPress={goPrev}
             isDisabled={!hasPrev}
             aria-label="Previous page"
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
           >
             <ChevronLeft size={14} />
             Prev
           </Button>
           <span
             data-testid="cut-list-page-indicator"
-            className="text-11 font-mono text-stone-500 dark:text-stone-400 whitespace-nowrap"
+            className="text-11 font-mono text-text-secondary whitespace-nowrap"
           >
             Page {pageNumber} &middot; {filteredItems.length} item
             {filteredItems.length === 1 ? "" : "s"}
@@ -652,7 +650,7 @@ export default function IssueQueuePanel({
             onPress={goNext}
             isDisabled={!hasNext}
             aria-label="Next page"
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
           >
             Next
             <ChevronRight size={14} />

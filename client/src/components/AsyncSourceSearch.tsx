@@ -111,38 +111,34 @@ export default function AsyncSourceSearch({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-12 font-medium text-stone-600 dark:text-stone-400">{label}</span>
+        <span className="text-12 font-medium text-text-secondary">{label}</span>
         <Button
           ref={triggerRef}
           isDisabled={!enabled}
           onPress={() => setOpen(!isOpen)}
           aria-label={`Add ${label.toLowerCase()}`}
           aria-expanded={isOpen}
-          className="flex items-center gap-1.5 rounded-control bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-2.5 py-1.5 text-12 text-stone-700 dark:text-stone-300 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed"
+          className="flex items-center gap-1.5 rounded-control bg-bg-field border border-border-control px-2.5 py-1.5 text-12 text-text-body transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed"
         >
-          <Search size={14} className="shrink-0 text-stone-600 dark:text-stone-300" />
+          <Search size={14} className="shrink-0 text-text-secondary" />
           Search
-          <ChevronDown size={14} className="shrink-0 text-stone-600 dark:text-stone-300" />
+          <ChevronDown size={14} className="shrink-0 text-text-secondary" />
         </Button>
       </div>
 
-      {!enabled && disabledHint && (
-        <p className="text-11 text-stone-500 dark:text-stone-400">{disabledHint}</p>
-      )}
+      {!enabled && disabledHint && <p className="text-11 text-text-secondary">{disabledHint}</p>}
 
       {enabled && selectedItems.length > 0 && (
         <ul className="flex flex-col gap-1" aria-label={`Selected ${label.toLowerCase()}`}>
           {selectedItems.map((item) => (
             <li
               key={item.externalId}
-              className="flex items-center justify-between gap-2 rounded-lg bg-stone-100 dark:bg-stone-800/60 px-2.5 py-1.5"
+              className="flex items-center justify-between gap-2 rounded-lg bg-bg-hover px-2.5 py-1.5"
             >
               <span className="min-w-0 flex flex-col">
-                <span className="text-12 text-stone-800 dark:text-stone-200 break-words">
-                  {item.label}
-                </span>
+                <span className="text-12 text-text-primary break-words">{item.label}</span>
                 {item.sublabel && (
-                  <span className="text-11 font-mono text-stone-600 dark:text-stone-300 break-words">
+                  <span className="text-11 font-mono text-text-secondary break-words">
                     {item.sublabel}
                   </span>
                 )}
@@ -150,7 +146,7 @@ export default function AsyncSourceSearch({
               <Button
                 aria-label={`Remove ${item.label}`}
                 onPress={() => onChange([], [item.externalId])}
-                className="shrink-0 p-0.5 rounded-control text-stone-600 dark:text-stone-300 transition-colors hover:text-stone-600 dark:hover:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="shrink-0 p-0.5 rounded-control text-text-secondary transition-colors hover:text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <X size={14} />
               </Button>
@@ -181,15 +177,13 @@ export default function AsyncSourceSearch({
 
         <div className="max-h-60 overflow-auto">
           {error && (
-            <p className="px-3 py-2 text-12 text-amber-600 dark:text-amber-500">
-              Could not load results. Try again.
-            </p>
+            <p className="px-3 py-2 text-12 text-danger-text">Could not load results. Try again.</p>
           )}
           {!error && isLoading && (
-            <p className="px-3 py-2 text-12 text-stone-500 dark:text-stone-300">Searching…</p>
+            <p className="px-3 py-2 text-12 text-text-secondary">Searching…</p>
           )}
           {!error && !isLoading && items.length === 0 && (
-            <p className="px-3 py-2 text-12 text-stone-500 dark:text-stone-300">No matches.</p>
+            <p className="px-3 py-2 text-12 text-text-secondary">No matches.</p>
           )}
           {/* Always-present live region so the readout's first appearance and
               every later update announce reliably (JSS-NFR-002); empty until a page
@@ -201,7 +195,7 @@ export default function AsyncSourceSearch({
               aria-live="polite"
               className={
                 items.length > 0
-                  ? "flex items-baseline gap-1 px-3 pb-1 text-11 text-stone-500 dark:text-stone-300"
+                  ? "flex items-baseline gap-1 px-3 pb-1 text-11 text-text-secondary"
                   : "sr-only"
               }
             >
@@ -232,24 +226,19 @@ export default function AsyncSourceSearch({
                   key={item.externalId}
                   id={item.externalId}
                   textValue={item.sublabel ? `${item.label}, ${item.sublabel}` : item.label}
-                  className="flex items-start justify-between gap-2 px-2.5 py-1.5 rounded-chip text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
+                  className="flex items-start justify-between gap-2 px-2.5 py-1.5 rounded-chip text-13 text-text-body outline-none cursor-default transition-colors data-[hovered]:bg-bg-hover data-[focused]:bg-bg-hover data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring data-[selected]:text-text-primary"
                 >
                   {({ isSelected }) => (
                     <>
                       <span className="min-w-0 flex flex-col">
                         <span className="break-words">{item.label}</span>
                         {item.sublabel && (
-                          <span className="text-11 font-mono text-stone-500 dark:text-stone-300 break-words">
+                          <span className="text-11 font-mono text-text-secondary break-words">
                             {item.sublabel}
                           </span>
                         )}
                       </span>
-                      {isSelected && (
-                        <Check
-                          size={14}
-                          className="mt-0.5 shrink-0 text-stone-500 dark:text-stone-400"
-                        />
-                      )}
+                      {isSelected && <Check size={14} className="mt-0.5 shrink-0 text-accent" />}
                     </>
                   )}
                 </ListBoxItem>
@@ -260,7 +249,7 @@ export default function AsyncSourceSearch({
             <Button
               onPress={() => fetchNextPage()}
               isDisabled={isFetchingNextPage}
-              className="mt-1 w-full rounded-control px-3 py-1.5 text-12 font-medium text-amber-600 dark:text-amber-500 outline-none transition-colors hover:bg-stone-100 dark:hover:bg-stone-700/50 focus-visible:ring-2 focus-visible:ring-focus-ring data-[disabled]:opacity-40"
+              className="mt-1 w-full rounded-control px-3 py-1.5 text-12 font-medium text-text-secondary outline-none transition-colors hover:bg-bg-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-focus-ring data-[disabled]:opacity-40"
             >
               {isFetchingNextPage ? "Loading…" : "Load more"}
             </Button>
