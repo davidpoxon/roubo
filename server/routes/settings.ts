@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { hasLegacyAgentSettings, loadSettings, saveSettings } from "../services/state.js";
+import { loadSettings, saveSettings } from "../services/state.js";
 import { getEnvFileKeys, getContextWindow } from "../services/env.js";
 import { AGENT_TOOL_DEFAULT_AGENT, THEME_MODES } from "@roubo/shared";
 import type { UserPreferences } from "@roubo/shared";
@@ -68,10 +68,6 @@ const router = Router();
 router.get("/", (_req, res) => {
   res.json({
     ...loadSettings(),
-    // Read from the RAW settings file, never from the defaults-merged result:
-    // `loadSettings` fills in defaults, so a merged read would report every
-    // install as an upgrade and show a fresh one the notice (AP-TC-110).
-    legacyAgentSettingsPresent: hasLegacyAgentSettings(),
     contextWindow: getContextWindow(),
   });
 });

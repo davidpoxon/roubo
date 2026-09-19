@@ -67,7 +67,6 @@ import type {
   MarketplaceKind,
   MarketplaceListing,
   MarketplaceSourceSummary,
-  MigrationRecord,
   MissingPluginResolution,
   SourceCandidatesResponse,
   StatusCategoriesResponse,
@@ -86,14 +85,6 @@ import type {
   CaseStatus,
 } from "@roubo/shared/testbench-contracts";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
-
-export interface MigrationStatusResponse {
-  schemaVersion: number | null;
-  migration: MigrationRecord | null;
-  // One-time notice markers keyed by marker id -> ISO 8601 timestamp (or the
-  // "seeded" sentinel for a fresh-install marker). FR-018 / issue #558.
-  notices?: Record<string, string>;
-}
 
 const BASE = "/api";
 
@@ -1629,11 +1620,6 @@ export type {
   MarketplaceKind,
   MarketplaceSourceSummary,
 };
-
-// Migration (IP-WU-024 / issue #42)
-export function fetchMigrationStatus(): Promise<MigrationStatusResponse> {
-  return request("/migration/status");
-}
 
 // TestBench spec discovery + manual-path validation (#418). These mirror the
 // server-side shapes in server/lib/testbench-spec-discovery.ts; the client cannot

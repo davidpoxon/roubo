@@ -201,7 +201,6 @@ const AGENT_PLUGINS: AgentPluginState[] = [
 const BASE_SETTINGS = {
   theme: "dark",
   jigs: DEFAULT_JIG_SETTINGS,
-  legacyAgentSettingsPresent: false,
 } as UserPreferences;
 
 /** Fresh settings: no persisted default, so nothing is selected on mount. */

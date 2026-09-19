@@ -40,8 +40,8 @@ const observe = makeObserve("AP-TC-102");
 //
 // HOW THE UPGRADE PRECONDITION IS MET. "The user is upgrading from a build that
 // had built-in agent settings" is a state nothing in the product can produce any
-// more: #521 deleted the field and left only a reader behind the
-// `legacyAgentSettingsPresent` flag the (now removed) notice was gated on. `POST
+// more: #521 deleted the field and left only the `hasLegacyAgentSettings` reader
+// behind. `POST
 // /test/__seed-legacy-agent-settings` (ROUBO_E2E only) plants that residue, and
 // the teardown removes it, because `/test/__reset` does not truncate
 // `settings.json` and a seeded upgrade would otherwise leak into every later
