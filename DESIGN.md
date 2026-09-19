@@ -58,6 +58,7 @@ The block records **roles, not shades**. There are no scale keys such as `stone-
 
 - **Issue chip tones**, a 15% tint (20% in dark) with a text pair: `issue-open` (emerald), `issue-milestone` (indigo), `issue-type` (violet), and the outlined `issue-label` (cyan). The lowest pair is `issue-label-text` at 4.91:1 on the light hover ground.
 - **Agent kind pill**: `kind-agent-surface`, `-border`, `-text` (sky).
+- **Code syntax** in an editor: `syntax-key` (sky), `syntax-string` (violet), `syntax-literal` (emerald, for numbers, booleans, and nulls). Text on `bg-field` only, at the 800 step on light (700 for violet) and the 200 or 300 step on dark. The lowest is `syntax-string`, at 7.10:1 in light and 10.70:1 in dark. Comments, punctuation, and operators are not syntax roles: they take `text-secondary`.
 - **Agent swatches** `agent-swatch-1` to `-6`: violet, cyan, emerald, lime, rose, sky. Dots and glyphs only, never text.
 - **Project status** `project-status-in-progress`, `-ready`, `-todo`: blue, fuchsia, cyan. Dots only.
 
@@ -172,6 +173,9 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
     "kind-agent-surface": {"hex": "#F0F9FF", "role": "surface-kind-agent"}, "kind-agent-surface-dark": {"hex": "#082F49", "role": "surface-kind-agent", "alpha": 0.2},
     "kind-agent-border": {"hex": "#BAE6FD", "role": "border-kind-agent"}, "kind-agent-border-dark": {"hex": "#0C4A6E", "role": "border-kind-agent", "alpha": 0.4},
     "kind-agent-text": {"hex": "#075985", "role": "text-kind-agent"}, "kind-agent-text-dark": {"hex": "#BAE6FD", "role": "text-kind-agent"},
+    "syntax-key": {"hex": "#075985", "role": "text-syntax"}, "syntax-key-dark": {"hex": "#BAE6FD", "role": "text-syntax"},
+    "syntax-string": {"hex": "#6D28D9", "role": "text-syntax"}, "syntax-string-dark": {"hex": "#C4B5FD", "role": "text-syntax"},
+    "syntax-literal": {"hex": "#065F46", "role": "text-syntax"}, "syntax-literal-dark": {"hex": "#6EE7B7", "role": "text-syntax"},
     "agent-swatch-1": {"hex": "#7C3AED", "role": "swatch-agent"}, "agent-swatch-1-dark": {"hex": "#A78BFA", "role": "swatch-agent"},
     "agent-swatch-2": {"hex": "#0891B2", "role": "swatch-agent"}, "agent-swatch-2-dark": {"hex": "#22D3EE", "role": "swatch-agent"},
     "agent-swatch-3": {"hex": "#059669", "role": "swatch-agent"}, "agent-swatch-3-dark": {"hex": "#34D399", "role": "swatch-agent"},

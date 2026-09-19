@@ -91,6 +91,12 @@
   --color-success-surface-dark: #052E16;
   --color-success-text: #166534;
   --color-success-text-dark: #4ADE80;
+  --color-syntax-key: #075985;
+  --color-syntax-key-dark: #BAE6FD;
+  --color-syntax-literal: #065F46;
+  --color-syntax-literal-dark: #6EE7B7;
+  --color-syntax-string: #6D28D9;
+  --color-syntax-string-dark: #C4B5FD;
   --color-text-body: #44403C;
   --color-text-body-dark: #D6D3D1;
   --color-text-on-inverse: #F5F5F4;

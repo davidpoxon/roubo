@@ -1,6 +1,13 @@
-import { EditorView } from "@codemirror/view";
-import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
+import {
+  EditorView,
+  Decoration,
+  ViewPlugin,
+  type ViewUpdate,
+  type DecorationSet,
+} from "@codemirror/view";
+import { syntaxHighlighting, syntaxTree, HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
+import { RangeSetBuilder } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 
 const FONT_FAMILY =
@@ -64,33 +71,76 @@ function buildBaseTheme(dark: boolean): Extension {
   );
 }
 
-// The chrome above and the neutral tokens below read DESIGN.md roles through
-// var(--color-<role>), so they follow the theme switch in semantic-dark.css.
-// Keys, strings, and literals keep per-theme hues because DESIGN.md records no
-// code syntax role yet; the proposed syntax-* roles are tracked in #1331.
-const NEUTRAL_SYNTAX = [
-  { tag: tags.comment, color: "var(--color-text-secondary)", fontStyle: "italic" },
-  { tag: [tags.punctuation, tags.meta], color: "var(--color-text-secondary)" },
-  { tag: tags.operator, color: "var(--color-text-secondary)" },
+// Every colour in the chrome above and the highlight below is a DESIGN.md role
+// read through var(--color-<role>), so it follows the theme switch in
+// semantic-dark.css. One highlight style therefore serves both themes; the
+// `dark` flag only tells CodeMirror which of its own base styles to apply.
+const yamlHighlight = syntaxHighlighting(
+  HighlightStyle.define([
+    { tag: tags.propertyName, color: "var(--color-syntax-key)" },
+    { tag: tags.string, color: "var(--color-syntax-string)" },
+    { tag: tags.comment, color: "var(--color-text-secondary)", fontStyle: "italic" },
+    { tag: [tags.punctuation, tags.meta], color: "var(--color-text-secondary)" },
+    { tag: tags.operator, color: "var(--color-text-secondary)" },
+  ]),
+);
+
+// @lezer/yaml tags every plain scalar as `content`, never as number, bool, or
+// null, so a HighlightStyle rule cannot tell `4` from `npm i`. This plugin marks
+// the plain scalars the YAML 1.2 core schema resolves to a number, boolean, or
+// null, and the theme paints the mark in `syntax-literal`.
+const CORE_SCHEMA_LITERAL = new RegExp(
+  "^(?:" +
+    ["null|Null|NULL|~", "true|True|TRUE|false|False|FALSE"].join("|") +
+    "|[-+]?[0-9]+|0o[0-7]+|0x[0-9a-fA-F]+" +
+    "|[-+]?(?:\\.[0-9]+|[0-9]+(?:\\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?" +
+    "|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN)" +
+    ")$",
+);
+
+const literalMark = Decoration.mark({ class: "cm-yaml-literal" });
+
+function literalDecorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  const tree = syntaxTree(view.state);
+  for (const { from, to } of view.visibleRanges) {
+    tree.iterate({
+      from,
+      to,
+      enter: (node) => {
+        if (node.name !== "Literal" || node.node.parent?.name === "Key") return;
+        if (CORE_SCHEMA_LITERAL.test(view.state.doc.sliceString(node.from, node.to))) {
+          builder.add(node.from, node.to, literalMark);
+        }
+      },
+    });
+  }
+  return builder.finish();
+}
+
+const yamlLiterals = [
+  ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+
+      constructor(view: EditorView) {
+        this.decorations = literalDecorations(view);
+      }
+
+      update(update: ViewUpdate) {
+        if (
+          update.docChanged ||
+          update.viewportChanged ||
+          syntaxTree(update.startState) !== syntaxTree(update.state)
+        ) {
+          this.decorations = literalDecorations(update.view);
+        }
+      }
+    },
+    { decorations: (plugin) => plugin.decorations },
+  ),
+  EditorView.baseTheme({ ".cm-yaml-literal": { color: "var(--color-syntax-literal)" } }),
 ];
 
-const lightHighlight = syntaxHighlighting(
-  HighlightStyle.define([
-    { tag: tags.propertyName, color: "rgb(7 89 133)" }, // keys
-    { tag: tags.string, color: "rgb(180 83 9)" }, // string values
-    { tag: [tags.number, tags.bool, tags.null], color: "rgb(6 95 70)" }, // literals
-    ...NEUTRAL_SYNTAX,
-  ]),
-);
-
-const darkHighlight = syntaxHighlighting(
-  HighlightStyle.define([
-    { tag: tags.propertyName, color: "rgb(186 230 253)" }, // keys
-    { tag: tags.string, color: "rgb(252 211 77)" }, // string values
-    { tag: [tags.number, tags.bool, tags.null], color: "rgb(110 231 183)" }, // literals
-    ...NEUTRAL_SYNTAX,
-  ]),
-);
-
-export const yamlLightTheme: Extension[] = [buildBaseTheme(false), lightHighlight];
-export const yamlDarkTheme: Extension[] = [buildBaseTheme(true), darkHighlight];
+export const yamlLightTheme: Extension[] = [buildBaseTheme(false), yamlHighlight, yamlLiterals];
+export const yamlDarkTheme: Extension[] = [buildBaseTheme(true), yamlHighlight, yamlLiterals];
