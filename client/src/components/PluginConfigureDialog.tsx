@@ -740,7 +740,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                       onChange={(next) => toggleCategory(category, next)}
                       aria-label={category}
                       className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring flex items-center gap-2 group ${
-                        actionable ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                        actionable ? "cursor-not-allowed opacity-40" : "cursor-pointer"
                       }`}
                     >
                       {({ isSelected }) => (

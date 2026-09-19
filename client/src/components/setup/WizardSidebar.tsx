@@ -72,7 +72,7 @@ export default function WizardSidebar({
             <div key={section}>
               <Button
                 onPress={() => onNavigate(section)}
-                className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring w-full text-left px-2 py-1.5 rounded text-13 transition-colors flex items-center gap-2 ${
+                className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring w-full text-left px-2 py-1.5 rounded-control text-13 transition-colors flex items-center gap-2 ${
                   active && !currentSubStep
                     ? "text-amber-600 dark:text-amber-400 bg-amber-500/8"
                     : active && currentSubStep
@@ -105,7 +105,7 @@ export default function WizardSidebar({
                       <Button
                         key={key}
                         onPress={() => onNavigateSubStep("components", key)}
-                        className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring w-full text-left px-2 py-1 rounded text-12 transition-colors flex items-center gap-1.5 ${
+                        className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring w-full text-left px-2 py-1 rounded-control text-12 transition-colors flex items-center gap-1.5 ${
                           subActive
                             ? "text-amber-600 dark:text-amber-400 bg-amber-500/8"
                             : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
@@ -120,7 +120,7 @@ export default function WizardSidebar({
                     );
                   })}
                   <DialogTrigger isOpen={addComponentOpen} onOpenChange={setAddComponentOpen}>
-                    <Button className="w-full text-left px-2 py-1 rounded text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
+                    <Button className="w-full text-left px-2 py-1 rounded-control text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
                       <Plus size={12} />
                       Add
                     </Button>
@@ -166,7 +166,7 @@ export default function WizardSidebar({
                       <Button
                         key={tool.name || String(i)}
                         onPress={() => onNavigateSubStep("tools", subKey)}
-                        className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring w-full text-left px-2 py-1 rounded text-12 transition-colors flex items-center gap-1.5 ${
+                        className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring w-full text-left px-2 py-1 rounded-control text-12 transition-colors flex items-center gap-1.5 ${
                           subActive
                             ? "text-amber-600 dark:text-amber-400 bg-amber-500/8"
                             : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
@@ -182,7 +182,7 @@ export default function WizardSidebar({
                   })}
                   <Button
                     onPress={onAddTool}
-                    className="w-full text-left px-2 py-1 rounded text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="w-full text-left px-2 py-1 rounded-control text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     <Plus size={12} />
                     Add
@@ -199,7 +199,7 @@ export default function WizardSidebar({
                       <Button
                         key={i}
                         onPress={() => onNavigateSubStep("users", subKey)}
-                        className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring w-full text-left px-2 py-1 rounded text-12 transition-colors flex items-center gap-1.5 ${
+                        className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring w-full text-left px-2 py-1 rounded-control text-12 transition-colors flex items-center gap-1.5 ${
                           subActive
                             ? "text-amber-600 dark:text-amber-400 bg-amber-500/8"
                             : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
@@ -212,7 +212,7 @@ export default function WizardSidebar({
                   })}
                   <Button
                     onPress={onAddUser}
-                    className="w-full text-left px-2 py-1 rounded text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="w-full text-left px-2 py-1 rounded-control text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors flex items-center gap-1 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     <Plus size={12} />
                     Add

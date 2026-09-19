@@ -405,7 +405,7 @@ export default function SectionComponents({
       <Button
         key={key}
         onPress={() => dispatch({ type: "SET_SUB_STEP", payload: key })}
-        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-control bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <span className="flex-1 text-13 font-medium text-stone-700 dark:text-stone-300 font-mono truncate">
           {key}

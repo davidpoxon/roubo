@@ -83,6 +83,14 @@ export default function IconButton({
         data-disabled="true"
         data-testid={testId}
         className={`${classes} ${DISABLED_TONE_CLASSES[tone]} ${DISABLED_CLASSES}`}
+        onKeyDown={(e) => {
+          // Swallow activation keys the way the enabled React Aria button does,
+          // so Enter or Space on a disabled trigger never reaches a parent handler.
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
       >
         {children}
       </button>

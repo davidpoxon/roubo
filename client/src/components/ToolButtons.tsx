@@ -38,7 +38,7 @@ function ToolMenu({
               isDisabled={!tool.enabled}
               className={({ isFocused, isDisabled }) =>
                 `flex items-center gap-2.5 px-3 py-2 rounded-control text-12 cursor-default outline-none transition-colors ${
-                  isDisabled ? "opacity-30" : ""
+                  isDisabled ? "opacity-40" : ""
                 } ${isFocused && !isDisabled ? "bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100" : "text-stone-500 dark:text-stone-400"}`
               }
             >

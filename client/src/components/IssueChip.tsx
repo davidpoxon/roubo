@@ -41,23 +41,23 @@ interface Tone {
 }
 
 const OPEN: Tone = {
-  frame: "bg-issue-open text-issue-open-text",
+  frame: "border-transparent bg-issue-open text-issue-open-text",
   hover: "data-[hovered]:border-issue-open-text",
 };
 const ACCENT: Tone = {
-  frame: "bg-accent-muted text-accent-text",
+  frame: "border-transparent bg-accent-muted text-accent-text",
   hover: "data-[hovered]:border-accent-text",
 };
 const DANGER: Tone = {
-  frame: "bg-danger-surface text-danger-text",
+  frame: "border-transparent bg-danger-surface text-danger-text",
   hover: "data-[hovered]:border-danger-text",
 };
 const QUIET: Tone = {
-  frame: "bg-bg-hover text-text-secondary",
+  frame: "border-transparent bg-bg-hover text-text-secondary",
   hover: "data-[hovered]:border-text-secondary",
 };
 const NEUTRAL: Tone = {
-  frame: "bg-bg-pressed text-text-body",
+  frame: "border-transparent bg-bg-pressed text-text-body",
   hover: "data-[hovered]:border-text-body",
 };
 
@@ -82,18 +82,18 @@ const VARIANT_TONES: Record<Exclude<IssueChipVariant, "status" | "security-categ
     hover: "data-[hovered]:border-issue-label-text",
   },
   milestone: {
-    frame: "bg-issue-milestone text-issue-milestone-text",
+    frame: "border-transparent bg-issue-milestone text-issue-milestone-text",
     hover: "data-[hovered]:border-issue-milestone-text",
   },
   "issue-type": {
-    frame: "bg-issue-type text-issue-type-text",
+    frame: "border-transparent bg-issue-type text-issue-type-text",
     hover: "data-[hovered]:border-issue-type-text",
   },
   metadata: NEUTRAL,
 };
 
 const BASE_CLASSES =
-  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-chip border border-transparent text-11 font-medium leading-none max-w-full min-w-0";
+  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-chip border text-11 font-medium leading-none max-w-full min-w-0";
 const INTERACTIVE_CLASSES = `cursor-pointer transition-colors ${focusRing}`;
 
 export default function IssueChip({

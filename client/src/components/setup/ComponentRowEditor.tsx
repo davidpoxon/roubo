@@ -276,7 +276,7 @@ export default function ComponentRowEditor({
             min={1}
             max={65535}
             placeholder="3000"
-            className="w-16 text-right bg-transparent font-mono text-12 text-stone-500 dark:text-stone-400 border border-transparent rounded-control px-1.5 py-0.5 outline-none hover:border-stone-300 dark:hover:border-stone-700 focus:border-stone-400 dark:focus:border-stone-600 focus:text-stone-800 dark:focus:text-stone-200 focus:bg-stone-50 dark:focus:bg-stone-950/60"
+            className="w-16 text-right bg-transparent font-mono text-12 text-stone-500 dark:text-stone-400 border border-transparent rounded-control px-1.5 py-0.5 outline-none hover:border-stone-300 dark:hover:border-stone-700 focus:border-focus-ring focus:ring-2 focus:ring-focus-ring focus:text-stone-800 dark:focus:text-stone-200 focus:bg-stone-50 dark:focus:bg-stone-950/60"
           />
         </TextField>
 

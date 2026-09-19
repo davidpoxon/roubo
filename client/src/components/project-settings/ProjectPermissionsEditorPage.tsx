@@ -307,7 +307,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                     setAddPattern(tpl);
                     setIsDuplicate(false);
                   }}
-                  className="font-mono text-11 px-1.5 py-0.5 rounded-sm bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-300 dark:border-stone-700 hover:border-stone-400 dark:hover:border-stone-500 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="font-mono text-11 px-1.5 py-0.5 rounded-control bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-300 dark:border-stone-700 hover:border-stone-400 dark:hover:border-stone-500 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   {tpl}
                 </Button>

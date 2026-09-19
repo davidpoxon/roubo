@@ -29,7 +29,7 @@ const SECTION_HEADER_CLASS =
 const ITEM_CLASS = (isFocused: boolean, isDisabled: boolean) =>
   [
     "flex items-center gap-2 px-3 py-2 rounded-control cursor-default outline-none transition-colors",
-    isDisabled ? "opacity-50 cursor-not-allowed" : "",
+    isDisabled ? "opacity-40 cursor-not-allowed" : "",
     isFocused && !isDisabled ? "bg-stone-100 dark:bg-stone-800" : "",
   ]
     .filter(Boolean)
