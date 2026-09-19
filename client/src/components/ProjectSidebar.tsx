@@ -1,21 +1,25 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Button } from "react-aria-components";
 import { Layers, Settings, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useProjects } from "../hooks/useProjects";
 import { useAllBenches } from "../hooks/useBenches";
 import { useSidebarCollapsed } from "../hooks/useSidebarCollapsed";
 import NotificationIndicator from "./NotificationIndicator";
+import NavItem from "./ui/NavItem";
+import IconButton from "./ui/IconButton";
+import { STATUS_DOT_CLASSES, type StatusTone } from "./ui/styles";
 import { useRegisterProjectModal } from "../hooks/useRegisterProjectModal";
 import { collectActionNeeded } from "../lib/notifications";
 import type { Bench, BenchStatus, RegisteredProject } from "@roubo/shared";
 
-const statusDotColor: Record<BenchStatus, string> = {
-  active: "bg-green-500",
-  preparing: "bg-amber-500",
-  clearing: "bg-amber-500",
-  error: "bg-red-500",
-  idle: "bg-stone-300 dark:bg-stone-700",
+// Bench statuses onto the DESIGN.md status tokens. Clearing is work in
+// progress, so it shares `status-preparing`.
+const BENCH_STATUS_TONE: Record<BenchStatus, StatusTone> = {
+  active: "active",
+  preparing: "preparing",
+  clearing: "preparing",
+  error: "error",
+  idle: "idle",
 };
 
 export default function ProjectSidebar() {
@@ -44,79 +48,68 @@ export default function ProjectSidebar() {
   const isBenchActive = (projectId: string, benchId: number) =>
     location.pathname === `/projects/${projectId}/benches/${benchId}`;
 
-  const navColorClass = (active: boolean) =>
-    active
-      ? "bg-accent-muted text-accent-text font-medium"
-      : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40";
-
-  const navItemClass = (active: boolean, layout = "gap-2.5") =>
-    `w-full flex items-center ${layout} px-3 py-2 rounded-lg text-13 transition-colors duration-100 outline-none ${navColorClass(active)}`;
-
-  const benchItemClass = (active: boolean) =>
-    `w-full flex items-center gap-2 pl-7 pr-3 py-1.5 rounded-lg text-12 transition-colors duration-100 outline-none ${navColorClass(active)}`;
-
   if (collapsed) {
     // Icon-only rail: All Projects, an expand control, and Settings. The project
     // list is hidden to free horizontal space (#524).
     return (
-      <aside className="w-12 h-full flex flex-col items-center border-r border-stone-200 dark:border-stone-800/40 bg-stone-50 dark:bg-stone-950/60 shrink-0">
+      <aside className="w-12 h-full flex flex-col items-center border-r border-border bg-bg-base shrink-0">
         <div className="flex-1 px-1.5 pt-3 flex flex-col items-center gap-1">
-          <Button
+          <NavItem
             onPress={() => navigate("/")}
             aria-label="All Projects"
-            className={`flex items-center justify-center w-9 h-9 rounded-lg outline-none ${navColorClass(isActive("/"))}`}
+            isSelected={isActive("/")}
+            className="justify-center w-9 h-9 px-0 py-0"
           >
             <Layers size={16} />
-          </Button>
-          <Button
+          </NavItem>
+          <IconButton
             onPress={() => setCollapsed(false)}
-            aria-label="Expand sidebar"
+            label="Expand sidebar"
             aria-expanded={false}
-            className="flex items-center justify-center w-9 h-9 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            placement="right"
+            className="w-9 h-9"
           >
             <PanelLeftOpen size={16} />
-          </Button>
+          </IconButton>
         </div>
-        <div className="px-1.5 py-3 border-t border-stone-200 dark:border-stone-800/40 w-full flex justify-center">
-          <Button
+        <div className="px-1.5 py-3 border-t border-border w-full flex justify-center">
+          <NavItem
             onPress={() => navigate("/settings")}
             aria-label="Settings"
-            className={`flex items-center justify-center w-9 h-9 rounded-lg outline-none ${navColorClass(isActive("/settings"))}`}
+            isSelected={isActive("/settings")}
+            className="justify-center w-9 h-9 px-0 py-0"
           >
             <Settings size={16} />
-          </Button>
+          </NavItem>
         </div>
       </aside>
     );
   }
 
   return (
-    <aside className="w-60 h-full flex flex-col border-r border-stone-200 dark:border-stone-800/40 bg-stone-50 dark:bg-stone-950/60 shrink-0">
+    <aside className="w-60 h-full flex flex-col border-r border-border bg-bg-base shrink-0">
       <nav className="flex-1 px-3 pt-3 overflow-auto">
-        <Button
+        <NavItem
           onPress={() => navigate("/")}
-          className={navItemClass(isActive("/"), "justify-between")}
+          isSelected={isActive("/")}
+          className="w-full justify-between"
         >
-          <span className="flex items-center gap-2.5">
+          <span className="flex items-center gap-2">
             <Layers size={14} />
             All Projects
           </span>
           <NotificationIndicator notifications={collectActionNeeded(allBenches ?? [])} />
-        </Button>
+        </NavItem>
 
         {(projects?.length ?? 0) > 0 && (
           <div className="mt-6">
             <div className="flex items-center justify-between px-3 pb-2">
-              <p className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+              <p className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                 Projects
               </p>
-              <Button
-                onPress={openRegisterModal}
-                aria-label="Register project"
-                className="p-0.5 rounded text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-amber-500"
-              >
+              <IconButton onPress={openRegisterModal} label="Register project" className="p-0.5">
                 <Plus size={14} />
-              </Button>
+              </IconButton>
             </div>
             <div className="space-y-0.5">
               {projects?.map((project) => (
@@ -125,40 +118,36 @@ export default function ProjectSidebar() {
                   project={project}
                   projectBenches={benchesByProject.get(project.id) ?? []}
                   isProjectActive={isProjectActive(project.id)}
-                  navItemClass={navItemClass}
-                  benchItemClass={benchItemClass}
                   isBenchActive={isBenchActive}
                   navigate={navigate}
                 />
               ))}
             </div>
-            <Button
-              onPress={openRegisterModal}
-              className="w-full flex items-center gap-2 px-3 py-1.5 mt-0.5 rounded-lg text-12 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors duration-100 outline-none"
-            >
+            <NavItem onPress={openRegisterModal} className="w-full gap-2 mt-0.5 text-12">
               <Plus size={12} />
               Register project
-            </Button>
+            </NavItem>
           </div>
         )}
       </nav>
 
-      <div className="px-3 py-3 border-t border-stone-200 dark:border-stone-800/40 flex items-center gap-1">
-        <Button
+      <div className="px-3 py-3 border-t border-border flex items-center gap-1">
+        <NavItem
           onPress={() => navigate("/settings")}
-          className={navItemClass(isActive("/settings"))}
+          isSelected={isActive("/settings")}
+          className="w-full gap-2"
         >
           <Settings size={14} />
           Settings
-        </Button>
-        <Button
+        </NavItem>
+        <IconButton
           onPress={() => setCollapsed(true)}
-          aria-label="Collapse sidebar"
+          label="Collapse sidebar"
           aria-expanded={true}
-          className="shrink-0 flex items-center justify-center p-2 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="shrink-0 p-2"
         >
           <PanelLeftClose size={14} />
-        </Button>
+        </IconButton>
       </div>
     </aside>
   );
@@ -168,51 +157,49 @@ function ProjectSidebarRow({
   project,
   projectBenches,
   isProjectActive,
-  navItemClass,
-  benchItemClass,
   isBenchActive,
   navigate,
 }: {
   project: RegisteredProject;
   projectBenches: Bench[];
   isProjectActive: boolean;
-  navItemClass: (active: boolean, layout?: string) => string;
-  benchItemClass: (active: boolean) => string;
   isBenchActive: (projectId: string, benchId: number) => boolean;
   navigate: (path: string) => void;
 }) {
   return (
     <div data-project-id={project.id}>
-      <Button
+      <NavItem
         onPress={() => navigate(`/projects/${project.id}`)}
-        className={navItemClass(isProjectActive, "justify-between")}
+        isSelected={isProjectActive}
+        className="w-full justify-between gap-2"
       >
         <span className="truncate">{project.config?.project?.displayName ?? project.id}</span>
         <div className="flex items-center gap-1.5 shrink-0">
           <NotificationIndicator notifications={collectActionNeeded(projectBenches)} />
           {projectBenches.length > 0 && (
-            <span className="text-11 font-medium text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800/80 rounded-full px-1.5 py-px min-w-[18px] text-center">
+            <span className="text-11 font-medium text-text-secondary tabular-nums min-w-[18px] text-center">
               {projectBenches.length}
             </span>
           )}
         </div>
-      </Button>
+      </NavItem>
       {projectBenches.map((bench) => {
         const active = isBenchActive(project.id, bench.id);
         return (
-          <Button
+          <NavItem
             key={bench.id}
             onPress={() => navigate(`/projects/${project.id}/benches/${bench.id}`)}
-            className={benchItemClass(active)}
+            isSelected={active}
+            className="w-full gap-2 pl-7 text-12"
           >
             <span
               role="img"
-              className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDotColor[bench.status]}`}
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT_CLASSES[BENCH_STATUS_TONE[bench.status]]}`}
               aria-label={bench.status}
             />
             <span className="font-mono text-11 truncate">{bench.branch}</span>
             {!active && <NotificationIndicator notifications={bench.notifications} />}
-          </Button>
+          </NavItem>
         );
       })}
     </div>

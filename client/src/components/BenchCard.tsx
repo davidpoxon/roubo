@@ -1,14 +1,4 @@
 import { useState } from "react";
-import {
-  Button,
-  TooltipTrigger,
-  Tooltip,
-  ModalOverlay,
-  Modal,
-  Dialog,
-  Heading,
-} from "react-aria-components";
-import { stampAriaModal } from "../lib/aria-modal";
 import { GitBranch, Play, Square, Trash2, X, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router";
 import type { Bench, DirtyReason } from "@roubo/shared";
@@ -27,13 +17,28 @@ import { stepIcon, stepTextColor } from "../lib/provisioning";
 import { isDirtyBenchError } from "../lib/api";
 import ClearBenchDirtyDialog from "./ClearBenchDirtyDialog";
 import { useToast } from "../hooks/useToast";
+import Button from "./ui/Button";
+import IconButton from "./ui/IconButton";
+import Dialog, { DIALOG_ACTIONS_CLASS } from "./ui/Dialog";
+import StatusIndicator from "./ui/StatusIndicator";
+import type { StatusTone } from "./ui/styles";
+import { focusRingOffset } from "./ui/focus-ring";
 
-const borderColor: Record<string, string> = {
-  active: "border-l-green-500",
-  preparing: "border-l-amber-500",
-  error: "border-l-red-500",
-  clearing: "border-l-amber-500",
-  idle: "border-l-border",
+// DESIGN.md Bench card: the border is the bench status. Clearing is work in
+// progress, so it shares `status-preparing` with preparing.
+const STATUS_TONE: Record<Bench["status"], StatusTone> = {
+  active: "active",
+  preparing: "preparing",
+  error: "error",
+  clearing: "preparing",
+  idle: "idle",
+};
+
+const BORDER_CLASSES: Record<StatusTone, string> = {
+  active: "border-status-active",
+  preparing: "border-status-preparing",
+  error: "border-status-error",
+  idle: "border-status-idle",
 };
 
 export default function BenchCard({
@@ -72,6 +77,7 @@ export default function BenchCard({
     bench.provisioningSteps.length > 0 &&
     (bench.status === "preparing" || bench.status === "error");
   const showTeardownSteps = (bench.teardownSteps?.length ?? 0) > 0 && bench.status === "clearing";
+  const statusTone: StatusTone = bench.error ? "error" : (STATUS_TONE[bench.status] ?? "idle");
 
   const componentEntries = Object.entries(bench.components);
   const matchedPorts = new Map<string, number>();
@@ -87,7 +93,7 @@ export default function BenchCard({
   return (
     <>
       <div
-        className="cursor-pointer group h-[260px]"
+        className={`cursor-pointer group h-[260px] rounded-card ${focusRingOffset}`}
         role="link"
         tabIndex={0}
         onClick={() => navigate(`/projects/${bench.projectId}/benches/${bench.id}`)}
@@ -96,27 +102,33 @@ export default function BenchCard({
         }}
       >
         <div
-          className={`border-l-[3px] ${
-            bench.error ? "border-l-red-500" : (borderColor[bench.status] ?? "border-l-border")
-          } bg-stone-100 dark:bg-stone-900/50 group-hover:bg-stone-200 dark:group-hover:bg-stone-800/70 rounded-xl transition-colors duration-150 h-full ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/30`}
+          data-testid="bench-card-frame"
+          className={`border ${BORDER_CLASSES[statusTone]} bg-bg-surface group-hover:bg-bg-hover rounded-card transition-colors h-full`}
         >
           <div className="p-4 flex flex-col h-full">
             {/* Header */}
             <div className="space-y-0.5 shrink-0">
               {projectName && (
-                <p className="text-11 font-medium uppercase tracking-label text-stone-600 dark:text-stone-400">
+                <p className="text-11 font-medium uppercase tracking-label text-text-secondary">
                   {projectName}
                 </p>
               )}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <p className="text-14 font-semibold text-text-primary">Bench {bench.id}</p>
                 <NotificationIndicator notifications={bench.notifications} />
+                <StatusIndicator
+                  tone={statusTone}
+                  label={bench.status}
+                  pulse={bench.status === "preparing" || bench.status === "clearing"}
+                  className="ml-auto"
+                  data-testid="bench-card-status"
+                />
               </div>
             </div>
 
             {/* Branch */}
             <div className="flex items-center gap-1.5 text-12 text-text-secondary mt-2.5 shrink-0">
-              <GitBranch size={12} className="shrink-0 text-stone-600 dark:text-stone-400" />
+              <GitBranch size={12} className="shrink-0 text-text-secondary" />
               <span className="truncate">{bench.branch}</span>
             </div>
 
@@ -134,7 +146,7 @@ export default function BenchCard({
               <div className="mt-1.5 shrink-0">
                 <span
                   data-testid="previous-integration-badge"
-                  className="inline-flex items-center px-1.5 py-0.5 rounded text-11 font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400"
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-chip text-11 font-medium bg-accent-muted text-accent-text"
                 >
                   Issue from previous integration
                 </span>
@@ -159,7 +171,7 @@ export default function BenchCard({
                   ))}
                 </div>
               ) : bench.error ? (
-                <p className="text-11 text-red-400/80 line-clamp-2">{bench.error}</p>
+                <p className="text-11 text-danger-text line-clamp-2">{bench.error}</p>
               ) : (
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   {componentEntries.map(([name, component]) => (
@@ -167,7 +179,7 @@ export default function BenchCard({
                       <ComponentStatusDot status={component.status} label={name} />
                       <span className="text-11 text-text-secondary">{name}</span>
                       {matchedPorts.has(name) && (
-                        <span className="text-11 font-mono text-stone-600 dark:text-stone-400">
+                        <span className="text-11 font-mono text-text-secondary">
                           :{matchedPorts.get(name)}
                         </span>
                       )}
@@ -176,9 +188,7 @@ export default function BenchCard({
                   {orphanPorts.map(([name, port]) => (
                     <span key={name} className="flex items-center gap-1.5">
                       <span className="text-11 text-text-muted">{name}</span>
-                      <span className="text-11 font-mono text-stone-600 dark:text-stone-400">
-                        :{port}
-                      </span>
+                      <span className="text-11 font-mono text-text-secondary">:{port}</span>
                     </span>
                   ))}
                 </div>
@@ -201,7 +211,7 @@ export default function BenchCard({
                       },
                     )
                   }
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-11 font-medium text-red-300 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors outline-none disabled:opacity-40 w-full"
+                  className="w-full"
                 >
                   <RotateCcw
                     size={12}
@@ -220,105 +230,72 @@ export default function BenchCard({
 
             {/* Actions */}
             <div
-              className="flex items-center gap-0.5 pt-2 mt-auto border-t border-stone-200 dark:border-stone-800/60 shrink-0"
+              className="flex items-center gap-0.5 pt-2 mt-auto border-t border-border shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
-              <TooltipTrigger delay={500}>
-                <Button
-                  isDisabled={isBusy}
-                  onPress={() => {
-                    if (isRunning)
-                      stopBench.mutate({ projectId: bench.projectId, benchId: bench.id });
-                    else startBench.mutate({ projectId: bench.projectId, benchId: bench.id });
-                  }}
-                  className={
-                    isPrimaryStartCTA
-                      ? "p-1.5 rounded-md bg-amber-500 text-stone-950 not-disabled:hover:bg-amber-400 not-disabled:active:bg-amber-600 disabled:opacity-30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
-                      : "p-1.5 rounded-md text-text-muted not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
-                  }
-                >
-                  {isRunning ? <Square size={14} /> : <Play size={14} />}
-                </Button>
-                <Tooltip className="bg-tooltip-bg text-tooltip-text text-12 px-2 py-1 rounded-md shadow-lg">
-                  {isRunning ? "Stop all components" : "Start all components on this bench"}
-                </Tooltip>
-              </TooltipTrigger>
+              <IconButton
+                isDisabled={isBusy}
+                tone={isPrimaryStartCTA ? "primary" : "default"}
+                label={isRunning ? "Stop all components" : "Start all components on this bench"}
+                onPress={() => {
+                  if (isRunning)
+                    stopBench.mutate({ projectId: bench.projectId, benchId: bench.id });
+                  else startBench.mutate({ projectId: bench.projectId, benchId: bench.id });
+                }}
+              >
+                {isRunning ? <Square size={14} /> : <Play size={14} />}
+              </IconButton>
               <ToolButtons projectId={bench.projectId} benchId={bench.id} compact />
-              <TooltipTrigger delay={500}>
-                <Button
-                  isDisabled={!canTeardown}
-                  onPress={() => setConfirmOpen(true)}
-                  className="p-1.5 rounded-md text-stone-600 dark:text-stone-400 not-disabled:hover:text-red-400 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
-                >
-                  {isProvisioning ? <X size={14} /> : <Trash2 size={14} />}
-                </Button>
-                <Tooltip className="bg-tooltip-bg text-tooltip-text text-12 px-2 py-1 rounded-md shadow-lg">
-                  {isProvisioning ? "Cancel preparing" : "Clear bench"}
-                </Tooltip>
-              </TooltipTrigger>
+              <IconButton
+                isDisabled={!canTeardown}
+                tone="danger"
+                label={isProvisioning ? "Cancel preparing" : "Clear bench"}
+                onPress={() => setConfirmOpen(true)}
+              >
+                {isProvisioning ? <X size={14} /> : <Trash2 size={14} />}
+              </IconButton>
             </div>
           </div>
         </div>
       </div>
 
-      <ModalOverlay
+      <Dialog
         isOpen={confirmOpen}
         onOpenChange={setConfirmOpen}
         isDismissable
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        widthClassName="max-w-sm"
+        title={isProvisioning ? "Cancel preparing" : "Clear bench"}
       >
-        <Modal className="animate-rise-in w-full max-w-sm mx-4">
-          <Dialog
-            ref={stampAriaModal}
-            className="bg-bg-surface border border-border rounded-xl shadow-2xl outline-none"
-          >
-            {({ close }) => (
-              <>
-                <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                  <Heading slot="title" className="text-16 font-semibold text-text-primary">
-                    {isProvisioning ? "Cancel preparing" : "Clear bench"}
-                  </Heading>
-                </div>
-
-                <div className="px-5 py-4">
-                  <p className="text-13 text-stone-600 dark:text-stone-400">
-                    {isProvisioning
-                      ? "This will cancel preparing and clean up any resources created so far. This action cannot be undone."
-                      : "This will stop all components, remove Docker volumes (including any database data), remove the workspace, and delete the branch. This action cannot be undone."}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
-                  <Button
-                    onPress={close}
-                    className="px-3 py-1.5 text-13 text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onPress={() => {
-                      teardown.mutate(
-                        { projectId: bench.projectId, benchId: bench.id },
-                        {
-                          onSuccess: () =>
-                            registerTeardown(bench.projectId, bench.id, bench.branch),
-                          onError: (err) => {
-                            if (isDirtyBenchError(err)) setDirtyReasons(err.details.reasons);
-                          },
-                        },
-                      );
-                      close();
-                    }}
-                    className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 hover:bg-red-500 rounded-lg transition-colors outline-none"
-                  >
-                    {isProvisioning ? "Cancel preparing" : "Clear bench"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </Dialog>
-        </Modal>
-      </ModalOverlay>
+        {({ close }) => (
+          <>
+            <p className="text-13 text-text-body">
+              {isProvisioning
+                ? "This will cancel preparing and clean up any resources created so far. This action cannot be undone."
+                : "This will stop all components, remove Docker volumes (including any database data), remove the workspace, and delete the branch. This action cannot be undone."}
+            </p>
+            <div className={DIALOG_ACTIONS_CLASS}>
+              <Button onPress={close}>Cancel</Button>
+              <Button
+                variant="danger"
+                onPress={() => {
+                  teardown.mutate(
+                    { projectId: bench.projectId, benchId: bench.id },
+                    {
+                      onSuccess: () => registerTeardown(bench.projectId, bench.id, bench.branch),
+                      onError: (err) => {
+                        if (isDirtyBenchError(err)) setDirtyReasons(err.details.reasons);
+                      },
+                    },
+                  );
+                  close();
+                }}
+              >
+                {isProvisioning ? "Cancel preparing" : "Clear bench"}
+              </Button>
+            </div>
+          </>
+        )}
+      </Dialog>
 
       <ClearBenchDirtyDialog
         isOpen={dirtyReasons !== null}

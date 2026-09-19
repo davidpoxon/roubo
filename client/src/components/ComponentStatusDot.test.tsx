@@ -12,29 +12,29 @@ function renderDot(status: ComponentStatusValue, label?: string) {
 }
 
 describe("ComponentStatusDot", () => {
-  it("renders green class for running", () => {
+  it("renders the status-active token for running", () => {
     const dot = renderDot("running");
-    expect(dot.className).toContain("bg-green-500");
+    expect(dot.className).toContain("bg-status-active");
   });
 
-  it("renders red class for error", () => {
+  it("renders the status-error token for error", () => {
     const dot = renderDot("error");
-    expect(dot.className).toContain("bg-red-500");
+    expect(dot.className).toContain("bg-status-error");
   });
 
-  it("renders zinc class for stopped", () => {
+  it("renders the status-idle token for stopped", () => {
     const dot = renderDot("stopped");
-    expect(dot.className).toContain("bg-stone-600");
+    expect(dot.className).toContain("bg-status-idle");
   });
 
-  it("renders amber class for starting", () => {
+  it("renders the status-preparing token for starting", () => {
     const dot = renderDot("starting");
-    expect(dot.className).toContain("bg-amber-500");
+    expect(dot.className).toContain("bg-status-preparing");
   });
 
-  it("renders amber class for stopping", () => {
+  it("renders the status-preparing token for stopping", () => {
     const dot = renderDot("stopping");
-    expect(dot.className).toContain("bg-amber-500");
+    expect(dot.className).toContain("bg-status-preparing");
   });
 
   it("has animate-status-pulse for starting", () => {
@@ -70,5 +70,17 @@ describe("ComponentStatusDot", () => {
   it("sets title to label: status when label provided", () => {
     const dot = renderDot("running", "Web Server");
     expect(dot.getAttribute("title")).toBe("Web Server: running");
+  });
+
+  it("names the component and status to assistive technology when labelled", () => {
+    const dot = renderDot("error", "api");
+    expect(dot.getAttribute("role")).toBe("img");
+    expect(dot.getAttribute("aria-label")).toBe("api: error");
+  });
+
+  it("is decorative when the caller shows the status as text beside it", () => {
+    const dot = renderDot("running");
+    expect(dot.getAttribute("aria-hidden")).toBe("true");
+    expect(dot.getAttribute("role")).toBeNull();
   });
 });

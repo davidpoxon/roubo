@@ -1,7 +1,9 @@
 import { useId, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
+import { Button, TooltipTrigger } from "react-aria-components";
 import type { SecurityCategory, StatusTone } from "../lib/chip-mapping";
+import Tooltip from "./ui/Tooltip";
+import { focusRing } from "./ui/focus-ring";
 
 export type IssueChipVariant =
   "status" | "milestone" | "label" | "issue-type" | "metadata" | "security-category";
@@ -27,28 +29,72 @@ interface IssueChipProps {
   tooltip?: string;
 }
 
-const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
-  open: "bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300",
-  "in-progress": "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
-  blocked: "bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-300",
-  done: "bg-stone-500/15 text-stone-600 dark:bg-stone-500/20 dark:text-stone-300",
-  neutral: "bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-300",
-  warning: "bg-amber-500/20 text-amber-800 dark:bg-amber-500/25 dark:text-amber-200",
+// DESIGN.md Issue chip: tinted with its own tone at the 4px chip radius. The
+// four issue-* tones cover open, milestone, issue type, and label; the other
+// status tones reuse the paired semantic roles (accent-muted with accent-text,
+// danger-surface with danger-text). Each tone carries the hairline hover
+// border in its own text hue, so a pressable chip reacts without its tint
+// changing. A transparent border holds the space so the hover does not shift.
+interface Tone {
+  frame: string;
+  hover: string;
+}
+
+const OPEN: Tone = {
+  frame: "bg-issue-open text-issue-open-text",
+  hover: "data-[hovered]:border-issue-open-text",
+};
+const ACCENT: Tone = {
+  frame: "bg-accent-muted text-accent-text",
+  hover: "data-[hovered]:border-accent-text",
+};
+const DANGER: Tone = {
+  frame: "bg-danger-surface text-danger-text",
+  hover: "data-[hovered]:border-danger-text",
+};
+const QUIET: Tone = {
+  frame: "bg-bg-hover text-text-secondary",
+  hover: "data-[hovered]:border-text-secondary",
+};
+const NEUTRAL: Tone = {
+  frame: "bg-bg-pressed text-text-body",
+  hover: "data-[hovered]:border-text-body",
 };
 
-const SECURITY_CATEGORY_CLASSES: Record<SecurityCategory, string> = {
-  codeql: "bg-stone-500/15 text-stone-700 dark:bg-stone-500/20 dark:text-stone-300",
-  "secret-scanning": "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
-  dependabot: "bg-stone-500/15 text-stone-700 dark:bg-stone-500/20 dark:text-stone-300",
+const STATUS_TONES: Record<StatusTone, Tone> = {
+  open: OPEN,
+  "in-progress": ACCENT,
+  blocked: DANGER,
+  done: QUIET,
+  neutral: NEUTRAL,
+  warning: ACCENT,
+};
+
+const SECURITY_CATEGORY_TONES: Record<SecurityCategory, Tone> = {
+  codeql: NEUTRAL,
+  "secret-scanning": ACCENT,
+  dependabot: NEUTRAL,
+};
+
+const VARIANT_TONES: Record<Exclude<IssueChipVariant, "status" | "security-category">, Tone> = {
+  label: {
+    frame: "border-issue-label-border text-issue-label-text bg-transparent",
+    hover: "data-[hovered]:border-issue-label-text",
+  },
+  milestone: {
+    frame: "bg-issue-milestone text-issue-milestone-text",
+    hover: "data-[hovered]:border-issue-milestone-text",
+  },
+  "issue-type": {
+    frame: "bg-issue-type text-issue-type-text",
+    hover: "data-[hovered]:border-issue-type-text",
+  },
+  metadata: NEUTRAL,
 };
 
 const BASE_CLASSES =
-  "inline-flex items-center gap-1 px-1.5 py-0.5 text-11 font-medium leading-none max-w-full min-w-0";
-const INTERACTIVE_CLASSES =
-  "cursor-pointer outline-none transition-colors hover:brightness-110 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-stone-50 dark:focus-visible:ring-offset-stone-950";
-
-const FOCUS_RING_CLASSES =
-  "outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950";
+  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-chip border border-transparent text-11 font-medium leading-none max-w-full min-w-0";
+const INTERACTIVE_CLASSES = `cursor-pointer transition-colors ${focusRing}`;
 
 export default function IssueChip({
   variant,
@@ -62,7 +108,8 @@ export default function IssueChip({
   "data-testid": dataTestid,
   tooltip,
 }: IssueChipProps) {
-  const variantClasses = classesForVariant(variant, tone, securityCategory);
+  const toneClasses = toneForVariant(variant, tone, securityCategory);
+  const variantClasses = toneClasses.frame;
   const showIcon = Icon !== undefined && variant !== "label";
   const generatedId = useId();
   const describedById = ariaDescription ? `chip-desc-${generatedId}` : undefined;
@@ -84,7 +131,7 @@ export default function IssueChip({
     return (
       <Button
         onPress={onPress}
-        className={`${BASE_CLASSES} ${variantClasses} ${INTERACTIVE_CLASSES}`}
+        className={`${BASE_CLASSES} ${variantClasses} ${toneClasses.hover} ${INTERACTIVE_CLASSES}`}
         data-chip-category={variant}
         aria-describedby={describedById}
         data-testid={dataTestid}
@@ -98,16 +145,14 @@ export default function IssueChip({
     return (
       <TooltipTrigger delay={500}>
         <Button
-          className={`${BASE_CLASSES} ${variantClasses} ${FOCUS_RING_CLASSES}`}
+          className={`${BASE_CLASSES} ${variantClasses} ${toneClasses.hover} ${INTERACTIVE_CLASSES}`}
           data-chip-category={variant}
           aria-describedby={describedById}
           data-testid={dataTestid}
         >
           {inner}
         </Button>
-        <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg max-w-xs">
-          {tooltip}
-        </Tooltip>
+        <Tooltip>{tooltip}</Tooltip>
       </TooltipTrigger>
     );
   }
@@ -124,25 +169,17 @@ export default function IssueChip({
   );
 }
 
-function classesForVariant(
+function toneForVariant(
   variant: IssueChipVariant,
   tone: StatusTone,
   securityCategory: SecurityCategory | undefined,
-): string {
+): Tone {
   switch (variant) {
     case "status":
-      return `rounded-full ${STATUS_TONE_CLASSES[tone]}`;
-    case "label":
-      return "rounded-sm border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 bg-transparent";
-    case "milestone":
-      return "rounded-full bg-indigo-500/15 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300";
-    case "issue-type":
-      return "rounded-full bg-violet-500/15 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300";
-    case "metadata":
-      return "rounded-full bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-300";
-    case "security-category": {
-      const category = securityCategory ?? "codeql";
-      return `rounded-full ${SECURITY_CATEGORY_CLASSES[category]}`;
-    }
+      return STATUS_TONES[tone];
+    case "security-category":
+      return SECURITY_CATEGORY_TONES[securityCategory ?? "codeql"];
+    default:
+      return VARIANT_TONES[variant];
   }
 }

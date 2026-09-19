@@ -55,3 +55,14 @@
   --color-text-primary: var(--color-text-primary-dark);
   --color-text-secondary: var(--color-text-secondary-dark);
 }
+
+/*
+ * Dark elevation (DESIGN.md `elevation_dark`). emit_tokens.py writes only the
+ * light recipes, so the dark siblings live here beside the colour switch. A
+ * light shadow tinted with stone-900 disappears on a dark ground; these use
+ * black at a higher alpha.
+ */
+.dark {
+  --elevation-0: 0 8px 24px -6px rgb(0 0 0 / 0.6), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+  --elevation-1: 0 24px 48px -12px rgb(0 0 0 / 0.7);
+}

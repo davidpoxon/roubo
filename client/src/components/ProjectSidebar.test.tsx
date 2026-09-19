@@ -84,13 +84,13 @@ describe("ProjectSidebar", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
-  it("renders an inactive All Projects link in the text-secondary token for both themes (#885)", () => {
+  it("renders an inactive All Projects link in the text-body token for both themes (#885)", () => {
     stubNoData();
     renderSidebar("/settings");
     const link = screen.getByText("All Projects").closest("button");
-    // stone-500 on light and stone-400 on dark both clear WCAG AA 4.5:1.
-    expect(link?.className).toContain("text-stone-500");
-    expect(link?.className).toContain("dark:text-stone-400");
+    // DESIGN.md Nav item: an unselected label is text-body, one utility for both themes.
+    expect(link?.className).toContain("text-text-body");
+    expect(link?.className).not.toMatch(/dark:/);
   });
 
   it("renders the active Settings item in medium-weight accent-text on accent-muted (#887)", () => {
@@ -153,7 +153,7 @@ describe("ProjectSidebar", () => {
     expect(screen.getByText("feat/my-feature")).toBeInTheDocument();
   });
 
-  it("renders status dot with green class for active bench", () => {
+  it("renders status dot with the status-active token for active bench", () => {
     mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
       RegisteredProject[]
     >);
@@ -161,10 +161,10 @@ describe("ProjectSidebar", () => {
       data: [makeBench({ status: "active" })],
     } as unknown as UseQueryResult<Bench[]>);
     const { container } = renderSidebar();
-    expect(container.querySelector(".bg-green-500")).not.toBeNull();
+    expect(container.querySelector(".bg-status-active")).not.toBeNull();
   });
 
-  it("renders status dot with red class for error bench", () => {
+  it("renders status dot with the status-error token for error bench", () => {
     mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
       RegisteredProject[]
     >);
@@ -172,10 +172,10 @@ describe("ProjectSidebar", () => {
       data: [makeBench({ status: "error" })],
     } as unknown as UseQueryResult<Bench[]>);
     const { container } = renderSidebar();
-    expect(container.querySelector(".bg-red-500")).not.toBeNull();
+    expect(container.querySelector(".bg-status-error")).not.toBeNull();
   });
 
-  it("renders status dot with stone class for idle bench", () => {
+  it("renders status dot with the status-idle token for idle bench", () => {
     mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
       RegisteredProject[]
     >);
@@ -183,10 +183,10 @@ describe("ProjectSidebar", () => {
       data: [makeBench({ status: "idle" })],
     } as unknown as UseQueryResult<Bench[]>);
     const { container } = renderSidebar();
-    expect(container.querySelector(".bg-stone-300")).not.toBeNull();
+    expect(container.querySelector(".bg-status-idle")).not.toBeNull();
   });
 
-  it("renders status dot with amber class for preparing bench", () => {
+  it("renders status dot with the status-preparing token for preparing bench", () => {
     mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
       RegisteredProject[]
     >);
@@ -194,10 +194,10 @@ describe("ProjectSidebar", () => {
       data: [makeBench({ status: "preparing" })],
     } as unknown as UseQueryResult<Bench[]>);
     const { container } = renderSidebar();
-    expect(container.querySelector(".bg-amber-500")).not.toBeNull();
+    expect(container.querySelector(".bg-status-preparing")).not.toBeNull();
   });
 
-  it("renders status dot with amber class for clearing bench", () => {
+  it("renders status dot with the status-preparing token for clearing bench", () => {
     mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
       RegisteredProject[]
     >);
@@ -205,7 +205,7 @@ describe("ProjectSidebar", () => {
       data: [makeBench({ status: "clearing" })],
     } as unknown as UseQueryResult<Bench[]>);
     const { container } = renderSidebar();
-    expect(container.querySelector(".bg-amber-500")).not.toBeNull();
+    expect(container.querySelector(".bg-status-preparing")).not.toBeNull();
   });
 
   it("marks project active on exact path match", () => {

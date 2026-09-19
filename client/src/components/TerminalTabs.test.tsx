@@ -1215,7 +1215,7 @@ describe("TerminalTabs: agent-generic session tabs", () => {
     ]);
 
     const icon = screen.getByTestId("session-agent-icon");
-    expect(icon.getAttribute("class")).toContain("text-cyan-400");
+    expect(icon.getAttribute("class")).toContain("text-agent-swatch-2");
   });
 
   it("shows no agent glyph for a session whose only carrier is a command name (#521)", () => {

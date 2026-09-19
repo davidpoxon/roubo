@@ -20,8 +20,12 @@ interface Swatch {
   text: string;
 }
 
-const VIOLET: Swatch = { bg: "bg-violet-400", text: "text-violet-400" };
-const CYAN: Swatch = { bg: "bg-cyan-400", text: "text-cyan-400" };
+// DESIGN.md agent swatches 1-6: violet, cyan, emerald, lime, rose, sky. Each is
+// tuned per theme (the 600 step on light, the 400 step on dark) by
+// semantic-dark.css, so a dot holds 3:1 against its surface in both. Amber is
+// reserved for the accent and for work in progress, so no swatch uses it.
+const VIOLET: Swatch = { bg: "bg-agent-swatch-1", text: "text-agent-swatch-1" };
+const CYAN: Swatch = { bg: "bg-agent-swatch-2", text: "text-agent-swatch-2" };
 
 const SEEDED: Record<string, Swatch> = {
   "claude-code": VIOLET,
@@ -31,13 +35,13 @@ const SEEDED: Record<string, Swatch> = {
 const PALETTE: Swatch[] = [
   VIOLET,
   CYAN,
-  { bg: "bg-emerald-400", text: "text-emerald-400" },
-  { bg: "bg-amber-400", text: "text-amber-400" },
-  { bg: "bg-rose-400", text: "text-rose-400" },
-  { bg: "bg-sky-400", text: "text-sky-400" },
+  { bg: "bg-agent-swatch-3", text: "text-agent-swatch-3" },
+  { bg: "bg-agent-swatch-4", text: "text-agent-swatch-4" },
+  { bg: "bg-agent-swatch-5", text: "text-agent-swatch-5" },
+  { bg: "bg-agent-swatch-6", text: "text-agent-swatch-6" },
 ];
 
-const UNKNOWN: Swatch = { bg: "bg-stone-500", text: "text-text-muted" };
+const UNKNOWN: Swatch = { bg: "bg-status-idle", text: "text-text-secondary" };
 
 function swatch(pluginId: string | undefined): Swatch {
   if (!pluginId) return UNKNOWN;

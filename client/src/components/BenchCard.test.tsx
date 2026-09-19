@@ -272,9 +272,38 @@ describe("BenchCard", () => {
     });
   });
 
+  describe("DESIGN.md bench card frame (#1296)", () => {
+    const cases: [Bench["status"], string][] = [
+      ["active", "border-status-active"],
+      ["preparing", "border-status-preparing"],
+      ["clearing", "border-status-preparing"],
+      ["error", "border-status-error"],
+      ["idle", "border-status-idle"],
+    ];
+    for (const [status, border] of cases) {
+      it(`rests on bg-surface with the ${status} status as its border, and labels the status`, () => {
+        makeDefaultMutations();
+        renderCard(makeBench({ status }));
+        const frame = screen.getByTestId("bench-card-frame");
+        expect(frame.className).toContain(border);
+        expect(frame.className).toContain("bg-bg-surface");
+        expect(frame.className).toContain("group-hover:bg-bg-hover");
+        expect(frame.className).toContain("rounded-card");
+        expect(screen.getByTestId("bench-card-status")).toHaveTextContent(status);
+      });
+    }
+
+    it("takes the error border when the bench carries an error", () => {
+      makeDefaultMutations();
+      renderCard(makeBench({ status: "idle", error: "boom" }));
+      expect(screen.getByTestId("bench-card-frame").className).toContain("border-status-error");
+    });
+  });
+
   describe("action buttons", () => {
-    // The start/stop and teardown buttons are icon-only with no accessible name.
-    // React Aria's TooltipTrigger adds aria-describedby (description), not aria-labelledby.
+    // The start/stop and teardown buttons are icon-only IconButtons: the tooltip
+    // text is also the accessible name. A disabled IconButton stays focusable
+    // (aria-disabled) so its tooltip can still be read.
     // Button layout (no error state): [0]=start/stop, [1]=teardown.
 
     it("calls startBench.mutate when Play is pressed on idle bench", async () => {
@@ -297,14 +326,14 @@ describe("BenchCard", () => {
       makeDefaultMutations();
       renderCard(makeBench({ status: "preparing" }));
       const [startStopButton] = screen.getAllByRole("button");
-      expect(startStopButton).toBeDisabled();
+      expect(startStopButton).toHaveAttribute("aria-disabled", "true");
     });
 
     it("disables start/stop button when bench is clearing", () => {
       makeDefaultMutations();
       renderCard(makeBench({ status: "clearing" }));
       const [startStopButton] = screen.getAllByRole("button");
-      expect(startStopButton).toBeDisabled();
+      expect(startStopButton).toHaveAttribute("aria-disabled", "true");
     });
 
     it("disables teardown button when bench is clearing", () => {
@@ -312,7 +341,7 @@ describe("BenchCard", () => {
       renderCard(makeBench({ status: "clearing" }));
       const buttons = screen.getAllByRole("button");
       const teardownButton = buttons[buttons.length - 1];
-      expect(teardownButton).toBeDisabled();
+      expect(teardownButton).toHaveAttribute("aria-disabled", "true");
     });
 
     it("renders Start with primary-CTA treatment on never-started idle bench", () => {
@@ -327,7 +356,7 @@ describe("BenchCard", () => {
         }),
       );
       const [startButton] = screen.getAllByRole("button");
-      expect(startButton.className).toContain("bg-amber-500");
+      expect(startButton.className).toContain("bg-accent");
     });
 
     it("renders Start with standard treatment on idle bench that was started before", () => {
@@ -342,7 +371,7 @@ describe("BenchCard", () => {
         }),
       );
       const [startButton] = screen.getAllByRole("button");
-      expect(startButton.className).not.toContain("bg-amber-500");
+      expect(startButton.className).not.toContain("bg-accent");
     });
 
     it("shows the idle hint on a never-started idle bench", () => {

@@ -55,8 +55,9 @@ describe("EmptyBenchCard", () => {
     mockUseDroppable.mockReturnValueOnce({ isOver: true, setNodeRef: vi.fn() });
     render(<EmptyBenchCard position={1} onCreateBlank={vi.fn()} onPickIssue={vi.fn()} />);
     const button = screen.getByText("Bench 1").closest("button") as HTMLElement;
-    expect(button.className).toContain("border-stone-400");
-    expect(button.className).toContain("scale-[1.02]");
+    // Drag-over changes the ground only; nothing scales or shifts.
+    expect(button.className).toContain("bg-bg-hover");
+    expect(button.className).not.toContain("scale-");
   });
 
   it("omits the Create a TestBench option when the feature is disabled", async () => {

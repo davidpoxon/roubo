@@ -81,6 +81,21 @@
   --tracking-label: 0.12em;
 }
 
+/* Radius and elevation aliases. tokens.tailwind.css records radius.0-3 and
+   elevation.0-1 as bare variables, so these name them by role: rounded-chip
+   (4px, chips and menu items), rounded-control (6px, every control and small
+   popover), rounded-card (12px, cards and dialogs), shadow-elevation-0 (menus,
+   tooltips), shadow-elevation-1 (dialogs). `inline` makes each utility read the
+   variable where it is used, so the dark elevation recipe that
+   semantic-dark.css sets under .dark reaches it. */
+@theme inline {
+  --radius-chip: var(--radius-0);
+  --radius-control: var(--radius-1);
+  --radius-card: var(--radius-2);
+  --shadow-elevation-0: var(--elevation-0);
+  --shadow-elevation-1: var(--elevation-1);
+}
+
 /* Motion. DESIGN.md records three keyframes (spin, status-pulse, rise-in) and
    suppresses every one of them under prefers-reduced-motion: reduce. The
    keyframes here are only attached under no-preference, and the reduce block
