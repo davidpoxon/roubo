@@ -14,7 +14,7 @@
 // themes, both modes, and both partition states.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { renderWithProviders } from "../../test/renderWithProviders";
@@ -333,12 +333,50 @@ describe("SpecPickerModal a11y (#484)", () => {
       // row that opened it rather than the menu being mounted at all.
       expect(await screen.findByRole("menu")).toBeInTheDocument();
       expect(screen.getAllByRole("menu")).toHaveLength(1);
+      expect(screen.getByRole("menuitem", { name: /Archive/ })).toHaveFocus();
       expect(trigger).toHaveAttribute("aria-expanded", "true");
       expect(other).toHaveAttribute("aria-expanded", "false");
       await user.keyboard("{Escape}");
       expect(screen.queryByRole("menu")).not.toBeInTheDocument();
       expect(trigger).toHaveAttribute("aria-expanded", "false");
-      expect(trigger).toHaveFocus();
+      // The focus scope hands focus back after the popover unmounts, not in the
+      // same tick as the close.
+      await waitFor(() => expect(trigger).toHaveFocus());
+    });
+
+    it("opens onto the last item from ArrowUp", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      screen.getByRole("button", { name: "Actions for testbench" }).focus();
+      await user.keyboard("{ArrowUp}");
+      await screen.findByRole("menu");
+      expect(screen.getByRole("menuitem", { name: /Supersede/ })).toHaveFocus();
+    });
+
+    it("closes the menu when a refetch drops the row that opened it", async () => {
+      const user = userEvent.setup();
+      const view = renderModal();
+      await user.click(screen.getByRole("button", { name: "Actions for testbench" }));
+      expect(await screen.findByRole("menu")).toBeInTheDocument();
+      // The shared menu is keyed to the row's path and looked up in the live list,
+      // so a payload without that spec leaves nothing for it to act on.
+      mockUseTestbenchSpecs.mockReturnValue(
+        specsQuery(WITH_ARCHIVED.filter((spec) => spec.slug !== "testbench")),
+      );
+      view.rerender(<SpecPickerModal isOpen onClose={vi.fn()} projectId="p1" onCreate={vi.fn()} />);
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    });
+
+    it("points the trigger at the menu it opened", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      const trigger = screen.getByRole("button", { name: "Actions for testbench" });
+      expect(trigger).not.toHaveAttribute("aria-controls");
+      await user.click(trigger);
+      const menu = await screen.findByRole("menu");
+      const controlled = document.getElementById(trigger.getAttribute("aria-controls") ?? "");
+      expect(controlled).not.toBeNull();
+      expect(controlled).toContainElement(menu);
     });
 
     it("has no axe violations with the actions menu open", async () => {

@@ -185,8 +185,20 @@ export default function SpecPickerModal({
   // to live here. A react-aria MenuTrigger + Button per row made the triggers
   // about 40% of the cost of opening the picker on a 25-spec payload
   // (TSPF-NFR-002), for a menu that is closed on every row but one.
-  const [menuSpec, setMenuSpec] = useState<DiscoveredSpec | null>(null);
+  //
+  // The open menu is held as the row's PATH, and the spec is looked up in the live
+  // list on every render, the way a per-row menu read its own row: a refetch that
+  // changes the spec's lifecycle changes the items offered, and one that drops the
+  // row closes the menu rather than leaving it anchored to an unmounted button.
+  const [openMenuPath, setOpenMenuPath] = useState<string | null>(null);
+  // Which item takes focus on open: the last one when ArrowUp opened the menu,
+  // the first otherwise (the menu-button pattern a MenuTrigger implements).
+  const [menuFocus, setMenuFocus] = useState<"first" | "last">("first");
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuId = useId();
+  const menuSpec =
+    openMenuPath === null ? null : (specs?.find((s) => s.path === openMenuPath) ?? null);
+  const closeRowMenu = () => setOpenMenuPath(null);
 
   const manualState = useManualPathValidation(projectId, manualPath, isOpen);
   const lifecycleMutation = useSpecLifecycleMutation();
@@ -218,6 +230,8 @@ export default function SpecPickerModal({
     setSelectedDiscoveredPath(null);
     setAllPassedExpanded(false);
     setShowArchived(false);
+    closeRowMenu();
+    menuTriggerRef.current = null;
     dismissPending();
   };
 
@@ -298,9 +312,14 @@ export default function SpecPickerModal({
   // class holds the AA floor (text-secondary clears 4.5:1 on the modal's
   // bg-surface in both themes); the path sits at that floor in both
   // groups, so muting collapses there and the hierarchy reads via the slug (#493).
-  const openRowMenu = (trigger: HTMLButtonElement, spec: DiscoveredSpec) => {
+  const openRowMenu = (
+    trigger: HTMLButtonElement,
+    spec: DiscoveredSpec,
+    focus: "first" | "last" = "first",
+  ) => {
     menuTriggerRef.current = trigger;
-    setMenuSpec(spec);
+    setMenuFocus(focus);
+    setOpenMenuPath(spec.path);
   };
 
   const renderRow = (spec: DiscoveredSpec, muted: boolean) => {
@@ -378,12 +397,14 @@ export default function SpecPickerModal({
           aria-label={`Actions for ${spec.slug}`}
           aria-haspopup="menu"
           aria-expanded={menuSpec?.path === spec.path}
+          aria-controls={menuSpec?.path === spec.path ? menuId : undefined}
           onClick={(event) => openRowMenu(event.currentTarget, spec)}
           onKeyDown={(event) => {
-            // Match the menu-button pattern: the arrow keys open the menu too.
+            // Match the menu-button pattern: the arrow keys open the menu too,
+            // ArrowDown onto its first item and ArrowUp onto its last.
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               event.preventDefault();
-              openRowMenu(event.currentTarget, spec);
+              openRowMenu(event.currentTarget, spec, event.key === "ArrowUp" ? "last" : "first");
             }
           }}
           className="shrink-0 mt-1 p-1.5 rounded-control outline-none transition-colors text-text-secondary hover:bg-bg-hover active:bg-bg-pressed active:text-text-body focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -844,7 +865,7 @@ export default function SpecPickerModal({
                 aria-label={menuSpec ? `Actions for ${menuSpec.slug}` : undefined}
                 isOpen={menuSpec !== null}
                 onOpenChange={(open) => {
-                  if (!open) setMenuSpec(null);
+                  if (!open) closeRowMenu();
                 }}
                 placement="bottom end"
                 offset={4}
@@ -853,11 +874,12 @@ export default function SpecPickerModal({
                 {menuSpec && (
                   <Menu
                     aria-label={`Actions for ${menuSpec.slug}`}
-                    autoFocus="first"
+                    id={menuId}
+                    autoFocus={menuFocus}
                     className="outline-none"
                     onAction={(key) => {
                       const spec = menuSpec;
-                      setMenuSpec(null);
+                      closeRowMenu();
                       if (key === "restore") {
                         // Reversal takes no input, so it applies straight from the
                         // menu: the record is deleted and the spec returns to the
