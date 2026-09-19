@@ -69,7 +69,7 @@ export default function TemplateHighlightInput({
             variant === "standalone" ? "px-3 py-2" : "p-0"
           }`}
         >
-          <div className="whitespace-pre text-sm">
+          <div className="whitespace-pre text-13">
             {segments.map((seg, i) =>
               seg.isVariable ? (
                 <span
@@ -103,7 +103,7 @@ export default function TemplateHighlightInput({
 export function TemplateValidationError({ invalidVariables }: { invalidVariables: string[] }) {
   if (invalidVariables.length === 0) return null;
   return (
-    <p className="mt-1 text-[11px] text-red-400">
+    <p className="mt-1 text-11 text-red-400">
       Unknown {invalidVariables.length === 1 ? "variable" : "variables"}:{" "}
       {invalidVariables.join(", ")}
     </p>

@@ -16,13 +16,13 @@ export default function PendingBenchCard({
         <div className="p-4 flex flex-col h-full">
           {/* Header */}
           <div className="shrink-0">
-            <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+            <p className="text-14 font-semibold text-stone-900 dark:text-stone-100">
               Bench {position}
             </p>
           </div>
 
           {/* Issue */}
-          <div className="flex items-center gap-1.5 text-xs text-text-muted mt-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 text-12 text-text-muted mt-2.5 shrink-0">
             <span className="font-mono text-amber-800 dark:text-amber-200 shrink-0">
               #{shortIdFromExternalId(externalId)}
             </span>
@@ -32,7 +32,7 @@ export default function PendingBenchCard({
           {/* Setting up indicator */}
           <div className="flex-1 flex items-start gap-2 mt-2.5">
             <Spinner />
-            <span className="text-xs text-amber-600 dark:text-amber-400">Setting up...</span>
+            <span className="text-12 text-amber-600 dark:text-amber-400">Setting up...</span>
           </div>
         </div>
       </div>

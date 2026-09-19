@@ -77,7 +77,7 @@ export default function WrapCode({ children: text, className }: WrapCodeProps) {
   return (
     <code
       ref={codeRef}
-      className={`text-[12px] font-mono text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800/50 px-2 py-1 rounded min-w-0 ${
+      className={`text-12 font-mono text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800/50 px-2 py-1 rounded min-w-0 ${
         wraps ? "block overflow-hidden" : "break-all"
       } ${className ?? ""}`}
     >

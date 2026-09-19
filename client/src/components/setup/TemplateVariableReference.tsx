@@ -31,7 +31,7 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
               <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
                 <Heading
                   slot="title"
-                  className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                 >
                   Template Variables
                 </Heading>
@@ -44,7 +44,7 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
               </div>
 
               <div className="px-5 py-4 overflow-auto space-y-6">
-                <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
+                <p className="text-12 text-stone-600 dark:text-stone-400 leading-relaxed">
                   Template variables are placeholders in your config values that resolve to
                   bench-specific values at runtime. Each bench gets its own ports, workspace path,
                   and connection strings.
@@ -52,7 +52,7 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
 
                 {groups.map((group) => (
                   <section key={group.category} className="space-y-2.5">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+                    <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted">
                       {group.label}
                     </h3>
 
@@ -61,14 +61,12 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
                         key={v.syntax}
                         className="rounded-lg bg-stone-100 dark:bg-stone-800/40 px-3 py-2.5 space-y-1.5"
                       >
-                        <code className="block text-[11px] font-mono text-stone-700 dark:text-stone-300">
+                        <code className="block text-11 font-mono text-stone-700 dark:text-stone-300">
                           {v.syntax}
                         </code>
-                        <p className="text-[11px] text-text-muted leading-relaxed">
-                          {v.description}
-                        </p>
+                        <p className="text-11 text-text-muted leading-relaxed">{v.description}</p>
                         {v.formula && (
-                          <p className="text-[10px] text-stone-600 dark:text-stone-400">
+                          <p className="text-11 text-stone-600 dark:text-stone-400">
                             Formula: <code className="font-mono text-text-muted">{v.formula}</code>
                           </p>
                         )}
@@ -79,11 +77,11 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
 
                 {benchExamples.length > 0 && (
                   <section className="space-y-2.5">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+                    <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted">
                       Port values across benches
                     </h3>
                     <div className="rounded-lg bg-stone-100 dark:bg-stone-800/40 overflow-hidden">
-                      <table className="w-full text-[11px]">
+                      <table className="w-full text-11">
                         <thead>
                           <tr className="border-b border-stone-200 dark:border-stone-700/40">
                             <th className="text-left font-medium text-text-muted px-3 py-2">
@@ -129,16 +127,16 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
 
                 {ctx.projectName && (
                   <section className="space-y-2.5">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+                    <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted">
                       Workspace paths across benches
                     </h3>
                     <div className="rounded-lg bg-stone-100 dark:bg-stone-800/40 px-3 py-2.5 space-y-1">
                       {[1, 2, 3].map((benchNumber) => (
                         <div key={benchNumber} className="flex items-center gap-3">
-                          <span className="text-[10px] text-stone-600 dark:text-stone-400 w-10 shrink-0">
+                          <span className="text-11 text-stone-600 dark:text-stone-400 w-10 shrink-0">
                             Bench {benchNumber}
                           </span>
-                          <code className="text-[10px] font-mono text-stone-500 dark:text-stone-400 truncate">
+                          <code className="text-11 font-mono text-stone-500 dark:text-stone-400 truncate">
                             ~/.roubo/workspaces/{ctx.projectName}/bench-
                             {benchNumber}/
                           </code>

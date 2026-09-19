@@ -142,7 +142,7 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
     <div className="flex flex-col h-full gap-3">
       {/* Context picker */}
       <div className="flex items-center gap-3 shrink-0">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted shrink-0">
+        <span className="text-11 font-semibold uppercase tracking-label text-text-muted shrink-0">
           Context
         </span>
         <Select
@@ -161,10 +161,10 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
             className="shrink-0 flex items-start gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-3 py-2"
             data-testid="unresolved-variables-banner"
           >
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-600 dark:text-amber-400 shrink-0 mt-px">
+            <span className="text-11 font-semibold uppercase tracking-label text-amber-600 dark:text-amber-400 shrink-0 mt-px">
               Unresolved
             </span>
-            <span className="text-[11px] font-mono text-amber-700 dark:text-amber-300 leading-relaxed">
+            <span className="text-11 font-mono text-amber-700 dark:text-amber-300 leading-relaxed">
               {unresolvedVars.slice(0, 3).join(", ")}
               {unresolvedVars.length > 3 && ` +${unresolvedVars.length - 3} more`}
             </span>
@@ -176,12 +176,12 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
       <div className="flex-1 min-h-0">
         {isPending && content.trim().length > 0 && (
           <div className="h-full rounded-lg border border-stone-200 dark:border-stone-800/60 flex items-center justify-center">
-            <span className="text-xs text-stone-500 dark:text-stone-400">Generating preview…</span>
+            <span className="text-12 text-stone-500 dark:text-stone-400">Generating preview…</span>
           </div>
         )}
         {isError && (
           <div className="h-full rounded-lg border border-stone-200 dark:border-stone-800/60 flex items-center justify-center">
-            <span className="text-xs text-stone-500 dark:text-stone-400">
+            <span className="text-12 text-stone-500 dark:text-stone-400">
               Failed to generate preview.
             </span>
           </div>
@@ -189,7 +189,7 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
         {!isPending && !isError && data && <ReadonlyMarkdownViewer value={data.resolved} />}
         {!isPending && !isError && !data && (
           <div className="h-full rounded-lg border border-stone-200 dark:border-stone-800/60 flex items-center justify-center">
-            <span className="text-xs text-stone-500 dark:text-stone-400">
+            <span className="text-12 text-stone-500 dark:text-stone-400">
               Start typing to see a preview.
             </span>
           </div>

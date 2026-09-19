@@ -49,7 +49,7 @@ export function IssueTypeMappingsSection({
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+      <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
         <Spinner />
         Loading…
       </div>
@@ -58,7 +58,7 @@ export function IssueTypeMappingsSection({
 
   if (isTypesError) {
     return (
-      <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+      <p className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
         Could not load issue types. Try again in a moment.
       </p>
     );
@@ -67,7 +67,7 @@ export function IssueTypeMappingsSection({
   if (issueTypesData && !issueTypesData.configured) {
     if (issueTypesData.reason === "not-connected") {
       return (
-        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
           Connect your GitHub account in{" "}
           <Link
             to="/settings#plugins"
@@ -81,7 +81,7 @@ export function IssueTypeMappingsSection({
     }
     if (issueTypesData.reason === "none-defined") {
       return (
-        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
           No issue types are enabled for this repository. Configure them in your GitHub organization
           settings.
         </p>
@@ -97,7 +97,7 @@ export function IssueTypeMappingsSection({
   }
 
   if (issueTypesData.types.length === 0) {
-    return <p className="text-xs text-stone-500 dark:text-stone-400">No issue types defined.</p>;
+    return <p className="text-12 text-stone-500 dark:text-stone-400">No issue types defined.</p>;
   }
 
   return (
@@ -106,7 +106,7 @@ export function IssueTypeMappingsSection({
         {issueTypesData.types.map((typeName) => (
           <div key={typeName} className="flex items-center gap-3">
             <div className="flex items-center gap-2 min-w-0 w-32 shrink-0">
-              <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate">
+              <span className="text-12 font-medium text-stone-700 dark:text-stone-300 truncate">
                 {typeName}
               </span>
             </div>
@@ -121,7 +121,7 @@ export function IssueTypeMappingsSection({
         ))}
       </div>
       {!embedded && (
-        <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-3 leading-relaxed">
+        <p className="text-11 text-stone-500 dark:text-stone-400 mt-3 leading-relaxed">
           Changes write to{" "}
           <span className="font-mono text-stone-500 dark:text-stone-500">
             {"<repo>/.roubo/roubo.yaml"}

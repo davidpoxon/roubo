@@ -27,10 +27,10 @@ import UninstallPluginDialog from "./UninstallPluginDialog";
 import { derivePluginConnectionState, primaryActionLabelFor } from "./derivePluginConnectionState";
 
 const SECONDARY_BUTTON_CLASS =
-  "px-2.5 py-1 text-xs font-medium rounded text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "px-2.5 py-1 text-12 font-medium rounded text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
 const PRIMARY_BUTTON_CLASS =
-  "px-3 py-1 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "px-3 py-1 text-12 font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
 const STRINGS = {
   viewLogs: "View logs",
@@ -127,11 +127,11 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
         <PluginIcon plugin={plugin} />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">
+            <h3 className="text-14 font-semibold text-stone-900 dark:text-stone-100 truncate">
               {displayName}
             </h3>
             {version && (
-              <span className="font-mono text-[11px] text-stone-500 dark:text-stone-400">
+              <span className="font-mono text-11 text-stone-500 dark:text-stone-400">
                 {STRINGS.versionPrefix}
                 {version}
               </span>
@@ -154,7 +154,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
       </header>
 
       {description && (
-        <p className="mt-3 text-[13px] text-stone-600 dark:text-stone-400 leading-relaxed line-clamp-2">
+        <p className="mt-3 text-13 text-stone-600 dark:text-stone-400 leading-relaxed line-clamp-2">
           {description}
         </p>
       )}
@@ -351,7 +351,7 @@ function EnableSwitch({
               ].join(" ")}
             />
           </div>
-          <span className="text-xs font-medium text-stone-700 dark:text-stone-200">
+          <span className="text-12 font-medium text-stone-700 dark:text-stone-200">
             {isEnabled ? STRINGS.enabled : STRINGS.disabled}
           </span>
         </>
@@ -370,7 +370,7 @@ function ConfigureLoadingDialog() {
         >
           <div
             role="status"
-            className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400"
+            className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400"
           >
             <Spinner />
             {STRINGS.loadingConfig}
@@ -394,10 +394,10 @@ function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () 
           {({ close }) => (
             <div className="flex flex-col gap-4">
               <div>
-                <h2 className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                <h2 className="text-16 font-medium text-stone-900 dark:text-stone-100">
                   {STRINGS.configLoadFailed}
                 </h2>
-                <p className="mt-2 text-xs text-stone-600 dark:text-stone-400 break-words">
+                <p className="mt-2 text-12 text-stone-600 dark:text-stone-400 break-words">
                   {message}
                 </p>
               </div>

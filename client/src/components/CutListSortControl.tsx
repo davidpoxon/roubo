@@ -68,11 +68,11 @@ export default function CutListSortControl({
             : "p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50",
         ].join(" ")}
       >
-        <ArrowDownUp size={13} />
+        <ArrowDownUp size={14} />
         {active && (
-          <span className="flex items-center gap-0.5 text-[11px] font-medium whitespace-nowrap">
+          <span className="flex items-center gap-0.5 text-11 font-medium whitespace-nowrap">
             {activeLabel}
-            {activeDir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
+            {activeDir === "asc" ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
           </span>
         )}
       </Button>
@@ -81,13 +81,13 @@ export default function CutListSortControl({
           <div className="w-52 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/50 shadow-2xl overflow-hidden">
             {/* Popover header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200 dark:border-stone-800/60">
-              <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">
+              <span className="text-12 font-semibold text-stone-700 dark:text-stone-300">
                 Sort by
               </span>
               {active && (
                 <Button
                   onPress={() => onSelectionChange(null)}
-                  className="text-[11px] text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+                  className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
                 >
                   Clear
                 </Button>
@@ -121,7 +121,7 @@ export default function CutListSortControl({
                     key={field.id}
                     id={field.id}
                     textValue={field.label}
-                    className="flex items-center justify-between px-3 py-1.5 text-sm text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
+                    className="flex items-center justify-between px-3 py-1.5 text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
                   >
                     {field.label}
                     {isActive &&

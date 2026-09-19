@@ -94,25 +94,25 @@ export default function MarketplaceInstallProgress({
           >
             <span
               aria-hidden
-              className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border text-[11px] font-medium ${BADGE_CLASS[status]}`}
+              className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border text-11 font-medium ${BADGE_CLASS[status]}`}
             >
               {badgeContent(status, index)}
             </span>
             <div className="min-w-0 flex-1">
-              <p className={`text-[13px] ${LABEL_CLASS[status]}`}>{label}</p>
+              <p className={`text-13 ${LABEL_CLASS[status]}`}>{label}</p>
               {status === "failed" && (
                 <>
                   <p
                     role="alert"
                     data-testid={`marketplace-install-step-${index}-error`}
-                    className="mt-0.5 text-[12px] text-red-600 dark:text-red-400"
+                    className="mt-0.5 text-12 text-red-600 dark:text-red-400"
                   >
                     {stageFailMessage(index, errorCode)}
                   </p>
                   {errorDetail && (
                     <p
                       data-testid={`marketplace-install-step-${index}-detail`}
-                      className="mt-0.5 font-mono text-[11px] text-red-500/80 dark:text-red-400/70"
+                      className="mt-0.5 font-mono text-11 text-red-500/80 dark:text-red-400/70"
                     >
                       {errorDetail}
                     </p>
@@ -121,7 +121,7 @@ export default function MarketplaceInstallProgress({
               )}
             </div>
             {status !== "failed" && (
-              <span className="shrink-0 font-mono text-[11.5px] text-stone-500 dark:text-stone-400">
+              <span className="shrink-0 font-mono text-11 text-stone-500 dark:text-stone-400">
                 {meta}
               </span>
             )}

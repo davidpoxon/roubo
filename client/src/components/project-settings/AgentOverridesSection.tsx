@@ -32,10 +32,10 @@ const STRINGS = {
 };
 
 const PRIMARY_BUTTON_CLASS =
-  "px-3 py-1 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "px-3 py-1 text-12 font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
 const SECONDARY_BUTTON_CLASS =
-  "px-2.5 py-1 text-xs font-medium rounded text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "px-2.5 py-1 text-12 font-medium rounded text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
 interface FieldDef {
   type?: string;
@@ -239,13 +239,11 @@ function ProjectAgentOverrideCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Bot size={14} className="shrink-0 text-stone-500 dark:text-stone-400" />
-            <h3 className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
+            <h3 className="text-14 font-medium text-stone-900 dark:text-stone-100 truncate">
               {agent.name}
             </h3>
           </div>
-          <p className="mt-0.5 text-[11px] text-stone-500 dark:text-stone-400 font-mono">
-            {agent.id}
-          </p>
+          <p className="mt-0.5 text-11 text-stone-500 dark:text-stone-400 font-mono">{agent.id}</p>
         </div>
         {anyOverridden && <OverrideBadge />}
       </header>
@@ -254,14 +252,14 @@ function ProjectAgentOverrideCard({
         <p
           role="status"
           data-testid={`project-agent-unavailable-${agent.id}`}
-          className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed"
+          className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-11 text-amber-800 dark:text-amber-300 leading-relaxed"
         >
           {agent.unavailable.message}
         </p>
       )}
 
       {fields.length === 0 ? (
-        <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.noFields}</p>
+        <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.noFields}</p>
       ) : (
         <div className="space-y-4">
           {fields.map(([key, def]) => {
@@ -294,15 +292,15 @@ function ProjectAgentOverrideCard({
                               : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
                           }`}
                         >
-                          {isSelected && <Check size={10} className="text-stone-100" />}
+                          {isSelected && <Check size={12} className="text-stone-100" />}
                         </div>
-                        <span className="text-sm text-stone-700 dark:text-stone-300">{label}</span>
+                        <span className="text-13 text-stone-700 dark:text-stone-300">{label}</span>
                       </>
                     )}
                   </Checkbox>
                   <span
                     data-testid={`project-agent-app-default-${agent.id}-${key}`}
-                    className="text-[11px] text-stone-500 dark:text-stone-400 shrink-0"
+                    className="text-11 text-stone-500 dark:text-stone-400 shrink-0"
                   >
                     {STRINGS.appDefaultPrefix}
                     {formatValue(agent.appDefaults[key])}
@@ -326,7 +324,7 @@ function ProjectAgentOverrideCard({
                 ) : (
                   <p
                     data-testid={`project-agent-inherits-${agent.id}-${key}`}
-                    className="text-[11px] text-stone-500 dark:text-stone-400"
+                    className="text-11 text-stone-500 dark:text-stone-400"
                   >
                     {STRINGS.inherit}
                   </p>
@@ -342,13 +340,13 @@ function ProjectAgentOverrideCard({
           data-testid={`project-agent-effective-${agent.id}`}
           className="rounded-lg bg-stone-50 dark:bg-stone-900/50 px-3 py-2"
         >
-          <p className="text-[11px] leading-relaxed">
+          <p className="text-11 leading-relaxed">
             <span className="text-stone-500 dark:text-stone-400">{STRINGS.effectiveLabel} </span>
             <span className="font-mono text-stone-700 dark:text-stone-300">
               {fields.map(([key]) => `${key}=${formatValue(effective[key])}`).join(", ")}
             </span>
           </p>
-          <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+          <p className="mt-1 text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
             {STRINGS.effectiveHint}
           </p>
         </div>
@@ -358,7 +356,7 @@ function ProjectAgentOverrideCard({
         <p
           role="alert"
           data-testid={`project-agent-error-${agent.id}`}
-          className="text-[11px] text-red-600 dark:text-red-400 leading-relaxed"
+          className="text-11 text-red-600 dark:text-red-400 leading-relaxed"
         >
           {STRINGS.saveFailedPrefix}
           {formError}
@@ -383,7 +381,7 @@ function ProjectAgentOverrideCard({
           {STRINGS.reset}
         </Button>
         {justSaved && !dirty && (
-          <span className="text-[11px] text-stone-500 dark:text-stone-400">{STRINGS.saved}</span>
+          <span className="text-11 text-stone-500 dark:text-stone-400">{STRINGS.saved}</span>
         )}
       </div>
     </section>
@@ -407,7 +405,7 @@ export function AgentOverridesSection({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-3">
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
           <Loader2 size={14} className="animate-spin" />
           {STRINGS.loading}
         </div>
@@ -416,7 +414,7 @@ export function AgentOverridesSection({ projectId }: { projectId: string }) {
       {error && (
         <div
           role="alert"
-          className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300"
+          className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300"
         >
           {STRINGS.loadFailedPrefix}
           {(error as Error).message}
@@ -427,7 +425,7 @@ export function AgentOverridesSection({ projectId }: { projectId: string }) {
         <p
           role="status"
           data-testid="project-agent-orphaned-overrides"
-          className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed"
+          className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-11 text-amber-800 dark:text-amber-300 leading-relaxed"
         >
           {STRINGS.orphanedPrefix}
           <span className="font-mono">{orphaned.map((o) => o.pluginId).join(", ")}</span>
@@ -440,7 +438,7 @@ export function AgentOverridesSection({ projectId }: { projectId: string }) {
           data-testid="project-agents-empty-state"
           className="rounded-xl border border-dashed border-stone-200 dark:border-stone-800 px-4 py-6 text-center"
         >
-          <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.empty}</p>
+          <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.empty}</p>
         </div>
       )}
 

@@ -34,7 +34,7 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
             {groups.map((group, gi) => (
               <div key={group.category} className={gi > 0 ? "mt-2" : ""}>
                 <div className="px-3 pt-1.5 pb-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+                  <span className="text-11 font-semibold uppercase tracking-label text-text-muted">
                     {group.label}
                   </span>
                 </div>
@@ -48,18 +48,18 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
                     className="w-full text-left px-3 py-1.5 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors group/item outline-none"
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <code className="text-[11px] font-mono text-stone-700 dark:text-stone-300">
+                      <code className="text-11 font-mono text-stone-700 dark:text-stone-300">
                         {v.syntax}
                       </code>
                       {v.example &&
                         v.example !== "unavailable" &&
                         v.example !== "Not configured" && (
-                          <span className="text-[10px] font-mono text-stone-500 dark:text-stone-300 tabular-nums shrink-0">
+                          <span className="text-11 font-mono text-stone-500 dark:text-stone-300 tabular-nums shrink-0">
                             {v.example.length > 24 ? v.example.slice(0, 24) + "..." : v.example}
                           </span>
                         )}
                     </div>
-                    <p className="text-[10px] text-stone-500 dark:text-stone-300 mt-0.5 group-hover/item:text-stone-600 dark:group-hover/item:text-stone-300 transition-colors">
+                    <p className="text-11 text-stone-500 dark:text-stone-300 mt-0.5 group-hover/item:text-stone-600 dark:group-hover/item:text-stone-300 transition-colors">
                       {v.description}
                       {v.formula && (
                         <span className="text-stone-500 dark:text-stone-300 group-hover/item:text-stone-600 dark:group-hover/item:text-stone-300">
@@ -79,10 +79,10 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
                 setIsOpen(false);
                 setShowReference(true);
               }}
-              className="flex items-center gap-1.5 text-[10px] text-stone-500 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none"
+              className="flex items-center gap-1.5 text-11 text-stone-500 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none"
             >
               Learn more about template variables
-              <ArrowRight size={10} />
+              <ArrowRight size={12} />
             </Button>
           </div>
         </Popover>

@@ -43,7 +43,7 @@ const WRAP_STYLES: Record<ConnectionState, string> = {
 };
 
 const PILL_BASE =
-  "inline-flex items-center gap-1 rounded-full h-[22px] px-1.5 text-[12px] font-medium leading-none select-none";
+  "inline-flex items-center gap-1 rounded-full h-[22px] px-1.5 text-12 font-medium leading-none select-none";
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
@@ -78,7 +78,7 @@ function PillBody({
       {showTimestamp && timestampText && (
         <span
           data-testid="connection-status-pill-timestamp"
-          className={`ml-2 text-[10px] opacity-80 ${rechecking ? "animate-status-pulse" : ""}`}
+          className={`ml-2 text-11 opacity-80 ${rechecking ? "animate-status-pulse" : ""}`}
         >
           {timestampText}
         </span>
@@ -125,7 +125,7 @@ export default function ConnectionStatusPill({
         </Button>
         <Tooltip
           data-testid="connection-status-pill-tooltip"
-          className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg max-w-xs"
+          className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg max-w-xs"
         >
           {detail}
         </Tooltip>

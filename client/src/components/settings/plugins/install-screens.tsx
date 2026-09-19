@@ -78,10 +78,10 @@ export function SourceScreen({
   return (
     <>
       <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-        <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+        <Heading slot="title" className="text-16 font-semibold text-stone-900 dark:text-stone-100">
           {title}
         </Heading>
-        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">{subtitle}</p>
+        <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">{subtitle}</p>
       </div>
 
       <div className="px-5 py-4 space-y-4">
@@ -99,7 +99,7 @@ export function SourceScreen({
                 id={id}
                 className={({ isSelected, isFocusVisible }) =>
                   [
-                    "px-4 py-2 text-[13px] font-medium outline-none transition-colors duration-100 -mb-px border-b-2",
+                    "px-4 py-2 text-13 font-medium outline-none transition-colors duration-100 -mb-px border-b-2",
                     isSelected
                       ? "text-stone-900 dark:text-stone-100 border-amber-500"
                       : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
@@ -120,15 +120,15 @@ export function SourceScreen({
               onChange={(value) => onChange({ ...state, gitInput: value, error: null })}
               isDisabled={submitting}
             >
-              <Label className="block text-xs text-stone-500 dark:text-stone-400 mb-1.5">
+              <Label className="block text-12 text-stone-500 dark:text-stone-400 mb-1.5">
                 {STRINGS.repoUrlLabel}
               </Label>
               <Input
                 data-testid="install-plugin-git-url"
                 placeholder={STRINGS.repoUrlPlaceholder}
-                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
-              <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-500">
+              <p className="mt-1.5 text-11 text-stone-500 dark:text-stone-500">
                 {STRINGS.repoUrlHelp}
               </p>
             </TextField>
@@ -140,15 +140,15 @@ export function SourceScreen({
               onChange={(value) => onChange({ ...state, localInput: value, error: null })}
               isDisabled={submitting}
             >
-              <Label className="block text-xs text-stone-500 dark:text-stone-400 mb-1.5">
+              <Label className="block text-12 text-stone-500 dark:text-stone-400 mb-1.5">
                 {STRINGS.localPathLabel}
               </Label>
               <Input
                 data-testid="install-plugin-local-path"
                 placeholder={STRINGS.localPathPlaceholder}
-                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
-              <p className="mt-1.5 text-[11px] text-stone-500 dark:text-stone-500">
+              <p className="mt-1.5 text-11 text-stone-500 dark:text-stone-500">
                 {STRINGS.localPathHelpPrefix}
                 <span className="font-mono">{STRINGS.manifestFilename}</span>
                 {STRINGS.localPathHelpSuffix}
@@ -161,7 +161,7 @@ export function SourceScreen({
           <div
             role="alert"
             data-testid="install-plugin-error"
-            className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300"
+            className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300"
           >
             {state.error}
           </div>
@@ -172,7 +172,7 @@ export function SourceScreen({
         <Button
           onPress={onCancel}
           isDisabled={submitting}
-          className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           {cancelLabel}
         </Button>
@@ -180,16 +180,16 @@ export function SourceScreen({
           onPress={onSubmit}
           isDisabled={submitting}
           data-testid="install-plugin-submit"
-          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-stone-100 bg-stone-700 dark:bg-stone-700 hover:bg-stone-600 dark:hover:bg-stone-600 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-stone-100 bg-stone-700 dark:bg-stone-700 hover:bg-stone-600 dark:hover:bg-stone-600 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           {submitting ? (
             <>
-              <Loader2 size={13} className="animate-spin" />
+              <Loader2 size={14} className="animate-spin" />
               {STRINGS.inspecting}
             </>
           ) : (
             <>
-              <Plus size={13} />
+              <Plus size={14} />
               {submitLabel}
             </>
           )}
@@ -214,10 +214,10 @@ export function PermissionsScreen({
   return (
     <>
       <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-        <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+        <Heading slot="title" className="text-16 font-semibold text-stone-900 dark:text-stone-100">
           {STRINGS.installTitle(manifest.name, manifest.version)}
         </Heading>
-        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">{STRINGS.reviewPrompt}</p>
+        <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">{STRINGS.reviewPrompt}</p>
       </div>
 
       <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
@@ -244,7 +244,7 @@ export function PermissionsScreen({
           <div
             role="alert"
             data-testid="install-plugin-error"
-            className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300"
+            className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300"
           >
             {state.error}
           </div>
@@ -256,7 +256,7 @@ export function PermissionsScreen({
           onPress={onCancel}
           isDisabled={confirming}
           data-testid="install-plugin-permissions-cancel"
-          className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           {STRINGS.cancel}
         </Button>
@@ -264,11 +264,11 @@ export function PermissionsScreen({
           onPress={onConfirm}
           isDisabled={confirming}
           data-testid="install-plugin-confirm"
-          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           {confirming ? (
             <>
-              <Loader2 size={13} className="animate-spin" />
+              <Loader2 size={14} className="animate-spin" />
               {STRINGS.installing}
             </>
           ) : (
@@ -283,10 +283,10 @@ export function PermissionsScreen({
 function SourceRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+      <div className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
         {label}
       </div>
-      <div className="mt-1 text-[13px] font-mono text-stone-800 dark:text-stone-200 break-all">
+      <div className="mt-1 text-13 font-mono text-stone-800 dark:text-stone-200 break-all">
         {value}
       </div>
     </div>
@@ -308,7 +308,7 @@ function CategoryHeading({ id, children }: { id: string; children: React.ReactNo
   return (
     <h4
       id={id}
-      className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400"
+      className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400"
     >
       {children}
     </h4>
@@ -316,7 +316,7 @@ function CategoryHeading({ id, children }: { id: string; children: React.ReactNo
 }
 
 function EmptyHint({ children }: { children: React.ReactNode }) {
-  return <p className="mt-1 text-[13px] text-stone-500 dark:text-stone-500 italic">{children}</p>;
+  return <p className="mt-1 text-13 text-stone-500 dark:text-stone-500 italic">{children}</p>;
 }
 
 function NetworkSection({ hosts }: { hosts: string[] }) {
@@ -329,7 +329,7 @@ function NetworkSection({ hosts }: { hosts: string[] }) {
       ) : (
         <ul className="mt-1.5 space-y-0.5">
           {hosts.map((host) => (
-            <li key={host} className="text-[13px] font-mono text-stone-800 dark:text-stone-200">
+            <li key={host} className="text-13 font-mono text-stone-800 dark:text-stone-200">
               {host}
             </li>
           ))}
@@ -353,12 +353,12 @@ function CredentialsSection({
       ) : (
         <ul className="mt-1.5 space-y-1.5">
           {slots.map((slot) => (
-            <li key={slot.slot} className="text-[13px] text-stone-800 dark:text-stone-200">
+            <li key={slot.slot} className="text-13 text-stone-800 dark:text-stone-200">
               <span className="font-mono">{slot.slot}</span>
-              <span className="ml-2 text-[11px] uppercase tracking-wider text-stone-500 dark:text-stone-400">
+              <span className="ml-2 text-11 uppercase tracking-label text-stone-500 dark:text-stone-400">
                 {slot.scope}
               </span>
-              <p className="text-xs text-stone-500 dark:text-stone-400">{slot.description}</p>
+              <p className="text-12 text-stone-500 dark:text-stone-400">{slot.description}</p>
             </li>
           ))}
         </ul>
@@ -377,7 +377,7 @@ function FilesystemSection({ paths }: { paths: string[] }) {
       ) : (
         <ul className="mt-1.5 space-y-0.5">
           {paths.map((p) => (
-            <li key={p} className="text-[13px] font-mono text-stone-800 dark:text-stone-200">
+            <li key={p} className="text-13 font-mono text-stone-800 dark:text-stone-200">
               {p}
             </li>
           ))}
@@ -401,7 +401,7 @@ function ProcessesSection({
       ) : (
         <ul className="mt-1.5 space-y-0.5">
           {processes.executables.map((exe) => (
-            <li key={exe} className="text-[13px] font-mono text-stone-800 dark:text-stone-200">
+            <li key={exe} className="text-13 font-mono text-stone-800 dark:text-stone-200">
               {exe}
             </li>
           ))}

@@ -41,7 +41,7 @@ export default function ComponentRemoveDialog({
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
               slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
             >
               {isInUse ? `"${componentName}" is in use` : `Remove "${componentName}"?`}
             </Heading>
@@ -52,7 +52,7 @@ export default function ComponentRemoveDialog({
               <>
                 <div className="flex items-start gap-3">
                   <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-stone-700 dark:text-stone-300">
+                  <p className="text-13 text-stone-700 dark:text-stone-300">
                     This component is currently running in:
                   </p>
                 </div>
@@ -60,20 +60,20 @@ export default function ComponentRemoveDialog({
                   {references.map((ref) => (
                     <li
                       key={ref.benchId}
-                      className="text-sm text-stone-600 dark:text-stone-400 list-disc"
+                      className="text-13 text-stone-600 dark:text-stone-400 list-disc"
                     >
                       bench #{ref.benchId}{" "}
                       <span className="font-mono text-text-muted">({ref.branch})</span>
                     </li>
                   ))}
                 </ul>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
+                <p className="text-12 text-stone-500 dark:text-stone-400">
                   Removing it will stop tracking it in those benches. The benches themselves will
                   not be cleared.
                 </p>
               </>
             ) : (
-              <p className="text-sm text-stone-700 dark:text-stone-300">
+              <p className="text-13 text-stone-700 dark:text-stone-300">
                 This will remove{" "}
                 <span className="font-mono text-stone-900 dark:text-stone-100">
                   {componentName}
@@ -86,13 +86,13 @@ export default function ComponentRemoveDialog({
           <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
             <Button
               onPress={onCancel}
-              className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
             >
               Cancel
             </Button>
             <Button
               onPress={onConfirm}
-              className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 hover:bg-red-500 rounded-lg transition-colors outline-none"
+              className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 hover:bg-red-500 rounded-lg transition-colors outline-none"
             >
               {isInUse ? "Remove anyway" : "Remove"}
             </Button>

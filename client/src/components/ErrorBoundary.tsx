@@ -66,27 +66,27 @@ export default class ErrorBoundary extends Component<Props, State> {
         <div className="max-w-md w-full rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/40 p-6 shadow-sm">
           <div className="flex items-center gap-2.5 mb-3">
             <div className="flex items-center justify-center w-7 h-7 rounded-md bg-amber-500/20 text-amber-500 dark:text-amber-400 shrink-0">
-              <AlertTriangle size={15} aria-hidden />
+              <AlertTriangle size={16} aria-hidden />
             </div>
-            <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+            <h2 className="text-16 font-semibold text-stone-900 dark:text-stone-100">
               Something went wrong{area}
             </h2>
           </div>
 
-          <p className="text-[13px] text-stone-500 dark:text-stone-400 leading-relaxed mb-4">
+          <p className="text-13 text-stone-500 dark:text-stone-400 leading-relaxed mb-4">
             This view hit an unexpected error and could not finish rendering. Your work and other
             views are unaffected. Reload to recover, and if it keeps happening please share the
             details below.
           </p>
 
-          <pre className="text-[11px] font-mono text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800/60 rounded-lg p-3 mb-4 overflow-auto max-h-32 whitespace-pre-wrap break-words">
+          <pre className="text-11 font-mono text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800/60 rounded-lg p-3 mb-4 overflow-auto max-h-32 whitespace-pre-wrap break-words">
             {error.message || String(error)}
           </pre>
 
           <div className="flex justify-end">
             <Button
               onPress={this.handleReload}
-              className="px-4 py-2 text-[13px] font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-400"
+              className="px-4 py-2 text-13 font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-400"
             >
               Reload
             </Button>

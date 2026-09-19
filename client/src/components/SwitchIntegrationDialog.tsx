@@ -131,16 +131,16 @@ function SwitchFlow({
   return (
     <>
       <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-        <Heading slot="title" className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+        <Heading slot="title" className="text-16 font-semibold text-stone-900 dark:text-stone-100">
           {isChoosing ? STRINGS.titleChoose : STRINGS.titleSwitch}
         </Heading>
       </div>
 
       <div className="px-5 py-4 space-y-4">
         {isLoading ? (
-          <p className="text-sm text-stone-500 dark:text-stone-400">{STRINGS.loadingPlugins}</p>
+          <p className="text-13 text-stone-500 dark:text-stone-400">{STRINGS.loadingPlugins}</p>
         ) : (plugins ?? []).length === 0 ? (
-          <p className="text-sm text-stone-500 dark:text-stone-400">{STRINGS.noPlugins}</p>
+          <p className="text-13 text-stone-500 dark:text-stone-400">{STRINGS.noPlugins}</p>
         ) : (
           <RadioGroup
             aria-label={STRINGS.installedAriaLabel}
@@ -179,17 +179,17 @@ function SwitchFlow({
                         ].join(" ")}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                        <div className="text-13 font-medium text-stone-900 dark:text-stone-100">
                           {p.name}
                         </div>
-                        <div className="text-[11px] font-mono text-stone-500 dark:text-stone-400 truncate">
+                        <div className="text-11 font-mono text-stone-500 dark:text-stone-400 truncate">
                           {p.id}
                         </div>
                       </div>
                       {p.status !== "enabled" && (
                         <span
                           className={[
-                            "text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded",
+                            "text-11 uppercase tracking-label font-medium px-1.5 py-0.5 rounded",
                             p.status === "errored" || p.status === "incompatible"
                               ? "bg-red-500/15 text-red-400"
                               : "bg-stone-200 text-stone-500 dark:bg-stone-800 dark:text-stone-400",
@@ -209,7 +209,7 @@ function SwitchFlow({
         {!isChoosing && (
           <div className="flex items-start gap-2.5 p-3 rounded-md bg-amber-500/10 border border-amber-500/20">
             <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-300">
+            <p className="text-12 leading-relaxed text-stone-700 dark:text-stone-300">
               {STRINGS.staleBenchesWarning}
             </p>
           </div>
@@ -224,18 +224,18 @@ function SwitchFlow({
           >
             <div className="w-4 h-4 mt-0.5 shrink-0 rounded border border-stone-300 dark:border-stone-600 flex items-center justify-center transition-colors group-data-[selected]:bg-amber-500 group-data-[selected]:border-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-amber-500 group-data-[focus-visible]:ring-offset-1">
               <Check
-                size={11}
+                size={12}
                 className="text-stone-950 opacity-0 group-data-[selected]:opacity-100 transition-opacity"
               />
             </div>
-            <span className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-300">
+            <span className="text-12 leading-relaxed text-stone-700 dark:text-stone-300">
               {STRINGS.promoteLabel}
             </span>
           </Checkbox>
         )}
 
         {errorMessage && (
-          <p role="alert" className="text-[12px] text-red-400">
+          <p role="alert" className="text-12 text-red-400">
             {errorMessage}
           </p>
         )}
@@ -245,7 +245,7 @@ function SwitchFlow({
         <Button
           isDisabled={isBusy}
           onPress={close}
-          className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           {STRINGS.cancel}
         </Button>
@@ -253,7 +253,7 @@ function SwitchFlow({
           isDisabled={!canConfirm || usable.length === 0}
           onPress={handleConfirm}
           data-testid="switch-integration-confirm"
-          className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+          className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
         >
           {isBusy ? STRINGS.switching : isChoosing ? STRINGS.titleChoose : STRINGS.titleSwitch}
         </Button>

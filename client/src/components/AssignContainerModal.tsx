@@ -43,11 +43,11 @@ export default function AssignContainerModal({
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
                 <Heading
                   slot="title"
-                  className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                 >
                   Assign Container
                 </Heading>
-                <p className="text-[11px] text-text-muted mt-1">
+                <p className="text-11 text-text-muted mt-1">
                   Select a running database container to assign to{" "}
                   <span className="font-mono text-stone-600 dark:text-stone-400">{component}</span>
                 </p>
@@ -55,14 +55,14 @@ export default function AssignContainerModal({
 
               <div className="px-5 py-4 max-h-64 overflow-y-auto">
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-8 gap-2 text-sm text-stone-500 dark:text-stone-400">
+                  <div className="flex items-center justify-center py-8 gap-2 text-13 text-stone-500 dark:text-stone-400">
                     <Spinner />
                     Loading containers...
                   </div>
                 ) : runningContainers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 gap-2 text-stone-500 dark:text-stone-400">
-                    <Container size={24} className="text-stone-500 dark:text-stone-400" />
-                    <span className="text-sm">No running database containers found.</span>
+                    <Container size={16} className="text-stone-500 dark:text-stone-400" />
+                    <span className="text-13">No running database containers found.</span>
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -85,16 +85,14 @@ export default function AssignContainerModal({
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
+                              <span className="text-13 font-medium text-stone-800 dark:text-stone-200 truncate">
                                 {c.name}
                               </span>
                               {c.port && (
-                                <span className="text-[11px] font-mono text-text-muted">
-                                  :{c.port}
-                                </span>
+                                <span className="text-11 font-mono text-text-muted">:{c.port}</span>
                               )}
                             </div>
-                            <span className="text-[11px] text-stone-600 dark:text-stone-300 font-mono truncate block">
+                            <span className="text-11 text-stone-600 dark:text-stone-300 font-mono truncate block">
                               {c.image}
                             </span>
                           </div>
@@ -109,7 +107,7 @@ export default function AssignContainerModal({
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                 <Button
                   onPress={close}
-                  className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
                 >
                   Cancel
                 </Button>
@@ -125,7 +123,7 @@ export default function AssignContainerModal({
                     });
                     close();
                   }}
-                  className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-stone-700 not-disabled:hover:bg-stone-600 disabled:opacity-40 rounded-lg transition-colors outline-none"
+                  className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-stone-700 not-disabled:hover:bg-stone-600 disabled:opacity-40 rounded-lg transition-colors outline-none"
                 >
                   {assign.isPending ? "Assigning..." : "Assign"}
                 </Button>

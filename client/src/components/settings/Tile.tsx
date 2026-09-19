@@ -50,20 +50,16 @@ export default function Tile({
             {icon}
           </div>
           <div>
-            <div className="text-[13px] font-medium text-stone-800 dark:text-stone-200">
-              {title}
-            </div>
+            <div className="text-13 font-medium text-stone-800 dark:text-stone-200">{title}</div>
             {secondary && (
-              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
-                {secondary}
-              </div>
+              <div className="text-11 text-stone-500 dark:text-stone-400 mt-0.5">{secondary}</div>
             )}
           </div>
         </div>
         {(isDirty || headerAction) && (
           <div className="ml-2 shrink-0 flex items-center gap-2">
             {isDirty && (
-              <span className="text-[10px] uppercase tracking-wider text-amber-500 dark:text-amber-400 font-medium">
+              <span className="text-11 uppercase tracking-label text-amber-500 dark:text-amber-400 font-medium">
                 Editing
               </span>
             )}

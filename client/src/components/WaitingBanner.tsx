@@ -16,7 +16,7 @@ export default function WaitingBanner() {
       role="status"
     >
       <span className="size-1.5 rounded-full bg-amber-500 animate-status-pulse shrink-0" />
-      <span className="text-xs font-mono text-stone-700 dark:text-stone-300">
+      <span className="text-12 font-mono text-stone-700 dark:text-stone-300">
         Waiting for your input
       </span>
     </div>

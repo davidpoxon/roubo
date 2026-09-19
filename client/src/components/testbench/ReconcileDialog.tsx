@@ -48,12 +48,12 @@ const STRINGS = {
 
 function CaseList({ ids }: { ids: string[] }) {
   if (ids.length === 0) {
-    return <p className="text-[12px] text-stone-500 dark:text-stone-400">{STRINGS.none}</p>;
+    return <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.none}</p>;
   }
   return (
     <ul className="flex flex-col gap-1">
       {ids.map((id) => (
-        <li key={id} className="font-mono text-[12px] text-stone-700 dark:text-stone-300 break-all">
+        <li key={id} className="font-mono text-12 text-stone-700 dark:text-stone-300 break-all">
           {id}
         </li>
       ))}
@@ -80,17 +80,17 @@ function Section({
     <div className="flex flex-col gap-1.5" data-testid={testId}>
       <div className="flex items-center gap-2">
         {icon}
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+        <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
           {heading}
         </span>
         <span
-          className="font-mono text-[11px] text-stone-500 dark:text-stone-500"
+          className="font-mono text-11 text-stone-500 dark:text-stone-500"
           data-testid={`${testId}-count`}
         >
           {count}
         </span>
       </div>
-      <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">{help}</p>
+      <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">{help}</p>
       {children}
     </div>
   );
@@ -148,7 +148,7 @@ export default function ReconcileDialog({
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 shrink-0">
                 <Heading
                   slot="title"
-                  className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                 >
                   {STRINGS.title}
                 </Heading>
@@ -165,13 +165,13 @@ export default function ReconcileDialog({
               ) : (
                 <>
                   <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-5">
-                    <p className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
+                    <p className="text-13 text-stone-700 dark:text-stone-300 leading-relaxed">
                       {STRINGS.intro}
                     </p>
 
                     <Section
                       testId="reconcile-section-changed"
-                      icon={<RefreshCw size={13} className="text-amber-500 shrink-0" aria-hidden />}
+                      icon={<RefreshCw size={14} className="text-amber-500 shrink-0" aria-hidden />}
                       heading={STRINGS.changedHeading}
                       help={STRINGS.changedHelp}
                       count={classification.changed.length}
@@ -181,7 +181,7 @@ export default function ReconcileDialog({
 
                     <Section
                       testId="reconcile-section-orphan"
-                      icon={<Archive size={13} className="text-text-muted shrink-0" aria-hidden />}
+                      icon={<Archive size={14} className="text-text-muted shrink-0" aria-hidden />}
                       heading={STRINGS.orphanHeading}
                       help={STRINGS.orphanHelp}
                       count={orphanCount}
@@ -193,7 +193,7 @@ export default function ReconcileDialog({
                       testId="reconcile-section-added"
                       icon={
                         <Plus
-                          size={13}
+                          size={14}
                           className="text-stone-500 dark:text-stone-400 shrink-0"
                           aria-hidden
                         />
@@ -206,7 +206,7 @@ export default function ReconcileDialog({
                     </Section>
 
                     {error && (
-                      <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
+                      <p role="alert" className="text-12 text-red-500 dark:text-red-400">
                         {error}
                       </p>
                     )}
@@ -218,7 +218,7 @@ export default function ReconcileDialog({
                         isDisabled={isBusy}
                         onPress={() => setConfirmingPurge(true)}
                         data-testid="reconcile-purge-trigger"
-                        className="px-2.5 py-1 text-[11px] font-medium rounded-md text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                        className="px-2.5 py-1 text-11 font-medium rounded-md text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                       >
                         {STRINGS.purge}
                       </Button>
@@ -230,7 +230,7 @@ export default function ReconcileDialog({
                         isDisabled={isBusy}
                         onPress={close}
                         data-testid="reconcile-cancel"
-                        className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                        className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                       >
                         {STRINGS.cancel}
                       </Button>
@@ -238,7 +238,7 @@ export default function ReconcileDialog({
                         isDisabled={isBusy}
                         onPress={onApply}
                         data-testid="reconcile-apply"
-                        className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                        className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                       >
                         {isApplying ? STRINGS.applying : STRINGS.apply}
                       </Button>
@@ -276,16 +276,16 @@ function PurgeConfirmation({
         <div className="flex items-start gap-3">
           <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" aria-hidden />
           <div className="space-y-1">
-            <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+            <p className="text-14 font-semibold text-stone-900 dark:text-stone-100">
               {STRINGS.purgeConfirmTitle}
             </p>
-            <p className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
+            <p className="text-13 text-stone-700 dark:text-stone-300 leading-relaxed">
               {STRINGS.purgeConfirmBody(orphanCount)}
             </p>
           </div>
         </div>
         {error && (
-          <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
+          <p role="alert" className="text-12 text-red-500 dark:text-red-400">
             {error}
           </p>
         )}
@@ -295,7 +295,7 @@ function PurgeConfirmation({
           isDisabled={isPurging}
           onPress={onBack}
           data-testid="reconcile-purge-back"
-          className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           {STRINGS.purgeConfirmBack}
         </Button>
@@ -303,7 +303,7 @@ function PurgeConfirmation({
           isDisabled={isPurging}
           onPress={onConfirm}
           data-testid="reconcile-purge-confirm-action"
-          className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+          className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
         >
           {isPurging ? STRINGS.purging : STRINGS.purgeConfirmAction}
         </Button>

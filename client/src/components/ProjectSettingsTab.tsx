@@ -76,12 +76,12 @@ function ProjectCustomJigsList({ projectId }: { projectId: string }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+        <h3 className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
           Custom jigs
         </h3>
         <Link
           to={`/projects/${projectId}/jigs/new`}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
         >
           <Plus size={12} />
           New jig
@@ -89,9 +89,9 @@ function ProjectCustomJigsList({ projectId }: { projectId: string }) {
       </div>
 
       {isLoading ? (
-        <p className="text-xs text-stone-500 dark:text-stone-400">Loading…</p>
+        <p className="text-12 text-stone-500 dark:text-stone-400">Loading…</p>
       ) : projectJigs.length === 0 ? (
-        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
           No project jigs yet. Create one to override or supplement app-level jigs for this project.
         </p>
       ) : (
@@ -112,7 +112,7 @@ function ProjectCustomJigsList({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <p className="mt-4 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+      <p className="mt-4 text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
         Project jigs live in{" "}
         <span className="font-mono text-stone-500 dark:text-stone-500">
           &lt;repo&gt;/.roubo/jigs/*.md
@@ -203,7 +203,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
             <h2
               data-testid="project-settings-source-section-title"
-              className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted"
+              className="text-11 font-semibold uppercase tracking-label text-text-muted"
             >
               {sourceSectionTitle}
             </h2>
@@ -213,7 +213,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+            <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
               Setup
             </h2>
           </div>
@@ -226,11 +226,11 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
           <div className="flex items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+              <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
                 Bench behaviour
               </h2>
             </div>
-            <p className="text-[11px] text-stone-500 dark:text-stone-400">
+            <p className="text-11 text-stone-500 dark:text-stone-400">
               Project overrides are marked{" "}
               <span className="text-amber-500 font-medium">override</span>
             </p>
@@ -252,12 +252,10 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
-              Jigs
-            </h2>
+            <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">Jigs</h2>
           </div>
           <Tile
-            icon={<Zap size={13} aria-hidden />}
+            icon={<Zap size={14} aria-hidden />}
             title="Jig"
             isOverridden={jigsTileOverridden}
             isDirty={jigsTileDirty}
@@ -271,7 +269,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
               onChange={setDraftJig}
             />
             <div className="mt-8">
-              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400 mb-3">
+              <h3 className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400 mb-3">
                 Issue type mappings
               </h3>
               <IssueTypeMappingsSection
@@ -281,7 +279,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
                 embedded
               />
             </div>
-            <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-6 leading-relaxed">
+            <p className="text-11 text-stone-500 dark:text-stone-400 mt-6 leading-relaxed">
               Changes write to{" "}
               <span className="font-mono text-stone-500 dark:text-stone-500">
                 {"<repo>/.roubo/roubo.yaml"}
@@ -297,17 +295,17 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+              <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
                 Agent permissions
               </h2>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-[10px] text-stone-500 dark:text-stone-400">
+              <span className="text-11 text-stone-500 dark:text-stone-400">
                 Mapped onto the agent's own permission mechanism on bench setup
               </span>
               <Button
                 onPress={() => navigate(`/projects/${project.id}/settings/permissions`)}
-                className="text-[11px] px-2.5 py-1 rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-400 transition-colors duration-150 shrink-0"
+                className="text-11 px-2.5 py-1 rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-400 transition-colors duration-150 shrink-0"
               >
                 Edit permissions →
               </Button>
@@ -319,11 +317,11 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+              <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
                 Agent overrides
               </h2>
             </div>
-            <span className="text-[10px] text-stone-500 dark:text-stone-400">
+            <span className="text-11 text-stone-500 dark:text-stone-400">
               App defaults from <span className="font-mono">Settings &gt; AI Agents</span>, overlaid
               per field
             </span>
@@ -333,7 +331,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-red-400 dark:bg-red-600 shrink-0" />
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+            <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
               Danger zone
             </h2>
           </div>
@@ -365,7 +363,7 @@ export default function ProjectSettingsTab() {
 
   if (isLoading) {
     return (
-      <div className="h-full overflow-y-auto overscroll-contain flex items-center gap-2 p-8 text-xs text-stone-500 dark:text-stone-400">
+      <div className="h-full overflow-y-auto overscroll-contain flex items-center gap-2 p-8 text-12 text-stone-500 dark:text-stone-400">
         <Spinner />
         Loading…
       </div>
@@ -374,7 +372,7 @@ export default function ProjectSettingsTab() {
 
   if (!project) {
     return (
-      <div className="h-full overflow-y-auto overscroll-contain p-8 text-xs text-stone-500 dark:text-stone-400">
+      <div className="h-full overflow-y-auto overscroll-contain p-8 text-12 text-stone-500 dark:text-stone-400">
         Project not found.
       </div>
     );

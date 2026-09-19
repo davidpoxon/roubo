@@ -60,11 +60,11 @@ export default function IssueTransitionDropdown({
             }}
           >
             <Button
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-1 focus-visible:ring-amber-500"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-11 font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-1 focus-visible:ring-amber-500"
               data-testid="transition-trigger"
             >
               <span>{optimisticState}</span>
-              <ChevronDown size={10} className="shrink-0" />
+              <ChevronDown size={12} className="shrink-0" />
             </Button>
             <Popover className="animate-rise-in min-w-[var(--trigger-width)] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 overflow-auto max-h-60">
               <ListBox className="outline-none" aria-label="Available transitions">
@@ -73,7 +73,7 @@ export default function IssueTransitionDropdown({
                     key={t}
                     id={t}
                     textValue={t}
-                    className="px-3 py-1.5 text-sm text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50"
+                    className="px-3 py-1.5 text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50"
                   >
                     {t}
                   </ListBoxItem>
@@ -84,7 +84,7 @@ export default function IssueTransitionDropdown({
         ) : (
           <span
             data-testid="transition-pill-readonly"
-            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400"
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-11 font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400"
           >
             {optimisticState}
           </span>
@@ -92,7 +92,7 @@ export default function IssueTransitionDropdown({
       </div>
 
       {!hasTransitions && (
-        <p className="text-[11px] text-stone-500 dark:text-stone-400">
+        <p className="text-11 text-stone-500 dark:text-stone-400">
           No transitions available from this state.
         </p>
       )}
@@ -103,7 +103,7 @@ export default function IssueTransitionDropdown({
           className="flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2.5 py-1.5"
         >
           <AlertCircle size={12} className="text-red-500 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-red-800 dark:text-red-300 leading-relaxed">{error}</p>
+          <p className="text-11 text-red-800 dark:text-red-300 leading-relaxed">{error}</p>
         </div>
       )}
     </div>

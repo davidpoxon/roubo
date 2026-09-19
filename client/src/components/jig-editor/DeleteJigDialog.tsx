@@ -48,7 +48,7 @@ export default function DeleteJigDialog({
               <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
                 <Heading
                   slot="title"
-                  className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
                 >
                   {isBlocked ? "Jig is in use" : `Delete "${jig.name}"?`}
                 </Heading>
@@ -59,7 +59,7 @@ export default function DeleteJigDialog({
                   <>
                     <div className="flex items-start gap-3">
                       <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-stone-700 dark:text-stone-300">
+                      <p className="text-13 text-stone-700 dark:text-stone-300">
                         This jig cannot be deleted because it is referenced in:
                       </p>
                     </div>
@@ -67,18 +67,18 @@ export default function DeleteJigDialog({
                       {(references ?? []).map((ref, i) => (
                         <li
                           key={i}
-                          className="text-sm text-stone-600 dark:text-stone-400 list-disc"
+                          className="text-13 text-stone-600 dark:text-stone-400 list-disc"
                         >
                           {formatReference(ref)}
                         </li>
                       ))}
                     </ul>
-                    <p className="text-xs text-stone-500 dark:text-stone-400">
+                    <p className="text-12 text-stone-500 dark:text-stone-400">
                       Remove those references first, then delete this jig.
                     </p>
                   </>
                 ) : (
-                  <p className="text-sm text-stone-700 dark:text-stone-300">
+                  <p className="text-13 text-stone-700 dark:text-stone-300">
                     This will permanently delete the jig. This action cannot be undone.
                   </p>
                 )}
@@ -88,7 +88,7 @@ export default function DeleteJigDialog({
                 {isBlocked ? (
                   <Button
                     onPress={close}
-                    className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
+                    className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
                   >
                     OK
                   </Button>
@@ -97,14 +97,14 @@ export default function DeleteJigDialog({
                     <Button
                       isDisabled={isPending}
                       onPress={close}
-                      className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none"
+                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none"
                     >
                       Cancel
                     </Button>
                     <Button
                       isDisabled={isPending}
                       onPress={onConfirm}
-                      className="px-4 py-1.5 text-sm font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none"
+                      className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none"
                     >
                       {isPending ? "Deleting..." : "Delete"}
                     </Button>

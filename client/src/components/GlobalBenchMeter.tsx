@@ -28,7 +28,7 @@ export default function GlobalBenchMeter() {
           style={{ width: `${fillWidth}%` }}
         />
       </div>
-      <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400 tabular-nums">
+      <span className="text-11 font-mono text-stone-500 dark:text-stone-400 tabular-nums">
         {current} / {max}
       </span>
     </div>

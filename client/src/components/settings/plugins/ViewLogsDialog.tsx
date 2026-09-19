@@ -98,7 +98,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
           <div className="px-5 py-3 border-b border-stone-200 dark:border-stone-800/60 flex items-center justify-between gap-3">
             <Heading
               slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
             >
               {STRINGS.title(pluginName)}
             </Heading>
@@ -120,7 +120,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
                   onPress={() => setFile(f)}
                   aria-pressed={file === f}
                   className={[
-                    "px-2.5 py-1 text-xs rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
+                    "px-2.5 py-1 text-12 rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
                     file === f
                       ? "bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium"
                       : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200",
@@ -142,7 +142,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
               <Label className="sr-only">{STRINGS.filterLabel}</Label>
               <Input
                 placeholder={STRINGS.filterPlaceholder}
-                className="w-full px-2.5 py-1 text-xs rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 placeholder:text-stone-500 dark:placeholder:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="w-full px-2.5 py-1 text-12 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 placeholder:text-stone-500 dark:placeholder:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               />
             </TextField>
 
@@ -158,7 +158,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
 
           <div
             data-testid="log-content"
-            className="max-h-[480px] overflow-y-auto px-2 py-2 font-mono text-[11px] leading-relaxed bg-stone-50 dark:bg-stone-950"
+            className="max-h-[480px] overflow-y-auto px-2 py-2 font-mono text-11 leading-relaxed bg-stone-50 dark:bg-stone-950"
           >
             {logs.isLoading && (
               <p className="px-2 py-1 text-stone-500 dark:text-stone-400">{STRINGS.loading}</p>

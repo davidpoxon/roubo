@@ -120,9 +120,7 @@ export default function ComponentEditor({
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <label className="block text-[11px] text-stone-500 dark:text-stone-400 mb-1">
-          Base port
-        </label>
+        <label className="block text-11 text-stone-500 dark:text-stone-400 mb-1">Base port</label>
         <div className="flex items-center gap-3">
           <TextField
             value={portBase !== null ? String(portBase) : ""}
@@ -135,7 +133,7 @@ export default function ComponentEditor({
             <Input type="number" min={1} max={65535} placeholder="e.g. 3000" className={INPUT} />
           </TextField>
           {portBase !== null && maxBenches > 1 && (
-            <span className="text-[11px] text-stone-500 dark:text-stone-400 font-mono tabular-nums">
+            <span className="text-11 text-stone-500 dark:text-stone-400 font-mono tabular-nums">
               {portBase}–{portBase + maxBenches - 1}
             </span>
           )}
@@ -144,7 +142,7 @@ export default function ComponentEditor({
           <Checkbox
             isSelected={portHttps ?? false}
             onChange={onPortHttpsChange}
-            className="flex items-center gap-1.5 text-[11px] text-text-muted cursor-pointer select-none group"
+            className="flex items-center gap-1.5 text-11 text-text-muted cursor-pointer select-none group"
           >
             <div className="size-3.5 rounded border border-stone-600 group-data-[selected]:bg-stone-500 group-data-[selected]:border-stone-500 transition-colors flex items-center justify-center">
               <svg
@@ -161,10 +159,10 @@ export default function ComponentEditor({
           </Checkbox>
         )}
         {portRangeInvalid && (
-          <p className="text-[11px] text-red-400 pl-0.5">Port must be between 1 and 65535</p>
+          <p className="text-11 text-red-400 pl-0.5">Port must be between 1 and 65535</p>
         )}
         {portConflict && (
-          <p className="text-[11px] text-amber-400 pl-0.5">
+          <p className="text-11 text-amber-400 pl-0.5">
             Conflicts with {portConflict.conflictsWith.projectName}{" "}
             {portConflict.conflictsWith.port} ({portConflict.conflictsWith.range[0]}–
             {portConflict.conflictsWith.range[1]})
@@ -174,7 +172,7 @@ export default function ComponentEditor({
 
       {showCommand && (
         <div>
-          <label className="block text-[11px] text-stone-600 mb-1">Command</label>
+          <label className="block text-11 text-stone-600 mb-1">Command</label>
           <TextField
             value={component.command ?? ""}
             onChange={(v) => update({ command: v || undefined })}
@@ -198,7 +196,7 @@ export default function ComponentEditor({
           <TemplateValidationError
             invalidVariables={validateTemplateVariables(component.command ?? "", templateCtx)}
           />
-          <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">
+          <p className="text-11 text-stone-500 dark:text-stone-400 mt-1">
             Executable and arguments. Supports template variables like{" "}
             <span className="font-mono">{"{{ports.name}}"}</span>.
           </p>
@@ -207,7 +205,7 @@ export default function ComponentEditor({
 
       {showSetup && (
         <div>
-          <label className="block text-[11px] text-stone-600 mb-1">Setup command</label>
+          <label className="block text-11 text-stone-600 mb-1">Setup command</label>
           <TextField
             value={component.setup ?? ""}
             onChange={(v) => update({ setup: v || undefined })}
@@ -215,7 +213,7 @@ export default function ComponentEditor({
           >
             <Input placeholder="e.g. npm ci, dotnet restore" className={INPUT} />
           </TextField>
-          <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">
+          <p className="text-11 text-stone-500 dark:text-stone-400 mt-1">
             Runs once during bench preparing before the component starts
           </p>
         </div>
@@ -223,13 +221,13 @@ export default function ComponentEditor({
 
       {showDocker && (
         <fieldset className="space-y-3">
-          <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
             <span className="size-1.5 rounded-full bg-stone-400/70" />
             Docker
           </legend>
           {!hideComposeFile && (
             <div>
-              <label className="block text-[11px] text-stone-500 dark:text-stone-400 mb-1">
+              <label className="block text-11 text-stone-500 dark:text-stone-400 mb-1">
                 Compose file
               </label>
               {detected?.dockerComposeFiles.length ? (
@@ -267,7 +265,7 @@ export default function ComponentEditor({
             </div>
           )}
           <div>
-            <label className="block text-[11px] text-stone-600 mb-1">Component name</label>
+            <label className="block text-11 text-stone-600 mb-1">Component name</label>
             {composeServices?.length ? (
               <Select
                 items={composeServices}
@@ -322,7 +320,7 @@ export default function ComponentEditor({
             )}
           </div>
           <div>
-            <label className="block text-[11px] text-stone-600 mb-1">Init service</label>
+            <label className="block text-11 text-stone-600 mb-1">Init service</label>
             {initServiceItems?.length ? (
               <Select
                 items={initServiceItems}
@@ -360,7 +358,7 @@ export default function ComponentEditor({
 
       {showMigration && (
         <fieldset className="space-y-3">
-          <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
             <span className="size-1.5 rounded-full bg-amber-400/70" />
             Migration
           </legend>
@@ -375,15 +373,11 @@ export default function ComponentEditor({
               })
             }
           >
-            <Label className="block text-[11px] text-stone-500 dark:text-stone-400 mb-1">
-              Command
-            </Label>
+            <Label className="block text-11 text-stone-500 dark:text-stone-400 mb-1">Command</Label>
             <Input placeholder="dotnet run --project ..." className={INPUT} />
           </TextField>
           <div className="space-y-1">
-            <label className="block text-[11px] text-stone-500 dark:text-stone-400">
-              Arguments
-            </label>
+            <label className="block text-11 text-stone-500 dark:text-stone-400">Arguments</label>
             {(component.migration?.args ?? [""]).map((arg, i) => {
               const invalidVars = validateTemplateVariables(arg, templateCtx);
               return (
@@ -455,7 +449,7 @@ export default function ComponentEditor({
                   },
                 });
               }}
-              className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-300 transition-colors"
+              className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-300 transition-colors"
             >
               <Plus size={12} /> Add argument
             </Button>
@@ -465,7 +459,7 @@ export default function ComponentEditor({
 
       {showConnection && (
         <fieldset className="space-y-2">
-          <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
             <span className="size-1.5 rounded-full bg-green-400/70" />
             Connection
           </legend>
@@ -552,7 +546,7 @@ export default function ComponentEditor({
                 },
               });
             }}
-            className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-300 transition-colors"
+            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-300 transition-colors"
           >
             <Plus size={12} /> Add pair
           </Button>
@@ -561,7 +555,7 @@ export default function ComponentEditor({
 
       {showDirectory && (
         <div>
-          <label className="block text-[11px] text-stone-600 mb-1">Working directory</label>
+          <label className="block text-11 text-stone-600 mb-1">Working directory</label>
           {detected?.viteProjects.length ? (
             <Select
               items={filePathItems(detected.viteProjects)}
@@ -583,7 +577,7 @@ export default function ComponentEditor({
 
       {showEnvFile && (
         <div>
-          <label className="block text-[11px] text-stone-600 mb-1">Env file</label>
+          <label className="block text-11 text-stone-600 mb-1">Env file</label>
           {detected?.envFiles.length ? (
             <Select
               items={filePathItems(detected.envFiles)}
@@ -606,7 +600,7 @@ export default function ComponentEditor({
 
       {showEnv && isType("database") && (
         <fieldset className="space-y-2">
-          <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
             <span className="size-1.5 rounded-full bg-stone-400/70" />
             Compose variables
           </legend>
@@ -628,14 +622,14 @@ export default function ComponentEditor({
                     >
                       <span className="truncate">{varName}</span>
                       {isEnvFile && (
-                        <span className="flex items-center gap-0.5 text-[10px] text-amber-400/70 font-mono leading-none shrink-0">
-                          <Lock size={9} />
+                        <span className="flex items-center gap-0.5 text-11 text-amber-400/70 font-mono leading-none shrink-0">
+                          <Lock size={12} />
                           .env
                         </span>
                       )}
                       {isPortVar && !isEnvFile && (
-                        <span className="flex items-center gap-0.5 text-[10px] text-stone-500 dark:text-stone-400 font-mono leading-none shrink-0">
-                          <Zap size={9} />
+                        <span className="flex items-center gap-0.5 text-11 text-stone-500 dark:text-stone-400 font-mono leading-none shrink-0">
+                          <Zap size={12} />
                           port
                         </span>
                       )}
@@ -645,7 +639,7 @@ export default function ComponentEditor({
                   {/* Editable value (or read-only if in .env) */}
                   {isEnvFile ? (
                     <div
-                      className={`${INPUT} flex-1 text-stone-500 dark:text-stone-400 font-mono text-[11px] cursor-not-allowed select-none`}
+                      className={`${INPUT} flex-1 text-stone-500 dark:text-stone-400 font-mono text-11 cursor-not-allowed select-none`}
                     >
                       set in ~/.roubo/.env
                     </div>
@@ -747,13 +741,13 @@ export default function ComponentEditor({
 
           <Button
             onPress={() => update({ env: { ...currentEnv, "": "" } })}
-            className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
+            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
           >
             <Plus size={12} /> Add variable
           </Button>
 
           {detectedVarKeys.length === 0 && customVarEntries.length === 0 && (
-            <p className="text-[10px] text-stone-600 dark:text-stone-400">
+            <p className="text-11 text-stone-600 dark:text-stone-400">
               Select a compose service above to detect variables from the compose file.
             </p>
           )}
@@ -762,7 +756,7 @@ export default function ComponentEditor({
 
       {showEnv && !isType("database") && (
         <fieldset className="space-y-2">
-          <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
             <span className="size-1.5 rounded-full bg-stone-400/70" />
             Environment variables
           </legend>
@@ -826,7 +820,7 @@ export default function ComponentEditor({
           })}
           <Button
             onPress={() => update({ env: { ...component.env, "": "" } })}
-            className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
+            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
           >
             <Plus size={12} /> Add variable
           </Button>
@@ -835,7 +829,7 @@ export default function ComponentEditor({
 
       {showEnvVars && (
         <fieldset className="space-y-2">
-          <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
             <span className="size-1.5 rounded-full bg-stone-400/70" />
             Build env vars
           </legend>
@@ -902,7 +896,7 @@ export default function ComponentEditor({
           })}
           <Button
             onPress={() => update({ envVars: { ...component.envVars, "": "" } })}
-            className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
+            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
           >
             <Plus size={12} /> Add variable
           </Button>
@@ -916,7 +910,7 @@ export default function ComponentEditor({
         !showDirectory &&
         !showEnv &&
         !showEnvVars && (
-          <p className="text-[11px] text-stone-500 dark:text-stone-400">
+          <p className="text-11 text-stone-500 dark:text-stone-400">
             Select a type to see relevant fields.
           </p>
         )}

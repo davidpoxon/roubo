@@ -9,10 +9,8 @@ export default function CaseRow({ model }: { model: CaseRowModel }) {
   const { case: c, status } = model;
   return (
     <div className="flex items-center gap-3 px-4 py-2 min-w-0">
-      <span className="font-mono text-[11px] text-stone-500 dark:text-stone-400 shrink-0">
-        {c.id}
-      </span>
-      <span className="text-sm text-stone-800 dark:text-stone-200 truncate min-w-0 flex-1">
+      <span className="font-mono text-11 text-stone-500 dark:text-stone-400 shrink-0">{c.id}</span>
+      <span className="text-13 text-stone-800 dark:text-stone-200 truncate min-w-0 flex-1">
         {c.title}
       </span>
       <StatusIndicator status={status} />

@@ -52,7 +52,7 @@ export default function ToolEditor({
           >
             <Input
               placeholder="Tool name"
-              className="bg-transparent text-sm text-stone-800 dark:text-stone-200 font-medium focus:outline-none border-none min-w-0 w-full"
+              className="bg-transparent text-13 text-stone-800 dark:text-stone-200 font-medium focus:outline-none border-none min-w-0 w-full"
             />
           </TextField>
           <Button
@@ -60,15 +60,13 @@ export default function ToolEditor({
             onPress={() => onRemove(index)}
             className="p-1 text-stone-600 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
           >
-            <Trash2 size={13} />
+            <Trash2 size={14} />
           </Button>
         </div>
 
         <div className="flex gap-3">
           <div className="flex-1">
-            <Label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">
-              Icon
-            </Label>
+            <Label className="block text-11 text-stone-600 dark:text-stone-400 mb-1">Icon</Label>
             <div role="group" aria-label="Icon" className="flex gap-1">
               {TOOL_ICONS.map((iconName) => {
                 const IconComponent = TOOL_ICON_MAP[iconName];
@@ -91,15 +89,13 @@ export default function ToolEditor({
             </div>
           </div>
           <div className="flex-1">
-            <Label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">
-              Type
-            </Label>
+            <Label className="block text-11 text-stone-600 dark:text-stone-400 mb-1">Type</Label>
             <div role="group" aria-label="Type" className="flex gap-1">
               {(["browser", "shell"] as const).map((t) => (
                 <Button
                   key={t}
                   onPress={() => update({ type: t })}
-                  className={`px-3 py-1.5 text-xs rounded-lg transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 ${
+                  className={`px-3 py-1.5 text-12 rounded-lg transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 ${
                     tool.type === t
                       ? "bg-stone-700 text-stone-100"
                       : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
@@ -119,7 +115,7 @@ export default function ToolEditor({
         )}
 
         <div>
-          <Label className="block text-[11px] text-stone-600 dark:text-stone-400 mb-1">
+          <Label className="block text-11 text-stone-600 dark:text-stone-400 mb-1">
             Requires component
           </Label>
           <Select
@@ -137,8 +133,8 @@ export default function ToolEditor({
 }
 
 const INPUT_WRAPPER =
-  "w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-sm flex items-center gap-1";
-const LABEL_CLASS = "block text-[11px] text-stone-600 dark:text-stone-400 mb-1";
+  "w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 flex items-center gap-1";
+const LABEL_CLASS = "block text-11 text-stone-600 dark:text-stone-400 mb-1";
 
 function BrowserUrlField({
   tool,

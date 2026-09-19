@@ -18,7 +18,7 @@ const STRINGS = {
 };
 
 const ACTION_BUTTON_CLASS =
-  "self-start px-2.5 py-1 text-xs font-medium rounded-md border border-amber-300 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 not-disabled:hover:bg-amber-100 dark:not-disabled:hover:bg-amber-900/30 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "self-start px-2.5 py-1 text-12 font-medium rounded-md border border-amber-300 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 not-disabled:hover:bg-amber-100 dark:not-disabled:hover:bg-amber-900/30 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
 /**
  * Surfaces docker isolation-tier notices (#743) on the plugin card. The plugin
@@ -52,7 +52,7 @@ export default function IsolationNoticeBanner({ notices, pluginId, source }: Pro
           className="flex items-start gap-3 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5"
         >
           <ShieldAlert size={16} className="text-amber-500 shrink-0 mt-0.5" aria-hidden />
-          <p className="min-w-0 break-words text-[13px] text-amber-800 dark:text-amber-300 leading-relaxed">
+          <p className="min-w-0 break-words text-13 text-amber-800 dark:text-amber-300 leading-relaxed">
             {notice.message}
           </p>
         </div>
@@ -63,7 +63,7 @@ export default function IsolationNoticeBanner({ notices, pluginId, source }: Pro
           <p
             data-testid="plugin-reinstall-shared-done"
             role="status"
-            className="flex items-center gap-1.5 self-start text-xs font-medium text-green-700 dark:text-green-400"
+            className="flex items-center gap-1.5 self-start text-12 font-medium text-green-700 dark:text-green-400"
           >
             <Check size={14} aria-hidden />
             {STRINGS.reinstalled}

@@ -67,7 +67,7 @@ export default function ResultsRecoveryBanner({
       className="flex items-center gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50"
     >
       <AlertTriangle size={16} className="text-amber-500 shrink-0" aria-hidden />
-      <p className="flex-1 min-w-0 text-sm text-amber-800">{message}</p>
+      <p className="flex-1 min-w-0 text-13 text-amber-800">{message}</p>
       <Button
         onPress={() => setDismissed(true)}
         aria-label={STRINGS.dismiss}

@@ -20,18 +20,18 @@ export default function GitHubProjectField({ repo, value, onChange }: Props) {
 
   return (
     <div>
-      <Label className="block text-xs text-text-muted mb-1.5">GitHub project</Label>
+      <Label className="block text-12 text-text-muted mb-1.5">GitHub project</Label>
       {!repo || !repo.includes("/") ? (
-        <p className="text-xs text-stone-500 dark:text-stone-400">Set a repository first</p>
+        <p className="text-12 text-stone-500 dark:text-stone-400">Set a repository first</p>
       ) : isLoading ? (
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
           <Spinner />
           Loading projects…
         </div>
       ) : error ? (
         <GitHubErrorState error={error} variant="inline" onRetry={() => refetch()} />
       ) : projectItems.length === 0 ? (
-        <p className="text-xs text-stone-500 dark:text-stone-400">No projects found</p>
+        <p className="text-12 text-stone-500 dark:text-stone-400">No projects found</p>
       ) : (
         <Select
           items={projectItems}

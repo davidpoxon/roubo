@@ -227,24 +227,24 @@ export default function TestBenchPanel({
   const header = focusedSpecPath ? (
     <div className="flex items-center justify-between gap-3 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-2.5">
       <div className="flex items-center gap-2.5 min-w-0">
-        <FileText size={15} className="text-amber-500 shrink-0" />
+        <FileText size={14} className="text-amber-500 shrink-0" />
         <div className="min-w-0">
-          <p className="flex items-center gap-1.5 text-sm font-medium text-stone-800 dark:text-stone-200">
+          <p className="flex items-center gap-1.5 text-13 font-medium text-stone-800 dark:text-stone-200">
             <span className="truncate">{focusedSpecSlug(focusedSpecPath)}</span>
             {archivedLabel && (
               <span
                 data-testid="focused-spec-archived"
-                className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 rounded-full px-1.5 py-0.5"
+                className="shrink-0 text-11 font-semibold uppercase tracking-label text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 rounded-full px-1.5 py-0.5"
               >
                 {archivedLabel}
               </span>
             )}
           </p>
-          <p className="text-[11px] font-mono text-stone-600 dark:text-stone-400 truncate">
+          <p className="text-11 font-mono text-stone-600 dark:text-stone-400 truncate">
             {focusedSpecPath}
           </p>
           {lifecycle?.archived && lifecycle.supersededBy && (
-            <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+            <p className="text-11 text-stone-500 dark:text-stone-400 truncate">
               Superseded by <span className="font-mono">{lifecycle.supersededBy}</span>
             </p>
           )}
@@ -253,9 +253,9 @@ export default function TestBenchPanel({
       <Button
         onPress={() => setIsPickerOpen(true)}
         isDisabled={setFocus.isPending}
-        className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-sm font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-13 font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
       >
-        <Pencil size={13} />
+        <Pencil size={14} />
         {setFocus.isPending ? "Re-pointing..." : "Change focused spec"}
       </Button>
     </div>
@@ -292,7 +292,7 @@ export default function TestBenchPanel({
             setTestbenchViewMode(mode);
             if (mode === "cases") setOpenGateId(null);
           }}
-          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+          className={`px-3 py-1.5 text-13 font-medium rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
             viewMode === mode
               ? "bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 shadow-sm"
               : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
@@ -345,7 +345,7 @@ export default function TestBenchPanel({
   // BEFORE the error branch so a disabled query is never mistaken for a failure.
   if (!ready) {
     return frame(
-      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-8">
+      <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-8">
         <Spinner />
         Preparing test cases...
       </div>,
@@ -354,7 +354,7 @@ export default function TestBenchPanel({
 
   if (isLoading) {
     return frame(
-      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-8">
+      <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-8">
         <Spinner />
         Loading test cases...
       </div>,
@@ -366,7 +366,7 @@ export default function TestBenchPanel({
       error instanceof Error ? error.message : "Could not load the TestBench plan for this bench.";
     return frame(
       <div className="py-8">
-        <p className="text-sm text-red-600 dark:text-red-400">{message}</p>
+        <p className="text-13 text-red-600 dark:text-red-400">{message}</p>
       </div>,
     );
   }
@@ -374,7 +374,7 @@ export default function TestBenchPanel({
   if (data.plan.cases.length === 0) {
     return frame(
       <div className="py-8">
-        <p className="text-sm text-stone-500 dark:text-stone-400">
+        <p className="text-13 text-stone-500 dark:text-stone-400">
           This spec has no test cases yet.
         </p>
       </div>,
@@ -413,7 +413,7 @@ export default function TestBenchPanel({
                   onPress={() => setTestbenchCaseListCollapsed(true)}
                   aria-label="Collapse test case list"
                   aria-expanded={true}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/40 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-12 font-medium text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/40 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                 >
                   <PanelLeftClose aria-hidden="true" className="w-3.5 h-3.5" />
                   Collapse list

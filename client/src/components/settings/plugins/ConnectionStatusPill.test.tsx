@@ -101,7 +101,7 @@ describe("ConnectionStatusPill: WCAG 2.1 AA contrast (IP-TC-142, IP-NFR-016)", (
 
   // Extract the fg/bg colour tokens from a rendered pill's class string for each
   // theme it supports: the unprefixed pair (light) and any `dark:` pair (dark).
-  // The size token `text-[12px]` is deliberately not matched by these regexes.
+  // The size token `text-12` is deliberately not matched by these regexes.
   function colourPairs(className: string): Array<{ theme: string; fg: string; bg: string }> {
     const tokens = className.split(/\s+/);
     const pick = (re: RegExp): string | undefined => {

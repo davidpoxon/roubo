@@ -24,7 +24,7 @@ export default function ProgressBar({ counts, label }: { counts: StatusCounts; l
 
   return (
     <div className={`flex items-center gap-3 ${isEmpty ? "opacity-30" : ""}`}>
-      <span className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-400 shrink-0">
+      <span className="text-11 uppercase tracking-label text-stone-500 dark:text-stone-400 shrink-0">
         {label}
       </span>
       <div
@@ -44,7 +44,7 @@ export default function ProgressBar({ counts, label }: { counts: StatusCounts; l
       </div>
       <span
         aria-hidden="true"
-        className="font-mono text-[11px] text-stone-600 dark:text-stone-400 shrink-0 tabular-nums"
+        className="font-mono text-11 text-stone-600 dark:text-stone-400 shrink-0 tabular-nums"
       >
         {ratio}
       </span>

@@ -133,11 +133,11 @@ export default function MarketplaceSourceConsentModal({
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
               slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
             >
               {STRINGS.title}
             </Heading>
-            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+            <p className="mt-1 text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
               {STRINGS.intro}
             </p>
           </div>
@@ -145,7 +145,7 @@ export default function MarketplaceSourceConsentModal({
           <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
             <div
               data-testid="marketplace-source-consent-warning"
-              className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-200 leading-relaxed"
+              className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-12 text-amber-800 dark:text-amber-200 leading-relaxed"
             >
               <ShieldAlert size={14} className="shrink-0 mt-0.5" />
               <span>
@@ -161,16 +161,16 @@ export default function MarketplaceSourceConsentModal({
               autoComplete="off"
               data-testid="marketplace-source-consent-url"
             >
-              <Label className="block text-xs text-stone-500 dark:text-stone-400 mb-1.5">
+              <Label className="block text-12 text-stone-500 dark:text-stone-400 mb-1.5">
                 {STRINGS.urlLabel}
               </Label>
               <Input
                 autoFocus={initialUrl.length === 0}
-                className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-sm text-stone-900 dark:text-stone-100 font-mono outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-13 text-stone-900 dark:text-stone-100 font-mono outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               />
               <Text
                 slot="description"
-                className="mt-1 block text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed"
+                className="mt-1 block text-11 text-stone-500 dark:text-stone-400 leading-relaxed"
               >
                 {STRINGS.urlHint}
               </Text>
@@ -184,15 +184,15 @@ export default function MarketplaceSourceConsentModal({
               autoComplete="off"
               data-testid="marketplace-source-consent-credential"
             >
-              <Label className="block text-xs text-stone-500 dark:text-stone-400 mb-1.5">
+              <Label className="block text-12 text-stone-500 dark:text-stone-400 mb-1.5">
                 {STRINGS.credentialLabel}
               </Label>
               {/* type="password" rides on the TextField above, so the value is
                   masked on screen and kept out of autofill history. */}
-              <Input className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-sm text-stone-900 dark:text-stone-100 font-mono outline-none focus-visible:ring-2 focus-visible:ring-amber-500" />
+              <Input className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-13 text-stone-900 dark:text-stone-100 font-mono outline-none focus-visible:ring-2 focus-visible:ring-amber-500" />
               <Text
                 slot="description"
-                className="mt-1 block text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed"
+                className="mt-1 block text-11 text-stone-500 dark:text-stone-400 leading-relaxed"
               >
                 {STRINGS.credentialHint}
               </Text>
@@ -211,11 +211,11 @@ export default function MarketplaceSourceConsentModal({
                 // bare Checkbox has no equivalent for (CPHMTP-NFR-008).
                 aria-describedby={ALLOW_HTTP_HINT_ID}
                 data-testid="marketplace-source-consent-allow-http"
-                className="group flex items-start gap-2.5 text-[13px] text-stone-700 dark:text-stone-200 cursor-pointer outline-none"
+                className="group flex items-start gap-2.5 text-13 text-stone-700 dark:text-stone-200 cursor-pointer outline-none"
               >
                 <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 group-data-[selected]:border-amber-500 group-data-[selected]:bg-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-amber-500 transition-colors">
                   <Check
-                    size={11}
+                    size={12}
                     strokeWidth={3}
                     className="text-stone-950 opacity-0 group-data-[selected]:opacity-100"
                   />
@@ -224,7 +224,7 @@ export default function MarketplaceSourceConsentModal({
               </Checkbox>
               <p
                 id={ALLOW_HTTP_HINT_ID}
-                className="mt-1 ml-6.5 text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed"
+                className="mt-1 ml-6.5 text-11 text-stone-500 dark:text-stone-400 leading-relaxed"
               >
                 {STRINGS.allowHttpHint}
               </p>
@@ -235,11 +235,11 @@ export default function MarketplaceSourceConsentModal({
               onChange={setAcknowledged}
               isDisabled={isPending}
               data-testid="marketplace-source-consent-ack"
-              className="group flex items-start gap-2.5 text-[13px] text-stone-700 dark:text-stone-200 cursor-pointer outline-none"
+              className="group flex items-start gap-2.5 text-13 text-stone-700 dark:text-stone-200 cursor-pointer outline-none"
             >
               <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 group-data-[selected]:border-amber-500 group-data-[selected]:bg-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-amber-500 transition-colors">
                 <Check
-                  size={11}
+                  size={12}
                   strokeWidth={3}
                   className="text-stone-950 opacity-0 group-data-[selected]:opacity-100"
                 />
@@ -253,7 +253,7 @@ export default function MarketplaceSourceConsentModal({
               <div
                 role="alert"
                 data-testid="marketplace-source-consent-error"
-                className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-[13px] text-red-700 dark:text-red-300 flex items-start gap-2"
+                className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300 flex items-start gap-2"
               >
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                 <span>{error}</span>
@@ -271,7 +271,7 @@ export default function MarketplaceSourceConsentModal({
               onPress={handleCancel}
               isDisabled={isPending}
               data-testid="marketplace-source-consent-cancel"
-              className="px-3 py-1.5 text-sm text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               {STRINGS.cancel}
             </Button>
@@ -279,13 +279,13 @@ export default function MarketplaceSourceConsentModal({
               onPress={handleConfirm}
               aria-disabled={!canConfirm}
               data-testid="marketplace-source-consent-confirm"
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
                 canConfirm
                   ? "text-stone-950 bg-amber-500 hover:bg-amber-400"
                   : "text-stone-500 dark:text-stone-400 bg-stone-200 dark:bg-stone-800 cursor-not-allowed"
               }`}
             >
-              <PlusCircle size={13} />
+              <PlusCircle size={14} />
               {isPending ? STRINGS.registering : STRINGS.confirm}
             </Button>
           </div>

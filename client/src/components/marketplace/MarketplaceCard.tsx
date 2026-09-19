@@ -58,9 +58,9 @@ function CollisionPill({ sourceLabels }: { sourceLabels: string[] }) {
       data-testid="marketplace-card-collision"
       data-source-count={sourceLabels.length}
       aria-label={STRINGS.collisionLabel(sourceLabels)}
-      className="inline-flex items-center gap-1 rounded-full border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 text-[10px] font-medium text-red-800 dark:text-red-300"
+      className="inline-flex items-center gap-1 rounded-full border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 text-11 font-medium text-red-800 dark:text-red-300"
     >
-      <AlertTriangle size={11} aria-hidden className="shrink-0" />
+      <AlertTriangle size={12} aria-hidden className="shrink-0" />
       <span className="truncate">{STRINGS.collisionPill(sourceLabels.length)}</span>
     </span>
   );
@@ -89,9 +89,9 @@ function IncompatiblePill({
         incompatibility.declaredRange,
         incompatibility.hostVersion,
       )}
-      className="inline-flex items-center gap-1 rounded-full border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 text-[10px] font-medium text-red-800 dark:text-red-300"
+      className="inline-flex items-center gap-1 rounded-full border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 text-11 font-medium text-red-800 dark:text-red-300"
     >
-      <AlertTriangle size={11} aria-hidden className="shrink-0" />
+      <AlertTriangle size={12} aria-hidden className="shrink-0" />
       <span className="truncate">
         {STRINGS.incompatiblePill} · requires {incompatibility.declaredRange}
       </span>
@@ -113,7 +113,7 @@ function KindPill({ kind }: { kind: MarketplaceListing["kind"] }) {
     <span
       data-testid="marketplace-card-kind"
       data-kind={kind}
-      className={`inline-flex items-center rounded-full border ${cls} px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide`}
+      className={`inline-flex items-center rounded-full border ${cls} px-2 py-0.5 text-11 font-medium uppercase tracking-label`}
     >
       {kind}
     </span>
@@ -146,7 +146,7 @@ function AgentCompatibilityLine({
     <p
       data-testid="marketplace-card-agent-compatibility"
       data-declared={bounds.length > 0}
-      className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500 dark:text-stone-400"
+      className="mt-2 flex flex-wrap items-center gap-1.5 text-11 text-stone-500 dark:text-stone-400"
     >
       <span className="text-stone-500 dark:text-stone-400">{STRINGS.compatibilityLabel}</span>
       {bounds.length > 0 ? (
@@ -206,20 +206,20 @@ export default function MarketplaceCard({
     >
       <div className="flex items-start gap-3">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-          <Package size={18} aria-hidden />
+          <Package size={16} aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <Button
               data-testid="marketplace-card-detail"
               onPress={() => onOpenDetail(listing)}
-              className="truncate text-[14px] font-semibold text-stone-900 dark:text-stone-100 hover:text-amber-700 dark:hover:text-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+              className="truncate text-14 font-semibold text-stone-900 dark:text-stone-100 hover:text-amber-700 dark:hover:text-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
             >
               {listing.name}
             </Button>
             <KindPill kind={listing.kind} />
           </div>
-          <p className="mt-0.5 font-mono text-[11px] text-stone-500 dark:text-stone-400">
+          <p className="mt-0.5 font-mono text-11 text-stone-500 dark:text-stone-400">
             {listing.id}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -230,7 +230,7 @@ export default function MarketplaceCard({
         </div>
       </div>
 
-      <p className="mt-3 flex-1 text-[12.5px] leading-relaxed text-stone-600 dark:text-stone-400">
+      <p className="mt-3 flex-1 text-12 leading-relaxed text-stone-600 dark:text-stone-400">
         {listing.summary}
       </p>
 
@@ -239,14 +239,14 @@ export default function MarketplaceCard({
       )}
 
       <div className="mt-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-[11px]">
+        <div className="flex items-center gap-2 text-11">
           {listing.updateAvailable && listing.installedVersion ? (
             <span data-testid="marketplace-card-version">
               <span className="font-mono text-stone-500 dark:text-stone-400 line-through">
                 v{listing.installedVersion}
               </span>{" "}
               <ArrowRight
-                size={11}
+                size={12}
                 className="inline text-stone-500 dark:text-stone-400"
                 aria-hidden
               />{" "}
@@ -267,7 +267,7 @@ export default function MarketplaceCard({
         {showInstalled ? (
           <span
             data-testid="marketplace-card-installed"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 px-3 py-1.5 text-[12px] font-medium text-green-800 dark:text-green-300"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 px-3 py-1.5 text-12 font-medium text-green-800 dark:text-green-300"
           >
             <Check size={14} /> {STRINGS.installed}
           </span>
@@ -276,7 +276,7 @@ export default function MarketplaceCard({
           // names the range, so this states the outcome without repeating it.
           <span
             data-testid="marketplace-card-incompatible-action"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-1.5 text-[12px] font-medium text-red-800 dark:text-red-300"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-1.5 text-12 font-medium text-red-800 dark:text-red-300"
           >
             <AlertTriangle size={14} aria-hidden /> {STRINGS.incompatibleAction}
           </span>
@@ -284,7 +284,7 @@ export default function MarketplaceCard({
           <Button
             data-testid="marketplace-card-update"
             onPress={() => onUpdate(listing)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-[12px] font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-12 font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
             <RefreshCw size={14} /> {STRINGS.update}
           </Button>
@@ -292,7 +292,7 @@ export default function MarketplaceCard({
           <Button
             data-testid="marketplace-card-install"
             onPress={() => onInstall(listing)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-[12px] font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-12 font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
             <Download size={14} /> {STRINGS.install}
           </Button>

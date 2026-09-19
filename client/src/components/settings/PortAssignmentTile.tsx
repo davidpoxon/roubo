@@ -24,22 +24,22 @@ export default function PortAssignmentTile({ projectId }: Props) {
         </div>
       )}
       {notConfigured && (
-        <p className="text-[12px] text-stone-500 dark:text-stone-400">Not configured</p>
+        <p className="text-12 text-stone-500 dark:text-stone-400">Not configured</p>
       )}
       {!isLoading && portEntries && (
         <div className="space-y-1.5">
           {portEntries.map(([name, config]) => (
             <div key={name} className="flex items-baseline gap-2">
-              <span className="font-mono text-[11px] text-stone-500 dark:text-stone-400 min-w-0">
+              <span className="font-mono text-11 text-stone-500 dark:text-stone-400 min-w-0">
                 {name}
               </span>
               <span className="text-stone-300 dark:text-stone-700">·</span>
-              <span className="font-mono text-[13px] font-medium text-stone-800 dark:text-stone-200">
+              <span className="font-mono text-13 font-medium text-stone-800 dark:text-stone-200">
                 {config.base}
               </span>
             </div>
           ))}
-          <p className="text-[10px] text-stone-500 dark:text-stone-400 pt-1">
+          <p className="text-11 text-stone-500 dark:text-stone-400 pt-1">
             Each port increments by 1 per bench
           </p>
         </div>

@@ -53,7 +53,7 @@ function sessionAgentId(session: TerminalSession): string | undefined {
 function SourceBadge({ source }: { source: JigMeta["source"] }) {
   if (source === "app") return null;
   return (
-    <span className="ml-auto text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 bg-amber-500/15 text-amber-800 dark:text-amber-200">
+    <span className="ml-auto text-11 font-medium px-1.5 py-0.5 rounded shrink-0 bg-amber-500/15 text-amber-800 dark:text-amber-200">
       {source}
     </span>
   );
@@ -84,13 +84,13 @@ function JigMenu({ jigs, onSelect }: { jigs: JigMeta[]; onSelect: (id: string) =
             }
           >
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate">
+              <span className="text-12 font-medium text-stone-700 dark:text-stone-300 truncate">
                 {jig.name}
               </span>
               <SourceBadge source={jig.source} />
             </div>
             {jig.description && (
-              <span className="text-[11px] text-stone-600 dark:text-stone-300 truncate leading-relaxed">
+              <span className="text-11 text-stone-600 dark:text-stone-300 truncate leading-relaxed">
                 {jig.description}
               </span>
             )}
@@ -601,7 +601,7 @@ export default function TerminalTabs({
           {currentSessions.map((session) => (
             <div
               key={session.id}
-              className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs cursor-default transition-colors ${
+              className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-md text-12 cursor-default transition-colors ${
                 session.status === "ended"
                   ? activeTab === session.id
                     ? "bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
@@ -616,7 +616,7 @@ export default function TerminalTabs({
             >
               {sessionAgentId(session) !== undefined && (
                 <Bot
-                  size={11}
+                  size={12}
                   data-testid="session-agent-icon"
                   className={`shrink-0 ${agentTextClass(sessionAgentId(session))}`}
                 />
@@ -631,7 +631,7 @@ export default function TerminalTabs({
                 onPress={() => handleDestroy(session.id)}
                 className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-stone-300 dark:hover:bg-stone-700 transition-opacity outline-none"
               >
-                <X size={10} />
+                <X size={12} />
               </Button>
             </div>
           ))}
@@ -646,10 +646,10 @@ export default function TerminalTabs({
                   aria-label="Inject jig"
                   className="flex items-center gap-1 px-2 py-1.5 rounded-md text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
                 >
-                  <Bot size={13} className="text-stone-500 dark:text-stone-400" />
-                  <ChevronDown size={10} className="text-stone-500 dark:text-stone-400" />
+                  <Bot size={14} className="text-stone-500 dark:text-stone-400" />
+                  <ChevronDown size={12} className="text-stone-500 dark:text-stone-400" />
                 </Button>
-                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
+                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg">
                   Inject jig
                 </Tooltip>
               </TooltipTrigger>
@@ -664,7 +664,7 @@ export default function TerminalTabs({
             >
               <Plus size={14} />
             </Button>
-            <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
+            <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg">
               New terminal
             </Tooltip>
           </TooltipTrigger>
@@ -681,7 +681,7 @@ export default function TerminalTabs({
               >
                 <Bot size={14} />
               </Button>
-              <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg">
+              <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg">
                 {primaryTooltip}
               </Tooltip>
             </TooltipTrigger>
@@ -690,7 +690,7 @@ export default function TerminalTabs({
                 aria-label="Choose launch option"
                 className="flex items-center px-1 py-1.5 text-stone-500 dark:text-stone-400 rounded-r-md border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
-                <ChevronDown size={10} />
+                <ChevronDown size={12} />
               </Button>
               {launchMenu}
             </MenuTrigger>
@@ -705,11 +705,11 @@ export default function TerminalTabs({
         )}
         {currentSessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4">
-            <p className="text-sm text-stone-600">No terminal sessions</p>
+            <p className="text-13 text-stone-600">No terminal sessions</p>
             <div className="flex items-center gap-2">
               <Button
                 onPress={() => handleCreate()}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-400 bg-stone-800 hover:bg-stone-700 hover:text-stone-200 rounded-lg transition-colors outline-none"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-400 bg-stone-800 hover:bg-stone-700 hover:text-stone-200 rounded-lg transition-colors outline-none"
               >
                 <Plus size={12} />
                 New Terminal
@@ -719,7 +719,7 @@ export default function TerminalTabs({
                 <Button
                   isDisabled={primaryDisabled}
                   onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-l-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-l-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                 >
                   <Bot size={12} />
                   {primaryLabel}
@@ -729,7 +729,7 @@ export default function TerminalTabs({
                     aria-label="Choose launch option"
                     className="flex items-center px-1.5 py-1.5 text-stone-950/70 bg-amber-500 hover:bg-amber-400 rounded-r-lg border-l border-stone-950/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                   >
-                    <ChevronDown size={10} />
+                    <ChevronDown size={12} />
                   </Button>
                   {launchMenu}
                 </MenuTrigger>

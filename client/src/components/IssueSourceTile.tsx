@@ -63,7 +63,7 @@ const STRINGS = {
 };
 
 const TRIGGER_BUTTON_CLASS =
-  "px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "px-3 py-1.5 text-12 font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
 
 function IntegrationMismatchBanner({
   projectId,
@@ -97,7 +97,7 @@ function IntegrationMismatchBanner({
     >
       <div className="flex items-start gap-2.5">
         <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-        <p className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-300">
+        <p className="text-12 leading-relaxed text-stone-700 dark:text-stone-300">
           {STRINGS.mismatchLead}
           <span className="font-mono">{STRINGS.mismatchRoubo}</span>
           {copy.specifies}
@@ -114,12 +114,12 @@ function IntegrationMismatchBanner({
           isDisabled={promote.isPending}
           onPress={() => promote.mutate()}
           data-testid="issue-source-promote"
-          className="px-3 py-1.5 text-xs font-medium rounded-md border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:border-amber-500/70 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-12 font-medium rounded-md border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:border-amber-500/70 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           {promote.isPending ? STRINGS.updatingRouboYaml : STRINGS.updateRouboYaml}
         </Button>
         {errorMessage && (
-          <span role="alert" className="text-[11px] text-red-400">
+          <span role="alert" className="text-11 text-red-400">
             {errorMessage}
           </span>
         )}
@@ -164,14 +164,14 @@ function ConfiguredBody({
         <IntegrationMismatchBanner projectId={projectId} mismatch={state.integrationMismatch} />
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400">
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-11 font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
           {integrationName}
         </span>
         {instance && (
           <span
             data-testid="issue-source-instance"
-            className="text-[11px] font-mono text-stone-500 dark:text-stone-500 truncate max-w-full"
+            className="text-11 font-mono text-stone-500 dark:text-stone-500 truncate max-w-full"
           >
             {instance}
           </span>
@@ -187,12 +187,12 @@ function ConfiguredBody({
       </div>
 
       {Object.keys(sources).length === 0 ? (
-        <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.noSources}</p>
+        <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.noSources}</p>
       ) : (
         <dl className="space-y-2">
           {Object.entries(sources).map(([key, values]) => (
             <div key={key} className="flex flex-col gap-1.5">
-              <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+              <dt className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
                 {titleCase(key)}
               </dt>
               <dd className="flex flex-wrap gap-1.5">
@@ -209,7 +209,7 @@ function ConfiguredBody({
                   return (
                     <span
                       key={`${key}-${i}`}
-                      className="flex flex-col gap-0.5 px-2 py-0.5 rounded-md text-[11px] text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800/70"
+                      className="flex flex-col gap-0.5 px-2 py-0.5 rounded-md text-11 text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800/70"
                     >
                       <span>{primary}</span>
                       {secondary && (
@@ -227,7 +227,7 @@ function ConfiguredBody({
       )}
 
       {caption && (
-        <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">{caption}</p>
+        <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">{caption}</p>
       )}
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -257,15 +257,15 @@ function UnconfiguredBody({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-3">
-      <p className="text-sm text-stone-600 dark:text-stone-400">{STRINGS.noIssueSource}</p>
-      <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+      <p className="text-13 text-stone-600 dark:text-stone-400">{STRINGS.noIssueSource}</p>
+      <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
         {STRINGS.noIssueSourceHint}
       </p>
       <div>
         <DialogTrigger isOpen={open} onOpenChange={setOpen}>
           <Button
             data-testid="issue-source-choose-integration"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
           >
             <Plug size={12} />
             {STRINGS.chooseIntegration}
@@ -282,7 +282,7 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
     <div className="space-y-3">
       <div className="flex items-start gap-2.5">
         <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-        <p className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
+        <p className="text-13 text-stone-700 dark:text-stone-300 leading-relaxed">
           {STRINGS.missingPluginPrefix}
           <span className="font-mono text-stone-900 dark:text-stone-100">{pluginId}</span>
           {STRINGS.missingPluginSuffix}
@@ -290,7 +290,7 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
       </div>
       <Link
         to="/settings/plugins"
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
       >
         <Download size={12} />
         {STRINGS.installPlugin}
@@ -317,20 +317,20 @@ export default function IssueSourceTile({
 
   return (
     <Tile
-      icon={<Plug size={13} aria-hidden />}
+      icon={<Plug size={14} aria-hidden />}
       title={title}
       secondary={STRINGS.secondary}
       data-testid="issue-source-tile"
     >
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
           <Spinner />
           {STRINGS.loading}
         </div>
       )}
 
       {isError && (
-        <p role="alert" className="text-sm text-red-400">
+        <p role="alert" className="text-13 text-red-400">
           {STRINGS.loadFailedPrefix}
           {error instanceof Error ? error.message : STRINGS.unknownError}
         </p>

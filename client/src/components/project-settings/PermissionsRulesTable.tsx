@@ -14,7 +14,7 @@ function RuleTypeBadge({ type }: { type: RuleType }) {
     ask: "bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-300 dark:border-stone-700",
   };
   return (
-    <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] ${styles[type]}`}>{type}</span>
+    <span className={`inline-flex px-1.5 py-0.5 rounded text-11 ${styles[type]}`}>{type}</span>
   );
 }
 
@@ -122,7 +122,7 @@ export function PermissionsRulesTable({
   return (
     <div className="rounded-xl border border-stone-200 dark:border-stone-800/80 bg-stone-50 dark:bg-stone-900/30 overflow-hidden">
       <div
-        className="grid text-[10px] uppercase tracking-wider text-text-muted px-5 py-2.5 border-b border-stone-200 dark:border-stone-800/60 bg-stone-100 dark:bg-stone-900/60"
+        className="grid text-11 uppercase tracking-label text-text-muted px-5 py-2.5 border-b border-stone-200 dark:border-stone-800/60 bg-stone-100 dark:bg-stone-900/60"
         style={{ gridTemplateColumns: gridTemplate }}
       >
         {selection && <div />}
@@ -131,11 +131,11 @@ export function PermissionsRulesTable({
         {editable && <div className="text-right">Actions</div>}
       </div>
 
-      <div className="divide-y divide-stone-200 dark:divide-stone-800/60 font-mono text-[12px]">
+      <div className="divide-y divide-stone-200 dark:divide-stone-800/60 font-mono text-12">
         {rules.length === 0 ? (
-          <div className="px-5 py-4 text-text-muted text-[12px]">{emptyMessage}</div>
+          <div className="px-5 py-4 text-text-muted text-12">{emptyMessage}</div>
         ) : filtered.length === 0 ? (
-          <div className="px-5 py-4 text-text-muted text-[12px]">No rules match this filter.</div>
+          <div className="px-5 py-4 text-text-muted text-12">No rules match this filter.</div>
         ) : (
           pageItems.map(({ rule, originalIndex }) => {
             const selKey = ruleKey(rule);
@@ -175,27 +175,27 @@ export function PermissionsRulesTable({
                         }}
                         autoFocus
                       >
-                        <Input className="w-full rounded-md bg-white dark:bg-stone-950/80 border border-stone-300 dark:border-stone-600 px-2 py-1 text-[12px] text-stone-900 dark:text-stone-200 font-mono focus:outline-none focus:border-stone-500" />
+                        <Input className="w-full rounded-md bg-white dark:bg-stone-950/80 border border-stone-300 dark:border-stone-600 px-2 py-1 text-12 text-stone-900 dark:text-stone-200 font-mono focus:outline-none focus:border-stone-500" />
                       </TextField>
                     </div>
                     <div className="flex justify-end gap-1.5">
                       <Button
                         onPress={() => saveEdit(originalIndex)}
                         isDisabled={!editPattern.trim()}
-                        className="text-[11px] px-2 py-1 rounded bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-stone-950 font-medium outline-none"
+                        className="text-11 px-2 py-1 rounded bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-stone-950 font-medium outline-none"
                       >
                         Save
                       </Button>
                       <Button
                         onPress={cancelEdit}
-                        className="text-[11px] px-2 py-1 rounded border border-stone-300 dark:border-stone-700 text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200 outline-none"
+                        className="text-11 px-2 py-1 rounded border border-stone-300 dark:border-stone-700 text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200 outline-none"
                       >
                         Cancel
                       </Button>
                     </div>
                   </div>
                   {editIsDuplicate && (
-                    <p className="px-5 pb-1.5 text-[11px] text-red-500 dark:text-red-400">
+                    <p className="px-5 pb-1.5 text-11 text-red-500 dark:text-red-400">
                       Rule already exists
                     </p>
                   )}
@@ -227,7 +227,7 @@ export function PermissionsRulesTable({
                               : "bg-stone-100 dark:bg-stone-800 border-stone-300 dark:border-stone-600"
                           }`}
                         >
-                          {checked && <Check size={10} className="text-stone-950" />}
+                          {checked && <Check size={12} className="text-stone-950" />}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -256,7 +256,7 @@ export function PermissionsRulesTable({
               >
                 <div className="flex items-center gap-1">
                   {isHighlighted && (
-                    <span className="text-amber-500 font-mono text-[10px] leading-none select-none">
+                    <span className="text-amber-500 font-mono text-11 leading-none select-none">
                       +
                     </span>
                   )}
@@ -268,14 +268,14 @@ export function PermissionsRulesTable({
                     <Button
                       onPress={() => startEdit(originalIndex)}
                       isDisabled={editingIndex !== null}
-                      className="text-[11px] text-text-muted hover:text-stone-900 dark:hover:text-stone-200 outline-none disabled:opacity-40 transition-colors"
+                      className="text-11 text-text-muted hover:text-stone-900 dark:hover:text-stone-200 outline-none disabled:opacity-40 transition-colors"
                     >
                       Edit
                     </Button>
                     <Button
                       onPress={() => onRemove?.(originalIndex)}
                       isDisabled={editingIndex !== null}
-                      className="text-[11px] text-text-muted hover:text-red-600 dark:hover:text-red-400 outline-none disabled:opacity-40 transition-colors"
+                      className="text-11 text-text-muted hover:text-red-600 dark:hover:text-red-400 outline-none disabled:opacity-40 transition-colors"
                     >
                       Remove
                     </Button>
@@ -298,7 +298,7 @@ export function PermissionsRulesTable({
                   setTypeFilter(value);
                   setPage(1);
                 }}
-                className={`px-2 py-0.5 text-[11px] rounded transition-colors outline-none ${
+                className={`px-2 py-0.5 text-11 rounded transition-colors outline-none ${
                   typeFilter === value
                     ? "bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200"
                     : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300"
@@ -320,7 +320,7 @@ export function PermissionsRulesTable({
               >
                 <ChevronLeft size={14} />
               </Button>
-              <span className="text-[11px] text-text-muted tabular-nums min-w-[4rem] text-center">
+              <span className="text-11 text-text-muted tabular-nums min-w-[4rem] text-center">
                 <span className="font-mono text-stone-600 dark:text-stone-400">{safePage}</span>
                 <span className="mx-1">/</span>
                 <span className="font-mono">{totalPages}</span>

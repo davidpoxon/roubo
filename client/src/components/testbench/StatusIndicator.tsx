@@ -39,7 +39,7 @@ export default function StatusIndicator({ status }: { status: CaseStatus }) {
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       <span aria-hidden="true" className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
-      <span className={`text-xs font-medium ${STATUS_TEXT[status]}`}>{label}</span>
+      <span className={`text-12 font-medium ${STATUS_TEXT[status]}`}>{label}</span>
     </span>
   );
 }

@@ -23,16 +23,16 @@ export default function ProjectTile({
     >
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0">
-          <div className="text-[14px] font-medium text-stone-900 dark:text-stone-100 truncate">
+          <div className="text-14 font-medium text-stone-900 dark:text-stone-100 truncate">
             {displayName}
           </div>
-          <div className="text-[11px] font-mono text-stone-500 dark:text-stone-400 mt-0.5 truncate">
+          <div className="text-11 font-mono text-stone-500 dark:text-stone-400 mt-0.5 truncate">
             {project.id} · {project.repoPath}
           </div>
         </div>
         <span
           className={[
-            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ml-2",
+            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-11 font-medium shrink-0 ml-2",
             project.configValid
               ? "bg-green-100 dark:bg-green-950/40 border border-green-300 dark:border-green-800/50 text-green-700 dark:text-green-400"
               : "bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800/50 text-red-700 dark:text-red-400",
@@ -45,7 +45,7 @@ export default function ProjectTile({
         </span>
       </div>
 
-      <div className="flex items-center gap-3 text-[11px] text-stone-500 dark:text-stone-400">
+      <div className="flex items-center gap-3 text-11 text-stone-500 dark:text-stone-400">
         <span>
           {usedBenches} / {maxBenches} benches
         </span>
@@ -65,9 +65,7 @@ export default function ProjectTile({
               style={{ width: `${fillPct}%` }}
             />
           </div>
-          <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400">
-            {fillPct}%
-          </span>
+          <span className="text-11 font-mono text-stone-500 dark:text-stone-400">{fillPct}%</span>
         </div>
       )}
     </Button>

@@ -44,7 +44,7 @@ export default function DefaultAgentTile({ agent }: { agent: AgentPluginState })
             ].join(" ")}
           />
           <span
-            className={`text-sm font-medium ${isSelected ? "text-stone-900 dark:text-stone-100" : "text-stone-600 dark:text-stone-400"}`}
+            className={`text-13 font-medium ${isSelected ? "text-stone-900 dark:text-stone-100" : "text-stone-600 dark:text-stone-400"}`}
           >
             {agent.name}
           </span>
@@ -55,7 +55,7 @@ export default function DefaultAgentTile({ agent }: { agent: AgentPluginState })
             weight on selection; the hierarchy against the agent name reads through
             size and the monospace face instead.
           */}
-          <span className="ml-auto text-[11px] font-mono text-stone-600 dark:text-stone-400 truncate">
+          <span className="ml-auto text-11 font-mono text-stone-600 dark:text-stone-400 truncate">
             {params}
           </span>
         </div>

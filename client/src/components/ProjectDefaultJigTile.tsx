@@ -13,20 +13,20 @@ export const INHERIT_JIG_ID = "__inherit__";
 export function JigDefaultSourceLabel({ source }: { source: JigDefaultSource }) {
   if (source === "project") {
     return (
-      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-200">
+      <span className="text-11 font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-200">
         From project settings
       </span>
     );
   }
   if (source === "app") {
     return (
-      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+      <span className="text-11 font-medium px-1.5 py-0.5 rounded bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
         From app settings
       </span>
     );
   }
   return (
-    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-900 text-stone-600 dark:text-stone-400">
+    <span className="text-11 font-medium px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-900 text-stone-600 dark:text-stone-400">
       Global default
     </span>
   );
@@ -64,12 +64,12 @@ export function JigPickerOption({
             ].join(" ")}
           />
           <span
-            className={`text-sm font-medium ${isSelected ? "text-stone-900 dark:text-stone-100" : "text-stone-600 dark:text-stone-400"}`}
+            className={`text-13 font-medium ${isSelected ? "text-stone-900 dark:text-stone-100" : "text-stone-600 dark:text-stone-400"}`}
           >
             {label}
           </span>
           {sublabel && (
-            <span className="ml-auto text-[11px] font-mono text-stone-500 dark:text-stone-400">
+            <span className="ml-auto text-11 font-mono text-stone-500 dark:text-stone-400">
               {sublabel}
             </span>
           )}
@@ -149,9 +149,9 @@ export function ProjectDefaultJigTile({
     <>
       {!isLoading && effectiveDefault && (
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-stone-500 dark:text-stone-400">Effective:</span>
+          <span className="text-12 text-stone-500 dark:text-stone-400">Effective:</span>
           <span
-            className={`text-xs font-medium ${isOverridden ? "text-amber-500 dark:text-amber-400" : "text-stone-700 dark:text-stone-300"}`}
+            className={`text-12 font-medium ${isOverridden ? "text-amber-500 dark:text-amber-400" : "text-stone-700 dark:text-stone-300"}`}
           >
             {effectiveJigName}
           </span>
@@ -161,7 +161,7 @@ export function ProjectDefaultJigTile({
       )}
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 mb-3">
+        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400 mb-3">
           <Spinner />
           Loading...
         </div>
@@ -185,13 +185,13 @@ export function ProjectDefaultJigTile({
       </RadioGroup>
 
       {!isControlled && isError && (
-        <p className="mt-2 text-sm text-red-500 dark:text-red-400">
+        <p className="mt-2 text-13 text-red-500 dark:text-red-400">
           Failed to save. Please try again.
         </p>
       )}
 
       {!embedded && (
-        <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-3 leading-relaxed">
+        <p className="text-11 text-stone-500 dark:text-stone-400 mt-3 leading-relaxed">
           Changes write to{" "}
           <span className="font-mono text-stone-500 dark:text-stone-500">
             {"<repo>/.roubo/roubo.yaml"}
@@ -209,7 +209,7 @@ export function ProjectDefaultJigTile({
   if (asTile) {
     return (
       <Tile
-        icon={<Zap size={13} aria-hidden />}
+        icon={<Zap size={14} aria-hidden />}
         title="Jig"
         isOverridden={isOverridden}
         headerAction={isOverridden ? <OverrideBadge /> : undefined}
@@ -222,7 +222,7 @@ export function ProjectDefaultJigTile({
   return (
     <div className="mb-8">
       {showProjectName && (
-        <h4 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted mb-3">
+        <h4 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-3">
           {displayName}
         </h4>
       )}

@@ -52,10 +52,8 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <Icon size={13} className="text-stone-600 dark:text-stone-400" />
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
-        {label}
-      </h3>
+      <Icon size={14} className="text-stone-600 dark:text-stone-400" />
+      <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted">{label}</h3>
       {status && <StatusDot status={status} />}
     </div>
   );
@@ -76,7 +74,7 @@ function Row({
   return (
     <div className={`flex gap-4 ${mono ? "items-start" : "items-center"}`}>
       <span
-        className={`text-[11px] text-stone-600 dark:text-stone-400 shrink-0 w-28 ${mono ? "pt-1" : ""}`}
+        className={`text-11 text-stone-600 dark:text-stone-400 shrink-0 w-28 ${mono ? "pt-1" : ""}`}
       >
         {label}
       </span>
@@ -84,7 +82,7 @@ function Row({
         (mono ? (
           <WrapCode className="flex-1">{String(value)}</WrapCode>
         ) : (
-          <span className="text-[12px] text-stone-800 dark:text-stone-200 min-w-0">{value}</span>
+          <span className="text-12 text-stone-800 dark:text-stone-200 min-w-0">{value}</span>
         ))}
     </div>
   );
@@ -92,7 +90,7 @@ function Row({
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-medium bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
+    <span className="inline-flex px-2 py-0.5 rounded text-11 font-medium bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
       {children}
     </span>
   );
@@ -110,7 +108,7 @@ function ItemHeader({
   return (
     <div className="flex items-center gap-2">
       {Icon && <Icon size={14} className="text-text-muted shrink-0" />}
-      <span className="text-[12px] text-stone-800 dark:text-stone-200 font-mono font-medium">
+      <span className="text-12 text-stone-800 dark:text-stone-200 font-mono font-medium">
         {name}
       </span>
       {badge && <Badge>{badge}</Badge>}
@@ -136,9 +134,7 @@ function ComponentMiniCard({
         <Row label="Docker">
           <span className="inline-flex items-center gap-2 min-w-0">
             <FilePathLabel path={component.docker.composeFile} />
-            <span className="text-[12px] font-mono text-text-muted">
-              / {component.docker.service}
-            </span>
+            <span className="text-12 font-mono text-text-muted">/ {component.docker.service}</span>
           </span>
         </Row>
       )}
@@ -234,7 +230,7 @@ export default function SectionReview({
   return (
     <div className="space-y-5">
       {invalidSections.length > 0 && (
-        <div className="text-[12px] text-amber-400 space-y-0.5">
+        <div className="text-12 text-amber-400 space-y-0.5">
           <p>Incomplete sections:</p>
           {invalidSections.map((s) => (
             <p key={s} className="pl-3">
@@ -299,7 +295,7 @@ export default function SectionReview({
             ))}
           </div>
         ) : (
-          <p className="text-[12px] text-stone-600 dark:text-stone-400">None configured</p>
+          <p className="text-12 text-stone-600 dark:text-stone-400">None configured</p>
         )}
       </div>
 
@@ -318,7 +314,7 @@ export default function SectionReview({
             ))}
           </div>
         ) : (
-          <p className="text-[12px] text-stone-600 dark:text-stone-400">None configured</p>
+          <p className="text-12 text-stone-600 dark:text-stone-400">None configured</p>
         )}
       </div>
 
@@ -339,13 +335,10 @@ export default function SectionReview({
             <Row label="Command" value={config.inspection.command} mono />
             {config.inspection.env && Object.keys(config.inspection.env).length > 0 && (
               <div>
-                <span className="text-[11px] text-stone-600 dark:text-stone-400">Environment</span>
+                <span className="text-11 text-stone-600 dark:text-stone-400">Environment</span>
                 <div className="mt-1 space-y-0.5 pl-2">
                   {Object.entries(config.inspection.env).map(([k, v]) => (
-                    <div
-                      key={k}
-                      className="text-[12px] font-mono text-stone-700 dark:text-stone-300"
-                    >
+                    <div key={k} className="text-12 font-mono text-stone-700 dark:text-stone-300">
                       <span className="text-stone-500 dark:text-stone-400">{k}</span>
                       <span className="text-stone-600 dark:text-stone-400">=</span>
                       {v}
@@ -356,7 +349,7 @@ export default function SectionReview({
             )}
           </div>
         ) : (
-          <p className="text-[12px] text-stone-600 dark:text-stone-400">None configured</p>
+          <p className="text-12 text-stone-600 dark:text-stone-400">None configured</p>
         )}
       </div>
 
@@ -368,10 +361,10 @@ export default function SectionReview({
             <Row label="Max concurrent" value={config.benches.max} />
             {config.ports && Object.keys(config.ports).length > 0 && config.benches.max && (
               <div>
-                <span className="text-[11px] text-stone-600 dark:text-stone-400">Port ranges</span>
+                <span className="text-11 text-stone-600 dark:text-stone-400">Port ranges</span>
                 <div className="mt-1 space-y-0.5 pl-2">
                   {Object.entries(config.ports).map(([name, port]) => (
-                    <div key={name} className="flex items-center gap-3 text-[12px] font-mono">
+                    <div key={name} className="flex items-center gap-3 text-12 font-mono">
                       <span className="text-stone-500 dark:text-stone-400 shrink-0">{name}</span>
                       <span className="text-stone-600 dark:text-stone-400 tabular-nums">
                         {port.base} &ndash; {port.base + (config.benches?.max ?? 1) - 1}
@@ -393,7 +386,7 @@ export default function SectionReview({
         <Button
           onPress={onSave}
           isDisabled={!canSave || isSaving}
-          className="px-4 py-2 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-lg transition-colors outline-none"
+          className="px-4 py-2 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-lg transition-colors outline-none"
         >
           {isSaving ? "Saving..." : "Save Config"}
         </Button>
@@ -402,16 +395,16 @@ export default function SectionReview({
           <Button
             onPress={onRegister}
             isDisabled={isRegistering}
-            className="px-4 py-2 text-sm font-medium text-stone-700 dark:text-stone-300 bg-stone-200 dark:bg-stone-800/80 hover:bg-stone-300 dark:hover:bg-stone-700 disabled:opacity-40 rounded-lg transition-colors outline-none"
+            className="px-4 py-2 text-13 font-medium text-stone-700 dark:text-stone-300 bg-stone-200 dark:bg-stone-800/80 hover:bg-stone-300 dark:hover:bg-stone-700 disabled:opacity-40 rounded-lg transition-colors outline-none"
           >
             {isRegistering ? "Registering..." : "Register Project"}
           </Button>
         )}
       </div>
 
-      {saveError && <p className="text-sm text-red-400">{saveError}</p>}
+      {saveError && <p className="text-13 text-red-400">{saveError}</p>}
       {saveSuccess && (
-        <p className="text-sm text-green-500">
+        <p className="text-13 text-green-500">
           {isEditMode ? "Config saved. Restart components to apply changes." : "Config saved."}
         </p>
       )}

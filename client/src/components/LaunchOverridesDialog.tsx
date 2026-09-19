@@ -56,7 +56,7 @@ interface Props {
   onLaunch: (selection: LaunchOverridesSelection) => void;
 }
 
-const LABEL_CLASS = "block text-[11px] font-medium text-text-muted mb-1.5";
+const LABEL_CLASS = "block text-11 font-medium text-text-muted mb-1.5";
 
 /** The empty select value that spells "layer three contributes nothing". */
 const NO_PRESET = "";
@@ -242,11 +242,11 @@ export default function LaunchOverridesDialog({
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
               slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100"
+              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
             >
               Launch with overrides
             </Heading>
-            <p className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+            <p className="mt-1 text-11 text-stone-500 dark:text-stone-400">
               One session only. Nothing is saved.
             </p>
           </div>
@@ -349,11 +349,11 @@ export default function LaunchOverridesDialog({
             >
               <div
                 id={RESOLUTION_LABEL_ID}
-                className="text-[10px] uppercase tracking-[0.15em] text-stone-600 dark:text-stone-400 font-semibold mb-1.5"
+                className="text-11 uppercase tracking-label text-stone-600 dark:text-stone-400 font-semibold mb-1.5"
               >
                 Resolution
               </div>
-              <div className="text-[11px] font-mono leading-relaxed">
+              <div className="text-11 font-mono leading-relaxed">
                 {trace.layers.map((layer) => (
                   // The preset line names the preset that is contributing (issue
                   // #668), so a user who switched presets can read which one the
@@ -375,14 +375,14 @@ export default function LaunchOverridesDialog({
           <div className="px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 flex justify-end gap-2">
             <Button
               onPress={onCancel}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+              className="px-3 py-1.5 text-12 font-medium rounded-lg text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
             >
               Cancel
             </Button>
             <Button
               onPress={handleLaunch}
               isDisabled={agent === undefined}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-lg text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               <Bot size={12} />
               Launch session

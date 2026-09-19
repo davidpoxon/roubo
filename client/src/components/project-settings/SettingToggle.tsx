@@ -24,11 +24,11 @@ export function SettingToggle({
         <>
           <div className="min-w-0 flex-1">
             <div
-              className={`text-sm font-medium leading-none mb-1.5 ${isDisabled ? "text-stone-500 dark:text-stone-500" : "text-stone-800 dark:text-stone-200"}`}
+              className={`text-13 font-medium leading-none mb-1.5 ${isDisabled ? "text-stone-500 dark:text-stone-500" : "text-stone-800 dark:text-stone-200"}`}
             >
               {label}
             </div>
-            <div className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+            <div className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
               {description}
             </div>
           </div>

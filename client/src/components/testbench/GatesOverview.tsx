@@ -76,13 +76,13 @@ function InvalidSpecsWarning({ invalidSpecs }: { invalidSpecs: InvalidGateSpec[]
           aria-hidden
           className="shrink-0 text-amber-600 dark:text-amber-400"
         />
-        <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+        <span className="text-12 font-semibold text-amber-700 dark:text-amber-300">
           {STRINGS.invalidTitle(invalidSpecs.length)}
         </span>
       </div>
       <ul className="flex flex-col gap-1">
         {invalidSpecs.map((spec) => (
-          <li key={spec.slug} className="text-[12px] text-stone-600 dark:text-stone-400">
+          <li key={spec.slug} className="text-12 text-stone-600 dark:text-stone-400">
             <span className="font-mono text-stone-800 dark:text-stone-200">{spec.slug}</span>
             {": "}
             {spec.errors.join("; ")}
@@ -170,14 +170,14 @@ function GateCard({
               className={
                 "truncate transition-colors group-hover:text-stone-900 dark:group-hover:text-stone-100 " +
                 (showGateIdSubLabel
-                  ? "text-[13px] font-medium text-stone-800 dark:text-stone-200"
-                  : "font-mono text-[12px] text-stone-600 dark:text-stone-300")
+                  ? "text-13 font-medium text-stone-800 dark:text-stone-200"
+                  : "font-mono text-12 text-stone-600 dark:text-stone-300")
               }
             >
               {title}
             </span>
             {showGateIdSubLabel && (
-              <span className="font-mono text-[10px] text-stone-500 dark:text-stone-500 truncate">
+              <span className="font-mono text-11 text-stone-500 dark:text-stone-500 truncate">
                 {gate.gateId}
               </span>
             )}
@@ -188,9 +188,9 @@ function GateCard({
             <Button
               onPress={() => onSplit(gate)}
               data-testid="gate-split-trigger"
-              className="relative z-10 flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="relative z-10 flex items-center gap-1 px-1.5 py-0.5 text-11 font-medium rounded text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
-              <Split size={11} aria-hidden />
+              <Split size={12} aria-hidden />
               {STRINGS.split}
             </Button>
           )}
@@ -199,14 +199,14 @@ function GateCard({
         </div>
       </div>
       {gatingCount > 0 && (
-        <p data-testid="gate-gating-count" className="text-xs text-stone-500 dark:text-stone-400">
+        <p data-testid="gate-gating-count" className="text-12 text-stone-500 dark:text-stone-400">
           {STRINGS.gatingCount(gatingCount)}
         </p>
       )}
       {hasUpstreamBlockers && (
         <p
           data-testid="gate-blocked-by"
-          className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400"
+          className="flex items-center gap-1 text-12 text-amber-700 dark:text-amber-400"
         >
           <AlertTriangle size={12} aria-hidden className="shrink-0" />
           <span className="min-w-0">
@@ -218,7 +218,7 @@ function GateCard({
         </p>
       )}
       {isBlocked && coveringUnits.length > 0 && (
-        <p className="text-xs text-stone-500 dark:text-stone-400">
+        <p className="text-12 text-stone-500 dark:text-stone-400">
           {STRINGS.covers}{" "}
           <span className="font-mono text-stone-700 dark:text-stone-300">
             {coveringUnits.join(", ")}
@@ -280,7 +280,7 @@ function SplitDialog({
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 shrink-0 flex items-center justify-between gap-3">
             <Heading
               slot="title"
-              className="text-sm font-semibold text-stone-900 dark:text-stone-100 font-mono"
+              className="text-16 font-semibold text-stone-900 dark:text-stone-100 font-mono"
             >
               {STRINGS.splitTitle(gate.gateId)}
             </Heading>
@@ -295,13 +295,13 @@ function SplitDialog({
           </div>
 
           <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-3">
-            <p className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
+            <p className="text-13 text-stone-700 dark:text-stone-300 leading-relaxed">
               {STRINGS.splitIntro}
             </p>
             <ul className="flex flex-col gap-1.5" data-testid="split-assignments">
               {covers.map((wu) => (
                 <li key={wu} className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[12px] text-stone-700 dark:text-stone-300 break-all">
+                  <span className="font-mono text-12 text-stone-700 dark:text-stone-300 break-all">
                     {wu}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
@@ -312,7 +312,7 @@ function SplitDialog({
                         isDisabled={isPending}
                         data-testid={`split-assign-${wu}-${part}`}
                         data-active={assignment[wu] === part || undefined}
-                        className="px-2 py-0.5 text-[11px] font-medium rounded-md ring-1 ring-inset ring-stone-200 dark:ring-stone-700 text-stone-500 dark:text-stone-400 data-[active]:bg-amber-500 data-[active]:text-stone-950 data-[active]:ring-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                        className="px-2 py-0.5 text-11 font-medium rounded-md ring-1 ring-inset ring-stone-200 dark:ring-stone-700 text-stone-500 dark:text-stone-400 data-[active]:bg-amber-500 data-[active]:text-stone-950 data-[active]:ring-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                       >
                         {part}
                       </Button>
@@ -322,7 +322,7 @@ function SplitDialog({
               ))}
             </ul>
             {error && (
-              <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
+              <p role="alert" className="text-12 text-red-500 dark:text-red-400">
                 {error}
               </p>
             )}
@@ -333,7 +333,7 @@ function SplitDialog({
               onPress={onClose}
               isDisabled={isPending}
               data-testid="split-cancel"
-              className="px-3 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               {STRINGS.splitCancel}
             </Button>
@@ -346,7 +346,7 @@ function SplitDialog({
                 ])
               }
               data-testid="split-confirm"
-              className="px-4 py-1.5 text-sm font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
             >
               {isPending ? STRINGS.splitting : STRINGS.splitConfirm}
             </Button>
@@ -431,7 +431,7 @@ export default function GatesOverview({
   if (specSlug === undefined) {
     return (
       <div className="py-8">
-        <p className="text-sm text-stone-500 dark:text-stone-400">
+        <p className="text-13 text-stone-500 dark:text-stone-400">
           Focus a spec to see its batches.
         </p>
       </div>
@@ -440,7 +440,7 @@ export default function GatesOverview({
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 py-8">
+      <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-8">
         <Spinner />
         Loading batches...
       </div>
@@ -452,7 +452,7 @@ export default function GatesOverview({
       error instanceof Error ? error.message : "Could not load the batches for this project.";
     return (
       <div className="py-8">
-        <p className="text-sm text-red-600 dark:text-red-400">{message}</p>
+        <p className="text-13 text-red-600 dark:text-red-400">{message}</p>
       </div>
     );
   }
@@ -468,7 +468,7 @@ export default function GatesOverview({
   if (gates.length === 0 && invalidSpecs.length === 0) {
     return (
       <div className="py-8">
-        <p className="text-sm text-stone-500 dark:text-stone-400">
+        <p className="text-13 text-stone-500 dark:text-stone-400">
           This project has no verify gates yet.
         </p>
       </div>
@@ -490,13 +490,13 @@ export default function GatesOverview({
       <div className="flex items-center justify-between gap-2 shrink-0">
         {mergeMode ? (
           <>
-            <p className="text-xs text-stone-500 dark:text-stone-400">{STRINGS.mergeHint}</p>
+            <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.mergeHint}</p>
             <div className="flex items-center gap-2">
               <Button
                 onPress={exitMergeMode}
                 isDisabled={mergeMutation.isPending}
                 data-testid="merge-cancel"
-                className="px-2.5 py-1 text-[11px] font-medium rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="px-2.5 py-1 text-11 font-medium rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 {STRINGS.mergeCancel}
               </Button>
@@ -504,7 +504,7 @@ export default function GatesOverview({
                 onPress={confirmMerge}
                 isDisabled={selected.size < 2 || mergeMutation.isPending}
                 data-testid="merge-confirm"
-                className="px-3 py-1 text-[11px] font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="px-3 py-1 text-11 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 {mergeMutation.isPending ? STRINGS.merging : STRINGS.mergeConfirm(selected.size)}
               </Button>
@@ -512,7 +512,7 @@ export default function GatesOverview({
           </>
         ) : (
           <>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
               Batches
             </span>
             {gates.length >= 2 && (
@@ -522,7 +522,7 @@ export default function GatesOverview({
                   setActionError(null);
                 }}
                 data-testid="merge-mode-trigger"
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="flex items-center gap-1 px-2.5 py-1 text-11 font-medium rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 <GitMerge size={12} aria-hidden />
                 {STRINGS.mergeMode}
@@ -538,7 +538,7 @@ export default function GatesOverview({
         <p
           role="alert"
           data-testid="overview-error"
-          className="text-[12px] text-red-500 dark:text-red-400 shrink-0"
+          className="text-12 text-red-500 dark:text-red-400 shrink-0"
         >
           {actionError}
         </p>

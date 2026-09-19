@@ -76,13 +76,13 @@ export default function MarketplaceOfflineBanner({
       <div className="flex-1 min-w-0 space-y-1">
         <p
           data-testid="marketplace-offline-banner-status"
-          className="text-sm text-amber-800 dark:text-amber-200"
+          className="text-13 text-amber-800 dark:text-amber-200"
         >
           {lead}
         </p>
         <p
           data-testid="marketplace-offline-banner-availability"
-          className="text-[13px] text-amber-700 dark:text-amber-300/90"
+          className="text-13 text-amber-700 dark:text-amber-300/90"
         >
           {STRINGS.availability}
         </p>

@@ -66,7 +66,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
   return (
     <div className="space-y-4">
       {users.length === 0 && (
-        <p className="text-sm text-stone-500 dark:text-stone-400 py-4">
+        <p className="text-13 text-stone-500 dark:text-stone-400 py-4">
           No users configured. This section is optional.
         </p>
       )}
@@ -77,10 +77,10 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
           onPress={() => dispatch({ type: "SET_SUB_STEP", payload: `user-${i}` })}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors"
         >
-          <span className="flex-1 text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
+          <span className="flex-1 text-13 font-medium text-stone-700 dark:text-stone-300 truncate">
             {user.name || "Untitled"}
           </span>
-          <span className="text-[11px] text-stone-600 dark:text-stone-400">
+          <span className="text-11 text-stone-600 dark:text-stone-400">
             {Object.keys(user.properties).length}{" "}
             {Object.keys(user.properties).length === 1 ? "property" : "properties"}
           </span>
@@ -89,7 +89,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
 
       <Button
         onPress={onAddUser}
-        className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+        className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
       >
         <Plus size={12} /> Add user
       </Button>
@@ -112,7 +112,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
             >
               <Input
                 placeholder="User name"
-                className="bg-transparent text-sm text-stone-800 dark:text-stone-200 font-medium focus:outline-none border-none min-w-0 w-full"
+                className="bg-transparent text-13 text-stone-800 dark:text-stone-200 font-medium focus:outline-none border-none min-w-0 w-full"
               />
             </TextField>
             <Button
@@ -120,12 +120,12 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
               aria-label="Remove user"
               className="p-1 text-stone-600 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none"
             >
-              <Trash2 size={13} />
+              <Trash2 size={14} />
             </Button>
           </div>
 
           <fieldset className="space-y-2">
-            <legend className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-text-muted mb-3">
+            <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
               <span className="size-1.5 rounded-full bg-stone-400/70" />
               Properties
             </legend>
@@ -161,7 +161,7 @@ export default function SectionUsers({ users, currentSubStep, dispatch, onAddUse
             ))}
             <Button
               onPress={() => addProperty(i)}
-              className="flex items-center gap-1 text-[11px] text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+              className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
             >
               <Plus size={12} /> Add property
             </Button>

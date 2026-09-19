@@ -26,7 +26,7 @@ function YamlPreview({ config }: { config: RouboConfig }) {
   const lowestBase = portValues.length > 0 ? Math.min(...portValues.map((p) => p.base)) : null;
 
   return (
-    <pre className="text-[11px] font-mono leading-relaxed bg-stone-50 dark:bg-stone-950/50 rounded-md p-3 overflow-hidden">
+    <pre className="text-11 font-mono leading-relaxed bg-stone-50 dark:bg-stone-950/50 rounded-md p-3 overflow-hidden">
       <YamlPreviewLine label="name" value={config.project.name} />
       <span className="text-stone-500 dark:text-stone-400">{"components:\n"}</span>
       {shownKeys.map((k) => (
@@ -54,7 +54,7 @@ export default function SetupTile({ projectId }: Props) {
     <Button
       aria-label="Edit project configuration"
       onPress={() => navigate(`/projects/${projectId}/settings/setup`)}
-      className="text-[11px] px-2.5 py-1 rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-300 dark:hover:border-stone-600 hover:text-stone-800 dark:hover:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer"
+      className="text-11 px-2.5 py-1 rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-300 dark:hover:border-stone-600 hover:text-stone-800 dark:hover:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer"
     >
       Edit setup →
     </Button>
@@ -64,7 +64,7 @@ export default function SetupTile({ projectId }: Props) {
     <Tile
       icon={<FileCode aria-hidden="true" size={14} />}
       title="Project setup"
-      secondary={<code className="text-[10px]">.roubo/roubo.yaml</code>}
+      secondary={<code className="text-11">.roubo/roubo.yaml</code>}
       headerAction={editButton}
       ariaLabel="Project setup"
     >
@@ -76,7 +76,7 @@ export default function SetupTile({ projectId }: Props) {
         </div>
       )}
       {!isLoading && !project && (
-        <p className="text-[12px] text-stone-500 dark:text-stone-400">Project not found</p>
+        <p className="text-12 text-stone-500 dark:text-stone-400">Project not found</p>
       )}
       {!isLoading && project && !validConfig && (
         <div role="alert" className="flex items-start gap-2">
@@ -86,11 +86,11 @@ export default function SetupTile({ projectId }: Props) {
             className="text-red-500 dark:text-red-400 shrink-0 mt-0.5"
           />
           <div>
-            <p className="text-[12px] font-medium text-red-600 dark:text-red-400">
+            <p className="text-12 font-medium text-red-600 dark:text-red-400">
               Config missing or invalid
             </p>
             {project.configError && (
-              <p className="text-[11px] font-mono text-stone-500 dark:text-stone-400 mt-1">
+              <p className="text-11 font-mono text-stone-500 dark:text-stone-400 mt-1">
                 {project.configError}
               </p>
             )}

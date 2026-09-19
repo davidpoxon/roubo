@@ -92,16 +92,14 @@ function AgentToolRow({
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${agentDotClass(resolved?.id)}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] text-stone-900 dark:text-stone-200 truncate">
-            {preset.name}
-          </span>
+          <span className="text-13 text-stone-900 dark:text-stone-200 truncate">{preset.name}</span>
           {builtin && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-100 dark:bg-stone-800 text-text-muted">
+            <span className="px-1.5 py-0.5 rounded text-11 font-medium bg-stone-100 dark:bg-stone-800 text-text-muted">
               built-in
             </span>
           )}
         </div>
-        <div className="text-[11px] font-mono text-stone-500 dark:text-stone-400 truncate">
+        <div className="text-11 font-mono text-stone-500 dark:text-stone-400 truncate">
           {/* The binding is its own element so a browser-driven check can read
               it apart from the params that follow it (AP-TC-025 S003-O02, which
               is specifically about the "default agent → <current default>"
@@ -111,9 +109,9 @@ function AgentToolRow({
         {unresolved && (
           <div
             data-testid="agent-tool-unresolved"
-            className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-500"
+            className="mt-1 flex items-center gap-1.5 text-11 text-amber-600 dark:text-amber-500"
           >
-            <AlertTriangle size={11} className="shrink-0" />
+            <AlertTriangle size={12} className="shrink-0" />
             {bindsDefault
               ? "No default agent is configured, so this tool cannot launch."
               : `Agent plugin "${preset.agent}" is not installed or not available, so this tool cannot launch.`}
@@ -128,9 +126,9 @@ function AgentToolRow({
           <div
             data-testid="agent-tool-degraded"
             title={degraded.message}
-            className="mt-1 flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-stone-400"
+            className="mt-1 flex items-center gap-1.5 text-11 text-stone-500 dark:text-stone-400"
           >
-            <Info size={11} className="shrink-0" />
+            <Info size={12} className="shrink-0" />
             <span aria-hidden="true">drops {degraded.droppedParams.join(", ")}</span>
             {/* The chip is terse on screen; a screen reader gets the whole
                 sentence rather than two words out of context. */}
@@ -144,7 +142,7 @@ function AgentToolRow({
           aria-label={`Edit ${preset.name}`}
           className="p-1.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
         >
-          <Pencil size={13} />
+          <Pencil size={14} />
         </Button>
       )}
       {onDelete && (
@@ -153,7 +151,7 @@ function AgentToolRow({
           aria-label={`Delete ${preset.name}`}
           className="p-1.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-red-500 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
         >
-          <Trash2 size={13} />
+          <Trash2 size={14} />
         </Button>
       )}
     </div>
@@ -202,19 +200,19 @@ export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props)
   return (
     <section>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-muted">
+        <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted">
           Agent tools
         </h3>
         <Button
           onPress={() => setEditing({ preset: null })}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
         >
           <Plus size={12} />
           New agent tool
         </Button>
       </div>
 
-      <p className="text-xs text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
+      <p className="text-12 text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
         Named launch presets shown in every bench&apos;s Terminal tab. Built-in presets follow the
         default agent; project presets come from{" "}
         <span className="font-mono text-stone-500 dark:text-stone-500">roubo.yaml</span>.

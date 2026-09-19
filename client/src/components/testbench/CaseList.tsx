@@ -218,7 +218,7 @@ export default function CaseList({
                       <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />
                     )}
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+                    <span className="text-12 font-semibold text-stone-800 dark:text-stone-200">
                       Level {row.level}
                     </span>
                   </button>
@@ -234,10 +234,10 @@ export default function CaseList({
             return (
               <div key={row.key} {...common}>
                 <div className="flex items-center gap-2 px-4 py-1.5 pl-8 h-full">
-                  <span className="text-[10px] uppercase tracking-wider font-medium text-stone-500 dark:text-stone-400">
+                  <span className="text-11 uppercase tracking-label font-medium text-stone-500 dark:text-stone-400">
                     {row.priority}
                   </span>
-                  <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400 tabular-nums">
+                  <span className="text-11 font-mono text-stone-500 dark:text-stone-400 tabular-nums">
                     {row.counts.total}
                   </span>
                 </div>

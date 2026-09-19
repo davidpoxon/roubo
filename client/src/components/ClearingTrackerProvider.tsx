@@ -33,13 +33,13 @@ function TeardownCard({ bench, exiting }: { bench: Bench; exiting: boolean }) {
       <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3.5 py-2.5 shadow-lg shadow-black/20 min-w-[260px] max-w-xs">
         <div className="flex items-center gap-2">
           <Loader2 size={12} className="text-amber-500 animate-spin shrink-0" />
-          <span className="text-xs font-medium text-stone-800 dark:text-stone-200">
+          <span className="text-12 font-medium text-stone-800 dark:text-stone-200">
             Bench {bench.id}
           </span>
-          <span className="text-[11px] font-mono text-stone-500 dark:text-stone-300 truncate">
+          <span className="text-11 font-mono text-stone-500 dark:text-stone-300 truncate">
             {bench.branch}
           </span>
-          <span className="text-[11px] font-mono text-stone-500 dark:text-stone-300 ml-auto shrink-0">
+          <span className="text-11 font-mono text-stone-500 dark:text-stone-300 ml-auto shrink-0">
             {doneCount} / {steps.length}
           </span>
         </div>
@@ -48,14 +48,14 @@ function TeardownCard({ bench, exiting }: { bench: Bench; exiting: boolean }) {
             <span className="flex items-center justify-center w-3 shrink-0">
               {stepIcon[currentStep.status]}
             </span>
-            <span className={`text-[11px] ${stepTextColor[currentStep.status]}`}>
+            <span className={`text-11 ${stepTextColor[currentStep.status]}`}>
               {currentStep.label}
             </span>
           </div>
         )}
         {hasError && (
           <div className="flex items-center gap-2 mt-1.5 pl-5">
-            <span className="text-[11px] text-red-400">Teardown failed</span>
+            <span className="text-11 text-red-400">Teardown failed</span>
           </div>
         )}
       </div>
@@ -76,7 +76,7 @@ function CompletedCard({ benchId, exiting }: { benchId: number; exiting: boolean
       <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3.5 py-2.5 shadow-lg shadow-black/20 min-w-[260px] max-w-xs">
         <div className="flex items-center gap-2">
           <Check size={12} className="text-green-500 shrink-0" />
-          <span className="text-xs font-medium text-stone-800 dark:text-stone-200">
+          <span className="text-12 font-medium text-stone-800 dark:text-stone-200">
             Bench {benchId} cleared
           </span>
         </div>

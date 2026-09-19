@@ -40,7 +40,7 @@ export default function GateStateIndicator({ status }: { status: GateStatus }) {
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       <span aria-hidden="true" className={`w-2 h-2 rounded-full shrink-0 ${GATE_DOT[status]}`} />
-      <span className={`text-xs font-medium ${GATE_TEXT[status]}`}>{GATE_LABEL[status]}</span>
+      <span className={`text-12 font-medium ${GATE_TEXT[status]}`}>{GATE_LABEL[status]}</span>
     </span>
   );
 }

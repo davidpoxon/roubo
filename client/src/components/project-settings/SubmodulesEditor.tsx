@@ -26,21 +26,21 @@ export default function SubmodulesEditor({ value, onChange, errorText }: Props) 
 
   return (
     <div>
-      <Label className="block text-xs text-text-muted mb-1.5">Submodules</Label>
+      <Label className="block text-12 text-text-muted mb-1.5">Submodules</Label>
       {entries.length > 0 && (
         <div className="flex items-center gap-2 mb-1">
-          <span className="flex-1 flex items-center gap-1 text-[11px] text-stone-500 dark:text-stone-400">
+          <span className="flex-1 flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400">
             Alias
             <TooltipTrigger delay={500}>
               <Button className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded">
-                <Info size={11} />
+                <Info size={12} />
               </Button>
-              <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-xs px-2 py-1 rounded-md shadow-lg max-w-56">
+              <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg max-w-56">
                 A short name used to reference this submodule in components and tools
               </Tooltip>
             </TooltipTrigger>
           </span>
-          <span className="flex-1 text-[11px] text-stone-600">Directory</span>
+          <span className="flex-1 text-11 text-stone-600">Directory</span>
           <span className="w-[22px] shrink-0" />
         </div>
       )}
@@ -75,12 +75,12 @@ export default function SubmodulesEditor({ value, onChange, errorText }: Props) 
       </div>
       <Button
         onPress={add}
-        className="flex items-center gap-1 mt-2 text-[11px] text-text-muted hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+        className="flex items-center gap-1 mt-2 text-11 text-text-muted hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
       >
         <Plus size={12} />
         Add submodule
       </Button>
-      {errorText && <p className="mt-1.5 text-[11px] text-red-400">{errorText}</p>}
+      {errorText && <p className="mt-1.5 text-11 text-red-400">{errorText}</p>}
     </div>
   );
 }
