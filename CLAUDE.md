@@ -54,5 +54,12 @@ Never reintroduce the legacy terms. Slot is a **bench**, application is a **proj
 - Deferred work is cited by issue number. File the GitHub issue first, then write the reference inline (`#119`). Never "a follow-up issue", never the issue title alone, and never an inline description instead of the filed issue.
 - A PR is done when CI is green, main merges cleanly, and every review comment is resolved.
 - When a design decision needs input, offer three or more concrete options in plain language. No ASCII diagrams.
-- Delegate narrowly. Subagents are for read-only exploration you would otherwise do serially across unrelated areas; cap at three concurrent for one task. Implementation, refactors, and anything that writes to the tree stay in this thread.
+- Delegate narrowly. Subagents are for read-only exploration you would otherwise do serially across unrelated areas; cap at three concurrent for one task. Implementation, refactors, and anything that writes to the tree stay in this thread. An independent pre-push review (below) is the one other use: a session cannot review code it just wrote.
+- The issue is the spec. Before finishing, list each acceptance criterion and how the change meets it. If a criterion looks wrong, say so. Do not quietly skip or reshape it.
+- Bugs: reproduce first, then a failing test, then the fix. If it does not reproduce, or is already fixed on the branch, stop and report.
+- When a fix applies at one site, search for sibling sites and callers with the same defect and fix them in the same change.
+- Before committing, grep for prose that describes what you changed (comments, docstrings, docs, specs) and correct what is now false. Claim no more than the evidence shows.
+- Stage by explicit path, never `git add -A` or `git add .`. Commit with `-s` for the DCO sign-off.
+- Review before pushing: run the pre-push checklist first, then have the branch's diff reviewed against the issue by someone fresh who did not write it. A new commit means reviewing again.
+- Never merge. Merging is the user's action.
 - Size written deliverables to their content, not to a default. Match the length and section depth of the nearest existing example of the same artifact in this repo.
