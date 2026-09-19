@@ -43,7 +43,7 @@ export default function BenchesTab() {
   return (
     <div className="flex h-full">
       {hasGitHub && !issueQueueCollapsed && (
-        <aside className="w-[340px] shrink-0 border-r border-stone-200 dark:border-stone-800/40 overflow-hidden">
+        <aside className="w-[340px] shrink-0 border-r border-border overflow-hidden">
           <IssueQueuePanel
             key={projectId}
             projectId={projectId}
@@ -62,10 +62,8 @@ export default function BenchesTab() {
       <div className="flex-1 overflow-y-auto overscroll-contain p-8">
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100">Benches</h2>
-            <p className="text-12 text-stone-500 dark:text-stone-400 mt-1">
-              Active and available bench slots.
-            </p>
+            <h2 className="text-20 font-semibold text-text-primary">Benches</h2>
+            <p className="text-12 text-text-secondary mt-1">Active and available bench slots.</p>
           </div>
           <div className="flex items-center gap-4">
             <GlobalBenchMeter />
@@ -80,7 +78,7 @@ export default function BenchesTab() {
                     if (!atCap) openCreateBench();
                   }}
                   aria-disabled
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent opacity-40 cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent opacity-40 cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
                 >
                   <Plus size={14} />
                   Set up bench
@@ -102,14 +100,14 @@ export default function BenchesTab() {
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-12">
+          <div className="flex items-center gap-2 text-13 text-text-secondary py-12">
             <Spinner />
             Loading...
           </div>
         )}
 
         {!isLoading && !benchPositions && (
-          <p className="text-13 text-stone-500 dark:text-stone-400 py-12">
+          <p className="text-13 text-text-secondary py-12">
             No bench configuration found. Check your roubo.yaml.
           </p>
         )}

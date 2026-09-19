@@ -1560,9 +1560,9 @@ describe("TerminalTabs: terminal session persistence", () => {
       screen.getByText("Terminal 2").closest("div");
     expect(terminal2Container).toBeTruthy();
     // The active tab has a distinct style; assert session-b would be active by checking
-    // that session-a's tab does not have the active styles (amber color)
+    // that session-a's tab does not have the active styles (the bg-pressed ground)
     const terminal1Tab = screen.getByText("Terminal 1").closest("div");
-    expect(terminal1Tab?.className).not.toContain("amber");
+    expect(terminal1Tab?.className).not.toContain("bg-bg-pressed");
   });
 
   it("does not clear the persisted session id while sessions are still loading", () => {

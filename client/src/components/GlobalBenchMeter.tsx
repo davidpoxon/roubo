@@ -11,24 +11,29 @@ export default function GlobalBenchMeter() {
   if (!isCapped || max === null) return null;
 
   // Integer-safe thresholds (avoid float boundary drift at exactly 80%):
-  //   >= 100% of cap -> red (covers the over-cap state after the cap is lowered)
-  //   >= 80%         -> amber
-  //   below 80%      -> neutral stone
+  //   >= 100% of cap -> status-error (covers the over-cap state after the cap is lowered)
+  //   >= 80%         -> status-preparing
+  //   below 80%      -> text-secondary, a neutral mark that holds 3:1 on the
+  //                     bg-pressed track in both themes (status-idle does not in dark)
   const fillColor =
-    current >= max ? "bg-red-500" : current * 100 >= max * 80 ? "bg-amber-500" : "bg-stone-400";
+    current >= max
+      ? "bg-status-error"
+      : current * 100 >= max * 80
+        ? "bg-status-preparing"
+        : "bg-text-secondary";
 
   // Fill clamps at 100% even when current > max; guard against a non-positive cap.
   const fillWidth = max > 0 ? Math.min(100, (current / max) * 100) : 100;
 
   return (
     <div className="flex items-center gap-2" aria-label={`Global benches: ${current} of ${max}`}>
-      <div className="w-24 h-1 rounded-full bg-stone-200 dark:bg-stone-800 overflow-hidden">
+      <div className="w-24 h-1 rounded-full bg-bg-pressed overflow-hidden">
         <div
           className={`h-full ${fillColor} transition-colors duration-300`}
           style={{ width: `${fillWidth}%` }}
         />
       </div>
-      <span className="text-11 font-mono text-stone-500 dark:text-stone-400 tabular-nums">
+      <span className="text-11 font-mono text-text-secondary tabular-nums">
         {current} / {max}
       </span>
     </div>
