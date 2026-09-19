@@ -149,7 +149,7 @@ function ProbePendingField({
  * Minimal JSON-Schema → React Aria form renderer. Handles the five field
  * shapes it is asked for: string, password-string, boolean, number/integer,
  * and a closed choice list (`enum`, or a `oneOf` of consts) rendered as a
- * select. Anything else renders a stone-500 caption explaining the field is
+ * select. Anything else renders a text-secondary caption explaining the field is
  * managed per project and edited in the override file rather than inline here.
  */
 export default function ConfigSchemaForm({
