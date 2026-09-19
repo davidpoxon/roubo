@@ -48,29 +48,29 @@ describe("GlobalBenchMeter", () => {
     expect(screen.getByText("3 / 5")).toBeInTheDocument();
   });
 
-  it("uses neutral stone below 80% of the cap", () => {
+  it("uses the neutral text-secondary fill below 80% of the cap", () => {
     mockUseGlobalCap.mockReturnValue(capState(7, 10));
     const { container } = render(<GlobalBenchMeter />);
-    expect(fillBar(container).className).toContain("bg-stone-400");
+    expect(fillBar(container).className).toContain("bg-text-secondary");
   });
 
-  it("uses amber at >= 80% of the cap", () => {
+  it("uses status-preparing at >= 80% of the cap", () => {
     mockUseGlobalCap.mockReturnValue(capState(8, 10));
     const { container } = render(<GlobalBenchMeter />);
-    expect(fillBar(container).className).toContain("bg-amber-500");
+    expect(fillBar(container).className).toContain("bg-status-preparing");
   });
 
-  it("uses red at 100% of the cap", () => {
+  it("uses status-error at 100% of the cap", () => {
     mockUseGlobalCap.mockReturnValue(capState(10, 10));
     const { container } = render(<GlobalBenchMeter />);
-    expect(fillBar(container).className).toContain("bg-red-500");
+    expect(fillBar(container).className).toContain("bg-status-error");
   });
 
-  it("stays red and clamps fill width at 100% when over the cap", () => {
+  it("stays status-error and clamps fill width at 100% when over the cap", () => {
     mockUseGlobalCap.mockReturnValue(capState(12, 10));
     const { container } = render(<GlobalBenchMeter />);
     const bar = fillBar(container);
-    expect(bar.className).toContain("bg-red-500");
+    expect(bar.className).toContain("bg-status-error");
     expect(bar.style.width).toBe("100%");
     expect(screen.getByText("12 / 10")).toBeInTheDocument();
     expect(screen.getByLabelText("Global benches: 12 of 10")).toBeInTheDocument();

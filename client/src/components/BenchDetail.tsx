@@ -77,6 +77,8 @@ import { securityCategoryFor, shortIssueRef } from "../lib/chip-mapping";
 import { displayIssueRef } from "../lib/issue-id";
 import TestBenchPanel from "./testbench/TestBenchPanel";
 import { TAB_CLASS } from "./ui/Tabs";
+import StatusIndicator from "./ui/StatusIndicator";
+import type { StatusTone } from "./ui/styles";
 
 const ALERT_BENCH_DISABLED_TRANSITION_COPY =
   "Resolved by pushing code that fixes the underlying alert. GitHub auto-closes the alert.";
@@ -87,12 +89,12 @@ function ComponentStatusText({ status, startedAt }: { status: string; startedAt?
   const elapsed = useElapsed(status === "starting" ? startedAt : undefined);
   if (status === "starting" && elapsed) {
     return (
-      <span className="text-11 text-stone-600 dark:text-stone-400">
-        {status} <span className="text-stone-500 dark:text-stone-400 font-mono">{elapsed}</span>
+      <span className="text-11 text-text-secondary">
+        {status} <span className="text-text-secondary font-mono">{elapsed}</span>
       </span>
     );
   }
-  return <span className="text-11 text-stone-600 dark:text-stone-400">{status}</span>;
+  return <span className="text-11 text-text-secondary">{status}</span>;
 }
 
 function ComponentePhaseDetail({ detail, startedAt }: { detail: string; startedAt?: string }) {
@@ -100,11 +102,9 @@ function ComponentePhaseDetail({ detail, startedAt }: { detail: string; startedA
   return (
     <div className="flex items-center gap-2 px-4 pb-2 mt-1">
       <span className="flex items-center gap-3">
-        <span className="w-1 h-1 rounded-full bg-amber-500/50" />
-        <span className="text-11 text-amber-500/70">{detail}</span>
-        {elapsed && (
-          <span className="text-11 text-stone-500 dark:text-stone-400 font-mono">{elapsed}</span>
-        )}
+        <span className="w-1 h-1 rounded-full bg-status-preparing" />
+        <span className="text-11 text-text-secondary">{detail}</span>
+        {elapsed && <span className="text-11 text-text-secondary font-mono">{elapsed}</span>}
       </span>
     </div>
   );
@@ -138,7 +138,7 @@ function StepList({ steps, bench }: { steps: ProvisioningStep[]; bench?: Bench }
                   {step.label}
                 </span>
                 {step.status === "error" && step.error && (
-                  <span className="text-12 text-red-400/70 truncate ml-2">{step.error}</span>
+                  <span className="text-12 text-danger-text truncate ml-2">{step.error}</span>
                 )}
               </div>
               {showPhases && phases && (
@@ -168,12 +168,14 @@ function StepList({ steps, bench }: { steps: ProvisioningStep[]; bench?: Bench }
 // DESIGN.md Tabs: the shared tab treatment, including the focus ring.
 const tabClassName = TAB_CLASS;
 
-const statusBadge: Record<string, string> = {
-  running: "bg-green-500/15 text-green-400",
-  provisioning: "bg-amber-500/15 text-amber-400",
-  error: "bg-red-500/15 text-red-400",
-  stopping: "bg-amber-500/15 text-amber-400",
-  inactive: "bg-stone-500/15 text-stone-600 dark:text-stone-400",
+// DESIGN.md Status indicator, the same mapping the bench card uses. Clearing is
+// work in progress, so it shares `status-preparing` with preparing.
+const BENCH_STATUS_TONE: Record<Bench["status"], StatusTone> = {
+  active: "active",
+  preparing: "preparing",
+  error: "error",
+  clearing: "preparing",
+  idle: "idle",
 };
 
 function ComponentsTab({
@@ -261,15 +263,13 @@ function ComponentsTab({
 
           return (
             <div key={name}>
-              <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/50 dark:hover:bg-stone-900/80 transition-colors">
+              <div className="flex items-center justify-between px-4 py-3 rounded-lg border border-border bg-bg-surface hover:bg-bg-hover transition-colors">
                 <div className="flex items-center gap-3">
                   <ComponentStatusDot status={component.status} />
-                  <span className="text-13 font-medium text-stone-800 dark:text-stone-200">
-                    {name}
-                  </span>
+                  <span className="text-13 font-medium text-text-primary">{name}</span>
                   <ComponentStatusText status={component.status} startedAt={component.startedAt} />
                   {assigned && (
-                    <span className="flex items-center gap-1 text-11 text-stone-600 dark:text-stone-400">
+                    <span className="flex items-center gap-1 text-11 text-text-secondary">
                       <Container size={12} />
                       <span className="font-mono">{assigned.containerName}</span>
                     </span>
@@ -281,7 +281,7 @@ function ComponentsTab({
                     (assigned ? (
                       <Button
                         onPress={() => unassign.mutate({ projectId, benchId, component: name })}
-                        className="flex items-center gap-1 px-2 py-1 rounded-control text-11 text-stone-600 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="flex items-center gap-1 px-2 py-1 rounded-control text-11 text-text-secondary hover:text-text-primary hover:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         <Unlink size={12} />
                         Unassign
@@ -289,7 +289,7 @@ function ComponentsTab({
                     ) : (
                       <Button
                         onPress={() => setAssignModal(name)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-control text-11 text-stone-600 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="flex items-center gap-1 px-2 py-1 rounded-control text-11 text-text-secondary hover:text-text-primary hover:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         <Container size={12} />
                         Assign
@@ -301,13 +301,13 @@ function ComponentsTab({
                       if (isRunning) stopComponent.mutate({ projectId, benchId, component: name });
                       else startComponentWithRecovery(name);
                     }}
-                    className="px-2.5 py-1 rounded-control text-12 text-text-secondary not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="px-2.5 py-1 rounded-control text-12 text-text-secondary not-disabled:hover:text-text-primary not-disabled:hover:bg-bg-pressed disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     {isRunning ? "Stop" : "Start"}
                   </Button>
                   <Button
                     onPress={() => toggleLogs(name)}
-                    className="flex items-center gap-1 px-2 py-1 rounded-control text-11 text-stone-600 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="flex items-center gap-1 px-2 py-1 rounded-control text-11 text-text-secondary hover:text-text-primary hover:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     {logsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     Logs
@@ -399,60 +399,46 @@ function InfoTab({ bench }: { bench: Bench }) {
   };
 
   return (
-    <div className="rounded-lg bg-stone-100 dark:bg-stone-900/50 divide-y divide-stone-200 dark:divide-stone-800/40">
+    <div className="rounded-lg border border-border bg-bg-surface divide-y divide-border">
       <div className="px-4 py-3">
-        <p className="text-11 uppercase tracking-label text-stone-600 dark:text-stone-400 mb-1.5">
-          Ports
-        </p>
+        <p className="text-11 uppercase tracking-label text-text-secondary mb-1.5">Ports</p>
         <div className="flex flex-wrap gap-x-5 gap-y-1">
           {Object.entries(bench.ports).map(([name, port]) => (
             <span key={name} className="text-13">
               <span className="text-text-secondary">{name}</span>
-              <span className="text-stone-800 dark:text-stone-200 font-mono ml-1.5">{port}</span>
+              <span className="text-text-primary font-mono ml-1.5">{port}</span>
             </span>
           ))}
         </div>
       </div>
       <div className="px-4 py-3">
-        <p className="text-11 uppercase tracking-label text-stone-600 dark:text-stone-400 mb-1.5">
-          Workspace
-        </p>
+        <p className="text-11 uppercase tracking-label text-text-secondary mb-1.5">Workspace</p>
         <div className="flex items-center gap-2">
-          <code className="text-13 text-stone-700 dark:text-stone-300 font-mono">
-            {bench.workspacePath}
-          </code>
+          <code className="text-13 text-text-body font-mono">{bench.workspacePath}</code>
           <Button
             onPress={copyWorkspace}
-            className="text-stone-600 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Copy size={12} />
           </Button>
-          {copiedPath && <span className="text-11 text-green-500">Copied</span>}
+          {copiedPath && <span className="text-11 text-success-text">Copied</span>}
         </div>
       </div>
       <div className="px-4 py-3">
-        <p className="text-11 uppercase tracking-label text-stone-600 dark:text-stone-400 mb-1.5">
-          Created
-        </p>
-        <p className="text-13 text-stone-700 dark:text-stone-300">
-          {new Date(bench.createdAt).toLocaleString()}
-        </p>
+        <p className="text-11 uppercase tracking-label text-text-secondary mb-1.5">Created</p>
+        <p className="text-13 text-text-body">{new Date(bench.createdAt).toLocaleString()}</p>
       </div>
       {bench.assignedContainers && Object.keys(bench.assignedContainers).length > 0 && (
         <div className="px-4 py-3">
-          <p className="text-11 uppercase tracking-label text-stone-600 dark:text-stone-400 mb-1.5">
+          <p className="text-11 uppercase tracking-label text-text-secondary mb-1.5">
             Assigned Containers
           </p>
           <div className="flex flex-wrap gap-x-5 gap-y-1">
             {Object.entries(bench.assignedContainers).map(([componentName, assigned]) => (
               <span key={componentName} className="text-13">
                 <span className="text-text-secondary">{componentName}</span>
-                <span className="text-stone-800 dark:text-stone-200 font-mono ml-1.5">
-                  {assigned.containerName}
-                </span>
-                <span className="text-stone-600 dark:text-stone-400 font-mono ml-1">
-                  :{assigned.port}
-                </span>
+                <span className="text-text-primary font-mono ml-1.5">{assigned.containerName}</span>
+                <span className="text-text-secondary font-mono ml-1">:{assigned.port}</span>
               </span>
             ))}
           </div>
@@ -477,10 +463,7 @@ function AssignedIssueTransition({
   return (
     <>
       {isAlertBacked ? (
-        <p
-          data-testid="alert-bench-transition-explanation"
-          className="text-11 text-stone-500 dark:text-stone-400"
-        >
+        <p data-testid="alert-bench-transition-explanation" className="text-11 text-text-secondary">
           {ALERT_BENCH_DISABLED_TRANSITION_COPY}
         </p>
       ) : (
@@ -597,7 +580,7 @@ export default function BenchDetail() {
   if (isLoading) {
     return (
       <div className="p-8 flex-1">
-        <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-13 text-text-secondary">
           <Spinner />
           Loading bench...
         </div>
@@ -608,10 +591,10 @@ export default function BenchDetail() {
   if (!bench) {
     return (
       <div className="p-8 flex-1">
-        <p className="text-13 text-stone-500 dark:text-stone-400">Bench not found.</p>
+        <p className="text-13 text-text-secondary">Bench not found.</p>
         <Button
           onPress={() => navigate(projectId ? `/projects/${projectId}` : "/")}
-          className="mt-3 text-13 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="mt-3 text-13 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           Go back
         </Button>
@@ -624,43 +607,35 @@ export default function BenchDetail() {
       <div className="flex items-start justify-between mb-8">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100">
-              Bench {bench.id}
-            </h2>
-            <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-md text-11 font-medium capitalize ${
-                statusBadge[bench.status] ?? "bg-stone-500/15 text-stone-600 dark:text-stone-400"
-              }`}
-            >
-              {bench.status}
-            </span>
+            <h2 className="text-20 font-semibold text-text-primary">Bench {bench.id}</h2>
+            <StatusIndicator
+              tone={BENCH_STATUS_TONE[bench.status]}
+              label={bench.status}
+              pulse={bench.status === "preparing" || bench.status === "clearing"}
+              data-testid="bench-detail-status"
+            />
           </div>
           {!headerCollapsed && (
             <>
-              <div className="flex items-center gap-1.5 text-13 text-stone-600 dark:text-stone-400">
-                <GitBranch size={14} className="text-stone-500 dark:text-stone-400" />
+              <div className="flex items-center gap-1.5 text-13 text-text-secondary">
+                <GitBranch size={14} className="text-text-secondary" />
                 {bench.branch}
               </div>
               {bench.baseBranch && bench.baseCommit && (
-                <p className="text-12 text-stone-500 dark:text-stone-400">
-                  Branched from{" "}
-                  <span className="font-mono text-stone-600 dark:text-stone-400">
-                    {bench.baseBranch}
-                  </span>
+                <p className="text-12 text-text-secondary">
+                  Branched from <span className="font-mono text-text-body">{bench.baseBranch}</span>
                   {" @ "}
-                  <span className="font-mono text-stone-600 dark:text-stone-400">
-                    {bench.baseCommit}
-                  </span>
+                  <span className="font-mono text-text-body">{bench.baseCommit}</span>
                 </p>
               )}
               {project && (
-                <p className="text-12 text-stone-500 dark:text-stone-400">
+                <p className="text-12 text-text-secondary">
                   {project.config?.project?.displayName}
                 </p>
               )}
               {bench.assignedIssue && (
                 <div className="flex items-center gap-1.5 text-12 text-text-secondary">
-                  <span className="font-mono text-amber-800 dark:text-amber-200">
+                  <span className="font-mono text-accent-text">
                     {displayIssueRef(bench.assignedIssue)}
                   </span>
                   <span>{bench.assignedIssue.title}</span>
@@ -672,22 +647,22 @@ export default function BenchDetail() {
                   {isFromPreviousIntegration && (
                     <span
                       data-testid="previous-integration-badge"
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-11 font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-11 font-medium bg-accent-muted text-accent-text"
                     >
                       Issue from previous integration
                     </span>
                   )}
                   {bench.assignedIssue.blockedBy && bench.assignedIssue.blockedBy.length > 0 && (
                     <TooltipTrigger delay={300}>
-                      <Button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control text-11 font-medium bg-red-500/15 text-red-400 outline-none cursor-default focus-visible:ring-2 focus-visible:ring-focus-ring">
+                      <Button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control text-11 font-medium bg-danger-surface text-danger-text outline-none cursor-default focus-visible:ring-2 focus-visible:ring-focus-ring">
                         <Ban size={12} />
                         Blocked
                       </Button>
                       <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0">
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-stone-400 mb-0.5">Blocked by:</span>
+                          <span className="text-text-on-inverse mb-0.5">Blocked by:</span>
                           {bench.assignedIssue.blockedBy.map((ref) => (
-                            <span key={ref} className="font-mono text-amber-200">
+                            <span key={ref} className="font-mono text-text-on-inverse">
                               {shortIssueRef(ref)}
                             </span>
                           ))}
@@ -707,7 +682,7 @@ export default function BenchDetail() {
               aria-label={headerCollapsed ? "Expand bench header" : "Collapse bench header"}
               aria-expanded={!headerCollapsed}
               onPress={() => setHeaderCollapsed(!headerCollapsed)}
-              className="flex items-center justify-center p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="flex items-center justify-center p-1.5 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {headerCollapsed ? (
                 <ChevronRight size={14} aria-hidden="true" />
@@ -726,7 +701,7 @@ export default function BenchDetail() {
               if (isRunning) stopBench.mutate({ projectId, benchId });
               else startBench.mutate({ projectId, benchId });
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-secondary rounded-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-secondary rounded-control not-disabled:hover:text-text-primary not-disabled:hover:bg-bg-hover disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {isRunning ? <Square size={12} /> : <Play size={12} />}
             {isRunning ? "Stop All" : "Start All"}
@@ -734,7 +709,7 @@ export default function BenchDetail() {
           <Button
             isDisabled={!canTeardown}
             onPress={() => setShowTeardown(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-500 dark:text-stone-400 rounded-control not-disabled:hover:text-red-400 not-disabled:hover:bg-red-500/10 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-secondary rounded-control not-disabled:hover:text-danger-text not-disabled:hover:bg-danger-surface disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {isProvisioning ? <X size={12} /> : <Trash2 size={12} />}
             {isProvisioning ? "Cancel" : "Clear"}
@@ -743,10 +718,10 @@ export default function BenchDetail() {
       </div>
 
       {!headerCollapsed && bench.error && (
-        <div className="mb-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20">
+        <div className="mb-6 px-4 py-3 rounded-lg bg-danger-surface border border-danger-border">
           <p
             id="bench-error-message"
-            className={`text-13 text-red-400 break-words ${
+            className={`text-13 text-danger-text break-words ${
               isLongError && !errorExpanded ? "line-clamp-3" : ""
             }`}
           >
@@ -757,7 +732,7 @@ export default function BenchDetail() {
               aria-expanded={errorExpanded}
               aria-controls="bench-error-message"
               onPress={() => setExpandedErrorKey(errorExpanded ? null : (bench.error ?? null))}
-              className="mt-2 text-12 font-medium text-red-300/80 hover:text-red-300 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="mt-2 text-12 font-medium text-text-body hover:text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {errorExpanded ? "Show less" : "Show more"}
             </Button>
@@ -775,7 +750,7 @@ export default function BenchDetail() {
                 },
               )
             }
-            className="flex items-center gap-1.5 mt-3 px-3 py-1.5 text-12 font-medium text-red-300 bg-red-500/15 rounded-control hover:bg-red-500/25 transition-colors outline-none disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1.5 mt-3 px-3 py-1.5 text-12 font-medium border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary rounded-control transition-colors outline-none disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <RotateCcw size={12} className={cleanupAndRetry.isPending ? "animate-spin" : ""} />
             {cleanupAndRetry.isPending ? "Cleaning up..." : "Cleanup & Retry"}
@@ -797,7 +772,7 @@ export default function BenchDetail() {
             setActiveTab(k as BenchTabId);
           }}
         >
-          <TabList className="flex gap-1 border-b border-stone-200 dark:border-stone-800/60 mb-6">
+          <TabList className="flex gap-1 border-b border-border mb-6">
             {isTestbench && (
               <Tab id="testbench" className={tabClassName}>
                 TestBench
@@ -888,16 +863,13 @@ export default function BenchDetail() {
           >
             {({ close }) => (
               <>
-                <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                  <Heading
-                    slot="title"
-                    className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-                  >
+                <div className="px-5 py-4 border-b border-border">
+                  <Heading slot="title" className="text-16 font-semibold text-text-primary">
                     {isProvisioning ? `Cancel Bench ${bench.id}` : `Clear Bench ${bench.id}`}
                   </Heading>
                 </div>
                 <div className="px-5 py-4 space-y-3">
-                  <p className="text-13 text-stone-600 dark:text-stone-400">
+                  <p className="text-13 text-text-body">
                     {isProvisioning
                       ? "This will cancel preparing and clean up any resources created so far."
                       : "This will stop all components and remove Docker containers."}
@@ -913,24 +885,22 @@ export default function BenchDetail() {
                           <div
                             className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                               isSelected
-                                ? "bg-stone-600 border-stone-500"
-                                : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
+                                ? "bg-accent border-accent"
+                                : "bg-bg-field border-border-control"
                             }`}
                           >
-                            {isSelected && <Check size={12} className="text-stone-100" />}
+                            {isSelected && <Check size={12} className="text-on-accent" />}
                           </div>
-                          <span className="text-13 text-stone-700 dark:text-stone-300">
-                            Remove git worktree
-                          </span>
+                          <span className="text-13 text-text-body">Remove git worktree</span>
                         </>
                       )}
                     </Checkbox>
                   )}
                 </div>
-                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
                   <Button
                     onPress={close}
-                    className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     Cancel
                   </Button>

@@ -53,7 +53,7 @@ function sessionAgentId(session: TerminalSession): string | undefined {
 function SourceBadge({ source }: { source: JigMeta["source"] }) {
   if (source === "app") return null;
   return (
-    <span className="ml-auto text-11 font-medium px-1.5 py-0.5 rounded shrink-0 bg-amber-500/15 text-amber-800 dark:text-amber-200">
+    <span className="ml-auto text-11 font-medium px-1.5 py-0.5 rounded shrink-0 bg-bg-pressed text-text-body">
       {source}
     </span>
   );
@@ -79,18 +79,16 @@ function JigMenu({ jigs, onSelect }: { jigs: JigMeta[]; onSelect: (id: string) =
             id={jig.id}
             className={({ isFocused }) =>
               `flex flex-col gap-0.5 px-3 py-2 rounded-control cursor-default outline-none transition-colors ${
-                isFocused ? "bg-stone-100 dark:bg-stone-800" : ""
+                isFocused ? "bg-bg-hover" : ""
               }`
             }
           >
             <div className="flex items-center gap-2">
-              <span className="text-12 font-medium text-stone-700 dark:text-stone-300 truncate">
-                {jig.name}
-              </span>
+              <span className="text-12 font-medium text-text-body truncate">{jig.name}</span>
               <SourceBadge source={jig.source} />
             </div>
             {jig.description && (
-              <span className="text-11 text-stone-600 dark:text-stone-300 truncate leading-relaxed">
+              <span className="text-11 text-text-secondary truncate leading-relaxed">
                 {jig.description}
               </span>
             )}
@@ -596,7 +594,7 @@ export default function TerminalTabs({
       )}
 
       {/* Tab bar */}
-      <div className="flex items-center border-b border-stone-200 dark:border-stone-800/60 shrink-0">
+      <div className="flex items-center border-b border-border shrink-0">
         <div className="flex items-center gap-0.5 overflow-x-auto px-1 py-1">
           {currentSessions.map((session) => (
             <div
@@ -604,11 +602,11 @@ export default function TerminalTabs({
               className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-md text-12 cursor-default transition-colors ${
                 session.status === "ended"
                   ? activeTab === session.id
-                    ? "bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
-                    : "text-stone-600 dark:text-stone-300 hover:text-stone-500 dark:hover:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/50"
+                    ? "bg-bg-pressed text-text-body"
+                    : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
                   : activeTab === session.id
-                    ? "bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-200"
-                    : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/50"
+                    ? "bg-bg-pressed text-text-primary"
+                    : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
               }`}
               onClick={() => {
                 setUserSelectedTab(session.id);
@@ -629,7 +627,7 @@ export default function TerminalTabs({
               )}
               <Button
                 onPress={() => handleDestroy(session.id)}
-                className="ml-0.5 p-0.5 rounded-control opacity-0 group-hover:opacity-100 hover:bg-stone-300 dark:hover:bg-stone-700 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="ml-0.5 p-0.5 rounded-control opacity-0 group-hover:opacity-100 hover:bg-bg-pressed hover:text-text-primary transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <X size={12} />
               </Button>
@@ -644,10 +642,10 @@ export default function TerminalTabs({
               <TooltipTrigger delay={500}>
                 <Button
                   aria-label="Inject jig"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
-                  <Bot size={14} className="text-stone-500 dark:text-stone-400" />
-                  <ChevronDown size={12} className="text-stone-500 dark:text-stone-400" />
+                  <Bot size={14} className="text-text-secondary" />
+                  <ChevronDown size={12} className="text-text-secondary" />
                 </Button>
                 <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0">
                   Inject jig
@@ -660,7 +658,7 @@ export default function TerminalTabs({
           <TooltipTrigger delay={500}>
             <Button
               onPress={() => handleCreate()}
-              className="p-1.5 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="p-1.5 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Plus size={14} />
             </Button>
@@ -677,7 +675,7 @@ export default function TerminalTabs({
                 aria-label={`Launch ${primaryLabel}`}
                 isDisabled={primaryDisabled}
                 onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
-                className="p-1.5 rounded-l-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="p-1.5 rounded-l-control text-text-secondary hover:text-text-primary hover:bg-bg-hover disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <Bot size={14} />
               </Button>
@@ -688,7 +686,7 @@ export default function TerminalTabs({
             <MenuTrigger>
               <Button
                 aria-label="Choose launch option"
-                className="flex items-center px-1 py-1.5 text-stone-500 dark:text-stone-400 rounded-r-control border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex items-center px-1 py-1.5 text-text-secondary rounded-r-control border-l border-border hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <ChevronDown size={12} />
               </Button>
@@ -699,17 +697,17 @@ export default function TerminalTabs({
       </div>
 
       {/* Terminal content */}
-      <div className="relative flex-1 bg-[#09090b] rounded-b-lg overflow-hidden">
+      <div className="relative flex-1 bg-bg-base rounded-b-lg overflow-hidden">
         {blockedLaunch && (
           <AgentLaunchFailurePanel failure={blockedLaunch} onRetry={handleRetryLastLaunch} />
         )}
         {currentSessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4">
-            <p className="text-13 text-stone-600">No terminal sessions</p>
+            <p className="text-13 text-text-secondary">No terminal sessions</p>
             <div className="flex items-center gap-2">
               <Button
                 onPress={() => handleCreate()}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-400 bg-stone-800 hover:bg-stone-700 hover:text-stone-200 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <Plus size={12} />
                 New Terminal
@@ -719,7 +717,7 @@ export default function TerminalTabs({
                 <Button
                   isDisabled={primaryDisabled}
                   onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-l-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-l-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
                 >
                   <Bot size={12} />
                   {primaryLabel}
@@ -727,7 +725,7 @@ export default function TerminalTabs({
                 <MenuTrigger>
                   <Button
                     aria-label="Choose launch option"
-                    className="flex items-center px-1.5 py-1.5 text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active rounded-r-control border-l border-on-accent/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                    className="flex items-center px-1.5 py-1.5 text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active rounded-r-control border-l border-on-accent/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
                   >
                     <ChevronDown size={12} />
                   </Button>

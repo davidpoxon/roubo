@@ -61,29 +61,29 @@ export default function LogStream({
       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
         <Button
           onPress={copy}
-          className="p-1 rounded-control bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="p-1 rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Copy size={12} />
         </Button>
         <Button
           onPress={() => setLogs([])}
-          className="p-1 rounded-control bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="p-1 rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Eraser size={12} />
         </Button>
       </div>
       <div
         ref={scrollRef}
-        className="bg-stone-950 rounded-lg p-3 font-mono text-11 leading-5 text-green-400/70 max-h-72 overflow-auto"
+        className="bg-bg-base border border-border rounded-lg p-3 font-mono text-11 leading-5 text-text-body max-h-72 overflow-auto"
       >
         {logs.length === 0 ? (
-          <span className="text-stone-600 italic">Waiting for output...</span>
+          <span className="text-text-secondary italic">Waiting for output...</span>
         ) : (
           logs.map((line, i) => (
             <div
               key={i}
-              className={`whitespace-pre-wrap break-all hover:bg-white/[0.02] ${
-                line.source === "stderr" ? "text-red-400/70" : ""
+              className={`whitespace-pre-wrap break-all hover:bg-bg-hover ${
+                line.source === "stderr" ? "text-danger-text" : ""
               }`}
             >
               {line.text}

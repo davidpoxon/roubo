@@ -58,8 +58,8 @@ export type ProjectOutletContext = {
 const tabClassName = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-2 text-12 font-medium transition-colors outline-none cursor-pointer border-b-2 -mb-px ${
     isActive
-      ? "text-stone-800 dark:text-stone-200 border-amber-500"
-      : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
+      ? "text-text-primary border-accent"
+      : "text-text-secondary border-transparent hover:text-text-primary"
   }`;
 
 export default function BenchDashboard() {
@@ -431,10 +431,8 @@ export default function BenchDashboard() {
       <div className="p-8 max-w-[1200px]">
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100">
-              All Projects
-            </h2>
-            <p className="text-12 text-stone-500 dark:text-stone-400 mt-1">
+            <h2 className="text-20 font-semibold text-text-primary">All Projects</h2>
+            <p className="text-12 text-text-secondary mt-1">
               Registered projects. Click one to view its benches and settings.
             </p>
           </div>
@@ -448,7 +446,7 @@ export default function BenchDashboard() {
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-12">
+          <div className="flex items-center gap-2 text-13 text-text-secondary py-12">
             <Spinner />
             Loading...
           </div>
@@ -481,29 +479,26 @@ export default function BenchDashboard() {
   return (
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-full">
-        <nav
-          aria-label="Breadcrumb"
-          className="px-8 pt-5 text-12 text-stone-500 dark:text-stone-500"
-        >
+        <nav aria-label="Breadcrumb" className="px-8 pt-5 text-12 text-text-secondary">
           <Link
             to="/"
-            className="hover:text-stone-900 dark:hover:text-stone-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             All Projects
           </Link>
-          <span aria-hidden="true" className="mx-2 text-stone-500 dark:text-stone-400">
+          <span aria-hidden="true" className="mx-2 text-text-secondary">
             /
           </span>
-          <span aria-current="page" className="text-stone-700 dark:text-stone-300">
+          <span aria-current="page" className="text-text-body">
             {projectName}
           </span>
         </nav>
-        <div className="border-b border-stone-200 dark:border-stone-800/60 px-8 pt-3">
+        <div className="border-b border-border px-8 pt-3">
           <nav aria-label="Project tabs" className="flex items-center gap-1">
             {hasConfig && hasGitHub && issueQueueCollapsed && !isOnSettings && (
               <Button
                 onPress={onToggleIssueQueue}
-                className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none mr-1 focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="p-1.5 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none mr-1 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 aria-label="Show cut list"
               >
                 <PanelLeft size={16} />
@@ -529,10 +524,10 @@ export default function BenchDashboard() {
         {draggingIssue && (
           <div className="bg-bg-surface border border-border rounded-control px-3 py-2 shadow-elevation-0 max-w-[280px] opacity-90">
             <div className="flex items-center gap-2">
-              <span className="text-11 font-mono text-stone-500 dark:text-stone-300">
+              <span className="text-11 font-mono text-text-secondary">
                 {draggingIssue.externalId}
               </span>
-              <span className="text-12 font-medium text-stone-800 dark:text-stone-200 truncate">
+              <span className="text-12 font-medium text-text-primary truncate">
                 {draggingIssue.title}
               </span>
             </div>

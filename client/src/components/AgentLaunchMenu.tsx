@@ -24,13 +24,13 @@ const PRESET_KEY_PREFIX = "preset:";
 const AGENT_KEY_PREFIX = "agent:";
 
 const SECTION_HEADER_CLASS =
-  "px-2.5 pt-1.5 pb-1 text-11 uppercase tracking-label text-stone-500 dark:text-stone-400 font-semibold";
+  "px-2.5 pt-1.5 pb-1 text-11 uppercase tracking-label text-text-secondary font-semibold";
 
 const ITEM_CLASS = (isFocused: boolean, isDisabled: boolean) =>
   [
     "flex items-center gap-2 px-3 py-2 rounded-control cursor-default outline-none transition-colors",
     isDisabled ? "opacity-40 cursor-not-allowed" : "",
-    isFocused && !isDisabled ? "bg-stone-100 dark:bg-stone-800" : "",
+    isFocused && !isDisabled ? "bg-bg-hover" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -83,13 +83,11 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
       <span
         className={`w-1.5 h-1.5 rounded-full shrink-0 ${agentDotClass(target.agentPluginId)}`}
       />
-      <span className="text-12 font-medium text-stone-700 dark:text-stone-300 truncate">
-        {preset.name}
-      </span>
+      <span className="text-12 font-medium text-text-body truncate">{preset.name}</span>
       {blocked ? (
         <span
           title={blocked.message}
-          className="ml-auto flex items-center gap-1 text-11 text-amber-600 dark:text-amber-500 shrink-0"
+          className="ml-auto flex items-center gap-1 text-11 text-accent-text shrink-0"
         >
           <AlertTriangle size={12} />
           {blocked.label}
@@ -98,7 +96,7 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
         <span
           title={degraded.message}
           data-testid="preset-degraded-notice"
-          className="ml-auto flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400 shrink-0"
+          className="ml-auto flex items-center gap-1 text-11 text-text-secondary shrink-0"
         >
           <Info size={12} />
           drops {degraded.droppedParams.join(", ")}
@@ -106,7 +104,7 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
       ) : (
         <span
           data-testid="launch-preset-summary"
-          className="ml-auto text-11 font-mono text-stone-500 dark:text-stone-400 truncate"
+          className="ml-auto text-11 font-mono text-text-secondary truncate"
         >
           {presetSummary(preset, target)}
         </span>
@@ -127,19 +125,17 @@ function AgentItem({ agent }: { agent: ProjectAgentState }) {
       className={({ isFocused, isDisabled }) => ITEM_CLASS(isFocused, isDisabled)}
     >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${agentDotClass(agent.id)}`} />
-      <span className="text-12 font-medium text-stone-700 dark:text-stone-300 truncate">
-        {agent.name}
-      </span>
+      <span className="text-12 font-medium text-text-body truncate">{agent.name}</span>
       {blocked ? (
         <span
           title={blocked.message}
-          className="ml-auto flex items-center gap-1 text-11 text-amber-600 dark:text-amber-500 shrink-0"
+          className="ml-auto flex items-center gap-1 text-11 text-accent-text shrink-0"
         >
           <AlertTriangle size={12} />
           {blocked.label}
         </span>
       ) : (
-        <span className="ml-auto text-11 font-mono text-stone-500 dark:text-stone-400 truncate">
+        <span className="ml-auto text-11 font-mono text-text-secondary truncate">
           {describeEffectiveParams(agent.effective)}
         </span>
       )}
@@ -219,7 +215,7 @@ export default function AgentLaunchMenu({
           ))}
         </MenuSection>
 
-        <Separator className="my-1 border-t border-stone-200 dark:border-stone-800" />
+        <Separator className="my-1 border-t border-border" />
 
         {/*
          * Structurally required by AP-TC-043 O02: the action sits below the
@@ -233,10 +229,8 @@ export default function AgentLaunchMenu({
           isDisabled={!hasLaunchableAgent}
           className={({ isFocused, isDisabled }) => ITEM_CLASS(isFocused, isDisabled)}
         >
-          <SlidersHorizontal size={12} className="text-stone-500 dark:text-stone-400 shrink-0" />
-          <span className="text-12 font-medium text-stone-700 dark:text-stone-300">
-            Launch with overrides&hellip;
-          </span>
+          <SlidersHorizontal size={12} className="text-text-secondary shrink-0" />
+          <span className="text-12 font-medium text-text-body">Launch with overrides&hellip;</span>
         </MenuItem>
       </Menu>
     </Popover>

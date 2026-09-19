@@ -32,14 +32,10 @@ function TeardownCard({ bench, exiting }: { bench: Bench; exiting: boolean }) {
     >
       <div className="bg-bg-surface border border-border rounded-control px-3.5 py-2.5 shadow-elevation-0 min-w-[260px] max-w-xs">
         <div className="flex items-center gap-2">
-          <Loader2 size={12} className="text-amber-500 animate-spin shrink-0" />
-          <span className="text-12 font-medium text-stone-800 dark:text-stone-200">
-            Bench {bench.id}
-          </span>
-          <span className="text-11 font-mono text-stone-500 dark:text-stone-300 truncate">
-            {bench.branch}
-          </span>
-          <span className="text-11 font-mono text-stone-500 dark:text-stone-300 ml-auto shrink-0">
+          <Loader2 size={12} className="text-status-preparing animate-spin shrink-0" />
+          <span className="text-12 font-medium text-text-primary">Bench {bench.id}</span>
+          <span className="text-11 font-mono text-text-secondary truncate">{bench.branch}</span>
+          <span className="text-11 font-mono text-text-secondary ml-auto shrink-0">
             {doneCount} / {steps.length}
           </span>
         </div>
@@ -55,7 +51,7 @@ function TeardownCard({ bench, exiting }: { bench: Bench; exiting: boolean }) {
         )}
         {hasError && (
           <div className="flex items-center gap-2 mt-1.5 pl-5">
-            <span className="text-11 text-red-400">Teardown failed</span>
+            <span className="text-11 text-danger-text">Teardown failed</span>
           </div>
         )}
       </div>
@@ -75,10 +71,8 @@ function CompletedCard({ benchId, exiting }: { benchId: number; exiting: boolean
     >
       <div className="bg-bg-surface border border-border rounded-control px-3.5 py-2.5 shadow-elevation-0 min-w-[260px] max-w-xs">
         <div className="flex items-center gap-2">
-          <Check size={12} className="text-green-500 shrink-0" />
-          <span className="text-12 font-medium text-stone-800 dark:text-stone-200">
-            Bench {benchId} cleared
-          </span>
+          <Check size={12} className="text-success-text shrink-0" />
+          <span className="text-12 font-medium text-text-primary">Bench {benchId} cleared</span>
         </div>
       </div>
     </div>
