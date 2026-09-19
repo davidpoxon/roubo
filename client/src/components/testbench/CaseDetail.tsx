@@ -607,8 +607,8 @@ function NotesDrawer({ projectId, benchId, caseId, notes }: NotesDrawerProps) {
         isSelected={isOpen}
         onChange={setIsOpen}
         aria-controls={panelId}
-        className={`inline-flex items-center gap-1.5 rounded-control px-2 py-1 text-12 font-medium text-text-secondary outline-none transition-colors hover:bg-bg-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset ${
-          isOpen ? "bg-bg-pressed text-text-primary" : ""
+        className={`inline-flex items-center gap-1.5 rounded-control px-2 py-1 text-12 font-medium outline-none transition-colors hover:bg-bg-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset ${
+          isOpen ? "bg-bg-pressed text-text-primary" : "text-text-secondary"
         }`}
       >
         <StickyNote aria-hidden="true" className="w-3.5 h-3.5" />

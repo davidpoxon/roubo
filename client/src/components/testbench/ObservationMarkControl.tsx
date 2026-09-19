@@ -33,7 +33,6 @@ interface ObservationMarkControlProps {
 const SEGMENT_BASE =
   "flex items-center gap-1.5 px-2.5 py-1 text-12 font-medium cursor-pointer outline-none transition-colors select-none " +
   "first:rounded-l-md last:rounded-r-md border-r border-border-control last:border-r-0 " +
-  "text-text-secondary " +
   "not-disabled:hover:bg-bg-hover " +
   "focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset focus-visible:relative focus-visible:z-10 " +
   "disabled:cursor-not-allowed disabled:opacity-40";
@@ -64,7 +63,7 @@ export default function ObservationMarkControl({
           id="pass"
           className={({ isSelected }) =>
             `outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${SEGMENT_BASE} ${
-              isSelected ? "bg-success-surface text-success-text" : ""
+              isSelected ? "bg-success-surface text-success-text" : "text-text-secondary"
             }`
           }
         >
@@ -75,7 +74,7 @@ export default function ObservationMarkControl({
           id="fail"
           className={({ isSelected }) =>
             `outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${SEGMENT_BASE} ${
-              isSelected ? "bg-danger-surface text-danger-text" : ""
+              isSelected ? "bg-danger-surface text-danger-text" : "text-text-secondary"
             }`
           }
         >

@@ -365,8 +365,12 @@ export default function SpecPickerModal({
           <Button
             aria-label={`Actions for ${spec.slug}`}
             className={({ isHovered, isPressed, isFocusVisible }) =>
-              `shrink-0 mt-1 p-1.5 rounded-control text-text-secondary outline-none transition-colors ${
-                isPressed ? "bg-bg-pressed text-text-body" : isHovered ? "bg-bg-hover" : ""
+              `shrink-0 mt-1 p-1.5 rounded-control outline-none transition-colors ${
+                isPressed
+                  ? "bg-bg-pressed text-text-body"
+                  : isHovered
+                    ? "bg-bg-hover text-text-secondary"
+                    : "text-text-secondary"
               } ${isFocusVisible ? "ring-2 ring-focus-ring" : ""}`
             }
           >
@@ -674,12 +678,12 @@ export default function SpecPickerModal({
                                 aria-expanded={allPassedExpanded}
                                 onPress={() => setAllPassedExpanded((open) => !open)}
                                 className={({ isHovered, isPressed, isFocusVisible }) =>
-                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium text-text-secondary outline-none transition-colors ${
+                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium outline-none transition-colors ${
                                     isPressed
                                       ? "bg-bg-pressed text-text-body"
                                       : isHovered
-                                        ? "bg-bg-hover"
-                                        : ""
+                                        ? "bg-bg-hover text-text-secondary"
+                                        : "text-text-secondary"
                                   } ${
                                     isFocusVisible
                                       ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-surface"
@@ -690,13 +694,13 @@ export default function SpecPickerModal({
                                 <ChevronRight
                                   size={14}
                                   aria-hidden
-                                  className={`shrink-0 text-text-secondary transition-transform duration-200 ${
+                                  className={`shrink-0 transition-transform duration-200 ${
                                     allPassedExpanded ? "rotate-90" : ""
                                   }`}
                                 />
                                 <span>
                                   All passed{" "}
-                                  <span className="font-normal text-text-secondary">
+                                  <span className="font-normal">
                                     · {allPassed.length} spec{allPassed.length === 1 ? "" : "s"}
                                   </span>
                                 </span>
@@ -731,12 +735,12 @@ export default function SpecPickerModal({
                                 aria-controls={archivedGroupId}
                                 onPress={() => setShowArchived((open) => !open)}
                                 className={({ isHovered, isPressed, isFocusVisible }) =>
-                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium text-text-secondary outline-none transition-colors ${
+                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium outline-none transition-colors ${
                                     isPressed
                                       ? "bg-bg-pressed text-text-body"
                                       : isHovered
-                                        ? "bg-bg-hover"
-                                        : ""
+                                        ? "bg-bg-hover text-text-secondary"
+                                        : "text-text-secondary"
                                   } ${
                                     isFocusVisible
                                       ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-surface"
@@ -744,14 +748,10 @@ export default function SpecPickerModal({
                                   }`
                                 }
                               >
-                                <Archive
-                                  size={14}
-                                  aria-hidden
-                                  className="shrink-0 text-text-secondary"
-                                />
+                                <Archive size={14} aria-hidden className="shrink-0" />
                                 <span>
                                   Show archived{" "}
-                                  <span className="font-normal text-text-secondary">
+                                  <span className="font-normal">
                                     · {archived.length} spec{archived.length === 1 ? "" : "s"}
                                   </span>
                                 </span>
