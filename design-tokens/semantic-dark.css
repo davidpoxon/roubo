@@ -41,6 +41,12 @@
   --color-kind-agent-border: var(--color-kind-agent-border-dark);
   --color-kind-agent-surface: var(--color-kind-agent-surface-dark);
   --color-kind-agent-text: var(--color-kind-agent-text-dark);
+  --color-kind-component-border: var(--color-kind-component-border-dark);
+  --color-kind-component-surface: var(--color-kind-component-surface-dark);
+  --color-kind-component-text: var(--color-kind-component-text-dark);
+  --color-kind-integration-border: var(--color-kind-integration-border-dark);
+  --color-kind-integration-surface: var(--color-kind-integration-surface-dark);
+  --color-kind-integration-text: var(--color-kind-integration-text-dark);
   --color-project-status-in-progress: var(--color-project-status-in-progress-dark);
   --color-project-status-ready: var(--color-project-status-ready-dark);
   --color-project-status-todo: var(--color-project-status-todo-dark);

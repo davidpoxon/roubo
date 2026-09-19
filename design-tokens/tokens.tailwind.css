@@ -68,6 +68,18 @@
   --color-kind-agent-surface-dark: #082F4933;
   --color-kind-agent-text: #075985;
   --color-kind-agent-text-dark: #BAE6FD;
+  --color-kind-component-border: #DDD6FE;
+  --color-kind-component-border-dark: #4C1D9566;
+  --color-kind-component-surface: #F5F3FF;
+  --color-kind-component-surface-dark: #2E106533;
+  --color-kind-component-text: #5B21B6;
+  --color-kind-component-text-dark: #DDD6FE;
+  --color-kind-integration-border: #99F6E4;
+  --color-kind-integration-border-dark: #134E4A66;
+  --color-kind-integration-surface: #F0FDFA;
+  --color-kind-integration-surface-dark: #042F2E33;
+  --color-kind-integration-text: #115E59;
+  --color-kind-integration-text-dark: #99F6E4;
   --color-on-accent: #0C0A09;
   --color-on-danger: #FFFFFF;
   --color-project-status-in-progress: #2563EB;
