@@ -19,12 +19,12 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       isDismissable
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center"
+      className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm flex items-center justify-center"
     >
       <Modal className="animate-rise-in w-full max-w-lg mx-4">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none max-h-[80vh] flex flex-col"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none max-h-[80vh] flex flex-col"
         >
           {({ close }) => (
             <>
@@ -37,7 +37,7 @@ export default function TemplateVariableReference({ ctx, isOpen, onOpenChange }:
                 </Heading>
                 <Button
                   onPress={close}
-                  className="p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
+                  className="p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <X size={16} />
                 </Button>

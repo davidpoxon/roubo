@@ -139,7 +139,7 @@ export default function CaseDetail({
           {showNext ? (
             <Button
               onPress={onNext}
-              className="inline-flex items-center gap-1.5 text-12 font-medium text-amber-700 dark:text-amber-400 rounded-md px-2 py-1 outline-none transition-colors hover:bg-amber-50 dark:hover:bg-amber-950/30 focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="inline-flex items-center gap-1.5 text-12 font-medium text-amber-700 dark:text-amber-400 rounded-control px-2 py-1 outline-none transition-colors hover:bg-amber-50 dark:hover:bg-amber-950/30 focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Next case
               <ArrowRight aria-hidden="true" className="w-4 h-4" />
@@ -151,7 +151,7 @@ export default function CaseDetail({
             <Button
               aria-label="Close case detail"
               onPress={onBack}
-              className="inline-flex items-center justify-center text-stone-500 dark:text-stone-400 rounded-md p-1 outline-none transition-colors hover:text-stone-700 hover:bg-stone-100 dark:hover:text-stone-200 dark:hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="inline-flex items-center justify-center text-stone-500 dark:text-stone-400 rounded-control p-1 outline-none transition-colors hover:text-stone-700 hover:bg-stone-100 dark:hover:text-stone-200 dark:hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <X aria-hidden="true" className="w-4 h-4" />
             </Button>
@@ -370,10 +370,10 @@ export default function CaseDetail({
 }
 
 const FIELD_CLASS =
-  "w-full rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1.5 text-13 text-stone-800 dark:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "w-full rounded-control border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1.5 text-13 text-stone-800 dark:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 const FIELD_LABEL_CLASS = "text-11 font-medium text-stone-600 dark:text-stone-400";
 const ACTION_CLASS =
-  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-12 font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-500";
+  "inline-flex items-center gap-1.5 rounded-control px-2.5 py-1 text-12 font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 // Lifecycle controls for one live case (#772, SATCA-FR-019, SATCA-US-006).
 //
@@ -622,7 +622,7 @@ function NotesDrawer({ projectId, benchId, caseId, notes }: NotesDrawerProps) {
         isSelected={isOpen}
         onChange={setIsOpen}
         aria-controls={panelId}
-        className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-12 font-medium text-stone-600 dark:text-stone-300 outline-none transition-colors hover:bg-stone-100 dark:hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset ${
+        className={`inline-flex items-center gap-1.5 rounded-control px-2 py-1 text-12 font-medium text-stone-600 dark:text-stone-300 outline-none transition-colors hover:bg-stone-100 dark:hover:bg-stone-800 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset ${
           isOpen ? "bg-stone-100 dark:bg-stone-800" : ""
         }`}
       >

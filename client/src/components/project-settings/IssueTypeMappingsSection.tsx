@@ -71,7 +71,7 @@ export function IssueTypeMappingsSection({
           Connect your GitHub account in{" "}
           <Link
             to="/settings#plugins"
-            className="text-amber-500 hover:text-amber-400 underline underline-offset-2 transition-colors"
+            className="text-amber-500 hover:text-amber-400 underline underline-offset-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             Settings → Plugins
           </Link>{" "}

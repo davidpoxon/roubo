@@ -33,7 +33,7 @@ export default function VariableInsertionPanel({ scope, onInsert }: Props) {
               <Button
                 key={v.syntax}
                 onPress={() => onInsert(v.syntax)}
-                className="w-full text-left px-4 py-2 hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors outline-none focus-visible:bg-stone-100 dark:focus-visible:bg-stone-800/50"
+                className="w-full text-left px-4 py-2 hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors outline-none focus-visible:bg-stone-100 dark:focus-visible:bg-stone-800/50 focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <code className="block text-11 font-mono text-stone-700 dark:text-stone-300 leading-tight">
                   {v.syntax}

@@ -96,7 +96,7 @@ export default function DangerZoneTile({ projectId }: Props) {
         </div>
         <Button
           onPress={() => setIsOpen(true)}
-          className="shrink-0 px-3 py-1.5 rounded-md text-12 font-medium text-red-700 dark:text-red-300 border border-red-300 dark:border-red-900/60 hover:bg-red-100/60 dark:hover:bg-red-900/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
+          className="shrink-0 px-3 py-1.5 rounded-control text-12 font-medium text-red-700 dark:text-red-300 border border-red-300 dark:border-red-900/60 hover:bg-red-100/60 dark:hover:bg-red-900/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer"
         >
           Unregister
         </Button>
@@ -108,12 +108,12 @@ export default function DangerZoneTile({ projectId }: Props) {
         }}
         isDismissable={!unregister.isPending}
         isKeyboardDismissDisabled={unregister.isPending}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
       >
         <Modal className="animate-rise-in w-full max-w-md mx-4">
           <Dialog
             ref={stampAriaModal}
-            className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+            className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
           >
             {({ close }) => (
               <>
@@ -194,14 +194,14 @@ export default function DangerZoneTile({ projectId }: Props) {
                   <Button
                     isDisabled={unregister.isPending}
                     onPress={close}
-                    className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-stone-400 cursor-pointer"
+                    className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer"
                   >
                     Cancel
                   </Button>
                   <Button
                     isDisabled={!canConfirm}
                     onPress={() => handleConfirm(needsForce || persistedBenchCount !== null)}
-                    className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 not-disabled:hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
+                    className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer not-disabled:active:bg-danger-active"
                   >
                     {unregister.isPending
                       ? "Unregistering…"

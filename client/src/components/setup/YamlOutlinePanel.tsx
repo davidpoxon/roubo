@@ -73,7 +73,7 @@ export default function YamlOutlinePanel({ rawYaml, onSectionClick }: Props) {
             <Button
               key={key}
               onPress={() => onSectionClick?.(key, line)}
-              className="w-full flex items-center justify-between text-12 rounded px-1 py-0.5 -mx-1 hover:bg-stone-200 dark:hover:bg-stone-800 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400"
+              className="w-full flex items-center justify-between text-12 rounded-control px-1 py-0.5 -mx-1 hover:bg-stone-200 dark:hover:bg-stone-800 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring"
             >
               <span className="text-stone-700 dark:text-stone-300">{key}</span>
               <span className="font-mono text-stone-500 dark:text-stone-400 truncate max-w-[10rem] text-right">

@@ -221,7 +221,7 @@ describe("IssuePickerModal", () => {
       <IssuePickerModal isOpen onClose={vi.fn()} onSelect={vi.fn()} projectId="p1" benches={[]} />,
     );
     const chip = screen.getByTestId("security-category-chip");
-    expect(chip.className).toMatch(/stone-/);
+    expect(chip.className).toContain("bg-bg-pressed");
     expect(chip.textContent).toContain("CodeQL");
     // Raw issueType pill in the metadata row is suppressed for security rows.
     expect(screen.queryByText("security-code-scanning")).not.toBeInTheDocument();

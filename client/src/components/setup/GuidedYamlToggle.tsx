@@ -20,7 +20,7 @@ export default function GuidedYamlToggle({ mode, onChange }: Props) {
       <Radio
         value="guided"
         className={({ isSelected }) =>
-          `px-3 py-1.5 rounded-md text-12 font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-amber-400 ${
+          `px-3 py-1.5 rounded-control text-12 font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
             isSelected
               ? "bg-stone-200 text-stone-900 dark:bg-stone-800 dark:text-stone-100"
               : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
@@ -34,7 +34,7 @@ export default function GuidedYamlToggle({ mode, onChange }: Props) {
       <Radio
         value="yaml"
         className={({ isSelected }) =>
-          `px-3 py-1.5 rounded-md text-12 font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-amber-400 ${
+          `px-3 py-1.5 rounded-control text-12 font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
             isSelected
               ? "bg-stone-200 text-stone-900 dark:bg-stone-800 dark:text-stone-100"
               : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"

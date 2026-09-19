@@ -26,7 +26,7 @@ function ToolMenu({
     <Popover
       placement="bottom end"
       offset={6}
-      className="animate-rise-in bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[12rem]"
+      className="animate-rise-in bg-bg-surface border border-border rounded-control shadow-elevation-0 p-1 min-w-[12rem]"
     >
       <Menu onAction={(key) => onAction(Number(key))} className="outline-none">
         {tools.map((tool, index) => {
@@ -37,8 +37,8 @@ function ToolMenu({
               id={String(index)}
               isDisabled={!tool.enabled}
               className={({ isFocused, isDisabled }) =>
-                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-12 cursor-default outline-none transition-colors ${
-                  isDisabled ? "opacity-30" : ""
+                `flex items-center gap-2.5 px-3 py-2 rounded-control text-12 cursor-default outline-none transition-colors ${
+                  isDisabled ? "opacity-40" : ""
                 } ${isFocused && !isDisabled ? "bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100" : "text-stone-500 dark:text-stone-400"}`
               }
             >
@@ -109,7 +109,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
   if (compact) {
     toolsContent = (
       <MenuTrigger>
-        <Button className="p-1.5 rounded-md text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none">
+        <Button className="p-1.5 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
           <ExternalLink size={14} />
         </Button>
         <ToolMenu tools={launchable.map((entry) => entry.tool)} onAction={executeLaunchable} />
@@ -121,7 +121,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
       <Button
         isDisabled={!primary.enabled}
         onPress={() => executeLaunchable(0)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-muted rounded-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-muted rounded-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         {PrimaryIcon && <PrimaryIcon size={12} />}
         {primary.name}
@@ -134,13 +134,13 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
         <Button
           isDisabled={!primary.enabled}
           onPress={() => executeLaunchable(0)}
-          className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-12 font-medium text-text-muted rounded-l-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
+          className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-12 font-medium text-text-muted rounded-l-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {PrimaryIcon && <PrimaryIcon size={12} />}
           {primary.name}
         </Button>
         <MenuTrigger>
-          <Button className="flex items-center px-1.5 py-1.5 text-stone-600 dark:text-stone-400 rounded-r-lg border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none">
+          <Button className="flex items-center px-1.5 py-1.5 text-stone-600 dark:text-stone-400 rounded-r-control border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
             <ChevronDown size={12} />
           </Button>
           <ToolMenu tools={launchable.map((entry) => entry.tool)} onAction={executeLaunchable} />

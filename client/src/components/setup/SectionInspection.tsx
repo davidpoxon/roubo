@@ -54,7 +54,7 @@ export default function SectionInspection({
         </p>
         <Button
           onPress={addInspection}
-          className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+          className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
         >
           <Plus size={12} /> Add inspection
         </Button>
@@ -86,7 +86,7 @@ export default function SectionInspection({
         <Button
           onPress={removeInspection}
           aria-label="Remove inspection"
-          className="flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+          className="flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
         >
           <Trash2 size={12} /> Remove
         </Button>
@@ -165,7 +165,7 @@ export default function SectionInspection({
                       env: Object.keys(env).length > 0 ? env : undefined,
                     });
                   }}
-                  className="p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+                  className="p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
                 >
                   <X size={14} />
                 </Button>
@@ -176,7 +176,7 @@ export default function SectionInspection({
         })}
         <Button
           onPress={() => update({ env: { ...inspection.env, "": "" } })}
-          className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+          className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
         >
           <Plus size={12} /> Add variable
         </Button>

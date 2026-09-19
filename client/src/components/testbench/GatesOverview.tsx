@@ -141,13 +141,13 @@ function GateCard({
       data-testid="gate-card"
       data-selected={selected || undefined}
       data-blocked={hasUpstreamBlockers || undefined}
-      className="group relative flex flex-col gap-2 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3 transition-colors hover:ring-amber-500/40 data-[blocked]:ring-amber-500/50 data-[selected]:ring-amber-500"
+      className="group relative flex flex-col gap-2 rounded-lg ring-1 ring-inset ring-border bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3 transition-colors hover:ring-amber-500/40 data-[blocked]:ring-amber-500/50 data-[selected]:ring-amber-500"
     >
       <Button
         onPress={() => (selectable ? onToggleSelected(gate.gateId) : onOpen(gate.gateId))}
         data-testid="gate-open"
         aria-label={selectable ? `Select ${gate.gateId} to merge` : `Open gate ${gate.gateId}`}
-        className="absolute inset-0 rounded-lg outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-inset data-[focus-visible]:ring-amber-500"
+        className="absolute inset-0 rounded-control outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-inset data-[focus-visible]:ring-focus-ring"
       />
       <div className="flex items-center justify-between gap-3 w-full min-w-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -157,7 +157,7 @@ function GateCard({
               onChange={() => onToggleSelected(gate.gateId)}
               aria-label={`Select ${gate.gateId} to merge`}
               data-testid="gate-merge-checkbox"
-              className="relative z-10 flex items-center justify-center w-4 h-4 rounded border border-stone-300 dark:border-stone-700 data-[selected]:bg-amber-500 data-[selected]:border-amber-500 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-500 shrink-0 cursor-pointer"
+              className="relative z-10 flex items-center justify-center w-4 h-4 rounded-control border border-stone-300 dark:border-stone-700 data-[selected]:bg-amber-500 data-[selected]:border-amber-500 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring shrink-0 cursor-pointer"
             >
               {selected && <span className="w-1.5 h-1.5 rounded-sm bg-stone-950" />}
             </Checkbox>
@@ -188,7 +188,7 @@ function GateCard({
             <Button
               onPress={() => onSplit(gate)}
               data-testid="gate-split-trigger"
-              className="relative z-10 flex items-center gap-1 px-1.5 py-0.5 text-11 font-medium rounded text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="relative z-10 flex items-center gap-1 px-1.5 py-0.5 text-11 font-medium rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Split size={12} aria-hidden />
               {STRINGS.split}
@@ -270,12 +270,12 @@ function SplitDialog({
       }}
       isDismissable={!isPending}
       isKeyboardDismissDisabled={isPending}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-md mx-4 flex flex-col max-h-[85vh]">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
         >
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 shrink-0 flex items-center justify-between gap-3">
             <Heading
@@ -288,7 +288,7 @@ function SplitDialog({
               onPress={onClose}
               isDisabled={isPending}
               aria-label="Close"
-              className="text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+              className="text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-control"
             >
               <X size={16} aria-hidden />
             </Button>
@@ -312,7 +312,7 @@ function SplitDialog({
                         isDisabled={isPending}
                         data-testid={`split-assign-${wu}-${part}`}
                         data-active={assignment[wu] === part || undefined}
-                        className="px-2 py-0.5 text-11 font-medium rounded-md ring-1 ring-inset ring-stone-200 dark:ring-stone-700 text-stone-500 dark:text-stone-400 data-[active]:bg-amber-500 data-[active]:text-stone-950 data-[active]:ring-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                        className="px-2 py-0.5 text-11 font-medium rounded-control ring-1 ring-inset ring-border-strong text-stone-500 dark:text-stone-400 data-[active]:bg-amber-500 data-[active]:text-stone-950 data-[active]:ring-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {part}
                       </Button>
@@ -333,7 +333,7 @@ function SplitDialog({
               onPress={onClose}
               isDisabled={isPending}
               data-testid="split-cancel"
-              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {STRINGS.splitCancel}
             </Button>
@@ -346,7 +346,7 @@ function SplitDialog({
                 ])
               }
               data-testid="split-confirm"
-              className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {isPending ? STRINGS.splitting : STRINGS.splitConfirm}
             </Button>
@@ -496,7 +496,7 @@ export default function GatesOverview({
                 onPress={exitMergeMode}
                 isDisabled={mergeMutation.isPending}
                 data-testid="merge-cancel"
-                className="px-2.5 py-1 text-11 font-medium rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="px-2.5 py-1 text-11 font-medium rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 {STRINGS.mergeCancel}
               </Button>
@@ -504,7 +504,7 @@ export default function GatesOverview({
                 onPress={confirmMerge}
                 isDisabled={selected.size < 2 || mergeMutation.isPending}
                 data-testid="merge-confirm"
-                className="px-3 py-1 text-11 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="px-3 py-1 text-11 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring not-disabled:active:bg-accent-active"
               >
                 {mergeMutation.isPending ? STRINGS.merging : STRINGS.mergeConfirm(selected.size)}
               </Button>
@@ -522,7 +522,7 @@ export default function GatesOverview({
                   setActionError(null);
                 }}
                 data-testid="merge-mode-trigger"
-                className="flex items-center gap-1 px-2.5 py-1 text-11 font-medium rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="flex items-center gap-1 px-2.5 py-1 text-11 font-medium rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <GitMerge size={12} aria-hidden />
                 {STRINGS.mergeMode}

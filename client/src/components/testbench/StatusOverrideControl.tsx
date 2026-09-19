@@ -55,21 +55,21 @@ export default function StatusOverrideControl({
         }}
       >
         <Label className="sr-only">Case status</Label>
-        <Button className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2.5 py-1 text-12 font-medium text-stone-700 dark:text-stone-200 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-600 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/40 disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-800/40 disabled:text-stone-400 dark:disabled:text-stone-600">
+        <Button className="inline-flex items-center gap-1.5 rounded-control border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2.5 py-1 text-12 font-medium text-stone-700 dark:text-stone-200 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-600 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-800/40 disabled:text-stone-400 dark:disabled:text-stone-600">
           <SelectValue>{({ selectedText }) => selectedText ?? STATUS_LABEL[selected]}</SelectValue>
           <ChevronDown
             aria-hidden="true"
             className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400"
           />
         </Button>
-        <Popover className="animate-rise-in min-w-[--trigger-width] rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-lg outline-none">
+        <Popover className="animate-rise-in min-w-[--trigger-width] rounded-control border border-border bg-bg-surface shadow-elevation-0 outline-none">
           <ListBox className="p-1 outline-none">
             {STATUS_ORDER.map((status) => (
               <ListBoxItem
                 key={status}
                 id={status}
                 textValue={STATUS_LABEL[status]}
-                className="flex items-center justify-between gap-3 rounded px-2 py-1 text-12 text-stone-700 dark:text-stone-200 cursor-pointer outline-none data-[focused]:bg-amber-50 dark:data-[focused]:bg-amber-950/30 data-[focused]:text-amber-900 dark:data-[focused]:text-amber-200"
+                className="flex items-center justify-between gap-3 rounded-chip px-2 py-1 text-12 text-stone-700 dark:text-stone-200 cursor-pointer outline-none data-[focused]:bg-amber-50 dark:data-[focused]:bg-amber-950/30 data-[focused]:text-amber-900 dark:data-[focused]:text-amber-200"
               >
                 <span>{STATUS_LABEL[status]}</span>
                 {status === derivedStatus && (

@@ -89,7 +89,7 @@ export default function FileFixIssuePanel({
   return (
     <section
       aria-label="File fix issue"
-      className="shrink-0 rounded-lg ring-1 ring-inset ring-red-200/80 dark:ring-red-900/40 bg-red-50/60 dark:bg-red-950/20 p-4"
+      className="shrink-0 rounded-lg ring-1 ring-inset ring-danger-border bg-red-50/60 dark:bg-red-950/20 p-4"
     >
       <h3 className="text-14 font-semibold text-stone-900 dark:text-stone-100">
         Case {failedCaseId} failed
@@ -131,7 +131,7 @@ export default function FileFixIssuePanel({
             <Button
               onPress={() => file(record.fixIssueRef)}
               isDisabled={fileFixIssue.isPending}
-              className="rounded-md bg-amber-500 px-3 py-1.5 text-13 font-medium text-stone-950 outline-none transition-colors not-disabled:hover:bg-amber-400 not-disabled:active:bg-amber-600 disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             >
               {fileFixIssue.isPending ? "Retrying…" : "Retry link only"}
             </Button>
@@ -164,7 +164,7 @@ export default function FileFixIssuePanel({
             <TextArea
               rows={3}
               placeholder="Describe the failure"
-              className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-13 text-stone-900 placeholder-stone-500 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:ring-inset"
+              className="w-full resize-y rounded-control border border-border-control bg-bg-field px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:border-focus-ring focus:ring-2 focus:ring-focus-ring focus:ring-inset aria-[invalid=true]:border-danger data-[invalid]:border-danger"
             />
           </TextField>
           {notesRequired && (
@@ -181,7 +181,7 @@ export default function FileFixIssuePanel({
             <Button
               type="submit"
               isDisabled={fileFixIssue.isPending}
-              className="rounded-md bg-amber-500 px-3 py-1.5 text-13 font-medium text-stone-950 outline-none transition-colors not-disabled:hover:bg-amber-400 not-disabled:active:bg-amber-600 disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             >
               {fileFixIssue.isPending ? "Filing…" : "File fix issue & block gate"}
             </Button>

@@ -45,7 +45,7 @@ export default function WizardNavBar({
       {showBack && backLabel ? (
         <Button
           onPress={onBack}
-          className="text-13 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors flex items-center gap-1.5 pressed:text-stone-400"
+          className="text-13 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors flex items-center gap-1.5 pressed:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <ArrowLeft size={14} />
           {backLabel}
@@ -57,7 +57,7 @@ export default function WizardNavBar({
       {nextSection && (
         <Button
           onPress={onContinue}
-          className="text-13 px-4 py-2 rounded-md bg-amber-500 text-stone-950 hover:bg-amber-400 transition-colors font-medium flex items-center gap-1.5 pressed:bg-amber-600"
+          className="text-13 px-4 py-2 rounded-control bg-accent text-on-accent not-disabled:hover:bg-accent-hover transition-colors font-medium flex items-center gap-1.5 not-disabled:active:bg-accent-active outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {nextLabel}
           <ArrowRight size={14} />

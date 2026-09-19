@@ -104,7 +104,7 @@ export function SourceScreen({
                       ? "text-stone-900 dark:text-stone-100 border-amber-500"
                       : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
                     isFocusVisible
-                      ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
+                      ? "ring-2 ring-focus-ring ring-offset-1 ring-offset-bg-base rounded-t"
                       : "",
                   ].join(" ")
                 }
@@ -126,7 +126,7 @@ export function SourceScreen({
               <Input
                 data-testid="install-plugin-git-url"
                 placeholder={STRINGS.repoUrlPlaceholder}
-                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 font-mono text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
               />
               <p className="mt-1.5 text-11 text-stone-500 dark:text-stone-500">
                 {STRINGS.repoUrlHelp}
@@ -146,7 +146,7 @@ export function SourceScreen({
               <Input
                 data-testid="install-plugin-local-path"
                 placeholder={STRINGS.localPathPlaceholder}
-                className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 font-mono text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
               />
               <p className="mt-1.5 text-11 text-stone-500 dark:text-stone-500">
                 {STRINGS.localPathHelpPrefix}
@@ -172,7 +172,7 @@ export function SourceScreen({
         <Button
           onPress={onCancel}
           isDisabled={submitting}
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {cancelLabel}
         </Button>
@@ -180,7 +180,7 @@ export function SourceScreen({
           onPress={onSubmit}
           isDisabled={submitting}
           data-testid="install-plugin-submit"
-          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-stone-100 bg-stone-700 dark:bg-stone-700 hover:bg-stone-600 dark:hover:bg-stone-600 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-stone-100 bg-stone-700 dark:bg-stone-700 hover:bg-stone-600 dark:hover:bg-stone-600 disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {submitting ? (
             <>
@@ -256,7 +256,7 @@ export function PermissionsScreen({
           onPress={onCancel}
           isDisabled={confirming}
           data-testid="install-plugin-permissions-cancel"
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.cancel}
         </Button>
@@ -264,7 +264,7 @@ export function PermissionsScreen({
           onPress={onConfirm}
           isDisabled={confirming}
           data-testid="install-plugin-confirm"
-          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {confirming ? (
             <>

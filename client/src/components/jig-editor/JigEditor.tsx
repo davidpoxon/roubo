@@ -29,7 +29,7 @@ export default function JigEditor({ mode, scope }: Props) {
         </p>
         <Button
           onPress={() => navigate(backHref)}
-          className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
+          className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {backLabel}
         </Button>
@@ -88,7 +88,7 @@ function EditLoader({ jigId, scope, projectId, backHref, backLabel }: EditLoader
         <p className="text-13 text-stone-600 dark:text-stone-400">Jig not found.</p>
         <Button
           onPress={() => navigate(backHref)}
-          className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
+          className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {backLabel}
         </Button>

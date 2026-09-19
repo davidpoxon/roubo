@@ -77,7 +77,7 @@ export default function SetupValidationPanel({
         <Button
           onPress={onValidate}
           isDisabled={isValidating}
-          className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline disabled:opacity-40 disabled:cursor-default flex items-center gap-1"
+          className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline disabled:opacity-40 disabled:cursor-default flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {isValidating ? <Loader size={12} className="animate-spin" /> : null}
           Check

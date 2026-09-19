@@ -39,9 +39,7 @@ export function SettingToggle({
               isSelected
                 ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
                 : "bg-transparent border-stone-300 dark:border-stone-600",
-              isFocusVisible
-                ? "ring-2 ring-stone-400 dark:ring-stone-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
-                : "",
+              isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
             ].join(" ")}
           >
             <div

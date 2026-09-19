@@ -12,7 +12,7 @@ const STRINGS = {
 };
 
 const ACTION_CLASS =
-  "px-2.5 py-1 text-11 font-medium rounded-md text-stone-300 bg-stone-800 hover:bg-stone-700 hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "px-2.5 py-1 text-11 font-medium rounded-control text-stone-300 bg-stone-800 hover:bg-stone-700 hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 /**
  * The in-terminal error panel for a launch that never produced a working session

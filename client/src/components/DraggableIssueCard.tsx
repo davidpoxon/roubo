@@ -186,7 +186,7 @@ export default function DraggableIssueCard({
         <div onPointerDown={(e) => e.stopPropagation()}>
           <Button
             onPress={() => window.open(issue.externalUrl, "_blank")}
-            className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none opacity-0 group-hover:opacity-100"
+            className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none opacity-0 group-hover:opacity-100 focus-visible:ring-2 focus-visible:ring-focus-ring"
             aria-label={`Open ${issue.externalId} in browser`}
           >
             <ExternalLink size={12} />

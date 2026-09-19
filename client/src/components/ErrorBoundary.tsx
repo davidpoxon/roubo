@@ -86,7 +86,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           <div className="flex justify-end">
             <Button
               onPress={this.handleReload}
-              className="px-4 py-2 text-13 font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-400"
+              className="px-4 py-2 text-13 font-medium rounded-control bg-amber-500 text-white hover:bg-amber-600 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring"
             >
               Reload
             </Button>

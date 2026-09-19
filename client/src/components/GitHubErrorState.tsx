@@ -181,7 +181,7 @@ export default function GitHubErrorState({
     onRetry && (copy.showSecondaryRetry || !primaryAction) ? (
       <Button
         onPress={onRetry}
-        className="text-12 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors"
+        className="text-12 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         Retry
       </Button>
@@ -225,7 +225,7 @@ export default function GitHubErrorState({
 }
 
 const primaryActionClass = [
-  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-12 font-medium transition-colors outline-none no-underline shrink-0",
-  "bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950",
-  "focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950",
+  "flex items-center gap-1.5 px-3 py-1.5 rounded-control text-12 font-medium transition-colors outline-none no-underline shrink-0",
+  "bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active text-on-accent",
+  "focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950",
 ].join(" ");

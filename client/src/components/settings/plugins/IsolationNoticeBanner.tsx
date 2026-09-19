@@ -18,7 +18,7 @@ const STRINGS = {
 };
 
 const ACTION_BUTTON_CLASS =
-  "self-start px-2.5 py-1 text-12 font-medium rounded-md border border-amber-300 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 not-disabled:hover:bg-amber-100 dark:not-disabled:hover:bg-amber-900/30 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "self-start px-2.5 py-1 text-12 font-medium rounded-control border border-amber-300 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 not-disabled:hover:bg-amber-100 dark:not-disabled:hover:bg-amber-900/30 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 /**
  * Surfaces docker isolation-tier notices (#743) on the plugin card. The plugin

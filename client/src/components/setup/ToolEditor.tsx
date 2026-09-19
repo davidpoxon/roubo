@@ -58,7 +58,7 @@ export default function ToolEditor({
           <Button
             aria-label="Remove tool"
             onPress={() => onRemove(index)}
-            className="p-1 text-stone-600 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded"
+            className="p-1 text-stone-600 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
           >
             <Trash2 size={14} />
           </Button>
@@ -76,9 +76,9 @@ export default function ToolEditor({
                     key={iconName}
                     aria-label={iconName}
                     onPress={() => update({ icon: iconName })}
-                    className={`p-1.5 rounded-lg transition-colors duration-150 outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-500 ${
+                    className={`p-1.5 rounded-control transition-colors duration-150 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                       isSelected
-                        ? "bg-stone-700 text-stone-100 ring-1 ring-stone-600"
+                        ? "bg-stone-700 text-stone-100 ring-1 ring-border-strong"
                         : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/60"
                     }`}
                   >
@@ -95,7 +95,7 @@ export default function ToolEditor({
                 <Button
                   key={t}
                   onPress={() => update({ type: t })}
-                  className={`px-3 py-1.5 text-12 rounded-lg transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 ${
+                  className={`px-3 py-1.5 text-12 rounded-control transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                     tool.type === t
                       ? "bg-stone-700 text-stone-100"
                       : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"

@@ -54,7 +54,7 @@ export default function SetupTile({ projectId }: Props) {
     <Button
       aria-label="Edit project configuration"
       onPress={() => navigate(`/projects/${projectId}/settings/setup`)}
-      className="text-11 px-2.5 py-1 rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-300 dark:hover:border-stone-600 hover:text-stone-800 dark:hover:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer"
+      className="text-11 px-2.5 py-1 rounded-control border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-300 dark:hover:border-stone-600 hover:text-stone-800 dark:hover:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer"
     >
       Edit setup →
     </Button>

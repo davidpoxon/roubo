@@ -31,12 +31,12 @@ export default function AssignContainerModal({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       isDismissable
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-md mx-4">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           {({ close }) => (
             <>
@@ -72,9 +72,9 @@ export default function AssignContainerModal({
                         <Button
                           key={c.id}
                           onPress={() => setSelectedId(isSelected ? null : c.id)}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors outline-none ${
+                          className={`focus-visible:ring-2 focus-visible:ring-focus-ring w-full flex items-center gap-3 px-3 py-2.5 rounded-control text-left transition-colors outline-none ${
                             isSelected
-                              ? "bg-stone-200 dark:bg-stone-800 ring-1 ring-stone-400 dark:ring-stone-600"
+                              ? "bg-stone-200 dark:bg-stone-800 ring-1 ring-border-control"
                               : "hover:bg-stone-100 dark:hover:bg-stone-800/60"
                           }`}
                         >
@@ -107,7 +107,7 @@ export default function AssignContainerModal({
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                 <Button
                   onPress={close}
-                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Cancel
                 </Button>
@@ -123,7 +123,7 @@ export default function AssignContainerModal({
                     });
                     close();
                   }}
-                  className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-stone-700 not-disabled:hover:bg-stone-600 disabled:opacity-40 rounded-lg transition-colors outline-none"
+                  className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-stone-700 not-disabled:hover:bg-stone-600 disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   {assign.isPending ? "Assigning..." : "Assign"}
                 </Button>

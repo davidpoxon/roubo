@@ -49,7 +49,7 @@ export default function Select({
         placeholder={placeholder}
         aria-label={ariaLabel ?? placeholder ?? "Select"}
       >
-        <Button className="w-full flex items-center justify-between rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 data-[pressed]:bg-stone-200 dark:data-[pressed]:bg-stone-800">
+        <Button className="w-full flex items-center justify-between rounded-control bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus:ring-2 focus:ring-focus-ring data-[pressed]:bg-stone-200 dark:data-[pressed]:bg-stone-800">
           <SelectValue className="truncate data-[placeholder]:text-stone-600 dark:data-[placeholder]:text-stone-400">
             {({ isPlaceholder, selectedText }) => {
               if (isPlaceholder) return <span>{placeholder}</span>;
@@ -59,7 +59,7 @@ export default function Select({
           </SelectValue>
           <ChevronDown size={16} className="shrink-0 ml-2 text-stone-600 dark:text-stone-300" />
         </Button>
-        <Popover className="animate-rise-in w-[var(--trigger-width)] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 overflow-auto max-h-60">
+        <Popover className="animate-rise-in w-[var(--trigger-width)] rounded-control bg-bg-surface border border-border shadow-elevation-0 py-1 z-50 overflow-auto max-h-60">
           <ListBox className="outline-none">
             {normalized.map((item) => (
               <ListBoxItem
@@ -88,7 +88,7 @@ export default function Select({
         <Button
           aria-label="Clear selection"
           onPress={() => onChange("")}
-          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded outline-none transition-colors duration-150 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400"
+          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded-control outline-none transition-colors duration-150 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400 focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <X size={14} />
         </Button>

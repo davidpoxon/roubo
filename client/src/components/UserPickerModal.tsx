@@ -20,12 +20,12 @@ export default function UserPickerModal({
         if (!open) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-sm mx-4">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none overflow-hidden"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none overflow-hidden"
         >
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
@@ -43,7 +43,7 @@ export default function UserPickerModal({
                 <Button
                   key={user.name}
                   onPress={() => onSelect(user.name)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none"
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left rounded-control hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <span className="text-13 font-medium text-stone-800 dark:text-stone-200">
                     {user.name}

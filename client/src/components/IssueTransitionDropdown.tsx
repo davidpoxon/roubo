@@ -60,13 +60,13 @@ export default function IssueTransitionDropdown({
             }}
           >
             <Button
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-11 font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-1 focus-visible:ring-amber-500"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control text-11 font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-2 focus-visible:ring-focus-ring"
               data-testid="transition-trigger"
             >
               <span>{optimisticState}</span>
               <ChevronDown size={12} className="shrink-0" />
             </Button>
-            <Popover className="animate-rise-in min-w-[var(--trigger-width)] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 overflow-auto max-h-60">
+            <Popover className="animate-rise-in min-w-[var(--trigger-width)] rounded-control bg-bg-surface border border-border shadow-elevation-0 py-1 z-50 overflow-auto max-h-60">
               <ListBox className="outline-none" aria-label="Available transitions">
                 {allowedTransitions.map((t) => (
                   <ListBoxItem

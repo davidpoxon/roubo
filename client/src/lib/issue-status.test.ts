@@ -2,45 +2,44 @@ import { describe, it, expect } from "vitest";
 import { statusColor, isHiddenByDefault } from "./issue-status";
 
 describe("statusColor", () => {
-  it('returns blue colors for "in progress"', () => {
+  it('returns the in-progress project-status token for "in progress"', () => {
     const result = statusColor("in progress");
-    expect(result.dot).toBe("bg-blue-400");
-    expect(result.text).toBe("text-blue-400");
-    expect(result.activeBg).toBe("bg-blue-400/10");
-    expect(result.activeBorder).toBe("border-blue-400/30");
+    expect(result.dot).toBe("bg-project-status-in-progress");
+    expect(result.text).toBe("text-text-secondary");
+    expect(result.activeBg).toBe("bg-project-status-in-progress/10");
+    expect(result.activeBorder).toBe("border-project-status-in-progress/30");
   });
 
-  it('returns fuchsia colors for "ready"', () => {
-    const result = statusColor("ready");
-    expect(result.dot).toBe("bg-fuchsia-400");
-    expect(result.text).toBe("text-fuchsia-400");
+  it('returns the ready project-status token for "ready"', () => {
+    expect(statusColor("ready").dot).toBe("bg-project-status-ready");
   });
 
-  it('returns cyan colors for "todo"', () => {
-    const result = statusColor("todo");
-    expect(result.dot).toBe("bg-cyan-400");
-    expect(result.text).toBe("text-cyan-400");
+  it('returns the todo project-status token for "todo"', () => {
+    expect(statusColor("todo").dot).toBe("bg-project-status-todo");
   });
 
-  it('returns stone-600 colors for "done"', () => {
-    const result = statusColor("done");
-    expect(result.dot).toBe("bg-stone-600");
-    expect(result.text).toBe("text-stone-600");
+  it('returns the idle status token for "done"', () => {
+    expect(statusColor("done").dot).toBe("bg-status-idle");
   });
 
-  it("returns default stone-500 colors, with theme-switched muted text, for unknown status", () => {
+  it("never lets a categorical hue carry text", () => {
+    for (const status of ["in progress", "ready", "todo", "done", "unknown-status"]) {
+      expect(statusColor(status).text).toBe("text-text-secondary");
+    }
+  });
+
+  it("returns the idle status token for an unknown status", () => {
     const result = statusColor("unknown-status");
-    expect(result.dot).toBe("bg-stone-500");
-    expect(result.text).toBe("text-text-muted");
-    expect(result.activeBg).toBe("bg-stone-500/10");
-    expect(result.activeBorder).toBe("border-stone-500/30");
+    expect(result.dot).toBe("bg-status-idle");
+    expect(result.activeBg).toBe("bg-status-idle/10");
+    expect(result.activeBorder).toBe("border-status-idle/30");
   });
 
   it("is case-insensitive", () => {
-    expect(statusColor("IN PROGRESS").dot).toBe("bg-blue-400");
-    expect(statusColor("READY").dot).toBe("bg-fuchsia-400");
-    expect(statusColor("TODO").dot).toBe("bg-cyan-400");
-    expect(statusColor("DONE").dot).toBe("bg-stone-600");
+    expect(statusColor("IN PROGRESS").dot).toBe("bg-project-status-in-progress");
+    expect(statusColor("READY").dot).toBe("bg-project-status-ready");
+    expect(statusColor("TODO").dot).toBe("bg-project-status-todo");
+    expect(statusColor("DONE").dot).toBe("bg-status-idle");
   });
 });
 

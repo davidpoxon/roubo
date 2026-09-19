@@ -35,14 +35,14 @@ export function SettingsSaveBar({ hasAnyDirty, isSaving, saveErrors, onSave, onD
           <Button
             onPress={onDiscard}
             isDisabled={isSaving}
-            className="px-3 py-2 text-13 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors outline-none disabled:opacity-40 data-[focus-visible]:ring-2 data-[focus-visible]:ring-stone-400"
+            className="px-3 py-2 text-13 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors outline-none disabled:opacity-40 data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring"
           >
             Discard
           </Button>
           <Button
             onPress={onSave}
             isDisabled={!hasAnyDirty || isSaving}
-            className="px-4 py-2 text-13 font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-400"
+            className="px-4 py-2 text-13 font-medium rounded-control bg-amber-500 text-white hover:bg-amber-600 transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring"
           >
             {isSaving ? "Saving…" : "Save changes"}
           </Button>

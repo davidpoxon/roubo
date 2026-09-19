@@ -21,14 +21,14 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
     <>
       <DialogTrigger isOpen={isOpen} onOpenChange={setIsOpen}>
         <Button
-          className="p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none"
+          className="p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           aria-label="Insert template variable"
         >
           <Braces size={14} />
         </Button>
         <Popover
           placement="bottom end"
-          className="animate-rise-in w-80 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl z-50 outline-none"
+          className="animate-rise-in w-80 rounded-control bg-bg-surface border border-border shadow-elevation-0 z-50 outline-none"
         >
           <div className="max-h-72 overflow-auto py-1.5">
             {groups.map((group, gi) => (
@@ -45,7 +45,7 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
                       onInsert(v.syntax);
                       setIsOpen(false);
                     }}
-                    className="w-full text-left px-3 py-1.5 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors group/item outline-none"
+                    className="w-full text-left px-3 py-1.5 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors group/item outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <code className="text-11 font-mono text-stone-700 dark:text-stone-300">
@@ -79,7 +79,7 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
                 setIsOpen(false);
                 setShowReference(true);
               }}
-              className="flex items-center gap-1.5 text-11 text-stone-500 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none"
+              className="flex items-center gap-1.5 text-11 text-stone-500 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Learn more about template variables
               <ArrowRight size={12} />

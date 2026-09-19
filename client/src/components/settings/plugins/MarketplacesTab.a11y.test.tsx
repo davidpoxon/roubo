@@ -112,7 +112,7 @@ describe("MarketplacesTab: keyboard operability (TC-023 S001)", () => {
     ];
     for (const control of controls) {
       expect(control.className).toContain("focus-visible:ring-2");
-      expect(control.className).toContain("focus-visible:ring-amber-500");
+      expect(control.className).toContain("focus-visible:ring-focus-ring");
     }
   });
 

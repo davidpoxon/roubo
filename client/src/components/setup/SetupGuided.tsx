@@ -141,7 +141,7 @@ export default function SetupGuided({
             <Link
               to=".."
               relative="path"
-              className="inline-flex items-center gap-1 hover:text-stone-900 dark:hover:text-stone-200 transition-colors"
+              className="inline-flex items-center gap-1 hover:text-stone-900 dark:hover:text-stone-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <ChevronLeft size={12} />
               Settings
@@ -414,7 +414,7 @@ function BenchCapacityFields({
             min={1}
             max={99}
             placeholder="9"
-            className="w-24 rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+            className="w-24 rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
           />
         </TextField>
         {max > 99 && <p className="mt-1 text-11 text-red-400">Must be between 1 and 99</p>}
@@ -429,7 +429,7 @@ function BenchCapacityFields({
           <Input
             type="text"
             placeholder="e.g. cd app && npm ci"
-            className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+            className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
           />
         </TextField>
         <p className="text-11 text-text-muted mt-1">

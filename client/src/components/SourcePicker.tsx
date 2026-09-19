@@ -84,7 +84,7 @@ export default function SourcePicker({
               <Tab
                 key={category.id}
                 id={category.id}
-                className="px-3 py-1.5 text-12 font-medium text-stone-500 dark:text-stone-400 cursor-default outline-none border-b-2 border-transparent -mb-px transition-colors data-[hovered]:text-stone-700 dark:data-[hovered]:text-stone-200 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100 data-[selected]:border-amber-500 data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-500 rounded-t"
+                className="px-3 py-1.5 text-12 font-medium text-stone-500 dark:text-stone-400 cursor-default outline-none border-b-2 border-transparent -mb-px transition-colors data-[hovered]:text-stone-700 dark:data-[hovered]:text-stone-200 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100 data-[selected]:border-amber-500 data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-t"
               >
                 {category.label}
                 {count > 0 && (
@@ -311,7 +311,7 @@ function MineSourceControl({
             )
           }
           aria-label={`Include ${label.toLowerCase()}`}
-          className="group outline-none"
+          className="group outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {({ isSelected, isFocusVisible }) => (
             <div
@@ -320,9 +320,7 @@ function MineSourceControl({
                 isSelected
                   ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
                   : "bg-transparent border-stone-300 dark:border-stone-600",
-                isFocusVisible
-                  ? "ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
-                  : "",
+                isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
               ].join(" ")}
             >
               <div
@@ -353,7 +351,7 @@ function MineSourceControl({
                 value={opt.id}
                 aria-label={opt.label}
                 isDisabled={optionDisabled}
-                className="outline-none data-[disabled]:opacity-40"
+                className="outline-none data-[disabled]:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 {({ isSelected, isFocusVisible, isDisabled }) => (
                   <div
@@ -364,7 +362,7 @@ function MineSourceControl({
                         ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80 text-stone-900 dark:text-stone-100"
                         : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 text-stone-600 dark:text-stone-400 hover:border-stone-300 dark:hover:border-stone-700",
                       isFocusVisible
-                        ? "ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
+                        ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base"
                         : "",
                     ].join(" ")}
                   >

@@ -146,7 +146,7 @@ export default function ErroredBanner({
           <Button
             isDisabled={restart.isPending}
             onPress={() => restart.mutate(pluginId)}
-            className="px-2 py-1 text-12 font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="px-2 py-1 text-12 font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {restart.isPending ? STRINGS.restarting : STRINGS.restart}
           </Button>
@@ -155,14 +155,14 @@ export default function ErroredBanner({
               isDisabled={updatePreview.isPending}
               onPress={beginReinstall}
               data-testid="plugin-reinstall-action"
-              className="px-2 py-1 text-12 font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-2 py-1 text-12 font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {updatePreview.isPending ? STRINGS.reinstalling : STRINGS.reinstall}
             </Button>
           )}
           <Button
             onPress={onViewLogs}
-            className="px-2 py-1 text-12 font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="px-2 py-1 text-12 font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {STRINGS.viewLogs}
           </Button>

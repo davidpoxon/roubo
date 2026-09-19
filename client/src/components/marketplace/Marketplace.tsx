@@ -114,11 +114,11 @@ function chipClasses({
   isFocusVisible: boolean;
 }): string {
   return [
-    "cursor-pointer rounded-lg px-3 py-1.5 text-12 font-medium outline-none transition-colors",
+    "cursor-pointer rounded-control px-3 py-1.5 text-12 font-medium outline-none transition-colors",
     isSelected
       ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
       : "text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-800 dark:hover:text-stone-200",
-    isFocusVisible ? "ring-2 ring-amber-500" : "",
+    isFocusVisible ? "ring-2 ring-focus-ring" : "",
   ].join(" ");
 }
 
@@ -385,7 +385,7 @@ export default function Marketplace() {
           <Input
             data-testid="marketplace-search"
             placeholder={STRINGS.searchPlaceholder}
-            className="w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 py-2 pl-9 pr-3 text-13 text-stone-900 dark:text-stone-100 placeholder:text-stone-500 dark:placeholder:text-stone-400 outline-none transition-colors focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 hover:border-stone-300 dark:hover:border-stone-600"
+            className="w-full rounded-control border border-border-control bg-bg-field py-2 pl-9 pr-3 text-13 text-text-primary placeholder:text-text-secondary outline-none transition-colors focus:border-focus-ring focus:ring-2 focus:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
           />
         </SearchField>
 
@@ -548,13 +548,13 @@ export default function Marketplace() {
           }}
           isDismissable={staging.failed}
           isKeyboardDismissDisabled={!staging.failed}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
         >
           <Modal className="animate-rise-in w-full max-w-lg mx-4">
             <Dialog
               ref={stampAriaModal}
               data-testid="marketplace-install-progress-modal"
-              className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none p-5"
+              className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none p-5"
             >
               <Heading
                 slot="title"
@@ -597,7 +597,7 @@ export default function Marketplace() {
                         data-testid="marketplace-ambiguous-choice"
                         data-source-id={id}
                         onPress={() => chooseSource(id)}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-12 font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                        className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-12 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
                       >
                         {staging.mode === "update"
                           ? STRINGS.updateFrom(sourceLabels.get(id) ?? id)
@@ -638,7 +638,7 @@ export default function Marketplace() {
                     autoFocus
                     onPress={dismissStaging}
                     data-testid="marketplace-install-progress-close"
-                    className="shrink-0 rounded-lg px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                    className="shrink-0 rounded-control px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     {STRINGS.stagingClose}
                   </Button>

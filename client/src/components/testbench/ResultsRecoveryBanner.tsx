@@ -72,7 +72,7 @@ export default function ResultsRecoveryBanner({
         onPress={() => setDismissed(true)}
         aria-label={STRINGS.dismiss}
         data-testid="results-recovery-banner-dismiss"
-        className="shrink-0 p-1 rounded-md text-amber-800 hover:bg-amber-100 active:bg-amber-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-amber-50"
+        className="shrink-0 p-1 rounded-control text-amber-800 hover:bg-amber-100 active:bg-amber-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-amber-50"
       >
         <X size={16} aria-hidden />
       </Button>

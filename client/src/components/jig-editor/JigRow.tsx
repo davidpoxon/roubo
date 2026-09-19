@@ -94,7 +94,7 @@ export default function JigRow({
           <Link
             to={editHref}
             aria-label={`Edit ${jig.name}`}
-            className="p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors rounded outline-none focus-visible:ring-1 focus-visible:ring-stone-400"
+            className="p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Pencil size={14} />
           </Link>
@@ -102,14 +102,14 @@ export default function JigRow({
             onPress={() => onDuplicate(jig)}
             aria-label={`Duplicate ${jig.name}`}
             isDisabled={isDuplicating}
-            className="p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors rounded outline-none focus-visible:ring-1 focus-visible:ring-stone-400 disabled:opacity-40"
+            className="p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40"
           >
             {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
           </Button>
           <Button
             onPress={() => onDelete(jig)}
             aria-label={`Delete ${jig.name}`}
-            className="p-1.5 text-stone-500 dark:text-stone-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded outline-none focus-visible:ring-1 focus-visible:ring-red-400"
+            className="p-1.5 text-stone-500 dark:text-stone-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Trash2 size={14} />
           </Button>

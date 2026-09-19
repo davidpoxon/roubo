@@ -95,9 +95,7 @@ function SettingToggle({
               isSelected
                 ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
                 : "bg-transparent border-stone-300 dark:border-stone-600",
-              isFocusVisible
-                ? "ring-2 ring-stone-400 dark:ring-stone-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
-                : "",
+              isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
             ].join(" ")}
           >
             <div
@@ -192,7 +190,12 @@ function GlobalBenchLimitSection({
         className="flex gap-3"
       >
         {LIMIT_MODES.map(({ value, label, description }) => (
-          <Radio key={value} value={value} aria-label={label} className="outline-none">
+          <Radio
+            key={value}
+            value={value}
+            aria-label={label}
+            className="outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          >
             {({ isSelected, isFocusVisible }) => (
               <div
                 className={[
@@ -200,9 +203,7 @@ function GlobalBenchLimitSection({
                   isSelected
                     ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
                     : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40",
-                  isFocusVisible
-                    ? "ring-2 ring-stone-400 dark:ring-stone-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
-                    : "",
+                  isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
                 ].join(" ")}
               >
                 <div
@@ -506,7 +507,7 @@ function JigsTab() {
           </h3>
           <Link
             to="/jigs/new"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
           >
             <Plus size={12} />
             New jig
@@ -619,7 +620,12 @@ function AppearanceTab() {
         className="flex gap-3"
       >
         {THEME_OPTIONS.map(({ value, label, Icon, description }) => (
-          <Radio key={value} value={value} aria-label={label} className="outline-none">
+          <Radio
+            key={value}
+            value={value}
+            aria-label={label}
+            className="outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          >
             {({ isSelected, isFocusVisible }) => (
               <div
                 className={[
@@ -627,9 +633,7 @@ function AppearanceTab() {
                   isSelected
                     ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80 text-stone-900 dark:text-stone-100"
                     : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 text-stone-500 dark:text-stone-500 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40 hover:text-stone-700 dark:hover:text-stone-300",
-                  isFocusVisible
-                    ? "ring-2 ring-stone-400 dark:ring-stone-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
-                    : "",
+                  isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
                 ].join(" ")}
               >
                 <Icon
@@ -721,7 +725,7 @@ export default function ProjectSettings() {
                     ? "text-stone-900 dark:text-stone-100 border-amber-500"
                     : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
                   isFocusVisible
-                    ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-white dark:ring-offset-stone-950 rounded-t"
+                    ? "ring-2 ring-focus-ring ring-offset-1 ring-offset-bg-base rounded-t"
                     : "",
                 ].join(" ")
               }

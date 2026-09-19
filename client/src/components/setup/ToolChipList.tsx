@@ -76,9 +76,9 @@ export default function ToolChipList({
           <div key={i}>
             <Button
               onPress={() => toggleExpand(i)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 ${
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-control transition-colors text-left outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                 isExpanded
-                  ? "bg-stone-200/70 dark:bg-stone-800/70 ring-1 ring-stone-300 dark:ring-stone-700"
+                  ? "bg-stone-200/70 dark:bg-stone-800/70 ring-1 ring-border-strong"
                   : "bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/60 dark:hover:bg-stone-800/60"
               }`}
             >
@@ -112,7 +112,7 @@ export default function ToolChipList({
 
       <Button
         onPress={addTool}
-        className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 rounded mt-1"
+        className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control mt-1"
       >
         <Plus size={12} /> Add tool
       </Button>

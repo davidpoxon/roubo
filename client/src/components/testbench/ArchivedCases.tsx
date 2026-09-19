@@ -186,7 +186,7 @@ function LifecycleEntry({
       ref={entryRef}
       tabIndex={-1}
       data-testid={`archived-case-${caseId}`}
-      className={`${ENTRY_CLASS} outline-none focus-visible:ring-2 focus-visible:ring-amber-500`}
+      className={`${ENTRY_CLASS} outline-none focus-visible:ring-2 focus-visible:ring-focus-ring`}
     >
       <div className="flex items-center gap-3">
         <span className="font-mono text-11 text-stone-600 dark:text-stone-400 shrink-0">
@@ -209,7 +209,7 @@ function LifecycleEntry({
           <Button
             data-testid={`archived-replacement-${caseId}`}
             onPress={() => onSelectCase(revealId)}
-            className="mt-1 inline-flex items-center rounded px-1 -mx-1 text-12 font-medium text-amber-700 dark:text-amber-400 underline underline-offset-2 transition-colors hover:text-amber-800 dark:hover:text-amber-300 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer"
+            className="mt-1 inline-flex items-center rounded-control px-1 -mx-1 text-12 font-medium text-amber-700 dark:text-amber-400 underline underline-offset-2 transition-colors hover:text-amber-800 dark:hover:text-amber-300 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer"
           >
             Replaced by {revealId}
           </Button>
@@ -236,7 +236,7 @@ function LifecycleEntry({
                 lifecycle: null,
               })
             }
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-12 font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="inline-flex items-center gap-1.5 rounded-control px-2.5 py-1 text-12 font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Undo2 aria-hidden="true" className="w-3.5 h-3.5" />
             {restore.isPending ? "Restoring..." : "Restore"}
@@ -296,7 +296,7 @@ export default function ArchivedCases({
       // is a legal focus target. jsdom cannot catch this (no layout means
       // scrollHeight and clientHeight are both 0, so the axe rule never fires).
       tabIndex={0}
-      className="max-h-64 overflow-y-auto rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/40 dark:bg-stone-900/30 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+      className="max-h-64 overflow-y-auto rounded-control ring-1 ring-inset ring-border bg-stone-100/40 dark:bg-stone-900/30 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
     >
       <div className="flex items-center gap-2">
         <Archive size={14} className="text-stone-600 dark:text-stone-400 shrink-0" aria-hidden />

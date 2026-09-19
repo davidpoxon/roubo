@@ -129,7 +129,7 @@ function InlineNameInput({
         ref={inputRef}
         placeholder="component-name"
         className={
-          "w-full bg-transparent font-mono text-13 text-stone-800 dark:text-stone-200 font-medium border rounded px-1.5 py-0.5 outline-none transition-colors " +
+          "w-full bg-transparent font-mono text-13 text-text-primary font-medium border rounded-control px-1.5 py-0.5 outline-none transition-colors focus:border-focus-ring focus:ring-2 focus:ring-focus-ring " +
           (hasError
             ? "border-red-400/60 focus:border-red-400"
             : "border-transparent hover:border-stone-300 dark:hover:border-stone-700 focus:border-stone-400 dark:focus:border-stone-600 focus:bg-stone-50 dark:focus:bg-stone-950/60")
@@ -143,10 +143,10 @@ const FIELD_LABEL =
   "block text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400 mb-1.5";
 
 const FIELD_INPUT =
-  "w-full rounded-md bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 px-3 py-1.5 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-500 dark:placeholder-stone-400 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-700 focus:border-stone-400 dark:focus:border-stone-600 focus:bg-white dark:focus:bg-stone-900";
+  "w-full rounded-control bg-bg-field border border-border-control px-3 py-1.5 text-13 text-text-primary placeholder:text-text-secondary outline-none transition-colors focus:border-focus-ring focus:ring-2 focus:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger";
 
 const HERO_INPUT =
-  "w-full rounded-md bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 px-3.5 py-2.5 text-13 font-mono text-stone-900 dark:text-stone-200 placeholder-stone-500 dark:placeholder-stone-400 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-700 focus:border-amber-500/60 focus:bg-white dark:focus:bg-stone-900";
+  "w-full rounded-control bg-bg-field border border-border-control px-3.5 py-2.5 text-13 font-mono text-text-primary placeholder:text-text-secondary outline-none transition-colors focus:border-focus-ring focus:ring-2 focus:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger";
 
 export default function ComponentRowEditor({
   componentKey,
@@ -245,7 +245,7 @@ export default function ComponentRowEditor({
           onPress={onToggleExpand}
           aria-label={isExpanded ? "Collapse" : "Expand"}
           aria-expanded={isExpanded}
-          className="shrink-0 -m-1 p-1 rounded outline-none data-[focus-visible]:bg-stone-200 dark:data-[focus-visible]:bg-stone-800/60 text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300"
+          className="shrink-0 -m-1 p-1 rounded-control outline-none data-[focus-visible]:bg-stone-200 dark:data-[focus-visible]:bg-stone-800/60 text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <ChevronRight
             size={12}
@@ -276,7 +276,7 @@ export default function ComponentRowEditor({
             min={1}
             max={65535}
             placeholder="3000"
-            className="w-16 text-right bg-transparent font-mono text-12 text-stone-500 dark:text-stone-400 border border-transparent rounded px-1.5 py-0.5 outline-none hover:border-stone-300 dark:hover:border-stone-700 focus:border-stone-400 dark:focus:border-stone-600 focus:text-stone-800 dark:focus:text-stone-200 focus:bg-stone-50 dark:focus:bg-stone-950/60"
+            className="w-16 text-right bg-transparent font-mono text-12 text-stone-500 dark:text-stone-400 border border-transparent rounded-control px-1.5 py-0.5 outline-none hover:border-stone-300 dark:hover:border-stone-700 focus:border-focus-ring focus:ring-2 focus:ring-focus-ring focus:text-stone-800 dark:focus:text-stone-200 focus:bg-stone-50 dark:focus:bg-stone-950/60"
           />
         </TextField>
 
@@ -289,7 +289,7 @@ export default function ComponentRowEditor({
         <Button
           onPress={onRequestRemove}
           aria-label={`Remove ${componentKey}`}
-          className="shrink-0 p-1 rounded text-stone-600 dark:text-stone-400 opacity-0 group-hover:opacity-100 data-[focus-visible]:opacity-100 hover:text-red-400 hover:bg-stone-200/80 dark:hover:bg-stone-800/80 transition-opacity outline-none"
+          className="shrink-0 p-1 rounded-control text-stone-600 dark:text-stone-400 opacity-0 group-hover:opacity-100 data-[focus-visible]:opacity-100 hover:text-red-400 hover:bg-stone-200/80 dark:hover:bg-stone-800/80 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Trash2 size={14} />
         </Button>
@@ -406,7 +406,7 @@ export default function ComponentRowEditor({
                 <span className={`${FIELD_LABEL} mb-0`}>Environment</span>
                 <Button
                   onPress={addEnvRow}
-                  className="inline-flex items-center gap-1 text-11 text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors"
+                  className="inline-flex items-center gap-1 text-11 text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <Plus size={12} /> Add variable
                 </Button>
@@ -439,7 +439,7 @@ export default function ComponentRowEditor({
                       <Button
                         onPress={() => removeEnvRow(i)}
                         aria-label={`Remove environment variable ${i + 1}`}
-                        className="p-1 rounded text-stone-500 dark:text-stone-400 opacity-0 group-hover/env:opacity-100 data-[focus-visible]:opacity-100 hover:text-red-400 hover:bg-stone-200/80 dark:hover:bg-stone-800/60 transition-opacity outline-none"
+                        className="p-1 rounded-control text-stone-500 dark:text-stone-400 opacity-0 group-hover/env:opacity-100 data-[focus-visible]:opacity-100 hover:text-red-400 hover:bg-stone-200/80 dark:hover:bg-stone-800/60 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         <X size={12} />
                       </Button>
@@ -463,7 +463,7 @@ export default function ComponentRowEditor({
                         onPress={() => toggleDep(name)}
                         aria-pressed={on}
                         className={
-                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-12 font-mono transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 " +
+                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-12 font-mono transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring " +
                           (on
                             ? "bg-amber-500/10 text-amber-500 border-amber-500/40 hover:bg-amber-500/15"
                             : "bg-transparent text-text-muted border-stone-300 dark:border-stone-700 hover:text-stone-700 dark:hover:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600")
@@ -482,7 +482,7 @@ export default function ComponentRowEditor({
                 <Button
                   onPress={() => setMoreOpen((p) => !p)}
                   aria-expanded={moreOpen}
-                  className="inline-flex items-center gap-1.5 text-11 font-medium text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 py-1.5 outline-none transition-colors"
+                  className="inline-flex items-center gap-1.5 text-11 font-medium text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <ChevronRight
                     size={12}
@@ -535,7 +535,7 @@ export default function ComponentRowEditor({
             <div className="pt-2 border-t border-stone-200 dark:border-stone-800/60">
               <Button
                 onPress={onRequestRemove}
-                className="inline-flex items-center gap-1.5 text-11 text-stone-500 dark:text-stone-500 hover:text-red-400 outline-none transition-colors"
+                className="inline-flex items-center gap-1.5 text-11 text-stone-500 dark:text-stone-500 hover:text-red-400 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <Trash2 size={12} /> Remove component
               </Button>

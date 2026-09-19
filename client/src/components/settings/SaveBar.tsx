@@ -26,7 +26,7 @@ export default function SaveBar({
       <Button
         onPress={onSave}
         isDisabled={isDisabled || isSaving}
-        className="px-4 py-2 text-13 font-medium rounded-lg transition-colors outline-none bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-400"
+        className="px-4 py-2 text-13 font-medium rounded-control transition-colors outline-none bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring"
       >
         {saveLabel}
       </Button>

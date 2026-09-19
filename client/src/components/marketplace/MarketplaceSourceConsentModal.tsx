@@ -122,13 +122,13 @@ export default function MarketplaceSourceConsentModal({
       }}
       isDismissable={!isPending}
       isKeyboardDismissDisabled={isPending}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-lg mx-4">
         <Dialog
           ref={stampAriaModal}
           data-testid="marketplace-source-consent-modal"
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
@@ -166,7 +166,7 @@ export default function MarketplaceSourceConsentModal({
               </Label>
               <Input
                 autoFocus={initialUrl.length === 0}
-                className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-13 text-stone-900 dark:text-stone-100 font-mono outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="w-full px-3 py-1.5 rounded-control border border-border-control bg-bg-field text-13 text-text-primary font-mono outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
               />
               <Text
                 slot="description"
@@ -189,7 +189,7 @@ export default function MarketplaceSourceConsentModal({
               </Label>
               {/* type="password" rides on the TextField above, so the value is
                   masked on screen and kept out of autofill history. */}
-              <Input className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-13 text-stone-900 dark:text-stone-100 font-mono outline-none focus-visible:ring-2 focus-visible:ring-amber-500" />
+              <Input className="w-full px-3 py-1.5 rounded-control border border-border-control bg-bg-field text-13 text-text-primary font-mono outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger" />
               <Text
                 slot="description"
                 className="mt-1 block text-11 text-stone-500 dark:text-stone-400 leading-relaxed"
@@ -213,7 +213,7 @@ export default function MarketplaceSourceConsentModal({
                 data-testid="marketplace-source-consent-allow-http"
                 className="group flex items-start gap-2.5 text-13 text-stone-700 dark:text-stone-200 cursor-pointer outline-none"
               >
-                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 group-data-[selected]:border-amber-500 group-data-[selected]:bg-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-amber-500 transition-colors">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-control border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 group-data-[selected]:border-amber-500 group-data-[selected]:bg-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-focus-ring transition-colors">
                   <Check
                     size={12}
                     strokeWidth={3}
@@ -235,9 +235,9 @@ export default function MarketplaceSourceConsentModal({
               onChange={setAcknowledged}
               isDisabled={isPending}
               data-testid="marketplace-source-consent-ack"
-              className="group flex items-start gap-2.5 text-13 text-stone-700 dark:text-stone-200 cursor-pointer outline-none"
+              className="group flex items-start gap-2.5 text-13 text-stone-700 dark:text-stone-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 group-data-[selected]:border-amber-500 group-data-[selected]:bg-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-amber-500 transition-colors">
+              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-control border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 group-data-[selected]:border-amber-500 group-data-[selected]:bg-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-focus-ring transition-colors">
                 <Check
                   size={12}
                   strokeWidth={3}
@@ -271,7 +271,7 @@ export default function MarketplaceSourceConsentModal({
               onPress={handleCancel}
               isDisabled={isPending}
               data-testid="marketplace-source-consent-cancel"
-              className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {STRINGS.cancel}
             </Button>
@@ -279,9 +279,9 @@ export default function MarketplaceSourceConsentModal({
               onPress={handleConfirm}
               aria-disabled={!canConfirm}
               data-testid="marketplace-source-consent-confirm"
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
                 canConfirm
-                  ? "text-stone-950 bg-amber-500 hover:bg-amber-400"
+                  ? "text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active"
                   : "text-stone-500 dark:text-stone-400 bg-stone-200 dark:bg-stone-800 cursor-not-allowed"
               }`}
             >

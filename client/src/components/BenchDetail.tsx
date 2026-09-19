@@ -76,6 +76,7 @@ import IssueAssignControl from "./IssueAssignControl";
 import { securityCategoryFor, shortIssueRef } from "../lib/chip-mapping";
 import { displayIssueRef } from "../lib/issue-id";
 import TestBenchPanel from "./testbench/TestBenchPanel";
+import { TAB_CLASS } from "./ui/Tabs";
 
 const ALERT_BENCH_DISABLED_TRANSITION_COPY =
   "Resolved by pushing code that fixes the underlying alert. GitHub auto-closes the alert.";
@@ -164,12 +165,8 @@ function StepList({ steps, bench }: { steps: ProvisioningStep[]; bench?: Bench }
   );
 }
 
-const tabClassName = ({ isSelected }: { isSelected: boolean }) =>
-  `px-3 py-2 text-12 font-medium transition-colors outline-none cursor-default border-b-2 -mb-px ${
-    isSelected
-      ? "text-stone-800 dark:text-stone-200 border-amber-500"
-      : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
-  }`;
+// DESIGN.md Tabs: the shared tab treatment, including the focus ring.
+const tabClassName = TAB_CLASS;
 
 const statusBadge: Record<string, string> = {
   running: "bg-green-500/15 text-green-400",
@@ -284,7 +281,7 @@ function ComponentsTab({
                     (assigned ? (
                       <Button
                         onPress={() => unassign.mutate({ projectId, benchId, component: name })}
-                        className="flex items-center gap-1 px-2 py-1 rounded-md text-11 text-stone-600 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 transition-colors outline-none"
+                        className="flex items-center gap-1 px-2 py-1 rounded-control text-11 text-stone-600 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         <Unlink size={12} />
                         Unassign
@@ -292,7 +289,7 @@ function ComponentsTab({
                     ) : (
                       <Button
                         onPress={() => setAssignModal(name)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-md text-11 text-stone-600 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 transition-colors outline-none"
+                        className="flex items-center gap-1 px-2 py-1 rounded-control text-11 text-stone-600 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         <Container size={12} />
                         Assign
@@ -304,13 +301,13 @@ function ComponentsTab({
                       if (isRunning) stopComponent.mutate({ projectId, benchId, component: name });
                       else startComponentWithRecovery(name);
                     }}
-                    className="px-2.5 py-1 rounded-md text-12 text-text-muted not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-30 transition-colors outline-none"
+                    className="px-2.5 py-1 rounded-control text-12 text-text-muted not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     {isRunning ? "Stop" : "Start"}
                   </Button>
                   <Button
                     onPress={() => toggleLogs(name)}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md text-11 text-stone-600 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 transition-colors outline-none"
+                    className="flex items-center gap-1 px-2 py-1 rounded-control text-11 text-stone-600 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     {logsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     Logs
@@ -426,7 +423,7 @@ function InfoTab({ bench }: { bench: Bench }) {
           </code>
           <Button
             onPress={copyWorkspace}
-            className="text-stone-600 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none"
+            className="text-stone-600 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Copy size={12} />
           </Button>
@@ -614,7 +611,7 @@ export default function BenchDetail() {
         <p className="text-13 text-stone-500 dark:text-stone-400">Bench not found.</p>
         <Button
           onPress={() => navigate(projectId ? `/projects/${projectId}` : "/")}
-          className="mt-3 text-13 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+          className="mt-3 text-13 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           Go back
         </Button>
@@ -682,11 +679,11 @@ export default function BenchDetail() {
                   )}
                   {bench.assignedIssue.blockedBy && bench.assignedIssue.blockedBy.length > 0 && (
                     <TooltipTrigger delay={300}>
-                      <Button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-11 font-medium bg-red-500/15 text-red-400 outline-none cursor-default">
+                      <Button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control text-11 font-medium bg-red-500/15 text-red-400 outline-none cursor-default focus-visible:ring-2 focus-visible:ring-focus-ring">
                         <Ban size={12} />
                         Blocked
                       </Button>
-                      <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg">
+                      <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0">
                         <div className="flex flex-col gap-0.5">
                           <span className="text-stone-400 mb-0.5">Blocked by:</span>
                           {bench.assignedIssue.blockedBy.map((ref) => (
@@ -710,7 +707,7 @@ export default function BenchDetail() {
               aria-label={headerCollapsed ? "Expand bench header" : "Collapse bench header"}
               aria-expanded={!headerCollapsed}
               onPress={() => setHeaderCollapsed(!headerCollapsed)}
-              className="flex items-center justify-center p-1.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="flex items-center justify-center p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {headerCollapsed ? (
                 <ChevronRight size={14} aria-hidden="true" />
@@ -718,7 +715,7 @@ export default function BenchDetail() {
                 <ChevronDown size={14} aria-hidden="true" />
               )}
             </Button>
-            <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg">
+            <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0">
               {headerCollapsed ? "Expand header" : "Collapse header"}
             </Tooltip>
           </TooltipTrigger>
@@ -729,7 +726,7 @@ export default function BenchDetail() {
               if (isRunning) stopBench.mutate({ projectId, benchId });
               else startBench.mutate({ projectId, benchId });
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-muted rounded-lg not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-muted rounded-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {isRunning ? <Square size={12} /> : <Play size={12} />}
             {isRunning ? "Stop All" : "Start All"}
@@ -737,7 +734,7 @@ export default function BenchDetail() {
           <Button
             isDisabled={!canTeardown}
             onPress={() => setShowTeardown(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-500 dark:text-stone-400 rounded-lg not-disabled:hover:text-red-400 not-disabled:hover:bg-red-500/10 disabled:opacity-40 transition-colors outline-none"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-500 dark:text-stone-400 rounded-control not-disabled:hover:text-red-400 not-disabled:hover:bg-red-500/10 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {isProvisioning ? <X size={12} /> : <Trash2 size={12} />}
             {isProvisioning ? "Cancel" : "Clear"}
@@ -760,7 +757,7 @@ export default function BenchDetail() {
               aria-expanded={errorExpanded}
               aria-controls="bench-error-message"
               onPress={() => setExpandedErrorKey(errorExpanded ? null : (bench.error ?? null))}
-              className="mt-2 text-12 font-medium text-red-300/80 hover:text-red-300 outline-none"
+              className="mt-2 text-12 font-medium text-red-300/80 hover:text-red-300 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {errorExpanded ? "Show less" : "Show more"}
             </Button>
@@ -778,7 +775,7 @@ export default function BenchDetail() {
                 },
               )
             }
-            className="flex items-center gap-1.5 mt-3 px-3 py-1.5 text-12 font-medium text-red-300 bg-red-500/15 rounded-lg hover:bg-red-500/25 transition-colors outline-none disabled:opacity-40"
+            className="flex items-center gap-1.5 mt-3 px-3 py-1.5 text-12 font-medium text-red-300 bg-red-500/15 rounded-control hover:bg-red-500/25 transition-colors outline-none disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <RotateCcw size={12} className={cleanupAndRetry.isPending ? "animate-spin" : ""} />
             {cleanupAndRetry.isPending ? "Cleaning up..." : "Cleanup & Retry"}
@@ -882,12 +879,12 @@ export default function BenchDetail() {
         isOpen={showTeardown}
         onOpenChange={setShowTeardown}
         isDismissable
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
       >
         <Modal className="animate-rise-in w-full max-w-sm mx-4">
           <Dialog
             ref={stampAriaModal}
-            className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+            className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
           >
             {({ close }) => (
               <>
@@ -909,7 +906,7 @@ export default function BenchDetail() {
                     <Checkbox
                       isSelected={removeWorkspace}
                       onChange={setRemoveWorkspace}
-                      className="flex items-center gap-2 cursor-pointer group"
+                      className="flex items-center gap-2 cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       {({ isSelected }) => (
                         <>
@@ -933,7 +930,7 @@ export default function BenchDetail() {
                 <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                   <Button
                     onPress={close}
-                    className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                    className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     Cancel
                   </Button>
@@ -955,7 +952,7 @@ export default function BenchDetail() {
                       );
                       close();
                     }}
-                    className="px-4 py-1.5 text-13 font-medium text-red-100 bg-red-600 not-disabled:hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none"
+                    className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none not-disabled:active:bg-danger-active focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     {isProvisioning ? "Cancel preparing" : "Clear"}
                   </Button>

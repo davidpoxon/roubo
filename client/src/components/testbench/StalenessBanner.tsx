@@ -35,7 +35,7 @@ export default function StalenessBanner({
       <Button
         onPress={onReconcile}
         data-testid="staleness-banner-reconcile"
-        className="shrink-0 px-3 py-1.5 text-13 font-medium rounded-md text-amber-800 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-amber-50"
+        className="shrink-0 px-3 py-1.5 text-13 font-medium rounded-control text-amber-800 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-amber-50"
       >
         {STRINGS.reconcile}
       </Button>

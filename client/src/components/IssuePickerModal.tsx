@@ -23,7 +23,7 @@ function IssueRow({
   return (
     <Button
       onPress={() => onSelect(issue.externalId, issue.title)}
-      className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+      className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left rounded-control hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
@@ -82,7 +82,7 @@ function IssueRow({
         target="_blank"
         rel="noopener noreferrer"
         onPointerDown={(e) => e.stopPropagation()}
-        className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
+        className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <ExternalLink size={12} />
       </a>
@@ -179,12 +179,12 @@ export default function IssuePickerModal({
         if (!open) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col overflow-hidden"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none flex flex-col overflow-hidden"
         >
           {() => (
             <>
@@ -261,7 +261,7 @@ export default function IssuePickerModal({
                     onPress={goPrev}
                     isDisabled={!hasPrev}
                     aria-label="Previous page"
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
                   >
                     <ChevronLeft size={14} />
                     Prev
@@ -276,7 +276,7 @@ export default function IssuePickerModal({
                     onPress={goNext}
                     isDisabled={!hasNext}
                     aria-label="Next page"
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
                   >
                     Next
                     <ChevronRight size={14} />

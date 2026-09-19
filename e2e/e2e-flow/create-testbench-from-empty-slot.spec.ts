@@ -206,15 +206,15 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
       `${OWNING_SLICES.variantTabs}: the first tab is the TestBench tab`,
     ).toHaveText(/^TestBench/);
     // It opens selected (the create flow marks the new bench to open on it), and
-    // the selected tab carries the amber accent border.
+    // the selected tab carries the DESIGN.md Tabs accent indicator.
     await expect(
       testBenchTab,
       `${OWNING_SLICES.variantTabs}: TestBench tab is the active (amber-accented) tab`,
     ).toHaveAttribute("aria-selected", "true");
     expect(
       await testBenchTab.evaluate((el) => el.className),
-      `${OWNING_SLICES.variantTabs}: active TestBench tab carries the amber accent`,
-    ).toContain("border-amber-500");
+      `${OWNING_SLICES.variantTabs}: active TestBench tab carries the accent indicator`,
+    ).toContain("data-[selected]:border-accent");
   });
 
   // ── Step 7: TestBench tab content -> focused slug/path + results panel (AC5) ─

@@ -27,7 +27,7 @@ export default function StaleSnapshotBanner({ pluginName }: Props) {
         unavailable.{" "}
         <Link
           to="/settings#plugins"
-          className="font-medium underline decoration-amber-400 hover:decoration-amber-600 dark:hover:decoration-amber-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded-sm"
+          className="font-medium underline decoration-amber-400 hover:decoration-amber-600 dark:hover:decoration-amber-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-sm"
         >
           Manage plugins
         </Link>

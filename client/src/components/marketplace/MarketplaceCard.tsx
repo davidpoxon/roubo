@@ -213,7 +213,7 @@ export default function MarketplaceCard({
             <Button
               data-testid="marketplace-card-detail"
               onPress={() => onOpenDetail(listing)}
-              className="truncate text-14 font-semibold text-stone-900 dark:text-stone-100 hover:text-amber-700 dark:hover:text-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+              className="truncate text-14 font-semibold text-stone-900 dark:text-stone-100 hover:text-amber-700 dark:hover:text-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-control"
             >
               {listing.name}
             </Button>
@@ -284,7 +284,7 @@ export default function MarketplaceCard({
           <Button
             data-testid="marketplace-card-update"
             onPress={() => onUpdate(listing)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-12 font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+            className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-12 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
           >
             <RefreshCw size={14} /> {STRINGS.update}
           </Button>
@@ -292,7 +292,7 @@ export default function MarketplaceCard({
           <Button
             data-testid="marketplace-card-install"
             onPress={() => onInstall(listing)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-12 font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+            className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-12 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
           >
             <Download size={14} /> {STRINGS.install}
           </Button>

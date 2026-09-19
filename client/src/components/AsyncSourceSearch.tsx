@@ -118,7 +118,7 @@ export default function AsyncSourceSearch({
           onPress={() => setOpen(!isOpen)}
           aria-label={`Add ${label.toLowerCase()}`}
           aria-expanded={isOpen}
-          className="flex items-center gap-1.5 rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-2.5 py-1.5 text-12 text-stone-700 dark:text-stone-300 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed"
+          className="flex items-center gap-1.5 rounded-control bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-2.5 py-1.5 text-12 text-stone-700 dark:text-stone-300 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed"
         >
           <Search size={14} className="shrink-0 text-stone-600 dark:text-stone-300" />
           Search
@@ -150,7 +150,7 @@ export default function AsyncSourceSearch({
               <Button
                 aria-label={`Remove ${item.label}`}
                 onPress={() => onChange([], [item.externalId])}
-                className="shrink-0 p-0.5 rounded text-stone-600 dark:text-stone-300 transition-colors hover:text-stone-600 dark:hover:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="shrink-0 p-0.5 rounded-control text-stone-600 dark:text-stone-300 transition-colors hover:text-stone-600 dark:hover:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <X size={14} />
               </Button>
@@ -164,7 +164,7 @@ export default function AsyncSourceSearch({
         isOpen={isOpen}
         onOpenChange={setOpen}
         placement="bottom start"
-        className="animate-rise-in w-[var(--trigger-width)] min-w-72 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl p-2 z-50"
+        className="animate-rise-in w-[var(--trigger-width)] min-w-72 rounded-control bg-bg-surface border border-border shadow-elevation-0 p-2 z-50"
       >
         <SearchField
           value={search}
@@ -175,7 +175,7 @@ export default function AsyncSourceSearch({
         >
           <Input
             placeholder={`Search ${label.toLowerCase()}…`}
-            className="w-full rounded-lg bg-stone-100 dark:bg-stone-900/60 border border-stone-300 dark:border-stone-700/50 px-3 py-1.5 text-13 text-stone-900 dark:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="w-full rounded-control bg-bg-field border border-border-control px-3 py-1.5 text-13 text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
           />
         </SearchField>
 
@@ -232,7 +232,7 @@ export default function AsyncSourceSearch({
                   key={item.externalId}
                   id={item.externalId}
                   textValue={item.sublabel ? `${item.label}, ${item.sublabel}` : item.label}
-                  className="flex items-start justify-between gap-2 px-2.5 py-1.5 rounded-md text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[focus-visible]:ring-2 data-[focus-visible]:ring-amber-500 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
+                  className="flex items-start justify-between gap-2 px-2.5 py-1.5 rounded-chip text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
                 >
                   {({ isSelected }) => (
                     <>
@@ -260,7 +260,7 @@ export default function AsyncSourceSearch({
             <Button
               onPress={() => fetchNextPage()}
               isDisabled={isFetchingNextPage}
-              className="mt-1 w-full rounded-md px-3 py-1.5 text-12 font-medium text-amber-600 dark:text-amber-500 outline-none transition-colors hover:bg-stone-100 dark:hover:bg-stone-700/50 focus-visible:ring-2 focus-visible:ring-amber-500 data-[disabled]:opacity-50"
+              className="mt-1 w-full rounded-control px-3 py-1.5 text-12 font-medium text-amber-600 dark:text-amber-500 outline-none transition-colors hover:bg-stone-100 dark:hover:bg-stone-700/50 focus-visible:ring-2 focus-visible:ring-focus-ring data-[disabled]:opacity-40"
             >
               {isFetchingNextPage ? "Loading…" : "Load more"}
             </Button>

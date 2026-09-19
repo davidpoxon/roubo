@@ -78,13 +78,13 @@ export default function MarketplaceSourceRemoveDialog({
       }}
       isDismissable={!isPending}
       isKeyboardDismissDisabled={isPending}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-lg mx-4">
         <Dialog
           ref={stampAriaModal}
           data-testid="marketplace-source-remove-dialog"
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
@@ -152,7 +152,7 @@ export default function MarketplaceSourceRemoveDialog({
               onPress={handleCancel}
               isDisabled={isPending}
               data-testid="marketplace-source-remove-cancel"
-              className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {STRINGS.cancel}
             </Button>
@@ -160,7 +160,7 @@ export default function MarketplaceSourceRemoveDialog({
               onPress={handleConfirm}
               isDisabled={isPending}
               data-testid="marketplace-source-remove-confirm"
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium rounded-lg text-white bg-red-600 hover:bg-red-500 disabled:opacity-60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium rounded-control text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring not-disabled:active:bg-danger-active"
             >
               <Trash2 size={14} />
               {isPending ? STRINGS.removing : STRINGS.confirm}

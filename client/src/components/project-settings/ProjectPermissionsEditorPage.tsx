@@ -181,7 +181,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
           <Link
             to=".."
             relative="path"
-            className="inline-flex items-center gap-1 hover:text-stone-900 dark:hover:text-stone-200 transition-colors"
+            className="inline-flex items-center gap-1 hover:text-stone-900 dark:hover:text-stone-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <ChevronLeft size={12} />
             Settings
@@ -205,13 +205,13 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             <div className="flex items-center gap-2 shrink-0 ml-4">
               <Button
                 onPress={() => setShowImport(true)}
-                className="text-12 px-3 py-1.5 rounded-md border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors"
+                className="text-12 px-3 py-1.5 rounded-control border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 Import from project
               </Button>
               <Button
                 onPress={handleExportJson}
-                className="text-12 px-3 py-1.5 rounded-md border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors"
+                className="text-12 px-3 py-1.5 rounded-control border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 Export JSON
               </Button>
@@ -281,7 +281,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                 >
                   <Input
                     placeholder="Bash(pytest:*)"
-                    className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 font-mono data-[invalid]:border-red-400 dark:data-[invalid]:border-red-500"
+                    className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring font-mono data-[invalid]:border-red-400 focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
                   />
                 </TextField>
               </div>
@@ -289,7 +289,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                 <Button
                   onPress={handleAdd}
                   isDisabled={!addPattern.trim()}
-                  className="w-full px-3 py-2 rounded-md text-12 font-medium bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-stone-950 outline-none transition-colors"
+                  className="w-full px-3 py-2 rounded-control text-12 font-medium bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-on-accent outline-none transition-colors not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Add
                 </Button>
@@ -307,7 +307,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                     setAddPattern(tpl);
                     setIsDuplicate(false);
                   }}
-                  className="font-mono text-11 px-1.5 py-0.5 rounded-sm bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-300 dark:border-stone-700 hover:border-stone-400 dark:hover:border-stone-500 outline-none transition-colors"
+                  className="font-mono text-11 px-1.5 py-0.5 rounded-control bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-300 dark:border-stone-700 hover:border-stone-400 dark:hover:border-stone-500 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   {tpl}
                 </Button>
@@ -336,7 +336,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                 <Button
                   onPress={handleResync}
                   isDisabled={isResyncing}
-                  className="text-11 font-medium px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-stone-950 outline-none transition-colors"
+                  className="text-11 font-medium px-3 py-1.5 rounded-control bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 text-on-accent outline-none transition-colors not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   {isResyncing ? "Resyncing…" : "Re-sync benches"}
                 </Button>

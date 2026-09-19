@@ -63,7 +63,7 @@ const STRINGS = {
 };
 
 const TRIGGER_BUTTON_CLASS =
-  "px-3 py-1.5 text-12 font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "px-3 py-1.5 text-12 font-medium rounded-control border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 function IntegrationMismatchBanner({
   projectId,
@@ -114,7 +114,7 @@ function IntegrationMismatchBanner({
           isDisabled={promote.isPending}
           onPress={() => promote.mutate()}
           data-testid="issue-source-promote"
-          className="px-3 py-1.5 text-12 font-medium rounded-md border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:border-amber-500/70 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-12 font-medium rounded-control border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:border-amber-500/70 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {promote.isPending ? STRINGS.updatingRouboYaml : STRINGS.updateRouboYaml}
         </Button>
@@ -265,7 +265,7 @@ function UnconfiguredBody({ projectId }: { projectId: string }) {
         <DialogTrigger isOpen={open} onOpenChange={setOpen}>
           <Button
             data-testid="issue-source-choose-integration"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
           >
             <Plug size={12} />
             {STRINGS.chooseIntegration}
@@ -290,7 +290,7 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
       </div>
       <Link
         to="/settings/plugins"
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
       >
         <Download size={12} />
         {STRINGS.installPlugin}

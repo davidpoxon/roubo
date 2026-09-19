@@ -160,14 +160,14 @@ export default function ProjectDeclaredSourceOffer({ projectId, project }: Props
               <Button
                 onPress={() => handleReview(rawUrl)}
                 data-testid="declared-source-offer-review"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-md text-stone-950 bg-amber-500 hover:bg-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-control text-on-accent bg-accent not-disabled:hover:bg-accent-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring not-disabled:active:bg-accent-active"
               >
                 {STRINGS.review}
               </Button>
               <Button
                 onPress={() => handleDecline(href)}
                 data-testid="declared-source-offer-decline"
-                className="px-3 py-1.5 text-12 font-medium rounded-md text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="px-3 py-1.5 text-12 font-medium rounded-control text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 {STRINGS.decline}
               </Button>

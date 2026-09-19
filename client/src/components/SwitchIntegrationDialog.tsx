@@ -63,12 +63,12 @@ export default function SwitchIntegrationDialog({ projectId, currentPluginId }: 
     <ModalOverlay
       isDismissable={!isBusy}
       isKeyboardDismissDisabled={isBusy}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-md mx-4 max-h-[calc(100vh-2rem)] flex">
         <Dialog
           ref={stampAriaModal}
-          className="flex flex-col w-full max-h-full overflow-y-auto bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="flex flex-col w-full max-h-full overflow-y-auto bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           {({ close }) => (
             <SwitchFlow
@@ -155,7 +155,7 @@ function SwitchFlow({
                   key={p.id}
                   value={p.id}
                   isDisabled={disabled}
-                  className="outline-none data-[disabled]:opacity-50"
+                  className="outline-none data-[disabled]:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   {({ isSelected, isFocusVisible }) => (
                     <div
@@ -165,7 +165,7 @@ function SwitchFlow({
                           ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
                           : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700",
                         isFocusVisible
-                          ? "ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
+                          ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base"
                           : "",
                         disabled ? "cursor-not-allowed" : "",
                       ].join(" ")}
@@ -220,9 +220,9 @@ function SwitchFlow({
             isSelected={promoteToCommitted}
             onChange={setPromoteToCommitted}
             isDisabled={isBusy}
-            className="group flex items-start gap-2.5 cursor-pointer outline-none data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed"
+            className="group flex items-start gap-2.5 cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
-            <div className="w-4 h-4 mt-0.5 shrink-0 rounded border border-stone-300 dark:border-stone-600 flex items-center justify-center transition-colors group-data-[selected]:bg-amber-500 group-data-[selected]:border-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-amber-500 group-data-[focus-visible]:ring-offset-1">
+            <div className="w-4 h-4 mt-0.5 shrink-0 rounded-control border border-stone-300 dark:border-stone-600 flex items-center justify-center transition-colors group-data-[selected]:bg-amber-500 group-data-[selected]:border-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-focus-ring group-data-[focus-visible]:ring-offset-1">
               <Check
                 size={12}
                 className="text-stone-950 opacity-0 group-data-[selected]:opacity-100 transition-opacity"
@@ -245,7 +245,7 @@ function SwitchFlow({
         <Button
           isDisabled={isBusy}
           onPress={close}
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.cancel}
         </Button>
@@ -253,7 +253,7 @@ function SwitchFlow({
           isDisabled={!canConfirm || usable.length === 0}
           onPress={handleConfirm}
           data-testid="switch-integration-confirm"
-          className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+          className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
         >
           {isBusy ? STRINGS.switching : isChoosing ? STRINGS.titleChoose : STRINGS.titleSwitch}
         </Button>

@@ -6,7 +6,7 @@ import { Bug, KeyRound, Package, Shield, Tag } from "lucide-react";
 import IssueChip from "./IssueChip";
 
 describe("IssueChip", () => {
-  it("renders status variant as a pill with emerald family for open tone", () => {
+  it("renders status variant as a 4px chip in the issue-open tone", () => {
     const { container } = render(
       <IssueChip variant="status" tone="open">
         Open
@@ -14,23 +14,25 @@ describe("IssueChip", () => {
     );
     const chip = container.querySelector('[data-chip-category="status"]') as HTMLElement;
     expect(chip).not.toBeNull();
-    expect(chip.className).toContain("rounded-full");
-    expect(chip.className).toMatch(/emerald-/);
+    expect(chip.className).toContain("rounded-chip");
+    expect(chip.className).toContain("bg-issue-open");
+    expect(chip.className).toContain("text-issue-open-text");
     expect(chip.textContent).toBe("Open");
   });
 
-  it("uses red family for blocked tone and renders the provided icon", () => {
+  it("uses the danger pair for blocked tone and renders the provided icon", () => {
     const { container } = render(
       <IssueChip variant="status" tone="blocked" icon={Tag}>
         Blocked
       </IssueChip>,
     );
     const chip = container.querySelector('[data-chip-category="status"]') as HTMLElement;
-    expect(chip.className).toMatch(/red-/);
+    expect(chip.className).toContain("bg-danger-surface");
+    expect(chip.className).toContain("text-danger-text");
     expect(chip.querySelector("svg")).not.toBeNull();
   });
 
-  it("uses amber family for in-progress and stone family for done", () => {
+  it("uses the accent pair for in-progress and a quiet ground for done", () => {
     const { container: inProg } = render(
       <IssueChip variant="status" tone="in-progress">
         Doing
@@ -38,52 +40,52 @@ describe("IssueChip", () => {
     );
     expect(
       (inProg.querySelector('[data-chip-category="status"]') as HTMLElement).className,
-    ).toMatch(/amber-/);
+    ).toContain("text-accent-text");
 
     const { container: done } = render(
       <IssueChip variant="status" tone="done">
         Done
       </IssueChip>,
     );
-    expect((done.querySelector('[data-chip-category="status"]') as HTMLElement).className).toMatch(
-      /stone-/,
-    );
+    expect(
+      (done.querySelector('[data-chip-category="status"]') as HTMLElement).className,
+    ).toContain("text-text-secondary");
   });
 
-  it("renders label variant as rounded-sm with cyan border, no icon", () => {
+  it("renders label variant as an outlined chip in the issue-label tone, no icon", () => {
     const { container } = render(
       <IssueChip variant="label" icon={Tag}>
         bug
       </IssueChip>,
     );
     const chip = container.querySelector('[data-chip-category="label"]') as HTMLElement;
-    expect(chip.className).toContain("rounded-sm");
-    expect(chip.className).toMatch(/border-cyan/);
-    expect(chip.className).toMatch(/cyan-/);
+    expect(chip.className).toContain("rounded-chip");
+    expect(chip.className).toContain("border-issue-label-border");
+    expect(chip.className).toContain("text-issue-label-text");
     expect(chip.querySelector("svg")).toBeNull();
   });
 
-  it("renders issue-type variant as violet pill with required icon", () => {
+  it("renders issue-type variant in the issue-type tone with required icon", () => {
     const { container } = render(
       <IssueChip variant="issue-type" icon={Bug}>
         Bug
       </IssueChip>,
     );
     const chip = container.querySelector('[data-chip-category="issue-type"]') as HTMLElement;
-    expect(chip.className).toContain("rounded-full");
-    expect(chip.className).toMatch(/violet-/);
+    expect(chip.className).toContain("rounded-chip");
+    expect(chip.className).toContain("bg-issue-type");
     expect(chip.querySelector("svg")).not.toBeNull();
   });
 
-  it("renders metadata variant as stone pill with optional icon", () => {
+  it("renders metadata variant as a neutral chip with optional icon", () => {
     const { container } = render(
       <IssueChip variant="metadata" icon={KeyRound}>
         Critical
       </IssueChip>,
     );
     const chip = container.querySelector('[data-chip-category="metadata"]') as HTMLElement;
-    expect(chip.className).toContain("rounded-full");
-    expect(chip.className).toMatch(/stone-/);
+    expect(chip.className).toContain("rounded-chip");
+    expect(chip.className).toContain("bg-bg-pressed");
     expect(chip.querySelector("svg")).not.toBeNull();
   });
 
@@ -147,8 +149,11 @@ describe("IssueChip", () => {
       );
       const chip = screen.getByRole("button", { name: /unavailable/i });
       expect(chip.tagName).toBe("BUTTON");
-      expect(chip.className).toMatch(/amber-/);
-      expect(chip.className).toContain("rounded-full");
+      expect(chip.className).toContain("bg-accent-muted");
+      expect(chip.className).toContain("rounded-chip");
+      // Hover draws a hairline in the tone's own text hue, never dims.
+      expect(chip.className).toContain("data-[hovered]:border-accent-text");
+      expect(chip.className).not.toMatch(/brightness|hover:opacity/);
     });
 
     it("invokes onPress when the button chip is clicked", async () => {
@@ -201,7 +206,7 @@ describe("IssueChip", () => {
   });
 
   describe("security-category variant (IP-WU-033)", () => {
-    it("uses stone family for codeql", () => {
+    it("uses the neutral tone for codeql", () => {
       const { container } = render(
         <IssueChip variant="security-category" securityCategory="codeql" icon={Shield}>
           CodeQL
@@ -211,12 +216,12 @@ describe("IssueChip", () => {
         '[data-chip-category="security-category"]',
       ) as HTMLElement;
       expect(chip).not.toBeNull();
-      expect(chip.className).toContain("rounded-full");
-      expect(chip.className).toMatch(/stone-/);
+      expect(chip.className).toContain("rounded-chip");
+      expect(chip.className).toContain("bg-bg-pressed");
       expect(chip.querySelector("svg")).not.toBeNull();
     });
 
-    it("uses amber family for secret-scanning", () => {
+    it("uses the accent tone for secret-scanning", () => {
       const { container } = render(
         <IssueChip variant="security-category" securityCategory="secret-scanning" icon={KeyRound}>
           Secret scanning
@@ -225,10 +230,10 @@ describe("IssueChip", () => {
       const chip = container.querySelector(
         '[data-chip-category="security-category"]',
       ) as HTMLElement;
-      expect(chip.className).toMatch(/amber-/);
+      expect(chip.className).toContain("text-accent-text");
     });
 
-    it("uses stone family for dependabot", () => {
+    it("uses the neutral tone for dependabot", () => {
       const { container } = render(
         <IssueChip variant="security-category" securityCategory="dependabot" icon={Package}>
           Dependabot
@@ -237,7 +242,7 @@ describe("IssueChip", () => {
       const chip = container.querySelector(
         '[data-chip-category="security-category"]',
       ) as HTMLElement;
-      expect(chip.className).toMatch(/stone-/);
+      expect(chip.className).toContain("bg-bg-pressed");
     });
 
     it("wraps in a focusable Button when tooltip is provided", () => {
@@ -268,7 +273,7 @@ describe("IssueChip", () => {
       const chip = container.querySelector('[data-chip-category="issue-type"]') as HTMLElement;
       expect(chip).not.toBeNull();
       expect(chip.tagName).toBe("BUTTON");
-      expect(chip.className).toMatch(/focus-visible:ring-amber-500/);
+      expect(chip.className).toContain("focus-visible:ring-focus-ring");
       expect(chip.textContent).toContain("CodeQL");
     });
 

@@ -232,12 +232,12 @@ export default function LaunchOverridesDialog({
         if (!open) onCancel();
       }}
       isDismissable
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-md mx-4">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
@@ -375,14 +375,14 @@ export default function LaunchOverridesDialog({
           <div className="px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 flex justify-end gap-2">
             <Button
               onPress={onCancel}
-              className="px-3 py-1.5 text-12 font-medium rounded-lg text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+              className="px-3 py-1.5 text-12 font-medium rounded-control text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Cancel
             </Button>
             <Button
               onPress={handleLaunch}
               isDisabled={agent === undefined}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-lg text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-control text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring not-disabled:active:bg-accent-active"
             >
               <Bot size={12} />
               Launch session

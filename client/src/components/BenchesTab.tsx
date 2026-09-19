@@ -80,19 +80,19 @@ export default function BenchesTab() {
                     if (!atCap) openCreateBench();
                   }}
                   aria-disabled
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 opacity-50 cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent opacity-40 cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
                 >
                   <Plus size={14} />
                   Set up bench
                 </Button>
-                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg max-w-xs">
+                <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0 max-w-xs">
                   {capTooltip}
                 </Tooltip>
               </TooltipTrigger>
             ) : (
               <Button
                 onPress={openCreateBench}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <Plus size={14} />
                 Set up bench
