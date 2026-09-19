@@ -4,7 +4,7 @@ import {
 } from "react-aria-components";
 
 export const TOOLTIP_CLASS =
-  "bg-bg-inverse text-text-on-inverse text-[12px] px-3 py-1.5 rounded-control shadow-elevation-0 max-w-xs";
+  "bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0 max-w-xs";
 
 export interface TooltipProps extends Omit<AriaTooltipProps, "className"> {
   /** Layout-only additions. The surface comes from the spec. */

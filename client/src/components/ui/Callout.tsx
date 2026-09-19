@@ -35,11 +35,7 @@ export default function Callout({
     <div
       role={role}
       data-testid={testId}
-      className={[
-        "flex flex-col gap-1 rounded-control border p-3 text-[13px]",
-        tone.frame,
-        className,
-      ]
+      className={["flex flex-col gap-1 rounded-control border p-3 text-13", tone.frame, className]
         .filter(Boolean)
         .join(" ")}
     >

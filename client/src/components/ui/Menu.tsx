@@ -18,7 +18,7 @@ export const MENU_POPOVER_CLASS =
 
 export const MENU_CLASS = "flex flex-col gap-px outline-none max-h-[inherit] overflow-auto";
 
-export const MENU_ITEM_CLASS = `flex items-center gap-2 rounded-chip px-3 py-1.5 text-[13px] text-text-body cursor-pointer transition-colors data-[hovered]:bg-bg-hover data-[focused]:bg-bg-hover data-[pressed]:bg-bg-pressed data-[disabled]:opacity-40 data-[disabled]:cursor-default ${focusRing} data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring`;
+export const MENU_ITEM_CLASS = `flex items-center gap-2 rounded-chip px-3 py-1.5 text-13 text-text-body cursor-pointer transition-colors data-[hovered]:bg-bg-hover data-[focused]:bg-bg-hover data-[pressed]:bg-bg-pressed data-[disabled]:opacity-40 data-[disabled]:cursor-default ${focusRing} data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring`;
 
 function join(...parts: (string | undefined)[]) {
   return parts.filter(Boolean).join(" ");

@@ -15,7 +15,7 @@ export { Tabs } from "react-aria-components";
 // takes a bg-hover wash. The ring sits tight to the tab.
 export const TAB_LIST_CLASS = "flex items-end gap-4 border-b border-border";
 
-export const TAB_CLASS = `-mb-px px-3 py-1.5 rounded-t-chip border-b-2 border-transparent text-[13px] font-medium text-text-secondary cursor-pointer transition-colors data-[hovered]:text-text-primary data-[pressed]:bg-bg-hover data-[selected]:border-accent data-[selected]:text-text-primary data-[disabled]:opacity-40 data-[disabled]:cursor-default ${focusRing}`;
+export const TAB_CLASS = `-mb-px px-3 py-1.5 rounded-t-chip border-b-2 border-transparent text-13 font-medium text-text-secondary cursor-pointer transition-colors data-[hovered]:text-text-primary data-[pressed]:bg-bg-hover data-[selected]:border-accent data-[selected]:text-text-primary data-[disabled]:opacity-40 data-[disabled]:cursor-default ${focusRing}`;
 
 /** Entering tab content uses motion.rise-in. */
 export const TAB_PANEL_CLASS = `animate-rise-in ${focusRing}`;

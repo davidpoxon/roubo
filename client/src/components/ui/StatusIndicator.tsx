@@ -33,7 +33,7 @@ export default function StatusIndicator({
           pulse ? "animate-status-pulse" : ""
         }`}
       />
-      <span className="text-[11px] font-medium text-text-secondary">{label}</span>
+      <span className="text-11 font-medium text-text-secondary">{label}</span>
     </span>
   );
 }

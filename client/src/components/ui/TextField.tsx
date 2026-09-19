@@ -44,7 +44,7 @@ export default function TextField({
         className={inputClass({ mono, className: inputClassName })}
       />
       {description ? (
-        <Text slot="description" className="mt-1.5 block text-[12px] text-text-secondary">
+        <Text slot="description" className="mt-1.5 block text-12 text-text-secondary">
           {description}
         </Text>
       ) : null}
