@@ -31,13 +31,13 @@ const TOKEN_BLOCK = /<!--\s*ui-design:tokens[^>]*-->\s*```json\s*\n([\s\S]*?)\n`
 const DARK_SUFFIX = "-dark";
 
 /**
- * The colour roles DESIGN.md records a dark value for, as base names (the
- * `-dark` suffix removed), sorted.
+ * The `colors` object of DESIGN.md's machine-checkable token block, keyed by
+ * token name.
  *
  * @param {string} designMd - DESIGN.md contents.
- * @returns {string[]}
+ * @returns {Record<string, {hex: string, role: string, alpha?: number}>}
  */
-export function darkPairedRoles(designMd) {
+export function designColors(designMd) {
   const match = TOKEN_BLOCK.exec(designMd);
   if (!match) {
     throw new Error(
@@ -55,7 +55,18 @@ export function darkPairedRoles(designMd) {
   if (!colors || typeof colors !== "object") {
     throw new Error(`${DESIGN_PATH} token block has no \`colors\` object.`);
   }
-  return Object.keys(colors)
+  return colors;
+}
+
+/**
+ * The colour roles DESIGN.md records a dark value for, as base names (the
+ * `-dark` suffix removed), sorted.
+ *
+ * @param {string} designMd - DESIGN.md contents.
+ * @returns {string[]}
+ */
+export function darkPairedRoles(designMd) {
+  return Object.keys(designColors(designMd))
     .filter((key) => key.endsWith(DARK_SUFFIX) && key.length > DARK_SUFFIX.length)
     .map((key) => key.slice(0, -DARK_SUFFIX.length))
     .sort();

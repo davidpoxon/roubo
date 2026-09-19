@@ -57,6 +57,9 @@
   --color-success-border: var(--color-success-border-dark);
   --color-success-surface: var(--color-success-surface-dark);
   --color-success-text: var(--color-success-text-dark);
+  --color-syntax-key: var(--color-syntax-key-dark);
+  --color-syntax-literal: var(--color-syntax-literal-dark);
+  --color-syntax-string: var(--color-syntax-string-dark);
   --color-text-body: var(--color-text-body-dark);
   --color-text-primary: var(--color-text-primary-dark);
   --color-text-secondary: var(--color-text-secondary-dark);
