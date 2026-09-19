@@ -44,9 +44,9 @@ describe("ProgressBar", () => {
     const { container } = render(
       <ProgressBar counts={counts({ total: 3, passed: 1, failed: 1, in_progress: 1 })} label="x" />,
     );
-    expect(container.querySelector(".bg-green-500")).toBeTruthy();
-    expect(container.querySelector(".bg-red-500")).toBeTruthy();
-    expect(container.querySelector(".bg-amber-500")).toBeTruthy();
+    expect(container.querySelector(".bg-status-active")).toBeTruthy();
+    expect(container.querySelector(".bg-status-error")).toBeTruthy();
+    expect(container.querySelector(".bg-status-preparing")).toBeTruthy();
   });
 
   it("dims to the empty state when the group has no cases", () => {
@@ -54,6 +54,6 @@ describe("ProgressBar", () => {
     expect(container.querySelector(".opacity-30")).toBeTruthy();
     expect(screen.getByText("0/0")).toBeTruthy();
     // No coloured segments when there are no cases.
-    expect(container.querySelector(".bg-green-500")).toBeNull();
+    expect(container.querySelector(".bg-status-active")).toBeNull();
   });
 });

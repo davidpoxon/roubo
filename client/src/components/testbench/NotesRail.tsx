@@ -11,9 +11,9 @@ import { ApiError } from "../../lib/api";
 // component never mutates an existing note, it only appends new ones.
 //
 // Per DESIGN.md "Timeline note entry": meta (author / timestamp /
-// status-at-write) in stone-500 JetBrains Mono, body in stone-700, a small
-// status-at-write dot in the matching status colour. The add-note field and
-// submit are fully keyboard operable with a 2px amber-500 focus ring (NFR-004,
+// status-at-write) in text-secondary JetBrains Mono, body in text-body, a small
+// status-at-write dot in the matching status role. The add-note field and
+// submit are fully keyboard operable with a 2px focus-ring (NFR-004,
 // WCAG 2.1 AA). The sentinel warning is derived reactively from the returned
 // notes' author.isSentinel, so it stays visible after a sentinel-authored note
 // is added (there is no client-side git-identity probe endpoint).
@@ -29,11 +29,11 @@ interface NotesRailProps {
 // token mapping. Kept local because no shared testbench status-colour source
 // exists yet; when one lands this should reference it.
 const STATUS_DOT: Record<CaseStatus, string> = {
-  not_started: "bg-stone-400",
-  in_progress: "bg-amber-500",
-  passed: "bg-green-500",
-  failed: "bg-red-500",
-  blocked: "bg-stone-700",
+  not_started: "bg-status-idle",
+  in_progress: "bg-status-preparing",
+  passed: "bg-status-active",
+  failed: "bg-status-error",
+  blocked: "bg-text-body",
 };
 
 const STATUS_LABEL: Record<CaseStatus, string> = {
@@ -88,7 +88,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
       {hasSentinelAuthor && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-13 text-amber-800"
+          className="flex items-start gap-2 rounded-lg border border-accent-border bg-accent-muted px-3 py-2 text-13 text-accent-text"
         >
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>
@@ -101,12 +101,12 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
 
       <ol className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {notes.length === 0 ? (
-          <li className="text-13 text-stone-500 dark:text-stone-400">No notes yet.</li>
+          <li className="text-13 text-text-secondary">No notes yet.</li>
         ) : (
           notes.map((note) => (
             <li
               key={note.id}
-              className="rounded-lg px-2 py-1.5 transition-colors hover:bg-stone-50"
+              className="rounded-lg px-2 py-1.5 transition-colors hover:bg-bg-hover"
             >
               <div className="flex items-center gap-2 font-mono text-12 text-text-secondary">
                 <span
@@ -119,7 +119,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
                 <span aria-hidden="true">·</span>
                 <span>{STATUS_LABEL[note.statusAtWrite]}</span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-13 text-stone-700">{note.text}</p>
+              <p className="mt-1 whitespace-pre-wrap text-13 text-text-body">{note.text}</p>
             </li>
           ))
         )}
@@ -138,7 +138,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
         }}
       >
         <TextField value={text} onChange={setText} className="flex flex-col gap-1">
-          <Label className="text-12 font-medium text-stone-600">Add a note</Label>
+          <Label className="text-12 font-medium text-text-secondary">Add a note</Label>
           <TextArea
             ref={textAreaRef}
             rows={3}
@@ -149,7 +149,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
           />
         </TextField>
         {submitError && (
-          <p role="alert" className="text-12 text-red-600">
+          <p role="alert" className="text-12 text-danger-text">
             {submitError}
           </p>
         )}
@@ -157,7 +157,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
           <Button
             type="submit"
             isDisabled={!canSubmit}
-            className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
           >
             {append.isPending ? "Adding…" : "Add note"}
           </Button>

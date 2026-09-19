@@ -4,8 +4,8 @@ import { AlertTriangle, X } from "lucide-react";
 import { TESTBENCH_MIGRATION_GUIDE_PATH } from "@roubo/shared/testbench-contracts";
 import type { ResultsRecoveryReason } from "../../lib/api";
 
-// The DESIGN.md "Attention banner" (amber-50 background, amber-200 border,
-// amber-800 message), surfaced when the bench's stored results could not be read
+// The DESIGN.md "Attention banner" (accent-muted background, accent-border
+// border, accent-text message), surfaced when the bench's stored results could not be read
 // and were failed open server-side (#417, NFR-003). The server discriminates WHY
 // the read recovered (the `ResultsRecoveryReason` added in #896); this banner
 // renders only for a reason the user should acknowledge: a corrupt / schema
@@ -64,15 +64,15 @@ export default function ResultsRecoveryBanner({
       role="status"
       data-testid="results-recovery-banner"
       data-recovery={recoveryReason}
-      className="flex items-center gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50"
+      className="flex items-center gap-3 px-4 py-3 rounded-lg border border-accent-border bg-accent-muted"
     >
-      <AlertTriangle size={16} className="text-amber-500 shrink-0" aria-hidden />
-      <p className="flex-1 min-w-0 text-13 text-amber-800">{message}</p>
+      <AlertTriangle size={16} className="text-accent-text shrink-0" aria-hidden />
+      <p className="flex-1 min-w-0 text-13 text-accent-text">{message}</p>
       <Button
         onPress={() => setDismissed(true)}
         aria-label={STRINGS.dismiss}
         data-testid="results-recovery-banner-dismiss"
-        className="shrink-0 p-1 rounded-control text-amber-800 hover:bg-amber-100 active:bg-amber-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-amber-50"
+        className="shrink-0 p-1 rounded-control text-accent-text hover:bg-bg-surface active:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
       >
         <X size={16} aria-hidden />
       </Button>

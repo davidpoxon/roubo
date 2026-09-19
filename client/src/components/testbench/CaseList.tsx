@@ -187,7 +187,7 @@ export default function CaseList({
   return (
     <div
       ref={scrollRef}
-      className="overflow-auto flex-1 min-h-0 rounded-lg ring-1 ring-inset ring-border bg-stone-50 dark:bg-stone-900/30"
+      className="overflow-auto flex-1 min-h-0 rounded-lg ring-1 ring-inset ring-border bg-bg-base"
       role="group"
       aria-label="Test cases grouped by level and priority"
       onKeyDown={onKeyDown}
@@ -204,21 +204,21 @@ export default function CaseList({
             const isCollapsed = collapsedLevels.has(row.level);
             return (
               <div key={row.key} {...common}>
-                <div className="flex items-center gap-3 h-full bg-stone-100/80 dark:bg-stone-900/60">
+                <div className="flex items-center gap-3 h-full bg-bg-hover">
                   <button
                     type="button"
                     onClick={() => toggleLevel(row.level)}
                     aria-expanded={!isCollapsed}
                     aria-label={`${isCollapsed ? "Expand" : "Collapse"} Level ${row.level}`}
-                    className="flex items-center gap-2 shrink-0 self-stretch pl-4 pr-1 outline-none cursor-pointer text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 rounded-control focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset"
+                    className="flex items-center gap-2 shrink-0 self-stretch pl-4 pr-1 outline-none cursor-pointer text-text-secondary transition-colors hover:text-text-primary rounded-control focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset"
                   >
                     {isCollapsed ? (
                       <ChevronRight aria-hidden="true" className="w-3.5 h-3.5" />
                     ) : (
                       <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />
                     )}
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-12 font-semibold text-stone-800 dark:text-stone-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                    <span className="text-12 font-semibold text-text-primary">
                       Level {row.level}
                     </span>
                   </button>
@@ -234,10 +234,10 @@ export default function CaseList({
             return (
               <div key={row.key} {...common}>
                 <div className="flex items-center gap-2 px-4 py-1.5 pl-8 h-full">
-                  <span className="text-11 uppercase tracking-label font-medium text-stone-500 dark:text-stone-400">
+                  <span className="text-11 uppercase tracking-label font-medium text-text-secondary">
                     {row.priority}
                   </span>
-                  <span className="text-11 font-mono text-stone-500 dark:text-stone-400 tabular-nums">
+                  <span className="text-11 font-mono text-text-secondary tabular-nums">
                     {row.counts.total}
                   </span>
                 </div>
@@ -258,9 +258,7 @@ export default function CaseList({
                 onFocus={() => setFocusedCaseId(row.row.case.id)}
                 onClick={() => onSelect?.(row.row.case.id)}
                 className={`outline-none rounded-control mx-1 h-full flex items-center cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset ${
-                  isSelected
-                    ? "bg-amber-500/10"
-                    : "hover:bg-stone-100/70 dark:hover:bg-stone-800/40"
+                  isSelected ? "bg-accent-muted" : "hover:bg-bg-hover"
                 }`}
               >
                 <div className="w-full">

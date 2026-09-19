@@ -17,12 +17,12 @@ import { STATUS_LABEL } from "./StatusIndicator";
 // value. The currently-overridden status (or the derived status when none is
 // set) is the selected value; choosing the derived status clears the override so
 // the case reverts to live-derived behaviour. An active override is shown
-// distinctly from the derived value via an amber-500 "Override" marker
+// distinctly from the derived value via an accent "Override" marker
 // (DESIGN.md "Status override control"), and the override takes precedence over
 // later marks (server-enforced: displayed status = statusOverride ?? derived).
 //
 // Built on React Aria's Select so it is one keyboard-operable tab stop with a
-// visible amber-500 focus ring (NFR-004, WCAG 2.1 AA).
+// visible focus-ring (NFR-004, WCAG 2.1 AA).
 
 const STATUS_ORDER: CaseStatus[] = ["not_started", "in_progress", "passed", "failed", "blocked"];
 
@@ -55,12 +55,9 @@ export default function StatusOverrideControl({
         }}
       >
         <Label className="sr-only">Case status</Label>
-        <Button className="inline-flex items-center gap-1.5 rounded-control border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 px-2.5 py-1 text-12 font-medium text-stone-700 dark:text-stone-200 outline-none transition-colors hover:border-stone-300 dark:hover:border-stone-600 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-800/40 disabled:text-stone-400 dark:disabled:text-stone-600">
+        <Button className="inline-flex items-center gap-1.5 rounded-control border border-border-control bg-bg-field px-2.5 py-1 text-12 font-medium text-text-primary outline-none transition-colors data-[pressed]:bg-bg-pressed focus-visible:border-focus-ring focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40">
           <SelectValue>{({ selectedText }) => selectedText ?? STATUS_LABEL[selected]}</SelectValue>
-          <ChevronDown
-            aria-hidden="true"
-            className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400"
-          />
+          <ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-text-secondary" />
         </Button>
         <Popover className="animate-rise-in min-w-[--trigger-width] rounded-control border border-border bg-bg-surface shadow-elevation-0 outline-none">
           <ListBox className="p-1 outline-none">
@@ -69,11 +66,11 @@ export default function StatusOverrideControl({
                 key={status}
                 id={status}
                 textValue={STATUS_LABEL[status]}
-                className="flex items-center justify-between gap-3 rounded-chip px-2 py-1 text-12 text-stone-700 dark:text-stone-200 cursor-pointer outline-none data-[focused]:bg-amber-50 dark:data-[focused]:bg-amber-950/30 data-[focused]:text-amber-900 dark:data-[focused]:text-amber-200"
+                className="flex items-center justify-between gap-3 rounded-chip px-2 py-1 text-12 text-text-body cursor-pointer outline-none data-[focused]:bg-bg-hover data-[focused]:text-text-primary"
               >
                 <span>{STATUS_LABEL[status]}</span>
                 {status === derivedStatus && (
-                  <span className="text-11 uppercase tracking-label text-stone-500 dark:text-stone-400">
+                  <span className="text-11 uppercase tracking-label text-text-secondary">
                     derived
                   </span>
                 )}
@@ -85,7 +82,7 @@ export default function StatusOverrideControl({
       {override !== undefined && (
         <span
           data-testid="override-marker"
-          className="inline-flex items-center rounded-full border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-11 font-medium text-amber-800 dark:text-amber-300"
+          className="inline-flex items-center rounded-full border border-accent-border bg-accent-muted px-2 py-0.5 text-11 font-medium text-accent-text"
         >
           Override
         </span>

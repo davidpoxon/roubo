@@ -68,22 +68,18 @@ function InvalidSpecsWarning({ invalidSpecs }: { invalidSpecs: InvalidGateSpec[]
     <div
       role="alert"
       data-testid="invalid-specs-warning"
-      className="shrink-0 flex flex-col gap-1.5 rounded-lg ring-1 ring-inset ring-amber-500/40 bg-amber-500/10 px-4 py-3"
+      className="shrink-0 flex flex-col gap-1.5 rounded-lg ring-1 ring-inset ring-accent-border bg-accent-muted px-4 py-3"
     >
       <div className="flex items-center gap-2">
-        <AlertTriangle
-          size={14}
-          aria-hidden
-          className="shrink-0 text-amber-600 dark:text-amber-400"
-        />
-        <span className="text-12 font-semibold text-amber-700 dark:text-amber-300">
+        <AlertTriangle size={14} aria-hidden className="shrink-0 text-accent-text" />
+        <span className="text-12 font-semibold text-accent-text">
           {STRINGS.invalidTitle(invalidSpecs.length)}
         </span>
       </div>
       <ul className="flex flex-col gap-1">
         {invalidSpecs.map((spec) => (
-          <li key={spec.slug} className="text-12 text-stone-600 dark:text-stone-400">
-            <span className="font-mono text-stone-800 dark:text-stone-200">{spec.slug}</span>
+          <li key={spec.slug} className="text-12 text-text-secondary">
+            <span className="font-mono text-text-primary">{spec.slug}</span>
             {": "}
             {spec.errors.join("; ")}
           </li>
@@ -141,7 +137,7 @@ function GateCard({
       data-testid="gate-card"
       data-selected={selected || undefined}
       data-blocked={hasUpstreamBlockers || undefined}
-      className="group relative flex flex-col gap-2 rounded-lg ring-1 ring-inset ring-border bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3 transition-colors hover:ring-amber-500/40 data-[blocked]:ring-amber-500/50 data-[selected]:ring-amber-500"
+      className="group relative flex flex-col gap-2 rounded-lg ring-1 ring-inset ring-border bg-bg-base px-4 py-3 transition-colors hover:ring-accent-border data-[blocked]:ring-accent-border data-[selected]:ring-accent"
     >
       <Button
         onPress={() => (selectable ? onToggleSelected(gate.gateId) : onOpen(gate.gateId))}
@@ -157,29 +153,27 @@ function GateCard({
               onChange={() => onToggleSelected(gate.gateId)}
               aria-label={`Select ${gate.gateId} to merge`}
               data-testid="gate-merge-checkbox"
-              className="relative z-10 flex items-center justify-center w-4 h-4 rounded-control border border-stone-300 dark:border-stone-700 data-[selected]:bg-amber-500 data-[selected]:border-amber-500 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring shrink-0 cursor-pointer"
+              className="relative z-10 flex items-center justify-center w-4 h-4 rounded-control border border-border-control bg-bg-field data-[selected]:bg-accent data-[selected]:border-accent outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring shrink-0 cursor-pointer"
             >
-              {selected && <span className="w-1.5 h-1.5 rounded-sm bg-stone-950" />}
+              {selected && <span className="w-1.5 h-1.5 rounded-sm bg-on-accent" />}
             </Checkbox>
           ) : (
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+            <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
           )}
           <div className="flex flex-col min-w-0">
             <span
               data-testid="gate-title"
               className={
-                "truncate transition-colors group-hover:text-stone-900 dark:group-hover:text-stone-100 " +
+                "truncate transition-colors group-hover:text-text-primary " +
                 (showGateIdSubLabel
-                  ? "text-13 font-medium text-stone-800 dark:text-stone-200"
-                  : "font-mono text-12 text-stone-600 dark:text-stone-300")
+                  ? "text-13 font-medium text-text-primary"
+                  : "font-mono text-12 text-text-body")
               }
             >
               {title}
             </span>
             {showGateIdSubLabel && (
-              <span className="font-mono text-11 text-stone-500 dark:text-stone-500 truncate">
-                {gate.gateId}
-              </span>
+              <span className="font-mono text-11 text-text-secondary truncate">{gate.gateId}</span>
             )}
           </div>
         </div>
@@ -188,41 +182,37 @@ function GateCard({
             <Button
               onPress={() => onSplit(gate)}
               data-testid="gate-split-trigger"
-              className="relative z-10 flex items-center gap-1 px-1.5 py-0.5 text-11 font-medium rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="relative z-10 flex items-center gap-1 px-1.5 py-0.5 text-11 font-medium rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Split size={12} aria-hidden />
               {STRINGS.split}
             </Button>
           )}
           <GateStateIndicator status={gate.status} />
-          <ChevronRight aria-hidden="true" className="w-4 h-4 text-stone-600 dark:text-stone-400" />
+          <ChevronRight aria-hidden="true" className="w-4 h-4 text-text-secondary" />
         </div>
       </div>
       {gatingCount > 0 && (
-        <p data-testid="gate-gating-count" className="text-12 text-stone-500 dark:text-stone-400">
+        <p data-testid="gate-gating-count" className="text-12 text-text-secondary">
           {STRINGS.gatingCount(gatingCount)}
         </p>
       )}
       {hasUpstreamBlockers && (
         <p
           data-testid="gate-blocked-by"
-          className="flex items-center gap-1 text-12 text-amber-700 dark:text-amber-400"
+          className="flex items-center gap-1 text-12 text-accent-text"
         >
           <AlertTriangle size={12} aria-hidden className="shrink-0" />
           <span className="min-w-0">
             {STRINGS.blockedByUpstream}{" "}
-            <span className="font-mono text-amber-800 dark:text-amber-300">
-              {blockedBy.join(", ")}
-            </span>
+            <span className="font-mono text-accent-text">{blockedBy.join(", ")}</span>
           </span>
         </p>
       )}
       {isBlocked && coveringUnits.length > 0 && (
-        <p className="text-12 text-stone-500 dark:text-stone-400">
+        <p className="text-12 text-text-secondary">
           {STRINGS.covers}{" "}
-          <span className="font-mono text-stone-700 dark:text-stone-300">
-            {coveringUnits.join(", ")}
-          </span>
+          <span className="font-mono text-text-body">{coveringUnits.join(", ")}</span>
         </p>
       )}
     </div>
@@ -277,33 +267,26 @@ function SplitDialog({
           ref={stampAriaModal}
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
         >
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 shrink-0 flex items-center justify-between gap-3">
-            <Heading
-              slot="title"
-              className="text-16 font-semibold text-stone-900 dark:text-stone-100 font-mono"
-            >
+          <div className="px-5 py-4 border-b border-border shrink-0 flex items-center justify-between gap-3">
+            <Heading slot="title" className="text-16 font-semibold text-text-primary font-mono">
               {STRINGS.splitTitle(gate.gateId)}
             </Heading>
             <Button
               onPress={onClose}
               isDisabled={isPending}
               aria-label="Close"
-              className="text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-control"
+              className="text-text-secondary hover:text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-control"
             >
               <X size={16} aria-hidden />
             </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-3">
-            <p className="text-13 text-stone-700 dark:text-stone-300 leading-relaxed">
-              {STRINGS.splitIntro}
-            </p>
+            <p className="text-13 text-text-body leading-relaxed">{STRINGS.splitIntro}</p>
             <ul className="flex flex-col gap-1.5" data-testid="split-assignments">
               {covers.map((wu) => (
                 <li key={wu} className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-12 text-stone-700 dark:text-stone-300 break-all">
-                    {wu}
-                  </span>
+                  <span className="font-mono text-12 text-text-body break-all">{wu}</span>
                   <div className="flex items-center gap-1 shrink-0">
                     {(["A", "B"] as const).map((part) => (
                       <Button
@@ -312,7 +295,7 @@ function SplitDialog({
                         isDisabled={isPending}
                         data-testid={`split-assign-${wu}-${part}`}
                         data-active={assignment[wu] === part || undefined}
-                        className="px-2 py-0.5 text-11 font-medium rounded-control ring-1 ring-inset ring-border-strong text-stone-500 dark:text-stone-400 data-[active]:bg-amber-500 data-[active]:text-stone-950 data-[active]:ring-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="px-2 py-0.5 text-11 font-medium rounded-control ring-1 ring-inset ring-border-strong text-text-secondary data-[active]:bg-accent data-[active]:text-on-accent data-[active]:ring-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {part}
                       </Button>
@@ -322,18 +305,18 @@ function SplitDialog({
               ))}
             </ul>
             {error && (
-              <p role="alert" className="text-12 text-red-500 dark:text-red-400">
+              <p role="alert" className="text-12 text-danger-text">
                 {error}
               </p>
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 shrink-0">
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border shrink-0">
             <Button
               onPress={onClose}
               isDisabled={isPending}
               data-testid="split-cancel"
-              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {STRINGS.splitCancel}
             </Button>
@@ -431,16 +414,14 @@ export default function GatesOverview({
   if (specSlug === undefined) {
     return (
       <div className="py-8">
-        <p className="text-13 text-stone-500 dark:text-stone-400">
-          Focus a spec to see its batches.
-        </p>
+        <p className="text-13 text-text-secondary">Focus a spec to see its batches.</p>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-8">
+      <div className="flex items-center gap-2 text-13 text-text-secondary py-8">
         <Spinner />
         Loading batches...
       </div>
@@ -452,7 +433,7 @@ export default function GatesOverview({
       error instanceof Error ? error.message : "Could not load the batches for this project.";
     return (
       <div className="py-8">
-        <p className="text-13 text-red-600 dark:text-red-400">{message}</p>
+        <p className="text-13 text-danger-text">{message}</p>
       </div>
     );
   }
@@ -468,9 +449,7 @@ export default function GatesOverview({
   if (gates.length === 0 && invalidSpecs.length === 0) {
     return (
       <div className="py-8">
-        <p className="text-13 text-stone-500 dark:text-stone-400">
-          This project has no verify gates yet.
-        </p>
+        <p className="text-13 text-text-secondary">This project has no verify gates yet.</p>
       </div>
     );
   }
@@ -490,13 +469,13 @@ export default function GatesOverview({
       <div className="flex items-center justify-between gap-2 shrink-0">
         {mergeMode ? (
           <>
-            <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.mergeHint}</p>
+            <p className="text-12 text-text-secondary">{STRINGS.mergeHint}</p>
             <div className="flex items-center gap-2">
               <Button
                 onPress={exitMergeMode}
                 isDisabled={mergeMutation.isPending}
                 data-testid="merge-cancel"
-                className="px-2.5 py-1 text-11 font-medium rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="px-2.5 py-1 text-11 font-medium rounded-control text-text-secondary hover:text-text-primary disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 {STRINGS.mergeCancel}
               </Button>
@@ -512,7 +491,7 @@ export default function GatesOverview({
           </>
         ) : (
           <>
-            <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+            <span className="text-11 font-semibold uppercase tracking-label text-text-secondary">
               Batches
             </span>
             {gates.length >= 2 && (
@@ -522,7 +501,7 @@ export default function GatesOverview({
                   setActionError(null);
                 }}
                 data-testid="merge-mode-trigger"
-                className="flex items-center gap-1 px-2.5 py-1 text-11 font-medium rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex items-center gap-1 px-2.5 py-1 text-11 font-medium rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <GitMerge size={12} aria-hidden />
                 {STRINGS.mergeMode}
@@ -535,11 +514,7 @@ export default function GatesOverview({
       {invalidSpecs.length > 0 && <InvalidSpecsWarning invalidSpecs={invalidSpecs} />}
 
       {actionError && (
-        <p
-          role="alert"
-          data-testid="overview-error"
-          className="text-12 text-red-500 dark:text-red-400 shrink-0"
-        >
+        <p role="alert" data-testid="overview-error" className="text-12 text-danger-text shrink-0">
           {actionError}
         </p>
       )}

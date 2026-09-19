@@ -24,27 +24,28 @@ export default function ProgressBar({ counts, label }: { counts: StatusCounts; l
 
   return (
     <div className={`flex items-center gap-3 ${isEmpty ? "opacity-30" : ""}`}>
-      <span className="text-11 uppercase tracking-label text-stone-500 dark:text-stone-400 shrink-0">
-        {label}
-      </span>
+      <span className="text-11 uppercase tracking-label text-text-secondary shrink-0">{label}</span>
       <div
         role="img"
         aria-label={ariaLabel}
-        className="flex h-1.5 flex-1 min-w-16 overflow-hidden rounded-full bg-stone-200 dark:bg-stone-700"
+        className="flex h-1.5 flex-1 min-w-16 overflow-hidden rounded-full bg-bg-pressed"
       >
         {passed > 0 && (
-          <span className="h-full bg-green-500" style={{ width: `${pct(passed, total)}%` }} />
+          <span className="h-full bg-status-active" style={{ width: `${pct(passed, total)}%` }} />
         )}
         {failed > 0 && (
-          <span className="h-full bg-red-500" style={{ width: `${pct(failed, total)}%` }} />
+          <span className="h-full bg-status-error" style={{ width: `${pct(failed, total)}%` }} />
         )}
         {in_progress > 0 && (
-          <span className="h-full bg-amber-500" style={{ width: `${pct(in_progress, total)}%` }} />
+          <span
+            className="h-full bg-status-preparing"
+            style={{ width: `${pct(in_progress, total)}%` }}
+          />
         )}
       </div>
       <span
         aria-hidden="true"
-        className="font-mono text-11 text-stone-600 dark:text-stone-400 shrink-0 tabular-nums"
+        className="font-mono text-11 text-text-secondary shrink-0 tabular-nums"
       >
         {ratio}
       </span>
