@@ -6,7 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
-## [Unreleased]
+## [0.5.0] - 2026-09-19
+
+Two optional additions to the agent plugin contract: a choice-probe declaration on the manifest and a `file-notifier` notification variant. Both landed on `main` after `0.4.0` was tagged, so this release carries them together. Both are optional, nothing is removed or narrowed, and no existing plugin needs a change to build or run against this release.
 
 ### Added
 
@@ -17,7 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 ### Compatibility
 
-Nothing in this release is breaking (#856). Every shipped manifest validates unchanged, and none needs a new field; both first-party agent plugins build and pass their own suites against it unchanged. A plugin that uses `choiceProbes` or `file-notifier` pins `roubo: ^1.6.0`, and a host below that floor refuses it with a message naming the version it needs rather than an unrecognised manifest key. A manifest fixture test asserts that refusal, so it does not depend on release order.
+Nothing in this release is breaking (#856). Both additions are optional: `choiceProbes` is an optional manifest key and `file-notifier` is an additional member of the notification union, so a plugin that uses neither is unaffected and no existing plugin needs a change. Every shipped manifest validates unchanged, and none needs a new field; both first-party agent plugins build and pass their own suites against it unchanged. A plugin that uses `choiceProbes` or `file-notifier` pins `roubo: ^1.6.0`, and a host below that floor refuses it with a message naming the version it needs rather than an unrecognised manifest key. A manifest fixture test asserts that refusal, so it does not depend on release order.
 
 ## [0.4.0] - 2026-08-23
 
