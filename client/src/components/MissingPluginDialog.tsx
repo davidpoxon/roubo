@@ -315,12 +315,12 @@ function MissingPluginDialogContent({
       }}
       isDismissable={!isSubmitting}
       isKeyboardDismissDisabled={isSubmitting}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-lg mx-4">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           {state.step === "prompt" && resolution && (
             <MarketplaceSourceScreen
@@ -473,7 +473,7 @@ function MarketplaceSourceScreen({
                 onPress={() => onInstallFromSource(source.sourceId)}
                 isDisabled={installing}
                 data-testid={`missing-plugin-install-from-${source.sourceId}`}
-                className="inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring not-disabled:active:bg-accent-active"
               >
                 <Download size={14} />
                 {pendingSourceId === source.sourceId
@@ -501,7 +501,7 @@ function MarketplaceSourceScreen({
           onPress={onSkip}
           isDisabled={installing}
           data-testid="missing-plugin-skip"
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.skipForNow}
         </Button>
@@ -509,7 +509,7 @@ function MarketplaceSourceScreen({
           onPress={onViewInMarketplace}
           isDisabled={installing}
           data-testid="missing-plugin-view-in-marketplace"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Store size={14} />
           {STRINGS.viewInMarketplace}
@@ -583,7 +583,7 @@ function PromptScreen({
           onPress={onSkip}
           isDisabled={installing}
           data-testid="missing-plugin-skip"
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.skipForNow}
         </Button>
@@ -592,7 +592,7 @@ function PromptScreen({
             onPress={onUseDifferentSource}
             isDisabled={installing}
             data-testid="missing-plugin-use-different-source"
-            className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {pluginSource ? STRINGS.useDifferentSource : STRINGS.chooseASource}
           </Button>
@@ -601,7 +601,7 @@ function PromptScreen({
               onPress={onOneClickInstall}
               isDisabled={installing}
               data-testid="missing-plugin-one-click-install"
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring not-disabled:active:bg-accent-active"
             >
               <Download size={14} />
               {installing

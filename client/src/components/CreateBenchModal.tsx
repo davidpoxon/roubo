@@ -59,12 +59,12 @@ export default function CreateBenchModal({
         if (!open) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-md mx-4">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           {({ close }) => (
             <>
@@ -110,7 +110,7 @@ export default function CreateBenchModal({
                       }
                       if (e.key === "Enter") handleCreate(close);
                     }}
-                    className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+                    className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
                   />
                 </TextField>
 
@@ -120,14 +120,14 @@ export default function CreateBenchModal({
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                 <Button
                   onPress={close}
-                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Cancel
                 </Button>
                 <Button
                   onPress={() => handleCreate(close)}
                   isDisabled={createBench.isPending || atCap}
-                  className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-lg transition-colors outline-none"
+                  className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   {createBench.isPending ? "Setting up..." : "Set up"}
                 </Button>

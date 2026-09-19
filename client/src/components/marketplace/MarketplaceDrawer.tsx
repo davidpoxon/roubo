@@ -138,7 +138,7 @@ export default function MarketplaceDrawer({
         if (!open) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-40 flex justify-end bg-black/40"
+      className="fixed inset-0 z-40 flex justify-end bg-scrim"
     >
       <Modal className="animate-rise-in h-full w-full max-w-md">
         <Dialog
@@ -157,7 +157,7 @@ export default function MarketplaceDrawer({
               data-testid="marketplace-drawer-close"
               onPress={onClose}
               aria-label={STRINGS.close}
-              className="grid h-8 w-8 place-items-center rounded-lg text-stone-500 dark:text-stone-400 transition-colors hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="grid h-8 w-8 place-items-center rounded-control text-stone-500 dark:text-stone-400 transition-colors hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <X size={16} />
             </Button>
@@ -320,7 +320,7 @@ export default function MarketplaceDrawer({
                 <Button
                   data-testid="marketplace-drawer-update"
                   onPress={() => onUpdate(listing)}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-13 font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-control bg-accent px-3 py-2 text-13 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
                 >
                   <RefreshCw size={16} /> {STRINGS.update}
                 </Button>
@@ -328,7 +328,7 @@ export default function MarketplaceDrawer({
                 <Button
                   data-testid="marketplace-drawer-install"
                   onPress={() => onInstall(listing)}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-13 font-medium text-stone-950 transition-colors hover:bg-amber-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-control bg-accent px-3 py-2 text-13 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
                 >
                   <Download size={16} /> {STRINGS.install}
                 </Button>

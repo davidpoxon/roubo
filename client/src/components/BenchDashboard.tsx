@@ -440,7 +440,7 @@ export default function BenchDashboard() {
           </div>
           <Button
             onPress={openRegisterModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={14} />
             Register project
@@ -485,7 +485,10 @@ export default function BenchDashboard() {
           aria-label="Breadcrumb"
           className="px-8 pt-5 text-12 text-stone-500 dark:text-stone-500"
         >
-          <Link to="/" className="hover:text-stone-900 dark:hover:text-stone-200 transition-colors">
+          <Link
+            to="/"
+            className="hover:text-stone-900 dark:hover:text-stone-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          >
             All Projects
           </Link>
           <span aria-hidden="true" className="mx-2 text-stone-500 dark:text-stone-400">
@@ -500,7 +503,7 @@ export default function BenchDashboard() {
             {hasConfig && hasGitHub && issueQueueCollapsed && !isOnSettings && (
               <Button
                 onPress={onToggleIssueQueue}
-                className="p-1.5 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none mr-1"
+                className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none mr-1 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 aria-label="Show cut list"
               >
                 <PanelLeft size={16} />
@@ -524,7 +527,7 @@ export default function BenchDashboard() {
 
       <DragOverlay>
         {draggingIssue && (
-          <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3 py-2 shadow-xl max-w-[280px] opacity-90">
+          <div className="bg-bg-surface border border-border rounded-control px-3 py-2 shadow-elevation-0 max-w-[280px] opacity-90">
             <div className="flex items-center gap-2">
               <span className="text-11 font-mono text-stone-500 dark:text-stone-300">
                 {draggingIssue.externalId}

@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ComponentConfig } from "@roubo/shared";
 
 export const INPUT =
-  "w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600";
+  "w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger";
 export const INPUT_INNER =
   "w-full flex-1 bg-transparent p-0 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none";
 

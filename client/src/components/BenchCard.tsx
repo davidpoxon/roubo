@@ -211,7 +211,7 @@ export default function BenchCard({
                       },
                     )
                   }
-                  className="w-full"
+                  className="w-full outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <RotateCcw
                     size={12}

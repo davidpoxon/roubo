@@ -62,7 +62,7 @@ export default function CutListSortControl({
           active ? `Sort cut list by ${activeLabel}, ${activeDir}ending` : "Sort cut list"
         }
         className={[
-          "relative flex items-center gap-1 rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
+          "relative flex items-center gap-1 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
           active
             ? "px-1.5 py-1 text-amber-500 dark:text-amber-400 hover:bg-amber-500/10"
             : "p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50",
@@ -78,7 +78,7 @@ export default function CutListSortControl({
       </Button>
       <Popover placement="bottom end" offset={6} className="animate-rise-in">
         <Dialog className="outline-none">
-          <div className="w-52 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/50 shadow-2xl overflow-hidden">
+          <div className="w-52 rounded-control bg-bg-surface border border-border shadow-elevation-0 overflow-hidden">
             {/* Popover header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200 dark:border-stone-800/60">
               <span className="text-12 font-semibold text-stone-700 dark:text-stone-300">
@@ -87,7 +87,7 @@ export default function CutListSortControl({
               {active && (
                 <Button
                   onPress={() => onSelectionChange(null)}
-                  className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+                  className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-control"
                 >
                   Clear
                 </Button>

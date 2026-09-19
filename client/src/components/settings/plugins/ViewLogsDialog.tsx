@@ -87,13 +87,13 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
         if (!open) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-3xl mx-4">
         <Dialog
           ref={stampAriaModal}
           aria-label={STRINGS.logsAriaLabel(pluginName)}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           <div className="px-5 py-3 border-b border-stone-200 dark:border-stone-800/60 flex items-center justify-between gap-3">
             <Heading
@@ -105,7 +105,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
             <Button
               onPress={onClose}
               aria-label={STRINGS.closeAriaLabel}
-              className="p-1 rounded text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="p-1 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <X size={16} />
             </Button>
@@ -120,7 +120,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
                   onPress={() => setFile(f)}
                   aria-pressed={file === f}
                   className={[
-                    "px-2.5 py-1 text-12 rounded transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
+                    "px-2.5 py-1 text-12 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
                     file === f
                       ? "bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium"
                       : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200",
@@ -142,7 +142,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
               <Label className="sr-only">{STRINGS.filterLabel}</Label>
               <Input
                 placeholder={STRINGS.filterPlaceholder}
-                className="w-full px-2.5 py-1 text-12 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 placeholder:text-stone-500 dark:placeholder:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="w-full px-2.5 py-1 text-12 rounded-control border border-border-control bg-bg-field text-text-primary placeholder:text-text-secondary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
               />
             </TextField>
 
@@ -150,7 +150,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
               onPress={() => logs.refetch()}
               isDisabled={logs.isFetching}
               aria-label={STRINGS.refreshAriaLabel}
-              className="p-1.5 rounded text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="p-1.5 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <RefreshCw size={14} className={logs.isFetching ? "animate-spin" : ""} />
             </Button>

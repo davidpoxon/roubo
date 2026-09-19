@@ -175,20 +175,20 @@ export function PermissionsRulesTable({
                         }}
                         autoFocus
                       >
-                        <Input className="w-full rounded-md bg-white dark:bg-stone-950/80 border border-stone-300 dark:border-stone-600 px-2 py-1 text-12 text-stone-900 dark:text-stone-200 font-mono focus:outline-none focus:border-stone-500" />
+                        <Input className="w-full rounded-control bg-bg-field border border-border-control px-2 py-1 text-12 text-text-primary font-mono outline-none focus:border-focus-ring focus:ring-2 focus:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger" />
                       </TextField>
                     </div>
                     <div className="flex justify-end gap-1.5">
                       <Button
                         onPress={() => saveEdit(originalIndex)}
                         isDisabled={!editPattern.trim()}
-                        className="text-11 px-2 py-1 rounded bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-stone-950 font-medium outline-none"
+                        className="text-11 px-2 py-1 rounded-control bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 text-on-accent font-medium outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         Save
                       </Button>
                       <Button
                         onPress={cancelEdit}
-                        className="text-11 px-2 py-1 rounded border border-stone-300 dark:border-stone-700 text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200 outline-none"
+                        className="text-11 px-2 py-1 rounded-control border border-stone-300 dark:border-stone-700 text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         Cancel
                       </Button>
@@ -210,7 +210,7 @@ export function PermissionsRulesTable({
                   aria-label={`Select rule ${rule.pattern}`}
                   isSelected={isSelected}
                   onChange={() => selection.onToggleKey(selKey)}
-                  className={`w-full grid px-5 py-2.5 items-center cursor-pointer outline-none transition-colors data-[focus-visible]:ring-2 data-[focus-visible]:ring-inset data-[focus-visible]:ring-amber-400 ${
+                  className={`w-full grid px-5 py-2.5 items-center cursor-pointer outline-none transition-colors data-[focus-visible]:ring-2 data-[focus-visible]:ring-inset data-[focus-visible]:ring-focus-ring ${
                     isSelected
                       ? "bg-amber-500/5 dark:bg-amber-500/8"
                       : "hover:bg-stone-100 dark:hover:bg-stone-900/40"
@@ -268,14 +268,14 @@ export function PermissionsRulesTable({
                     <Button
                       onPress={() => startEdit(originalIndex)}
                       isDisabled={editingIndex !== null}
-                      className="text-11 text-text-muted hover:text-stone-900 dark:hover:text-stone-200 outline-none disabled:opacity-40 transition-colors"
+                      className="text-11 text-text-muted hover:text-stone-900 dark:hover:text-stone-200 outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Edit
                     </Button>
                     <Button
                       onPress={() => onRemove?.(originalIndex)}
                       isDisabled={editingIndex !== null}
-                      className="text-11 text-text-muted hover:text-red-600 dark:hover:text-red-400 outline-none disabled:opacity-40 transition-colors"
+                      className="text-11 text-text-muted hover:text-red-600 dark:hover:text-red-400 outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Remove
                     </Button>
@@ -298,7 +298,7 @@ export function PermissionsRulesTable({
                   setTypeFilter(value);
                   setPage(1);
                 }}
-                className={`px-2 py-0.5 text-11 rounded transition-colors outline-none ${
+                className={`focus-visible:ring-2 focus-visible:ring-focus-ring px-2 py-0.5 text-11 rounded-control transition-colors outline-none ${
                   typeFilter === value
                     ? "bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200"
                     : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300"
@@ -316,7 +316,7 @@ export function PermissionsRulesTable({
                 aria-label="Previous page"
                 isDisabled={safePage <= 1}
                 onPress={() => setPage((p) => Math.max(1, p - 1))}
-                className="p-1 rounded text-text-muted hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-30 transition-colors outline-none"
+                className="p-1 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <ChevronLeft size={14} />
               </Button>
@@ -329,7 +329,7 @@ export function PermissionsRulesTable({
                 aria-label="Next page"
                 isDisabled={safePage >= totalPages}
                 onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1 rounded text-text-muted hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-30 transition-colors outline-none"
+                className="p-1 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <ChevronRight size={14} />
               </Button>

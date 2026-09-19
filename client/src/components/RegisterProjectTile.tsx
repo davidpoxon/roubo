@@ -7,7 +7,7 @@ export default function RegisterProjectTile() {
   return (
     <Button
       onPress={open}
-      className="rounded-xl border border-dashed border-stone-300 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/10 p-5 hover:border-stone-400 dark:hover:border-stone-700 hover:bg-stone-100/50 dark:hover:bg-stone-900/30 transition-colors flex flex-col items-center justify-center gap-2 text-stone-500 dark:text-stone-400 hover:text-stone-500 dark:hover:text-stone-300 min-h-[128px] outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+      className="rounded-control border border-dashed border-stone-300 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/10 p-5 hover:border-stone-400 dark:hover:border-stone-700 hover:bg-stone-100/50 dark:hover:bg-stone-900/30 transition-colors flex flex-col items-center justify-center gap-2 text-stone-500 dark:text-stone-400 hover:text-stone-500 dark:hover:text-stone-300 min-h-[128px] outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
     >
       <Plus size={16} strokeWidth={1.5} />
       <span className="text-12 font-medium">Register project</span>

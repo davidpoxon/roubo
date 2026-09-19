@@ -70,7 +70,7 @@ function JigMenu({ jigs, onSelect }: { jigs: JigMeta[]; onSelect: (id: string) =
     <Popover
       placement="bottom end"
       offset={6}
-      className="animate-rise-in bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[14rem] max-w-[18rem] max-h-72 overflow-y-auto"
+      className="animate-rise-in bg-bg-surface border border-border rounded-control shadow-elevation-0 p-1 min-w-[14rem] max-w-[18rem] max-h-72 overflow-y-auto"
     >
       <Menu onAction={(key) => onSelect(String(key))} className="outline-none">
         {jigs.map((jig) => (
@@ -78,7 +78,7 @@ function JigMenu({ jigs, onSelect }: { jigs: JigMeta[]; onSelect: (id: string) =
             key={jig.id}
             id={jig.id}
             className={({ isFocused }) =>
-              `flex flex-col gap-0.5 px-3 py-2 rounded-lg cursor-default outline-none transition-colors ${
+              `flex flex-col gap-0.5 px-3 py-2 rounded-control cursor-default outline-none transition-colors ${
                 isFocused ? "bg-stone-100 dark:bg-stone-800" : ""
               }`
             }
@@ -629,7 +629,7 @@ export default function TerminalTabs({
               )}
               <Button
                 onPress={() => handleDestroy(session.id)}
-                className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-stone-300 dark:hover:bg-stone-700 transition-opacity outline-none"
+                className="ml-0.5 p-0.5 rounded-control opacity-0 group-hover:opacity-100 hover:bg-stone-300 dark:hover:bg-stone-700 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <X size={12} />
               </Button>
@@ -644,12 +644,12 @@ export default function TerminalTabs({
               <TooltipTrigger delay={500}>
                 <Button
                   aria-label="Inject jig"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-md text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <Bot size={14} className="text-stone-500 dark:text-stone-400" />
                   <ChevronDown size={12} className="text-stone-500 dark:text-stone-400" />
                 </Button>
-                <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg">
+                <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0">
                   Inject jig
                 </Tooltip>
               </TooltipTrigger>
@@ -660,11 +660,11 @@ export default function TerminalTabs({
           <TooltipTrigger delay={500}>
             <Button
               onPress={() => handleCreate()}
-              className="p-1.5 rounded-md text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
+              className="p-1.5 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Plus size={14} />
             </Button>
-            <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg">
+            <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0">
               New terminal
             </Tooltip>
           </TooltipTrigger>
@@ -677,18 +677,18 @@ export default function TerminalTabs({
                 aria-label={`Launch ${primaryLabel}`}
                 isDisabled={primaryDisabled}
                 onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
-                className="p-1.5 rounded-l-md text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="p-1.5 rounded-l-control text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <Bot size={14} />
               </Button>
-              <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg">
+              <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0">
                 {primaryTooltip}
               </Tooltip>
             </TooltipTrigger>
             <MenuTrigger>
               <Button
                 aria-label="Choose launch option"
-                className="flex items-center px-1 py-1.5 text-stone-500 dark:text-stone-400 rounded-r-md border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="flex items-center px-1 py-1.5 text-stone-500 dark:text-stone-400 rounded-r-control border-l border-stone-200 dark:border-stone-700/30 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <ChevronDown size={12} />
               </Button>
@@ -709,7 +709,7 @@ export default function TerminalTabs({
             <div className="flex items-center gap-2">
               <Button
                 onPress={() => handleCreate()}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-400 bg-stone-800 hover:bg-stone-700 hover:text-stone-200 rounded-lg transition-colors outline-none"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-400 bg-stone-800 hover:bg-stone-700 hover:text-stone-200 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <Plus size={12} />
                 New Terminal
@@ -719,7 +719,7 @@ export default function TerminalTabs({
                 <Button
                   isDisabled={primaryDisabled}
                   onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-l-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-l-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
                 >
                   <Bot size={12} />
                   {primaryLabel}
@@ -727,7 +727,7 @@ export default function TerminalTabs({
                 <MenuTrigger>
                   <Button
                     aria-label="Choose launch option"
-                    className="flex items-center px-1.5 py-1.5 text-stone-950/70 bg-amber-500 hover:bg-amber-400 rounded-r-lg border-l border-stone-950/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                    className="flex items-center px-1.5 py-1.5 text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active rounded-r-control border-l border-on-accent/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                   >
                     <ChevronDown size={12} />
                   </Button>

@@ -136,12 +136,12 @@ export default function ReconcileDialog({
       }}
       isDismissable={!isBusy}
       isKeyboardDismissDisabled={isBusy}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
         >
           {({ close }) => (
             <>
@@ -218,7 +218,7 @@ export default function ReconcileDialog({
                         isDisabled={isBusy}
                         onPress={() => setConfirmingPurge(true)}
                         data-testid="reconcile-purge-trigger"
-                        className="px-2.5 py-1 text-11 font-medium rounded-md text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                        className="px-2.5 py-1 text-11 font-medium rounded-control text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {STRINGS.purge}
                       </Button>
@@ -230,7 +230,7 @@ export default function ReconcileDialog({
                         isDisabled={isBusy}
                         onPress={close}
                         data-testid="reconcile-cancel"
-                        className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                        className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {STRINGS.cancel}
                       </Button>
@@ -238,7 +238,7 @@ export default function ReconcileDialog({
                         isDisabled={isBusy}
                         onPress={onApply}
                         data-testid="reconcile-apply"
-                        className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                        className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
                       >
                         {isApplying ? STRINGS.applying : STRINGS.apply}
                       </Button>
@@ -295,7 +295,7 @@ function PurgeConfirmation({
           isDisabled={isPurging}
           onPress={onBack}
           data-testid="reconcile-purge-back"
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.purgeConfirmBack}
         </Button>
@@ -303,7 +303,7 @@ function PurgeConfirmation({
           isDisabled={isPurging}
           onPress={onConfirm}
           data-testid="reconcile-purge-confirm-action"
-          className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-red-600 hover:bg-red-500 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+          className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-danger-active"
         >
           {isPurging ? STRINGS.purging : STRINGS.purgeConfirmAction}
         </Button>

@@ -33,6 +33,7 @@ import JigIcon from "./JigIcon";
 import UnsavedChangesDialog from "./UnsavedChangesDialog";
 import DeleteJigDialog from "./DeleteJigDialog";
 import { DEFAULT_JIG_ICON } from "./jigIcons";
+import { TAB_CLASS } from "../ui/Tabs";
 
 const SOFT_WARN_BYTES = 50 * 1024;
 const HARD_LIMIT_BYTES = 200 * 1024;
@@ -69,12 +70,8 @@ interface Props {
   projectId?: string;
 }
 
-const tabClassName = ({ isSelected }: { isSelected: boolean }) =>
-  `px-3 py-2 text-12 font-medium transition-colors outline-none cursor-default border-b-2 -mb-px ${
-    isSelected
-      ? "text-stone-800 dark:text-stone-200 border-amber-500"
-      : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
-  }`;
+// DESIGN.md Tabs: the shared tab treatment, including the focus ring.
+const tabClassName = TAB_CLASS;
 
 export default function JigEditorForm({ initial, scope, mode, projectId }: Props) {
   const navigate = useNavigate();
@@ -260,7 +257,7 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
           <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400">
             <Button
               onPress={handleCancel}
-              className="hover:text-stone-700 dark:hover:text-stone-200 transition-colors duration-150 outline-none focus-visible:underline"
+              className="hover:text-stone-700 dark:hover:text-stone-200 transition-colors duration-150 outline-none focus-visible:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {breadcrumbLabel}
             </Button>
@@ -277,21 +274,21 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
                   setDeleteReferences(undefined);
                   setShowDelete(true);
                 }}
-                className="px-3 py-1.5 text-13 text-red-500 hover:text-red-400 transition-colors rounded-lg outline-none focus-visible:ring-1 focus-visible:ring-red-400"
+                className="px-3 py-1.5 text-13 text-red-500 hover:text-red-400 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 Delete
               </Button>
             )}
             <Button
               onPress={handleCancel}
-              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Cancel
             </Button>
             <Button
               onPress={handleSave}
               isDisabled={saveDisabled}
-              className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+              className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
             >
               {isPending ? "Saving..." : "Save"}
             </Button>

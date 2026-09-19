@@ -131,7 +131,7 @@ export default function IssueChip({
     return (
       <Button
         onPress={onPress}
-        className={`${BASE_CLASSES} ${variantClasses} ${toneClasses.hover} ${INTERACTIVE_CLASSES}`}
+        className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${BASE_CLASSES} ${variantClasses} ${toneClasses.hover} ${INTERACTIVE_CLASSES}`}
         data-chip-category={variant}
         aria-describedby={describedById}
         data-testid={dataTestid}
@@ -145,7 +145,7 @@ export default function IssueChip({
     return (
       <TooltipTrigger delay={500}>
         <Button
-          className={`${BASE_CLASSES} ${variantClasses} ${toneClasses.hover} ${INTERACTIVE_CLASSES}`}
+          className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${BASE_CLASSES} ${variantClasses} ${toneClasses.hover} ${INTERACTIVE_CLASSES}`}
           data-chip-category={variant}
           aria-describedby={describedById}
           data-testid={dataTestid}

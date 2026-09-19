@@ -77,13 +77,13 @@ export default function CutListFilterBar({
           />
           <Input
             placeholder="Search by title or #number…"
-            className="w-full pl-6 pr-6 py-1 text-12 rounded-md bg-stone-100 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700/50 text-stone-700 dark:text-stone-300 placeholder:text-stone-600 dark:placeholder:text-stone-400 outline-none focus:border-amber-500 dark:focus:border-amber-500 focus:bg-white dark:focus:bg-stone-800 transition-colors"
+            className="w-full pl-6 pr-6 py-1 text-12 rounded-control bg-bg-field border border-border-control text-text-primary placeholder:text-text-secondary outline-none focus:border-focus-ring transition-colors focus:ring-2 focus:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
           />
           {filters.search && (
             <Button
               onPress={() => onFiltersChange({ ...filters, search: "" })}
               aria-label="Clear search"
-              className="absolute right-1.5 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
+              className="absolute right-1.5 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <X size={12} />
             </Button>
@@ -96,7 +96,7 @@ export default function CutListFilterBar({
           <Button
             aria-label={count > 0 ? `Filter cut list, ${count} active` : "Filter cut list"}
             className={[
-              "relative p-1.5 rounded-md transition-colors outline-none shrink-0",
+              "focus-visible:ring-2 focus-visible:ring-focus-ring relative p-1.5 rounded-control transition-colors outline-none shrink-0",
               count > 0
                 ? "text-amber-500 dark:text-amber-400 hover:bg-amber-500/10"
                 : "text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50",
@@ -114,7 +114,7 @@ export default function CutListFilterBar({
           </Button>
           <Popover placement="bottom end" offset={6} className="animate-rise-in">
             <Dialog className="outline-none">
-              <div className="w-72 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/50 shadow-2xl overflow-hidden">
+              <div className="w-72 rounded-control bg-bg-surface border border-border shadow-elevation-0 overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200 dark:border-stone-800/60">
                   <span className="text-12 font-semibold text-stone-700 dark:text-stone-300">
                     Filters
@@ -122,7 +122,7 @@ export default function CutListFilterBar({
                   {hasFilters && (
                     <Button
                       onPress={() => onFiltersChange(createEmptyFilters())}
-                      className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
+                      className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Clear all
                     </Button>
@@ -220,7 +220,7 @@ function FacetSection({
           <Button
             onPress={clearSelection}
             aria-label={`Clear ${facet.label} filter`}
-            className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
+            className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <X size={12} />
           </Button>

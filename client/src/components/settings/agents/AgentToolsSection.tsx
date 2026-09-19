@@ -140,7 +140,7 @@ function AgentToolRow({
         <Button
           onPress={onEdit}
           aria-label={`Edit ${preset.name}`}
-          className="p-1.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+          className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Pencil size={14} />
         </Button>
@@ -149,7 +149,7 @@ function AgentToolRow({
         <Button
           onPress={onDelete}
           aria-label={`Delete ${preset.name}`}
-          className="p-1.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-red-500 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+          className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-red-500 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Trash2 size={14} />
         </Button>
@@ -205,7 +205,7 @@ export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props)
         </h3>
         <Button
           onPress={() => setEditing({ preset: null })}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
         >
           <Plus size={12} />
           New agent tool

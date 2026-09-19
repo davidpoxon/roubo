@@ -47,7 +47,7 @@ export default function MultiSelect({
         onPress={() => setIsOpen((prev) => !prev)}
         aria-label={placeholder ?? "Select"}
         aria-expanded={isOpen}
-        className="w-full flex items-center justify-between rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 data-[pressed]:bg-stone-200 dark:data-[pressed]:bg-stone-800"
+        className="w-full flex items-center justify-between rounded-control bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus:ring-2 focus:ring-focus-ring data-[pressed]:bg-stone-200 dark:data-[pressed]:bg-stone-800"
       >
         <span className="truncate">
           {triggerLabel ?? <span className="text-stone-600">{placeholder}</span>}
@@ -58,7 +58,7 @@ export default function MultiSelect({
         <Button
           aria-label="Clear selection"
           onPress={() => onChange(new Set())}
-          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded text-stone-600 dark:text-stone-300 transition-colors duration-150 hover:text-stone-600 dark:hover:text-stone-400 outline-none"
+          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded-control text-stone-600 dark:text-stone-300 transition-colors duration-150 hover:text-stone-600 dark:hover:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <X size={14} />
         </Button>
@@ -68,7 +68,7 @@ export default function MultiSelect({
         triggerRef={triggerRef}
         isOpen={isOpen}
         onOpenChange={setIsOpen}
-        className="animate-rise-in w-[var(--trigger-width)] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 overflow-auto max-h-60"
+        className="animate-rise-in w-[var(--trigger-width)] rounded-control bg-bg-surface border border-border shadow-elevation-0 py-1 z-50 overflow-auto max-h-60"
       >
         <ListBox
           selectionMode="multiple"

@@ -102,12 +102,12 @@ export function ImportPermissionsModal({
         if (!open) handleClose();
       }}
       isDismissable
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm p-4"
     >
       <Modal className="animate-rise-in w-full max-w-5xl">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           {() => (
             <>
@@ -132,7 +132,7 @@ export function ImportPermissionsModal({
                 <Button
                   onPress={handleClose}
                   aria-label="Close"
-                  className="text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none text-16 leading-none transition-colors shrink-0"
+                  className="text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none text-16 leading-none transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   ×
                 </Button>
@@ -151,7 +151,7 @@ export function ImportPermissionsModal({
                     {selectedProjectId && !isLoading && newRules.length > 0 && (
                       <Button
                         onPress={toggleSelectAll}
-                        className="text-11 text-amber-500 hover:text-amber-400 outline-none transition-colors"
+                        className="text-11 text-amber-500 hover:text-amber-400 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {allSelected ? "Deselect all" : "Select all"}
                       </Button>
@@ -210,14 +210,14 @@ export function ImportPermissionsModal({
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                 <Button
                   onPress={handleClose}
-                  className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 px-3 py-1.5 outline-none transition-colors"
+                  className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 px-3 py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Cancel
                 </Button>
                 <Button
                   onPress={handleImport}
                   isDisabled={selectedKeys.size === 0}
-                  className="text-11 font-medium px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-stone-950 outline-none transition-colors"
+                  className="text-11 font-medium px-3 py-1.5 rounded-control bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 text-on-accent outline-none transition-colors not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Import
                   {selectedKeys.size > 0

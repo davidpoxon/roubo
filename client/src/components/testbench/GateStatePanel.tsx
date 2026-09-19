@@ -44,7 +44,7 @@ export default function GateStatePanel({ gate }: { gate: GateState }) {
     <section
       aria-label={`Gate ${gate.gateId} state`}
       data-testid="gate-state-panel"
-      className="rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3 flex flex-col gap-3"
+      className="rounded-lg ring-1 ring-inset ring-border bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3 flex flex-col gap-3"
     >
       <div className="flex items-center justify-between gap-3 min-w-0">
         <div className="flex items-center gap-2 min-w-0">

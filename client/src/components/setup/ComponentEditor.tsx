@@ -142,7 +142,7 @@ export default function ComponentEditor({
           <Checkbox
             isSelected={portHttps ?? false}
             onChange={onPortHttpsChange}
-            className="flex items-center gap-1.5 text-11 text-text-muted cursor-pointer select-none group"
+            className="flex items-center gap-1.5 text-11 text-text-muted cursor-pointer select-none group outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <div className="size-3.5 rounded border border-stone-600 group-data-[selected]:bg-stone-500 group-data-[selected]:border-stone-500 transition-colors flex items-center justify-center">
               <svg
@@ -430,7 +430,7 @@ export default function ComponentEditor({
                           },
                         });
                       }}
-                      className="p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0"
+                      className="p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       <X size={14} />
                     </Button>
@@ -449,7 +449,7 @@ export default function ComponentEditor({
                   },
                 });
               }}
-              className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-300 transition-colors"
+              className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Plus size={12} /> Add argument
             </Button>
@@ -529,7 +529,7 @@ export default function ComponentEditor({
                         },
                       });
                     }}
-                    className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0"
+                    className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     <X size={14} />
                   </Button>
@@ -546,7 +546,7 @@ export default function ComponentEditor({
                 },
               });
             }}
-            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-300 transition-colors"
+            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} /> Add pair
           </Button>
@@ -729,7 +729,7 @@ export default function ComponentEditor({
                       const remaining = Object.keys(env).length > 0 ? env : undefined;
                       update({ env: remaining });
                     }}
-                    className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0"
+                    className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     <X size={14} />
                   </Button>
@@ -741,7 +741,7 @@ export default function ComponentEditor({
 
           <Button
             onPress={() => update({ env: { ...currentEnv, "": "" } })}
-            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
+            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} /> Add variable
           </Button>
@@ -809,7 +809,7 @@ export default function ComponentEditor({
                         env: Object.keys(env).length > 0 ? env : undefined,
                       });
                     }}
-                    className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0"
+                    className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     <X size={14} />
                   </Button>
@@ -820,7 +820,7 @@ export default function ComponentEditor({
           })}
           <Button
             onPress={() => update({ env: { ...component.env, "": "" } })}
-            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
+            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} /> Add variable
           </Button>
@@ -885,7 +885,7 @@ export default function ComponentEditor({
                         envVars: Object.keys(envVars).length > 0 ? envVars : undefined,
                       });
                     }}
-                    className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0"
+                    className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     <X size={14} />
                   </Button>
@@ -896,7 +896,7 @@ export default function ComponentEditor({
           })}
           <Button
             onPress={() => update({ envVars: { ...component.envVars, "": "" } })}
-            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
+            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} /> Add variable
           </Button>

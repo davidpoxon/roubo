@@ -13,6 +13,7 @@ import ComponentEditor from "./ComponentEditor";
 import Select from "../Select";
 import { filePathItems } from "../filePathItems";
 import { COMPONENT_TYPE_LABELS, componentTypeBadge } from "./styles";
+import { TAB_CLASS } from "../ui/Tabs";
 
 export { COMPONENT_TYPE_LABELS };
 
@@ -81,7 +82,7 @@ function InlineNameEditor({ value, onCommit }: { value: string; onCommit: (v: st
     >
       <Input
         ref={inputRef}
-        className="w-full bg-transparent text-13 text-stone-800 dark:text-stone-200 font-medium border-none rounded px-1.5 py-0.5 -mx-1.5 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 focus:bg-stone-200/60 dark:focus:bg-stone-800/60 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 transition-colors font-mono"
+        className="w-full bg-transparent text-13 text-stone-800 dark:text-stone-200 font-medium border-none rounded-control px-1.5 py-0.5 -mx-1.5 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 focus:bg-stone-200/60 dark:focus:bg-stone-800/60 focus:outline-none focus:ring-2 focus:ring-focus-ring transition-colors font-mono"
       />
     </TextField>
   );
@@ -254,7 +255,7 @@ export default function SectionComponents({
           ) && <span className="text-11 text-stone-500 dark:text-stone-400">Auto-detected</span>}
           <Button
             onPress={() => dispatch({ type: "REMOVE_COMPONENT", payload: key })}
-            className="ml-auto p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none"
+            className="ml-auto p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Trash2 size={14} />
           </Button>
@@ -318,17 +319,7 @@ export default function SectionComponents({
           {visibleTypes.map((type) => {
             const count = componentsByType[type]?.length ?? 0;
             return (
-              <Tab
-                key={type}
-                id={type}
-                className={({ isSelected }) =>
-                  `px-3 py-2 text-12 font-medium transition-colors outline-none cursor-default border-b-2 -mb-px ${
-                    isSelected
-                      ? "text-stone-800 dark:text-stone-200 border-stone-600 dark:border-stone-400"
-                      : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-700 dark:hover:text-stone-400"
-                  }`
-                }
-              >
+              <Tab key={type} id={type} className={TAB_CLASS}>
                 {COMPONENT_TYPE_LABELS[type] ?? type}
                 {count > 0 && (
                   <span className="ml-1.5 text-11 bg-stone-200 dark:bg-stone-800 text-text-muted px-1.5 py-0.5 rounded-full tabular-nums">
@@ -346,7 +337,7 @@ export default function SectionComponents({
               {type !== "other" && (renderItemsForType[type] ?? []).length === 0 ? (
                 <Button
                   onPress={() => addComponent(type as ComponentType)}
-                  className="w-full flex items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-stone-300 dark:border-stone-700 hover:border-stone-500 text-13 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+                  className="w-full flex items-center justify-center gap-2 py-6 rounded-control border border-dashed border-stone-300 dark:border-stone-700 hover:border-stone-500 text-13 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <Plus size={16} />
                   Add {COMPONENT_TYPE_LABELS[type] ?? type}
@@ -354,7 +345,7 @@ export default function SectionComponents({
               ) : type !== "other" ? (
                 <Button
                   onPress={() => addComponent(type as ComponentType)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 border border-stone-300 dark:border-stone-800 hover:border-stone-400 dark:hover:border-stone-700 rounded-lg transition-colors outline-none"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 border border-stone-300 dark:border-stone-800 hover:border-stone-400 dark:hover:border-stone-700 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <Plus size={14} />
                   Add {COMPONENT_TYPE_LABELS[type] ?? type}
@@ -393,7 +384,7 @@ export default function SectionComponents({
                         >
                           <Input
                             placeholder="path/to/docker-compose.yml"
-                            className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600"
+                            className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
                           />
                         </TextField>
                       )}
@@ -414,7 +405,7 @@ export default function SectionComponents({
       <Button
         key={key}
         onPress={() => dispatch({ type: "SET_SUB_STEP", payload: key })}
-        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <span className="flex-1 text-13 font-medium text-stone-700 dark:text-stone-300 font-mono truncate">
           {key}

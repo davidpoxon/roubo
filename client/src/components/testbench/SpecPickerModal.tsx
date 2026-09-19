@@ -125,7 +125,7 @@ const LIFECYCLE_COPY = {
 // One row-actions menu item. Matches the ToolButtons menu styling so the two
 // kebab menus in the app read the same.
 const LIFECYCLE_MENU_ITEM_CLASS =
-  "flex items-start gap-2.5 px-3 py-2 rounded-lg text-12 cursor-default outline-none transition-colors text-stone-600 dark:text-stone-400 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-800 data-[focused]:text-stone-900 dark:data-[focused]:text-stone-100";
+  "flex items-start gap-2.5 px-3 py-2 rounded-chip text-12 cursor-default outline-none transition-colors text-stone-600 dark:text-stone-400 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-800 data-[focused]:text-stone-900 dark:data-[focused]:text-stone-100";
 
 // Spec picker shared by the create flow (#418, FR-001/FR-002/FR-003) and the
 // re-point flow (#423, FR-024). Lists the discovered specs and offers a manual-path
@@ -307,7 +307,7 @@ export default function SpecPickerModal({
     const toggle = (
       <ToggleButton
         id={spec.path}
-        className={`flex-1 min-w-0 flex items-start gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+        className={`flex-1 min-w-0 flex items-start gap-3 px-3 py-2.5 rounded-control border text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
           isSelected
             ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
             : "border-stone-200 dark:border-stone-800/60 hover:border-stone-300 dark:hover:border-stone-700/60 hover:bg-stone-50 dark:hover:bg-stone-800/40"
@@ -383,13 +383,13 @@ export default function SpecPickerModal({
           <Button
             aria-label={`Actions for ${spec.slug}`}
             className={({ isHovered, isPressed, isFocusVisible }) =>
-              `shrink-0 mt-1 p-1.5 rounded-lg text-stone-500 dark:text-stone-400 outline-none transition-colors ${
+              `shrink-0 mt-1 p-1.5 rounded-control text-stone-500 dark:text-stone-400 outline-none transition-colors ${
                 isPressed
                   ? "bg-stone-200 dark:bg-stone-700/60"
                   : isHovered
                     ? "bg-stone-100 dark:bg-stone-800/60"
                     : ""
-              } ${isFocusVisible ? "ring-2 ring-amber-500" : ""}`
+              } ${isFocusVisible ? "ring-2 ring-focus-ring" : ""}`
             }
           >
             <EllipsisVertical size={14} aria-hidden />
@@ -397,7 +397,7 @@ export default function SpecPickerModal({
           <Popover
             placement="bottom end"
             offset={4}
-            className="animate-rise-in bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[11rem]"
+            className="animate-rise-in bg-bg-surface border border-border rounded-control shadow-elevation-0 p-1 min-w-[11rem]"
           >
             <Menu
               className="outline-none"
@@ -448,12 +448,12 @@ export default function SpecPickerModal({
         if (!open) handleClose();
       }}
       isDismissable
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-lg mx-4">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           {({ close }) => (
             <>
@@ -498,7 +498,7 @@ export default function SpecPickerModal({
                         </Label>
                         <Input
                           placeholder="Shipped in #212, all issues closed"
-                          className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                          className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
                         />
                       </TextField>
                     )}
@@ -553,7 +553,7 @@ export default function SpecPickerModal({
                   <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
                     <Button
                       onPress={dismissPending}
-                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
+                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
                     >
                       Cancel
                     </Button>
@@ -563,7 +563,7 @@ export default function SpecPickerModal({
                         lifecycleMutation.isPending ||
                         (pendingAction.kind === "supersede" && supersedeTarget.length === 0)
                       }
-                      className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
+                      className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900 not-disabled:active:bg-accent-active"
                     >
                       {lifecycleMutation.isPending
                         ? LIFECYCLE_COPY[pendingAction.kind].busyLabel
@@ -700,7 +700,7 @@ export default function SpecPickerModal({
                                 aria-expanded={allPassedExpanded}
                                 onPress={() => setAllPassedExpanded((open) => !open)}
                                 className={({ isHovered, isPressed, isFocusVisible }) =>
-                                  `w-full flex items-center gap-2 px-3 py-2 rounded-lg text-13 font-medium text-stone-500 dark:text-stone-400 outline-none transition-colors ${
+                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium text-stone-500 dark:text-stone-400 outline-none transition-colors ${
                                     isPressed
                                       ? "bg-stone-200 dark:bg-stone-700/60"
                                       : isHovered
@@ -708,7 +708,7 @@ export default function SpecPickerModal({
                                         : ""
                                   } ${
                                     isFocusVisible
-                                      ? "ring-2 ring-amber-500 ring-offset-2 dark:ring-offset-stone-900"
+                                      ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-surface"
                                       : ""
                                   }`
                                 }
@@ -757,7 +757,7 @@ export default function SpecPickerModal({
                                 aria-controls={archivedGroupId}
                                 onPress={() => setShowArchived((open) => !open)}
                                 className={({ isHovered, isPressed, isFocusVisible }) =>
-                                  `w-full flex items-center gap-2 px-3 py-2 rounded-lg text-13 font-medium text-stone-500 dark:text-stone-400 outline-none transition-colors ${
+                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium text-stone-500 dark:text-stone-400 outline-none transition-colors ${
                                     isPressed
                                       ? "bg-stone-200 dark:bg-stone-700/60"
                                       : isHovered
@@ -765,7 +765,7 @@ export default function SpecPickerModal({
                                         : ""
                                   } ${
                                     isFocusVisible
-                                      ? "ring-2 ring-amber-500 ring-offset-2 dark:ring-offset-stone-900"
+                                      ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-surface"
                                       : ""
                                   }`
                                 }
@@ -828,7 +828,7 @@ export default function SpecPickerModal({
                       </Label>
                       <Input
                         placeholder=".specifications/<slug>/test-cases.json"
-                        className="w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 font-mono text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 font-mono text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
                       />
                       <div
                         id="manual-path-status"
@@ -878,14 +878,14 @@ export default function SpecPickerModal({
                         reset();
                         close();
                       }}
-                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Cancel
                     </Button>
                     <Button
                       onPress={handleCreate}
                       isDisabled={!canCreate}
-                      className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors outline-none"
+                      className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       {isCreating ? copy.busyLabel : copy.confirmLabel}
                     </Button>

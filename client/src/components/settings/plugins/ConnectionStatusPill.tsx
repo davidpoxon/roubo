@@ -119,13 +119,13 @@ export default function ConnectionStatusPill({
           data-testid="connection-status-pill"
           data-state={state}
           aria-label={ARIA_LABELS.withDetail(LABELS[state], detail)}
-          className={`${className} outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950`}
+          className={`${className} outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950`}
         >
           <PillBody state={state} checkedAt={checkedAt} rechecking={effectiveRechecking} />
         </Button>
         <Tooltip
           data-testid="connection-status-pill-tooltip"
-          className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg max-w-xs"
+          className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0 max-w-xs"
         >
           {detail}
         </Tooltip>

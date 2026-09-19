@@ -80,7 +80,7 @@ function unresolvedHeadline(resolution: Resolution): string {
 
 const FIELD_LABEL_CLASS = "block text-12 font-medium text-stone-500 dark:text-stone-400 mb-1.5";
 const INPUT_CLASS =
-  "w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 placeholder-stone-600 dark:placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-amber-500";
+  "w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger";
 
 export default function ReplacementPicker({
   isOpen,
@@ -253,12 +253,12 @@ export default function ReplacementPicker({
         if (!open) handleClose();
       }}
       isDismissable
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-xl mx-4">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
           <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
             <Heading
@@ -491,7 +491,7 @@ export default function ReplacementPicker({
             <Button
               data-testid="replacement-cancel"
               onPress={handleClose}
-              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
+              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
             >
               Cancel
             </Button>
@@ -499,7 +499,7 @@ export default function ReplacementPicker({
               data-testid="replacement-confirm"
               isDisabled={!canConfirm}
               onPress={handleConfirm}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
+              className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900 not-disabled:active:bg-accent-active"
             >
               Use this replacement
             </Button>

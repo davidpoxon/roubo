@@ -60,7 +60,7 @@ export default function MarketplacesTab({ onAddSource, onRemoveSource }: Props =
         <Button
           data-testid="add-marketplace"
           onPress={() => onAddSource?.()}
-          className="inline-flex flex-none items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="inline-flex flex-none items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-control border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Plus size={14} />
           {STRINGS.addCta}

@@ -27,10 +27,10 @@ import UninstallPluginDialog from "./UninstallPluginDialog";
 import { derivePluginConnectionState, primaryActionLabelFor } from "./derivePluginConnectionState";
 
 const SECONDARY_BUTTON_CLASS =
-  "px-2.5 py-1 text-12 font-medium rounded text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "px-2.5 py-1 text-12 font-medium rounded-control text-stone-600 dark:text-stone-300 not-disabled:hover:bg-stone-100 not-disabled:hover:text-stone-900 dark:not-disabled:hover:bg-stone-800 dark:not-disabled:hover:text-stone-100 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 const PRIMARY_BUTTON_CLASS =
-  "px-3 py-1 text-12 font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "px-3 py-1 text-12 font-medium rounded-control border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-100 not-disabled:hover:bg-amber-50 not-disabled:hover:border-amber-500/40 dark:not-disabled:hover:bg-amber-950/20 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 const STRINGS = {
   viewLogs: "View logs",
@@ -337,9 +337,7 @@ function EnableSwitch({
               isEnabled
                 ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
                 : "bg-transparent border-stone-300 dark:border-stone-600",
-              isFocusVisible
-                ? "ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
-                : "",
+              isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
             ].join(" ")}
           >
             <div
@@ -362,11 +360,11 @@ function EnableSwitch({
 
 function ConfigureLoadingDialog() {
   return (
-    <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm">
       <Modal className="animate-rise-in w-full max-w-sm mx-4">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none px-5 py-6"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none px-5 py-6"
         >
           <div
             role="status"
@@ -384,12 +382,12 @@ function ConfigureLoadingDialog() {
 function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const message = error instanceof Error ? error.message : STRINGS.configLoadFallback;
   return (
-    <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm">
       <Modal className="animate-rise-in w-full max-w-sm mx-4">
         <Dialog
           ref={stampAriaModal}
           role="alertdialog"
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none px-5 py-6"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none px-5 py-6"
         >
           {({ close }) => (
             <div className="flex flex-col gap-4">

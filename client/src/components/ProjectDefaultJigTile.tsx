@@ -42,7 +42,10 @@ export function JigPickerOption({
   value: string;
 }) {
   return (
-    <Radio value={value} className="outline-none">
+    <Radio
+      value={value}
+      className="outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+    >
       {({ isSelected, isFocusVisible }) => (
         <div
           className={[
@@ -50,9 +53,7 @@ export function JigPickerOption({
             isSelected
               ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
               : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40",
-            isFocusVisible
-              ? "ring-2 ring-stone-400 dark:ring-stone-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950"
-              : "",
+            isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
           ].join(" ")}
         >
           <div

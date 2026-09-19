@@ -386,7 +386,7 @@ export default function SectionReview({
         <Button
           onPress={onSave}
           isDisabled={!canSave || isSaving}
-          className="px-4 py-2 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-lg transition-colors outline-none"
+          className="px-4 py-2 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {isSaving ? "Saving..." : "Save Config"}
         </Button>
@@ -395,7 +395,7 @@ export default function SectionReview({
           <Button
             onPress={onRegister}
             isDisabled={isRegistering}
-            className="px-4 py-2 text-13 font-medium text-stone-700 dark:text-stone-300 bg-stone-200 dark:bg-stone-800/80 hover:bg-stone-300 dark:hover:bg-stone-700 disabled:opacity-40 rounded-lg transition-colors outline-none"
+            className="px-4 py-2 text-13 font-medium text-stone-700 dark:text-stone-300 bg-stone-200 dark:bg-stone-800/80 hover:bg-stone-300 dark:hover:bg-stone-700 disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {isRegistering ? "Registering..." : "Register Project"}
           </Button>

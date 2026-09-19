@@ -261,12 +261,12 @@ function ProjectScopeDialog({
     <ModalOverlay
       isDismissable={!isBusy}
       isKeyboardDismissDisabled={isBusy}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
         >
           {({ close }) => (
             <ConfigureFlow
@@ -301,12 +301,12 @@ function GlobalScopeDialog({
     <ModalOverlay
       isDismissable={!isBusy}
       isKeyboardDismissDisabled={isBusy}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
     >
       <Modal className="animate-rise-in w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
         >
           {({ close }) => (
             <ConfigureFlow
@@ -739,7 +739,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                       isDisabled={actionable}
                       onChange={(next) => toggleCategory(category, next)}
                       aria-label={category}
-                      className={`flex items-center gap-2 group ${
+                      className={`outline-none focus-visible:ring-2 focus-visible:ring-focus-ring flex items-center gap-2 group ${
                         actionable ? "cursor-not-allowed opacity-60" : "cursor-pointer"
                       }`}
                     >
@@ -799,7 +799,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             isDisabled={isBusy}
             onPress={() => void runTest(values)}
             data-testid="test-connection"
-            className="px-2.5 py-1 text-11 font-medium rounded-md text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="px-2.5 py-1 text-11 font-medium rounded-control text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {testMutation.isPending ? STRINGS.verifying : STRINGS.verify}
           </Button>
@@ -810,7 +810,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
           <Button
             isDisabled={isBusy}
             onPress={close}
-            className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-50 transition-colors rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {STRINGS.cancel}
           </Button>
@@ -818,7 +818,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             isDisabled={!showForm || isBusy}
             onPress={() => void handleSave()}
             data-testid="save-config"
-            className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+            className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
           >
             {saveMutation.isPending || saveFieldsPending || saveSourcesMutation.isPending
               ? STRINGS.saving
@@ -992,7 +992,7 @@ function ResultStrip({
           <Button
             onPress={onEnableTls}
             data-testid="enable-self-signed-tls"
-            className="px-2.5 py-1 text-11 font-medium rounded-md border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="px-2.5 py-1 text-11 font-medium rounded-control border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {STRINGS.enableSelfSignedTls}
           </Button>
@@ -1078,7 +1078,7 @@ function GithubOauthSection({
             isDisabled={disconnecting}
             onPress={() => void handleDisconnect()}
             data-testid="github-disconnect"
-            className="inline-flex items-center px-2 py-1 text-11 font-medium rounded-md text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
+            className="inline-flex items-center px-2 py-1 text-11 font-medium rounded-control text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring shrink-0"
           >
             {disconnecting ? STRINGS.disconnecting : STRINGS.disconnect}
           </Button>
@@ -1087,7 +1087,7 @@ function GithubOauthSection({
             isDisabled={pending}
             onPress={() => void handleConnect()}
             data-testid="github-connect"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-md border border-amber-500 bg-amber-500 text-stone-950 hover:bg-amber-400 hover:border-amber-400 disabled:opacity-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-control border border-amber-500 bg-accent text-on-accent not-disabled:hover:bg-accent-hover hover:border-amber-400 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring shrink-0 not-disabled:active:bg-accent-active"
           >
             {pending ? (
               <Loader2 size={12} className="animate-spin" />

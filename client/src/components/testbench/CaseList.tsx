@@ -187,7 +187,7 @@ export default function CaseList({
   return (
     <div
       ref={scrollRef}
-      className="overflow-auto flex-1 min-h-0 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-50 dark:bg-stone-900/30"
+      className="overflow-auto flex-1 min-h-0 rounded-lg ring-1 ring-inset ring-border bg-stone-50 dark:bg-stone-900/30"
       role="group"
       aria-label="Test cases grouped by level and priority"
       onKeyDown={onKeyDown}
@@ -210,7 +210,7 @@ export default function CaseList({
                     onClick={() => toggleLevel(row.level)}
                     aria-expanded={!isCollapsed}
                     aria-label={`${isCollapsed ? "Expand" : "Collapse"} Level ${row.level}`}
-                    className="flex items-center gap-2 shrink-0 self-stretch pl-4 pr-1 outline-none cursor-pointer text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 rounded-md focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset"
+                    className="flex items-center gap-2 shrink-0 self-stretch pl-4 pr-1 outline-none cursor-pointer text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 rounded-control focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset"
                   >
                     {isCollapsed ? (
                       <ChevronRight aria-hidden="true" className="w-3.5 h-3.5" />
@@ -257,7 +257,7 @@ export default function CaseList({
                 tabIndex={isFocused ? 0 : -1}
                 onFocus={() => setFocusedCaseId(row.row.case.id)}
                 onClick={() => onSelect?.(row.row.case.id)}
-                className={`outline-none rounded-md mx-1 h-full flex items-center cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset ${
+                className={`outline-none rounded-control mx-1 h-full flex items-center cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset ${
                   isSelected
                     ? "bg-amber-500/10"
                     : "hover:bg-stone-100/70 dark:hover:bg-stone-800/40"

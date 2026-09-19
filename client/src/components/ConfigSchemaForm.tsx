@@ -109,7 +109,7 @@ function ProbePendingField({
         aria-disabled="true"
         aria-labelledby={`${labelId} ${valueId}`}
         aria-describedby={help ? `${statusId} ${helpId}` : statusId}
-        className="w-full flex items-center justify-between px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/20 text-13 text-stone-500 dark:text-stone-400 cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        className="w-full flex items-center justify-between px-3 py-1.5 rounded-control border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/20 text-13 text-stone-500 dark:text-stone-400 cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <span id={valueId} className="truncate">
           {loading ? PROBE_LOADING_PLACEHOLDER : PROBE_FAILED_PLACEHOLDER}
@@ -215,14 +215,14 @@ export default function ConfigSchemaForm({
                 <Label className="block text-12 text-stone-500 dark:text-stone-400 mb-1.5">
                   {label}
                 </Label>
-                <Button className="w-full flex items-center justify-between px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-13 text-stone-900 dark:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
+                <Button className="w-full flex items-center justify-between px-3 py-1.5 rounded-control border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-13 text-stone-900 dark:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
                   <SelectValue className="truncate data-[placeholder]:text-text-secondary" />
                   <ChevronDown
                     size={14}
                     className="shrink-0 ml-2 text-stone-500 dark:text-stone-400"
                   />
                 </Button>
-                <Popover className="animate-rise-in w-[var(--trigger-width)] rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-xl py-1 z-50 overflow-auto max-h-60">
+                <Popover className="animate-rise-in w-[var(--trigger-width)] rounded-control border border-border bg-bg-surface shadow-elevation-0 py-1 z-50 overflow-auto max-h-60">
                   <ListBox className="outline-none">
                     {choices.map((choice) => (
                       <ListBoxItem
@@ -267,7 +267,7 @@ export default function ConfigSchemaForm({
                 onChange={(next) => setField(key, next)}
                 aria-label={label}
                 data-testid={`config-field-${key}`}
-                className="flex items-center gap-2 cursor-pointer group"
+                className="flex items-center gap-2 cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 {({ isSelected }) => (
                   <>
@@ -314,7 +314,7 @@ export default function ConfigSchemaForm({
               </Label>
               <Input
                 type="number"
-                className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-13 text-stone-900 dark:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="w-full px-3 py-1.5 rounded-control border border-border-control bg-bg-field text-13 text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
               />
               {helpText && (
                 <p className="mt-1 text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
@@ -343,7 +343,7 @@ export default function ConfigSchemaForm({
               </Label>
               <Input
                 type={isPassword ? "password" : "text"}
-                className="w-full px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900/40 text-13 text-stone-900 dark:text-stone-100 font-mono outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="w-full px-3 py-1.5 rounded-control border border-border-control bg-bg-field text-13 text-text-primary font-mono outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
               />
               {helpText && (
                 <p className="mt-1 text-11 text-stone-500 dark:text-stone-400 leading-relaxed">

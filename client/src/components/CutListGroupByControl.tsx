@@ -47,7 +47,7 @@ export default function CutListGroupByControl({
       <Button
         aria-label={active ? `Group cut list by ${dimLabel}` : "Group cut list"}
         className={[
-          "relative flex items-center gap-1 rounded-md transition-colors outline-none",
+          "focus-visible:ring-2 focus-visible:ring-focus-ring relative flex items-center gap-1 rounded-control transition-colors outline-none",
           active
             ? "px-1.5 py-1 text-amber-500 dark:text-amber-400 hover:bg-amber-500/10"
             : "p-1.5 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50",
@@ -58,7 +58,7 @@ export default function CutListGroupByControl({
       </Button>
       <Popover placement="bottom end" offset={6} className="animate-rise-in">
         <Dialog className="outline-none">
-          <div className="w-52 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/50 shadow-2xl overflow-hidden">
+          <div className="w-52 rounded-control bg-bg-surface border border-border shadow-elevation-0 overflow-hidden">
             {/* Popover header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200 dark:border-stone-800/60">
               <span className="text-12 font-semibold text-stone-700 dark:text-stone-300">
@@ -67,7 +67,7 @@ export default function CutListGroupByControl({
               {active && (
                 <Button
                   onPress={() => onGroupingChange(createEmptyGrouping())}
-                  className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none"
+                  className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Clear
                 </Button>

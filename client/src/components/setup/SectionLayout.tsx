@@ -50,7 +50,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
             <Button
               key={t}
               onPress={() => update({ type: t })}
-              className={`px-3 py-1.5 text-12 rounded-lg transition-colors outline-none ${
+              className={`focus-visible:ring-2 focus-visible:ring-focus-ring px-3 py-1.5 text-12 rounded-control transition-colors outline-none ${
                 structure.type === t
                   ? "bg-stone-700 text-stone-100"
                   : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
@@ -73,10 +73,10 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
               <span className="flex-1 flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400">
                 Alias
                 <TooltipTrigger delay={500}>
-                  <Button className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none">
+                  <Button className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
                     <Info size={12} />
                   </Button>
-                  <Tooltip className="bg-stone-900 dark:bg-stone-800 text-stone-100 dark:text-stone-200 text-12 px-2 py-1 rounded-md shadow-lg max-w-56">
+                  <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0 max-w-56">
                     A short name used to reference this submodule in components and tools
                   </Tooltip>
                 </TooltipTrigger>
@@ -106,7 +106,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
                 </TextField>
                 <Button
                   onPress={() => removeSubmodule(key)}
-                  className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none"
+                  className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <X size={14} />
                 </Button>
@@ -115,7 +115,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
           </div>
           <Button
             onPress={addSubmodule}
-            className="flex items-center gap-1 mt-2 text-11 text-text-muted hover:text-stone-300 transition-colors outline-none"
+            className="flex items-center gap-1 mt-2 text-11 text-text-muted hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} />
             Add submodule

@@ -28,7 +28,7 @@ const SECTION_HEADER_CLASS =
 
 const ITEM_CLASS = (isFocused: boolean, isDisabled: boolean) =>
   [
-    "flex items-center gap-2 px-3 py-2 rounded-lg cursor-default outline-none transition-colors",
+    "flex items-center gap-2 px-3 py-2 rounded-control cursor-default outline-none transition-colors",
     isDisabled ? "opacity-50 cursor-not-allowed" : "",
     isFocused && !isDisabled ? "bg-stone-100 dark:bg-stone-800" : "",
   ]
@@ -179,7 +179,7 @@ export default function AgentLaunchMenu({
     <Popover
       placement="bottom end"
       offset={6}
-      className="animate-rise-in bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[16rem] max-w-[20rem] max-h-80 overflow-y-auto"
+      className="animate-rise-in bg-bg-surface border border-border rounded-control shadow-elevation-0 p-1 min-w-[16rem] max-w-[20rem] max-h-80 overflow-y-auto"
     >
       <Menu
         onAction={(key) => {

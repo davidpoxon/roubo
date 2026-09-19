@@ -589,7 +589,7 @@ describe("SpecPickerModal", () => {
       }
       expect(disclosure).toHaveFocus();
       // React Aria applies the amber focus ring only under keyboard focus-visible.
-      await waitFor(() => expect(disclosure.className).toContain("ring-amber-500"));
+      await waitFor(() => expect(disclosure.className).toContain("ring-focus-ring"));
     });
 
     it("a revealed all-passed row is keyboard-selectable and enables confirm (AC3)", async () => {

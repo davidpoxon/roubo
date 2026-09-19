@@ -51,7 +51,7 @@ function Toast({
           (AP-TC-018 S001-O03). */}
       <div
         role="status"
-        className="flex items-center gap-3 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-4 py-2.5 shadow-lg shadow-black/10 dark:shadow-black/20"
+        className="flex items-center gap-3 bg-bg-surface border border-border rounded-control px-4 py-2.5 shadow-elevation-0"
       >
         <p className="text-13 text-stone-800 dark:text-stone-200 min-w-0 truncate">
           {toast.message}
@@ -59,7 +59,7 @@ function Toast({
         {toast.action && (
           <Button
             onPress={handleAction}
-            className="shrink-0 text-12 font-medium text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 transition-colors outline-none px-1.5 py-0.5 rounded"
+            className="shrink-0 text-12 font-medium text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 transition-colors outline-none px-1.5 py-0.5 rounded-control focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {toast.action.label}
           </Button>

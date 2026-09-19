@@ -110,7 +110,7 @@ export default function MarketplaceSourceRow({ source, onRemove }: Props) {
           aria-label={STRINGS.removeLabel(name)}
           aria-describedby={urlId}
           onPress={() => onRemove(source)}
-          className="flex-none rounded-md border border-red-200 dark:border-red-900/50 px-3 py-1.5 text-12 font-medium text-red-700 dark:text-red-400 outline-none transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="flex-none rounded-control border border-red-200 dark:border-red-900/50 px-3 py-1.5 text-12 font-medium text-red-700 dark:text-red-400 outline-none transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.removeCta}
         </Button>

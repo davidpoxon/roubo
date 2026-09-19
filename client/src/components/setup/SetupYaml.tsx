@@ -50,7 +50,7 @@ export default function SetupYaml({
           {formatError && <span className="text-amber-500 dark:text-amber-400">{formatError}</span>}
           <Button
             onPress={handleFormat}
-            className="hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline"
+            className="hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             Format
           </Button>

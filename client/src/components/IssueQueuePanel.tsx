@@ -405,7 +405,7 @@ export default function IssueQueuePanel({
             <Button
               onPress={handleRefresh}
               isDisabled={isRefetching}
-              className="p-1.5 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none disabled:opacity-60 disabled:cursor-default"
+              className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none disabled:opacity-40 disabled:cursor-default focus-visible:ring-2 focus-visible:ring-focus-ring"
               aria-label="Refresh cut list"
             >
               <RefreshCw size={14} className={isRefetching ? "animate-spin" : undefined} />
@@ -413,7 +413,7 @@ export default function IssueQueuePanel({
             {onCollapse && (
               <Button
                 onPress={onCollapse}
-                className="p-1.5 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none"
+                className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 aria-label="Hide cut list"
               >
                 <PanelLeftClose size={14} />
@@ -464,7 +464,7 @@ export default function IssueQueuePanel({
                 <Button
                   onPress={() => updateFilters(createEmptyFilters())}
                   aria-label="Clear all filters"
-                  className="p-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none"
+                  className="p-1 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <X size={12} />
                 </Button>
@@ -522,7 +522,11 @@ export default function IssueQueuePanel({
           <DialogTrigger isOpen={reconnectOpen} onOpenChange={setReconnectOpen}>
             {/* DialogTrigger requires a trigger child; render a hidden button
                 since the open state is controlled by GitHubErrorState. */}
-            <Button className="sr-only" aria-hidden excludeFromTabOrder>
+            <Button
+              className="sr-only outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              aria-hidden
+              excludeFromTabOrder
+            >
               Open reconnect dialog
             </Button>
             <PluginConfigureDialog
@@ -561,7 +565,7 @@ export default function IssueQueuePanel({
                             return new Map(prev).set(collapseStateKey, next);
                           })
                         }
-                        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 transition-colors outline-none"
+                        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {isCollapsed ? (
                           <ChevronRight size={12} className="shrink-0" />
@@ -607,7 +611,7 @@ export default function IssueQueuePanel({
                 {baseItems.length > 0 && (
                   <Button
                     onPress={() => updateFilters(createEmptyFilters())}
-                    className="inline-flex items-center gap-1 text-12 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+                    className="inline-flex items-center gap-1 text-12 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     Clear filters
                   </Button>
@@ -632,7 +636,7 @@ export default function IssueQueuePanel({
             onPress={goPrev}
             isDisabled={!hasPrev}
             aria-label="Previous page"
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
           >
             <ChevronLeft size={14} />
             Prev
@@ -648,7 +652,7 @@ export default function IssueQueuePanel({
             onPress={goNext}
             isDisabled={!hasNext}
             aria-label="Next page"
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 disabled:pointer-events-none"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
           >
             Next
             <ChevronRight size={14} />

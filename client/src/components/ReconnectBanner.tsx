@@ -26,7 +26,7 @@ export default function ReconnectBanner({
           {attempt > 5 && (
             <Button
               onPress={onRetry}
-              className="ml-auto text-12 font-mono text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 px-2 py-0.5 rounded hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none"
+              className="ml-auto text-12 font-mono text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 px-2 py-0.5 rounded-control hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Retry
             </Button>

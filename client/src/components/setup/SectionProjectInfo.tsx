@@ -92,7 +92,7 @@ export default function SectionProjectInfo({
             <Button
               key={t}
               onPress={() => updateLayout({ type: t })}
-              className={`px-3 py-1.5 text-12 rounded-lg transition-colors outline-none data-[focus-visible]:ring-1 data-[focus-visible]:ring-stone-400 ${
+              className={`px-3 py-1.5 text-12 rounded-control transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                 layout?.type === t
                   ? "bg-stone-700 text-stone-100"
                   : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"

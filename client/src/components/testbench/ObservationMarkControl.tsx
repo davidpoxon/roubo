@@ -35,7 +35,7 @@ const SEGMENT_BASE =
   "first:rounded-l-md last:rounded-r-md border-r border-stone-200 dark:border-stone-700 last:border-r-0 " +
   "text-stone-500 dark:text-stone-400 " +
   "not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 " +
-  "focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset focus-visible:relative focus-visible:z-10 " +
+  "focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset focus-visible:relative focus-visible:z-10 " +
   "disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-800/40 disabled:text-stone-300 dark:disabled:text-stone-600";
 
 export default function ObservationMarkControl({
@@ -63,7 +63,7 @@ export default function ObservationMarkControl({
         <ToggleButton
           id="pass"
           className={({ isSelected }) =>
-            `${SEGMENT_BASE} ${
+            `outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${SEGMENT_BASE} ${
               isSelected
                 ? "bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-300"
                 : ""
@@ -76,7 +76,7 @@ export default function ObservationMarkControl({
         <ToggleButton
           id="fail"
           className={({ isSelected }) =>
-            `${SEGMENT_BASE} ${
+            `outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${SEGMENT_BASE} ${
               isSelected ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300" : ""
             }`
           }

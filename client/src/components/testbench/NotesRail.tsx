@@ -145,7 +145,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
             placeholder="Append an immutable note"
             // ring-inset draws the focus ring inside the field's box, so a
             // clipping ancestor never shaves the left/right edges off it (#508).
-            className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-13 text-stone-900 placeholder-stone-500 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500 focus:ring-inset"
+            className="w-full resize-y rounded-control border border-border-control bg-bg-field px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:border-focus-ring focus:ring-2 focus:ring-focus-ring focus:ring-inset aria-[invalid=true]:border-danger data-[invalid]:border-danger"
           />
         </TextField>
         {submitError && (
@@ -157,7 +157,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
           <Button
             type="submit"
             isDisabled={!canSubmit}
-            className="rounded-md bg-amber-500 px-3 py-1.5 text-13 font-medium text-stone-950 outline-none transition-colors not-disabled:hover:bg-amber-400 not-disabled:active:bg-amber-600 disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white"
           >
             {append.isPending ? "Adding…" : "Add note"}
           </Button>

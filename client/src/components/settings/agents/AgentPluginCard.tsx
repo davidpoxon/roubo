@@ -147,7 +147,7 @@ function CliNotDetected({ agent }: { agent: AgentPluginState }) {
 }
 
 const DISCLOSURE_BUTTON_CLASS =
-  "inline-flex items-center gap-1 px-2.5 py-1 text-12 font-medium rounded text-stone-600 dark:text-stone-300 hover:bg-stone-100 hover:text-stone-900 dark:hover:bg-stone-800 dark:hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500";
+  "inline-flex items-center gap-1 px-2.5 py-1 text-12 font-medium rounded-control text-stone-600 dark:text-stone-300 hover:bg-stone-100 hover:text-stone-900 dark:hover:bg-stone-800 dark:hover:text-stone-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 /**
  * One installed agent plugin on the AI Agents screen: identity, availability,

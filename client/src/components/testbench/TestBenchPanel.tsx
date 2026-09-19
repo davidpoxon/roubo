@@ -225,7 +225,7 @@ export default function TestBenchPanel({
     : null;
 
   const header = focusedSpecPath ? (
-    <div className="flex items-center justify-between gap-3 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-2.5">
+    <div className="flex items-center justify-between gap-3 rounded-lg ring-1 ring-inset ring-border bg-stone-100/60 dark:bg-stone-900/40 px-4 py-2.5">
       <div className="flex items-center gap-2.5 min-w-0">
         <FileText size={14} className="text-amber-500 shrink-0" />
         <div className="min-w-0">
@@ -253,7 +253,7 @@ export default function TestBenchPanel({
       <Button
         onPress={() => setIsPickerOpen(true)}
         isDisabled={setFocus.isPending}
-        className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-13 font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-13 font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <Pencil size={14} />
         {setFocus.isPending ? "Re-pointing..." : "Change focused spec"}
@@ -282,7 +282,7 @@ export default function TestBenchPanel({
       // roubo-development#600), and the segmented switch is a group of toggles.
       role="group"
       aria-label="TestBench view"
-      className="inline-flex self-start rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 p-0.5"
+      className="inline-flex self-start rounded-lg ring-1 ring-inset ring-border bg-stone-100/60 dark:bg-stone-900/40 p-0.5"
     >
       {(["batches", "cases"] as const).map((mode) => (
         <Button
@@ -292,7 +292,7 @@ export default function TestBenchPanel({
             setTestbenchViewMode(mode);
             if (mode === "cases") setOpenGateId(null);
           }}
-          className={`px-3 py-1.5 text-13 font-medium rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+          className={`px-3 py-1.5 text-13 font-medium rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
             viewMode === mode
               ? "bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 shadow-sm"
               : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
@@ -385,7 +385,7 @@ export default function TestBenchPanel({
     <>
       <ResultsRecoveryBanner recoveryReason={data.recoveryReason} />
       <StalenessBanner stale={data.stale} onReconcile={openReconcile} />
-      <div className="rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3">
+      <div className="rounded-lg ring-1 ring-inset ring-border bg-stone-100/60 dark:bg-stone-900/40 px-4 py-3">
         <ProgressBar counts={model.overall} label="Overall" />
       </div>
       <div className="flex flex-1 min-h-0 gap-4">
@@ -398,7 +398,7 @@ export default function TestBenchPanel({
               onPress={() => setTestbenchCaseListCollapsed(false)}
               aria-label="Expand test case list"
               aria-expanded={false}
-              className="flex items-center justify-center p-2 rounded-lg text-stone-500 dark:text-stone-400 ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-50 dark:bg-stone-900/30 transition-colors hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/40 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="flex items-center justify-center p-2 rounded-control text-stone-500 dark:text-stone-400 ring-1 ring-inset ring-border bg-stone-50 dark:bg-stone-900/30 transition-colors hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/40 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <PanelLeftOpen aria-hidden="true" className="w-4 h-4" />
             </Button>
@@ -413,7 +413,7 @@ export default function TestBenchPanel({
                   onPress={() => setTestbenchCaseListCollapsed(true)}
                   aria-label="Collapse test case list"
                   aria-expanded={true}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-12 font-medium text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/40 outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-control text-12 font-medium text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/40 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <PanelLeftClose aria-hidden="true" className="w-3.5 h-3.5" />
                   Collapse list
@@ -424,7 +424,7 @@ export default function TestBenchPanel({
           </div>
         )}
         {selectedCase && (
-          <div className="flex-1 min-w-0 rounded-lg ring-1 ring-inset ring-stone-200/80 dark:ring-stone-800/40 bg-stone-50 dark:bg-stone-900/30 p-4 overflow-hidden flex flex-col">
+          <div className="flex-1 min-w-0 rounded-lg ring-1 ring-inset ring-border bg-stone-50 dark:bg-stone-900/30 p-4 overflow-hidden flex flex-col">
             <CaseDetail
               projectId={projectId}
               benchId={benchId}

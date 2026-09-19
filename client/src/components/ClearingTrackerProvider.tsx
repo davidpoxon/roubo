@@ -30,7 +30,7 @@ function TeardownCard({ bench, exiting }: { bench: Bench; exiting: boolean }) {
         opacity: visible && !exiting ? 1 : 0,
       }}
     >
-      <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3.5 py-2.5 shadow-lg shadow-black/20 min-w-[260px] max-w-xs">
+      <div className="bg-bg-surface border border-border rounded-control px-3.5 py-2.5 shadow-elevation-0 min-w-[260px] max-w-xs">
         <div className="flex items-center gap-2">
           <Loader2 size={12} className="text-amber-500 animate-spin shrink-0" />
           <span className="text-12 font-medium text-stone-800 dark:text-stone-200">
@@ -73,7 +73,7 @@ function CompletedCard({ benchId, exiting }: { benchId: number; exiting: boolean
         opacity: visible && !exiting ? 1 : 0,
       }}
     >
-      <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3.5 py-2.5 shadow-lg shadow-black/20 min-w-[260px] max-w-xs">
+      <div className="bg-bg-surface border border-border rounded-control px-3.5 py-2.5 shadow-elevation-0 min-w-[260px] max-w-xs">
         <div className="flex items-center gap-2">
           <Check size={12} className="text-green-500 shrink-0" />
           <span className="text-12 font-medium text-stone-800 dark:text-stone-200">

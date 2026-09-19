@@ -79,7 +79,7 @@ export default function RegisterProjectModal({
         if (!open) handleClose();
       }}
       isDismissable={!inSetup}
-      className={`fixed inset-0 z-50 flex justify-center bg-black/60 backdrop-blur-sm ${
+      className={`fixed inset-0 z-50 flex justify-center bg-scrim backdrop-blur-sm ${
         inSetup ? "items-center" : "items-start pt-24"
       }`}
     >
@@ -88,7 +88,7 @@ export default function RegisterProjectModal({
       >
         <Dialog
           ref={stampAriaModal}
-          className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit]"
+          className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none flex flex-col min-h-0 max-h-[inherit]"
         >
           {({ close }) => (
             <>
@@ -106,7 +106,7 @@ export default function RegisterProjectModal({
                   onPress={close}
                   isDisabled={setupHandlers?.isSaving ?? false}
                   aria-label="Close"
-                  className="p-1.5 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <svg
                     width="13"
@@ -172,7 +172,7 @@ export default function RegisterProjectModal({
                               navigate(`/projects/${id}`);
                             }
                           }}
-                          className="text-12 text-text-muted hover:text-amber-500 transition-colors outline-none"
+                          className="text-12 text-text-muted hover:text-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         >
                           Go to project →
                         </Button>
@@ -187,7 +187,7 @@ export default function RegisterProjectModal({
                         </p>
                         <Button
                           onPress={() => setStep("setup")}
-                          className="text-12 font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors outline-none"
+                          className="text-12 font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         >
                           Create configuration →
                         </Button>
@@ -206,7 +206,7 @@ export default function RegisterProjectModal({
                               close();
                               navigate(`/projects/${checkResult.project?.id}/settings/setup`);
                             }}
-                            className="text-12 text-text-muted hover:text-amber-500 transition-colors outline-none"
+                            className="text-12 text-text-muted hover:text-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                           >
                             Edit config →
                           </Button>
@@ -271,14 +271,14 @@ export default function RegisterProjectModal({
                     <Button
                       onPress={() => setStep("path")}
                       isDisabled={setupHandlers?.isSaving ?? false}
-                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Cancel
                     </Button>
                     <Button
                       onPress={() => setupHandlers?.save()}
                       isDisabled={setupHandlers?.isSaveDisabled ?? true}
-                      className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none"
+                      className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       {setupHandlers?.isSaving ? "Saving…" : "Save & register"}
                     </Button>
@@ -287,14 +287,14 @@ export default function RegisterProjectModal({
                   <>
                     <Button
                       onPress={close}
-                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-lg outline-none"
+                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Cancel
                     </Button>
                     <Button
                       onPress={() => handleRegister(close)}
                       isDisabled={!canRegister}
-                      className="px-4 py-1.5 text-13 font-medium text-stone-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors outline-none"
+                      className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       {registerProject.isPending
                         ? "Registering..."

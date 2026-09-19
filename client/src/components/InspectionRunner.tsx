@@ -86,13 +86,13 @@ export default function InspectionRunner({
         >
           <Input
             placeholder="Filter tests (grep pattern)..."
-            className="w-full px-3 py-2 text-13 bg-stone-100 dark:bg-stone-900/50 border border-stone-300 dark:border-stone-800 rounded-lg text-stone-900 dark:text-stone-200 placeholder:text-stone-600 dark:placeholder:text-stone-400 outline-none focus:border-stone-400 dark:focus:border-stone-600 transition-colors disabled:opacity-50"
+            className="w-full px-3 py-2 text-13 bg-bg-field border border-border-control rounded-control text-text-primary placeholder:text-text-secondary outline-none focus:border-focus-ring transition-colors disabled:opacity-40 focus:ring-2 focus:ring-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
           />
         </TextField>
         {isRunning ? (
           <Button
             onPress={handleAbort}
-            className="flex items-center gap-1.5 px-4 py-2 text-12 font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors outline-none"
+            className="flex items-center gap-1.5 px-4 py-2 text-12 font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Square size={12} />
             Stop
@@ -102,7 +102,7 @@ export default function InspectionRunner({
             <Button
               onPress={() => handleRun(filter)}
               isDisabled={startInspection.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 text-12 font-medium text-stone-700 dark:text-stone-200 bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 rounded-lg transition-colors outline-none disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 text-12 font-medium text-stone-700 dark:text-stone-200 bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 rounded-control transition-colors outline-none disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Play size={12} />
               {filter ? "Run Filtered" : "Run All"}
@@ -144,7 +144,7 @@ export default function InspectionRunner({
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
             <Button
               onPress={copyOutput}
-              className="p-1 rounded bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none"
+              className="p-1 rounded-control bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Copy size={12} />
             </Button>

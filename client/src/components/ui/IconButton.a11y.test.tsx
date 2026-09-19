@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { Trash2 } from "lucide-react";
@@ -69,9 +69,7 @@ describe("IconButton: behaviour", () => {
     const button = screen.getByRole("button", { name: "Clear bench" });
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button.className).toContain("opacity-40");
-    await act(async () => {
-      await userEvent.tab();
-    });
+    await userEvent.tab();
     expect(button).toHaveFocus();
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Clearing in progress");
     await userEvent.click(button);
