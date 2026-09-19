@@ -41,9 +41,10 @@ function terminalColourKeys(): string[] {
   return Object.keys(colors).filter((key) => key.startsWith("terminal-"));
 }
 
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+
 function declaredValue(css: string, key: string): string | undefined {
-  const escaped = key.replace(/[-]/g, "\\-");
-  return new RegExp(`--color-${escaped}\\s*:\\s*(#[0-9a-fA-F]{6,8})\\s*;`).exec(css)?.[1];
+  return new RegExp(`--color-${escapeRegExp(key)}\\s*:\\s*(#[0-9a-fA-F]{6,8})\\s*;`).exec(css)?.[1];
 }
 
 describe("terminal colour roles in the built CSS (#1323)", () => {
