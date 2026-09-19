@@ -297,6 +297,29 @@ describe("BatchView", () => {
     expect(await screen.findByRole("button", { name: /File fix issue & block gate/ })).toBeTruthy();
   });
 
+  it("renders at most one primary button with a failed case selected (#1329)", async () => {
+    mockedApi.fetchGate.mockResolvedValue(
+      gateState({ status: "failed", unresolvedCaseIds: ["TC-024"] }) as never,
+    );
+    mockedApi.fetchTestbenchPlan.mockResolvedValue(planWithCaseStatus("failed") as never);
+
+    renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
+    fireEvent.click(await screen.findByTestId("case-row"));
+    // All three candidate actions are on screen together. jsdom measures the
+    // pane at zero width, so the notes sit in the bottom drawer; open it.
+    await screen.findByRole("button", { name: /File fix issue & block gate/ });
+    fireEvent.click(screen.getByRole("button", { name: /Notes \(\d+\)/ }));
+    await screen.findByRole("button", { name: "Add note" });
+    screen.getByRole("button", { name: "Sign off batch" });
+
+    // DESIGN.md: at most one primary button per view. `bg-accent-hover` is not
+    // the primary ground, so match the whole class token.
+    const primaries = screen
+      .getAllByRole("button")
+      .filter((button) => button.className.split(/\s+/).includes("bg-accent"));
+    expect(primaries.map((button) => button.textContent)).toEqual(["Sign off batch"]);
+  });
+
   it("does not open the fix-issue panel for a non-failed selected case", async () => {
     mockedApi.fetchGate.mockResolvedValue(
       gateState({ status: "pending", unresolvedCaseIds: ["TC-024"] }) as never,

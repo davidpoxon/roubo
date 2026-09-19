@@ -157,7 +157,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
           <Button
             type="submit"
             isDisabled={!canSubmit}
-            className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
+            className="rounded-control border border-border-strong bg-bg-surface px-3 py-1.5 text-13 font-medium text-text-body outline-none transition-colors not-disabled:hover:bg-bg-hover not-disabled:active:bg-bg-pressed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
           >
             {append.isPending ? "Adding…" : "Add note"}
           </Button>
