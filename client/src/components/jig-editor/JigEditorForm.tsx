@@ -301,7 +301,7 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
           <div className="w-64 shrink-0 border-r border-stone-200 dark:border-stone-800/60 overflow-auto px-5 py-6 space-y-5">
             {/* Icon + Name */}
             <div className="space-y-2">
-              <Label className="text-11 font-semibold uppercase tracking-label text-text-muted">
+              <Label className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                 Name
               </Label>
               <div className="flex items-center gap-2">
@@ -331,7 +331,7 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
 
             {/* Description */}
             <div className="space-y-2">
-              <Label className="text-11 font-semibold uppercase tracking-label text-text-muted">
+              <Label className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                 Description
               </Label>
               <TextField

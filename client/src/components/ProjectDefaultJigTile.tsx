@@ -223,7 +223,7 @@ export function ProjectDefaultJigTile({
   return (
     <div className="mb-8">
       {showProjectName && (
-        <h4 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-3">
+        <h4 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-3">
           {displayName}
         </h4>
       )}

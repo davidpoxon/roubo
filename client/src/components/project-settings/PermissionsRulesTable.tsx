@@ -122,7 +122,7 @@ export function PermissionsRulesTable({
   return (
     <div className="rounded-xl border border-stone-200 dark:border-stone-800/80 bg-stone-50 dark:bg-stone-900/30 overflow-hidden">
       <div
-        className="grid text-11 uppercase tracking-label text-text-muted px-5 py-2.5 border-b border-stone-200 dark:border-stone-800/60 bg-stone-100 dark:bg-stone-900/60"
+        className="grid text-11 uppercase tracking-label text-text-secondary px-5 py-2.5 border-b border-stone-200 dark:border-stone-800/60 bg-stone-100 dark:bg-stone-900/60"
         style={{ gridTemplateColumns: gridTemplate }}
       >
         {selection && <div />}
@@ -133,9 +133,9 @@ export function PermissionsRulesTable({
 
       <div className="divide-y divide-stone-200 dark:divide-stone-800/60 font-mono text-12">
         {rules.length === 0 ? (
-          <div className="px-5 py-4 text-text-muted text-12">{emptyMessage}</div>
+          <div className="px-5 py-4 text-text-secondary text-12">{emptyMessage}</div>
         ) : filtered.length === 0 ? (
-          <div className="px-5 py-4 text-text-muted text-12">No rules match this filter.</div>
+          <div className="px-5 py-4 text-text-secondary text-12">No rules match this filter.</div>
         ) : (
           pageItems.map(({ rule, originalIndex }) => {
             const selKey = ruleKey(rule);
@@ -268,14 +268,14 @@ export function PermissionsRulesTable({
                     <Button
                       onPress={() => startEdit(originalIndex)}
                       isDisabled={editingIndex !== null}
-                      className="text-11 text-text-muted hover:text-stone-900 dark:hover:text-stone-200 outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      className="text-11 text-text-secondary hover:text-stone-900 dark:hover:text-stone-200 outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Edit
                     </Button>
                     <Button
                       onPress={() => onRemove?.(originalIndex)}
                       isDisabled={editingIndex !== null}
-                      className="text-11 text-text-muted hover:text-red-600 dark:hover:text-red-400 outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      className="text-11 text-text-secondary hover:text-red-600 dark:hover:text-red-400 outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Remove
                     </Button>
@@ -301,7 +301,7 @@ export function PermissionsRulesTable({
                 className={`focus-visible:ring-2 focus-visible:ring-focus-ring px-2 py-0.5 text-11 rounded-control transition-colors outline-none ${
                   typeFilter === value
                     ? "bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200"
-                    : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300"
+                    : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300"
                 }`}
               >
                 {label} ({count})
@@ -316,11 +316,11 @@ export function PermissionsRulesTable({
                 aria-label="Previous page"
                 isDisabled={safePage <= 1}
                 onPress={() => setPage((p) => Math.max(1, p - 1))}
-                className="p-1 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="p-1 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <ChevronLeft size={14} />
               </Button>
-              <span className="text-11 text-text-muted tabular-nums min-w-[4rem] text-center">
+              <span className="text-11 text-text-secondary tabular-nums min-w-[4rem] text-center">
                 <span className="font-mono text-stone-600 dark:text-stone-400">{safePage}</span>
                 <span className="mx-1">/</span>
                 <span className="font-mono">{totalPages}</span>
@@ -329,7 +329,7 @@ export function PermissionsRulesTable({
                 aria-label="Next page"
                 isDisabled={safePage >= totalPages}
                 onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="p-1 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <ChevronRight size={14} />
               </Button>

@@ -608,7 +608,7 @@ export default function TerminalTabs({
                     : "text-stone-600 dark:text-stone-300 hover:text-stone-500 dark:hover:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/50"
                   : activeTab === session.id
                     ? "bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-200"
-                    : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/50"
+                    : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/50"
               }`}
               onClick={() => {
                 setUserSelectedTab(session.id);
@@ -644,7 +644,7 @@ export default function TerminalTabs({
               <TooltipTrigger delay={500}>
                 <Button
                   aria-label="Inject jig"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <Bot size={14} className="text-stone-500 dark:text-stone-400" />
                   <ChevronDown size={12} className="text-stone-500 dark:text-stone-400" />
@@ -660,7 +660,7 @@ export default function TerminalTabs({
           <TooltipTrigger delay={500}>
             <Button
               onPress={() => handleCreate()}
-              className="p-1.5 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="p-1.5 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Plus size={14} />
             </Button>
@@ -677,7 +677,7 @@ export default function TerminalTabs({
                 aria-label={`Launch ${primaryLabel}`}
                 isDisabled={primaryDisabled}
                 onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
-                className="p-1.5 rounded-l-control text-text-muted hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="p-1.5 rounded-l-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <Bot size={14} />
               </Button>

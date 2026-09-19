@@ -369,7 +369,7 @@ export default function IssueQueuePanel({
       <div className="px-4 py-3 border-b border-stone-200 dark:border-stone-800/60">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
-            <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted">
+            <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
               Cut List
             </h3>
           </div>
@@ -611,7 +611,7 @@ export default function IssueQueuePanel({
                 {baseItems.length > 0 && (
                   <Button
                     onPress={() => updateFilters(createEmptyFilters())}
-                    className="inline-flex items-center gap-1 text-12 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="inline-flex items-center gap-1 text-12 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     Clear filters
                   </Button>

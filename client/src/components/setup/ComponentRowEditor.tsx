@@ -466,7 +466,7 @@ export default function ComponentRowEditor({
                           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-12 font-mono transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring " +
                           (on
                             ? "bg-amber-500/10 text-amber-500 border-amber-500/40 hover:bg-amber-500/15"
-                            : "bg-transparent text-text-muted border-stone-300 dark:border-stone-700 hover:text-stone-700 dark:hover:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600")
+                            : "bg-transparent text-text-secondary border-stone-300 dark:border-stone-700 hover:text-stone-700 dark:hover:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600")
                         }
                       >
                         {name}

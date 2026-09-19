@@ -109,7 +109,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
   if (compact) {
     toolsContent = (
       <MenuTrigger>
-        <Button className="p-1.5 rounded-control text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
+        <Button className="p-1.5 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
           <ExternalLink size={14} />
         </Button>
         <ToolMenu tools={launchable.map((entry) => entry.tool)} onAction={executeLaunchable} />
@@ -121,7 +121,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
       <Button
         isDisabled={!primary.enabled}
         onPress={() => executeLaunchable(0)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-muted rounded-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-secondary rounded-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         {PrimaryIcon && <PrimaryIcon size={12} />}
         {primary.name}
@@ -134,7 +134,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
         <Button
           isDisabled={!primary.enabled}
           onPress={() => executeLaunchable(0)}
-          className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-12 font-medium text-text-muted rounded-l-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-12 font-medium text-text-secondary rounded-l-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-100 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {PrimaryIcon && <PrimaryIcon size={12} />}
           {primary.name}

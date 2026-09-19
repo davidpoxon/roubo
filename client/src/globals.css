@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "../../design-tokens/tokens.tailwind.css";
 @import "../../design-tokens/semantic-dark.css";
-@import "../../design-tokens/legacy-aliases.css";
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Vendored Latin-subset faces (SIL OFL 1.1, see NOTICE). Nothing is fetched from the network. */

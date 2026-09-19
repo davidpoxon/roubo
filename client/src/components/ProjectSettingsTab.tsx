@@ -203,7 +203,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
             <h2
               data-testid="project-settings-source-section-title"
-              className="text-11 font-semibold uppercase tracking-label text-text-muted"
+              className="text-11 font-semibold uppercase tracking-label text-text-secondary"
             >
               {sourceSectionTitle}
             </h2>
@@ -213,7 +213,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-            <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
+            <h2 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
               Setup
             </h2>
           </div>
@@ -226,7 +226,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
           <div className="flex items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-              <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
+              <h2 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                 Bench behaviour
               </h2>
             </div>
@@ -252,7 +252,9 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-            <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">Jigs</h2>
+            <h2 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
+              Jigs
+            </h2>
           </div>
           <Tile
             icon={<Zap size={14} aria-hidden />}
@@ -295,7 +297,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-              <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
+              <h2 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                 Agent permissions
               </h2>
             </div>
@@ -317,7 +319,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-stone-400 dark:bg-stone-600 shrink-0" />
-              <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
+              <h2 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                 Agent overrides
               </h2>
             </div>
@@ -331,7 +333,7 @@ function SettingsOverview({ project }: { project: RegisteredProject }) {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-red-400 dark:bg-red-600 shrink-0" />
-            <h2 className="text-11 font-semibold uppercase tracking-label text-text-muted">
+            <h2 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
               Danger zone
             </h2>
           </div>

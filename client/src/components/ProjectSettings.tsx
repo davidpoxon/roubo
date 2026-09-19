@@ -174,7 +174,7 @@ function GlobalBenchLimitSection({
 
   return (
     <section>
-      <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-2">
+      <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-2">
         Global bench limit
       </h3>
       <p className="text-12 text-stone-500 dark:text-stone-400 mb-5 leading-relaxed">
@@ -283,7 +283,7 @@ function BenchesTab() {
       />
 
       <section>
-        <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-5">
+        <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-5">
           Bench Defaults
         </h3>
 
@@ -298,7 +298,7 @@ function BenchesTab() {
       </section>
 
       <section>
-        <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-5">
+        <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-5">
           Issue Automation
         </h3>
 
@@ -418,7 +418,7 @@ function JigsTab() {
   return (
     <div className="space-y-10">
       <section>
-        <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-5">
+        <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-5">
           Automation
         </h3>
 
@@ -443,7 +443,7 @@ function JigsTab() {
       </section>
 
       <section>
-        <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-4">
+        <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-4">
           Default agent
         </h3>
         <p className="text-12 text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
@@ -461,7 +461,7 @@ function JigsTab() {
       </section>
 
       <section>
-        <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-4">
+        <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-4">
           App Default
         </h3>
         <p className="text-12 text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
@@ -502,7 +502,7 @@ function JigsTab() {
 
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted">
+          <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
             Custom Jigs
           </h3>
           <Link
@@ -575,7 +575,7 @@ function TestBenchTab() {
   return (
     <div className="space-y-10">
       <section>
-        <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-5">
+        <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-5">
           Feature
         </h3>
 
@@ -604,7 +604,9 @@ function AppearanceTab() {
 
   return (
     <section>
-      <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted mb-4">Theme</h3>
+      <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-4">
+        Theme
+      </h3>
       <RadioGroup
         value={currentTheme}
         onChange={(value) =>

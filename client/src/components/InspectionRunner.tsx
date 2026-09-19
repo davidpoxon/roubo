@@ -119,12 +119,13 @@ export default function InspectionRunner({
             <span className={`text-12 font-medium ${status.color}`}>{status.text}</span>
             {inspectionRun?.filter && (
               <span className="text-11 text-stone-600">
-                filter: <span className="font-mono text-text-muted">{inspectionRun.filter}</span>
+                filter:{" "}
+                <span className="font-mono text-text-secondary">{inspectionRun.filter}</span>
               </span>
             )}
           </div>
           <div className="flex items-center gap-3">
-            {elapsed && <span className="text-12 font-mono text-text-muted">{elapsed}</span>}
+            {elapsed && <span className="text-12 font-mono text-text-secondary">{elapsed}</span>}
             {inspectionRun?.exitCode !== null &&
               inspectionRun?.exitCode !== undefined &&
               inspectionRun.status !== "running" && (
@@ -144,7 +145,7 @@ export default function InspectionRunner({
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
             <Button
               onPress={copyOutput}
-              className="p-1 rounded-control bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="p-1 rounded-control bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Copy size={12} />
             </Button>

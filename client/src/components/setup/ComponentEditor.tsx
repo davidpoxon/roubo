@@ -142,7 +142,7 @@ export default function ComponentEditor({
           <Checkbox
             isSelected={portHttps ?? false}
             onChange={onPortHttpsChange}
-            className="flex items-center gap-1.5 text-11 text-text-muted cursor-pointer select-none group outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1.5 text-11 text-text-secondary cursor-pointer select-none group outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <div className="size-3.5 rounded border border-stone-600 group-data-[selected]:bg-stone-500 group-data-[selected]:border-stone-500 transition-colors flex items-center justify-center">
               <svg
@@ -221,7 +221,7 @@ export default function ComponentEditor({
 
       {showDocker && (
         <fieldset className="space-y-3">
-          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-secondary mb-3">
             <span className="size-1.5 rounded-full bg-stone-400/70" />
             Docker
           </legend>
@@ -358,7 +358,7 @@ export default function ComponentEditor({
 
       {showMigration && (
         <fieldset className="space-y-3">
-          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-secondary mb-3">
             <span className="size-1.5 rounded-full bg-amber-400/70" />
             Migration
           </legend>
@@ -449,7 +449,7 @@ export default function ComponentEditor({
                   },
                 });
               }}
-              className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="flex items-center gap-1 text-11 text-text-secondary hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <Plus size={12} /> Add argument
             </Button>
@@ -459,7 +459,7 @@ export default function ComponentEditor({
 
       {showConnection && (
         <fieldset className="space-y-2">
-          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-secondary mb-3">
             <span className="size-1.5 rounded-full bg-green-400/70" />
             Connection
           </legend>
@@ -546,7 +546,7 @@ export default function ComponentEditor({
                 },
               });
             }}
-            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1 text-11 text-text-secondary hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} /> Add pair
           </Button>
@@ -600,7 +600,7 @@ export default function ComponentEditor({
 
       {showEnv && isType("database") && (
         <fieldset className="space-y-2">
-          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-secondary mb-3">
             <span className="size-1.5 rounded-full bg-stone-400/70" />
             Compose variables
           </legend>
@@ -741,7 +741,7 @@ export default function ComponentEditor({
 
           <Button
             onPress={() => update({ env: { ...currentEnv, "": "" } })}
-            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1 text-11 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} /> Add variable
           </Button>
@@ -756,7 +756,7 @@ export default function ComponentEditor({
 
       {showEnv && !isType("database") && (
         <fieldset className="space-y-2">
-          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-secondary mb-3">
             <span className="size-1.5 rounded-full bg-stone-400/70" />
             Environment variables
           </legend>
@@ -820,7 +820,7 @@ export default function ComponentEditor({
           })}
           <Button
             onPress={() => update({ env: { ...component.env, "": "" } })}
-            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1 text-11 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} /> Add variable
           </Button>
@@ -829,7 +829,7 @@ export default function ComponentEditor({
 
       {showEnvVars && (
         <fieldset className="space-y-2">
-          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
+          <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-secondary mb-3">
             <span className="size-1.5 rounded-full bg-stone-400/70" />
             Build env vars
           </legend>
@@ -896,7 +896,7 @@ export default function ComponentEditor({
           })}
           <Button
             onPress={() => update({ envVars: { ...component.envVars, "": "" } })}
-            className="flex items-center gap-1 text-11 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1 text-11 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} /> Add variable
           </Button>

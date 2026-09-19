@@ -301,7 +301,7 @@ function ComponentsTab({
                       if (isRunning) stopComponent.mutate({ projectId, benchId, component: name });
                       else startComponentWithRecovery(name);
                     }}
-                    className="px-2.5 py-1 rounded-control text-12 text-text-muted not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="px-2.5 py-1 rounded-control text-12 text-text-secondary not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-700/50 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     {isRunning ? "Stop" : "Start"}
                   </Button>
@@ -407,7 +407,7 @@ function InfoTab({ bench }: { bench: Bench }) {
         <div className="flex flex-wrap gap-x-5 gap-y-1">
           {Object.entries(bench.ports).map(([name, port]) => (
             <span key={name} className="text-13">
-              <span className="text-text-muted">{name}</span>
+              <span className="text-text-secondary">{name}</span>
               <span className="text-stone-800 dark:text-stone-200 font-mono ml-1.5">{port}</span>
             </span>
           ))}
@@ -446,7 +446,7 @@ function InfoTab({ bench }: { bench: Bench }) {
           <div className="flex flex-wrap gap-x-5 gap-y-1">
             {Object.entries(bench.assignedContainers).map(([componentName, assigned]) => (
               <span key={componentName} className="text-13">
-                <span className="text-text-muted">{componentName}</span>
+                <span className="text-text-secondary">{componentName}</span>
                 <span className="text-stone-800 dark:text-stone-200 font-mono ml-1.5">
                   {assigned.containerName}
                 </span>
@@ -611,7 +611,7 @@ export default function BenchDetail() {
         <p className="text-13 text-stone-500 dark:text-stone-400">Bench not found.</p>
         <Button
           onPress={() => navigate(projectId ? `/projects/${projectId}` : "/")}
-          className="mt-3 text-13 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="mt-3 text-13 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           Go back
         </Button>
@@ -659,7 +659,7 @@ export default function BenchDetail() {
                 </p>
               )}
               {bench.assignedIssue && (
-                <div className="flex items-center gap-1.5 text-12 text-text-muted">
+                <div className="flex items-center gap-1.5 text-12 text-text-secondary">
                   <span className="font-mono text-amber-800 dark:text-amber-200">
                     {displayIssueRef(bench.assignedIssue)}
                   </span>
@@ -726,7 +726,7 @@ export default function BenchDetail() {
               if (isRunning) stopBench.mutate({ projectId, benchId });
               else startBench.mutate({ projectId, benchId });
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-muted rounded-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-secondary rounded-control not-disabled:hover:text-stone-700 dark:not-disabled:hover:text-stone-200 not-disabled:hover:bg-stone-200 dark:not-disabled:hover:bg-stone-800 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {isRunning ? <Square size={12} /> : <Play size={12} />}
             {isRunning ? "Stop All" : "Start All"}

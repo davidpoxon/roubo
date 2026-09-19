@@ -298,10 +298,7 @@ function listFiles() {
  * @returns {Record<string, { line: number, utility: string, rule: string }[]>}
  */
 export function scanTree() {
-  const tokenNames = colourTokenNames([
-    readFileSync("design-tokens/tokens.tailwind.css", "utf8"),
-    readFileSync("design-tokens/legacy-aliases.css", "utf8"),
-  ]);
+  const tokenNames = colourTokenNames([readFileSync("design-tokens/tokens.tailwind.css", "utf8")]);
   const findingsByFile = {};
   for (const file of listFiles()) {
     findingsByFile[file] = scanSource(readFileSync(file, "utf8"), tokenNames);
