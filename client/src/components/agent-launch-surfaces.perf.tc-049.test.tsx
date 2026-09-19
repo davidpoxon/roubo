@@ -140,6 +140,9 @@ import { resolveLaunchTarget } from "./settings/agents/agent-launchability";
 const RUN = process.env.RUN_PERF_HARNESS === "1";
 const OPEN_BUDGET_MS = 200;
 const ITERATIONS = 20;
+// One warmup render is not enough: a render takes several passes to reach its
+// steady state, and a short sample run otherwise reports a cold one.
+const WARMUP_ITERATIONS = 10;
 
 const CLAUDE: ProjectAgentState = {
   id: "claude-code",
@@ -322,6 +325,7 @@ function report(step: string, label: string, samples: number[]): number {
         step,
         surface: label,
         iterations: samples.length,
+        warmupIterations: WARMUP_ITERATIONS,
         medianMs: sorted[Math.floor(sorted.length / 2)] ?? 0,
         worstMs: worst,
         budgetMs: OPEN_BUDGET_MS,
@@ -336,11 +340,14 @@ function report(step: string, label: string, samples: number[]): number {
 it.runIf(RUN)(
   "AP-TC-049: every settings and launch-surface interaction stays under 200ms",
   () => {
-    // Warmup so first-render module cost does not land in the sample.
-    timeDefaultAgentSelect();
-    timePresetEditorOpen();
-    timeDialogOpen();
-    timeMenuOpen();
+    // Warmup so first-render module/JIT cost does not land in the sample. Each
+    // surface is asserted on its worst sample, so one cold render would decide it.
+    for (let i = 0; i < WARMUP_ITERATIONS; i++) {
+      timeDefaultAgentSelect();
+      timePresetEditorOpen();
+      timeDialogOpen();
+      timeMenuOpen();
+    }
 
     const defaultAgent: number[] = [];
     const presetEditor: number[] = [];

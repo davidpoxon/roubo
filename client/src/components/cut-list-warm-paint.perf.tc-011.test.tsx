@@ -58,6 +58,9 @@ const mockedUseIssues = vi.mocked(useIssues);
 
 const RUN = process.env.RUN_PERF_HARNESS === "1";
 const ITERATIONS = 20;
+// One warmup render is not enough: a render takes several passes to reach its
+// steady state, and p95 over a short sample run otherwise reports a cold one.
+const WARMUP_ITERATIONS = 10;
 const ITEM_COUNT = 50;
 const P95_BUDGET_MS = 200;
 
@@ -121,8 +124,10 @@ it.runIf(RUN)(
     const items = Array.from({ length: ITEM_COUNT }, (_, i) => makeIssue(String(i)));
     mockedUseIssues.mockReturnValue(warmResult(items));
 
-    // Warmup render (not measured) to amortize first-render module/JIT cost.
-    render(<IssueQueuePanel projectId="proj-1" benches={[]} projectConfig={config} />).unmount();
+    // Warmup renders (not measured) to amortize first-render module/JIT cost.
+    for (let i = 0; i < WARMUP_ITERATIONS; i++) {
+      render(<IssueQueuePanel projectId="proj-1" benches={[]} projectConfig={config} />).unmount();
+    }
 
     const samples: number[] = [];
     for (let i = 0; i < ITERATIONS; i++) {
@@ -145,6 +150,7 @@ it.runIf(RUN)(
           kind: "perf-evidence",
           tc: "CLI-TC-011",
           iterations: ITERATIONS,
+          warmupIterations: WARMUP_ITERATIONS,
           itemCount: ITEM_COUNT,
           p95Ms,
           maxMs,

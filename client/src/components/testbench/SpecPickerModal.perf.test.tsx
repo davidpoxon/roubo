@@ -10,10 +10,17 @@
  *
  * The specs hook is mocked to return a warm payload synchronously (modelling the
  * moment discovery data arrives), so the measured cost is exactly partitionSpecs
- * + deriveSpecSummary + the row render for the partitioned list. The budget
- * assertion is gated behind RUN_PERF_HARNESS=1 (the repo's perf convention,
- * mirroring CLI-TC-011): warmup + measured iterations, inline p95, a structured
- * perf-evidence log. A sentinel keeps the file contributing a passing assertion
+ * + deriveSpecSummary + the row render for the partitioned list. The clock stops
+ * when render() returns (it is act()-wrapped, so the commit is complete); the
+ * check that the partitioned view really painted runs after the sample is taken
+ * and uses a plain selector, because a testing-library role query walks the
+ * accessibility tree of the whole modal and cost about a third of each sample
+ * when it sat inside the timed region. The budget assertion is gated behind
+ * RUN_PERF_HARNESS=1 (the repo's perf convention, mirroring CLI-TC-011):
+ * WARMUP_ITERATIONS unmeasured renders, then measured iterations, inline p95, a
+ * structured perf-evidence log. One warmup render is not enough here: the render
+ * takes about seven passes to reach its steady state, and with 20 samples p95 is
+ * the second-slowest, so a single warmup made p95 report a cold render. A sentinel keeps the file contributing a passing assertion
  * under the default coverage run, and a non-gated structural test pins that the
  * partitioned view actually paints from the payload (so the measured render is the
  * real work, not a stub).
@@ -34,12 +41,16 @@ import type { ManualPathState } from "../../hooks/useTestbenchSpecs";
 const RUN = process.env.RUN_PERF_HARNESS === "1";
 const SPEC_COUNT = 25;
 const ITERATIONS = 20;
+const WARMUP_ITERATIONS = 10;
 const P95_BUDGET_MS = 100;
 // SATCA-NFR-002: the picker opens at p95 under 150ms with archived specs in the
 // payload. The archived fixture splits 15 needs-attention / 4 all-passed / 6
 // archived, so a partition regression that leaked archived rows into a live
 // group would move the structural counts below before it moved the clock.
 const ARCHIVED_P95_BUDGET_MS = 150;
+// The all-live TSPF fixture: every fifth spec is all-passed (collapsed), the
+// other 20 are the needs-attention rows the open paints.
+const TSPF_NEEDS_ATTENTION = 20;
 const ARCHIVED_NEEDS_ATTENTION = 15;
 const ARCHIVED_ALL_PASSED = 4;
 const ARCHIVED_ARCHIVED = 6;
@@ -245,6 +256,13 @@ beforeEach(() => {
   mockUseManualPathValidation.mockReturnValue({ status: "idle" } satisfies ManualPathState);
 });
 
+// The selectable rows the open painted, counted with a plain selector (the modal
+// portals to the body, hence baseElement). Used by the measured loops in place of
+// getAllByRole, which is far too slow to sit next to a wall-clock sample.
+function paintedRows(root: HTMLElement): number {
+  return root.querySelectorAll('[role="radio"]').length;
+}
+
 function renderModal(props: Partial<React.ComponentProps<typeof SpecPickerModal>> = {}) {
   return renderWithProviders(
     <SpecPickerModal isOpen onClose={vi.fn()} projectId="p1" onCreate={vi.fn()} {...props} />,
@@ -294,18 +312,19 @@ it.runIf(RUN)(
   "SATCA-TC-043: picker open p95 < 150ms for a 25-spec payload with archived specs",
   () => {
     useArchivedFixture();
-    // Warmup open (not measured) to amortize first-render module/JIT cost.
-    renderModal().unmount();
+    // Warmup opens (not measured) to amortize first-render module/JIT cost.
+    for (let i = 0; i < WARMUP_ITERATIONS; i++) renderModal().unmount();
 
     const samples: number[] = [];
     for (let i = 0; i < ITERATIONS; i++) {
       const t0 = performance.now();
       const view = renderModal();
-      // Live rows painted and the archived control present == the open finished
-      // with the archived partition computed, not just the live one.
-      view.getAllByRole("radio");
-      view.getByRole("button", { name: /Show archived/ });
       samples.push(performance.now() - t0);
+      // Live rows painted and the archived control present == the open finished
+      // with the archived partition computed, not just the live one. Checked
+      // after the sample so the query is not part of the measured open.
+      expect(paintedRows(view.baseElement)).toBe(ARCHIVED_NEEDS_ATTENTION);
+      expect(view.baseElement.textContent).toContain("Show archived");
       view.unmount();
     }
 
@@ -321,6 +340,7 @@ it.runIf(RUN)(
           specCount: SPEC_COUNT,
           archivedCount: ARCHIVED_ARCHIVED,
           iterations: ITERATIONS,
+          warmupIterations: WARMUP_ITERATIONS,
           p95Ms,
           maxMs,
           budgetMs: ARCHIVED_P95_BUDGET_MS,
@@ -338,17 +358,18 @@ it.runIf(RUN)(
 it.runIf(RUN)(
   "TSPF-TC-016: partition + render p95 < 100ms for a 25-spec payload",
   () => {
-    // Warmup render (not measured) to amortize first-render module/JIT cost.
-    renderModal().unmount();
+    // Warmup renders (not measured) to amortize first-render module/JIT cost.
+    for (let i = 0; i < WARMUP_ITERATIONS; i++) renderModal().unmount();
 
     const samples: number[] = [];
     for (let i = 0; i < ITERATIONS; i++) {
       const t0 = performance.now();
       const view = renderModal();
-      // Needs-attention rows painted == the partitioned view rendered from the
-      // arrived payload.
-      view.getAllByRole("radio");
       samples.push(performance.now() - t0);
+      // Needs-attention rows painted == the partitioned view rendered from the
+      // arrived payload. Checked after the sample so the query is not part of
+      // the measured render.
+      expect(paintedRows(view.baseElement)).toBe(TSPF_NEEDS_ATTENTION);
       view.unmount();
     }
 
@@ -362,6 +383,7 @@ it.runIf(RUN)(
           tc: "TSPF-TC-016",
           specCount: SPEC_COUNT,
           iterations: ITERATIONS,
+          warmupIterations: WARMUP_ITERATIONS,
           p95Ms,
           maxMs,
         },
