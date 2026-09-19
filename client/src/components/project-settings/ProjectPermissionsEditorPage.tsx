@@ -181,21 +181,19 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
           <Link
             to=".."
             relative="path"
-            className="inline-flex items-center gap-1 hover:text-stone-900 dark:hover:text-stone-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="inline-flex items-center gap-1 hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <ChevronLeft size={12} />
             Settings
           </Link>
-          <span className="text-stone-500 dark:text-stone-400">/</span>
-          <span className="text-stone-700 dark:text-stone-300">Agent permissions</span>
+          <span className="text-text-secondary">/</span>
+          <span className="text-text-primary">Agent permissions</span>
         </div>
 
         <div className="flex items-start justify-between mb-1">
           <div>
-            <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100">
-              Agent permissions
-            </h2>
-            <p className="text-12 text-stone-500 dark:text-stone-400 mt-1 max-w-2xl leading-relaxed">
+            <h2 className="text-20 font-semibold text-text-primary">Agent permissions</h2>
+            <p className="text-12 text-text-secondary mt-1 max-w-2xl leading-relaxed">
               How much {agentLabel} may do on its own in this project, and the fine-grained rules it
               works within. Roubo maps both onto whatever mechanism the agent uses. Changes apply to
               new benches immediately; existing benches can be re-synced.
@@ -205,13 +203,13 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             <div className="flex items-center gap-2 shrink-0 ml-4">
               <Button
                 onPress={() => setShowImport(true)}
-                className="text-12 px-3 py-1.5 rounded-control border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="text-12 px-3 py-1.5 rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 Import from project
               </Button>
               <Button
                 onPress={handleExportJson}
-                className="text-12 px-3 py-1.5 rounded-control border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400 dark:hover:border-stone-600 hover:text-stone-900 dark:hover:text-stone-100 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="text-12 px-3 py-1.5 rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 Export JSON
               </Button>
@@ -221,14 +219,14 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
       </div>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-text-secondary">
           <Spinner />
           Loading…
         </div>
       )}
 
       {!isLoading && showPosture && (
-        <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900/40 p-4">
+        <div className="rounded-xl border border-border bg-bg-surface p-4">
           <div className="text-11 text-text-secondary mb-2 font-medium">Posture</div>
           <div className="grid grid-cols-12 gap-2 items-center">
             <div className="col-span-4">
@@ -245,7 +243,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                 onChange={handlePostureChange}
               />
             </div>
-            <p className="col-span-8 text-11 text-stone-500 dark:text-stone-500 leading-relaxed">
+            <p className="col-span-8 text-11 text-text-secondary leading-relaxed">
               {POSTURE_HINTS[currentPermissions.posture ?? ""]}
             </p>
           </div>
@@ -255,7 +253,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
       {!isLoading && showRules && (
         <>
           {/* Add rule container */}
-          <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-100 dark:bg-stone-900/40 p-4">
+          <div className="rounded-xl border border-border bg-bg-surface p-4">
             <div className="text-11 text-text-secondary mb-2 font-medium">Add rule</div>
             <div className="grid grid-cols-12 gap-2 items-center">
               <div className="col-span-2">
@@ -281,7 +279,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                 >
                   <Input
                     placeholder="Bash(pytest:*)"
-                    className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring font-mono data-[invalid]:border-red-400 focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
+                    className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring font-mono focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
                   />
                 </TextField>
               </div>
@@ -295,11 +293,9 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                 </Button>
               </div>
             </div>
-            {isDuplicate && (
-              <p className="mt-1.5 text-11 text-red-500 dark:text-red-400">Rule already exists</p>
-            )}
+            {isDuplicate && <p className="mt-1.5 text-11 text-danger-text">Rule already exists</p>}
             <div className="mt-2.5 flex flex-wrap gap-1.5 text-11 items-center">
-              <span className="text-stone-600 dark:text-stone-400">Templates:</span>
+              <span className="text-text-secondary">Templates:</span>
               {TEMPLATES.map((tpl) => (
                 <Button
                   key={tpl}
@@ -307,7 +303,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
                     setAddPattern(tpl);
                     setIsDuplicate(false);
                   }}
-                  className="font-mono text-11 px-1.5 py-0.5 rounded-control bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-300 dark:border-stone-700 hover:border-stone-400 dark:hover:border-stone-500 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="font-mono text-11 px-1.5 py-0.5 rounded-control bg-bg-hover text-text-secondary border border-border-strong hover:bg-bg-pressed hover:text-text-body outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   {tpl}
                 </Button>
@@ -344,7 +340,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             </div>
           </div>
 
-          <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
+          <p className="text-11 text-text-secondary leading-relaxed">
             Re-syncing adds any missing rules to existing benches. Removed rules take effect when a
             bench is cleared.
           </p>
@@ -356,7 +352,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
           rules fragment: an agent that declares `rules: false` can still fail a
           posture PUT or a permissions GET. */}
       {!isLoading && isError && (
-        <p className="text-13 text-red-500 dark:text-red-400">
+        <p className="text-13 text-danger-text">
           {error instanceof Error && /rejected because/.test(error.message)
             ? error.message
             : "Failed to load or save permissions. Please try again."}
@@ -367,7 +363,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
           `postures: []` and `rules: false`, so there is no posture control above
           to point the reader at. Name only the axes actually on screen. */}
       {!isLoading && !showRules && (
-        <p className="text-12 text-stone-500 dark:text-stone-500 leading-relaxed">
+        <p className="text-12 text-text-secondary leading-relaxed">
           {showPosture
             ? `${agentLabel} does not support fine-grained permission rules, so only the posture above applies to this project.`
             : `${agentLabel} does not expose any permission settings Roubo can manage for this project.`}

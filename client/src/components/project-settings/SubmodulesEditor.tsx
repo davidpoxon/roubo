@@ -29,10 +29,10 @@ export default function SubmodulesEditor({ value, onChange, errorText }: Props) 
       <Label className="block text-12 text-text-secondary mb-1.5">Submodules</Label>
       {entries.length > 0 && (
         <div className="flex items-center gap-2 mb-1">
-          <span className="flex-1 flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400">
+          <span className="flex-1 flex items-center gap-1 text-11 text-text-secondary">
             Alias
             <TooltipTrigger delay={500}>
-              <Button className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control">
+              <Button className="text-text-secondary hover:text-text-primary transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control">
                 <Info size={12} />
               </Button>
               <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0 max-w-56">
@@ -40,7 +40,7 @@ export default function SubmodulesEditor({ value, onChange, errorText }: Props) 
               </Tooltip>
             </TooltipTrigger>
           </span>
-          <span className="flex-1 text-11 text-stone-600">Directory</span>
+          <span className="flex-1 text-11 text-text-secondary">Directory</span>
           <span className="w-[22px] shrink-0" />
         </div>
       )}
@@ -66,7 +66,7 @@ export default function SubmodulesEditor({ value, onChange, errorText }: Props) 
             <Button
               aria-label="Remove submodule"
               onPress={() => remove(key)}
-              className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
+              className="p-1 text-text-secondary hover:text-danger-text transition-colors shrink-0 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
             >
               <X size={14} />
             </Button>
@@ -75,12 +75,12 @@ export default function SubmodulesEditor({ value, onChange, errorText }: Props) 
       </div>
       <Button
         onPress={add}
-        className="flex items-center gap-1 mt-2 text-11 text-text-secondary hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
+        className="flex items-center gap-1 mt-2 text-11 text-text-secondary hover:text-text-primary transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
       >
         <Plus size={12} />
         Add submodule
       </Button>
-      {errorText && <p className="mt-1.5 text-11 text-red-400">{errorText}</p>}
+      {errorText && <p className="mt-1.5 text-11 text-danger-text">{errorText}</p>}
     </div>
   );
 }
