@@ -189,6 +189,28 @@ By making a contribution to this project, I certify that:
 7. A maintainer will merge once CI passes and the change has been
    approved.
 
+Commits and PR bodies credit the human author only. Do not add a
+`Co-Authored-By:` trailer that credits an AI coding agent, or a
+"Generated with ..." attribution footer. The `no-ai-coauthorship` check
+fails the PR if any commit in the range, or the PR body, carries one.
+The denylist is in `scripts/check-ai-coauthorship.mjs`.
+
+If you use the Cursor CLI, turn off its attribution before you commit.
+Otherwise it adds `Co-authored-by: Cursor <cursoragent@cursor.com>` to
+each commit, and the check rejects it. Set both of these to `false` in
+`~/.cursor/cli-config.json`:
+
+```json
+{
+  "attribution": {
+    "attributeCommitsToAgent": false,
+    "attributePRsToAgent": false
+  }
+}
+```
+
+Roubo never writes that global file, so only you can change it.
+
 Roubo follows a "main is always green" policy: every commit on `main`
 must pass CI. PRs are merged via squash by default, with the PR title as
 the squash commit message.

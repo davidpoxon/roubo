@@ -138,7 +138,7 @@ agentCompatibility:
   # AI Agents card can show a detected version and a verdict on a bench that was
   # never started. Optional; omit it and the card shows the declared window only.
   probe:
-    command: claude
+    command: example-cli
     args:
       - --version
     parse: semver
@@ -163,13 +163,13 @@ Roubo's server does not always inherit the `PATH` a user's shell has. A per-user
 ```yaml
 kind: agent
 roubo: ^1.5.0
-# Probed in this order when `codex` is not on the PATH the server inherits.
+# Probed in this order when `example-cli` is not on the PATH the server inherits.
 # Absolute or ~/-prefixed only; no `..` segment, and no {{ }} template (a
 # manifest is read at install time, long before a launch context exists).
 agentInstallLocations:
-  - ~/.local/bin/codex
-  - /opt/homebrew/bin/codex
-  - /usr/local/bin/codex
+  - ~/.local/bin/example-cli
+  - /opt/homebrew/bin/example-cli
+  - /usr/local/bin/example-cli
 ```
 
 Note the `roubo` range. The field landed in host API **1.5.0**, and the manifest schema is strict: a host that predates it rejects the whole manifest at validation, on the unrecognised key, rather than ignoring the field. Declaring `^1.5.0` does not convert that into a compatibility refusal, because the strict parse runs before the range is ever read. What the range does buy you is a clean refusal, naming the version the host reports, from a host that knows the field but sits below the floor. So declare `^1.5.0` (or higher) whenever you declare the list, and do not declare the list at all until a host carrying the field is your minimum supported release. Take the real locations from your CLI's own installers rather than guessing, and keep the entries static: a version-scoped path (an nvm or volta Node prefix, say) cannot be expressed here, and those installs already resolve through `PATH`, which is probed first.
@@ -229,7 +229,9 @@ The settings form draws each probed field in one of three states from that map, 
 
 The control stays in the keyboard tab order in every state, and the status line is announced to assistive technology. A value saved earlier is kept while the field is loading or failed; the form only stops offering a way to change it.
 
-The declaration lives on the manifest rather than on the descriptor because the host runs it when the settings screen needs the choices, before any launch context exists. It is optional, so a manifest that omits it validates unchanged.
+The declaration lives on the manifest rather than on the descriptor because the host runs it when the settings screen needs the choices, before any launch context exists.
+
+`choiceProbes` is optional. An existing agent plugin needs no change: a manifest that omits it validates unchanged, and its configuration fields render from `configSchema` exactly as before.
 
 Note the `roubo` range. The key landed in host API **1.6.0**, and the manifest schema is strict, so the same rule as [`agentInstallLocations`](#where-your-agent-cli-installs) applies: declare `^1.6.0` (or higher) whenever you declare `choiceProbes`.
 
@@ -539,6 +541,12 @@ capabilities: {
 }
 ```
 
+Choose the shape from how your agent runs a hook, not from which agent it is:
+
+- Declare `http-hook` when the agent can make the HTTP request itself and already quotes back the session id the host gave it.
+- Declare `spawned-notifier` when the agent cannot make the request but runs a program you register on its command line when a turn ends, and passes the event as an argument.
+- Declare `file-notifier` when the agent reads its hook from a file in the workspace, runs the hook's command through a shell, and delivers the event on that command's standard input.
+
 With `http-hook` the registration rides a workspace write and the correlation is `agent-native`: the agent quotes back the session id the host already gave it, so there is nothing else to track.
 
 With `spawned-notifier` the registration rides argv, and the host supplies the program. It writes `roubo-notify` into `~/.roubo/bin` at launch with its own endpoint baked in (nothing can read the port at runtime, because the host strips it from every child environment), leads the agent's `PATH` with that directory so a bare `roubo-notify` in your carrier resolves, and appends your `carrier.args` to argv. Your `correlation.template` is resolved through the same substitution, in the same context, as those args, so the token the program is invoked with is exactly the one the host registered. Declare something session-derived: a constant is guessable, and the host refuses a token another live session already owns rather than let two agents share one. `payload: "json-arg"` states what every such agent does, which is to append the event JSON as one final argument; the host forwards it and does not read it.
@@ -547,9 +555,13 @@ With `file-notifier` the registration rides a workspace write, as it does for `h
 
 The program reads its own argv positionally, so declare the carrier to match: the resolved correlation token must be the **first** argument the agent passes it. With two or more arguments the event JSON is the **last**, and anything in between is ignored. With exactly one argument, the token, it reads the event JSON from standard input instead. The argument count alone selects the path, never whether standard input is a terminal. No arguments exits `2`. Nothing validates this at launch, because the invocation is buried inside your agent's own configuration string, so a carrier that puts a flag where the token belongs reports nothing and raises nothing.
 
+In short, the three differ in two places. Registration: `http-hook` and `file-notifier` register through a workspace write, and `spawned-notifier` registers through argv. Payload: `http-hook` posts the event itself, `spawned-notifier` passes it as the last argument (`json-arg`), and `file-notifier` writes it to standard input (`json-stdin`).
+
 Whichever shape you declare, the host raises the same bench notification, and the waiting state clears itself when the session produces fresh output. Quiescence stays armed behind all three, on the 8000ms fallback window rather than the generic 2000ms one, because a turn-complete signal never fires for an agent sitting on an approval prompt.
 
 Note the `roubo` range for `file-notifier` too. The variant, and the notifier's standard-input path it relies on, landed in host API **1.6.0**. Neither is a manifest key, so the manifest schema has nothing to reject, but a host below 1.6.0 does not know the variant, so it rejects a descriptor that declares it and the launch fails. Declare `^1.6.0` (or higher) whenever your descriptor can return `file-notifier`, as you would for `choiceProbes`. A host below the floor then refuses the plugin at install time with a message naming the version it needs.
+
+`file-notifier` is optional, like every capability. An existing agent plugin needs no change: one that declares `http-hook`, `spawned-notifier`, or no notification at all keeps the behaviour it has today.
 
 ### The version probe and its gate
 
