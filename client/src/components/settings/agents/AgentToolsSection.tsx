@@ -87,19 +87,19 @@ function AgentToolRow({
   return (
     <div
       data-testid="agent-tool-row"
-      className="flex items-center gap-3 px-4 py-3 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30"
+      className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border bg-bg-surface"
     >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${agentDotClass(resolved?.id)}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-13 text-stone-900 dark:text-stone-200 truncate">{preset.name}</span>
+          <span className="text-13 text-text-primary truncate">{preset.name}</span>
           {builtin && (
-            <span className="px-1.5 py-0.5 rounded text-11 font-medium bg-stone-100 dark:bg-stone-800 text-text-secondary">
+            <span className="px-1.5 py-0.5 rounded text-11 font-medium bg-bg-hover text-text-secondary">
               built-in
             </span>
           )}
         </div>
-        <div className="text-11 font-mono text-stone-500 dark:text-stone-400 truncate">
+        <div className="text-11 font-mono text-text-secondary truncate">
           {/* The binding is its own element so a browser-driven check can read
               it apart from the params that follow it (AP-TC-025 S003-O02, which
               is specifically about the "default agent → <current default>"
@@ -109,7 +109,7 @@ function AgentToolRow({
         {unresolved && (
           <div
             data-testid="agent-tool-unresolved"
-            className="mt-1 flex items-center gap-1.5 text-11 text-amber-600 dark:text-amber-500"
+            className="mt-1 flex items-center gap-1.5 text-11 text-accent-text"
           >
             <AlertTriangle size={12} className="shrink-0" />
             {bindsDefault
@@ -126,7 +126,7 @@ function AgentToolRow({
           <div
             data-testid="agent-tool-degraded"
             title={degraded.message}
-            className="mt-1 flex items-center gap-1.5 text-11 text-stone-500 dark:text-stone-400"
+            className="mt-1 flex items-center gap-1.5 text-11 text-text-secondary"
           >
             <Info size={12} className="shrink-0" />
             <span aria-hidden="true">drops {degraded.droppedParams.join(", ")}</span>
@@ -140,7 +140,7 @@ function AgentToolRow({
         <Button
           onPress={onEdit}
           aria-label={`Edit ${preset.name}`}
-          className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="p-1.5 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Pencil size={14} />
         </Button>
@@ -149,7 +149,7 @@ function AgentToolRow({
         <Button
           onPress={onDelete}
           aria-label={`Delete ${preset.name}`}
-          className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-red-500 hover:bg-stone-100 dark:hover:bg-stone-800 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="p-1.5 rounded-control text-text-secondary hover:text-danger-text hover:bg-bg-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <Trash2 size={14} />
         </Button>
@@ -205,17 +205,17 @@ export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props)
         </h3>
         <Button
           onPress={() => setEditing({ preset: null })}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
         >
           <Plus size={12} />
           New agent tool
         </Button>
       </div>
 
-      <p className="text-12 text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
+      <p className="text-12 text-text-secondary mb-4 leading-relaxed">
         Named launch presets shown in every bench&apos;s Terminal tab. Built-in presets follow the
         default agent; project presets come from{" "}
-        <span className="font-mono text-stone-500 dark:text-stone-500">roubo.yaml</span>.
+        <span className="font-mono text-text-secondary">roubo.yaml</span>.
       </p>
 
       <div className="flex flex-col gap-2">

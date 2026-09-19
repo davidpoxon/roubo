@@ -32,14 +32,15 @@ const ICONS: Record<ConnectionState, ComponentType<IconProps>> = {
 
 // Every fg/bg pair below clears WCAG 2.1 AA (4.5:1) contrast at 12px/normal, which
 // is not "large text", so the 3:1 large-text allowance does not apply (IP-NFR-016).
-// The solid variants keep near-white text on a darkened brand background; the muted
-// stone variants keep dark-on-light text one step darker than the eye-catching tint.
+// Each variant is a DESIGN.md message role (success, accent, danger) or a neutral
+// ground with its paired text tone, so semantic-dark.css switches both halves per
+// theme. The border carries the pill's edge against the card surface.
 const WRAP_STYLES: Record<ConnectionState, string> = {
-  connected: "bg-green-700 text-green-50",
-  disconnected: "bg-stone-300 text-stone-700 dark:bg-stone-700 dark:text-stone-200",
-  "auth-problem": "bg-amber-500 text-amber-950",
-  errored: "bg-red-700 text-red-50",
-  disabled: "bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400",
+  connected: "border border-success-border bg-success-surface text-success-text",
+  disconnected: "border border-border-strong bg-bg-pressed text-text-body",
+  "auth-problem": "border border-accent-border bg-accent-muted text-accent-text",
+  errored: "border border-danger-border bg-danger-surface text-danger-text",
+  disabled: "border border-border bg-bg-hover text-text-secondary",
 };
 
 const PILL_BASE =
@@ -119,7 +120,7 @@ export default function ConnectionStatusPill({
           data-testid="connection-status-pill"
           data-state={state}
           aria-label={ARIA_LABELS.withDetail(LABELS[state], detail)}
-          className={`${className} outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950`}
+          className={`${className} outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base`}
         >
           <PillBody state={state} checkedAt={checkedAt} rechecking={effectiveRechecking} />
         </Button>

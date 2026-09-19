@@ -119,26 +119,24 @@ export default function ErroredBanner({
     <div
       role="alert"
       data-testid="plugin-errored-banner"
-      className="flex items-start gap-3 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2.5"
+      className="flex items-start gap-3 rounded-lg border border-danger-border bg-danger-surface px-3 py-2.5"
     >
-      <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" aria-hidden />
+      <AlertCircle size={16} className="text-danger-text shrink-0 mt-0.5" aria-hidden />
       <div className="min-w-0 flex-1">
         {lastError ? (
           <div className="min-w-0">
-            <span className="inline-block rounded bg-red-100 dark:bg-red-900/40 px-1.5 py-0.5 font-mono text-11 text-red-800 dark:text-red-200 break-all">
+            <span className="inline-block rounded bg-bg-surface px-1.5 py-0.5 font-mono text-11 text-danger-text break-all">
               {lastError.code}
             </span>
-            <p className="mt-1.5 text-13 text-red-800 dark:text-red-300 leading-relaxed break-words whitespace-pre-wrap">
+            <p className="mt-1.5 text-13 text-danger-text leading-relaxed break-words whitespace-pre-wrap">
               {lastError.message}
             </p>
           </div>
         ) : (
-          <p className="text-13 text-red-800 dark:text-red-300 leading-relaxed">
-            {STRINGS.genericError}
-          </p>
+          <p className="text-13 text-danger-text leading-relaxed">{STRINGS.genericError}</p>
         )}
         {kind === "integration" && (
-          <p className="mt-1.5 text-13 text-red-700 dark:text-red-400 leading-relaxed">
+          <p className="mt-1.5 text-13 text-danger-text leading-relaxed">
             {STRINGS.snapshotNotice}
           </p>
         )}
@@ -146,7 +144,7 @@ export default function ErroredBanner({
           <Button
             isDisabled={restart.isPending}
             onPress={() => restart.mutate(pluginId)}
-            className="px-2 py-1 text-12 font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="px-2 py-1 text-12 font-medium text-danger-text hover:bg-bg-surface disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {restart.isPending ? STRINGS.restarting : STRINGS.restart}
           </Button>
@@ -155,14 +153,14 @@ export default function ErroredBanner({
               isDisabled={updatePreview.isPending}
               onPress={beginReinstall}
               data-testid="plugin-reinstall-action"
-              className="px-2 py-1 text-12 font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="px-2 py-1 text-12 font-medium text-danger-text hover:bg-bg-surface disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {updatePreview.isPending ? STRINGS.reinstalling : STRINGS.reinstall}
             </Button>
           )}
           <Button
             onPress={onViewLogs}
-            className="px-2 py-1 text-12 font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="px-2 py-1 text-12 font-medium text-danger-text hover:bg-bg-surface rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {STRINGS.viewLogs}
           </Button>

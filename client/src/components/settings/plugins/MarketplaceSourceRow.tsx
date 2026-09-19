@@ -33,14 +33,11 @@ function ProvenancePill({ verified }: { verified: boolean }) {
       data-verified={verified}
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-11 font-medium leading-none ${
         verified
-          ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/50 text-green-700 dark:text-green-400"
-          : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400"
+          ? "bg-success-surface border-success-border text-success-text"
+          : "bg-accent-muted border-accent-border text-accent-text"
       }`}
     >
-      <span
-        aria-hidden
-        className={`h-1.5 w-1.5 rounded-full ${verified ? "bg-green-500" : "bg-amber-500"}`}
-      />
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
       {verified ? STRINGS.firstPartyPill : STRINGS.unverifiedPill}
     </span>
   );
@@ -68,11 +65,11 @@ export default function MarketplaceSourceRow({ source, onRemove }: Props) {
     <li
       data-testid="marketplace-source-row"
       data-source-id={source.id}
-      className="flex items-start gap-3 rounded-xl border border-stone-200 dark:border-stone-800 px-4 py-3"
+      className="flex items-start gap-3 rounded-xl border border-border px-4 py-3"
     >
       <span
         aria-hidden
-        className="mt-0.5 flex-none text-stone-500 dark:text-stone-400"
+        className="mt-0.5 flex-none text-text-secondary"
         data-testid="marketplace-source-icon"
       >
         {isFirstParty ? <BadgeCheck size={16} /> : <Boxes size={16} />}
@@ -80,7 +77,7 @@ export default function MarketplaceSourceRow({ source, onRemove }: Props) {
 
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-13 font-medium text-stone-900 dark:text-stone-100">{name}</span>
+          <span className="text-13 font-medium text-text-primary">{name}</span>
           <ProvenancePill verified={isFirstParty} />
         </div>
         {/* The raw URL, always shown verbatim and never shortened: the operator
@@ -88,14 +85,11 @@ export default function MarketplaceSourceRow({ source, onRemove }: Props) {
         <p
           id={urlId}
           data-testid="marketplace-source-url"
-          className="font-mono text-11 break-all text-stone-500 dark:text-stone-400"
+          className="font-mono text-11 break-all text-text-secondary"
         >
           {source.url}
         </p>
-        <p
-          data-testid="marketplace-source-meta"
-          className="text-11 text-stone-500 dark:text-stone-400"
-        >
+        <p data-testid="marketplace-source-meta" className="text-11 text-text-secondary">
           {isFirstParty
             ? STRINGS.firstPartyMeta
             : `${STRINGS.registeredPrefix}${registeredDay(source.registeredAt)}${
@@ -110,7 +104,7 @@ export default function MarketplaceSourceRow({ source, onRemove }: Props) {
           aria-label={STRINGS.removeLabel(name)}
           aria-describedby={urlId}
           onPress={() => onRemove(source)}
-          className="flex-none rounded-control border border-red-200 dark:border-red-900/50 px-3 py-1.5 text-12 font-medium text-red-700 dark:text-red-400 outline-none transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="flex-none rounded-control border border-danger-border bg-bg-surface px-3 py-1.5 text-12 font-medium text-danger-text outline-none transition-colors hover:bg-danger-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.removeCta}
         </Button>

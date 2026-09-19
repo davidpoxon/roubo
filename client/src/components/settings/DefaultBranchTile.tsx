@@ -35,26 +35,21 @@ export default function DefaultBranchTile({ projectId }: Props) {
     >
       {status === "loading" && (
         <div>
-          <div className="h-5 bg-stone-200 dark:bg-stone-700 rounded w-24" />
+          <div className="h-5 bg-bg-pressed rounded w-24" />
           <span className="sr-only">Detecting default branch…</span>
         </div>
       )}
       {status === "error" && (
         <div role="alert">
-          <p className="text-12 font-medium text-red-600 dark:text-red-400">Unable to detect</p>
-          {branchError && (
-            <p className="text-11 text-red-500 dark:text-red-400 mt-1">{branchError}</p>
-          )}
+          <p className="text-12 font-medium text-danger-text">Unable to detect</p>
+          {branchError && <p className="text-11 text-danger-text mt-1">{branchError}</p>}
         </div>
       )}
       {status === "present" && (
-        <code className="font-mono text-16 text-stone-800 dark:text-stone-200">{branch}</code>
+        <code className="font-mono text-16 text-text-primary">{branch}</code>
       )}
       {status === "missing" && (
-        <span
-          aria-label="No default branch detected"
-          className="text-stone-500 dark:text-stone-400"
-        >
+        <span aria-label="No default branch detected" className="text-text-secondary">
           ·
         </span>
       )}

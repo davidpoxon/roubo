@@ -18,6 +18,6 @@ describe("IncompatibleBanner (TC-003)", () => {
     const { getByTestId } = render(
       <IncompatibleBanner pluginRange="^2.0.0" hostApiVersion="1.0.0" />,
     );
-    expect(getByTestId("plugin-incompatible-banner").className).toContain("amber");
+    expect(getByTestId("plugin-incompatible-banner").className).toContain("accent");
   });
 });

@@ -12,7 +12,7 @@ interface Props {
 function YamlPreviewLine({ label, value }: { label: string; value: string }) {
   return (
     <span>
-      <span className="text-stone-500 dark:text-stone-400">{label}: </span>
+      <span className="text-text-secondary">{label}: </span>
       {value + "\n"}
     </span>
   );
@@ -26,16 +26,16 @@ function YamlPreview({ config }: { config: RouboConfig }) {
   const lowestBase = portValues.length > 0 ? Math.min(...portValues.map((p) => p.base)) : null;
 
   return (
-    <pre className="text-11 font-mono leading-relaxed bg-stone-50 dark:bg-stone-950/50 rounded-md p-3 overflow-hidden">
+    <pre className="text-11 font-mono leading-relaxed bg-bg-base rounded-md p-3 overflow-hidden">
       <YamlPreviewLine label="name" value={config.project.name} />
-      <span className="text-stone-500 dark:text-stone-400">{"components:\n"}</span>
+      <span className="text-text-secondary">{"components:\n"}</span>
       {shownKeys.map((k) => (
         <span key={k}>{`  ${k}\n`}</span>
       ))}
       {hasMore && <span>{"  …\n"}</span>}
       {lowestBase !== null && (
         <>
-          <span className="text-stone-500 dark:text-stone-400">{"ports:\n"}</span>
+          <span className="text-text-secondary">{"ports:\n"}</span>
           <span>{`  base: ${lowestBase}`}</span>
         </>
       )}
@@ -54,7 +54,7 @@ export default function SetupTile({ projectId }: Props) {
     <Button
       aria-label="Edit project configuration"
       onPress={() => navigate(`/projects/${projectId}/settings/setup`)}
-      className="text-11 px-2.5 py-1 rounded-control border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-300 dark:hover:border-stone-600 hover:text-stone-800 dark:hover:text-stone-100 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer"
+      className="text-11 px-2.5 py-1 rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer"
     >
       Edit setup →
     </Button>
@@ -70,29 +70,19 @@ export default function SetupTile({ projectId }: Props) {
     >
       {isLoading && (
         <div data-testid="setup-tile-loading" className="space-y-2">
-          <div className="h-3 bg-stone-200 dark:bg-stone-700 rounded w-3/4" />
-          <div className="h-3 bg-stone-200 dark:bg-stone-700 rounded w-1/2" />
-          <div className="h-3 bg-stone-200 dark:bg-stone-700 rounded w-2/3" />
+          <div className="h-3 bg-bg-pressed rounded w-3/4" />
+          <div className="h-3 bg-bg-pressed rounded w-1/2" />
+          <div className="h-3 bg-bg-pressed rounded w-2/3" />
         </div>
       )}
-      {!isLoading && !project && (
-        <p className="text-12 text-stone-500 dark:text-stone-400">Project not found</p>
-      )}
+      {!isLoading && !project && <p className="text-12 text-text-secondary">Project not found</p>}
       {!isLoading && project && !validConfig && (
         <div role="alert" className="flex items-start gap-2">
-          <AlertCircle
-            aria-hidden="true"
-            size={14}
-            className="text-red-500 dark:text-red-400 shrink-0 mt-0.5"
-          />
+          <AlertCircle aria-hidden="true" size={14} className="text-danger-text shrink-0 mt-0.5" />
           <div>
-            <p className="text-12 font-medium text-red-600 dark:text-red-400">
-              Config missing or invalid
-            </p>
+            <p className="text-12 font-medium text-danger-text">Config missing or invalid</p>
             {project.configError && (
-              <p className="text-11 font-mono text-stone-500 dark:text-stone-400 mt-1">
-                {project.configError}
-              </p>
+              <p className="text-11 font-mono text-text-secondary mt-1">{project.configError}</p>
             )}
           </div>
         </div>

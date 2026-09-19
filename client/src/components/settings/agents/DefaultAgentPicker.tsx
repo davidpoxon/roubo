@@ -25,7 +25,7 @@ export default function DefaultAgentPicker({
     return (
       <p
         data-testid="default-agent-empty-state"
-        className="rounded-lg border border-dashed border-stone-200 dark:border-stone-800 px-4 py-3 text-12 text-stone-500 dark:text-stone-400"
+        className="rounded-lg border border-dashed border-border px-4 py-3 text-12 text-text-secondary"
       >
         No configured agents yet. Install and configure one under Settings, AI Agents.
       </p>

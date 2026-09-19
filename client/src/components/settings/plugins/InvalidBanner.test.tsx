@@ -8,6 +8,6 @@ describe("InvalidBanner (TC-002)", () => {
     const { getByTestId } = render(<InvalidBanner message="Manifest missing 'entry' field" />);
     const banner = getByTestId("plugin-invalid-banner");
     expect(banner.textContent).toContain("Manifest missing 'entry' field");
-    expect(banner.className).toContain("red");
+    expect(banner.className).toContain("danger");
   });
 });

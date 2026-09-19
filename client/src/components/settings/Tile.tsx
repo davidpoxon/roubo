@@ -26,15 +26,15 @@ export default function Tile({
   isDirty = false,
 }: TileProps) {
   const borderClass = isDirty
-    ? "border-amber-500/40 bg-stone-900/50 dark:bg-stone-900/50"
+    ? "border-accent-border bg-accent-muted"
     : isOverridden
-      ? "border-amber-500/30 bg-amber-500/5"
-      : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30";
+      ? "border-accent-border bg-bg-surface"
+      : "border-border bg-bg-surface";
 
   const iconBgClass =
     isOverridden || isDirty
-      ? "bg-amber-500/20 text-amber-500 dark:text-amber-400"
-      : "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400";
+      ? "bg-accent-muted text-accent-text"
+      : "bg-bg-hover text-text-secondary";
 
   return (
     <section
@@ -50,16 +50,14 @@ export default function Tile({
             {icon}
           </div>
           <div>
-            <div className="text-13 font-medium text-stone-800 dark:text-stone-200">{title}</div>
-            {secondary && (
-              <div className="text-11 text-stone-500 dark:text-stone-400 mt-0.5">{secondary}</div>
-            )}
+            <div className="text-13 font-medium text-text-primary">{title}</div>
+            {secondary && <div className="text-11 text-text-secondary mt-0.5">{secondary}</div>}
           </div>
         </div>
         {(isDirty || headerAction) && (
           <div className="ml-2 shrink-0 flex items-center gap-2">
             {isDirty && (
-              <span className="text-11 uppercase tracking-label text-amber-500 dark:text-amber-400 font-medium">
+              <span className="text-11 uppercase tracking-label text-accent-text font-medium">
                 Editing
               </span>
             )}
