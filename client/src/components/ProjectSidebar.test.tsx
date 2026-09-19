@@ -93,6 +93,16 @@ describe("ProjectSidebar", () => {
     expect(link?.className).toContain("dark:text-stone-400");
   });
 
+  it("renders the active Settings item in the accent-text token on accent-muted (#887)", () => {
+    stubNoData();
+    renderSidebar("/settings");
+    const settings = screen.getByText("Settings").closest("button");
+    // amber-600 on the amber wash was 2.83:1 in light; accent-text clears 4.5:1 in both themes.
+    expect(settings?.className).toContain("bg-accent-muted");
+    expect(settings?.className).toContain("text-accent-text");
+    expect(settings?.className).not.toContain("text-amber-600");
+  });
+
   it("renders project displayName when available", () => {
     mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
       RegisteredProject[]
@@ -204,7 +214,7 @@ describe("ProjectSidebar", () => {
     mockedUseAllBenches.mockReturnValue({ data: [] } as unknown as UseQueryResult<Bench[]>);
     renderSidebar("/projects/proj-1");
     const projectButton = screen.getByText("My Project").closest("button");
-    expect(projectButton?.className).toContain("text-amber-600");
+    expect(projectButton?.className).toContain("text-accent-text");
   });
 
   it("does not mark project active when on a bench sub-path", () => {
@@ -216,7 +226,7 @@ describe("ProjectSidebar", () => {
     } as unknown as UseQueryResult<Bench[]>);
     renderSidebar("/projects/proj-1/benches/1");
     const projectButton = screen.getByText("My Project").closest("button");
-    expect(projectButton?.className).not.toContain("text-amber-600");
+    expect(projectButton?.className).not.toContain("text-accent-text");
   });
 
   it("marks bench active when on bench path", () => {
@@ -228,7 +238,7 @@ describe("ProjectSidebar", () => {
     } as unknown as UseQueryResult<Bench[]>);
     renderSidebar("/projects/proj-1/benches/1");
     const benchButton = screen.getByText("feat/my-feature").closest("button");
-    expect(benchButton?.className).toContain("text-amber-600");
+    expect(benchButton?.className).toContain("text-accent-text");
   });
 
   it("does not mark bench active when on a different bench path", () => {
@@ -243,7 +253,7 @@ describe("ProjectSidebar", () => {
     } as unknown as UseQueryResult<Bench[]>);
     renderSidebar("/projects/proj-1/benches/2");
     const benchButton = screen.getByText("feat/my-feature").closest("button");
-    expect(benchButton?.className).not.toContain("text-amber-600");
+    expect(benchButton?.className).not.toContain("text-accent-text");
   });
 
   it("does not render benches from one project under another project", () => {
