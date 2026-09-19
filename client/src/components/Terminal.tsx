@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Terminal as XTerm } from "@xterm/xterm";
+import { Terminal as XTerm, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
@@ -8,6 +8,46 @@ import { useTerminalConnection } from "../hooks/useTerminalConnection";
 import ReconnectBanner from "./ReconnectBanner";
 import WaitingBanner from "./WaitingBanner";
 import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
+
+// Every colour is a DESIGN.md terminal role. design-tokens/semantic-dark.css
+// switches each variable under `.dark`, but xterm parses its theme colours
+// itself and cannot take a `var(...)` string the way CodeMirror can, so the
+// roles are resolved to values here and re-resolved when the theme changes.
+// The well in TerminalTabs paints the same `terminal-ground`, so the host
+// padding shows no rim.
+const TERMINAL_THEME_ROLES = {
+  background: "terminal-ground",
+  foreground: "terminal-text",
+  cursor: "terminal-cursor",
+  selectionBackground: "terminal-selection",
+  black: "terminal-ansi-black",
+  red: "terminal-ansi-red",
+  green: "terminal-ansi-green",
+  yellow: "terminal-ansi-yellow",
+  blue: "terminal-ansi-blue",
+  magenta: "terminal-ansi-magenta",
+  cyan: "terminal-ansi-cyan",
+  white: "terminal-ansi-white",
+  brightBlack: "terminal-ansi-bright-black",
+  brightRed: "terminal-ansi-bright-red",
+  brightGreen: "terminal-ansi-bright-green",
+  brightYellow: "terminal-ansi-bright-yellow",
+  brightBlue: "terminal-ansi-bright-blue",
+  brightMagenta: "terminal-ansi-bright-magenta",
+  brightCyan: "terminal-ansi-bright-cyan",
+  brightWhite: "terminal-ansi-bright-white",
+} as const satisfies Partial<Record<keyof ITheme, string>>;
+
+function terminalTheme(): ITheme {
+  const style = getComputedStyle(document.documentElement);
+  const theme: ITheme = {};
+  for (const [key, role] of Object.entries(TERMINAL_THEME_ROLES)) {
+    theme[key as keyof typeof TERMINAL_THEME_ROLES] = style
+      .getPropertyValue(`--color-${role}`)
+      .trim();
+  }
+  return theme;
+}
 
 export default function Terminal({
   sessionId,
@@ -73,28 +113,7 @@ export default function Terminal({
       fontFamily: '"JetBrains Mono", "Fira Code", monospace',
       fontSize: 13,
       lineHeight: 1.4,
-      theme: {
-        background: "#09090b",
-        foreground: "#d4d4d8",
-        cursor: "#d4d4d8",
-        selectionBackground: "#3f3f4680",
-        black: "#18181b",
-        red: "#ef4444",
-        green: "#22c55e",
-        yellow: "#eab308",
-        blue: "#3b82f6",
-        magenta: "#a855f7",
-        cyan: "#06b6d4",
-        white: "#d4d4d8",
-        brightBlack: "#52525b",
-        brightRed: "#f87171",
-        brightGreen: "#4ade80",
-        brightYellow: "#facc15",
-        brightBlue: "#60a5fa",
-        brightMagenta: "#c084fc",
-        brightCyan: "#22d3ee",
-        brightWhite: "#fafafa",
-      },
+      theme: terminalTheme(),
       scrollback: 5000,
       allowProposedApi: true,
     });
@@ -129,8 +148,17 @@ export default function Terminal({
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
 
+    const themeObserver = new MutationObserver(() => {
+      term.options.theme = terminalTheme();
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
     return () => {
       observer.disconnect();
+      themeObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
       term.dispose();
       termRef.current = null;

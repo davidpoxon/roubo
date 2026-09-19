@@ -1,5 +1,8 @@
 @import "tailwindcss";
-@import "../../design-tokens/tokens.tailwind.css";
+/* `static` emits every token variable, not only those a utility uses: the
+   xterm theme in Terminal.tsx reads the terminal roles from script, which
+   Tailwind cannot see, so they would otherwise be dropped from the build. */
+@import "../../design-tokens/tokens.tailwind.css" theme(static);
 @import "../../design-tokens/semantic-dark.css";
 @custom-variant dark (&:where(.dark, .dark *));
 
