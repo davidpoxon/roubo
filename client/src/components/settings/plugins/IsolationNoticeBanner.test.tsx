@@ -42,12 +42,12 @@ describe("IsolationNoticeBanner (#743)", () => {
     setupReinstall();
   });
 
-  it("renders the notice message with the remediation as an amber advisory", () => {
+  it("renders the notice message with the remediation as an accent advisory", () => {
     const { getByTestId } = renderBanner([notice("/Applications/Roubo.app/Contents/plugin")]);
     const banner = getByTestId("plugin-isolation-notice");
     expect(banner.textContent).toContain("/Applications/Roubo.app/Contents/plugin");
     expect(banner.textContent).toContain("Docker Desktop > Settings > Resources > File sharing");
-    // Amber (advisory), not red: the plugin keeps running on the floor.
+    // Accent (advisory), not danger: the plugin keeps running on the floor.
     expect(banner.className).toContain("accent");
     expect(banner.className).not.toContain("danger");
   });

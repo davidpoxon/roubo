@@ -14,14 +14,14 @@ describe("OverrideBadge", () => {
     expect(screen.getByText(/Project override active/)).toBeInTheDocument();
   });
 
-  it("applies amber token classes to the chip container", () => {
+  it("applies accent token classes to the chip container", () => {
     const { container } = render(<OverrideBadge />);
     const chip = container.firstChild as HTMLElement;
     expect(chip.className).toContain("bg-accent-muted");
     expect(chip.className).toContain("text-accent-text");
   });
 
-  it("includes an amber dot indicator", () => {
+  it("includes an accent dot indicator", () => {
     const { container } = render(<OverrideBadge />);
     const dot = container.querySelector('[aria-hidden="true"]');
     expect(dot).toBeInTheDocument();

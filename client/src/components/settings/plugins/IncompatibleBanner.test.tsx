@@ -14,7 +14,7 @@ describe("IncompatibleBanner (TC-003)", () => {
     expect(banner.textContent).toContain("Update the plugin or use a newer Roubo");
   });
 
-  it("uses amber tint", () => {
+  it("uses the accent tint", () => {
     const { getByTestId } = render(
       <IncompatibleBanner pluginRange="^2.0.0" hostApiVersion="1.0.0" />,
     );

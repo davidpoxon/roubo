@@ -7,7 +7,9 @@
 // regression (164 light-only `text-stone-500` uses at 3.65:1 in dark) passed
 // every gate because no gate looked at colour at all.
 //
-// Two rules, over every tracked `.ts`, `.tsx`, and `.css` file in `client/src`:
+// Two rules, over every tracked `.ts`, `.tsx`, and `.css` file in `client/src`,
+// plus `client/index.html`, whose `<body>` classes paint the ground before
+// React mounts and sat outside the gate until the end of #1293:
 //
 //   1. Raw palette colour. A colour utility naming a Tailwind palette shade,
 //      under any utility prefix (`bg-`, `text-`, `border-`, `border-t-`,
@@ -44,6 +46,8 @@ import { readFileSync } from "node:fs";
 export const SCAN_ROOT = "client/src";
 export const ALLOWLIST_PATH = "scripts/design-token-allowlist.json";
 const EXTENSIONS = [".ts", ".tsx", ".css"];
+// Files outside the scan root that still paint the client.
+export const EXTRA_FILES = ["client/index.html"];
 
 // Every Tailwind palette family. Stone, amber, red, and green are the ones
 // DESIGN.md's roles resolve to, the categorical hues back the issue, agent, and
@@ -237,7 +241,10 @@ export function applyAllowlist(findingsByFile, allowlist) {
     }
     seen.add(entry);
     if (!entry.startsWith(`${SCAN_ROOT}/`)) {
-      problems.push({ entry, reason: `outside ${SCAN_ROOT}/, which is the only tree scanned.` });
+      problems.push({
+        entry,
+        reason: `outside ${SCAN_ROOT}/; only paths under it can be allowlisted.`,
+      });
       continue;
     }
     const parent = allowlist.find(
@@ -277,7 +284,7 @@ export function applyAllowlist(findingsByFile, allowlist) {
  *
  * @returns {string[]}
  */
-function listFiles() {
+export function listFiles() {
   const output = execSync(`git ls-files ${SCAN_ROOT}`, {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
@@ -286,11 +293,12 @@ function listFiles() {
     .split("\n")
     .filter(Boolean)
     .filter((f) => EXTENSIONS.some((ext) => f.endsWith(ext)))
-    .filter((f) => !f.endsWith(".d.ts"));
+    .filter((f) => !f.endsWith(".d.ts"))
+    .concat(EXTRA_FILES);
 }
 
 /**
- * Scan every tracked file under the scan root.
+ * Scan every tracked file the guard covers.
  *
  * @returns {Record<string, { line: number, utility: string, rule: string }[]>}
  */
