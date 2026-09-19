@@ -308,7 +308,9 @@ describe("LaunchOverridesDialog", () => {
 
     // The this-launch values are accent-emphasised; the layers they supersede
     // are dimmed and struck through (AP-TC-046 S001-O02).
-    expect(screen.getByTestId("resolution-perLaunch-model").className).toContain("amber");
+    expect(screen.getByTestId("resolution-perLaunch-model").className).toContain(
+      "text-accent-text",
+    );
     expect(screen.getByTestId("resolution-app-model").dataset.superseded).toBe("true");
     expect(screen.getByTestId("resolution-project-model").dataset.superseded).toBe("true");
   });

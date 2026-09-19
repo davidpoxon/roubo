@@ -32,29 +32,26 @@ export default function BranchConflictDialog({
         >
           {({ close }) => (
             <>
-              <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                <Heading
-                  slot="title"
-                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-                >
+              <div className="px-5 py-4 border-b border-border">
+                <Heading slot="title" className="text-16 font-semibold text-text-primary">
                   Branch already exists
                 </Heading>
               </div>
 
               <div className="px-5 py-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                  <AlertTriangle size={16} className="text-accent-text shrink-0 mt-0.5" />
                   <div className="space-y-2">
-                    <p className="text-13 text-stone-700 dark:text-stone-300">
+                    <p className="text-13 text-text-body">
                       The branch{" "}
-                      <code className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-12 font-mono text-stone-800 dark:text-stone-200">
+                      <code className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-hover text-12 font-mono text-text-body">
                         <GitBranch size={12} />
                         {conflict.branchName}
                       </code>{" "}
                       already exists in this repository.
                     </p>
                     {conflict.workspaceExists && (
-                      <p className="text-12 text-amber-400/80">
+                      <p className="text-12 text-accent-text">
                         A matching worktree also exists on disk. You may have an orphaned worktree
                         to clean up.
                       </p>
@@ -63,10 +60,10 @@ export default function BranchConflictDialog({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
                 <Button
                   onPress={close}
-                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Cancel
                 </Button>
@@ -75,7 +72,7 @@ export default function BranchConflictDialog({
                     onCreateNew();
                     close();
                   }}
-                  className="px-4 py-1.5 text-13 font-medium text-stone-700 dark:text-stone-200 bg-stone-200 dark:bg-stone-700 hover:bg-stone-300 dark:hover:bg-stone-600 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="px-4 py-1.5 text-13 font-medium text-text-secondary border border-border-strong bg-bg-surface hover:bg-bg-hover hover:text-text-primary active:bg-bg-pressed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Create new branch
                 </Button>
@@ -84,7 +81,7 @@ export default function BranchConflictDialog({
                     onResume();
                     close();
                   }}
-                  className="px-4 py-1.5 text-13 font-medium text-stone-100 bg-stone-600 hover:bg-stone-500 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent hover:bg-accent-hover active:bg-accent-active rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Resume existing
                 </Button>

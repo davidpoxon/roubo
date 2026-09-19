@@ -80,18 +80,15 @@ export default function EnablePluginPromptModal({
           data-testid="enable-plugin-modal"
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-            <Heading
-              slot="title"
-              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-            >
+          <div className="px-5 py-4 border-b border-border">
+            <Heading slot="title" className="text-16 font-semibold text-text-primary">
               {STRINGS.title(pluginName)}
             </Heading>
-            <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+            <p className="mt-1 text-12 text-text-secondary">
               {STRINGS.descriptionPrefix}
               <span className="font-mono">{STRINGS.descriptionRoubo}</span>
               {STRINGS.descriptionReferences}
-              <span className="font-mono text-stone-700 dark:text-stone-200">{pluginId}</span>
+              <span className="font-mono text-text-body">{pluginId}</span>
               {STRINGS.descriptionPluginSuffix}
             </p>
           </div>
@@ -101,7 +98,7 @@ export default function EnablePluginPromptModal({
               <div
                 role="alert"
                 data-testid="enable-plugin-error"
-                className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300 flex items-start gap-2"
+                className="rounded-lg border border-danger-border bg-danger-surface px-3 py-2 text-13 text-danger-text flex items-start gap-2"
               >
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                 <span>{error}</span>
@@ -109,12 +106,12 @@ export default function EnablePluginPromptModal({
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
             <Button
               onPress={handleCancel}
               isDisabled={isPending}
               data-testid="enable-plugin-cancel"
-              className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {STRINGS.cancel}
             </Button>

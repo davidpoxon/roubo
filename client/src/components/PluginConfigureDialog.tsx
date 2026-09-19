@@ -633,16 +633,13 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     <>
       <div
         data-testid="plugin-configure-dialog-header"
-        className="flex items-start gap-3 px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 shrink-0"
+        className="flex items-start gap-3 px-5 py-4 border-b border-border shrink-0"
       >
-        <Heading
-          slot="title"
-          className="flex-1 min-w-0 text-16 font-semibold text-stone-900 dark:text-stone-100"
-        >
+        <Heading slot="title" className="flex-1 min-w-0 text-16 font-semibold text-text-primary">
           {STRINGS.titlePrefix}
           {manifest?.name ?? plugin.id}
           {mode === "global" && (
-            <span className="ml-2 text-11 font-normal text-stone-500 dark:text-stone-400">
+            <span className="ml-2 text-11 font-normal text-text-secondary">
               {STRINGS.globalSuffix}
             </span>
           )}
@@ -679,7 +676,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 
             {showIntegrationFields && (
               <div className="flex flex-col gap-4" data-testid="integration-fields-section">
-                <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+                <span className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                   {STRINGS.integrationFieldsHeading}
                 </span>
                 <TextField
@@ -715,16 +712,16 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             {showStatusExclusion && (
               <div className="flex flex-col gap-2.5" data-testid="status-exclusion-section">
                 <div>
-                  <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+                  <span className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                     {STRINGS.statusExclusionHeading}
                   </span>
-                  <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed mt-1">
+                  <p className="text-11 text-text-secondary leading-relaxed mt-1">
                     {STRINGS.statusExclusionHelp}
                   </p>
                   {statusCategoriesQuery.data?.supported === false && (
                     <p
                       data-testid="status-name-fallback-note"
-                      className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed mt-1"
+                      className="text-11 text-text-secondary leading-relaxed mt-1"
                     >
                       {STRINGS.statusNameFallbackNote}
                     </p>
@@ -748,17 +745,15 @@ function ConfigureFlow(props: ConfigureFlowProps) {
                           <div
                             className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                               isSelected
-                                ? "bg-stone-600 border-stone-500"
-                                : "bg-stone-200 dark:bg-stone-800 border-stone-400 dark:border-stone-600"
+                                ? "bg-accent border-accent"
+                                : "bg-bg-field border-border-control"
                             }`}
                           >
-                            {isSelected && <Check size={12} className="text-stone-100" />}
+                            {isSelected && <Check size={12} className="text-on-accent" />}
                           </div>
-                          <span className="text-13 text-stone-700 dark:text-stone-300">
-                            {category}
-                          </span>
+                          <span className="text-13 text-text-body">{category}</span>
                           {actionable && (
-                            <span className="text-11 text-stone-500 dark:text-stone-400">
+                            <span className="text-11 text-text-secondary">
                               {STRINGS.statusActionableHint}
                             </span>
                           )}
@@ -772,11 +767,11 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 
             {showStatusMappingNote && (
               <div className="flex flex-col gap-1" data-testid="status-mapping-note-section">
-                <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+                <span className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                   {STRINGS.statusExclusionHeading}
                 </span>
                 <p
-                  className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed mt-1"
+                  className="text-11 text-text-secondary leading-relaxed mt-1"
                   data-testid="status-mapping-note"
                 >
                   {STRINGS.statusMappingNote}
@@ -787,19 +782,19 @@ function ConfigureFlow(props: ConfigureFlowProps) {
         )}
 
         {submitError && (
-          <p role="alert" className="text-12 text-red-500 dark:text-red-400">
+          <p role="alert" className="text-12 text-danger-text">
             {submitError}
           </p>
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 shrink-0">
+      <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border shrink-0">
         {showForm ? (
           <Button
             isDisabled={isBusy}
             onPress={() => void runTest(values)}
             data-testid="test-connection"
-            className="px-2.5 py-1 text-11 font-medium rounded-control text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="px-2.5 py-1 text-11 font-medium rounded-control text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {testMutation.isPending ? STRINGS.verifying : STRINGS.verify}
           </Button>
@@ -810,7 +805,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
           <Button
             isDisabled={isBusy}
             onPress={close}
-            className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {STRINGS.cancel}
           </Button>
@@ -818,7 +813,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
             isDisabled={!showForm || isBusy}
             onPress={() => void handleSave()}
             data-testid="save-config"
-            className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+            className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
           >
             {saveMutation.isPending || saveFieldsPending || saveSourcesMutation.isPending
               ? STRINGS.saving
@@ -836,15 +831,15 @@ function ConfigureFlow(props: ConfigureFlowProps) {
 type StripTone = "green" | "amber" | "red";
 
 const TONE_BORDER: Record<StripTone, string> = {
-  green: "border-green-200 dark:border-green-900/40",
-  amber: "border-amber-200 dark:border-amber-900/40",
-  red: "border-red-200 dark:border-red-900/40",
+  green: "border-success-border",
+  amber: "border-accent-border",
+  red: "border-danger-border",
 };
 
 const TONE_BG: Record<StripTone, string> = {
-  green: "bg-green-50 dark:bg-green-950/20",
-  amber: "bg-amber-50 dark:bg-amber-950/20",
-  red: "bg-red-50 dark:bg-red-950/20",
+  green: "bg-success-surface",
+  amber: "bg-accent-muted",
+  red: "bg-danger-surface",
 };
 
 function worstStatusTone(categories: readonly IntegrationCategoryReport[]): StripTone {
@@ -873,28 +868,28 @@ export function CategoryRow({ category }: { category: IntegrationCategoryReport 
   switch (category.status) {
     case "ok":
       Icon = CheckCircle2;
-      iconColor = "text-green-600 dark:text-green-400";
-      textColor = "text-green-800 dark:text-green-300";
+      iconColor = "text-success-text";
+      textColor = "text-success-text";
       break;
     case "scope-missing":
       Icon = ShieldAlert;
-      iconColor = "text-amber-600 dark:text-amber-400";
-      textColor = "text-amber-800 dark:text-amber-300";
+      iconColor = "text-accent-text";
+      textColor = "text-accent-text";
       break;
     case "not-enabled":
       Icon = MinusCircle;
-      iconColor = "text-stone-500 dark:text-stone-400";
-      textColor = "text-stone-500 dark:text-stone-500";
+      iconColor = "text-text-secondary";
+      textColor = "text-text-secondary";
       break;
     case "timed-out":
       Icon = Clock;
-      iconColor = "text-amber-600 dark:text-amber-400";
-      textColor = "text-amber-800 dark:text-amber-300";
+      iconColor = "text-accent-text";
+      textColor = "text-accent-text";
       break;
     case "error":
       Icon = AlertCircle;
-      iconColor = "text-red-500";
-      textColor = "text-red-800 dark:text-red-300";
+      iconColor = "text-danger-text";
+      textColor = "text-danger-text";
       break;
   }
   return (
@@ -903,12 +898,10 @@ export function CategoryRow({ category }: { category: IntegrationCategoryReport 
       <div className="min-w-0 flex-1">
         <p className={textColor}>
           <span className="font-medium">{category.label}</span>
-          <span className="mx-1.5 text-stone-500 dark:text-stone-400">·</span>
+          <span className="mx-1.5 text-text-secondary">·</span>
           <span>{STATUS_TEXT[category.status]}</span>
         </p>
-        {category.detail && (
-          <p className="text-11 text-stone-500 dark:text-stone-500 mt-0.5">{category.detail}</p>
-        )}
+        {category.detail && <p className="text-11 text-text-secondary mt-0.5">{category.detail}</p>}
       </div>
     </li>
   );
@@ -929,10 +922,10 @@ function ResultStrip({
     return (
       <div
         role="status"
-        className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40"
+        className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-border bg-bg-base"
       >
         <Loader2 size={14} className="animate-spin text-text-secondary" />
-        <p className="text-12 text-stone-600 dark:text-stone-400">{STRINGS.testing}</p>
+        <p className="text-12 text-text-secondary">{STRINGS.testing}</p>
       </div>
     );
   }
@@ -945,10 +938,10 @@ function ResultStrip({
         <div
           role="status"
           data-testid="test-result-success"
-          className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-success-border bg-success-surface"
         >
-          <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-          <p className="text-12 text-green-800 dark:text-green-300">
+          <CheckCircle2 size={14} className="text-success-text shrink-0" />
+          <p className="text-12 text-success-text">
             {STRINGS.connectedAs(result.identity.displayName)}
           </p>
         </div>
@@ -962,8 +955,8 @@ function ResultStrip({
         className={`px-3 py-2 rounded-md border ${TONE_BORDER[containerTone]} ${TONE_BG[containerTone]}`}
       >
         <div className="flex items-center gap-2.5">
-          <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-          <p className="text-12 text-green-800 dark:text-green-300">
+          <CheckCircle2 size={14} className="text-success-text shrink-0" />
+          <p className="text-12 text-success-text">
             {STRINGS.connectedAs(result.identity.displayName)}
           </p>
         </div>
@@ -981,18 +974,16 @@ function ResultStrip({
     <div
       role="alert"
       data-testid={`test-result-error-${result.error.kind}`}
-      className="flex items-start gap-2.5 px-3 py-2 rounded-md border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20"
+      className="flex items-start gap-2.5 px-3 py-2 rounded-md border border-danger-border bg-danger-surface"
     >
-      <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
+      <AlertCircle size={14} className="text-danger-text shrink-0 mt-0.5" />
       <div className="min-w-0 flex-1 space-y-2">
-        <p className="text-12 text-red-800 dark:text-red-300 leading-relaxed">
-          {result.error.message}
-        </p>
+        <p className="text-12 text-danger-text leading-relaxed">{result.error.message}</p>
         {isTls && tlsFieldKey && (
           <Button
             onPress={onEnableTls}
             data-testid="enable-self-signed-tls"
-            className="px-2.5 py-1 text-11 font-medium rounded-control border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="px-2.5 py-1 text-11 font-medium rounded-control border border-danger-border text-danger-text hover:bg-bg-surface transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {STRINGS.enableSelfSignedTls}
           </Button>
@@ -1052,23 +1043,23 @@ function GithubOauthSection({
 
   return (
     <div
-      className="flex flex-col gap-2 px-3 py-2.5 rounded-md border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40"
+      className="flex flex-col gap-2 px-3 py-2.5 rounded-md border border-border bg-bg-base"
       data-testid="github-oauth-section"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-500">
+          <p className="text-11 font-semibold uppercase tracking-label text-text-secondary">
             {STRINGS.githubAccountHeading}
           </p>
           {connected ? (
-            <p className="text-12 text-stone-700 dark:text-stone-300 mt-1">
+            <p className="text-12 text-text-body mt-1">
               {STRINGS.connectedAsPrefix}
-              <span className="font-mono text-stone-900 dark:text-stone-100">
+              <span className="font-mono text-text-primary">
                 {accountLogin ?? STRINGS.connectedAccountFallback}
               </span>
             </p>
           ) : (
-            <p className="text-12 text-stone-500 dark:text-stone-500 mt-1 leading-relaxed">
+            <p className="text-12 text-text-secondary mt-1 leading-relaxed">
               {STRINGS.connectPrompt}
             </p>
           )}
@@ -1078,7 +1069,7 @@ function GithubOauthSection({
             isDisabled={disconnecting}
             onPress={() => void handleDisconnect()}
             data-testid="github-disconnect"
-            className="inline-flex items-center px-2 py-1 text-11 font-medium rounded-control text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring shrink-0"
+            className="inline-flex items-center px-2 py-1 text-11 font-medium rounded-control text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring shrink-0"
           >
             {disconnecting ? STRINGS.disconnecting : STRINGS.disconnect}
           </Button>
@@ -1087,7 +1078,7 @@ function GithubOauthSection({
             isDisabled={pending}
             onPress={() => void handleConnect()}
             data-testid="github-connect"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-control border border-amber-500 bg-accent text-on-accent not-disabled:hover:bg-accent-hover hover:border-amber-400 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring shrink-0 not-disabled:active:bg-accent-active"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-control border border-accent bg-accent text-on-accent not-disabled:hover:bg-accent-hover not-disabled:hover:border-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring shrink-0 not-disabled:active:bg-accent-active"
           >
             {pending ? (
               <Loader2 size={12} className="animate-spin" />
@@ -1099,12 +1090,12 @@ function GithubOauthSection({
         )}
       </div>
       {error && (
-        <p role="alert" className="text-12 text-red-500 dark:text-red-400">
+        <p role="alert" className="text-12 text-danger-text">
           {error}
         </p>
       )}
       {!connected && (
-        <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="text-11 text-text-secondary leading-relaxed">
           {STRINGS.postOauthHintPrefix}
           <span className="font-medium">{STRINGS.postOauthHintCta}</span>
           {STRINGS.postOauthHintSuffix}
@@ -1127,18 +1118,14 @@ function SourcePickerSection({
 }) {
   if (query.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-11 text-stone-500 dark:text-stone-400">
+      <div className="flex items-center gap-2 text-11 text-text-secondary">
         <Spinner />
         {STRINGS.sourcesLoading}
       </div>
     );
   }
   if (!query.data) {
-    return (
-      <p className="text-11 text-amber-600 dark:text-amber-500 leading-relaxed">
-        {STRINGS.sourcesError}
-      </p>
-    );
+    return <p className="text-11 text-accent-text leading-relaxed">{STRINGS.sourcesError}</p>;
   }
   return (
     <SourcePicker candidates={query.data} value={value} onChange={onChange} projectId={projectId} />
@@ -1157,14 +1144,12 @@ function DerivedSourcesPreview({
 
   if (trimmedRepo.length === 0) {
     return (
-      <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
-        {STRINGS.derivedSourcesNoRepo}
-      </p>
+      <p className="text-11 text-text-secondary leading-relaxed">{STRINGS.derivedSourcesNoRepo}</p>
     );
   }
   if (query.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-11 text-stone-500 dark:text-stone-400">
+      <div className="flex items-center gap-2 text-11 text-text-secondary">
         <Spinner />
         {STRINGS.derivedSourcesLoading}
       </div>
@@ -1190,19 +1175,14 @@ function DerivedSourcesPreview({
     // Other failures don't block saving; the soft warning sets expectations
     // rather than gating.
     return (
-      <p className="text-11 text-amber-600 dark:text-amber-500 leading-relaxed">
-        {STRINGS.derivedSourcesUnknown}
-      </p>
+      <p className="text-11 text-accent-text leading-relaxed">{STRINGS.derivedSourcesUnknown}</p>
     );
   }
 
   const { repos, projects, alertsRequested } = query.data;
   if (repos.length === 0) {
     return (
-      <p
-        className="text-11 text-amber-600 dark:text-amber-500 leading-relaxed"
-        data-testid="derived-sources-preview"
-      >
+      <p className="text-11 text-accent-text leading-relaxed" data-testid="derived-sources-preview">
         {STRINGS.derivedSourcesNoRepos}
       </p>
     );
@@ -1215,7 +1195,7 @@ function DerivedSourcesPreview({
 
   return (
     <p
-      className="text-11 text-stone-500 dark:text-stone-500 leading-relaxed"
+      className="text-11 text-text-secondary leading-relaxed"
       data-testid="derived-sources-preview"
     >
       {STRINGS.derivedSourcesPrefix}
