@@ -19,7 +19,7 @@ export default function ReconnectBanner({
     >
       {state === "reconnecting" ? (
         <>
-          <span className="size-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+          <span className="size-1.5 rounded-full bg-amber-500 animate-status-pulse shrink-0" />
           <span className="text-xs font-mono text-stone-700 dark:text-stone-300">
             Reconnecting{attempt > 0 ? ` (attempt ${attempt})` : ""}...
           </span>

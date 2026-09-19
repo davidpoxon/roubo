@@ -25,10 +25,9 @@ function TeardownCard({ bench, exiting }: { bench: Bench; exiting: boolean }) {
 
   return (
     <div
-      className="transition-all duration-200 ease-out"
+      className="transition-opacity duration-200"
       style={{
         opacity: visible && !exiting ? 1 : 0,
-        transform: visible && !exiting ? "translateY(0)" : "translateY(8px)",
       }}
     >
       <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3.5 py-2.5 shadow-lg shadow-black/20 min-w-[260px] max-w-xs">
@@ -69,10 +68,9 @@ function CompletedCard({ benchId, exiting }: { benchId: number; exiting: boolean
 
   return (
     <div
-      className="transition-all duration-200 ease-out"
+      className="transition-opacity duration-200"
       style={{
         opacity: visible && !exiting ? 1 : 0,
-        transform: visible && !exiting ? "translateY(0)" : "translateY(8px)",
       }}
     >
       <div className="bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 rounded-lg px-3.5 py-2.5 shadow-lg shadow-black/20 min-w-[260px] max-w-xs">

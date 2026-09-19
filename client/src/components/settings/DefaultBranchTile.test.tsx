@@ -47,7 +47,6 @@ describe("DefaultBranchTile", () => {
   it("renders loading skeleton while loading", () => {
     mockSettings({ isLoading: true });
     render(<DefaultBranchTile projectId="proj-1" />);
-    expect(document.querySelector(".animate-pulse")).toBeInTheDocument();
     expect(screen.getByText("Detecting default branch…")).toBeInTheDocument();
   });
 

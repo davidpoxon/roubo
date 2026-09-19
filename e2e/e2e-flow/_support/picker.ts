@@ -57,6 +57,14 @@ export async function openConfigureDialog(
   const dialog = page.getByRole("dialog", { name: /Configure .*Roubo E2E Stub|Roubo E2E Stub/ });
   await expect(dialog.getByTestId("plugin-configure-dialog-header")).toBeVisible();
 
+  // Let the modal's rise-in entry (#1295) finish before driving the picker. A
+  // source popover opened while the modal is still rising is positioned against
+  // the trigger mid-motion, can come to rest over the trigger, and then swallows
+  // the re-click `addSource` uses to close it.
+  await dialog.evaluate((el) =>
+    Promise.all((el.closest(".animate-rise-in")?.getAnimations() ?? []).map((a) => a.finished)),
+  );
+
   const picker = dialog.getByTestId("source-picker");
   if (waitForPicker) {
     await expect(picker).toBeVisible();

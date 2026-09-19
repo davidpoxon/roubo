@@ -45,7 +45,7 @@ export default function JigIconPicker({ value, onChange }: Props) {
       </Button>
       <Popover
         placement="bottom start"
-        className="w-56 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl z-50 outline-none p-3 transition-opacity duration-150 data-[entering]:opacity-0"
+        className="animate-rise-in w-56 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl z-50 outline-none p-3"
       >
         <Dialog aria-label="Icon picker" className="outline-none">
           <div className="grid grid-cols-6 gap-1.5">

@@ -225,7 +225,7 @@ export default function ConfigSchemaForm({
                     className="shrink-0 ml-2 text-stone-500 dark:text-stone-400"
                   />
                 </Button>
-                <Popover className="w-[var(--trigger-width)] rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-xl py-1 z-50 overflow-auto max-h-60">
+                <Popover className="animate-rise-in w-[var(--trigger-width)] rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-xl py-1 z-50 overflow-auto max-h-60">
                   <ListBox className="outline-none">
                     {choices.map((choice) => (
                       <ListBoxItem

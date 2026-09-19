@@ -69,7 +69,7 @@ export default function SetupTile({ projectId }: Props) {
       ariaLabel="Project setup"
     >
       {isLoading && (
-        <div className="animate-pulse space-y-2">
+        <div data-testid="setup-tile-loading" className="space-y-2">
           <div className="h-3 bg-stone-200 dark:bg-stone-700 rounded w-3/4" />
           <div className="h-3 bg-stone-200 dark:bg-stone-700 rounded w-1/2" />
           <div className="h-3 bg-stone-200 dark:bg-stone-700 rounded w-2/3" />

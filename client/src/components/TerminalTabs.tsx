@@ -70,7 +70,7 @@ function JigMenu({ jigs, onSelect }: { jigs: JigMeta[]; onSelect: (id: string) =
     <Popover
       placement="bottom end"
       offset={6}
-      className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[14rem] max-w-[18rem] max-h-72 overflow-y-auto"
+      className="animate-rise-in bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[14rem] max-w-[18rem] max-h-72 overflow-y-auto"
     >
       <Menu onAction={(key) => onSelect(String(key))} className="outline-none">
         {jigs.map((jig) => (
@@ -629,7 +629,7 @@ export default function TerminalTabs({
               )}
               <Button
                 onPress={() => handleDestroy(session.id)}
-                className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-stone-300 dark:hover:bg-stone-700 transition-all outline-none"
+                className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-stone-300 dark:hover:bg-stone-700 transition-opacity outline-none"
               >
                 <X size={10} />
               </Button>

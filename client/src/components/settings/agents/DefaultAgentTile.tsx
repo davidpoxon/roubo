@@ -26,7 +26,7 @@ export default function DefaultAgentTile({ agent }: { agent: AgentPluginState })
           // S001-O01) rather than only the radio's checked state.
           data-selected={isSelected}
           className={[
-            "flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all duration-150 cursor-pointer select-none",
+            "flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors cursor-pointer select-none",
             isSelected
               ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
               : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40",
@@ -37,7 +37,7 @@ export default function DefaultAgentTile({ agent }: { agent: AgentPluginState })
         >
           <div
             className={[
-              "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-all duration-150",
+              "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-colors",
               isSelected
                 ? "border-stone-700 dark:border-stone-300 bg-stone-700 dark:bg-stone-300"
                 : "border-stone-300 dark:border-stone-600",

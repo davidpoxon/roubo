@@ -179,7 +179,7 @@ export default function AgentLaunchMenu({
     <Popover
       placement="bottom end"
       offset={6}
-      className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[16rem] max-w-[20rem] max-h-80 overflow-y-auto"
+      className="animate-rise-in bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[16rem] max-w-[20rem] max-h-80 overflow-y-auto"
     >
       <Menu
         onAction={(key) => {

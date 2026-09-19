@@ -89,7 +89,7 @@ export default function ViewLogsDialog({ pluginId, pluginName, isOpen, onClose }
       isDismissable
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
-      <Modal className="w-full max-w-3xl mx-4">
+      <Modal className="animate-rise-in w-full max-w-3xl mx-4">
         <Dialog
           ref={stampAriaModal}
           aria-label={STRINGS.logsAriaLabel(pluginName)}

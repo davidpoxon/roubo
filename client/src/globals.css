@@ -53,8 +53,17 @@
   --font-mono:
     "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
     monospace;
+
+  /* Bare transition utilities (transition-colors, transition-opacity) pick up
+     the recorded motion.duration.fast and the ease-out motion.easing.standard. */
+  --default-transition-duration: var(--motion-duration-fast);
+  --default-transition-timing-function: var(--motion-easing-standard);
 }
 
+/* Motion. DESIGN.md records three keyframes (spin, status-pulse, rise-in) and
+   suppresses every one of them under prefers-reduced-motion: reduce. The
+   keyframes here are only attached under no-preference, and the reduce block
+   below also stops Tailwind's animate-spin and snaps every transition. */
 @keyframes status-pulse {
   0%,
   100% {
@@ -65,14 +74,10 @@
   }
 }
 
-.animate-status-pulse {
-  animation: status-pulse 2s ease-in-out infinite;
-}
-
-@keyframes tab-fade-in {
+@keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(5px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -81,8 +86,21 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .animate-tab-fade-in {
-    animation: tab-fade-in 180ms ease-out;
+  .animate-status-pulse {
+    animation: status-pulse 2s ease-in-out infinite;
+  }
+
+  .animate-rise-in {
+    animation: rise-in var(--motion-duration-standard) var(--motion-easing-standard);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition-duration: 0ms !important;
   }
 }
 

@@ -333,7 +333,7 @@ function EnableSwitch({
         <>
           <div
             className={[
-              "relative shrink-0 w-9 h-5 rounded-full border transition-all duration-150",
+              "relative shrink-0 w-9 h-5 rounded-full border transition-colors",
               isEnabled
                 ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
                 : "bg-transparent border-stone-300 dark:border-stone-600",
@@ -344,7 +344,7 @@ function EnableSwitch({
           >
             <div
               className={[
-                "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all duration-150",
+                "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-colors",
                 isEnabled
                   ? "left-[18px] bg-white dark:bg-stone-900"
                   : "left-0.5 bg-stone-300 dark:bg-stone-600",
@@ -363,7 +363,7 @@ function EnableSwitch({
 function ConfigureLoadingDialog() {
   return (
     <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <Modal className="w-full max-w-sm mx-4">
+      <Modal className="animate-rise-in w-full max-w-sm mx-4">
         <Dialog
           ref={stampAriaModal}
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none px-5 py-6"
@@ -385,7 +385,7 @@ function ConfigureErrorDialog({ error, onRetry }: { error: unknown; onRetry: () 
   const message = error instanceof Error ? error.message : STRINGS.configLoadFallback;
   return (
     <ModalOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <Modal className="w-full max-w-sm mx-4">
+      <Modal className="animate-rise-in w-full max-w-sm mx-4">
         <Dialog
           ref={stampAriaModal}
           role="alertdialog"

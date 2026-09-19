@@ -84,7 +84,7 @@ export default function RegisterProjectModal({
       }`}
     >
       <Modal
-        className={`w-full mx-4 flex flex-col max-h-[85vh] ${inSetup ? "max-w-2xl" : "max-w-xl"}`}
+        className={`animate-rise-in w-full mx-4 flex flex-col max-h-[85vh] ${inSetup ? "max-w-2xl" : "max-w-xl"}`}
       >
         <Dialog
           ref={stampAriaModal}

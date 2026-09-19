@@ -126,7 +126,7 @@ export default function WizardSidebar({
                     </Button>
                     <Popover
                       placement="bottom start"
-                      className="rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 w-36 outline-none"
+                      className="animate-rise-in rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 w-36 outline-none"
                     >
                       <Button
                         onPress={() => {

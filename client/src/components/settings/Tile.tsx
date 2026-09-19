@@ -40,7 +40,7 @@ export default function Tile({
     <section
       aria-label={ariaLabel ?? title}
       data-testid={testId}
-      className={`rounded-lg border p-5 transition-all duration-150 ${borderClass}${className ? ` ${className}` : ""}`}
+      className={`rounded-lg border p-5 transition-colors ${borderClass}${className ? ` ${className}` : ""}`}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2.5">

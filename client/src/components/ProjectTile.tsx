@@ -19,7 +19,7 @@ export default function ProjectTile({
   return (
     <Button
       onPress={() => navigate(`/projects/${project.id}`)}
-      className="text-left rounded-xl border border-stone-200 dark:border-stone-800/80 bg-white dark:bg-stone-900/30 p-5 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-900/50 transition-all duration-150 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+      className="text-left rounded-xl border border-stone-200 dark:border-stone-800/80 bg-white dark:bg-stone-900/30 p-5 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-900/50 transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0">
@@ -61,7 +61,7 @@ export default function ProjectTile({
         <div className="mt-3 flex items-center gap-3">
           <div className="flex-1 h-1 rounded-full bg-stone-200 dark:bg-stone-800 overflow-hidden">
             <div
-              className="h-full bg-green-500/70 transition-all duration-300"
+              className="h-full bg-green-500/70 transition-colors duration-300"
               style={{ width: `${fillPct}%` }}
             />
           </div>

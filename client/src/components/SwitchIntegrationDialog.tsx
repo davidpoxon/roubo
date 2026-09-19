@@ -65,7 +65,7 @@ export default function SwitchIntegrationDialog({ projectId, currentPluginId }: 
       isKeyboardDismissDisabled={isBusy}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
-      <Modal className="w-full max-w-md mx-4 max-h-[calc(100vh-2rem)] flex">
+      <Modal className="animate-rise-in w-full max-w-md mx-4 max-h-[calc(100vh-2rem)] flex">
         <Dialog
           ref={stampAriaModal}
           className="flex flex-col w-full max-h-full overflow-y-auto bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"
@@ -160,7 +160,7 @@ function SwitchFlow({
                   {({ isSelected, isFocusVisible }) => (
                     <div
                       className={[
-                        "flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all duration-150 cursor-pointer select-none",
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors cursor-pointer select-none",
                         isSelected
                           ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
                           : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700",
@@ -172,7 +172,7 @@ function SwitchFlow({
                     >
                       <div
                         className={[
-                          "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-all duration-150",
+                          "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-colors",
                           isSelected
                             ? "border-stone-700 dark:border-stone-300 bg-stone-700 dark:bg-stone-300"
                             : "border-stone-300 dark:border-stone-600",

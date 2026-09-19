@@ -68,7 +68,7 @@ export default function MultiSelect({
         triggerRef={triggerRef}
         isOpen={isOpen}
         onOpenChange={setIsOpen}
-        className="w-[var(--trigger-width)] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 overflow-auto max-h-60 transition-opacity duration-150 data-[entering]:opacity-0"
+        className="animate-rise-in w-[var(--trigger-width)] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 overflow-auto max-h-60"
       >
         <ListBox
           selectionMode="multiple"

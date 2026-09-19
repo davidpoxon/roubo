@@ -18,7 +18,7 @@ export default function PortAssignmentTile({ projectId }: Props) {
   return (
     <Tile icon={<Activity aria-hidden="true" size={14} />} title="Port assignment">
       {isLoading && (
-        <div className="animate-pulse space-y-2">
+        <div className="space-y-2">
           <div className="h-5 bg-stone-200 dark:bg-stone-700 rounded w-32" />
           <div className="h-4 bg-stone-200 dark:bg-stone-700 rounded w-48" />
         </div>
