@@ -1,16 +1,4 @@
 {
   "description": "Paths under client/src that npm run lint:design-tokens skips while the colour migration to DESIGN.md's semantic tokens is in flight (#1297). A directory entry ends in / and covers everything beneath it. The list only shrinks: an entry that covers no violation fails as stale, so remove it in the change that migrates it. Never add an entry to get a new violation past the gate.",
-  "entries": [
-    "client/src/components/setup/",
-    "client/src/components/testbench/",
-    "client/src/components/DirectoryPicker.tsx",
-    "client/src/components/ProjectDefaultJigTile.tsx",
-    "client/src/components/ProjectSettings.test.tsx",
-    "client/src/components/ProjectSettings.tsx",
-    "client/src/components/ProjectSettingsTab.tsx",
-    "client/src/components/ProjectSidebar.test.tsx",
-    "client/src/components/ProjectTile.tsx",
-    "client/src/components/RegisterProjectModal.tsx",
-    "client/src/components/RegisterProjectTile.tsx"
-  ]
+  "entries": ["client/src/components/setup/", "client/src/components/testbench/"]
 }

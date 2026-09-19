@@ -13,20 +13,20 @@ export const INHERIT_JIG_ID = "__inherit__";
 export function JigDefaultSourceLabel({ source }: { source: JigDefaultSource }) {
   if (source === "project") {
     return (
-      <span className="text-11 font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-200">
+      <span className="text-11 font-medium px-1.5 py-0.5 rounded bg-accent-muted text-accent-text">
         From project settings
       </span>
     );
   }
   if (source === "app") {
     return (
-      <span className="text-11 font-medium px-1.5 py-0.5 rounded bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+      <span className="text-11 font-medium px-1.5 py-0.5 rounded bg-bg-pressed text-text-body">
         From app settings
       </span>
     );
   }
   return (
-    <span className="text-11 font-medium px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-900 text-stone-600 dark:text-stone-400">
+    <span className="text-11 font-medium px-1.5 py-0.5 rounded bg-bg-hover text-text-secondary">
       Global default
     </span>
   );
@@ -51,28 +51,24 @@ export function JigPickerOption({
           className={[
             "flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors cursor-pointer select-none",
             isSelected
-              ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
-              : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40",
+              ? "border-accent-border bg-accent-muted"
+              : "border-border bg-bg-surface hover:border-border-strong hover:bg-bg-hover",
             isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
           ].join(" ")}
         >
           <div
             className={[
               "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-colors",
-              isSelected
-                ? "border-stone-700 dark:border-stone-300 bg-stone-700 dark:bg-stone-300"
-                : "border-stone-300 dark:border-stone-600",
+              isSelected ? "border-accent bg-accent" : "border-border-control",
             ].join(" ")}
           />
           <span
-            className={`text-13 font-medium ${isSelected ? "text-stone-900 dark:text-stone-100" : "text-stone-600 dark:text-stone-400"}`}
+            className={`text-13 font-medium ${isSelected ? "text-text-primary" : "text-text-secondary"}`}
           >
             {label}
           </span>
           {sublabel && (
-            <span className="ml-auto text-11 font-mono text-stone-500 dark:text-stone-400">
-              {sublabel}
-            </span>
+            <span className="ml-auto text-11 font-mono text-text-secondary">{sublabel}</span>
           )}
         </div>
       )}
@@ -150,9 +146,9 @@ export function ProjectDefaultJigTile({
     <>
       {!isLoading && effectiveDefault && (
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-12 text-stone-500 dark:text-stone-400">Effective:</span>
+          <span className="text-12 text-text-secondary">Effective:</span>
           <span
-            className={`text-12 font-medium ${isOverridden ? "text-amber-500 dark:text-amber-400" : "text-stone-700 dark:text-stone-300"}`}
+            className={`text-12 font-medium ${isOverridden ? "text-accent-text" : "text-text-body"}`}
           >
             {effectiveJigName}
           </span>
@@ -162,7 +158,7 @@ export function ProjectDefaultJigTile({
       )}
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400 mb-3">
+        <div className="flex items-center gap-2 text-12 text-text-secondary mb-3">
           <Spinner />
           Loading...
         </div>
@@ -186,18 +182,14 @@ export function ProjectDefaultJigTile({
       </RadioGroup>
 
       {!isControlled && isError && (
-        <p className="mt-2 text-13 text-red-500 dark:text-red-400">
-          Failed to save. Please try again.
-        </p>
+        <p className="mt-2 text-13 text-danger-text">Failed to save. Please try again.</p>
       )}
 
       {!embedded && (
-        <p className="text-11 text-stone-500 dark:text-stone-400 mt-3 leading-relaxed">
+        <p className="text-11 text-text-secondary mt-3 leading-relaxed">
           Changes write to{" "}
-          <span className="font-mono text-stone-500 dark:text-stone-500">
-            {"<repo>/.roubo/roubo.yaml"}
-          </span>
-          . Commit alongside your other work.
+          <span className="font-mono text-text-secondary">{"<repo>/.roubo/roubo.yaml"}</span>.
+          Commit alongside your other work.
         </p>
       )}
     </>

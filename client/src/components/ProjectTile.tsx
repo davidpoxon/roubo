@@ -19,14 +19,12 @@ export default function ProjectTile({
   return (
     <Button
       onPress={() => navigate(`/projects/${project.id}`)}
-      className="text-left rounded-control border border-stone-200 dark:border-stone-800/80 bg-white dark:bg-stone-900/30 p-5 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-900/50 transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+      className="text-left rounded-control border border-border bg-bg-surface p-5 hover:border-border-strong hover:bg-bg-hover transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0">
-          <div className="text-14 font-medium text-stone-900 dark:text-stone-100 truncate">
-            {displayName}
-          </div>
-          <div className="text-11 font-mono text-stone-500 dark:text-stone-400 mt-0.5 truncate">
+          <div className="text-14 font-medium text-text-primary truncate">{displayName}</div>
+          <div className="text-11 font-mono text-text-secondary mt-0.5 truncate">
             {project.id} · {project.repoPath}
           </div>
         </div>
@@ -34,24 +32,24 @@ export default function ProjectTile({
           className={[
             "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-11 font-medium shrink-0 ml-2",
             project.configValid
-              ? "bg-green-100 dark:bg-green-950/40 border border-green-300 dark:border-green-800/50 text-green-700 dark:text-green-400"
-              : "bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800/50 text-red-700 dark:text-red-400",
+              ? "bg-success-surface border border-success-border text-success-text"
+              : "bg-danger-surface border border-danger-border text-danger-text",
           ].join(" ")}
         >
           <span
-            className={`w-1 h-1 rounded-full ${project.configValid ? "bg-green-500" : "bg-red-500"}`}
+            className={`w-1 h-1 rounded-full ${project.configValid ? "bg-status-active" : "bg-status-error"}`}
           />
           {project.configValid ? "Valid" : "Error"}
         </span>
       </div>
 
-      <div className="flex items-center gap-3 text-11 text-stone-500 dark:text-stone-400">
+      <div className="flex items-center gap-3 text-11 text-text-secondary">
         <span>
           {usedBenches} / {maxBenches} benches
         </span>
         {layoutType && (
           <>
-            <span className="text-stone-300 dark:text-stone-700">·</span>
+            <span className="text-text-secondary">·</span>
             <span>{layoutType}</span>
           </>
         )}
@@ -59,13 +57,13 @@ export default function ProjectTile({
 
       {maxBenches > 0 && (
         <div className="mt-3 flex items-center gap-3">
-          <div className="flex-1 h-1 rounded-full bg-stone-200 dark:bg-stone-800 overflow-hidden">
+          <div className="flex-1 h-1 rounded-full bg-bg-pressed overflow-hidden">
             <div
-              className="h-full bg-green-500/70 transition-colors duration-300"
+              className="h-full bg-text-secondary transition-colors duration-300"
               style={{ width: `${fillPct}%` }}
             />
           </div>
-          <span className="text-11 font-mono text-stone-500 dark:text-stone-400">{fillPct}%</span>
+          <span className="text-11 font-mono text-text-secondary">{fillPct}%</span>
         </div>
       )}
     </Button>

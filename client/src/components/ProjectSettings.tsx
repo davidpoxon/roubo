@@ -79,31 +79,23 @@ function SettingToggle({
       {({ isFocusVisible }) => (
         <>
           <div className="min-w-0 flex-1">
-            <div
-              className={`text-13 font-medium leading-none mb-1.5 ${isDisabled ? "text-stone-500 dark:text-stone-500" : "text-stone-800 dark:text-stone-200"}`}
-            >
+            <div className={`text-13 font-medium leading-none mb-1.5 text-text-primary`}>
               {label}
             </div>
-            <div className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
-              {description}
-            </div>
+            <div className="text-12 text-text-secondary leading-relaxed">{description}</div>
           </div>
 
           <div
             className={[
               "relative shrink-0 mt-0.5 w-9 h-5 rounded-full border transition-colors",
-              isSelected
-                ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
-                : "bg-transparent border-stone-300 dark:border-stone-600",
+              isSelected ? "bg-accent border-accent" : "bg-transparent border-border-control",
               isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
             ].join(" ")}
           >
             <div
               className={[
                 "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-colors",
-                isSelected
-                  ? "left-[18px] bg-white dark:bg-stone-900"
-                  : "left-0.5 bg-stone-300 dark:bg-stone-600",
+                isSelected ? "left-[18px] bg-bg-surface" : "left-0.5 bg-border-control",
               ].join(" ")}
             />
           </div>
@@ -177,10 +169,9 @@ function GlobalBenchLimitSection({
       <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-2">
         Global bench limit
       </h3>
-      <p className="text-12 text-stone-500 dark:text-stone-400 mb-5 leading-relaxed">
+      <p className="text-12 text-text-secondary mb-5 leading-relaxed">
         Cap the total number of initialised benches across every project. Per-project limits in{" "}
-        <span className="font-mono text-stone-500 dark:text-stone-500">roubo.yaml</span> still
-        apply.
+        <span className="font-mono text-text-secondary">roubo.yaml</span> still apply.
       </p>
 
       <RadioGroup
@@ -201,23 +192,19 @@ function GlobalBenchLimitSection({
                 className={[
                   "flex flex-col gap-1 px-5 py-4 rounded-xl border cursor-pointer transition-colors select-none w-40",
                   isSelected
-                    ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
-                    : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40",
+                    ? "border-accent-border bg-accent-muted"
+                    : "border-border bg-bg-surface hover:border-border-strong hover:bg-bg-hover",
                   isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
                 ].join(" ")}
               >
                 <div
                   className={`text-13 font-medium leading-none ${
-                    isSelected
-                      ? "text-stone-900 dark:text-stone-100"
-                      : "text-stone-600 dark:text-stone-400"
+                    isSelected ? "text-text-primary" : "text-text-secondary"
                   }`}
                 >
                   {label}
                 </div>
-                <div className="text-11 text-stone-500 dark:text-stone-400 leading-none">
-                  {description}
-                </div>
+                <div className="text-11 text-text-secondary leading-none">{description}</div>
               </div>
             )}
           </Radio>
@@ -241,14 +228,12 @@ function GlobalBenchLimitSection({
               className={`${INPUT} ${disabled ? "opacity-40" : ""}`}
             />
           </TextField>
-          <span
-            className={`text-12 ${disabled ? "text-stone-300 dark:text-stone-700" : "text-stone-500 dark:text-stone-400"}`}
-          >
+          <span className={`text-12 text-text-secondary ${disabled ? "opacity-40" : ""}`}>
             benches
           </span>
         </div>
         {!disabled && error != null && (
-          <p role="alert" className="text-12 text-red-500 dark:text-red-400 mt-2">
+          <p role="alert" className="text-12 text-danger-text mt-2">
             {error}
           </p>
         )}
@@ -311,10 +296,9 @@ function BenchesTab() {
           />
         </div>
 
-        <p className="text-12 text-stone-500 dark:text-stone-400 mt-4 leading-relaxed">
+        <p className="text-12 text-text-secondary mt-4 leading-relaxed">
           Individual projects can override this in their{" "}
-          <span className="font-mono text-stone-500 dark:text-stone-500">roubo.yaml</span>{" "}
-          configuration.
+          <span className="font-mono text-text-secondary">roubo.yaml</span> configuration.
         </p>
       </section>
     </div>
@@ -430,7 +414,7 @@ function JigsTab() {
             description="When an agent session starts, automatically inject the default jig into the terminal."
           />
 
-          <div className="pl-5 border-l border-stone-200 dark:border-stone-800">
+          <div className="pl-5 border-l border-border">
             <SettingToggle
               isSelected={jigSettings.autoExecute}
               onChange={(val) => update({ autoExecute: val })}
@@ -446,7 +430,7 @@ function JigsTab() {
         <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-4">
           Default agent
         </h3>
-        <p className="text-12 text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
+        <p className="text-12 text-text-secondary mb-4 leading-relaxed">
           The AI coding agent a jig launches with when the jig names none of its own. Only installed
           and configured agents are listed.
         </p>
@@ -464,7 +448,7 @@ function JigsTab() {
         <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-4">
           App Default
         </h3>
-        <p className="text-12 text-stone-500 dark:text-stone-400 mb-4 leading-relaxed">
+        <p className="text-12 text-text-secondary mb-4 leading-relaxed">
           The default jig used across all projects. Individual projects can override this below.
         </p>
 
@@ -507,7 +491,7 @@ function JigsTab() {
           </h3>
           <Link
             to="/jigs/new"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
           >
             <Plus size={12} />
             New jig
@@ -534,14 +518,11 @@ function JigsTab() {
             ))}
         </div>
 
-        <p className="mt-4 text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="mt-4 text-11 text-text-secondary leading-relaxed">
           App-level jigs live in{" "}
-          <span className="font-mono text-stone-500 dark:text-stone-500">~/.roubo/jigs/*.md</span>.
-          Repo-level jigs can also be placed in{" "}
-          <span className="font-mono text-stone-500 dark:text-stone-500">
-            &lt;repo&gt;/.roubo/jigs/*.md
-          </span>
-          .
+          <span className="font-mono text-text-secondary">~/.roubo/jigs/*.md</span>. Repo-level jigs
+          can also be placed in{" "}
+          <span className="font-mono text-text-secondary">&lt;repo&gt;/.roubo/jigs/*.md</span>.
         </p>
       </section>
 
@@ -589,7 +570,7 @@ function TestBenchTab() {
         </div>
 
         {!enabled && (
-          <p className="text-12 text-stone-500 dark:text-stone-400 mt-4 leading-relaxed">
+          <p className="text-12 text-text-secondary mt-4 leading-relaxed">
             Disabled. The create-TestBench option and the TestBench surface are hidden.
           </p>
         )}
@@ -633,33 +614,25 @@ function AppearanceTab() {
                 className={[
                   "flex flex-col items-center gap-3 px-6 py-5 rounded-xl border cursor-pointer transition-colors select-none w-32",
                   isSelected
-                    ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80 text-stone-900 dark:text-stone-100"
-                    : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 text-stone-500 dark:text-stone-500 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40 hover:text-stone-700 dark:hover:text-stone-300",
+                    ? "border-accent-border bg-accent-muted text-text-primary"
+                    : "border-border bg-bg-surface text-text-secondary hover:border-border-strong hover:bg-bg-hover hover:text-text-primary",
                   isFocusVisible ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base" : "",
                 ].join(" ")}
               >
                 <Icon
                   size={16}
-                  className={
-                    isSelected
-                      ? "text-stone-700 dark:text-stone-200"
-                      : "text-stone-500 dark:text-stone-400"
-                  }
+                  className={isSelected ? "text-accent-text" : "text-text-secondary"}
                   strokeWidth={1.5}
                 />
                 <div className="text-center">
                   <div
                     className={`text-13 font-medium leading-none mb-1 ${
-                      isSelected
-                        ? "text-stone-900 dark:text-stone-100"
-                        : "text-stone-600 dark:text-stone-400"
+                      isSelected ? "text-text-primary" : "text-text-secondary"
                     }`}
                   >
                     {label}
                   </div>
-                  <div className="text-11 text-stone-500 dark:text-stone-400 leading-none">
-                    {description}
-                  </div>
+                  <div className="text-11 text-text-secondary leading-none">{description}</div>
                 </div>
               </div>
             )}
@@ -698,13 +671,10 @@ export default function ProjectSettings() {
 
   return (
     <div className="p-8 w-full">
-      <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100 mb-6">Settings</h2>
+      <h2 className="text-20 font-semibold text-text-primary mb-6">Settings</h2>
 
       <Tabs defaultSelectedKey={initialTab}>
-        <TabList
-          aria-label="Settings sections"
-          className="flex gap-0 border-b border-stone-200 dark:border-stone-800 mb-8"
-        >
+        <TabList aria-label="Settings sections" className="flex gap-0 border-b border-border mb-8">
           {(
             [
               "benches",
@@ -724,8 +694,8 @@ export default function ProjectSettings() {
                 [
                   "px-4 py-2.5 text-13 font-medium capitalize outline-none transition-colors duration-100 -mb-px border-b-2",
                   isSelected
-                    ? "text-stone-900 dark:text-stone-100 border-amber-500"
-                    : "text-stone-500 dark:text-stone-400 border-transparent hover:text-stone-600 dark:hover:text-stone-300",
+                    ? "text-text-primary border-accent"
+                    : "text-text-secondary border-transparent hover:text-text-primary",
                   isFocusVisible
                     ? "ring-2 ring-focus-ring ring-offset-1 ring-offset-bg-base rounded-t"
                     : "",
