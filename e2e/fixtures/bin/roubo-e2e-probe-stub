@@ -1,0 +1,78 @@
+#!/usr/bin/env node
+
+// Stub agent CLI for the `agent-choice-probe` e2e overlay (issue #1306).
+//
+// The overlay (../bundled-overlays/agent-choice-probe/) points its `probeModel`
+// choice probe at this binary, so the APCC-TC-022 audit can put the AI Agents
+// screen's probed field in each of its three states against the real host
+// probe runner, with no real agent CLI installed.
+//
+// Deliberately NOT named `probe-agent` (the unit fixture's command) or after any
+// real CLI: `importLoginShellEnv()` prepends `~/.local/bin`, so a binary of the
+// same name there would win the PATH lookup and the harness would read its output
+// instead.
+//
+// The behaviour is chosen by the mode file at PROBE_MODE_PATH, read on every run
+// (the spec writes it through e2e/agent-plugins/_support/probe-mode.ts):
+//
+//   resolved   print a `<value> - <label>` listing (`dash-line-pairs`), exit 0.
+//   slow       the same listing after 4.5 s, inside the host's 5 s probe kill
+//              (PROBE_TIMEOUT_MS in server/services/probe-spawn.ts), so the
+//              field reads `loading` for that long and then resolves.
+//   fail       print a reason on stderr and exit 1, which the host reports as a
+//              `probe-error` quoting that line.
+//
+// An absent or unreadable file reads as `resolved`. `--version` prints a version
+// and exits 0, although the overlay declares no version probe today.
+
+// ESM: the file has no extension, so Node resolves its module type from the
+// nearest package.json, and roubo/package.json declares `"type": "module"`.
+import fs from "node:fs";
+
+import { PROBE_MODE_PATH } from "../../agent-plugins/_support/probe-mode-path.mjs";
+
+const STUB_VERSION = "1.0.0";
+
+/** Under the host's 5 s probe kill, so the slow run still resolves. */
+const SLOW_DELAY_MS = 4_500;
+
+const LISTING = [
+  "Available models",
+  "",
+  "stub-fast - Stub Fast",
+  "stub-balanced - Stub Balanced",
+  "stub-deep - Stub Deep",
+  "",
+].join("\n");
+
+const argv = process.argv.slice(2);
+
+if (argv.includes("--version")) {
+  process.stdout.write(`roubo-e2e-probe-stub ${STUB_VERSION} (Roubo e2e stub)\n`);
+  process.exit(0);
+}
+
+function readMode() {
+  try {
+    return fs.readFileSync(PROBE_MODE_PATH, "utf-8").trim() || "resolved";
+  } catch {
+    return "resolved";
+  }
+}
+
+const mode = readMode();
+
+if (mode === "fail") {
+  process.stderr.write("not signed in (Roubo e2e stub)\n");
+  process.exit(1);
+}
+
+if (mode === "slow") {
+  setTimeout(() => {
+    process.stdout.write(LISTING);
+    process.exit(0);
+  }, SLOW_DELAY_MS);
+} else {
+  process.stdout.write(LISTING);
+  process.exit(0);
+}

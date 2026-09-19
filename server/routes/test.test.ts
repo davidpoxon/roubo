@@ -160,6 +160,13 @@ vi.mock("../services/marketplace-sources-state.js", () => ({
   __test: { reset: vi.fn() },
 }));
 
+// #1306 (APCC-TC-022): the probe-cache reset /test/__reset calls so a choice
+// list resolved in one spec is never served to the next. Mocked to the one
+// member the route touches.
+vi.mock("../services/agent-probe-runner.js", () => ({
+  resetProbeRunnerCache: vi.fn(),
+}));
+
 import router, { isE2eRateLimitExempt } from "./test.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
@@ -173,6 +180,7 @@ import { cutListQueryService } from "../services/cut-list-query-service.js";
 import * as catalogClient from "../services/catalog-client.js";
 import * as marketplace from "../services/marketplace.js";
 import * as sourcesState from "../services/marketplace-sources-state.js";
+import * as agentProbeRunner from "../services/agent-probe-runner.js";
 import { BUNDLED_PLUGIN_IDS } from "@roubo/shared";
 
 const app = express();
@@ -309,6 +317,10 @@ describe("POST /test/__reset", () => {
     // the declared-source journey cannot survive a reset in memory.
     expect(sourcesState.__test.reset).toHaveBeenCalledTimes(1);
     expect(marketplace.__test.resetSourceClients).toHaveBeenCalledTimes(1);
+    // #1306 (APCC-TC-022): every cached probe result and choice outcome is
+    // dropped, so a spec's probe mode is read afresh rather than served from
+    // the previous spec's cache.
+    expect(agentProbeRunner.resetProbeRunnerCache).toHaveBeenCalledTimes(1);
     expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
     // No body: setE2EConfig still fires with null/null so any prior pinning is
     // cleared on a plain reset.
@@ -322,9 +334,10 @@ describe("POST /test/__reset", () => {
     // force-disabled so they don't auto-spawn and crash on every reset.
     // AP-TC-018 (#681): the second-agent fixture is force-disabled too, so a
     // spec that consented it cannot leave a second available agent behind.
-    // AP-TC-115 (#534) adds a third (gemini-cli) on the same terms.
+    // AP-TC-115 (#534) adds a third (gemini-cli) on the same terms, and
+    // APCC-TC-022 (#1306) a fourth (agent-choice-probe).
     const FAILURE_FIXTURE_IDS = ["broken-plugin", "errored-component-stub"];
-    const OPT_IN_AGENT_FIXTURE_IDS = ["codex-cli", "gemini-cli"];
+    const OPT_IN_AGENT_FIXTURE_IDS = ["codex-cli", "gemini-cli", "agent-choice-probe"];
     expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(
       BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length + OPT_IN_AGENT_FIXTURE_IDS.length,
     );
@@ -461,8 +474,8 @@ describe("POST /test/__reset", () => {
   // the next spec. TC-154 (#222): disableFailureFixturePlugins() also fires
   // regardless of the bundledPluginsDisabled flag, so the call count includes
   // those ids (broken-plugin, errored-component-stub) as well, and AP-TC-018
-  // (#681) plus AP-TC-115 (#534) add the opt-in agent fixtures (codex-cli,
-  // gemini-cli) to the same set.
+  // (#681), AP-TC-115 (#534) and APCC-TC-022 (#1306) add the opt-in agent
+  // fixtures (codex-cli, gemini-cli, agent-choice-probe) to the same set.
   it("writes every bundled plugin id as disabled when bundledPluginsDisabled: true", async () => {
     process.env.ROUBO_E2E = "1";
     const FORCED_DISABLED_IDS = [
@@ -470,6 +483,7 @@ describe("POST /test/__reset", () => {
       "errored-component-stub",
       "codex-cli",
       "gemini-cli",
+      "agent-choice-probe",
     ];
 
     const res = await request(app).post("/test/__reset").send({ bundledPluginsDisabled: true });

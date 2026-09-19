@@ -99,3 +99,60 @@ export async function injectAxe(page: Page): Promise<void> {
       "*, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; animation-delay: 0s !important; }",
   });
 }
+
+/** The axe impact levels a full-ruleset audit fails on (APCC-TC-022, #1306). */
+const BLOCKING_IMPACTS = ["serious", "critical"];
+
+/**
+ * Run axe's FULL ruleset over the whole document and assert zero violations of
+ * serious or critical impact. Minor and moderate findings are not failures here,
+ * and `incomplete` results are ignored as in {@link expectNoContrastViolations}.
+ *
+ * The whole page is scanned rather than one surface, because a regression can
+ * sit anywhere on the screen: the #1304 contrast failure was in the sidebar, not
+ * in the card under test. Each violation is reported as its rule id, impact and
+ * help text, and each offending node as its selector target and its html, so a
+ * red run names the rule and the element without a trace viewer.
+ */
+export async function expectNoSeriousViolations(page: Page, label: string): Promise<void> {
+  const violations = await page.evaluate(async (impacts) => {
+    const globalAxe = (
+      window as unknown as { axe: { run: (...args: unknown[]) => Promise<unknown> } }
+    ).axe;
+    const results = (await globalAxe.run(document, {
+      resultTypes: ["violations"],
+    })) as {
+      violations: Array<{
+        id: string;
+        impact?: string | null;
+        help: string;
+        nodes: Array<{ target: unknown[]; html?: string; failureSummary?: string }>;
+      }>;
+    };
+    return results.violations
+      .filter((v) => v.impact != null && impacts.includes(v.impact))
+      .map((v) => ({
+        rule: v.id,
+        impact: v.impact,
+        help: v.help,
+        nodes: v.nodes.map((n) => ({
+          target: n.target.map(String).join(" "),
+          html: n.html,
+          summary: n.failureSummary,
+        })),
+      }));
+  }, BLOCKING_IMPACTS);
+  expect(violations, `${label}: axe serious or critical violations`).toEqual([]);
+}
+
+/**
+ * Audit the whole page in both themes with {@link expectNoSeriousViolations},
+ * then restore the light default. axe must already be injected on the page.
+ */
+export async function auditPageBothThemes(page: Page, state: string): Promise<void> {
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
+    await expectNoSeriousViolations(page, `${state} (${theme})`);
+  }
+  await setTheme(page, "light");
+}
