@@ -11,3 +11,20 @@ obtain a copy of the License in the accompanying LICENSE file or at:
 The name "Roubo" and the Roubo logomark are trademarks of David Poxon.
 The Apache License does not grant permission to use these marks. See
 TRADEMARK.md for the trademark policy.
+
+---
+
+Third-party fonts
+
+This product bundles Latin-subset WOFF2 files of the following typefaces in
+client/src/assets/fonts/. Each is licensed under the SIL Open Font License,
+Version 1.1, and is not covered by the Apache License.
+
+IBM Plex Sans (weights 400, 500, 600, 700)
+Copyright 2019 IBM Corp. All rights reserved.
+Licence text: client/src/assets/fonts/OFL-IBMPlexSans.txt
+
+JetBrains Mono (weights 400, 500)
+Copyright 2020 The JetBrains Mono Project Authors
+(https://github.com/JetBrains/JetBrainsMono)
+Licence text: client/src/assets/fonts/OFL-JetBrainsMono.txt
