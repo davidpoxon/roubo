@@ -7,11 +7,11 @@ export default function RegisterProjectTile() {
   return (
     <Button
       onPress={open}
-      className="rounded-control border border-dashed border-stone-300 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/10 p-5 hover:border-stone-400 dark:hover:border-stone-700 hover:bg-stone-100/50 dark:hover:bg-stone-900/30 transition-colors flex flex-col items-center justify-center gap-2 text-stone-500 dark:text-stone-400 hover:text-stone-500 dark:hover:text-stone-300 min-h-[128px] outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+      className="rounded-control border border-dashed border-border-strong bg-bg-surface p-5 hover:bg-bg-hover transition-colors flex flex-col items-center justify-center gap-2 text-text-secondary hover:text-text-primary min-h-[128px] outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
     >
       <Plus size={16} strokeWidth={1.5} />
       <span className="text-12 font-medium">Register project</span>
-      <span className="text-11 text-stone-500 dark:text-stone-400">
+      <span className="text-11 text-text-secondary">
         Point Roubo at a repo with <span className="font-mono">.roubo/roubo.yaml</span>
       </span>
     </Button>

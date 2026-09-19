@@ -92,13 +92,10 @@ export default function RegisterProjectModal({
         >
           {({ close }) => (
             <>
-              <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 flex items-center justify-between shrink-0">
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
-                  <FolderOpen size={14} className="text-amber-500" />
-                  <Heading
-                    slot="title"
-                    className="text-16 font-medium text-stone-900 dark:text-stone-100"
-                  >
+                  <FolderOpen size={14} className="text-accent-text" />
+                  <Heading slot="title" className="text-16 font-medium text-text-primary">
                     {inSetup ? "Set up project" : "Register project"}
                   </Heading>
                 </div>
@@ -106,7 +103,7 @@ export default function RegisterProjectModal({
                   onPress={close}
                   isDisabled={setupHandlers?.isSaving ?? false}
                   aria-label="Close"
-                  className="p-1.5 rounded-control text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="p-1.5 rounded-control text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <svg
                     width="13"
@@ -147,18 +144,18 @@ export default function RegisterProjectModal({
                     )}
 
                     {directoryError && (
-                      <div className="flex items-center gap-2 text-13 text-red-400/80">
+                      <div className="flex items-center gap-2 text-13 text-danger-text">
                         <AlertCircle size={14} className="shrink-0" />
                         <span>Directory not found</span>
                       </div>
                     )}
 
                     {alreadyRegistered && checkResult?.project && (
-                      <div className="flex items-center justify-between rounded-lg bg-stone-50 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800 px-4 py-3">
-                        <div className="flex items-center gap-2 text-13 text-stone-600 dark:text-stone-400">
-                          <Check size={14} className="text-green-500 shrink-0" />
+                      <div className="flex items-center justify-between rounded-lg bg-bg-base border border-border px-4 py-3">
+                        <div className="flex items-center gap-2 text-13 text-text-secondary">
+                          <Check size={14} className="text-success-text shrink-0" />
                           <span>
-                            <span className="font-medium text-stone-700 dark:text-stone-300">
+                            <span className="font-medium text-text-body">
                               {checkResult.displayName ?? checkResult.projectName}
                             </span>{" "}
                             is already registered
@@ -172,7 +169,7 @@ export default function RegisterProjectModal({
                               navigate(`/projects/${id}`);
                             }
                           }}
-                          className="text-12 text-text-secondary hover:text-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                          className="text-12 text-text-secondary hover:text-accent-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         >
                           Go to project →
                         </Button>
@@ -180,14 +177,14 @@ export default function RegisterProjectModal({
                     )}
 
                     {noYaml && (
-                      <div className="rounded-lg bg-stone-50 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800 px-4 py-3 space-y-3">
+                      <div className="rounded-lg bg-bg-base border border-border px-4 py-3 space-y-3">
                         <p className="text-13 text-text-secondary">
                           No <span className="font-mono text-12">.roubo/roubo.yaml</span> found in
                           this repo
                         </p>
                         <Button
                           onPress={() => setStep("setup")}
-                          className="text-12 font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                          className="text-12 font-medium text-accent-text hover:underline transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         >
                           Create configuration →
                         </Button>
@@ -196,7 +193,7 @@ export default function RegisterProjectModal({
 
                     {invalidYaml && (
                       <div className="space-y-2">
-                        <div className="flex items-start gap-2 text-13 text-red-400/80">
+                        <div className="flex items-start gap-2 text-13 text-danger-text">
                           <AlertCircle size={14} className="mt-0.5 shrink-0" />
                           <span>{checkResult.error}</span>
                         </div>
@@ -206,7 +203,7 @@ export default function RegisterProjectModal({
                               close();
                               navigate(`/projects/${checkResult.project?.id}/settings/setup`);
                             }}
-                            className="text-12 text-text-secondary hover:text-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            className="text-12 text-text-secondary hover:text-accent-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                           >
                             Edit config →
                           </Button>
@@ -215,48 +212,40 @@ export default function RegisterProjectModal({
                     )}
 
                     {preview && !alreadyRegistered && (
-                      <div className="rounded-lg bg-stone-50 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800 px-4 py-3">
-                        <div className="flex items-center gap-2 text-12 text-stone-600 dark:text-stone-300 mb-2.5">
-                          <Check size={14} className="text-green-500 shrink-0" />
+                      <div className="rounded-lg bg-bg-base border border-border px-4 py-3">
+                        <div className="flex items-center gap-2 text-12 text-text-body mb-2.5">
+                          <Check size={14} className="text-success-text shrink-0" />
                           <span>
                             Found <span className="font-mono">.roubo/roubo.yaml</span>
                           </span>
                         </div>
-                        <dl className="text-11 divide-y divide-stone-200 dark:divide-stone-800/80">
+                        <dl className="text-11 divide-y divide-border">
                           <div className="flex justify-between py-1.5">
-                            <dt className="text-stone-500 dark:text-stone-400">Name</dt>
-                            <dd className="font-mono text-stone-700 dark:text-stone-300">
-                              {preview.displayName}
-                            </dd>
+                            <dt className="text-text-secondary">Name</dt>
+                            <dd className="font-mono text-text-body">{preview.displayName}</dd>
                           </div>
                           {preview.ports.map((port) => (
                             <div key={port.name} className="flex justify-between py-1.5">
-                              <dt className="text-stone-500 dark:text-stone-400">
-                                Port · {port.name}
-                              </dt>
-                              <dd className="font-mono text-stone-700 dark:text-stone-300">
-                                {port.base}
-                              </dd>
+                              <dt className="text-text-secondary">Port · {port.name}</dt>
+                              <dd className="font-mono text-text-body">{port.base}</dd>
                             </div>
                           ))}
                           {preview.ports.length === 0 && (
                             <div className="flex justify-between py-1.5">
-                              <dt className="text-stone-500 dark:text-stone-400">Ports</dt>
-                              <dd className="font-mono text-stone-700 dark:text-stone-300">·</dd>
+                              <dt className="text-text-secondary">Ports</dt>
+                              <dd className="font-mono text-text-body">·</dd>
                             </div>
                           )}
                           <div className="flex justify-between py-1.5">
-                            <dt className="text-stone-500 dark:text-stone-400">Bench cap</dt>
-                            <dd className="font-mono text-stone-700 dark:text-stone-300">
-                              {preview.benchCap}
-                            </dd>
+                            <dt className="text-text-secondary">Bench cap</dt>
+                            <dd className="font-mono text-text-body">{preview.benchCap}</dd>
                           </div>
                         </dl>
                       </div>
                     )}
 
                     {registerError && (
-                      <div className="flex items-center gap-2 text-13 text-red-400/80">
+                      <div className="flex items-center gap-2 text-13 text-danger-text">
                         <AlertCircle size={14} className="shrink-0" />
                         <span>{registerError}</span>
                       </div>
@@ -265,13 +254,13 @@ export default function RegisterProjectModal({
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 shrink-0">
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border shrink-0">
                 {inSetup ? (
                   <>
                     <Button
                       onPress={() => setStep("path")}
                       isDisabled={setupHandlers?.isSaving ?? false}
-                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Cancel
                     </Button>
@@ -287,7 +276,7 @@ export default function RegisterProjectModal({
                   <>
                     <Button
                       onPress={close}
-                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Cancel
                     </Button>

@@ -199,10 +199,10 @@ describe("ProjectSettings", () => {
       render();
       const inactive = screen.getByRole("tab", { name: "Appearance" });
       expect(inactive).toHaveAttribute("aria-selected", "false");
-      // stone-500 on light and stone-400 on dark both clear WCAG AA 4.5:1.
-      expect(inactive.className).toContain("text-stone-500");
-      expect(inactive.className).toContain("dark:text-stone-400");
-      expect(inactive.className).not.toContain("dark:text-stone-500");
+      // text-secondary clears WCAG AA 4.5:1 in both themes, and
+      // semantic-dark.css switches it, so the tab carries no dark: pair.
+      expect(inactive.className).toContain("text-text-secondary");
+      expect(inactive.className).not.toMatch(/dark:/);
     });
 
     it("no longer renders the legacy Integrations tab", () => {
