@@ -123,7 +123,7 @@ export default function BatchView({
     <div className="flex items-center justify-between gap-3">
       <Button
         onPress={onBack}
-        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-control text-12 font-medium text-stone-500 dark:text-stone-400 transition-colors hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800/40 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-control text-12 font-medium text-text-secondary transition-colors hover:text-text-primary hover:bg-bg-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <ArrowLeft aria-hidden="true" className="w-3.5 h-3.5" />
         Back to batches
@@ -131,7 +131,7 @@ export default function BatchView({
       <Button
         onPress={signedOff ? handleReopen : handleSignOff}
         isDisabled={signedOff ? reopenMutation.isPending : !canSignOff || signOffMutation.isPending}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-control text-13 font-medium text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-control text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 disabled:cursor-not-allowed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         {signedOff ? "Reopen" : "Sign off batch"}
       </Button>
@@ -147,7 +147,7 @@ export default function BatchView({
 
   if (gateQuery.isLoading || planQuery.isLoading) {
     return frame(
-      <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-8">
+      <div className="flex items-center gap-2 text-13 text-text-secondary py-8">
         <Spinner />
         Loading batch...
       </div>,
@@ -161,7 +161,7 @@ export default function BatchView({
         : `Could not load gate '${gateId}'.`;
     return frame(
       <div className="py-8">
-        <p className="text-13 text-red-600 dark:text-red-400">{message}</p>
+        <p className="text-13 text-danger-text">{message}</p>
       </div>,
     );
   }
@@ -171,7 +171,7 @@ export default function BatchView({
       planQuery.error instanceof Error ? planQuery.error.message : "Could not load the batch plan.";
     return frame(
       <div className="py-8">
-        <p className="text-13 text-red-600 dark:text-red-400">{message}</p>
+        <p className="text-13 text-danger-text">{message}</p>
       </div>,
     );
   }
@@ -202,15 +202,15 @@ export default function BatchView({
     <>
       <GateStatePanel gate={gate} />
       {signOffError && (
-        <p role="alert" className="text-13 text-red-600 dark:text-red-400">
+        <p role="alert" className="text-13 text-danger-text">
           {signOffError}
         </p>
       )}
       {noGatingCases ? (
         // Elide a phase with no gating cases with a clear label (AC2): an
         // explicit notice, never an unlabelled empty card.
-        <div className="rounded-lg ring-1 ring-inset ring-border bg-stone-50 dark:bg-stone-900/30 py-8 px-4">
-          <p className="text-13 text-stone-500 dark:text-stone-400">
+        <div className="rounded-lg ring-1 ring-inset ring-border bg-bg-base py-8 px-4">
+          <p className="text-13 text-text-secondary">
             No gating cases in scope. Nothing to verify here.
           </p>
         </div>
@@ -225,7 +225,7 @@ export default function BatchView({
               />
             </div>
             {selectedCase && (
-              <div className="flex-1 min-w-0 rounded-lg ring-1 ring-inset ring-border bg-stone-50 dark:bg-stone-900/30 p-4 overflow-hidden flex flex-col">
+              <div className="flex-1 min-w-0 rounded-lg ring-1 ring-inset ring-border bg-bg-base p-4 overflow-hidden flex flex-col">
                 <CaseDetail
                   projectId={projectId}
                   benchId={benchId}

@@ -87,14 +87,14 @@ function effectiveStatus(result: CaseResult): CaseResult["derivedStatus"] {
 
 function StateLabel({ children }: { children: string }) {
   return (
-    <span className="rounded px-1.5 py-0.5 text-11 font-semibold uppercase tracking-label text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 shrink-0">
+    <span className="rounded px-1.5 py-0.5 text-11 font-semibold uppercase tracking-label text-text-body bg-bg-pressed shrink-0">
       {children}
     </span>
   );
 }
 
 function Situation({ children }: { children: string }) {
-  return <p className="mt-1 text-11 text-stone-600 dark:text-stone-400">{children}</p>;
+  return <p className="mt-1 text-11 text-text-secondary">{children}</p>;
 }
 
 function ObservationMarks({ result }: { result: CaseResult | undefined }) {
@@ -105,14 +105,14 @@ function ObservationMarks({ result }: { result: CaseResult | undefined }) {
       {marks.map(([observationId, mark]) => (
         <li
           key={observationId}
-          className="flex items-center gap-2 font-mono text-11 text-stone-600 dark:text-stone-400"
+          className="flex items-center gap-2 font-mono text-11 text-text-secondary"
         >
           <span className="truncate">{observationId}</span>
           <span
             className={
               mark.result === "pass"
-                ? "font-semibold text-green-700 dark:text-green-400"
-                : "font-semibold text-red-700 dark:text-red-400"
+                ? "font-semibold text-success-text"
+                : "font-semibold text-danger-text"
             }
           >
             {mark.result}
@@ -129,10 +129,7 @@ function Notes({ result }: { result: CaseResult | undefined }) {
   return (
     <ul className="mt-1.5 flex flex-col gap-1">
       {notes.map((note) => (
-        <li
-          key={note.id}
-          className="whitespace-pre-wrap text-12 text-stone-600 dark:text-stone-400"
-        >
+        <li key={note.id} className="whitespace-pre-wrap text-12 text-text-secondary">
           {note.text}
         </li>
       ))}
@@ -140,7 +137,7 @@ function Notes({ result }: { result: CaseResult | undefined }) {
   );
 }
 
-const ENTRY_CLASS = "rounded-md bg-white/60 dark:bg-stone-900/40 px-3 py-2";
+const ENTRY_CLASS = "rounded-md bg-bg-surface px-3 py-2";
 
 // One lifecycle-archived case: its id, its state as words, the status still
 // recorded against it, the situation, the verbatim reason, and its replacement.
@@ -189,9 +186,7 @@ function LifecycleEntry({
       className={`${ENTRY_CLASS} outline-none focus-visible:ring-2 focus-visible:ring-focus-ring`}
     >
       <div className="flex items-center gap-3">
-        <span className="font-mono text-11 text-stone-600 dark:text-stone-400 shrink-0">
-          {caseId}
-        </span>
+        <span className="font-mono text-11 text-text-secondary shrink-0">{caseId}</span>
         <StateLabel>{STATE_LABEL[entry.state]}</StateLabel>
         <StatusIndicator status={entry.status} />
       </div>
@@ -199,7 +194,7 @@ function LifecycleEntry({
       {entry.reason !== null && (
         <p
           data-testid={`archived-reason-${caseId}`}
-          className="mt-1 whitespace-pre-wrap text-12 text-stone-600 dark:text-stone-400"
+          className="mt-1 whitespace-pre-wrap text-12 text-text-secondary"
         >
           {entry.reason}
         </p>
@@ -209,14 +204,14 @@ function LifecycleEntry({
           <Button
             data-testid={`archived-replacement-${caseId}`}
             onPress={() => onSelectCase(revealId)}
-            className="mt-1 inline-flex items-center rounded-control px-1 -mx-1 text-12 font-medium text-amber-700 dark:text-amber-400 underline underline-offset-2 transition-colors hover:text-amber-800 dark:hover:text-amber-300 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer"
+            className="mt-1 inline-flex items-center rounded-control px-1 -mx-1 text-12 font-medium text-accent-text underline underline-offset-2 transition-colors hover:text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer"
           >
             Replaced by {revealId}
           </Button>
         ) : (
           <p
             data-testid={`archived-replacement-${caseId}`}
-            className="mt-1 text-12 text-stone-600 dark:text-stone-400"
+            className="mt-1 text-12 text-text-secondary"
           >
             Replaced by {entry.replacement}
           </p>
@@ -236,7 +231,7 @@ function LifecycleEntry({
                 lifecycle: null,
               })
             }
-            className="inline-flex items-center gap-1.5 rounded-control px-2.5 py-1 text-12 font-medium text-stone-700 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800/70 hover:bg-stone-200 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="inline-flex items-center gap-1.5 rounded-control px-2.5 py-1 text-12 font-medium text-text-body bg-bg-hover hover:bg-bg-pressed hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Undo2 aria-hidden="true" className="w-3.5 h-3.5" />
             {restore.isPending ? "Restoring..." : "Restore"}
@@ -247,7 +242,7 @@ function LifecycleEntry({
         <p
           role="alert"
           data-testid={`archived-restore-error-${caseId}`}
-          className="mt-1 text-12 text-red-700 dark:text-red-400"
+          className="mt-1 text-12 text-danger-text"
         >
           {restoreError}
         </p>
@@ -296,16 +291,16 @@ export default function ArchivedCases({
       // is a legal focus target. jsdom cannot catch this (no layout means
       // scrollHeight and clientHeight are both 0, so the axe rule never fires).
       tabIndex={0}
-      className="max-h-64 overflow-y-auto rounded-control ring-1 ring-inset ring-border bg-stone-100/40 dark:bg-stone-900/30 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+      className="max-h-64 overflow-y-auto rounded-control ring-1 ring-inset ring-border bg-bg-base px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
     >
       <div className="flex items-center gap-2">
-        <Archive size={14} className="text-stone-600 dark:text-stone-400 shrink-0" aria-hidden />
-        <span className="text-11 font-semibold uppercase tracking-label text-stone-600 dark:text-stone-300">
+        <Archive size={14} className="text-text-secondary shrink-0" aria-hidden />
+        <span className="text-11 font-semibold uppercase tracking-label text-text-secondary">
           Archived
         </span>
-        <span className="font-mono text-11 text-stone-600 dark:text-stone-400">{total}</span>
+        <span className="font-mono text-11 text-text-secondary">{total}</span>
       </div>
-      <p className="mt-1 text-11 text-stone-600 dark:text-stone-400 leading-relaxed">
+      <p className="mt-1 text-11 text-text-secondary leading-relaxed">
         Excluded from the rollup and from the live case list. Recorded marks, notes, and status
         overrides are retained, never deleted.
       </p>
@@ -324,9 +319,7 @@ export default function ArchivedCases({
         {orphans.map(([caseId, result]) => (
           <li key={caseId} data-testid={`archived-case-${caseId}`} className={ENTRY_CLASS}>
             <div className="flex items-center gap-3">
-              <span className="font-mono text-11 text-stone-600 dark:text-stone-400 shrink-0">
-                {caseId}
-              </span>
+              <span className="font-mono text-11 text-text-secondary shrink-0">{caseId}</span>
               <StateLabel>Removed from plan</StateLabel>
               <StatusIndicator status={effectiveStatus(result)} />
             </div>

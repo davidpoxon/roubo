@@ -89,12 +89,10 @@ export default function FileFixIssuePanel({
   return (
     <section
       aria-label="File fix issue"
-      className="shrink-0 rounded-lg ring-1 ring-inset ring-danger-border bg-red-50/60 dark:bg-red-950/20 p-4"
+      className="shrink-0 rounded-lg ring-1 ring-inset ring-danger-border bg-danger-surface p-4"
     >
-      <h3 className="text-14 font-semibold text-stone-900 dark:text-stone-100">
-        Case {failedCaseId} failed
-      </h3>
-      <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+      <h3 className="text-14 font-semibold text-text-primary">Case {failedCaseId} failed</h3>
+      <p className="mt-1 text-12 text-text-secondary">
         File a fix issue for this failure and block the gate until it is resolved.
       </p>
 
@@ -102,7 +100,7 @@ export default function FileFixIssuePanel({
         <div
           role="status"
           data-testid="fix-issue-confirmation"
-          className="mt-3 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-13 text-green-800"
+          className="mt-3 flex items-start gap-2 rounded-lg border border-success-border bg-success-surface px-3 py-2 text-13 text-success-text"
         >
           <CheckCircle2 size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>
@@ -118,7 +116,7 @@ export default function FileFixIssuePanel({
           <div
             role="alert"
             data-testid="fix-issue-link-pending"
-            className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-13 text-amber-800"
+            className="flex items-start gap-2 rounded-lg border border-accent-border bg-accent-muted px-3 py-2 text-13 text-accent-text"
           >
             <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
             <span>
@@ -131,13 +129,13 @@ export default function FileFixIssuePanel({
             <Button
               onPress={() => file(record.fixIssueRef)}
               isDisabled={fileFixIssue.isPending}
-              className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
             >
               {fileFixIssue.isPending ? "Retrying…" : "Retry link only"}
             </Button>
           </div>
           {submitError && (
-            <p role="alert" className="text-12 text-red-600">
+            <p role="alert" className="text-12 text-danger-text">
               {submitError}
             </p>
           )}
@@ -160,7 +158,7 @@ export default function FileFixIssuePanel({
             }}
             className="flex flex-col gap-1"
           >
-            <Label className="text-12 font-medium text-stone-600 dark:text-stone-400">Notes</Label>
+            <Label className="text-12 font-medium text-text-secondary">Notes</Label>
             <TextArea
               rows={3}
               placeholder="Describe the failure"
@@ -168,12 +166,16 @@ export default function FileFixIssuePanel({
             />
           </TextField>
           {notesRequired && (
-            <p role="alert" data-testid="fix-issue-notes-required" className="text-12 text-red-600">
+            <p
+              role="alert"
+              data-testid="fix-issue-notes-required"
+              className="text-12 text-danger-text"
+            >
               Notes are required: describe the failure before filing.
             </p>
           )}
           {submitError && (
-            <p role="alert" className="text-12 text-red-600">
+            <p role="alert" className="text-12 text-danger-text">
               {submitError}
             </p>
           )}
@@ -181,7 +183,7 @@ export default function FileFixIssuePanel({
             <Button
               type="submit"
               isDisabled={fileFixIssue.isPending}
-              className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              className="rounded-control bg-accent px-3 py-1.5 text-13 font-medium text-on-accent outline-none transition-colors not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
             >
               {fileFixIssue.isPending ? "Filing…" : "File fix issue & block gate"}
             </Button>

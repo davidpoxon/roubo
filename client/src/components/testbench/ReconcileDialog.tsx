@@ -48,12 +48,12 @@ const STRINGS = {
 
 function CaseList({ ids }: { ids: string[] }) {
   if (ids.length === 0) {
-    return <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.none}</p>;
+    return <p className="text-12 text-text-secondary">{STRINGS.none}</p>;
   }
   return (
     <ul className="flex flex-col gap-1">
       {ids.map((id) => (
-        <li key={id} className="font-mono text-12 text-stone-700 dark:text-stone-300 break-all">
+        <li key={id} className="font-mono text-12 text-text-body break-all">
           {id}
         </li>
       ))}
@@ -80,17 +80,14 @@ function Section({
     <div className="flex flex-col gap-1.5" data-testid={testId}>
       <div className="flex items-center gap-2">
         {icon}
-        <span className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+        <span className="text-11 font-semibold uppercase tracking-label text-text-secondary">
           {heading}
         </span>
-        <span
-          className="font-mono text-11 text-stone-500 dark:text-stone-500"
-          data-testid={`${testId}-count`}
-        >
+        <span className="font-mono text-11 text-text-secondary" data-testid={`${testId}-count`}>
           {count}
         </span>
       </div>
-      <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">{help}</p>
+      <p className="text-11 text-text-secondary leading-relaxed">{help}</p>
       {children}
     </div>
   );
@@ -145,11 +142,8 @@ export default function ReconcileDialog({
         >
           {({ close }) => (
             <>
-              <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60 shrink-0">
-                <Heading
-                  slot="title"
-                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-                >
+              <div className="px-5 py-4 border-b border-border shrink-0">
+                <Heading slot="title" className="text-16 font-semibold text-text-primary">
                   {STRINGS.title}
                 </Heading>
               </div>
@@ -165,13 +159,13 @@ export default function ReconcileDialog({
               ) : (
                 <>
                   <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-5">
-                    <p className="text-13 text-stone-700 dark:text-stone-300 leading-relaxed">
-                      {STRINGS.intro}
-                    </p>
+                    <p className="text-13 text-text-body leading-relaxed">{STRINGS.intro}</p>
 
                     <Section
                       testId="reconcile-section-changed"
-                      icon={<RefreshCw size={14} className="text-amber-500 shrink-0" aria-hidden />}
+                      icon={
+                        <RefreshCw size={14} className="text-accent-text shrink-0" aria-hidden />
+                      }
                       heading={STRINGS.changedHeading}
                       help={STRINGS.changedHelp}
                       count={classification.changed.length}
@@ -193,13 +187,7 @@ export default function ReconcileDialog({
 
                     <Section
                       testId="reconcile-section-added"
-                      icon={
-                        <Plus
-                          size={14}
-                          className="text-stone-500 dark:text-stone-400 shrink-0"
-                          aria-hidden
-                        />
-                      }
+                      icon={<Plus size={14} className="text-text-secondary shrink-0" aria-hidden />}
                       heading={STRINGS.addedHeading}
                       help={STRINGS.addedHelp}
                       count={classification.added.length}
@@ -208,19 +196,19 @@ export default function ReconcileDialog({
                     </Section>
 
                     {error && (
-                      <p role="alert" className="text-12 text-red-500 dark:text-red-400">
+                      <p role="alert" className="text-12 text-danger-text">
                         {error}
                       </p>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 shrink-0">
+                  <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border shrink-0">
                     {orphanCount > 0 ? (
                       <Button
                         isDisabled={isBusy}
                         onPress={() => setConfirmingPurge(true)}
                         data-testid="reconcile-purge-trigger"
-                        className="px-2.5 py-1 text-11 font-medium rounded-control text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="px-2.5 py-1 text-11 font-medium rounded-control text-danger-text hover:bg-danger-surface disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {STRINGS.purge}
                       </Button>
@@ -232,7 +220,7 @@ export default function ReconcileDialog({
                         isDisabled={isBusy}
                         onPress={close}
                         data-testid="reconcile-cancel"
-                        className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {STRINGS.cancel}
                       </Button>
@@ -240,7 +228,7 @@ export default function ReconcileDialog({
                         isDisabled={isBusy}
                         onPress={onApply}
                         data-testid="reconcile-apply"
-                        className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950"
+                        className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
                       >
                         {isApplying ? STRINGS.applying : STRINGS.apply}
                       </Button>
@@ -276,28 +264,26 @@ function PurgeConfirmation({
         data-testid="reconcile-purge-confirm"
       >
         <div className="flex items-start gap-3">
-          <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" aria-hidden />
+          <AlertTriangle size={16} className="text-danger-text shrink-0 mt-0.5" aria-hidden />
           <div className="space-y-1">
-            <p className="text-14 font-semibold text-stone-900 dark:text-stone-100">
-              {STRINGS.purgeConfirmTitle}
-            </p>
-            <p className="text-13 text-stone-700 dark:text-stone-300 leading-relaxed">
+            <p className="text-14 font-semibold text-text-primary">{STRINGS.purgeConfirmTitle}</p>
+            <p className="text-13 text-text-body leading-relaxed">
               {STRINGS.purgeConfirmBody(orphanCount)}
             </p>
           </div>
         </div>
         {error && (
-          <p role="alert" className="text-12 text-red-500 dark:text-red-400">
+          <p role="alert" className="text-12 text-danger-text">
             {error}
           </p>
         )}
       </div>
-      <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60 shrink-0">
+      <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border shrink-0">
         <Button
           isDisabled={isPurging}
           onPress={onBack}
           data-testid="reconcile-purge-back"
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.purgeConfirmBack}
         </Button>
@@ -305,7 +291,7 @@ function PurgeConfirmation({
           isDisabled={isPurging}
           onPress={onConfirm}
           data-testid="reconcile-purge-confirm-action"
-          className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-danger-active"
+          className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface not-disabled:active:bg-danger-active"
         >
           {isPurging ? STRINGS.purging : STRINGS.purgeConfirmAction}
         </Button>

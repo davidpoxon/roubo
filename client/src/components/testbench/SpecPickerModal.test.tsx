@@ -372,13 +372,12 @@ describe("SpecPickerModal", () => {
       await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
       const alpha = screen.getByText("shipped-alpha");
       expect(alpha).toBeInTheDocument();
-      // De-emphasized via colour hierarchy: the slug drops to muted stone (never
-      // the full-strength stone-800 a needs-attention slug uses). It holds the
-      // per-theme AA floor in both themes: text-stone-500 on white, dark:text-stone-400
-      // on the stone-900 modal (#493).
-      expect(alpha).toHaveClass("text-stone-500");
-      expect(alpha).toHaveClass("dark:text-stone-400");
-      expect(screen.getByText("testbench")).toHaveClass("text-stone-800");
+      // De-emphasized via colour hierarchy: the slug drops to text-secondary
+      // (never the text-primary a needs-attention slug uses). text-secondary
+      // holds the AA floor on the modal's bg-surface in both themes (#493).
+      expect(alpha).toHaveClass("text-text-secondary");
+      expect(alpha.className).not.toMatch(/dark:/);
+      expect(screen.getByText("testbench")).toHaveClass("text-text-primary");
       // Each all-passed row carries its own pass-state summary.
       expect(screen.getByText("All 5 passed")).toBeInTheDocument();
       expect(screen.getByText("All 8 passed")).toBeInTheDocument();
@@ -649,16 +648,15 @@ describe("SpecPickerModal", () => {
       renderModal();
       await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
       const slug = screen.getByText("shipped-alpha");
-      // The muted slug and path hold the per-theme AA text floor in BOTH themes:
-      // text-stone-500 (4.8:1 on white) and dark:text-stone-400 (6.8:1 on the
-      // stone-900 modal). Dark-theme jsdom cannot execute the axe color-contrast
+      // The muted slug and path hold the AA text floor in BOTH themes through the
+      // text-secondary role, which semantic-dark.css switches per theme (#493).
+      // Dark-theme jsdom cannot execute the axe color-contrast
       // rule, so the real-rendering check lives in the Playwright spec
       // e2e/e2e-flow/spec-picker-contrast.spec.ts (#493).
-      expect(slug).toHaveClass("text-stone-500");
-      expect(slug).toHaveClass("dark:text-stone-400");
+      expect(slug).toHaveClass("text-text-secondary");
       const path = screen.getByText("/repo/.specifications/shipped-alpha/test-cases.json");
-      expect(path).toHaveClass("text-stone-500");
-      expect(path).toHaveClass("dark:text-stone-400");
+      expect(path).toHaveClass("text-text-secondary");
+      expect(`${slug.className} ${path.className}`).not.toMatch(/dark:/);
     });
   });
 

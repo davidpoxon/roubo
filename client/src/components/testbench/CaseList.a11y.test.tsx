@@ -215,7 +215,7 @@ describe("CaseList selection (#420)", () => {
     expect(pressed.length).toBe(1);
   });
 
-  it("highlights the selected row with the shared bench/sidebar amber token (#522)", () => {
+  it("highlights the selected row with the accent-muted role (#522)", () => {
     const rows = rowsFor(20);
     const firstCase = rows.find((r) => r.kind === "case");
     const selectedId = firstCase?.kind === "case" ? firstCase.row.case.id : undefined;
@@ -223,13 +223,12 @@ describe("CaseList selection (#420)", () => {
     const selectedRow = screen
       .getAllByTestId("case-row")
       .find((el) => el.getAttribute("aria-pressed") === "true");
-    // The selected highlight is unified with the sidebar's selected-bench token
-    // (bg-amber-500/10), not the prior bespoke bg-amber-50 / bg-amber-950/30.
-    // Match whole class tokens so bg-amber-500/10 is not read as bg-amber-50.
+    // The selected highlight takes the accent-muted role that semantic-dark.css
+    // switches per theme, so it carries no bespoke shade and no dark: pair.
+    // Match whole class tokens.
     const classes = (selectedRow?.className ?? "").split(/\s+/);
-    expect(classes).toContain("bg-amber-500/10");
-    expect(classes).not.toContain("bg-amber-50");
-    expect(classes).not.toContain("dark:bg-amber-950/30");
+    expect(classes).toContain("bg-accent-muted");
+    expect(classes.some((c) => c.startsWith("dark:"))).toBe(false);
   });
 });
 

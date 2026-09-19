@@ -51,18 +51,18 @@ function SummaryMarker({ marker }: { marker: SpecPassSummary["marker"] }) {
       return (
         <span
           aria-hidden
-          className="w-2 h-2 rounded-full border-[1.5px] border-stone-400 dark:border-stone-500 shrink-0"
+          className="w-2 h-2 rounded-full border-[1.5px] border-status-idle shrink-0"
         />
       );
     case "stale":
-      return <AlertTriangle size={12} aria-hidden className="text-amber-500 shrink-0" />;
+      return <AlertTriangle size={12} aria-hidden className="text-accent-text shrink-0" />;
     case "passed":
-      return <span aria-hidden className="w-2 h-2 rounded-full bg-green-500 shrink-0" />;
+      return <span aria-hidden className="w-2 h-2 rounded-full bg-status-active shrink-0" />;
     case "failed":
-      return <span aria-hidden className="w-2 h-2 rounded-full bg-red-500 shrink-0" />;
+      return <span aria-hidden className="w-2 h-2 rounded-full bg-status-error shrink-0" />;
     case "progress":
     default:
-      return <span aria-hidden className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />;
+      return <span aria-hidden className="w-2 h-2 rounded-full bg-status-preparing shrink-0" />;
   }
 }
 
@@ -125,7 +125,7 @@ const LIFECYCLE_COPY = {
 // One row-actions menu item. Matches the ToolButtons menu styling so the two
 // kebab menus in the app read the same.
 const LIFECYCLE_MENU_ITEM_CLASS =
-  "flex items-start gap-2.5 px-3 py-2 rounded-chip text-12 cursor-default outline-none transition-colors text-stone-600 dark:text-stone-400 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-800 data-[focused]:text-stone-900 dark:data-[focused]:text-stone-100";
+  "flex items-start gap-2.5 px-3 py-2 rounded-chip text-12 cursor-default outline-none transition-colors text-text-secondary data-[focused]:bg-bg-hover data-[focused]:text-text-primary";
 
 // Spec picker shared by the create flow (#418, FR-001/FR-002/FR-003) and the
 // re-point flow (#423, FR-024). Lists the discovered specs and offers a manual-path
@@ -288,9 +288,9 @@ export default function SpecPickerModal({
 
   // Render one selectable spec row. Shared by both groups so selection stays a
   // single controlled ToggleButtonGroup; `muted` de-emphasizes the all-passed
-  // rows via colour hierarchy (the slug drops to muted stone). Every text
-  // class holds the per-theme AA floor (text-stone-500 on white, dark:text-stone-400
-  // on the stone-900 modal, both >= 4.5:1); the path sits at that floor in both
+  // rows via colour hierarchy (the slug drops to text-secondary). Every text
+  // class holds the AA floor (text-secondary clears 4.5:1 on the modal's
+  // bg-surface in both themes); the path sits at that floor in both
   // groups, so muting collapses there and the hierarchy reads via the slug (#493).
   const renderRow = (spec: DiscoveredSpec, muted: boolean) => {
     const isSelected = manualPath.trim().length === 0 && selectedDiscoveredPath === spec.path;
@@ -309,70 +309,52 @@ export default function SpecPickerModal({
         id={spec.path}
         className={`flex-1 min-w-0 flex items-start gap-3 px-3 py-2.5 rounded-control border text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
           isSelected
-            ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
-            : "border-stone-200 dark:border-stone-800/60 hover:border-stone-300 dark:hover:border-stone-700/60 hover:bg-stone-50 dark:hover:bg-stone-800/40"
+            ? "border-accent-border bg-accent-muted"
+            : "border-border hover:border-border-strong hover:bg-bg-hover"
         }`}
       >
-        <FileText size={14} className="shrink-0 mt-0.5 text-stone-500 dark:text-stone-400" />
+        <FileText size={14} className="shrink-0 mt-0.5 text-text-secondary" />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-13 font-medium">
-            <span
-              className={`truncate ${
-                muted ? "text-stone-500 dark:text-stone-400" : "text-stone-800 dark:text-stone-200"
-              }`}
-            >
+            <span className={`truncate ${muted ? "text-text-secondary" : "text-text-primary"}`}>
               {spec.slug}
             </span>
             {isActive && (
-              <span className="shrink-0 text-11 font-semibold uppercase tracking-label text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/40 rounded-full px-1.5 py-0.5">
+              <span className="shrink-0 text-11 font-semibold uppercase tracking-label text-accent-text bg-accent-muted rounded-full px-1.5 py-0.5">
                 Active
               </span>
             )}
             {archivedLabel && (
-              <span className="shrink-0 text-11 font-semibold uppercase tracking-label text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 rounded-full px-1.5 py-0.5">
+              <span className="shrink-0 text-11 font-semibold uppercase tracking-label text-text-body bg-bg-pressed rounded-full px-1.5 py-0.5">
                 {archivedLabel.label}
               </span>
             )}
           </p>
-          <p className="text-11 font-mono truncate text-stone-500 dark:text-stone-400">
-            {spec.path}
-          </p>
-          <p
-            className={`mt-0.5 flex items-center gap-1.5 text-11 ${
-              muted ? "text-stone-500 dark:text-stone-400" : "text-stone-600 dark:text-stone-400"
-            }`}
-          >
+          <p className="text-11 font-mono truncate text-text-secondary">{spec.path}</p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-11 text-text-secondary">
             <SummaryMarker marker={summary.marker} />
             <span
-              className={
-                summary.marker === "stale"
-                  ? "font-medium text-amber-800 dark:text-amber-400"
-                  : undefined
-              }
+              className={summary.marker === "stale" ? "font-medium text-accent-text" : undefined}
             >
               {summary.text}
             </span>
             {summary.failed > 0 && (
-              <span className="font-medium text-red-600 dark:text-red-400">
-                · {summary.failed} failed
-              </span>
+              <span className="font-medium text-danger-text">· {summary.failed} failed</span>
             )}
           </p>
           {archivedLabel?.supersededBy && (
-            <p className="mt-0.5 text-11 text-stone-500 dark:text-stone-400">
+            <p className="mt-0.5 text-11 text-text-secondary">
               Superseded by <span className="font-mono">{archivedLabel.supersededBy}</span>
             </p>
           )}
           {archivedLabel?.reason && (
-            <p className="mt-0.5 text-11 text-stone-500 dark:text-stone-400">
-              {archivedLabel.reason}
-            </p>
+            <p className="mt-0.5 text-11 text-text-secondary">{archivedLabel.reason}</p>
           )}
         </div>
-        <span className="shrink-0 text-11 font-medium text-stone-600 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 rounded-full px-2 py-0.5">
+        <span className="shrink-0 text-11 font-medium text-text-secondary bg-bg-hover rounded-full px-2 py-0.5">
           {spec.caseCount} {spec.caseCount === 1 ? "case" : "cases"}
         </span>
-        {isSelected && <Check size={14} className="text-amber-500 shrink-0 mt-0.5" />}
+        {isSelected && <Check size={14} className="text-accent shrink-0 mt-0.5" />}
       </ToggleButton>
     );
 
@@ -383,12 +365,12 @@ export default function SpecPickerModal({
           <Button
             aria-label={`Actions for ${spec.slug}`}
             className={({ isHovered, isPressed, isFocusVisible }) =>
-              `shrink-0 mt-1 p-1.5 rounded-control text-stone-500 dark:text-stone-400 outline-none transition-colors ${
+              `shrink-0 mt-1 p-1.5 rounded-control outline-none transition-colors ${
                 isPressed
-                  ? "bg-stone-200 dark:bg-stone-700/60"
+                  ? "bg-bg-pressed text-text-body"
                   : isHovered
-                    ? "bg-stone-100 dark:bg-stone-800/60"
-                    : ""
+                    ? "bg-bg-hover text-text-secondary"
+                    : "text-text-secondary"
               } ${isFocusVisible ? "ring-2 ring-focus-ring" : ""}`
             }
           >
@@ -417,7 +399,7 @@ export default function SpecPickerModal({
                   <ArchiveRestore size={14} className="shrink-0" aria-hidden />
                   <span>
                     Restore
-                    <span className="block text-11 text-stone-500 dark:text-stone-400">
+                    <span className="block text-11 text-text-secondary">
                       Return to the live list
                     </span>
                   </span>
@@ -457,23 +439,23 @@ export default function SpecPickerModal({
         >
           {({ close }) => (
             <>
-              <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
+              <div className="px-5 py-4 border-b border-border">
                 <Heading
                   slot="title"
-                  className="flex items-center gap-2 text-16 font-semibold text-stone-900 dark:text-stone-100"
+                  className="flex items-center gap-2 text-16 font-semibold text-text-primary"
                 >
                   {pendingAction ? (
                     pendingAction.kind === "archive" ? (
-                      <Archive size={16} className="text-amber-500" />
+                      <Archive size={16} className="text-accent-text" />
                     ) : (
-                      <Replace size={16} className="text-amber-500" />
+                      <Replace size={16} className="text-accent-text" />
                     )
                   ) : (
-                    <FlaskConical size={16} className="text-amber-500" />
+                    <FlaskConical size={16} className="text-accent-text" />
                   )}
                   {pendingAction ? LIFECYCLE_COPY[pendingAction.kind].title : copy.title}
                 </Heading>
-                <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+                <p className="mt-1 text-12 text-text-secondary">
                   {pendingAction
                     ? LIFECYCLE_COPY[pendingAction.kind].description
                     : copy.description}
@@ -487,13 +469,13 @@ export default function SpecPickerModal({
               {pendingAction !== null && (
                 <>
                   <div className="px-5 py-4 space-y-4">
-                    <p className="text-13 text-stone-700 dark:text-stone-300">
+                    <p className="text-13 text-text-body">
                       <span className="font-mono">{pendingAction.spec.slug}</span>
                     </p>
 
                     {pendingAction.kind === "archive" && (
                       <TextField value={archiveReason} onChange={setArchiveReason}>
-                        <Label className="block text-12 font-medium text-stone-500 dark:text-stone-400 mb-1.5">
+                        <Label className="block text-12 font-medium text-text-secondary mb-1.5">
                           Reason (optional)
                         </Label>
                         <Input
@@ -507,7 +489,7 @@ export default function SpecPickerModal({
                       <div>
                         <p
                           id="supersede-target-label"
-                          className="block text-12 font-medium text-stone-500 dark:text-stone-400 mb-1.5"
+                          className="block text-12 font-medium text-text-secondary mb-1.5"
                         >
                           Superseded by (required)
                         </p>
@@ -525,14 +507,14 @@ export default function SpecPickerModal({
                         />
                         {(specs ?? []).filter((s) => s.slug !== pendingAction.spec.slug).length ===
                           0 && (
-                          <p className="mt-1.5 text-12 text-stone-500 dark:text-stone-400">
+                          <p className="mt-1.5 text-12 text-text-secondary">
                             This project has no other specification to point at.
                           </p>
                         )}
                       </div>
                     )}
 
-                    <p className="text-12 text-stone-500 dark:text-stone-400">
+                    <p className="text-12 text-text-secondary">
                       Written to{" "}
                       <code className="font-mono">
                         .specifications/{pendingAction.spec.slug}/manifest.json
@@ -542,7 +524,7 @@ export default function SpecPickerModal({
 
                     <div aria-live="polite">
                       {lifecycleError && (
-                        <p className="flex items-start gap-1.5 text-12 text-red-600 dark:text-red-400">
+                        <p className="flex items-start gap-1.5 text-12 text-danger-text">
                           <AlertTriangle size={12} className="shrink-0 mt-0.5" aria-hidden />
                           <span>{lifecycleError}</span>
                         </p>
@@ -550,10 +532,10 @@ export default function SpecPickerModal({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+                  <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
                     <Button
                       onPress={dismissPending}
-                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900"
+                      className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
                     >
                       Cancel
                     </Button>
@@ -563,7 +545,7 @@ export default function SpecPickerModal({
                         lifecycleMutation.isPending ||
                         (pendingAction.kind === "supersede" && supersedeTarget.length === 0)
                       }
-                      className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900 not-disabled:active:bg-accent-active"
+                      className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface not-disabled:active:bg-accent-active"
                     >
                       {lifecycleMutation.isPending
                         ? LIFECYCLE_COPY[pendingAction.kind].busyLabel
@@ -578,32 +560,30 @@ export default function SpecPickerModal({
                   <div className="px-5 py-4 space-y-5 max-h-[60vh] overflow-y-auto">
                     {/* Discovered specs */}
                     <div className="space-y-2">
-                      <p className="text-12 font-medium text-stone-500 dark:text-stone-400">
-                        Discovered specs
-                      </p>
+                      <p className="text-12 font-medium text-text-secondary">Discovered specs</p>
 
                       {isLoading && (
-                        <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-3">
+                        <div className="flex items-center gap-2 text-13 text-text-secondary py-3">
                           <Spinner />
                           Discovering specs...
                         </div>
                       )}
 
                       {isError && (
-                        <div className="flex items-start gap-2 rounded-lg border border-red-300/60 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2">
-                          <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" />
-                          <p className="text-13 text-red-600 dark:text-red-400">
+                        <div className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-surface px-3 py-2">
+                          <AlertTriangle size={14} className="text-danger-text shrink-0 mt-0.5" />
+                          <p className="text-13 text-danger-text">
                             {error instanceof Error ? error.message : "Failed to discover specs"}
                           </p>
                         </div>
                       )}
 
                       {showEmptyDiscovery && (
-                        <div className="rounded-lg border border-dashed border-stone-200 dark:border-stone-800/60 px-4 py-5 text-center">
-                          <p className="text-13 text-stone-500 dark:text-stone-400">
+                        <div className="rounded-lg border border-dashed border-border px-4 py-5 text-center">
+                          <p className="text-13 text-text-secondary">
                             No specs found in this project.
                           </p>
-                          <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+                          <p className="mt-1 text-12 text-text-secondary">
                             Add a{" "}
                             <code className="font-mono">
                               .specifications/&lt;slug&gt;/test-cases.json
@@ -614,8 +594,8 @@ export default function SpecPickerModal({
                       )}
 
                       {showInvalidSpecs && (
-                        <div className="rounded-lg border border-amber-300/60 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5 space-y-2">
-                          <p className="flex items-start gap-1.5 text-12 font-medium text-amber-700 dark:text-amber-400">
+                        <div className="rounded-lg border border-accent-border bg-accent-muted px-3 py-2.5 space-y-2">
+                          <p className="flex items-start gap-1.5 text-12 font-medium text-accent-text">
                             <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                             <span>
                               {invalidSpecs.length === 1
@@ -626,18 +606,16 @@ export default function SpecPickerModal({
                           <ul className="space-y-1.5">
                             {invalidSpecs.map((spec) => (
                               <li key={spec.path} className="text-12">
-                                <p className="font-medium text-stone-700 dark:text-stone-300">
-                                  {spec.slug}
-                                </p>
-                                <p className="font-mono text-11 text-stone-500 dark:text-stone-400 truncate">
+                                <p className="font-medium text-text-body">{spec.slug}</p>
+                                <p className="font-mono text-11 text-text-secondary truncate">
                                   {spec.path}
                                 </p>
-                                <ul className="mt-0.5 list-disc pl-4 text-11 text-amber-700/90 dark:text-amber-400/90">
+                                <ul className="mt-0.5 list-disc pl-4 text-11 text-accent-text">
                                   {spec.errors.slice(0, 3).map((err, i) => (
                                     <li key={i}>{err}</li>
                                   ))}
                                   {spec.errors.length > 3 && (
-                                    <li className="list-none text-stone-500 dark:text-stone-400">
+                                    <li className="list-none text-text-secondary">
                                       +{spec.errors.length - 3} more
                                     </li>
                                   )}
@@ -655,13 +633,13 @@ export default function SpecPickerModal({
                       all-passed disclosure sits beneath it. */}
                       {showAllPassedEmptyState && (
                         <div className="flex flex-col items-center text-center px-5 py-6">
-                          <div className="w-10 h-10 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 text-green-500 mb-3">
+                          <div className="w-10 h-10 flex items-center justify-center rounded-full bg-bg-hover text-success-text mb-3">
                             <Check size={16} strokeWidth={2.5} aria-hidden />
                           </div>
-                          <p className="text-14 font-semibold text-stone-800 dark:text-stone-200">
+                          <p className="text-14 font-semibold text-text-primary">
                             Every discovered spec has all test cases passed
                           </p>
-                          <p className="mt-1 max-w-[380px] text-13 text-stone-600 dark:text-stone-400">
+                          <p className="mt-1 max-w-[380px] text-13 text-text-secondary">
                             Browse the completed specs below, or point a TestBench at a
                             test-cases.json by hand.
                           </p>
@@ -700,12 +678,12 @@ export default function SpecPickerModal({
                                 aria-expanded={allPassedExpanded}
                                 onPress={() => setAllPassedExpanded((open) => !open)}
                                 className={({ isHovered, isPressed, isFocusVisible }) =>
-                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium text-stone-500 dark:text-stone-400 outline-none transition-colors ${
+                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium outline-none transition-colors ${
                                     isPressed
-                                      ? "bg-stone-200 dark:bg-stone-700/60"
+                                      ? "bg-bg-pressed text-text-body"
                                       : isHovered
-                                        ? "bg-stone-100 dark:bg-stone-800/60"
-                                        : ""
+                                        ? "bg-bg-hover text-text-secondary"
+                                        : "text-text-secondary"
                                   } ${
                                     isFocusVisible
                                       ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-surface"
@@ -716,13 +694,13 @@ export default function SpecPickerModal({
                                 <ChevronRight
                                   size={14}
                                   aria-hidden
-                                  className={`shrink-0 text-stone-500 dark:text-stone-400 transition-transform duration-200 ${
+                                  className={`shrink-0 transition-transform duration-200 ${
                                     allPassedExpanded ? "rotate-90" : ""
                                   }`}
                                 />
                                 <span>
                                   All passed{" "}
-                                  <span className="font-normal text-stone-500 dark:text-stone-400">
+                                  <span className="font-normal">
                                     · {allPassed.length} spec{allPassed.length === 1 ? "" : "s"}
                                   </span>
                                 </span>
@@ -757,12 +735,12 @@ export default function SpecPickerModal({
                                 aria-controls={archivedGroupId}
                                 onPress={() => setShowArchived((open) => !open)}
                                 className={({ isHovered, isPressed, isFocusVisible }) =>
-                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium text-stone-500 dark:text-stone-400 outline-none transition-colors ${
+                                  `w-full flex items-center gap-2 px-3 py-2 rounded-control text-13 font-medium outline-none transition-colors ${
                                     isPressed
-                                      ? "bg-stone-200 dark:bg-stone-700/60"
+                                      ? "bg-bg-pressed text-text-body"
                                       : isHovered
-                                        ? "bg-stone-100 dark:bg-stone-800/60"
-                                        : ""
+                                        ? "bg-bg-hover text-text-secondary"
+                                        : "text-text-secondary"
                                   } ${
                                     isFocusVisible
                                       ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-surface"
@@ -770,14 +748,10 @@ export default function SpecPickerModal({
                                   }`
                                 }
                               >
-                                <Archive
-                                  size={14}
-                                  aria-hidden
-                                  className="shrink-0 text-stone-500 dark:text-stone-400"
-                                />
+                                <Archive size={14} aria-hidden className="shrink-0" />
                                 <span>
                                   Show archived{" "}
-                                  <span className="font-normal text-stone-500 dark:text-stone-400">
+                                  <span className="font-normal">
                                     · {archived.length} spec{archived.length === 1 ? "" : "s"}
                                   </span>
                                 </span>
@@ -823,7 +797,7 @@ export default function SpecPickerModal({
                       onChange={setManualPath}
                       aria-describedby="manual-path-status"
                     >
-                      <Label className="block text-12 font-medium text-stone-500 dark:text-stone-400 mb-1.5">
+                      <Label className="block text-12 font-medium text-text-secondary mb-1.5">
                         Or enter a path
                       </Label>
                       <Input
@@ -836,20 +810,20 @@ export default function SpecPickerModal({
                         aria-live="polite"
                       >
                         {manualState.status === "validating" && (
-                          <span className="flex items-center gap-1.5 text-stone-500 dark:text-stone-400">
+                          <span className="flex items-center gap-1.5 text-text-secondary">
                             <Loader2 size={12} className="animate-spin" />
                             Validating...
                           </span>
                         )}
                         {manualState.status === "valid" && (
-                          <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+                          <span className="flex items-center gap-1.5 text-success-text">
                             <Check size={12} />
                             Valid: {manualState.slug} ({manualState.caseCount}{" "}
                             {manualState.caseCount === 1 ? "case" : "cases"})
                           </span>
                         )}
                         {manualState.status === "invalid" && (
-                          <span className="flex items-start gap-1.5 text-red-600 dark:text-red-400">
+                          <span className="flex items-start gap-1.5 text-danger-text">
                             <AlertTriangle size={12} className="shrink-0 mt-0.5" />
                             <span>{manualState.errors.join("; ")}</span>
                           </span>
@@ -865,20 +839,20 @@ export default function SpecPickerModal({
                       sight, and is what makes a failed Restore visible at all. */}
                   <div aria-live="polite">
                     {lifecycleError && (
-                      <p className="flex items-start gap-1.5 px-5 pb-3 text-12 text-red-600 dark:text-red-400">
+                      <p className="flex items-start gap-1.5 px-5 pb-3 text-12 text-danger-text">
                         <AlertTriangle size={12} className="shrink-0 mt-0.5" aria-hidden />
                         <span>{lifecycleError}</span>
                       </p>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+                  <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
                     <Button
                       onPress={() => {
                         reset();
                         close();
                       }}
-                      className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Cancel
                     </Button>
