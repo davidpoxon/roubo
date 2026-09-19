@@ -46,7 +46,7 @@ export default function ProjectSidebar() {
 
   const navColorClass = (active: boolean) =>
     active
-      ? "bg-accent-muted text-accent-text"
+      ? "bg-accent-muted text-accent-text font-medium"
       : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/40";
 
   const navItemClass = (active: boolean, layout = "gap-2.5") =>

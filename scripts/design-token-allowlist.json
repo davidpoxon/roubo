@@ -21,7 +21,6 @@
     "client/src/components/ClearingTrackerProvider.tsx",
     "client/src/components/ComponentStatusDot.test.tsx",
     "client/src/components/ComponentStatusDot.tsx",
-    "client/src/components/ConfigSchemaForm.test.tsx",
     "client/src/components/ConfigSchemaForm.tsx",
     "client/src/components/CreateBenchModal.test.tsx",
     "client/src/components/CreateBenchModal.tsx",

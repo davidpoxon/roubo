@@ -93,13 +93,14 @@ describe("ProjectSidebar", () => {
     expect(link?.className).toContain("dark:text-stone-400");
   });
 
-  it("renders the active Settings item in the accent-text token on accent-muted (#887)", () => {
+  it("renders the active Settings item in medium-weight accent-text on accent-muted (#887)", () => {
     stubNoData();
     renderSidebar("/settings");
     const settings = screen.getByText("Settings").closest("button");
     // amber-600 on the amber wash was 2.83:1 in light; accent-text clears 4.5:1 in both themes.
     expect(settings?.className).toContain("bg-accent-muted");
     expect(settings?.className).toContain("text-accent-text");
+    expect(settings?.className).toContain("font-medium");
     expect(settings?.className).not.toContain("text-amber-600");
   });
 
