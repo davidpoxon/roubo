@@ -36,9 +36,7 @@ function OutlineMount({ children }: { children: React.ReactNode }) {
     return () => cancelAnimationFrame(id);
   }, []);
   return (
-    <div
-      className={`transition-all duration-200 ease-out ${mounted ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}
-    >
+    <div className={`transition-opacity duration-200 ${mounted ? "opacity-100" : "opacity-0"}`}>
       {children}
     </div>
   );

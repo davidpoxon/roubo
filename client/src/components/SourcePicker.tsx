@@ -316,7 +316,7 @@ function MineSourceControl({
           {({ isSelected, isFocusVisible }) => (
             <div
               className={[
-                "relative shrink-0 w-9 h-5 rounded-full border transition-all duration-150",
+                "relative shrink-0 w-9 h-5 rounded-full border transition-colors",
                 isSelected
                   ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
                   : "bg-transparent border-stone-300 dark:border-stone-600",
@@ -327,7 +327,7 @@ function MineSourceControl({
             >
               <div
                 className={[
-                  "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all duration-150",
+                  "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-colors",
                   isSelected
                     ? "left-[18px] bg-white dark:bg-stone-900"
                     : "left-0.5 bg-stone-300 dark:bg-stone-600",
@@ -358,7 +358,7 @@ function MineSourceControl({
                 {({ isSelected, isFocusVisible, isDisabled }) => (
                   <div
                     className={[
-                      "px-3 py-1.5 rounded-lg border text-xs select-none transition-all duration-150",
+                      "px-3 py-1.5 rounded-lg border text-xs select-none transition-colors",
                       isDisabled ? "cursor-not-allowed" : "cursor-pointer",
                       isSelected
                         ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80 text-stone-900 dark:text-stone-100"

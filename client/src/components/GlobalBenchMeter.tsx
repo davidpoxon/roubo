@@ -24,7 +24,7 @@ export default function GlobalBenchMeter() {
     <div className="flex items-center gap-2" aria-label={`Global benches: ${current} of ${max}`}>
       <div className="w-24 h-1 rounded-full bg-stone-200 dark:bg-stone-800 overflow-hidden">
         <div
-          className={`h-full ${fillColor} transition-all duration-300`}
+          className={`h-full ${fillColor} transition-colors duration-300`}
           style={{ width: `${fillWidth}%` }}
         />
       </div>

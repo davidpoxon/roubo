@@ -59,7 +59,7 @@ export default function Select({
           </SelectValue>
           <ChevronDown size={16} className="shrink-0 ml-2 text-stone-600 dark:text-stone-300" />
         </Button>
-        <Popover className="w-[var(--trigger-width)] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 overflow-auto max-h-60 transition-opacity duration-150 data-[entering]:opacity-0">
+        <Popover className="animate-rise-in w-[var(--trigger-width)] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 overflow-auto max-h-60">
           <ListBox className="outline-none">
             {normalized.map((item) => (
               <ListBoxItem

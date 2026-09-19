@@ -30,7 +30,7 @@ export default function EmptyBenchCard({
     <div ref={setNodeRef} className="h-[260px]">
       <DialogTrigger isOpen={popoverOpen} onOpenChange={setPopoverOpen}>
         <Button
-          className={`w-full h-full text-left outline-none rounded-xl border-2 border-dashed transition-all duration-200 ${
+          className={`w-full h-full text-left outline-none rounded-xl border-2 border-dashed transition-colors duration-200 ${
             isOver
               ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/60 scale-[1.02]"
               : "border-stone-200 dark:border-stone-800/60 hover:border-stone-300 dark:hover:border-stone-700/60 hover:bg-stone-50 dark:hover:bg-stone-900/30"
@@ -47,7 +47,7 @@ export default function EmptyBenchCard({
         </Button>
         <Popover
           placement="bottom start"
-          className="rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 w-52 transition-opacity duration-150 data-[entering]:opacity-0"
+          className="animate-rise-in rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl py-1 z-50 w-52"
         >
           <div className="py-1">
             <Button

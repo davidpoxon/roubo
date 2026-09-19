@@ -167,7 +167,7 @@ describe("ConnectionStatusPill: rechecking state (IP-TC-111)", () => {
     );
     const ts = screen.getByTestId("connection-status-pill-timestamp");
     expect(ts).toHaveTextContent("rechecking...");
-    expect(ts.className).toContain("animate-pulse");
+    expect(ts.className).toContain("animate-status-pulse");
   });
 
   it("never enters the rechecking state on the disabled variant", () => {

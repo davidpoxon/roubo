@@ -76,7 +76,7 @@ export default function CutListSortControl({
           </span>
         )}
       </Button>
-      <Popover placement="bottom end" offset={6}>
+      <Popover placement="bottom end" offset={6} className="animate-rise-in">
         <Dialog className="outline-none">
           <div className="w-52 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/50 shadow-2xl overflow-hidden">
             {/* Popover header */}

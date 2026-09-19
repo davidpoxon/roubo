@@ -78,7 +78,7 @@ function PillBody({
       {showTimestamp && timestampText && (
         <span
           data-testid="connection-status-pill-timestamp"
-          className={`ml-2 text-[10px] opacity-80 ${rechecking ? "animate-pulse" : ""}`}
+          className={`ml-2 text-[10px] opacity-80 ${rechecking ? "animate-status-pulse" : ""}`}
         >
           {timestampText}
         </span>

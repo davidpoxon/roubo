@@ -91,7 +91,7 @@ function SettingToggle({
 
           <div
             className={[
-              "relative shrink-0 mt-0.5 w-9 h-5 rounded-full border transition-all duration-150",
+              "relative shrink-0 mt-0.5 w-9 h-5 rounded-full border transition-colors",
               isSelected
                 ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
                 : "bg-transparent border-stone-300 dark:border-stone-600",
@@ -102,7 +102,7 @@ function SettingToggle({
           >
             <div
               className={[
-                "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all duration-150",
+                "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-colors",
                 isSelected
                   ? "left-[18px] bg-white dark:bg-stone-900"
                   : "left-0.5 bg-stone-300 dark:bg-stone-600",
@@ -196,7 +196,7 @@ function GlobalBenchLimitSection({
             {({ isSelected, isFocusVisible }) => (
               <div
                 className={[
-                  "flex flex-col gap-1 px-5 py-4 rounded-xl border cursor-pointer transition-all duration-150 select-none w-40",
+                  "flex flex-col gap-1 px-5 py-4 rounded-xl border cursor-pointer transition-colors select-none w-40",
                   isSelected
                     ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
                     : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40",
@@ -625,7 +625,7 @@ function AppearanceTab() {
             {({ isSelected, isFocusVisible }) => (
               <div
                 className={[
-                  "flex flex-col items-center gap-3 px-6 py-5 rounded-xl border cursor-pointer transition-all duration-150 select-none w-32",
+                  "flex flex-col items-center gap-3 px-6 py-5 rounded-xl border cursor-pointer transition-colors select-none w-32",
                   isSelected
                     ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80 text-stone-900 dark:text-stone-100"
                     : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 text-stone-500 dark:text-stone-500 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/40 hover:text-stone-700 dark:hover:text-stone-300",

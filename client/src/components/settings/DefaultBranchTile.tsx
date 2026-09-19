@@ -35,7 +35,7 @@ export default function DefaultBranchTile({ projectId }: Props) {
     >
       {status === "loading" && (
         <div>
-          <div className="animate-pulse h-5 bg-stone-200 dark:bg-stone-700 rounded w-24" />
+          <div className="h-5 bg-stone-200 dark:bg-stone-700 rounded w-24" />
           <span className="sr-only">Detecting default branch…</span>
         </div>
       )}

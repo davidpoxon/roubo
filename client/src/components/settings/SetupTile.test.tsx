@@ -148,7 +148,7 @@ describe("SetupTile", () => {
       isLoading: true,
     } as unknown as ReturnType<typeof useProjects>);
     render(<SetupTile projectId="proj-1" />);
-    expect(document.querySelector(".animate-pulse")).toBeInTheDocument();
+    expect(screen.getByTestId("setup-tile-loading")).toBeInTheDocument();
   });
 
   it("shows Project not found when projectId is absent from the project list", () => {

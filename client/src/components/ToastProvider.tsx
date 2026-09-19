@@ -40,10 +40,9 @@ function Toast({
 
   return (
     <div
-      className="transition-all duration-200 ease-out"
+      className="transition-opacity duration-200"
       style={{
         opacity: visible && !toast.exiting ? 1 : 0,
-        transform: visible && !toast.exiting ? "translateY(0)" : "translateY(8px)",
       }}
     >
       {/* `status` gives the toast an implicit `aria-live="polite"`, so a screen

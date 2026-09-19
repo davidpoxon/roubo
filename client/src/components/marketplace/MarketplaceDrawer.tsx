@@ -140,7 +140,7 @@ export default function MarketplaceDrawer({
       isDismissable
       className="fixed inset-0 z-40 flex justify-end bg-black/40"
     >
-      <Modal className="h-full w-full max-w-md">
+      <Modal className="animate-rise-in h-full w-full max-w-md">
         <Dialog
           ref={stampAriaModal}
           data-testid="marketplace-drawer"

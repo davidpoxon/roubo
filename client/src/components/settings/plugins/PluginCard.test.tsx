@@ -599,7 +599,7 @@ describe("PluginCard: rechecking lifecycle (issue #204)", () => {
     render(<PluginCard plugin={record()} hostApiVersion="1.0.0" />);
     const timestamp = screen.getByTestId("connection-status-pill-timestamp");
     expect(timestamp).toHaveTextContent("rechecking...");
-    expect(timestamp.className).toContain("animate-pulse");
+    expect(timestamp.className).toContain("animate-status-pulse");
   });
 
   it('does NOT pulse "rechecking..." once the query has settled', () => {

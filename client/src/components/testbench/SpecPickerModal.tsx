@@ -397,7 +397,7 @@ export default function SpecPickerModal({
           <Popover
             placement="bottom end"
             offset={4}
-            className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[11rem]"
+            className="animate-rise-in bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl p-1 min-w-[11rem]"
           >
             <Menu
               className="outline-none"
@@ -450,7 +450,7 @@ export default function SpecPickerModal({
       isDismissable
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
-      <Modal className="w-full max-w-lg mx-4">
+      <Modal className="animate-rise-in w-full max-w-lg mx-4">
         <Dialog
           ref={stampAriaModal}
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none"

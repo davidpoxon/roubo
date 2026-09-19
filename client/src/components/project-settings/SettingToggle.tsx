@@ -35,7 +35,7 @@ export function SettingToggle({
 
           <div
             className={[
-              "relative shrink-0 mt-0.5 w-9 h-5 rounded-full border transition-all duration-150",
+              "relative shrink-0 mt-0.5 w-9 h-5 rounded-full border transition-colors",
               isSelected
                 ? "bg-stone-700 dark:bg-stone-300 border-stone-700 dark:border-stone-300"
                 : "bg-transparent border-stone-300 dark:border-stone-600",
@@ -46,7 +46,7 @@ export function SettingToggle({
           >
             <div
               className={[
-                "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all duration-150",
+                "absolute top-0.5 h-3.5 w-3.5 rounded-full transition-colors",
                 isSelected
                   ? "left-[18px] bg-white dark:bg-stone-900"
                   : "left-0.5 bg-stone-300 dark:bg-stone-600",

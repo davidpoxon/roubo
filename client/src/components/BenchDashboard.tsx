@@ -517,7 +517,7 @@ export default function BenchDashboard() {
           </nav>
         </div>
 
-        <div key={location.pathname} className="flex-1 min-h-0 overflow-hidden animate-tab-fade-in">
+        <div key={location.pathname} className="flex-1 min-h-0 overflow-hidden animate-rise-in">
           {hasConfig || isOnSettings ? <Outlet context={outletContext} /> : null}
         </div>
       </div>

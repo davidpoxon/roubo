@@ -263,7 +263,7 @@ function ProjectScopeDialog({
       isKeyboardDismissDisabled={isBusy}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
-      <Modal className="w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
+      <Modal className="animate-rise-in w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
         <Dialog
           ref={stampAriaModal}
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"
@@ -303,7 +303,7 @@ function GlobalScopeDialog({
       isKeyboardDismissDisabled={isBusy}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
-      <Modal className="w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
+      <Modal className="animate-rise-in w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
         <Dialog
           ref={stampAriaModal}
           className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-2xl outline-none flex flex-col min-h-0 max-h-[inherit] overflow-hidden"

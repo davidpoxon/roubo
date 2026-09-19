@@ -225,7 +225,7 @@ export default function GitHubErrorState({
 }
 
 const primaryActionClass = [
-  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 outline-none no-underline shrink-0",
+  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors outline-none no-underline shrink-0",
   "bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950",
   "focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950",
 ].join(" ");

@@ -62,7 +62,7 @@ export default function StatusOverrideControl({
             className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400"
           />
         </Button>
-        <Popover className="min-w-[--trigger-width] rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-lg outline-none">
+        <Popover className="animate-rise-in min-w-[--trigger-width] rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shadow-lg outline-none">
           <ListBox className="p-1 outline-none">
             {STATUS_ORDER.map((status) => (
               <ListBoxItem

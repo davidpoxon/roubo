@@ -28,7 +28,7 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
         </Button>
         <Popover
           placement="bottom end"
-          className="w-80 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl z-50 outline-none"
+          className="animate-rise-in w-80 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl z-50 outline-none"
         >
           <div className="max-h-72 overflow-auto py-1.5">
             {groups.map((group, gi) => (

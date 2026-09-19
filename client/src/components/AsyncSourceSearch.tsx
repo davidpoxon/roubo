@@ -164,7 +164,7 @@ export default function AsyncSourceSearch({
         isOpen={isOpen}
         onOpenChange={setOpen}
         placement="bottom start"
-        className="w-[var(--trigger-width)] min-w-72 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl p-2 z-50 transition-opacity duration-150 data-[entering]:opacity-0"
+        className="animate-rise-in w-[var(--trigger-width)] min-w-72 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/50 shadow-xl p-2 z-50"
       >
         <SearchField
           value={search}

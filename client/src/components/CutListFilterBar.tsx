@@ -112,7 +112,7 @@ export default function CutListFilterBar({
               </span>
             )}
           </Button>
-          <Popover placement="bottom end" offset={6}>
+          <Popover placement="bottom end" offset={6} className="animate-rise-in">
             <Dialog className="outline-none">
               <div className="w-72 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700/50 shadow-2xl overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200 dark:border-stone-800/60">
