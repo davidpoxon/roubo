@@ -696,8 +696,14 @@ export default function TerminalTabs({
         </div>
       </div>
 
-      {/* Terminal content */}
-      <div className="relative flex-1 bg-bg-base rounded-b-lg overflow-hidden">
+      {/* Terminal content. While sessions exist the well matches the xterm
+          theme.background in Terminal.tsx, so its host padding shows no rim;
+          both move to a terminal-ground role in #1323. */}
+      <div
+        className={`relative flex-1 rounded-b-lg overflow-hidden ${
+          currentSessions.length === 0 ? "bg-bg-base" : "bg-[#09090b]"
+        }`}
+      >
         {blockedLaunch && (
           <AgentLaunchFailurePanel failure={blockedLaunch} onRetry={handleRetryLastLaunch} />
         )}
