@@ -26,8 +26,10 @@ const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bund
 // is deliberately NOT named `claude`, so prepending cannot shadow a real CLI.
 // AP-TC-113 (#683) adds a second pair on the same wiring: the `codex-cli`
 // overlay and `roubo-e2e-codex-stub`, and AP-TC-115 (#534) a third, `gemini-cli`
-// and `roubo-e2e-gemini-stub`. Both hooks are directory walks, so a new overlay
-// directory and a new stub file are picked up with no config change.
+// and `roubo-e2e-gemini-stub`, and APCC-TC-022 (#1306) a fourth,
+// `agent-choice-probe` and `roubo-e2e-probe-stub`. Both hooks are directory
+// walks, so a new overlay directory and a new stub file are picked up with no
+// config change.
 const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 
 // Four surfaces share one config:
@@ -80,6 +82,15 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     page-wide `config-field-*` count AP-TC-087 reads cannot move. Like
 //     `codex-cli` it is force-disabled by every /test/__reset and its stub never
 //     writes the argv log.
+//     A fourth, `agent-choice-probe` with `roubo-e2e-probe-stub` (#1306), backs
+//     the APCC-TC-022 axe audit of the AI Agents screen. Its `probedModel`
+//     field is populated by a choice probe that runs the stub, and the stub
+//     reads a mode file (PROBE_MODE_PATH, e2e/agent-plugins/_support/
+//     probe-mode-path.mjs) to answer resolved, slow or failed. The path is a
+//     constant rather than an env var, because the probe spawn strips every
+//     ROUBO_* variable and an env value must not steer a filesystem path, so no
+//     config change is needed here. /test/__reset empties the probe cache so
+//     each test's mode is read afresh, and force-disables the overlay.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under

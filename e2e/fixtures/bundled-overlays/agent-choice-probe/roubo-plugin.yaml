@@ -1,0 +1,57 @@
+id: agent-choice-probe
+name: Choice Probe Agent
+version: 0.1.0
+description: E2E overlay that installs an agent plugin whose configuration field is populated by a choice probe, so the APCC-TC-022 audit can render the field resolved, loading and failed. Not for production.
+kind: agent
+# `choiceProbes` is a 1.6.0 manifest key, so the range pins the host version
+# that introduced it, as the unit fixture this mirrors does
+# (server/services/__fixtures__/plugins/agent-choice-probe/roubo-plugin.yaml).
+roubo: ^1.6.0
+entry: ./index.mjs
+contractVersion: 1
+# OPT-IN, not ambient. Every POST /test/__reset forces this id disabled, via
+# OPT_IN_AGENT_FIXTURE_PLUGIN_IDS in server/routes/test.ts, for the same reason
+# the sibling codex-cli and gemini-cli overlays are force-disabled: consent has
+# no revoke route and outlives both the reset and the server process, so the
+# enable ledger is the only lever that stops a spec which consented this agent
+# from leaving an EXTRA available agent behind. "Exactly one available agent" is
+# a resolution fallback several specs depend on (AP-TC-087, NFR-018). A spec
+# that wants this overlay enables it (POST /api/plugins/agent-choice-probe/enable)
+# and hands it back disabled.
+#
+# The field mirrors the unit fixture's `model` field and its `dash-line-pairs`
+# choice probe, under a different KEY: the AP-TC-087 guard counts
+# `config-field-model` test ids PAGE-WIDE, so a second `model` control would
+# break it on a fixture artefact. The force-disable is the first protection and
+# the key name is the second, as for the gemini-cli overlay.
+#
+# The probe names the e2e stub rather than `probe-agent`: `importLoginShellEnv()`
+# prepends `~/.local/bin`, so a binary of that name on a developer machine would
+# win the PATH lookup. The stub reads a mode file to answer resolved, slow or
+# failed (e2e/fixtures/bin/roubo-e2e-probe-stub). No version probe is declared,
+# so the card shows no compatibility line and the only probe is the choice probe.
+configSchema:
+  type: object
+  properties:
+    probedModel:
+      type: string
+      title: Model
+      description: The model the session runs on. The choices are read from the CLI.
+choiceProbes:
+  probedModel:
+    command: roubo-e2e-probe-stub
+    args:
+      - models
+    parse: dash-line-pairs
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  # An agent plugin must declare `processes: false`; the descriptor is its only
+  # write route (PluginManifestSchema enforces this for kind: agent).
+  processes: false
+  ports: false
+  docker: false

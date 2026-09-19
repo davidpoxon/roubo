@@ -34,6 +34,7 @@ import * as marketplace from "../services/marketplace.js";
 import * as sourcesState from "../services/marketplace-sources-state.js";
 import * as pluginProvenanceState from "../services/plugin-provenance-state.js";
 import * as credentialStore from "../services/credential-store.js";
+import { resetProbeRunnerCache } from "../services/agent-probe-runner.js";
 import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
 import {
   IntegrationConfigSchema,
@@ -483,7 +484,12 @@ function disableFailureFixturePlugins(): void {
 // configSchema, which the other two deliberately do not, so leaving it enabled
 // would also add config controls to every page that renders the AI Agents
 // screen; the force-disable keeps that opt-in too.
-const OPT_IN_AGENT_FIXTURE_PLUGIN_IDS = ["codex-cli", "gemini-cli"] as const;
+//
+// APCC-TC-022 (#1306) adds a fourth, agent-choice-probe, whose `probedModel`
+// field is populated by a choice probe. Left enabled it would add a probed
+// control to every AI Agents screen and spawn its stub on every agent read, so
+// it is opt-in on the same terms.
+const OPT_IN_AGENT_FIXTURE_PLUGIN_IDS = ["codex-cli", "gemini-cli", "agent-choice-probe"] as const;
 function disableOptInAgentFixturePlugins(): void {
   for (const id of OPT_IN_AGENT_FIXTURE_PLUGIN_IDS) {
     pluginEnableState.setPluginEnabled(id, false);
@@ -581,6 +587,13 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // memory and leak into a later spec (NFR-018).
     sourcesState.__test.reset();
     marketplace.__test.resetSourceClients();
+    // #1306 (APCC-TC-022): drop every cached probe result and choice-probe
+    // outcome. A resolved choice list is kept for a minute, so without this a
+    // spec that asks the probe stub for a different state (loading, failed)
+    // would be served the previous spec's list instead. The version probe's
+    // last reported detection is kept, so a card that read a version before the
+    // reset still reads it until the next warm replaces it.
+    resetProbeRunnerCache();
     // Reload project-registry before re-initializing plugin-manager so
     // discovery sees the right project set.
     projectRegistry.__test.reset();
