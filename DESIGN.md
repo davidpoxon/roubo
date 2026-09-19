@@ -57,7 +57,7 @@ The block records **roles, not shades**. There are no scale keys such as `stone-
 **Categorical hues appear only where the hue identifies something**, and are tuned per ground: the 600 step on light, the 400 step on dark, so a dot holds 3:1 against its surface in both themes.
 
 - **Issue chip tones**, a 15% tint (20% in dark) with a text pair: `issue-open` (emerald), `issue-milestone` (indigo), `issue-type` (violet), and the outlined `issue-label` (cyan). The lowest pair is `issue-label-text` at 4.91:1 on the light hover ground.
-- **Plugin kind pills**, one hue per kind, each a `-surface`, `-border`, `-text` set: `kind-agent` (sky), `kind-component` (violet), `kind-integration` (teal). The lowest pair is `kind-integration-text` at 7.27:1 on its light surface.
+- **Plugin kind pills**, one hue per kind, each a `-surface`, `-border`, `-text` set: `kind-agent` (sky), `kind-component` (violet), `kind-integration` (teal). The lowest pair is `kind-agent-text` at 7.09:1 on its light surface.
 - **Agent swatches** `agent-swatch-1` to `-6`: violet, cyan, emerald, lime, rose, sky. Dots and glyphs only, never text.
 - **Project status** `project-status-in-progress`, `-ready`, `-todo`: blue, fuchsia, cyan. Dots only.
 

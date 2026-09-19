@@ -179,8 +179,8 @@ describe("Marketplace catalog", () => {
     expect(kinds).toContain("integration");
   });
 
-  // Issue roubo-development#892: each kind pill takes its own DESIGN.md kind
-  // role, so no two kinds share a colour and none falls back to the neutral chip.
+  // Each kind pill takes its own DESIGN.md kind role, so no two kinds share a
+  // colour and none falls back to the neutral chip.
   it("paints each kind pill with its own kind role", () => {
     setCatalog([
       listing({ id: "redis", kind: "component" }),
