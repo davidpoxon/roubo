@@ -62,8 +62,8 @@ function RoleBadge({ role }: { role: ComponentType | undefined }) {
   return (
     <span
       className={
-        // One neutral chip for every kind until DESIGN.md records kind roles for
-        // components; the label carries the distinction.
+        // One neutral chip for every role. Every row here is a component, so the
+        // kind-component hue would tell no two rows apart; the label names the role.
         "shrink-0 rounded-full px-2 py-0.5 text-11 font-medium tracking-wide border bg-bg-hover text-text-secondary border-border-strong"
       }
     >

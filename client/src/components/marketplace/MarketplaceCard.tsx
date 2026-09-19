@@ -99,15 +99,18 @@ function IncompatiblePill({
   );
 }
 
+// Each kind takes its own DESIGN.md plugin kind pill role, so the three kinds
+// are identifiable at a glance (AP-TC-125). The Record makes a new kind a type
+// error here rather than a silent fallback to some other kind's colour.
+const KIND_PILL_CLASSES: Record<MarketplaceListing["kind"], string> = {
+  agent: "border-kind-agent-border bg-kind-agent-surface text-kind-agent-text",
+  component: "border-kind-component-border bg-kind-component-surface text-kind-component-text",
+  integration:
+    "border-kind-integration-border bg-kind-integration-surface text-kind-integration-text",
+};
+
 function KindPill({ kind }: { kind: MarketplaceListing["kind"] }) {
-  // An agent listing takes the DESIGN.md agent kind pill, so it is identifiable
-  // at a glance (AP-TC-125). DESIGN.md defines no kind role for component or
-  // integration, and amber is reserved for the accent and work in progress, so
-  // both take the neutral chip and the uppercase label tells them apart.
-  const cls =
-    kind === "agent"
-      ? "border-kind-agent-border bg-kind-agent-surface text-kind-agent-text"
-      : "border-border-strong bg-bg-hover text-text-secondary";
+  const cls = KIND_PILL_CLASSES[kind];
   return (
     <span
       data-testid="marketplace-card-kind"

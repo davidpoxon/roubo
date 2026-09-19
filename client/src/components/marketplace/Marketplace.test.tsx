@@ -179,6 +179,31 @@ describe("Marketplace catalog", () => {
     expect(kinds).toContain("integration");
   });
 
+  // Each kind pill takes its own DESIGN.md kind role, so no two kinds share a
+  // colour and none falls back to the neutral chip.
+  it("paints each kind pill with its own kind role", () => {
+    setCatalog([
+      listing({ id: "redis", kind: "component" }),
+      listing({ id: "github", name: "GitHub", kind: "integration" }),
+      listing({ id: "codex-cli", name: "Codex CLI", kind: "agent" }),
+    ]);
+    render(<Marketplace />);
+    const pills = screen.getAllByTestId("marketplace-card-kind");
+    expect(pills).toHaveLength(3);
+    for (const pill of pills) {
+      const kind = pill.getAttribute("data-kind");
+      expect(pill).toHaveClass(
+        `bg-kind-${kind}-surface`,
+        `border-kind-${kind}-border`,
+        `text-kind-${kind}-text`,
+      );
+      expect(pill).not.toHaveClass("bg-bg-hover");
+    }
+    expect(new Set(pills.map((p) => p.getAttribute("data-kind")))).toEqual(
+      new Set(["component", "integration", "agent"]),
+    );
+  });
+
   it("shows the first-party curated header badge", () => {
     render(<Marketplace />);
     expect(screen.getByTestId("marketplace-curated-badge")).toHaveTextContent(
