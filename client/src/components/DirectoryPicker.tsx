@@ -209,7 +209,7 @@ export default function DirectoryPicker({ value, onChange, onSubmit }: Directory
             </Button>
             <Button
               onPress={handleSelect}
-              className="text-11 font-medium text-on-accent bg-accent hover:bg-accent-hover active:bg-accent-active px-3 py-1.5 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="text-11 font-medium text-text-secondary border border-border-strong bg-bg-surface hover:bg-bg-hover hover:text-text-primary active:bg-bg-pressed px-3 py-1.5 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Select
             </Button>
