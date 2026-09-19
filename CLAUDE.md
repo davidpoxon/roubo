@@ -60,6 +60,6 @@ Never reintroduce the legacy terms. Slot is a **bench**, application is a **proj
 - When a fix applies at one site, search for sibling sites and callers with the same defect and fix them in the same change.
 - Before committing, grep for prose that describes what you changed (comments, docstrings, docs, specs) and correct what is now false. Claim no more than the evidence shows.
 - Stage by explicit path, never `git add -A` or `git add .`. Commit with `-s` for the DCO sign-off.
-- Review before pushing with `/review-gate:change-review`. A push hook blocks `git push` and `gh pr create` until it has run on the branch's diff. Never write its marker by hand.
+- Review before pushing: run the pre-push checklist first, then `/review-gate:change-review`. With the `review-gate` plugin enabled, its hook (not `.claude/hooks/pre-push-checks.sh`, which only advises) blocks `git push` and `gh pr create` until the review has run on the branch's diff, and any new commit invalidates it. Never write its marker by hand.
 - Never merge. Merging is the user's action.
 - Size written deliverables to their content, not to a default. Match the length and section depth of the nearest existing example of the same artifact in this repo.
