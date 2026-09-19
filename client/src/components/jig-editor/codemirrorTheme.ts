@@ -13,6 +13,14 @@ import { RangeSetBuilder } from "@codemirror/state";
 const FONT_FAMILY =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace';
 
+// Every colour is a DESIGN.md semantic role read through its CSS variable.
+// design-tokens/semantic-dark.css switches each variable under `.dark`, so the
+// editor follows the theme without a per-theme colour branch. The `dark` flag
+// only tells CodeMirror which of its own base styles to apply. The ground is
+// left transparent so the host element paints it by role: `bg-bg-field` for the
+// editor (an input) and `bg-bg-surface` for the read-only preview.
+const color = (role: string) => `var(--color-${role})`;
+
 function buildBaseTheme(dark: boolean): Extension {
   return EditorView.theme(
     {
@@ -20,20 +28,20 @@ function buildBaseTheme(dark: boolean): Extension {
         fontFamily: FONT_FAMILY,
         fontSize: "13px",
         lineHeight: "1.7",
-        backgroundColor: dark ? "rgb(28 25 23)" : "rgb(250 250 249)",
-        color: dark ? "rgb(231 229 228)" : "rgb(28 25 23)",
+        backgroundColor: "transparent",
+        color: color("text-primary"),
       },
       ".cm-content": {
         fontFamily: FONT_FAMILY,
         padding: "12px 0",
-        caretColor: "rgb(245 158 11)",
+        caretColor: color("accent"),
       },
       ".cm-cursor, .cm-dropCursor": {
-        borderLeftColor: "rgb(245 158 11)",
+        borderLeftColor: color("accent"),
         borderLeftWidth: "2px",
       },
       "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-        backgroundColor: "rgba(245,158,11,0.18)",
+        backgroundColor: color("accent-muted"),
       },
       "&.cm-focused": {
         outline: "none",
@@ -47,9 +55,11 @@ function buildBaseTheme(dark: boolean): Extension {
       ".cm-scroller": {
         fontFamily: FONT_FAMILY,
       },
+      // A template variable is the one token the editor calls out: accent text
+      // on its own muted ground, the pairing DESIGN.md gives accent text.
       ".cm-roubo-var": {
-        color: dark ? "rgb(103 232 249)" : "rgb(8 145 178)",
-        backgroundColor: dark ? "rgba(6,182,212,0.08)" : "rgba(8,145,178,0.08)",
+        color: color("accent-text"),
+        backgroundColor: color("accent-muted"),
         borderRadius: "3px",
       },
     },
@@ -57,64 +67,36 @@ function buildBaseTheme(dark: boolean): Extension {
   );
 }
 
-const lightHighlight = syntaxHighlighting(
+const markdownHighlight = syntaxHighlighting(
   HighlightStyle.define([
     {
       tag: [tags.heading1, tags.heading2, tags.heading3],
       fontWeight: "600",
-      color: "rgb(28 25 23)",
+      color: color("text-primary"),
     },
     {
       tag: [tags.heading4, tags.heading5, tags.heading6],
       fontWeight: "600",
-      color: "rgb(87 83 78)",
+      color: color("text-secondary"),
     },
     { tag: tags.strong, fontWeight: "600" },
     { tag: tags.emphasis, fontStyle: "italic" },
     { tag: tags.strikethrough, textDecoration: "line-through" },
-    { tag: [tags.link, tags.url], color: "rgb(180 83 9)", textDecoration: "underline" },
+    { tag: [tags.link, tags.url], color: color("accent-text"), textDecoration: "underline" },
     {
       tag: tags.monospace,
-      color: "rgb(8 145 178)",
-      backgroundColor: "rgba(8,145,178,0.08)",
+      color: color("text-body"),
+      backgroundColor: color("bg-hover"),
       borderRadius: "3px",
     },
-    { tag: tags.quote, color: "rgb(120 113 108)" },
-    { tag: tags.meta, color: "rgb(120 113 108)" },
-    { tag: tags.comment, color: "rgb(168 162 158)", fontStyle: "italic" },
+    { tag: tags.quote, color: color("text-secondary") },
+    { tag: tags.meta, color: color("text-secondary") },
+    { tag: tags.comment, color: color("text-secondary"), fontStyle: "italic" },
   ]),
 );
 
-const darkHighlight = syntaxHighlighting(
-  HighlightStyle.define([
-    {
-      tag: [tags.heading1, tags.heading2, tags.heading3],
-      fontWeight: "600",
-      color: "rgb(231 229 228)",
-    },
-    {
-      tag: [tags.heading4, tags.heading5, tags.heading6],
-      fontWeight: "600",
-      color: "rgb(168 162 158)",
-    },
-    { tag: tags.strong, fontWeight: "600" },
-    { tag: tags.emphasis, fontStyle: "italic" },
-    { tag: tags.strikethrough, textDecoration: "line-through" },
-    { tag: [tags.link, tags.url], color: "rgb(252 211 77)", textDecoration: "underline" },
-    {
-      tag: tags.monospace,
-      color: "rgb(103 232 249)",
-      backgroundColor: "rgba(6,182,212,0.08)",
-      borderRadius: "3px",
-    },
-    { tag: tags.quote, color: "rgb(120 113 108)" },
-    { tag: tags.meta, color: "rgb(120 113 108)" },
-    { tag: tags.comment, color: "rgb(87 83 78)", fontStyle: "italic" },
-  ]),
-);
-
-export const lightTheme: Extension[] = [buildBaseTheme(false), lightHighlight];
-export const darkTheme: Extension[] = [buildBaseTheme(true), darkHighlight];
+export const lightTheme: Extension[] = [buildBaseTheme(false), markdownHighlight];
+export const darkTheme: Extension[] = [buildBaseTheme(true), markdownHighlight];
 
 const VAR_PATTERN = /\{\{[^}]+\}\}/g;
 const varMark = Decoration.mark({ class: "cm-roubo-var" });

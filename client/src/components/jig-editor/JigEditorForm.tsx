@@ -253,17 +253,17 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
     <>
       <div className="flex flex-col h-full">
         {/* Top action bar */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-stone-200 dark:border-stone-800/60 shrink-0">
-          <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
+          <div className="flex items-center gap-2 text-13 text-text-secondary">
             <Button
               onPress={handleCancel}
-              className="hover:text-stone-700 dark:hover:text-stone-200 transition-colors duration-150 outline-none focus-visible:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="hover:text-text-primary transition-colors duration-150 outline-none focus-visible:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {breadcrumbLabel}
             </Button>
             <span>/</span>
-            <span className="flex items-center gap-1.5 text-stone-700 dark:text-stone-300 font-medium">
-              <JigIcon name={icon} size={14} className="text-stone-500 dark:text-stone-400" />
+            <span className="flex items-center gap-1.5 text-text-primary font-medium">
+              <JigIcon name={icon} size={14} className="text-text-secondary" />
               {mode === "create" ? "New jig" : (initial?.name ?? "Edit jig")}
             </span>
           </div>
@@ -274,21 +274,21 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
                   setDeleteReferences(undefined);
                   setShowDelete(true);
                 }}
-                className="px-3 py-1.5 text-13 text-red-500 hover:text-red-400 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="px-3 py-1.5 text-13 text-danger-text hover:bg-danger-surface transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 Delete
               </Button>
             )}
             <Button
               onPress={handleCancel}
-              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Cancel
             </Button>
             <Button
               onPress={handleSave}
               isDisabled={saveDisabled}
-              className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+              className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
             >
               {isPending ? "Saving..." : "Save"}
             </Button>
@@ -298,7 +298,7 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
         {/* Body */}
         <div className="flex flex-1 min-h-0">
           {/* Left column: metadata */}
-          <div className="w-64 shrink-0 border-r border-stone-200 dark:border-stone-800/60 overflow-auto px-5 py-6 space-y-5">
+          <div className="w-64 shrink-0 border-r border-border overflow-auto px-5 py-6 space-y-5">
             {/* Icon + Name */}
             <div className="space-y-2">
               <Label className="text-11 font-semibold uppercase tracking-label text-text-secondary">
@@ -316,16 +316,14 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
                   <Input className={INPUT} placeholder="My jig" />
                 </TextField>
               </div>
-              {errors.name && <p className="text-12 text-red-500">{errors.name}</p>}
+              {errors.name && <p className="text-12 text-danger-text">{errors.name}</p>}
               {mode === "edit" && jigId && (
-                <p className="text-11 font-mono text-stone-500 dark:text-stone-400 leading-relaxed">
+                <p className="text-11 font-mono text-text-secondary leading-relaxed">
                   ID: {jigId} · stays the same even if the name changes
                 </p>
               )}
               {mode === "create" && jigId && (
-                <p className="text-11 font-mono text-stone-500 dark:text-stone-400">
-                  ID will be: {jigId}
-                </p>
+                <p className="text-11 font-mono text-text-secondary">ID will be: {jigId}</p>
               )}
             </div>
 
@@ -345,7 +343,9 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
                   placeholder="What this jig does"
                 />
               </TextField>
-              {errors.description && <p className="text-12 text-red-500">{errors.description}</p>}
+              {errors.description && (
+                <p className="text-12 text-danger-text">{errors.description}</p>
+              )}
             </div>
 
             {/* Size indicator */}
@@ -353,42 +353,42 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
               <p
                 className={`text-11 font-mono ${
                   sizeHardError
-                    ? "text-red-500"
+                    ? "text-danger-text"
                     : sizeSoftWarn
-                      ? "text-amber-500"
-                      : "text-stone-500 dark:text-stone-400"
+                      ? "text-accent-text"
+                      : "text-text-secondary"
                 }`}
               >
                 {formatBytes(contentBytes)} / 200 KB
               </p>
-              <p className="text-11 font-mono text-stone-500 dark:text-stone-400">
+              <p className="text-11 font-mono text-text-secondary">
                 ~{approxTokens.toLocaleString()} tokens · {tokenPercent}% of{" "}
                 {formatContextWindow(contextWindow)} context
               </p>
               {sizeHardError && (
-                <p className="text-11 text-red-500">
+                <p className="text-11 text-danger-text">
                   Content exceeds the 200 KB limit ({formatBytes(contentBytes)}
                   ).
                 </p>
               )}
               {sizeSoftWarn && !sizeHardError && (
-                <p className="text-11 text-amber-500">
+                <p className="text-11 text-accent-text">
                   Large jig: will consume ~{tokenPercent}% of the context window per run.
                 </p>
               )}
             </div>
 
             {errors.content && !sizeHardError && (
-              <p className="text-12 text-red-500">{errors.content}</p>
+              <p className="text-12 text-danger-text">{errors.content}</p>
             )}
 
-            {errors.root && <p className="text-12 text-red-500">{errors.root}</p>}
+            {errors.root && <p className="text-12 text-danger-text">{errors.root}</p>}
           </div>
 
           {/* Centre column: editor / preview */}
           <div className="flex-1 min-w-0 flex flex-col p-5">
             <Tabs className="flex flex-col flex-1 min-h-0">
-              <TabList className="flex gap-1 border-b border-stone-200 dark:border-stone-800/60 mb-3">
+              <TabList className="flex gap-1 border-b border-border mb-3">
                 <Tab id="edit" className={tabClassName}>
                   Edit
                 </Tab>
@@ -411,7 +411,7 @@ export default function JigEditorForm({ initial, scope, mode, projectId }: Props
           </div>
 
           {/* Right column: variable panel */}
-          <div className="w-52 shrink-0 border-l border-stone-200 dark:border-stone-800/60">
+          <div className="w-52 shrink-0 border-l border-border">
             <VariableInsertionPanel scope={scope} onInsert={handleInsert} />
           </div>
         </div>
