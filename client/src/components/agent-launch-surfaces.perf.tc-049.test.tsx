@@ -325,6 +325,7 @@ function report(step: string, label: string, samples: number[]): number {
         step,
         surface: label,
         iterations: samples.length,
+        warmupIterations: WARMUP_ITERATIONS,
         medianMs: sorted[Math.floor(sorted.length / 2)] ?? 0,
         worstMs: worst,
         budgetMs: OPEN_BUDGET_MS,

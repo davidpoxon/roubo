@@ -13,8 +13,8 @@
  *
  * Pattern mirrors IP-TC-151 (cut-list-filter-recompute.perf.ip-tc-151.test.tsx) and
  * IP-TC-098 (plugins/github-com/.../list-issues.perf.ip-tc-098.test.ts):
- * RUN_PERF_HARNESS=1 gates the latency assertion, an inline p95 helper, a warmup
- * mount plus measured iterations, a structured perf-evidence JSON log, and a
+ * RUN_PERF_HARNESS=1 gates the latency assertion, an inline p95 helper, warmup
+ * mounts plus measured iterations, a structured perf-evidence JSON log, and a
  * sentinel test so the file always contributes one passing assertion under the
  * default coverage run.
  *
