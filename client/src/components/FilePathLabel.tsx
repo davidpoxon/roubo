@@ -35,20 +35,18 @@ export default function FilePathLabel({ path, className }: { path: string; class
       {leading.length === 1 && (
         <span className="shrink min-w-0 truncate text-text-secondary">
           {leading[0]}
-          <span className="text-stone-600 dark:text-stone-300 mx-0.5">{"\u203A"}</span>
+          <span className="text-text-secondary mx-0.5">{"\u203A"}</span>
         </span>
       )}
       {leading.length > 1 && (
         <span className="shrink-0 text-text-secondary">
           <span className="truncate">{leading[0]}</span>
-          <span className="text-stone-600 dark:text-stone-300 mx-0.5">{"\u203A"}</span>
-          <span className="text-stone-600 dark:text-stone-300">{"\u2026"}</span>
-          <span className="text-stone-600 dark:text-stone-300 mx-0.5">{"\u203A"}</span>
+          <span className="text-text-secondary mx-0.5">{"\u203A"}</span>
+          <span className="text-text-secondary">{"\u2026"}</span>
+          <span className="text-text-secondary mx-0.5">{"\u203A"}</span>
         </span>
       )}
-      <span className="shrink-[0.01] min-w-0 truncate text-stone-800 dark:text-stone-200">
-        {last}
-      </span>
+      <span className="shrink-[0.01] min-w-0 truncate text-text-primary">{last}</span>
     </span>
   );
 }

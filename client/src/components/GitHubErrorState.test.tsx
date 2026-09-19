@@ -125,7 +125,7 @@ describe("GitHubErrorState", () => {
     expect(screen.getByText("Could not load from GitHub")).toBeTruthy();
   });
 
-  it("banner variant: renders with amber background class", () => {
+  it("banner variant: renders on the accent-muted callout ground", () => {
     const { container } = render(
       <GitHubErrorState
         error={makeApiError("NOT_CONNECTED")}
@@ -133,12 +133,12 @@ describe("GitHubErrorState", () => {
         variant="banner"
       />,
     );
-    expect(container.querySelector('.bg-amber-50, [class*="amber-50"]')).toBeTruthy();
+    expect(container.querySelector(".bg-accent-muted")).toBeTruthy();
   });
 
-  it("inline variant (default): does not use banner amber background", () => {
+  it("inline variant (default): does not use the banner callout ground", () => {
     const { container } = render(<GitHubErrorState error={makeApiError("OWNER_NOT_FOUND")} />);
-    expect(container.querySelector(".bg-amber-50")).toBeNull();
+    expect(container.querySelector(".bg-accent-muted")).toBeNull();
   });
 
   it("ORG_APPROVAL_REQUIRED without owner: renders title but no action link", () => {

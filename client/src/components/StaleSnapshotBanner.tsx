@@ -15,19 +15,15 @@ export default function StaleSnapshotBanner({ pluginName }: Props) {
     <div
       role="status"
       data-testid="stale-snapshot-banner"
-      className="mx-3 mt-2 flex items-start gap-2 rounded-md border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2"
+      className="mx-3 mt-2 flex items-start gap-2 rounded-md border border-accent-border bg-accent-muted px-3 py-2"
     >
-      <AlertCircle
-        size={14}
-        className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
-        aria-hidden
-      />
-      <div className="min-w-0 flex-1 text-12 leading-relaxed text-amber-800 dark:text-amber-300">
+      <AlertCircle size={14} className="mt-0.5 shrink-0 text-accent-text" aria-hidden />
+      <div className="min-w-0 flex-1 text-12 leading-relaxed text-accent-text">
         Showing the last successful issue snapshot from {pluginName}. The plugin is currently
         unavailable.{" "}
         <Link
           to="/settings#plugins"
-          className="font-medium underline decoration-amber-400 hover:decoration-amber-600 dark:hover:decoration-amber-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-sm"
+          className="font-medium underline decoration-accent-border hover:decoration-accent-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-sm"
         >
           Manage plugins
         </Link>

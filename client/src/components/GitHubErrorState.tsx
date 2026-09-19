@@ -181,7 +181,7 @@ export default function GitHubErrorState({
     onRetry && (copy.showSecondaryRetry || !primaryAction) ? (
       <Button
         onPress={onRetry}
-        className="text-12 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="text-12 text-text-secondary hover:text-text-primary outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         Retry
       </Button>
@@ -192,15 +192,13 @@ export default function GitHubErrorState({
       <div
         className={[
           "flex items-center justify-between gap-4 px-4 py-3 rounded-lg",
-          "bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50",
+          "bg-accent-muted border border-accent-border",
           className ?? "",
         ].join(" ")}
       >
         <div className="min-w-0">
-          <p className="text-12 font-medium text-amber-700 dark:text-amber-400">{copy.title}</p>
-          <p className="text-12 text-amber-700/80 dark:text-amber-400/70 mt-0.5 leading-relaxed">
-            {copy.description}
-          </p>
+          <p className="text-12 font-medium text-accent-text">{copy.title}</p>
+          <p className="text-12 text-accent-text mt-0.5 leading-relaxed">{copy.description}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {retryAction}
@@ -212,10 +210,8 @@ export default function GitHubErrorState({
 
   return (
     <div className={className}>
-      <p className="text-12 text-stone-500 dark:text-stone-500 mb-1">{copy.title}</p>
-      <p className="text-12 text-stone-500 dark:text-stone-400 mb-2 leading-relaxed">
-        {copy.description}
-      </p>
+      <p className="text-12 text-text-primary mb-1">{copy.title}</p>
+      <p className="text-12 text-text-secondary mb-2 leading-relaxed">{copy.description}</p>
       <div className="flex items-center gap-2">
         {retryAction}
         {primaryAction}
@@ -227,5 +223,5 @@ export default function GitHubErrorState({
 const primaryActionClass = [
   "flex items-center gap-1.5 px-3 py-1.5 rounded-control text-12 font-medium transition-colors outline-none no-underline shrink-0",
   "bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active text-on-accent",
-  "focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950",
+  "focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
 ].join(" ");
