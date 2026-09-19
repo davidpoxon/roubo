@@ -850,7 +850,15 @@ describe("PluginManifestSchema: every shipped manifest validates unchanged (issu
     );
   });
 
-  for (const file of manifests) {
+  // Overlays that exist to exercise `choiceProbes` and so declare it on
+  // purpose. `agent-choice-probe` (#1306) backs the APCC-TC-022 axe audit of
+  // the AI Agents screen. Each one must still validate, and must declare the
+  // key, so an entry here cannot silently go stale.
+  const CHOICE_PROBE_FIXTURES = new Set([
+    "e2e/fixtures/bundled-overlays/agent-choice-probe/roubo-plugin.yaml",
+  ]);
+
+  for (const file of manifests.filter((f) => !CHOICE_PROBE_FIXTURES.has(f))) {
     it(`${file} validates unchanged and declares none of the new fields`, async () => {
       const { parseManifest } = await import("./plugin-manifest.js");
       const path = resolve(repoRoot, file);
@@ -858,6 +866,16 @@ describe("PluginManifestSchema: every shipped manifest validates unchanged (issu
       if (!result.ok) throw new Error(`${file} no longer validates: ${result.error.message}`);
       // Parsed as written, with no new key added, so no manifest needs a new field.
       expect(result.manifest.choiceProbes).toBeUndefined();
+    });
+  }
+
+  for (const file of CHOICE_PROBE_FIXTURES) {
+    it(`${file} validates and declares choiceProbes on purpose`, async () => {
+      const { parseManifest } = await import("./plugin-manifest.js");
+      const path = resolve(repoRoot, file);
+      const result = parseManifest(readFileSync(path, "utf-8"), path);
+      if (!result.ok) throw new Error(`${file} no longer validates: ${result.error.message}`);
+      expect(result.manifest.choiceProbes).toBeDefined();
     });
   }
 });
