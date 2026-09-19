@@ -26,7 +26,7 @@ function IconOption({
         "focus-visible:ring-2 focus-visible:ring-focus-ring",
         isSelected
           ? "bg-accent text-on-accent not-disabled:active:bg-accent-active"
-          : "text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700/50",
+          : "text-text-secondary hover:bg-bg-hover",
       ].join(" ")}
     >
       <JigIcon name={name} size={14} />
@@ -39,7 +39,7 @@ export default function JigIconPicker({ value, onChange }: Props) {
     <DialogTrigger>
       <Button
         aria-label="Pick icon"
-        className="flex items-center justify-center w-9 h-9 rounded-control border border-stone-300 dark:border-stone-700/50 bg-stone-100 dark:bg-stone-800/60 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/60 transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="flex items-center justify-center w-9 h-9 rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <JigIcon name={value} size={16} />
       </Button>

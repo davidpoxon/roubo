@@ -24,7 +24,7 @@ export default function JigEditor({ mode, scope }: Props) {
   if (mode === "edit" && jigId === GLOBAL_DEFAULT_JIG_ID) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
-        <p className="text-13 text-stone-600 dark:text-stone-400 max-w-sm">
+        <p className="text-13 text-text-secondary max-w-sm">
           The built-in default jig cannot be edited. Create a custom jig to override it.
         </p>
         <Button
@@ -77,7 +77,7 @@ function EditLoader({ jigId, scope, projectId, backHref, backLabel }: EditLoader
   if (isPending) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-13 text-stone-500 dark:text-stone-400">Loading jig…</p>
+        <p className="text-13 text-text-secondary">Loading jig…</p>
       </div>
     );
   }
@@ -85,7 +85,7 @@ function EditLoader({ jigId, scope, projectId, backHref, backLabel }: EditLoader
   if (error || !data) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
-        <p className="text-13 text-stone-600 dark:text-stone-400">Jig not found.</p>
+        <p className="text-13 text-text-secondary">Jig not found.</p>
         <Button
           onPress={() => navigate(backHref)}
           className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none not-disabled:active:bg-accent-active focus-visible:ring-2 focus-visible:ring-focus-ring"

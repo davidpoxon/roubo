@@ -25,28 +25,25 @@ export default function UnsavedChangesDialog({ isOpen, onConfirm, onCancel }: Pr
         >
           {({ close }) => (
             <>
-              <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                <Heading
-                  slot="title"
-                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-                >
+              <div className="px-5 py-4 border-b border-border">
+                <Heading slot="title" className="text-16 font-semibold text-text-primary">
                   Discard changes?
                 </Heading>
               </div>
 
               <div className="px-5 py-4">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-13 text-stone-700 dark:text-stone-300">
+                  <AlertTriangle size={16} className="text-accent-text shrink-0 mt-0.5" />
+                  <p className="text-13 text-text-body">
                     You have unsaved changes. Leaving now will discard them.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
                 <Button
                   onPress={close}
-                  className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Keep editing
                 </Button>

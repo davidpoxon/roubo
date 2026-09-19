@@ -95,7 +95,7 @@ function ReadonlyMarkdownViewer({ value }: { value: string }) {
   return (
     <div
       ref={hostRef}
-      className="h-full w-full overflow-auto rounded-lg border border-stone-200 dark:border-stone-800/60"
+      className="h-full w-full overflow-auto rounded-lg border border-border bg-bg-surface"
       data-testid="jig-readonly-viewer"
     />
   );
@@ -158,13 +158,13 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
       <div aria-live="polite">
         {showUnresolved && (
           <div
-            className="shrink-0 flex items-start gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 px-3 py-2"
+            className="shrink-0 flex items-start gap-2 rounded-md bg-accent-muted border border-accent-border px-3 py-2"
             data-testid="unresolved-variables-banner"
           >
-            <span className="text-11 font-semibold uppercase tracking-label text-amber-600 dark:text-amber-400 shrink-0 mt-px">
+            <span className="text-11 font-semibold uppercase tracking-label text-accent-text shrink-0 mt-px">
               Unresolved
             </span>
-            <span className="text-11 font-mono text-amber-700 dark:text-amber-300 leading-relaxed">
+            <span className="text-11 font-mono text-accent-text leading-relaxed">
               {unresolvedVars.slice(0, 3).join(", ")}
               {unresolvedVars.length > 3 && ` +${unresolvedVars.length - 3} more`}
             </span>
@@ -175,23 +175,19 @@ export default function JigPreviewPanel({ content, scope, projectId }: Props) {
       {/* Preview surface */}
       <div className="flex-1 min-h-0">
         {isPending && content.trim().length > 0 && (
-          <div className="h-full rounded-lg border border-stone-200 dark:border-stone-800/60 flex items-center justify-center">
-            <span className="text-12 text-stone-500 dark:text-stone-400">Generating preview…</span>
+          <div className="h-full rounded-lg border border-border flex items-center justify-center">
+            <span className="text-12 text-text-secondary">Generating preview…</span>
           </div>
         )}
         {isError && (
-          <div className="h-full rounded-lg border border-stone-200 dark:border-stone-800/60 flex items-center justify-center">
-            <span className="text-12 text-stone-500 dark:text-stone-400">
-              Failed to generate preview.
-            </span>
+          <div className="h-full rounded-lg border border-border flex items-center justify-center">
+            <span className="text-12 text-text-secondary">Failed to generate preview.</span>
           </div>
         )}
         {!isPending && !isError && data && <ReadonlyMarkdownViewer value={data.resolved} />}
         {!isPending && !isError && !data && (
-          <div className="h-full rounded-lg border border-stone-200 dark:border-stone-800/60 flex items-center justify-center">
-            <span className="text-12 text-stone-500 dark:text-stone-400">
-              Start typing to see a preview.
-            </span>
+          <div className="h-full rounded-lg border border-border flex items-center justify-center">
+            <span className="text-12 text-text-secondary">Start typing to see a preview.</span>
           </div>
         )}
       </div>

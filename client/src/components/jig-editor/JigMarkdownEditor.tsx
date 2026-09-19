@@ -115,7 +115,7 @@ const JigMarkdownEditor = forwardRef<JigMarkdownEditorRef, Props>(function JigMa
   return (
     <div
       ref={hostRef}
-      className="h-full w-full overflow-auto rounded-control border border-stone-200 dark:border-stone-800/60 focus-within:ring-2 focus-within:ring-focus-ring"
+      className="h-full w-full overflow-auto rounded-control border border-border-control bg-bg-field focus-within:ring-2 focus-within:ring-focus-ring"
       data-testid="jig-markdown-editor"
     />
   );
