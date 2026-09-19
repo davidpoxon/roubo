@@ -6,6 +6,8 @@ import {
   ALLOWLIST_PATH,
   applyAllowlist,
   colourTokenNames,
+  EXTRA_FILES,
+  listFiles,
   scanSource,
   scanTree,
 } from "./design-token-guard.mjs";
@@ -165,6 +167,20 @@ describe("applyAllowlist (DesignTokenGuard)", () => {
       expect.stringMatching(/more than once/),
       expect.stringMatching(/already covered/),
       expect.stringMatching(/outside client\/src/),
+    ]);
+  });
+});
+
+describe("listFiles (DesignTokenGuard)", () => {
+  it("covers client/index.html, whose body classes paint before React mounts", () => {
+    expect(EXTRA_FILES).toEqual(["client/index.html"]);
+    expect(listFiles()).toContain("client/index.html");
+  });
+
+  it("flags raw shades in an HTML class attribute", () => {
+    expect(utilities('<body class="bg-white text-stone-900 dark:bg-stone-950">')).toEqual([
+      "raw-palette:text-stone-900",
+      "dark-variant:dark:bg-stone-950",
     ]);
   });
 });
