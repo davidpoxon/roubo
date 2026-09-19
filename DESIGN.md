@@ -90,7 +90,7 @@ Fourteen components. Each spec is the contract; none is anchored to a source lin
 - **Danger button.** Red ground, white label, darkening on hover and press (4.83, 6.47, 8.31:1). Only inside a confirming dialog.
 - **Input field.** `bg-field` with the `border-control` boundary. Focus takes the focus hue on the border plus a tight ring. It carries a fifth state, `invalid`. Paths and commands typed into it are mono.
 - **Tabs.** The selected tab is primary text over a 2px accent indicator; the rest are secondary text. Entering tab content uses `motion.rise-in`.
-- **Nav item.** The selected destination sits on `accent-muted` in `accent-text`.
+- **Nav item.** The selected destination sits on `accent-muted` in `accent-text`, at medium weight.
 - **Bench card.** The border is the bench status, as `docs/brand.md` defines it. The card rests on `bg-surface` and its hover changes the ground only, so nothing shifts.
 - **Status indicator.** Dot plus label, never the dot alone. Pulses with `motion.status-pulse` while preparing or clearing.
 - **Issue chip.** Tinted with its own tone; the spec shows the `issue-type` tone and the other three swap the two colour bindings.
@@ -410,7 +410,7 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
           "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.accent-muted"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}, "disabled": {"opacity": "opacity.disabled"}},
           "children": [
             {"name": "icon", "archetype": "icon", "bindings": {"color": "color.text-secondary", "size": "space.6"}},
-            {"name": "label", "archetype": "text", "sample": "roubo-plugins", "bindings": {"color": "color.text-body", "font_size": "type.scale.2"}},
+            {"name": "label", "archetype": "text", "sample": "roubo-plugins", "bindings": {"color": "color.text-body", "font_size": "type.scale.2"}, "state_deltas": {"active": {"color": "color.accent-text", "font_weight": "type.weights.1"}}},
             {"name": "count", "archetype": "text", "sample": "3", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1"}}
           ]
         }
