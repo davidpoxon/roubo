@@ -322,7 +322,7 @@ export default function SectionComponents({
               <Tab key={type} id={type} className={TAB_CLASS}>
                 {COMPONENT_TYPE_LABELS[type] ?? type}
                 {count > 0 && (
-                  <span className="ml-1.5 text-11 bg-stone-200 dark:bg-stone-800 text-text-muted px-1.5 py-0.5 rounded-full tabular-nums">
+                  <span className="ml-1.5 text-11 bg-stone-200 dark:bg-stone-800 text-text-secondary px-1.5 py-0.5 rounded-full tabular-nums">
                     {count}
                   </span>
                 )}
@@ -337,7 +337,7 @@ export default function SectionComponents({
               {type !== "other" && (renderItemsForType[type] ?? []).length === 0 ? (
                 <Button
                   onPress={() => addComponent(type as ComponentType)}
-                  className="w-full flex items-center justify-center gap-2 py-6 rounded-control border border-dashed border-stone-300 dark:border-stone-700 hover:border-stone-500 text-13 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="w-full flex items-center justify-center gap-2 py-6 rounded-control border border-dashed border-stone-300 dark:border-stone-700 hover:border-stone-500 text-13 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <Plus size={16} />
                   Add {COMPONENT_TYPE_LABELS[type] ?? type}
@@ -365,7 +365,7 @@ export default function SectionComponents({
                     className="border-l-2 border-stone-300 dark:border-stone-700 rounded-lg bg-stone-100/50 dark:bg-stone-900/30 p-3 space-y-2"
                   >
                     <div>
-                      <label className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-muted mb-3">
+                      <label className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-secondary mb-3">
                         <span className="size-1.5 rounded-full bg-stone-400/70" />
                         Docker Compose
                       </label>

@@ -181,7 +181,7 @@ export default function GitHubErrorState({
     onRetry && (copy.showSecondaryRetry || !primaryAction) ? (
       <Button
         onPress={onRetry}
-        className="text-12 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="text-12 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         Retry
       </Button>

@@ -26,7 +26,7 @@ export default function SubmodulesEditor({ value, onChange, errorText }: Props) 
 
   return (
     <div>
-      <Label className="block text-12 text-text-muted mb-1.5">Submodules</Label>
+      <Label className="block text-12 text-text-secondary mb-1.5">Submodules</Label>
       {entries.length > 0 && (
         <div className="flex items-center gap-2 mb-1">
           <span className="flex-1 flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400">
@@ -75,7 +75,7 @@ export default function SubmodulesEditor({ value, onChange, errorText }: Props) 
       </div>
       <Button
         onPress={add}
-        className="flex items-center gap-1 mt-2 text-11 text-text-muted hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
+        className="flex items-center gap-1 mt-2 text-11 text-text-secondary hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
       >
         <Plus size={12} />
         Add submodule

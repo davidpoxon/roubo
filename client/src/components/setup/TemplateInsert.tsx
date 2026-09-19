@@ -34,7 +34,7 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
             {groups.map((group, gi) => (
               <div key={group.category} className={gi > 0 ? "mt-2" : ""}>
                 <div className="px-3 pt-1.5 pb-1">
-                  <span className="text-11 font-semibold uppercase tracking-label text-text-muted">
+                  <span className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                     {group.label}
                   </span>
                 </div>

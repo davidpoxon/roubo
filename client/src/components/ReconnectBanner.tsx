@@ -35,7 +35,7 @@ export default function ReconnectBanner({
       ) : (
         <>
           <span className="size-1.5 rounded-full bg-stone-300 dark:bg-stone-600 shrink-0" />
-          <span className="text-12 font-mono text-text-muted">Process ended</span>
+          <span className="text-12 font-mono text-text-secondary">Process ended</span>
         </>
       )}
     </div>

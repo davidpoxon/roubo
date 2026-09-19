@@ -235,7 +235,7 @@ export default function ConfigSchemaForm({
                           <>
                             <span className="truncate">{choice.label}</span>
                             {isSelected && (
-                              <Check size={14} className="shrink-0 ml-2 text-text-muted" />
+                              <Check size={14} className="shrink-0 ml-2 text-text-secondary" />
                             )}
                           </>
                         )}

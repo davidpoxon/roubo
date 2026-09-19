@@ -94,7 +94,7 @@ function AgentToolRow({
         <div className="flex items-center gap-2">
           <span className="text-13 text-stone-900 dark:text-stone-200 truncate">{preset.name}</span>
           {builtin && (
-            <span className="px-1.5 py-0.5 rounded text-11 font-medium bg-stone-100 dark:bg-stone-800 text-text-muted">
+            <span className="px-1.5 py-0.5 rounded text-11 font-medium bg-stone-100 dark:bg-stone-800 text-text-secondary">
               built-in
             </span>
           )}
@@ -200,7 +200,7 @@ export default function AgentToolsSection({ agents, defaultAgent, jigs }: Props)
   return (
     <section>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-11 font-semibold uppercase tracking-label text-text-muted">
+        <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
           Agent tools
         </h3>
         <Button

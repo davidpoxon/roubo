@@ -77,7 +77,7 @@ export default function WizardSidebar({
                     ? "text-amber-600 dark:text-amber-400 bg-amber-500/8"
                     : active && currentSubStep
                       ? "text-amber-600/70 dark:text-amber-400/70"
-                      : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300"
+                      : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300"
                 }`}
               >
                 <Icon

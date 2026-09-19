@@ -24,7 +24,9 @@ export default function SectionBenches({ benches, ports, dispatch }: Props) {
           })
         }
       >
-        <Label className="block text-12 text-text-muted mb-1.5">Maximum concurrent benches</Label>
+        <Label className="block text-12 text-text-secondary mb-1.5">
+          Maximum concurrent benches
+        </Label>
         <Input
           type="number"
           min={1}
@@ -50,12 +52,12 @@ export default function SectionBenches({ benches, ports, dispatch }: Props) {
           })
         }
       >
-        <Label className="block text-12 text-text-muted mb-1.5">Setup command</Label>
+        <Label className="block text-12 text-text-secondary mb-1.5">Setup command</Label>
         <Input
           placeholder="e.g. cd app && npm ci"
           className="w-full rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
         />
-        <p className="text-11 text-text-muted mt-1">
+        <p className="text-11 text-text-secondary mt-1">
           Runs once at workspace root before components start, through your login shell, so shell
           syntax works (e.g. <span className="font-mono">cd app &amp;&amp; npm ci</span>)
         </p>
@@ -63,7 +65,7 @@ export default function SectionBenches({ benches, ports, dispatch }: Props) {
 
       {max > 0 && portEntries.length > 0 && (
         <div>
-          <label className="block text-12 text-text-muted mb-2">Port ranges</label>
+          <label className="block text-12 text-text-secondary mb-2">Port ranges</label>
           <div className="space-y-1">
             {portEntries.map(([name, port]) => (
               <div key={name} className="flex items-center gap-3 text-12 font-mono">

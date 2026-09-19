@@ -5,7 +5,7 @@
  * and holds one flat @theme block, where every semantic colour has a separate
  * `-dark` sibling. Tailwind v4 utilities read `var(--color-*)` at runtime, so
  * this hand-written layer points each base semantic variable at its `-dark`
- * sibling under `.dark`. One utility, for example `text-text-muted`, then
+ * sibling under `.dark`. One utility, for example `text-text-secondary`, then
  * covers both themes without a paired `dark:` variant.
  *
  * Keep this list in step with the `-dark` keys in tokens.tailwind.css when

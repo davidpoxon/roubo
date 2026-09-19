@@ -119,7 +119,7 @@ export default function AgentToolEditorModal({
             <div>
               <label
                 htmlFor="agent-tool-name"
-                className="block text-11 font-medium text-text-muted mb-1.5"
+                className="block text-11 font-medium text-text-secondary mb-1.5"
               >
                 Name
               </label>
@@ -144,7 +144,7 @@ export default function AgentToolEditorModal({
             <div>
               <label
                 htmlFor="agent-tool-agent"
-                className="block text-11 font-medium text-text-muted mb-1.5"
+                className="block text-11 font-medium text-text-secondary mb-1.5"
               >
                 Agent
               </label>
@@ -172,7 +172,7 @@ export default function AgentToolEditorModal({
                   <div key={field.key}>
                     <label
                       htmlFor={id}
-                      className="block text-11 font-medium text-text-muted mb-1.5"
+                      className="block text-11 font-medium text-text-secondary mb-1.5"
                     >
                       {field.label}
                     </label>
@@ -211,7 +211,7 @@ export default function AgentToolEditorModal({
             <div>
               <label
                 htmlFor="agent-tool-jig"
-                className="block text-11 font-medium text-text-muted mb-1.5"
+                className="block text-11 font-medium text-text-secondary mb-1.5"
               >
                 Jig
               </label>
@@ -239,8 +239,8 @@ export default function AgentToolEditorModal({
 
             <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
               Saved to app settings. Add to{" "}
-              <span className="font-mono text-text-muted">roubo.yaml tools:</span> to share it with
-              the project.
+              <span className="font-mono text-text-secondary">roubo.yaml tools:</span> to share it
+              with the project.
             </p>
           </div>
 

@@ -22,7 +22,7 @@ export default function PendingBenchCard({
           </div>
 
           {/* Issue */}
-          <div className="flex items-center gap-1.5 text-12 text-text-muted mt-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 text-12 text-text-secondary mt-2.5 shrink-0">
             <span className="font-mono text-accent-text shrink-0">
               #{shortIdFromExternalId(externalId)}
             </span>

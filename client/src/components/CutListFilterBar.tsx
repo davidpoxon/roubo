@@ -228,7 +228,7 @@ function FacetSection({
       </div>
 
       {asyncQuery.isLoading && (
-        <div className="px-3 py-3 flex items-center gap-2 text-11 text-text-muted">
+        <div className="px-3 py-3 flex items-center gap-2 text-11 text-text-secondary">
           <Spinner />
           <span>Loading…</span>
         </div>

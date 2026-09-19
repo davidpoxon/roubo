@@ -181,7 +181,9 @@ export default function ReconcileDialog({
 
                     <Section
                       testId="reconcile-section-orphan"
-                      icon={<Archive size={14} className="text-text-muted shrink-0" aria-hidden />}
+                      icon={
+                        <Archive size={14} className="text-text-secondary shrink-0" aria-hidden />
+                      }
                       heading={STRINGS.orphanHeading}
                       help={STRINGS.orphanHelp}
                       count={orphanCount}

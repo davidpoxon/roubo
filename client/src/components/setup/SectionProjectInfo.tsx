@@ -68,7 +68,7 @@ export default function SectionProjectInfo({
           update(displayNameTouched.current ? { name: v } : { name: v, displayName: v });
         }}
       >
-        <Label className="block text-12 text-text-muted mb-1.5">Name</Label>
+        <Label className="block text-12 text-text-secondary mb-1.5">Name</Label>
         <Input placeholder="my-project" className={INPUT} />
         {nameError && <p className="mt-1 text-11 text-red-400">{nameError}</p>}
       </TextField>
@@ -80,13 +80,13 @@ export default function SectionProjectInfo({
           update({ displayName: v });
         }}
       >
-        <Label className="block text-12 text-text-muted mb-1.5">Display name</Label>
+        <Label className="block text-12 text-text-secondary mb-1.5">Display name</Label>
         <Input placeholder="My Project" className={INPUT} />
         {displayNameError && <p className="mt-1 text-11 text-red-400">{displayNameError}</p>}
       </TextField>
 
       <div>
-        <Label className="block text-12 text-text-muted mb-1.5">Repository structure</Label>
+        <Label className="block text-12 text-text-secondary mb-1.5">Repository structure</Label>
         <div role="group" aria-label="Repository structure" className="flex gap-1">
           {STRUCTURE_TYPES.map((t) => (
             <Button
@@ -95,7 +95,7 @@ export default function SectionProjectInfo({
               className={`px-3 py-1.5 text-12 rounded-control transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                 layout?.type === t
                   ? "bg-stone-700 text-stone-100"
-                  : "text-text-muted hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
+                  : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
               }`}
             >
               {t}
@@ -125,7 +125,7 @@ function DefaultBranchField({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <Label className="text-12 text-text-muted mb-1.5 flex items-center gap-1.5">
+      <Label className="text-12 text-text-secondary mb-1.5 flex items-center gap-1.5">
         <GitBranch size={12} className="text-stone-500 dark:text-stone-400" />
         Default branch
       </Label>

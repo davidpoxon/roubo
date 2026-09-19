@@ -47,7 +47,7 @@ export default function AssignContainerModal({
                 >
                   Assign Container
                 </Heading>
-                <p className="text-11 text-text-muted mt-1">
+                <p className="text-11 text-text-secondary mt-1">
                   Select a running database container to assign to{" "}
                   <span className="font-mono text-stone-600 dark:text-stone-400">{component}</span>
                 </p>
@@ -89,7 +89,9 @@ export default function AssignContainerModal({
                                 {c.name}
                               </span>
                               {c.port && (
-                                <span className="text-11 font-mono text-text-muted">:{c.port}</span>
+                                <span className="text-11 font-mono text-text-secondary">
+                                  :{c.port}
+                                </span>
                               )}
                             </div>
                             <span className="text-11 text-stone-600 dark:text-stone-300 font-mono truncate block">

@@ -20,7 +20,7 @@ export default function GitHubProjectField({ repo, value, onChange }: Props) {
 
   return (
     <div>
-      <Label className="block text-12 text-text-muted mb-1.5">GitHub project</Label>
+      <Label className="block text-12 text-text-secondary mb-1.5">GitHub project</Label>
       {!repo || !repo.includes("/") ? (
         <p className="text-12 text-stone-500 dark:text-stone-400">Set a repository first</p>
       ) : isLoading ? (

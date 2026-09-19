@@ -6,11 +6,11 @@ export const stepIcon: Record<ProvisioningStepStatus, React.ReactNode> = {
   running: <Loader2 size={12} className="text-amber-500 animate-spin" />,
   error: <X size={12} className="text-red-500" />,
   pending: <Circle size={12} className="text-stone-500 dark:text-stone-400" />,
-  cancelled: <X size={12} className="text-text-muted" />,
+  cancelled: <X size={12} className="text-text-secondary" />,
 };
 
 export const stepTextColor: Record<ProvisioningStepStatus, string> = {
-  done: "text-text-muted",
+  done: "text-text-secondary",
   running: "text-stone-700 dark:text-stone-300",
   error: "text-red-400",
   pending: "text-stone-500 dark:text-stone-400",

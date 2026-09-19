@@ -140,7 +140,7 @@ export default function RegisterProjectModal({
                     />
 
                     {trimmed && (isChecking || isFetching) && !checkResult && (
-                      <div className="flex items-center gap-2 text-13 text-text-muted">
+                      <div className="flex items-center gap-2 text-13 text-text-secondary">
                         <Loader2 size={14} className="animate-spin" />
                         <span>Checking for configuration...</span>
                       </div>
@@ -172,7 +172,7 @@ export default function RegisterProjectModal({
                               navigate(`/projects/${id}`);
                             }
                           }}
-                          className="text-12 text-text-muted hover:text-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                          className="text-12 text-text-secondary hover:text-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         >
                           Go to project →
                         </Button>
@@ -181,7 +181,7 @@ export default function RegisterProjectModal({
 
                     {noYaml && (
                       <div className="rounded-lg bg-stone-50 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800 px-4 py-3 space-y-3">
-                        <p className="text-13 text-text-muted">
+                        <p className="text-13 text-text-secondary">
                           No <span className="font-mono text-12">.roubo/roubo.yaml</span> found in
                           this repo
                         </p>
@@ -206,7 +206,7 @@ export default function RegisterProjectModal({
                               close();
                               navigate(`/projects/${checkResult.project?.id}/settings/setup`);
                             }}
-                            className="text-12 text-text-muted hover:text-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            className="text-12 text-text-secondary hover:text-amber-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                           >
                             Edit config →
                           </Button>

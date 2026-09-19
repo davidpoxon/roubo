@@ -134,7 +134,7 @@ export default function BenchCard({
 
             {/* Assigned issue */}
             {bench.assignedIssue && (
-              <div className="flex items-center gap-1.5 text-12 text-text-muted mt-2.5 shrink-0">
+              <div className="flex items-center gap-1.5 text-12 text-text-secondary mt-2.5 shrink-0">
                 <span className="font-mono text-accent-text shrink-0">
                   {displayIssueRef(bench.assignedIssue)}
                 </span>
@@ -187,7 +187,7 @@ export default function BenchCard({
                   ))}
                   {orphanPorts.map(([name, port]) => (
                     <span key={name} className="flex items-center gap-1.5">
-                      <span className="text-11 text-text-muted">{name}</span>
+                      <span className="text-11 text-text-secondary">{name}</span>
                       <span className="text-11 font-mono text-text-secondary">:{port}</span>
                     </span>
                   ))}

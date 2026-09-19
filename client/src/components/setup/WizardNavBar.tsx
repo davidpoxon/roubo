@@ -45,7 +45,7 @@ export default function WizardNavBar({
       {showBack && backLabel ? (
         <Button
           onPress={onBack}
-          className="text-13 text-text-muted hover:text-stone-700 dark:hover:text-stone-300 transition-colors flex items-center gap-1.5 pressed:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="text-13 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors flex items-center gap-1.5 pressed:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <ArrowLeft size={14} />
           {backLabel}
