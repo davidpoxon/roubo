@@ -131,16 +131,13 @@ export default function MarketplaceConsentModal({
           data-testid="marketplace-consent-modal"
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-            <Heading
-              slot="title"
-              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-            >
+          <div className="px-5 py-4 border-b border-border">
+            <Heading slot="title" className="text-16 font-semibold text-text-primary">
               {mode === "update"
                 ? STRINGS.updateTitle(manifest.name)
                 : STRINGS.installTitle(manifest.name)}
             </Heading>
-            <p className="mt-1 text-12 text-stone-500 dark:text-stone-400">
+            <p className="mt-1 text-12 text-text-secondary">
               <span className="font-mono">{manifest.id}</span> · {manifest.kind} plugin · v
               {manifest.version}
             </p>
@@ -150,7 +147,7 @@ export default function MarketplaceConsentModal({
             <div
               data-testid="marketplace-consent-trust"
               data-treatment={isVerified ? "verified" : "unverified"}
-              className="space-y-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-12 text-amber-800 dark:text-amber-200"
+              className="space-y-2 rounded-lg border border-accent-border bg-accent-muted px-3 py-2 text-12 text-accent-text"
             >
               <div className="flex items-start gap-2">
                 <ShieldAlert size={14} className="shrink-0 mt-0.5" />
@@ -165,7 +162,7 @@ export default function MarketplaceConsentModal({
             </div>
 
             <div className="space-y-2">
-              <p className="text-11 font-medium uppercase tracking-label text-stone-500 dark:text-stone-400">
+              <p className="text-11 font-medium uppercase tracking-label text-text-secondary">
                 {STRINGS.progressHeading}
               </p>
               <MarketplaceInstallProgress
@@ -176,7 +173,7 @@ export default function MarketplaceConsentModal({
             </div>
 
             {categories.length === 0 ? (
-              <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.noDeclared}</p>
+              <p className="text-12 text-text-secondary">{STRINGS.noDeclared}</p>
             ) : (
               <ul data-testid="marketplace-consent-list" className="space-y-2">
                 {categories.map((category) => {
@@ -186,18 +183,12 @@ export default function MarketplaceConsentModal({
                     <li
                       key={category}
                       data-category={category}
-                      className="flex items-start gap-2.5 rounded-lg border border-stone-200 dark:border-stone-800 px-3 py-2"
+                      className="flex items-start gap-2.5 rounded-lg border border-border px-3 py-2"
                     >
-                      <Icon
-                        size={14}
-                        aria-hidden
-                        className="shrink-0 mt-0.5 text-stone-500 dark:text-stone-400"
-                      />
+                      <Icon size={14} aria-hidden className="shrink-0 mt-0.5 text-text-secondary" />
                       <div className="min-w-0">
-                        <p className="text-13 font-medium text-stone-900 dark:text-stone-100">
-                          {meta.label}
-                        </p>
-                        <p className="text-12 text-stone-500 dark:text-stone-400 break-words">
+                        <p className="text-13 font-medium text-text-primary">{meta.label}</p>
+                        <p className="text-12 text-text-secondary break-words">
                           {meta.describe(declared)}
                         </p>
                       </div>
@@ -212,13 +203,13 @@ export default function MarketplaceConsentModal({
               onChange={setAcknowledged}
               isDisabled={isPending}
               data-testid="marketplace-consent-ack"
-              className="group flex items-start gap-2.5 text-13 text-stone-700 dark:text-stone-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="group flex items-start gap-2.5 text-13 text-text-body cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
-              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-control border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 group-data-[selected]:border-amber-500 group-data-[selected]:bg-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-focus-ring transition-colors">
+              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-control border border-border-control bg-bg-field group-data-[selected]:border-accent group-data-[selected]:bg-accent group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-focus-ring transition-colors">
                 <Check
                   size={12}
                   strokeWidth={3}
-                  className="text-stone-950 opacity-0 group-data-[selected]:opacity-100"
+                  className="text-on-accent opacity-0 group-data-[selected]:opacity-100"
                 />
               </span>
               <span>{STRINGS.acknowledge}</span>
@@ -230,7 +221,7 @@ export default function MarketplaceConsentModal({
               <div
                 role="alert"
                 data-testid="marketplace-consent-error"
-                className="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-13 text-red-700 dark:text-red-300 flex items-start gap-2"
+                className="rounded-lg border border-danger-border bg-danger-surface px-3 py-2 text-13 text-danger-text flex items-start gap-2"
               >
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                 <span>{error}</span>
@@ -238,12 +229,12 @@ export default function MarketplaceConsentModal({
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
             <Button
               onPress={handleCancel}
               isDisabled={isPending}
               data-testid="marketplace-consent-cancel"
-              className="px-3 py-1.5 text-13 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               {STRINGS.cancel}
             </Button>
@@ -255,7 +246,7 @@ export default function MarketplaceConsentModal({
               className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
                 canConfirm
                   ? "text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active"
-                  : "text-stone-500 dark:text-stone-400 bg-stone-200 dark:bg-stone-800 cursor-not-allowed"
+                  : "text-text-secondary bg-bg-hover cursor-not-allowed"
               }`}
             >
               <ConfirmIcon size={14} />

@@ -58,7 +58,7 @@ function CollisionPill({ sourceLabels }: { sourceLabels: string[] }) {
       data-testid="marketplace-card-collision"
       data-source-count={sourceLabels.length}
       aria-label={STRINGS.collisionLabel(sourceLabels)}
-      className="inline-flex items-center gap-1 rounded-full border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 text-11 font-medium text-red-800 dark:text-red-300"
+      className="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2 py-0.5 text-11 font-medium text-danger-text"
     >
       <AlertTriangle size={12} aria-hidden className="shrink-0" />
       <span className="truncate">{STRINGS.collisionPill(sourceLabels.length)}</span>
@@ -89,7 +89,7 @@ function IncompatiblePill({
         incompatibility.declaredRange,
         incompatibility.hostVersion,
       )}
-      className="inline-flex items-center gap-1 rounded-full border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 text-11 font-medium text-red-800 dark:text-red-300"
+      className="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2 py-0.5 text-11 font-medium text-danger-text"
     >
       <AlertTriangle size={12} aria-hidden className="shrink-0" />
       <span className="truncate">
@@ -100,15 +100,14 @@ function IncompatiblePill({
 }
 
 function KindPill({ kind }: { kind: MarketplaceListing["kind"] }) {
-  // Each kind gets its own treatment rather than "component versus everything
-  // else": with three kinds the generic grey no longer identifies one thing
-  // (AP-TC-125 asks an agent listing to be identifiable at a glance).
+  // An agent listing takes the DESIGN.md agent kind pill, so it is identifiable
+  // at a glance (AP-TC-125). DESIGN.md defines no kind role for component or
+  // integration, and amber is reserved for the accent and work in progress, so
+  // both take the neutral chip and the uppercase label tells them apart.
   const cls =
-    kind === "component"
-      ? "border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200"
-      : kind === "agent"
-        ? "border-sky-200 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-950/20 text-sky-800 dark:text-sky-200"
-        : "border-stone-200 dark:border-stone-700 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300";
+    kind === "agent"
+      ? "border-kind-agent-border bg-kind-agent-surface text-kind-agent-text"
+      : "border-border-strong bg-bg-hover text-text-secondary";
   return (
     <span
       data-testid="marketplace-card-kind"
@@ -146,9 +145,9 @@ function AgentCompatibilityLine({
     <p
       data-testid="marketplace-card-agent-compatibility"
       data-declared={bounds.length > 0}
-      className="mt-2 flex flex-wrap items-center gap-1.5 text-11 text-stone-500 dark:text-stone-400"
+      className="mt-2 flex flex-wrap items-center gap-1.5 text-11 text-text-secondary"
     >
-      <span className="text-stone-500 dark:text-stone-400">{STRINGS.compatibilityLabel}</span>
+      <span className="text-text-secondary">{STRINGS.compatibilityLabel}</span>
       {bounds.length > 0 ? (
         <span className="font-mono">{bounds.join(" · ")}</span>
       ) : (
@@ -202,10 +201,10 @@ export default function MarketplaceCard({
     <article
       data-testid="marketplace-card"
       data-plugin-id={listing.id}
-      className="group flex flex-col rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/40 p-4 transition-colors hover:border-stone-300 dark:hover:border-stone-700"
+      className="group flex flex-col rounded-xl border border-border bg-bg-surface p-4 transition-colors hover:border-border-strong"
     >
       <div className="flex items-start gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-bg-hover text-text-body">
           <Package size={16} aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
@@ -213,15 +212,13 @@ export default function MarketplaceCard({
             <Button
               data-testid="marketplace-card-detail"
               onPress={() => onOpenDetail(listing)}
-              className="truncate text-14 font-semibold text-stone-900 dark:text-stone-100 hover:text-amber-700 dark:hover:text-amber-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-control"
+              className="truncate text-14 font-semibold text-text-primary hover:text-accent-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring rounded-control"
             >
               {listing.name}
             </Button>
             <KindPill kind={listing.kind} />
           </div>
-          <p className="mt-0.5 font-mono text-11 text-stone-500 dark:text-stone-400">
-            {listing.id}
-          </p>
+          <p className="mt-0.5 font-mono text-11 text-text-secondary">{listing.id}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <ProvenanceBadge provenance={listingProvenance(listing, sourceLabel)} />
             {isCollision && <CollisionPill sourceLabels={collisionSourceLabels} />}
@@ -230,9 +227,7 @@ export default function MarketplaceCard({
         </div>
       </div>
 
-      <p className="mt-3 flex-1 text-12 leading-relaxed text-stone-600 dark:text-stone-400">
-        {listing.summary}
-      </p>
+      <p className="mt-3 flex-1 text-12 leading-relaxed text-text-secondary">{listing.summary}</p>
 
       {listing.kind === "agent" && (
         <AgentCompatibilityLine compatibility={listing.agentCompatibility} />
@@ -242,23 +237,14 @@ export default function MarketplaceCard({
         <div className="flex items-center gap-2 text-11">
           {listing.updateAvailable && listing.installedVersion ? (
             <span data-testid="marketplace-card-version">
-              <span className="font-mono text-stone-500 dark:text-stone-400 line-through">
+              <span className="font-mono text-text-secondary line-through">
                 v{listing.installedVersion}
               </span>{" "}
-              <ArrowRight
-                size={12}
-                className="inline text-stone-500 dark:text-stone-400"
-                aria-hidden
-              />{" "}
-              <span className="font-mono text-amber-700 dark:text-amber-400">
-                v{listing.version}
-              </span>
+              <ArrowRight size={12} className="inline text-text-secondary" aria-hidden />{" "}
+              <span className="font-mono text-accent-text">v{listing.version}</span>
             </span>
           ) : (
-            <span
-              data-testid="marketplace-card-version"
-              className="font-mono text-stone-500 dark:text-stone-400"
-            >
+            <span data-testid="marketplace-card-version" className="font-mono text-text-secondary">
               v{listing.version}
             </span>
           )}
@@ -267,7 +253,7 @@ export default function MarketplaceCard({
         {showInstalled ? (
           <span
             data-testid="marketplace-card-installed"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 dark:border-green-900/40 bg-green-50 dark:bg-green-950/20 px-3 py-1.5 text-12 font-medium text-green-800 dark:text-green-300"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-success-border bg-success-surface px-3 py-1.5 text-12 font-medium text-success-text"
           >
             <Check size={14} /> {STRINGS.installed}
           </span>
@@ -276,7 +262,7 @@ export default function MarketplaceCard({
           // names the range, so this states the outcome without repeating it.
           <span
             data-testid="marketplace-card-incompatible-action"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-3 py-1.5 text-12 font-medium text-red-800 dark:text-red-300"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-danger-border bg-danger-surface px-3 py-1.5 text-12 font-medium text-danger-text"
           >
             <AlertTriangle size={14} aria-hidden /> {STRINGS.incompatibleAction}
           </span>
@@ -284,7 +270,7 @@ export default function MarketplaceCard({
           <Button
             data-testid="marketplace-card-update"
             onPress={() => onUpdate(listing)}
-            className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-12 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+            className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-12 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
           >
             <RefreshCw size={14} /> {STRINGS.update}
           </Button>
@@ -292,7 +278,7 @@ export default function MarketplaceCard({
           <Button
             data-testid="marketplace-card-install"
             onPress={() => onInstall(listing)}
-            className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-12 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+            className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-12 font-medium text-on-accent transition-colors not-disabled:hover:bg-accent-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
           >
             <Download size={14} /> {STRINGS.install}
           </Button>

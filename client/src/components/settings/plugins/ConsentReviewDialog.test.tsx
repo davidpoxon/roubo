@@ -264,7 +264,7 @@ describe("ConsentReviewDialog: trust provenance (issue #563)", () => {
       "Source: marketplace.acme.example",
     );
     // CPHMTP-TC-056 S002-O01: no first-party verified styling in this UI state.
-    expect(within(trust).getByTestId("provenance-trust").className).not.toContain("green");
+    expect(within(trust).getByTestId("provenance-trust").className).not.toContain("success");
   });
 
   it("keeps the verified, first-party lead for a first-party plugin", () => {

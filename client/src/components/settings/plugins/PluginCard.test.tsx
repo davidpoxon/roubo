@@ -767,7 +767,7 @@ describe("PluginCard: unverified and orphaned badges (issue #563)", () => {
     expect(trust).toHaveTextContent("Unverified");
     expect(trust.dataset.treatment).toBe("unverified");
     // CPHMTP-TC-056 S002-O01: no first-party verified styling in this UI state.
-    expect(trust.className).not.toContain("green");
+    expect(trust.className).not.toContain("success");
     // CPHMTP-FR-006 AC4: provenance alongside the badge, naming the source.
     expect(screen.getByTestId("provenance-source")).toHaveTextContent(
       "Source: marketplace.acme.example",
@@ -820,7 +820,7 @@ describe("PluginCard: unverified and orphaned badges (issue #563)", () => {
     );
     const trust = screen.getByTestId("provenance-trust");
     expect(trust).toHaveTextContent("Unverified");
-    expect(trust.className).not.toContain("green");
+    expect(trust.className).not.toContain("success");
     expect(screen.getByTestId("provenance-source")).toHaveTextContent("Source: Unknown source");
   });
 
