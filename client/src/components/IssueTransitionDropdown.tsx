@@ -60,7 +60,7 @@ export default function IssueTransitionDropdown({
             }}
           >
             <Button
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control text-11 font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-control text-11 font-medium bg-bg-hover text-text-body outline-none transition-colors hover:bg-bg-pressed focus-visible:ring-2 focus-visible:ring-focus-ring"
               data-testid="transition-trigger"
             >
               <span>{optimisticState}</span>
@@ -73,7 +73,7 @@ export default function IssueTransitionDropdown({
                     key={t}
                     id={t}
                     textValue={t}
-                    className="px-3 py-1.5 text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50"
+                    className="px-3 py-1.5 text-13 text-text-body outline-none cursor-default transition-colors data-[hovered]:bg-bg-hover data-[focused]:bg-bg-hover"
                   >
                     {t}
                   </ListBoxItem>
@@ -84,7 +84,7 @@ export default function IssueTransitionDropdown({
         ) : (
           <span
             data-testid="transition-pill-readonly"
-            className="inline-flex items-center px-2 py-0.5 rounded-md text-11 font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400"
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-11 font-medium bg-bg-hover text-text-body"
           >
             {optimisticState}
           </span>
@@ -92,18 +92,16 @@ export default function IssueTransitionDropdown({
       </div>
 
       {!hasTransitions && (
-        <p className="text-11 text-stone-500 dark:text-stone-400">
-          No transitions available from this state.
-        </p>
+        <p className="text-11 text-text-secondary">No transitions available from this state.</p>
       )}
 
       {error && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2.5 py-1.5"
+          className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-surface px-2.5 py-1.5"
         >
-          <AlertCircle size={12} className="text-red-500 shrink-0 mt-0.5" />
-          <p className="text-11 text-red-800 dark:text-red-300 leading-relaxed">{error}</p>
+          <AlertCircle size={12} className="text-danger-text shrink-0 mt-0.5" />
+          <p className="text-11 text-danger-text leading-relaxed">{error}</p>
         </div>
       )}
     </div>

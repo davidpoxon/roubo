@@ -130,17 +130,17 @@ function SwitchFlow({
 
   return (
     <>
-      <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-        <Heading slot="title" className="text-16 font-semibold text-stone-900 dark:text-stone-100">
+      <div className="px-5 py-4 border-b border-border">
+        <Heading slot="title" className="text-16 font-semibold text-text-primary">
           {isChoosing ? STRINGS.titleChoose : STRINGS.titleSwitch}
         </Heading>
       </div>
 
       <div className="px-5 py-4 space-y-4">
         {isLoading ? (
-          <p className="text-13 text-stone-500 dark:text-stone-400">{STRINGS.loadingPlugins}</p>
+          <p className="text-13 text-text-secondary">{STRINGS.loadingPlugins}</p>
         ) : (plugins ?? []).length === 0 ? (
-          <p className="text-13 text-stone-500 dark:text-stone-400">{STRINGS.noPlugins}</p>
+          <p className="text-13 text-text-secondary">{STRINGS.noPlugins}</p>
         ) : (
           <RadioGroup
             aria-label={STRINGS.installedAriaLabel}
@@ -162,8 +162,8 @@ function SwitchFlow({
                       className={[
                         "flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors cursor-pointer select-none",
                         isSelected
-                          ? "border-stone-400 dark:border-stone-500 bg-stone-100 dark:bg-stone-800/80"
-                          : "border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/30 hover:border-stone-300 dark:hover:border-stone-700",
+                          ? "border-accent-border bg-accent-muted"
+                          : "border-border bg-bg-surface hover:border-border-strong hover:bg-bg-hover",
                         isFocusVisible
                           ? "ring-2 ring-focus-ring ring-offset-2 ring-offset-bg-base"
                           : "",
@@ -173,26 +173,20 @@ function SwitchFlow({
                       <div
                         className={[
                           "w-3.5 h-3.5 rounded-full border-2 shrink-0 transition-colors",
-                          isSelected
-                            ? "border-stone-700 dark:border-stone-300 bg-stone-700 dark:bg-stone-300"
-                            : "border-stone-300 dark:border-stone-600",
+                          isSelected ? "border-accent bg-accent" : "border-border-control",
                         ].join(" ")}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="text-13 font-medium text-stone-900 dark:text-stone-100">
-                          {p.name}
-                        </div>
-                        <div className="text-11 font-mono text-stone-500 dark:text-stone-400 truncate">
-                          {p.id}
-                        </div>
+                        <div className="text-13 font-medium text-text-primary">{p.name}</div>
+                        <div className="text-11 font-mono text-text-secondary truncate">{p.id}</div>
                       </div>
                       {p.status !== "enabled" && (
                         <span
                           className={[
                             "text-11 uppercase tracking-label font-medium px-1.5 py-0.5 rounded",
                             p.status === "errored" || p.status === "incompatible"
-                              ? "bg-red-500/15 text-red-400"
-                              : "bg-stone-200 text-stone-500 dark:bg-stone-800 dark:text-stone-400",
+                              ? "bg-danger-surface text-danger-text"
+                              : "bg-bg-pressed text-text-body",
                           ].join(" ")}
                         >
                           {PLUGIN_STATUS_LABELS[p.status]}
@@ -207,11 +201,9 @@ function SwitchFlow({
         )}
 
         {!isChoosing && (
-          <div className="flex items-start gap-2.5 p-3 rounded-md bg-amber-500/10 border border-amber-500/20">
-            <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-12 leading-relaxed text-stone-700 dark:text-stone-300">
-              {STRINGS.staleBenchesWarning}
-            </p>
+          <div className="flex items-start gap-2.5 p-3 rounded-md bg-accent-muted border border-accent-border">
+            <AlertTriangle size={14} className="text-accent-text shrink-0 mt-0.5" />
+            <p className="text-12 leading-relaxed text-text-body">{STRINGS.staleBenchesWarning}</p>
           </div>
         )}
 
@@ -222,30 +214,28 @@ function SwitchFlow({
             isDisabled={isBusy}
             className="group flex items-start gap-2.5 cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
-            <div className="w-4 h-4 mt-0.5 shrink-0 rounded-control border border-stone-300 dark:border-stone-600 flex items-center justify-center transition-colors group-data-[selected]:bg-amber-500 group-data-[selected]:border-amber-500 group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-focus-ring group-data-[focus-visible]:ring-offset-1">
+            <div className="w-4 h-4 mt-0.5 shrink-0 rounded-control border border-border-control bg-bg-field flex items-center justify-center transition-colors group-data-[selected]:bg-accent group-data-[selected]:border-accent group-data-[focus-visible]:ring-2 group-data-[focus-visible]:ring-focus-ring group-data-[focus-visible]:ring-offset-1">
               <Check
                 size={12}
-                className="text-stone-950 opacity-0 group-data-[selected]:opacity-100 transition-opacity"
+                className="text-on-accent opacity-0 group-data-[selected]:opacity-100 transition-opacity"
               />
             </div>
-            <span className="text-12 leading-relaxed text-stone-700 dark:text-stone-300">
-              {STRINGS.promoteLabel}
-            </span>
+            <span className="text-12 leading-relaxed text-text-body">{STRINGS.promoteLabel}</span>
           </Checkbox>
         )}
 
         {errorMessage && (
-          <p role="alert" className="text-12 text-red-400">
+          <p role="alert" className="text-12 text-danger-text">
             {errorMessage}
           </p>
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+      <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
         <Button
           isDisabled={isBusy}
           onPress={close}
-          className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="px-3 py-1.5 text-13 text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:opacity-40 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {STRINGS.cancel}
         </Button>
@@ -253,7 +243,7 @@ function SwitchFlow({
           isDisabled={!canConfirm || usable.length === 0}
           onPress={handleConfirm}
           data-testid="switch-integration-confirm"
-          className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+          className="px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
         >
           {isBusy ? STRINGS.switching : isChoosing ? STRINGS.titleChoose : STRINGS.titleSwitch}
         </Button>

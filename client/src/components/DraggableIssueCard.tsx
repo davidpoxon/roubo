@@ -129,26 +129,24 @@ export default function DraggableIssueCard({
       {...(isInteractive ? listeners : {})}
       {...(isInteractive ? attributes : {})}
       aria-disabled={isBlocked || undefined}
-      className={`group relative rounded-lg transition-colors ${
+      className={`group relative rounded-lg border transition-colors ${
         isDragging
-          ? "opacity-40 bg-stone-100 dark:bg-stone-900/50"
+          ? "opacity-40 border-accent-border bg-accent-muted"
           : isBlocked
-            ? "opacity-50 bg-stone-50 dark:bg-stone-900/20 cursor-not-allowed"
+            ? "opacity-50 border-border bg-bg-base cursor-not-allowed"
             : isAssigned
-              ? "bg-stone-50 dark:bg-stone-900/30"
-              : "bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200 dark:hover:bg-stone-900/80 cursor-grab active:cursor-grabbing"
+              ? "border-border bg-bg-base"
+              : "border-border bg-bg-surface hover:bg-bg-hover cursor-grab active:cursor-grabbing"
       }`}
     >
       <div className="flex items-start gap-2 px-3 py-2.5">
         <div className="flex-1 min-w-0">
           <span
-            className={`block truncate text-12 font-medium ${isAssigned ? "text-stone-600 dark:text-stone-400" : "text-stone-800 dark:text-stone-200"}`}
+            className={`block truncate text-12 font-medium ${isAssigned ? "text-text-secondary" : "text-text-primary"}`}
           >
             {issue.title}
           </span>
-          <span
-            className={`block text-11 font-mono mb-1.5 ${isAssigned ? "text-stone-500 dark:text-stone-400" : "text-stone-600 dark:text-stone-400"}`}
-          >
+          <span className="block text-11 font-mono mb-1.5 text-text-secondary">
             {shortIssueRef(issue.externalId)}
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -186,7 +184,7 @@ export default function DraggableIssueCard({
         <div onPointerDown={(e) => e.stopPropagation()}>
           <Button
             onPress={() => window.open(issue.externalUrl, "_blank")}
-            className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none opacity-0 group-hover:opacity-100 focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="shrink-0 p-1 text-text-secondary hover:text-text-primary transition-colors outline-none opacity-0 group-hover:opacity-100 focus-visible:ring-2 focus-visible:ring-focus-ring"
             aria-label={`Open ${issue.externalId} in browser`}
           >
             <ExternalLink size={12} />

@@ -63,7 +63,7 @@ const STRINGS = {
 };
 
 const TRIGGER_BUTTON_CLASS =
-  "px-3 py-1.5 text-12 font-medium rounded-control border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:border-stone-400 dark:hover:border-stone-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
+  "px-3 py-1.5 text-12 font-medium rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 function IntegrationMismatchBanner({
   projectId,
@@ -93,19 +93,19 @@ function IntegrationMismatchBanner({
   return (
     <div
       data-testid="issue-source-integration-mismatch"
-      className="flex flex-col gap-2.5 p-3 rounded-md bg-amber-500/10 border border-amber-500/20"
+      className="flex flex-col gap-2.5 p-3 rounded-md bg-accent-muted border border-accent-border"
     >
       <div className="flex items-start gap-2.5">
-        <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-        <p className="text-12 leading-relaxed text-stone-700 dark:text-stone-300">
+        <AlertTriangle size={14} className="text-accent-text shrink-0 mt-0.5" />
+        <p className="text-12 leading-relaxed text-text-body">
           {STRINGS.mismatchLead}
           <span className="font-mono">{STRINGS.mismatchRoubo}</span>
           {copy.specifies}
-          <span className="font-mono text-stone-900 dark:text-stone-100">{committedValue}</span>
+          <span className="font-mono text-text-primary">{committedValue}</span>
           {copy.active}
-          <span className="font-mono text-stone-900 dark:text-stone-100">{effectiveValue}</span>
+          <span className="font-mono text-text-primary">{effectiveValue}</span>
           {copy.teammates}
-          <span className="font-mono text-stone-900 dark:text-stone-100">{committedValue}</span>
+          <span className="font-mono text-text-primary">{committedValue}</span>
           {STRINGS.mismatchTrailing}
         </p>
       </div>
@@ -114,12 +114,12 @@ function IntegrationMismatchBanner({
           isDisabled={promote.isPending}
           onPress={() => promote.mutate()}
           data-testid="issue-source-promote"
-          className="px-3 py-1.5 text-12 font-medium rounded-control border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:border-amber-500/70 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="px-3 py-1.5 text-12 font-medium rounded-control border border-accent-border text-accent-text hover:border-accent-text disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {promote.isPending ? STRINGS.updatingRouboYaml : STRINGS.updateRouboYaml}
         </Button>
         {errorMessage && (
-          <span role="alert" className="text-11 text-red-400">
+          <span role="alert" className="text-11 text-danger-text">
             {errorMessage}
           </span>
         )}
@@ -164,14 +164,14 @@ function ConfiguredBody({
         <IntegrationMismatchBanner projectId={projectId} mismatch={state.integrationMismatch} />
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-11 font-medium bg-amber-500/15 text-amber-500 dark:text-amber-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-11 font-medium bg-accent-muted text-accent-text">
+          <span className="w-1.5 h-1.5 rounded-full bg-accent" />
           {integrationName}
         </span>
         {instance && (
           <span
             data-testid="issue-source-instance"
-            className="text-11 font-mono text-stone-500 dark:text-stone-500 truncate max-w-full"
+            className="text-11 font-mono text-text-secondary truncate max-w-full"
           >
             {instance}
           </span>
@@ -187,12 +187,12 @@ function ConfiguredBody({
       </div>
 
       {Object.keys(sources).length === 0 ? (
-        <p className="text-12 text-stone-500 dark:text-stone-400">{STRINGS.noSources}</p>
+        <p className="text-12 text-text-secondary">{STRINGS.noSources}</p>
       ) : (
         <dl className="space-y-2">
           {Object.entries(sources).map(([key, values]) => (
             <div key={key} className="flex flex-col gap-1.5">
-              <dt className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+              <dt className="text-11 font-semibold uppercase tracking-label text-text-secondary">
                 {titleCase(key)}
               </dt>
               <dd className="flex flex-wrap gap-1.5">
@@ -209,13 +209,11 @@ function ConfiguredBody({
                   return (
                     <span
                       key={`${key}-${i}`}
-                      className="flex flex-col gap-0.5 px-2 py-0.5 rounded-md text-11 text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800/70"
+                      className="flex flex-col gap-0.5 px-2 py-0.5 rounded-md text-11 text-text-body bg-bg-hover"
                     >
                       <span>{primary}</span>
                       {secondary && (
-                        <span className="font-mono text-stone-600 dark:text-stone-300">
-                          {secondary}
-                        </span>
+                        <span className="font-mono text-text-secondary">{secondary}</span>
                       )}
                     </span>
                   );
@@ -226,9 +224,7 @@ function ConfiguredBody({
         </dl>
       )}
 
-      {caption && (
-        <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">{caption}</p>
-      )}
+      {caption && <p className="text-11 text-text-secondary leading-relaxed">{caption}</p>}
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <DialogTrigger isOpen={switchOpen} onOpenChange={setSwitchOpen}>
@@ -257,15 +253,13 @@ function UnconfiguredBody({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-3">
-      <p className="text-13 text-stone-600 dark:text-stone-400">{STRINGS.noIssueSource}</p>
-      <p className="text-11 text-stone-500 dark:text-stone-400 leading-relaxed">
-        {STRINGS.noIssueSourceHint}
-      </p>
+      <p className="text-13 text-text-body">{STRINGS.noIssueSource}</p>
+      <p className="text-11 text-text-secondary leading-relaxed">{STRINGS.noIssueSourceHint}</p>
       <div>
         <DialogTrigger isOpen={open} onOpenChange={setOpen}>
           <Button
             data-testid="issue-source-choose-integration"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
           >
             <Plug size={12} />
             {STRINGS.chooseIntegration}
@@ -281,16 +275,16 @@ function MissingPluginBody({ pluginId }: { pluginId: string }) {
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-2.5">
-        <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-        <p className="text-13 text-stone-700 dark:text-stone-300 leading-relaxed">
+        <AlertTriangle size={14} className="text-accent-text shrink-0 mt-0.5" />
+        <p className="text-13 text-text-body leading-relaxed">
           {STRINGS.missingPluginPrefix}
-          <span className="font-mono text-stone-900 dark:text-stone-100">{pluginId}</span>
+          <span className="font-mono text-text-primary">{pluginId}</span>
           {STRINGS.missingPluginSuffix}
         </p>
       </div>
       <Link
         to="/settings/plugins"
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950 not-disabled:active:bg-accent-active"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base not-disabled:active:bg-accent-active"
       >
         <Download size={12} />
         {STRINGS.installPlugin}
@@ -323,14 +317,14 @@ export default function IssueSourceTile({
       data-testid="issue-source-tile"
     >
       {isLoading && (
-        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-text-secondary">
           <Spinner />
           {STRINGS.loading}
         </div>
       )}
 
       {isError && (
-        <p role="alert" className="text-13 text-red-400">
+        <p role="alert" className="text-13 text-danger-text">
           {STRINGS.loadFailedPrefix}
           {error instanceof Error ? error.message : STRINGS.unknownError}
         </p>

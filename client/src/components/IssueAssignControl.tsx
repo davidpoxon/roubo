@@ -64,7 +64,7 @@ export default function IssueAssignControl({
 
   const label = optimisticAssigned ? "Unassign me" : "Assign to me";
   const buttonClassName =
-    "inline-flex items-center px-2 py-0.5 rounded-control text-11 font-medium bg-stone-500/15 text-stone-600 dark:text-stone-400 outline-none transition-colors hover:bg-stone-500/25 focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-stone-500/15";
+    "inline-flex items-center px-2 py-0.5 rounded-control text-11 font-medium bg-bg-hover text-text-body outline-none transition-colors hover:bg-bg-pressed focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-bg-hover";
 
   if (isDisabled) {
     const disabledButton = (
@@ -112,10 +112,10 @@ export default function IssueAssignControl({
       {error && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 px-2.5 py-1.5"
+          className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-surface px-2.5 py-1.5"
         >
-          <AlertCircle size={12} className="text-red-500 shrink-0 mt-0.5" />
-          <p className="text-11 text-red-800 dark:text-red-300 leading-relaxed">{error}</p>
+          <AlertCircle size={12} className="text-danger-text shrink-0 mt-0.5" />
+          <p className="text-11 text-danger-text leading-relaxed">{error}</p>
         </div>
       )}
     </div>

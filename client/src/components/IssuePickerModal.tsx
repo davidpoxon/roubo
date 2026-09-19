@@ -23,13 +23,11 @@ function IssueRow({
   return (
     <Button
       onPress={() => onSelect(issue.externalId, issue.title)}
-      className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left rounded-control hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
+      className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left rounded-control hover:bg-bg-hover transition-colors outline-none disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-focus-ring"
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-12 font-mono text-stone-500 dark:text-stone-400 shrink-0">
-            {issue.externalId}
-          </span>
+          <span className="text-12 font-mono text-text-secondary shrink-0">{issue.externalId}</span>
           {securityCategory && typeChip && (
             // No tooltip here: the row is already an interactive React Aria
             // Button (HTML <button>) and an inner tooltip-wrapped Button would
@@ -44,23 +42,21 @@ function IssueRow({
               {typeChip.label}
             </IssueChip>
           )}
-          <span className="text-13 font-medium text-stone-800 dark:text-stone-200 truncate">
-            {issue.title}
-          </span>
+          <span className="text-13 font-medium text-text-primary truncate">{issue.title}</span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {issue.issueType && !securityCategory && (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-11 font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-11 font-medium border border-transparent bg-issue-type text-issue-type-text">
               {issue.issueType}
             </span>
           )}
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-11 font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-11 font-medium border border-transparent bg-bg-pressed text-text-body">
             {issue.currentState}
           </span>
           {issue.labels.map((label) => (
             <span
               key={label}
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-11 font-medium bg-stone-200 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-11 font-medium border border-issue-label-border bg-transparent text-issue-label-text"
             >
               <Tag size={12} />
               {label}
@@ -70,7 +66,7 @@ function IssueRow({
         {isBlocked && (
           <div
             data-testid="blocked-banner"
-            className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded text-11 font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+            className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded text-11 font-medium bg-accent-muted text-accent-text border border-accent-border"
           >
             <Lock size={12} />
             Blocked by {blockers.join(", ")}
@@ -82,7 +78,7 @@ function IssueRow({
         target="_blank"
         rel="noopener noreferrer"
         onPointerDown={(e) => e.stopPropagation()}
-        className="shrink-0 p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="shrink-0 p-1 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
         <ExternalLink size={12} />
       </a>
@@ -188,11 +184,8 @@ export default function IssuePickerModal({
         >
           {() => (
             <>
-              <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-                <Heading
-                  slot="title"
-                  className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-                >
+              <div className="px-5 py-4 border-b border-border">
+                <Heading slot="title" className="text-16 font-semibold text-text-primary">
                   Pick an issue
                 </Heading>
               </div>
@@ -201,7 +194,7 @@ export default function IssuePickerModal({
                 {stalled && (
                   <div
                     data-testid="stalled-note"
-                    className="m-3 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-11 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+                    className="m-3 px-3 py-2 rounded-md bg-accent-muted text-11 text-accent-text border border-accent-border"
                   >
                     Plugin paging appears stuck. Try a refresh.
                   </div>
@@ -211,7 +204,7 @@ export default function IssuePickerModal({
                   <div
                     role="status"
                     data-testid="walk-truncated-note"
-                    className="m-3 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 text-11 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60"
+                    className="m-3 px-3 py-2 rounded-md bg-accent-muted text-11 text-accent-text border border-accent-border"
                   >
                     {walkTruncated}
                   </div>
@@ -220,15 +213,13 @@ export default function IssuePickerModal({
                 {isLoading && (
                   <div className="flex items-center justify-center py-12">
                     <Spinner />
-                    <span className="ml-2 text-12 text-stone-600">Loading...</span>
+                    <span className="ml-2 text-12 text-text-secondary">Loading...</span>
                   </div>
                 )}
 
                 {!isLoading && error && (
                   <div className="flex items-center justify-center py-12">
-                    <p className="text-13 text-stone-500 dark:text-stone-400">
-                      Could not load issues.
-                    </p>
+                    <p className="text-13 text-text-secondary">Could not load issues.</p>
                   </div>
                 )}
 
@@ -240,7 +231,7 @@ export default function IssuePickerModal({
                       ))
                     ) : (
                       <div className="flex items-center justify-center py-12">
-                        <p className="text-13 text-stone-500 dark:text-stone-400">No open issues</p>
+                        <p className="text-13 text-text-secondary">No open issues</p>
                       </div>
                     )}
                   </div>
@@ -255,20 +246,20 @@ export default function IssuePickerModal({
               {!isLoading && !error && (items.length > 0 || hasPrev || hasNext) && (
                 <div
                   data-testid="picker-pager"
-                  className="flex items-center justify-between gap-2 px-4 py-2 border-t border-stone-200 dark:border-stone-800/60"
+                  className="flex items-center justify-between gap-2 px-4 py-2 border-t border-border"
                 >
                   <Button
                     onPress={goPrev}
                     isDisabled={!hasPrev}
                     aria-label="Previous page"
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
                   >
                     <ChevronLeft size={14} />
                     Prev
                   </Button>
                   <span
                     data-testid="picker-page-indicator"
-                    className="text-11 font-mono text-stone-500 dark:text-stone-400 whitespace-nowrap"
+                    className="text-11 font-mono text-text-secondary whitespace-nowrap"
                   >
                     Page {pageNumber} &middot; {items.length} item{items.length === 1 ? "" : "s"}
                   </span>
@@ -276,7 +267,7 @@ export default function IssuePickerModal({
                     onPress={goNext}
                     isDisabled={!hasNext}
                     aria-label="Next page"
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-control text-12 text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring disabled:opacity-40 disabled:pointer-events-none"
                   >
                     Next
                     <ChevronRight size={14} />
