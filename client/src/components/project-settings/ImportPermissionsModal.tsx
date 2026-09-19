@@ -112,9 +112,9 @@ export function ImportPermissionsModal({
           {() => (
             <>
               {/* Header */}
-              <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
+              <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-border">
                 <div className="flex items-center gap-4">
-                  <Heading className="text-16 font-semibold text-stone-900 dark:text-stone-100 shrink-0">
+                  <Heading className="text-16 font-semibold text-text-primary shrink-0">
                     Import from project
                   </Heading>
                   <div className="w-56">
@@ -132,18 +132,18 @@ export function ImportPermissionsModal({
                 <Button
                   onPress={handleClose}
                   aria-label="Close"
-                  className="text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 outline-none text-16 leading-none transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="text-text-secondary hover:text-text-primary outline-none text-16 leading-none transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   ×
                 </Button>
               </div>
 
               {/* Body: two-panel */}
-              <div className="grid grid-cols-2 divide-x divide-stone-200 dark:divide-stone-800/60">
+              <div className="grid grid-cols-2 divide-x divide-border">
                 {/* Left: new rules picker */}
                 <div className="px-5 py-4 space-y-3 min-h-[320px]">
                   <div className="flex items-center justify-between h-5">
-                    <span className="text-11 font-medium text-stone-500 dark:text-stone-400 uppercase tracking-label">
+                    <span className="text-11 font-medium text-text-secondary uppercase tracking-label">
                       {selectedProjectId && !isLoading && newRules.length > 0
                         ? `New rules (${newRules.length})`
                         : "New rules"}
@@ -151,7 +151,7 @@ export function ImportPermissionsModal({
                     {selectedProjectId && !isLoading && newRules.length > 0 && (
                       <Button
                         onPress={toggleSelectAll}
-                        className="text-11 text-amber-500 hover:text-amber-400 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="text-11 text-accent-text hover:underline underline-offset-2 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         {allSelected ? "Deselect all" : "Select all"}
                       </Button>
@@ -159,21 +159,21 @@ export function ImportPermissionsModal({
                   </div>
 
                   {!selectedProjectId ? (
-                    <p className="text-12 text-stone-500 dark:text-stone-400 py-8 text-center">
+                    <p className="text-12 text-text-secondary py-8 text-center">
                       {otherProjects.length === 0
                         ? "No other registered projects found."
                         : "Choose a source project to see importable rules."}
                     </p>
                   ) : isLoading ? (
-                    <p className="text-12 text-stone-500 dark:text-stone-400 py-8 text-center">
+                    <p className="text-12 text-text-secondary py-8 text-center">
                       Loading permissions…
                     </p>
                   ) : isError ? (
-                    <p className="text-12 text-red-500 dark:text-red-400 py-8 text-center">
+                    <p className="text-12 text-danger-text py-8 text-center">
                       Failed to load permissions. Please try again.
                     </p>
                   ) : newRules.length === 0 ? (
-                    <p className="text-12 text-stone-500 dark:text-stone-400 py-8 text-center">
+                    <p className="text-12 text-text-secondary py-8 text-center">
                       All rules from this project are already present.
                     </p>
                   ) : (
@@ -191,7 +191,7 @@ export function ImportPermissionsModal({
                 {/* Right: merged preview */}
                 <div className="px-5 py-4 space-y-3 min-h-[320px]">
                   <div className="flex items-center h-5">
-                    <span className="text-11 font-medium text-stone-500 dark:text-stone-400 uppercase tracking-label">
+                    <span className="text-11 font-medium text-text-secondary uppercase tracking-label">
                       {`Preview${merged.length > 0 ? ` (${merged.length})` : ""}`}
                     </span>
                   </div>
@@ -207,10 +207,10 @@ export function ImportPermissionsModal({
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
                 <Button
                   onPress={handleClose}
-                  className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 px-3 py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="text-11 text-text-secondary hover:text-text-primary px-3 py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   Cancel
                 </Button>

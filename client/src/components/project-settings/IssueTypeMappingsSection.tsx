@@ -49,7 +49,7 @@ export function IssueTypeMappingsSection({
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
+      <div className="flex items-center gap-2 text-12 text-text-secondary">
         <Spinner />
         Loading…
       </div>
@@ -58,7 +58,7 @@ export function IssueTypeMappingsSection({
 
   if (isTypesError) {
     return (
-      <p className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
+      <p className="text-12 text-text-secondary leading-relaxed">
         Could not load issue types. Try again in a moment.
       </p>
     );
@@ -67,11 +67,11 @@ export function IssueTypeMappingsSection({
   if (issueTypesData && !issueTypesData.configured) {
     if (issueTypesData.reason === "not-connected") {
       return (
-        <p className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="text-12 text-text-secondary leading-relaxed">
           Connect your GitHub account in{" "}
           <Link
             to="/settings#plugins"
-            className="text-amber-500 hover:text-amber-400 underline underline-offset-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="text-accent-text hover:text-text-primary underline underline-offset-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             Settings → Plugins
           </Link>{" "}
@@ -81,7 +81,7 @@ export function IssueTypeMappingsSection({
     }
     if (issueTypesData.reason === "none-defined") {
       return (
-        <p className="text-12 text-stone-500 dark:text-stone-400 leading-relaxed">
+        <p className="text-12 text-text-secondary leading-relaxed">
           No issue types are enabled for this repository. Configure them in your GitHub organization
           settings.
         </p>
@@ -97,7 +97,7 @@ export function IssueTypeMappingsSection({
   }
 
   if (issueTypesData.types.length === 0) {
-    return <p className="text-12 text-stone-500 dark:text-stone-400">No issue types defined.</p>;
+    return <p className="text-12 text-text-secondary">No issue types defined.</p>;
   }
 
   return (
@@ -106,9 +106,7 @@ export function IssueTypeMappingsSection({
         {issueTypesData.types.map((typeName) => (
           <div key={typeName} className="flex items-center gap-3">
             <div className="flex items-center gap-2 min-w-0 w-32 shrink-0">
-              <span className="text-12 font-medium text-stone-700 dark:text-stone-300 truncate">
-                {typeName}
-              </span>
+              <span className="text-12 font-medium text-text-primary truncate">{typeName}</span>
             </div>
             <Select
               className="flex-1"
@@ -121,12 +119,10 @@ export function IssueTypeMappingsSection({
         ))}
       </div>
       {!embedded && (
-        <p className="text-11 text-stone-500 dark:text-stone-400 mt-3 leading-relaxed">
+        <p className="text-11 text-text-secondary mt-3 leading-relaxed">
           Changes write to{" "}
-          <span className="font-mono text-stone-500 dark:text-stone-500">
-            {"<repo>/.roubo/roubo.yaml"}
-          </span>
-          . Commit alongside your other work.
+          <span className="font-mono text-text-secondary">{"<repo>/.roubo/roubo.yaml"}</span>.
+          Commit alongside your other work.
         </p>
       )}
     </div>

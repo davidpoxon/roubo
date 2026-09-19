@@ -35,12 +35,12 @@ export function WorkspaceSourceTile({
       isDirty={isDirty}
     >
       {isLoading ? (
-        <div className="flex items-center gap-2 text-13 text-stone-500 dark:text-stone-400 py-2">
+        <div className="flex items-center gap-2 text-13 text-text-secondary py-2">
           <Spinner />
           Loading...
         </div>
       ) : isFetchError ? (
-        <p className="text-13 text-red-500 dark:text-red-400">
+        <p className="text-13 text-danger-text">
           Failed to load workspace source settings. Please try again.
         </p>
       ) : (
@@ -53,7 +53,7 @@ export function WorkspaceSourceTile({
               description="When creating a new bench, start from the repo's default branch (e.g. main) instead of the currently checked-out branch."
             />
             {draft.branchFromDefault && (
-              <p className="mt-2 text-11 text-stone-500 dark:text-stone-400 font-mono leading-relaxed">
+              <p className="mt-2 text-11 text-text-secondary font-mono leading-relaxed">
                 git worktree add &lt;workspacePath&gt; -b &lt;benchBranch&gt;{" "}
                 {settings?.defaultBranch ? settings.defaultBranch : <>&lt;defaultBranch&gt;</>}
               </p>
@@ -62,14 +62,12 @@ export function WorkspaceSourceTile({
               (settings?.defaultBranch || settings?.defaultBranchError) && (
                 <div className="mt-2 text-12">
                   {settings?.defaultBranch ? (
-                    <p className="text-stone-500 dark:text-stone-400">
+                    <p className="text-text-secondary">
                       Default branch:{" "}
-                      <span className="font-mono text-stone-700 dark:text-stone-300">
-                        {settings.defaultBranch}
-                      </span>
+                      <span className="font-mono text-text-body">{settings.defaultBranch}</span>
                     </p>
                   ) : settings?.defaultBranchError ? (
-                    <p className="text-red-500 dark:text-red-400">{settings.defaultBranchError}</p>
+                    <p className="text-danger-text">{settings.defaultBranchError}</p>
                   ) : null}
                 </div>
               )}
@@ -82,7 +80,7 @@ export function WorkspaceSourceTile({
               description="Fetch and fast-forward the source branch before creating the new workspace so the bench starts from the latest commit."
             />
             {draft.pullLatest && (
-              <p className="mt-2 text-11 text-stone-500 dark:text-stone-400 font-mono leading-relaxed">
+              <p className="mt-2 text-11 text-text-secondary font-mono leading-relaxed">
                 {`git fetch origin ${draft.branchFromDefault ? (settings?.defaultBranch ?? "<defaultBranch>") : "<currentBranch>"} && git merge --ff-only origin/${draft.branchFromDefault ? (settings?.defaultBranch ?? "<defaultBranch>") : "<currentBranch>"}`}
               </p>
             )}

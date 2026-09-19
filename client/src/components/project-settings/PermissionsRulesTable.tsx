@@ -8,10 +8,9 @@ import { RULE_TYPE_ITEMS, type SelectionState } from "./permissionsTable";
 
 function RuleTypeBadge({ type }: { type: RuleType }) {
   const styles: Record<RuleType, string> = {
-    allow:
-      "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800/40",
-    deny: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/40",
-    ask: "bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-300 dark:border-stone-700",
+    allow: "bg-success-surface text-success-text border border-success-border",
+    deny: "bg-danger-surface text-danger-text border border-danger-border",
+    ask: "bg-bg-hover text-text-secondary border border-border-strong",
   };
   return (
     <span className={`inline-flex px-1.5 py-0.5 rounded text-11 ${styles[type]}`}>{type}</span>
@@ -120,9 +119,9 @@ export function PermissionsRulesTable({
   })();
 
   return (
-    <div className="rounded-xl border border-stone-200 dark:border-stone-800/80 bg-stone-50 dark:bg-stone-900/30 overflow-hidden">
+    <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
       <div
-        className="grid text-11 uppercase tracking-label text-text-secondary px-5 py-2.5 border-b border-stone-200 dark:border-stone-800/60 bg-stone-100 dark:bg-stone-900/60"
+        className="grid text-11 uppercase tracking-label text-text-secondary px-5 py-2.5 border-b border-border bg-bg-base"
         style={{ gridTemplateColumns: gridTemplate }}
       >
         {selection && <div />}
@@ -131,7 +130,7 @@ export function PermissionsRulesTable({
         {editable && <div className="text-right">Actions</div>}
       </div>
 
-      <div className="divide-y divide-stone-200 dark:divide-stone-800/60 font-mono text-12">
+      <div className="divide-y divide-border font-mono text-12">
         {rules.length === 0 ? (
           <div className="px-5 py-4 text-text-secondary text-12">{emptyMessage}</div>
         ) : filtered.length === 0 ? (
@@ -146,7 +145,7 @@ export function PermissionsRulesTable({
               return (
                 <div key={`${rule.type}:${rule.pattern}:${originalIndex}`}>
                   <div
-                    className="grid px-5 py-2 items-center bg-amber-500/5 border-l-[2px] border-l-amber-500"
+                    className="grid px-5 py-2 items-center bg-accent-muted border-l-[2px] border-l-accent"
                     style={{ gridTemplateColumns: "2fr 8fr 2fr" }}
                   >
                     <div>
@@ -188,16 +187,14 @@ export function PermissionsRulesTable({
                       </Button>
                       <Button
                         onPress={cancelEdit}
-                        className="text-11 px-2 py-1 rounded-control border border-stone-300 dark:border-stone-700 text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="text-11 px-2 py-1 rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                       >
                         Cancel
                       </Button>
                     </div>
                   </div>
                   {editIsDuplicate && (
-                    <p className="px-5 pb-1.5 text-11 text-red-500 dark:text-red-400">
-                      Rule already exists
-                    </p>
+                    <p className="px-5 pb-1.5 text-11 text-danger-text">Rule already exists</p>
                   )}
                 </div>
               );
@@ -211,9 +208,7 @@ export function PermissionsRulesTable({
                   isSelected={isSelected}
                   onChange={() => selection.onToggleKey(selKey)}
                   className={`w-full grid px-5 py-2.5 items-center cursor-pointer outline-none transition-colors data-[focus-visible]:ring-2 data-[focus-visible]:ring-inset data-[focus-visible]:ring-focus-ring ${
-                    isSelected
-                      ? "bg-amber-500/5 dark:bg-amber-500/8"
-                      : "hover:bg-stone-100 dark:hover:bg-stone-900/40"
+                    isSelected ? "bg-accent-muted" : "hover:bg-bg-hover"
                   }`}
                   style={{ gridTemplateColumns: gridTemplate }}
                 >
@@ -223,19 +218,17 @@ export function PermissionsRulesTable({
                         <div
                           className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
                             checked
-                              ? "bg-amber-500 border-amber-500"
-                              : "bg-stone-100 dark:bg-stone-800 border-stone-300 dark:border-stone-600"
+                              ? "bg-accent border-accent"
+                              : "bg-bg-field border-border-control"
                           }`}
                         >
-                          {checked && <Check size={12} className="text-stone-950" />}
+                          {checked && <Check size={12} className="text-on-accent" />}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <RuleTypeBadge type={rule.type} />
                       </div>
-                      <div className="text-stone-700 dark:text-stone-200 truncate">
-                        {rule.pattern}
-                      </div>
+                      <div className="text-text-body truncate">{rule.pattern}</div>
                     </>
                   )}
                 </Checkbox>
@@ -246,36 +239,32 @@ export function PermissionsRulesTable({
               <div
                 key={`${rule.type}:${rule.pattern}:${originalIndex}`}
                 className={`grid px-5 py-2.5 items-center transition-colors ${
-                  isHighlighted
-                    ? "bg-amber-500/5 dark:bg-amber-500/[0.08]"
-                    : editable
-                      ? "hover:bg-stone-100 dark:hover:bg-stone-900/40"
-                      : ""
+                  isHighlighted ? "bg-accent-muted" : editable ? "hover:bg-bg-hover" : ""
                 }`}
                 style={{ gridTemplateColumns: gridTemplate }}
               >
                 <div className="flex items-center gap-1">
                   {isHighlighted && (
-                    <span className="text-amber-500 font-mono text-11 leading-none select-none">
+                    <span className="text-accent-text font-mono text-11 leading-none select-none">
                       +
                     </span>
                   )}
                   <RuleTypeBadge type={rule.type} />
                 </div>
-                <div className="text-stone-700 dark:text-stone-200 truncate">{rule.pattern}</div>
+                <div className="text-text-body truncate">{rule.pattern}</div>
                 {editable && (
                   <div className="flex justify-end gap-2">
                     <Button
                       onPress={() => startEdit(originalIndex)}
                       isDisabled={editingIndex !== null}
-                      className="text-11 text-text-secondary hover:text-stone-900 dark:hover:text-stone-200 outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      className="text-11 text-text-secondary hover:text-text-primary outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Edit
                     </Button>
                     <Button
                       onPress={() => onRemove?.(originalIndex)}
                       isDisabled={editingIndex !== null}
-                      className="text-11 text-text-secondary hover:text-red-600 dark:hover:text-red-400 outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      className="text-11 text-text-secondary hover:text-danger-text outline-none disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                       Remove
                     </Button>
@@ -288,7 +277,7 @@ export function PermissionsRulesTable({
       </div>
 
       {showFooter && (
-        <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-t border-stone-200 dark:border-stone-800/60 bg-stone-50/60 dark:bg-stone-900/40">
+        <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-t border-border bg-bg-base">
           {/* Type filter pills */}
           <div className="flex items-center gap-1">
             {filterLabels.map(({ value, label, count }) => (
@@ -300,8 +289,8 @@ export function PermissionsRulesTable({
                 }}
                 className={`focus-visible:ring-2 focus-visible:ring-focus-ring px-2 py-0.5 text-11 rounded-control transition-colors outline-none ${
                   typeFilter === value
-                    ? "bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200"
-                    : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300"
+                    ? "bg-bg-pressed text-text-primary"
+                    : "text-text-secondary hover:text-text-primary"
                 }`}
               >
                 {label} ({count})
@@ -316,12 +305,12 @@ export function PermissionsRulesTable({
                 aria-label="Previous page"
                 isDisabled={safePage <= 1}
                 onPress={() => setPage((p) => Math.max(1, p - 1))}
-                className="p-1 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="p-1 rounded-control text-text-secondary hover:text-text-primary disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <ChevronLeft size={14} />
               </Button>
               <span className="text-11 text-text-secondary tabular-nums min-w-[4rem] text-center">
-                <span className="font-mono text-stone-600 dark:text-stone-400">{safePage}</span>
+                <span className="font-mono text-text-secondary">{safePage}</span>
                 <span className="mx-1">/</span>
                 <span className="font-mono">{totalPages}</span>
               </span>
@@ -329,7 +318,7 @@ export function PermissionsRulesTable({
                 aria-label="Next page"
                 isDisabled={safePage >= totalPages}
                 onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1 rounded-control text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="p-1 rounded-control text-text-secondary hover:text-text-primary disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <ChevronRight size={14} />
               </Button>
