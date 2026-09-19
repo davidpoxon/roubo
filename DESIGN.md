@@ -43,6 +43,8 @@ The block records **roles, not shades**. There are no scale keys such as `stone-
 | Failure message | `danger-text`, `danger-surface`, `danger-border` | red-400, red-950, red-900 | red-700, red-50, red-200 |
 | Success message | `success-text`, `success-surface`, `success-border` | green-400, green-950, green-900 | green-800, green-50, green-200 |
 | Bench and component status | `status-active`, `status-preparing`, `status-error`, `status-idle` | green-500, amber-500, red-500, stone-600 | green-600, amber-600, red-600, stone-400 |
+| Terminal ground, text and cursor, selection | `terminal-ground`, `terminal-text`, `terminal-cursor`, `terminal-selection` | stone-950, stone-300, stone-300, stone-700 at 50% | stone-50, stone-700, stone-700, stone-400 at 40% |
+| Terminal ANSI palette | `terminal-ansi-black` to `terminal-ansi-bright-white` | see below | see below |
 
 **Three text tones, and each clears AA on every ground.** `text-secondary` is the lowest tone and measures 6.99:1 or better on base, surface, and hover in light, and 6.01:1 or better in dark, so no tone needs a per-ground variant and there is no fourth "muted" tier. Placeholder text uses `text-secondary`. Disabled content is not a tone: it is the whole control at `opacity.disabled`. On `bg-pressed`, secondary text steps up to `text-body`.
 
@@ -63,6 +65,13 @@ The block records **roles, not shades**. There are no scale keys such as `stone-
 - **Project status** `project-status-in-progress`, `-ready`, `-todo`: blue, fuchsia, cyan. Dots only.
 
 Success is `green`, never emerald; emerald is the open-issue tone.
+
+**The terminal follows the theme.** The xterm canvas and the well around it both paint `terminal-ground`, which is the `bg-base` value in each theme, so no rim shows at the canvas edge. The cursor is the text colour and the selection is a stone wash: amber stays with its two jobs. The sixteen ANSI roles (`terminal-ansi-black`, `-red`, `-green`, `-yellow`, `-blue`, `-magenta`, `-cyan`, `-white`, and a `-bright-` twin of each) are the one place where program output, not Roubo, chooses the hue:
+
+- **Dark.** Stone-900 black, stone-300 white, stone-400 bright black, stone-50 bright white; the hues at the 500 step, and at the 400 step for bright.
+- **Light.** Stone-900 black, stone-500 white, stone-600 bright black, stone-400 bright white; the hues at the 700 step, and at the 800 step for bright, because on a light ground bright means more emphasis. Magenta is purple; yellow is yellow, never amber.
+
+Every ANSI entry that prints text clears 4.5:1 on its ground (the lowest are light white at 4.59 and light yellow at 4.71). The two exceptions sit next to the ground by definition: dark black (1.13) and light bright white (2.41).
 
 ## Type
 
@@ -190,7 +199,27 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
     "agent-swatch-6": {"hex": "#0284C7", "role": "swatch-agent"}, "agent-swatch-6-dark": {"hex": "#38BDF8", "role": "swatch-agent"},
     "project-status-in-progress": {"hex": "#2563EB", "role": "swatch-project-status"}, "project-status-in-progress-dark": {"hex": "#60A5FA", "role": "swatch-project-status"},
     "project-status-ready": {"hex": "#C026D3", "role": "swatch-project-status"}, "project-status-ready-dark": {"hex": "#E879F9", "role": "swatch-project-status"},
-    "project-status-todo": {"hex": "#0891B2", "role": "swatch-project-status"}, "project-status-todo-dark": {"hex": "#22D3EE", "role": "swatch-project-status"}
+    "project-status-todo": {"hex": "#0891B2", "role": "swatch-project-status"}, "project-status-todo-dark": {"hex": "#22D3EE", "role": "swatch-project-status"},
+    "terminal-ground": {"hex": "#FAFAF9", "role": "surface-terminal"}, "terminal-ground-dark": {"hex": "#0C0A09", "role": "surface-terminal"},
+    "terminal-text": {"hex": "#44403C", "role": "text-terminal"}, "terminal-text-dark": {"hex": "#D6D3D1", "role": "text-terminal"},
+    "terminal-cursor": {"hex": "#44403C", "role": "cursor-terminal"}, "terminal-cursor-dark": {"hex": "#D6D3D1", "role": "cursor-terminal"},
+    "terminal-selection": {"hex": "#A8A29E", "role": "selection-terminal", "alpha": 0.4}, "terminal-selection-dark": {"hex": "#44403C", "role": "selection-terminal", "alpha": 0.5},
+    "terminal-ansi-black": {"hex": "#1C1917", "role": "ansi-terminal"}, "terminal-ansi-black-dark": {"hex": "#1C1917", "role": "ansi-terminal"},
+    "terminal-ansi-red": {"hex": "#B91C1C", "role": "ansi-terminal"}, "terminal-ansi-red-dark": {"hex": "#EF4444", "role": "ansi-terminal"},
+    "terminal-ansi-green": {"hex": "#15803D", "role": "ansi-terminal"}, "terminal-ansi-green-dark": {"hex": "#22C55E", "role": "ansi-terminal"},
+    "terminal-ansi-yellow": {"hex": "#A16207", "role": "ansi-terminal"}, "terminal-ansi-yellow-dark": {"hex": "#EAB308", "role": "ansi-terminal"},
+    "terminal-ansi-blue": {"hex": "#1D4ED8", "role": "ansi-terminal"}, "terminal-ansi-blue-dark": {"hex": "#3B82F6", "role": "ansi-terminal"},
+    "terminal-ansi-magenta": {"hex": "#7E22CE", "role": "ansi-terminal"}, "terminal-ansi-magenta-dark": {"hex": "#A855F7", "role": "ansi-terminal"},
+    "terminal-ansi-cyan": {"hex": "#0E7490", "role": "ansi-terminal"}, "terminal-ansi-cyan-dark": {"hex": "#06B6D4", "role": "ansi-terminal"},
+    "terminal-ansi-white": {"hex": "#78716C", "role": "ansi-terminal"}, "terminal-ansi-white-dark": {"hex": "#D6D3D1", "role": "ansi-terminal"},
+    "terminal-ansi-bright-black": {"hex": "#57534E", "role": "ansi-terminal"}, "terminal-ansi-bright-black-dark": {"hex": "#A8A29E", "role": "ansi-terminal"},
+    "terminal-ansi-bright-red": {"hex": "#991B1B", "role": "ansi-terminal"}, "terminal-ansi-bright-red-dark": {"hex": "#F87171", "role": "ansi-terminal"},
+    "terminal-ansi-bright-green": {"hex": "#166534", "role": "ansi-terminal"}, "terminal-ansi-bright-green-dark": {"hex": "#4ADE80", "role": "ansi-terminal"},
+    "terminal-ansi-bright-yellow": {"hex": "#854D0E", "role": "ansi-terminal"}, "terminal-ansi-bright-yellow-dark": {"hex": "#FACC15", "role": "ansi-terminal"},
+    "terminal-ansi-bright-blue": {"hex": "#1E40AF", "role": "ansi-terminal"}, "terminal-ansi-bright-blue-dark": {"hex": "#60A5FA", "role": "ansi-terminal"},
+    "terminal-ansi-bright-magenta": {"hex": "#6B21A8", "role": "ansi-terminal"}, "terminal-ansi-bright-magenta-dark": {"hex": "#C084FC", "role": "ansi-terminal"},
+    "terminal-ansi-bright-cyan": {"hex": "#155E75", "role": "ansi-terminal"}, "terminal-ansi-bright-cyan-dark": {"hex": "#22D3EE", "role": "ansi-terminal"},
+    "terminal-ansi-bright-white": {"hex": "#A8A29E", "role": "ansi-terminal"}, "terminal-ansi-bright-white-dark": {"hex": "#FAFAF9", "role": "ansi-terminal"}
   },
   "type": {
     "family": "\"IBM Plex Sans\", system-ui, -apple-system, sans-serif",

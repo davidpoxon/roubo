@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import Terminal from "./Terminal";
 
+const xtermOptions = vi.hoisted(() => [] as { theme?: Record<string, string> }[]);
+
 const mockTerminalInstance = {
+  options: {} as { theme?: Record<string, string> },
   loadAddon: vi.fn(),
   open: vi.fn(),
   onData: vi.fn(() => ({ dispose: vi.fn() })),
@@ -21,7 +24,8 @@ const mockFitAddonInstance = {
 };
 
 vi.mock("@xterm/xterm", () => ({
-  Terminal: function MockXTerm() {
+  Terminal: function MockXTerm(options: { theme?: Record<string, string> }) {
+    xtermOptions.push(options);
     return mockTerminalInstance;
   },
 }));
@@ -60,6 +64,8 @@ function stubDimensions(width = 200, height = 400) {
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
+  xtermOptions.length = 0;
+  mockTerminalInstance.options = {};
   mockTerminalInstance.onData.mockReturnValue({ dispose: vi.fn() });
   mockTerminalInstance.onResize.mockReturnValue({ dispose: vi.fn() });
   mockFitAddonInstance.proposeDimensions.mockReturnValue({ cols: 80, rows: 24 });
@@ -350,5 +356,90 @@ describe("Terminal: waiting affordance (#1119)", () => {
     render(<Terminal sessionId="sess-1" active waitingNotificationId="n1" />);
     expect(screen.getByTestId("reconnect-banner")).toBeInTheDocument();
     expect(screen.queryByText("Waiting for your input")).not.toBeInTheDocument();
+  });
+});
+
+// Each xterm theme key and the DESIGN.md role it reads (#1323).
+const THEME_ROLES: Record<string, string> = {
+  background: "terminal-ground",
+  foreground: "terminal-text",
+  cursor: "terminal-cursor",
+  selectionBackground: "terminal-selection",
+  black: "terminal-ansi-black",
+  red: "terminal-ansi-red",
+  green: "terminal-ansi-green",
+  yellow: "terminal-ansi-yellow",
+  blue: "terminal-ansi-blue",
+  magenta: "terminal-ansi-magenta",
+  cyan: "terminal-ansi-cyan",
+  white: "terminal-ansi-white",
+  brightBlack: "terminal-ansi-bright-black",
+  brightRed: "terminal-ansi-bright-red",
+  brightGreen: "terminal-ansi-bright-green",
+  brightYellow: "terminal-ansi-bright-yellow",
+  brightBlue: "terminal-ansi-bright-blue",
+  brightMagenta: "terminal-ansi-bright-magenta",
+  brightCyan: "terminal-ansi-bright-cyan",
+  brightWhite: "terminal-ansi-bright-white",
+};
+
+// A distinct stand-in value per role and theme, so a key wired to the wrong
+// role, or a theme that did not switch, fails on the exact key.
+function roleValue(index: number, dark: boolean): string {
+  return `#${(dark ? 0x800000 : 0x100000) + index}`.toUpperCase();
+}
+
+function expectedTheme(dark: boolean): Record<string, string> {
+  return Object.fromEntries(Object.keys(THEME_ROLES).map((key, i) => [key, roleValue(i, dark)]));
+}
+
+describe("Terminal: theme from the DESIGN.md terminal roles (#1323)", () => {
+  let sheet: HTMLStyleElement;
+
+  beforeEach(() => {
+    const decls = (dark: boolean) =>
+      Object.values(THEME_ROLES)
+        .map((role, i) => `--color-${role}: ${roleValue(i, dark)};`)
+        .join(" ");
+    sheet = document.createElement("style");
+    sheet.textContent = `:root { ${decls(false)} } :root.dark { ${decls(true)} }`;
+    document.head.appendChild(sheet);
+  });
+
+  afterEach(() => {
+    sheet.remove();
+    document.documentElement.classList.remove("dark");
+  });
+
+  it("builds the xterm theme from the light roles", () => {
+    render(<Terminal sessionId="sess-1" active />);
+    expect(xtermOptions[0]?.theme).toEqual(expectedTheme(false));
+  });
+
+  it("builds the xterm theme from the dark roles when the app is dark", () => {
+    document.documentElement.classList.add("dark");
+    render(<Terminal sessionId="sess-1" active />);
+    expect(xtermOptions[0]?.theme).toEqual(expectedTheme(true));
+  });
+
+  it("re-themes the open terminal when the app theme switches", async () => {
+    render(<Terminal sessionId="sess-1" active />);
+    await act(async () => {
+      document.documentElement.classList.add("dark");
+    });
+    expect(mockTerminalInstance.options.theme).toEqual(expectedTheme(true));
+    await act(async () => {
+      document.documentElement.classList.remove("dark");
+    });
+    expect(mockTerminalInstance.options.theme).toEqual(expectedTheme(false));
+  });
+
+  it("stops following the theme once unmounted", async () => {
+    const { unmount } = render(<Terminal sessionId="sess-1" active />);
+    unmount();
+    await act(async () => {
+      document.documentElement.classList.add("dark");
+    });
+    expect(mockTerminalInstance.options.theme).toBeUndefined();
   });
 });

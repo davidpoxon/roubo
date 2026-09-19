@@ -1250,6 +1250,30 @@ describe("TerminalTabs: agent-generic session tabs", () => {
 
     expect(screen.queryByTestId("session-agent-icon")).toBeNull();
   });
+
+  it("paints the well with the terminal ground the xterm canvas reads, so no rim shows (#1323)", () => {
+    setup([
+      {
+        id: "shell-session",
+        benchKey: "p:1",
+        label: "Terminal 1",
+        createdAt: "2024-01-01",
+        command: "bash",
+        status: "live",
+      },
+    ]);
+
+    const well = document.querySelector(".rounded-b-lg");
+    expect(well?.className).toContain("bg-terminal-ground");
+    expect(well?.className).not.toMatch(/bg-\[#/);
+  });
+
+  it("paints the empty well with the app ground", () => {
+    setup([]);
+
+    const well = screen.getByText("No terminal sessions").closest(".rounded-b-lg");
+    expect(well?.className).toContain("bg-bg-base");
+  });
 });
 
 describe("TerminalTabs: tab-switch dismiss behaviour", () => {
