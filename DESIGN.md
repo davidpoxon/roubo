@@ -57,7 +57,7 @@ The block records **roles, not shades**. There are no scale keys such as `stone-
 **Categorical hues appear only where the hue identifies something**, and are tuned per ground: the 600 step on light, the 400 step on dark, so a dot holds 3:1 against its surface in both themes.
 
 - **Issue chip tones**, a 15% tint (20% in dark) with a text pair: `issue-open` (emerald), `issue-milestone` (indigo), `issue-type` (violet), and the outlined `issue-label` (cyan). The lowest pair is `issue-label-text` at 4.91:1 on the light hover ground.
-- **Agent kind pill**: `kind-agent-surface`, `-border`, `-text` (sky).
+- **Plugin kind pills**, one hue per kind, each a `-surface`, `-border`, `-text` set: `kind-agent` (sky), `kind-component` (violet), `kind-integration` (teal). The lowest pair is `kind-agent-text` at 7.09:1 on its light surface.
 - **Agent swatches** `agent-swatch-1` to `-6`: violet, cyan, emerald, lime, rose, sky. Dots and glyphs only, never text.
 - **Project status** `project-status-in-progress`, `-ready`, `-todo`: blue, fuchsia, cyan. Dots only.
 
@@ -172,6 +172,12 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
     "kind-agent-surface": {"hex": "#F0F9FF", "role": "surface-kind-agent"}, "kind-agent-surface-dark": {"hex": "#082F49", "role": "surface-kind-agent", "alpha": 0.2},
     "kind-agent-border": {"hex": "#BAE6FD", "role": "border-kind-agent"}, "kind-agent-border-dark": {"hex": "#0C4A6E", "role": "border-kind-agent", "alpha": 0.4},
     "kind-agent-text": {"hex": "#075985", "role": "text-kind-agent"}, "kind-agent-text-dark": {"hex": "#BAE6FD", "role": "text-kind-agent"},
+    "kind-component-surface": {"hex": "#F5F3FF", "role": "surface-kind-component"}, "kind-component-surface-dark": {"hex": "#2E1065", "role": "surface-kind-component", "alpha": 0.2},
+    "kind-component-border": {"hex": "#DDD6FE", "role": "border-kind-component"}, "kind-component-border-dark": {"hex": "#4C1D95", "role": "border-kind-component", "alpha": 0.4},
+    "kind-component-text": {"hex": "#5B21B6", "role": "text-kind-component"}, "kind-component-text-dark": {"hex": "#DDD6FE", "role": "text-kind-component"},
+    "kind-integration-surface": {"hex": "#F0FDFA", "role": "surface-kind-integration"}, "kind-integration-surface-dark": {"hex": "#042F2E", "role": "surface-kind-integration", "alpha": 0.2},
+    "kind-integration-border": {"hex": "#99F6E4", "role": "border-kind-integration"}, "kind-integration-border-dark": {"hex": "#134E4A", "role": "border-kind-integration", "alpha": 0.4},
+    "kind-integration-text": {"hex": "#115E59", "role": "text-kind-integration"}, "kind-integration-text-dark": {"hex": "#99F6E4", "role": "text-kind-integration"},
     "agent-swatch-1": {"hex": "#7C3AED", "role": "swatch-agent"}, "agent-swatch-1-dark": {"hex": "#A78BFA", "role": "swatch-agent"},
     "agent-swatch-2": {"hex": "#0891B2", "role": "swatch-agent"}, "agent-swatch-2-dark": {"hex": "#22D3EE", "role": "swatch-agent"},
     "agent-swatch-3": {"hex": "#059669", "role": "swatch-agent"}, "agent-swatch-3-dark": {"hex": "#34D399", "role": "swatch-agent"},
