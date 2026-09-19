@@ -241,7 +241,10 @@ export function applyAllowlist(findingsByFile, allowlist) {
     }
     seen.add(entry);
     if (!entry.startsWith(`${SCAN_ROOT}/`)) {
-      problems.push({ entry, reason: `outside ${SCAN_ROOT}/, which is the only tree scanned.` });
+      problems.push({
+        entry,
+        reason: `outside ${SCAN_ROOT}/; only paths under it can be allowlisted.`,
+      });
       continue;
     }
     const parent = allowlist.find(
