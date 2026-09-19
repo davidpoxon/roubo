@@ -60,9 +60,22 @@ npm run format:check
 
 # Type-check
 npm run typecheck
+
+# Design tokens (DESIGN.md conformance)
+npm run lint:design-tokens
+npm run lint:semantic-dark
 ```
 
 > **Note.** `npm run typecheck` covers the SDK, client, server, project build, plugin, and e2e fixture workspaces. The CI `typecheck` job only runs `client` and `server`, so the local command is the stricter gate: a green CI run does not mean the plugin and fixture workspaces type-check.
+
+### Design-token gates
+
+[DESIGN.md](../DESIGN.md) records colour as roles, not shades, and the client is built to it. Two gates in the `pr-check` `lint` job keep the client in line with it. Both read committed files only, so they need no install.
+
+**Which token when.** Paint with a semantic role utility, never a raw palette shade and never a `dark:` pair. A ground is a `bg-*` token (`bg-bg-surface`, `bg-bg-hover`). Text on it is one of the three text tones (`text-text-primary`, `text-text-body`, `text-text-secondary`) or a paired `*-text` token (`text-danger-text` on `bg-danger-surface`). `accent` is never text, `danger` is never decoration, a `status-*` colour never appears without its label, and a categorical hue never carries text. `design-tokens/semantic-dark.css` switches every role for dark mode, so one utility covers both themes. The full rule is in [DESIGN.md](../DESIGN.md#components) under "Which token when".
+
+- **`npm run lint:design-tokens`** fails when a file under `client/src` uses a raw palette colour utility (`text-stone-500`, `bg-amber-500/15`, `ring-offset-stone-950`, under any colour prefix and any variant chain) or any `dark:` colour variant (`dark:text-stone-300`, `dark:bg-white`, even `dark:bg-bg-surface`). The colour migration is still in flight, so the guard skips the paths in `scripts/design-token-allowlist.json`. A directory entry ends in `/` and covers everything beneath it; a file entry covers one file. The list only shrinks: an entry that no longer covers a violation fails as stale, so remove it in the same change that migrates the path. Never add an entry to get a new violation past the gate. Guard: `scripts/design-token-guard.mjs`.
+- **`npm run lint:semantic-dark`** fails when the DESIGN.md token block records a `-dark` colour (`text-secondary-dark`) and `design-tokens/semantic-dark.css` has no `--color-text-secondary: var(--color-text-secondary-dark);` line under `.dark`. Without that line the build still compiles and the light value renders in dark mode. The failure prints the exact lines to add. Guard: `scripts/semantic-dark-guard.mjs`.
 
 ## Testing
 
@@ -191,6 +204,8 @@ Run the same checks CI runs, in this order:
 ```bash
 npm run format:check
 npm run lint
+npm run lint:design-tokens
+npm run lint:semantic-dark
 npm run typecheck
 npm test
 ```

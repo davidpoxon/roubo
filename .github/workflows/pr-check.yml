@@ -38,6 +38,16 @@ jobs:
       # the lock, and `npm ci` accepts that because the recorded range still
       # SATISFIES the manifest, so no other gate here can see the drift.
       - run: npm run lint:dep-pins
+      # #1297: fail the build if client/src paints with a raw palette shade
+      # (`text-stone-500`) or a `dark:` colour pair instead of a DESIGN.md
+      # semantic role utility, outside the shrinking allowlist of unmigrated
+      # paths in scripts/design-token-allowlist.json. A stale entry fails too.
+      - run: npm run lint:design-tokens
+      # #1297: fail the build if DESIGN.md records a `-dark` colour that
+      # design-tokens/semantic-dark.css never switches to under `.dark`. The
+      # build still compiles without the line; the light value just renders in
+      # dark mode, so nothing else here would notice.
+      - run: npm run lint:semantic-dark
 
   format:
     runs-on: ubuntu-latest
