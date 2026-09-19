@@ -229,8 +229,8 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
     ).toHaveAttribute("aria-selected", "true");
     expect(
       await testBenchTab.evaluate((el) => el.className),
-      `${OWNING_SLICES.variantTabs}: active TestBench tab carries the amber accent`,
-    ).toContain("border-amber-500");
+      `${OWNING_SLICES.variantTabs}: active TestBench tab carries the accent indicator`,
+    ).toContain("data-[selected]:border-accent");
 
     // The create flow opens the bench on the TestBench tab already; click it
     // explicitly to mirror TC-006's "Bench detail opens with the TestBench tab".
