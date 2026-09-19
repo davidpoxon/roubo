@@ -4,7 +4,7 @@ export default function TitleBar({ projectName }: { projectName?: string }) {
   const isMac = window.roubo?.platform === "darwin";
 
   return (
-    <div className="h-10 shrink-0 flex items-center border-b border-stone-200 dark:border-stone-800/40 bg-stone-50 dark:bg-stone-950/60 drag-region">
+    <header className="h-10 shrink-0 flex items-center border-b border-stone-200 dark:border-stone-800/40 bg-stone-50 dark:bg-stone-950/60 drag-region">
       <div className={`flex items-center gap-2.5 ${isMac ? "pl-[92px]" : "pl-5"}`}>
         {projectName ? (
           <h1 className="text-[11px] font-semibold text-stone-700 dark:text-stone-300 truncate">
@@ -19,6 +19,6 @@ export default function TitleBar({ projectName }: { projectName?: string }) {
           </>
         )}
       </div>
-    </div>
+    </header>
   );
 }
