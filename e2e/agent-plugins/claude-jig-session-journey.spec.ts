@@ -416,7 +416,7 @@ test("AP-TC-055: a jig-driven agent session injects its prompt and raises waitin
   observe(
     STEPS.S003,
     "S003-O02",
-    dotCount === 1 && dotClass.includes("bg-amber-500"),
+    dotCount === 1 && dotClass.includes("bg-accent"),
     `the "${AGENT_TAB_LABEL}" tab shows the amber waiting dot (the pane affordance is davidpoxon/roubo#1119)`,
     `waiting indicators on the tab: ${dotCount}${dotCount === 1 ? `, class=${JSON.stringify(dotClass)}` : ""}`,
   );
