@@ -189,8 +189,16 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
     "line_height": [1.45, 1.5, 1.5, 1.45, 1.4, 1.3],
     "letter_spacing": ["0.12em", null, null, null, null, "-0.01em"],
     "fonts": {
-      "display": {"name": "IBM Plex Sans", "stack": "\"IBM Plex Sans\", system-ui, -apple-system, sans-serif"},
-      "mono": {"name": "JetBrains Mono", "stack": "\"JetBrains Mono\", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"}
+      "display": {"name": "IBM Plex Sans", "stack": "\"IBM Plex Sans\", system-ui, -apple-system, sans-serif", "faces": [
+        {"file": "client/src/assets/fonts/ibm-plex-sans-latin-400-normal.woff2", "weight": "400", "style": "normal"},
+        {"file": "client/src/assets/fonts/ibm-plex-sans-latin-500-normal.woff2", "weight": "500", "style": "normal"},
+        {"file": "client/src/assets/fonts/ibm-plex-sans-latin-600-normal.woff2", "weight": "600", "style": "normal"},
+        {"file": "client/src/assets/fonts/ibm-plex-sans-latin-700-normal.woff2", "weight": "700", "style": "normal"}
+      ]},
+      "mono": {"name": "JetBrains Mono", "stack": "\"JetBrains Mono\", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", "faces": [
+        {"file": "client/src/assets/fonts/jetbrains-mono-latin-400-normal.woff2", "weight": "400", "style": "normal"},
+        {"file": "client/src/assets/fonts/jetbrains-mono-latin-500-normal.woff2", "weight": "500", "style": "normal"}
+      ]}
     }
   },
   "spacing": [1, 2, 4, 6, 8, 12, 14, 16, 20, 24, 32],
