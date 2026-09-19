@@ -322,6 +322,25 @@ describe("SpecPickerModal a11y (#484)", () => {
       expect(trigger).toHaveAttribute("aria-expanded", "false");
     });
 
+    it("opens from the arrow keys, and marks only the row that opened it as expanded", async () => {
+      const user = userEvent.setup();
+      renderModal();
+      const trigger = screen.getByRole("button", { name: "Actions for testbench" });
+      const other = screen.getByRole("button", { name: "Actions for billing" });
+      trigger.focus();
+      await user.keyboard("{ArrowDown}");
+      // One menu is shared by every row, so the expanded state has to follow the
+      // row that opened it rather than the menu being mounted at all.
+      expect(await screen.findByRole("menu")).toBeInTheDocument();
+      expect(screen.getAllByRole("menu")).toHaveLength(1);
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(other).toHaveAttribute("aria-expanded", "false");
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      expect(trigger).toHaveFocus();
+    });
+
     it("has no axe violations with the actions menu open", async () => {
       const user = userEvent.setup();
       renderModal();

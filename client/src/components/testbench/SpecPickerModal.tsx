@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   ModalOverlay,
   Modal,
@@ -7,7 +7,6 @@ import {
   Button,
   Menu,
   MenuItem,
-  MenuTrigger,
   Popover,
   ToggleButton,
   ToggleButtonGroup,
@@ -181,6 +180,13 @@ export default function SpecPickerModal({
   const [archiveReason, setArchiveReason] = useState("");
   const [supersedeTarget, setSupersedeTarget] = useState("");
   const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+  // The one row-actions menu, shared by every row (#773). Each row renders only a
+  // native trigger button; the spec whose menu is open and the button it anchors
+  // to live here. A react-aria MenuTrigger + Button per row made the triggers
+  // about 40% of the cost of opening the picker on a 25-spec payload
+  // (TSPF-NFR-002), for a menu that is closed on every row but one.
+  const [menuSpec, setMenuSpec] = useState<DiscoveredSpec | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const manualState = useManualPathValidation(projectId, manualPath, isOpen);
   const lifecycleMutation = useSpecLifecycleMutation();
@@ -292,6 +298,11 @@ export default function SpecPickerModal({
   // class holds the AA floor (text-secondary clears 4.5:1 on the modal's
   // bg-surface in both themes); the path sits at that floor in both
   // groups, so muting collapses there and the hierarchy reads via the slug (#493).
+  const openRowMenu = (trigger: HTMLButtonElement, spec: DiscoveredSpec) => {
+    menuTriggerRef.current = trigger;
+    setMenuSpec(spec);
+  };
+
   const renderRow = (spec: DiscoveredSpec, muted: boolean) => {
     const isSelected = manualPath.trim().length === 0 && selectedDiscoveredPath === spec.path;
     const isActive = mode === "repoint" && spec.path === activePath;
@@ -300,10 +311,11 @@ export default function SpecPickerModal({
     // a text label distinguishing a superseded spec from a merely archived one,
     // plus the superseding slug and any recorded reason (#770, SATCA-FR-016).
     const archivedLabel = spec.lifecycle.archived ? deriveArchivedLabel(spec) : null;
-    // The lifecycle actions menu is a SIBLING of the toggle, never a child of
+    // The lifecycle actions trigger is a SIBLING of the toggle, never a child of
     // it: a row is a single ToggleButton, and nesting a menu trigger inside one
     // would nest interactive elements. Both sit in a flex row so they still read
-    // as one line (#773, SATCA-FR-020/FR-021).
+    // as one line (#773, SATCA-FR-020/FR-021). The menu itself is rendered once,
+    // below, and anchors to whichever trigger opened it.
     const toggle = (
       <ToggleButton
         id={spec.path}
@@ -361,64 +373,23 @@ export default function SpecPickerModal({
     return (
       <div key={spec.path} className="flex items-start gap-1">
         {toggle}
-        <MenuTrigger>
-          <Button
-            aria-label={`Actions for ${spec.slug}`}
-            className={({ isHovered, isPressed, isFocusVisible }) =>
-              `shrink-0 mt-1 p-1.5 rounded-control outline-none transition-colors ${
-                isPressed
-                  ? "bg-bg-pressed text-text-body"
-                  : isHovered
-                    ? "bg-bg-hover text-text-secondary"
-                    : "text-text-secondary"
-              } ${isFocusVisible ? "ring-2 ring-focus-ring" : ""}`
+        <button
+          type="button"
+          aria-label={`Actions for ${spec.slug}`}
+          aria-haspopup="menu"
+          aria-expanded={menuSpec?.path === spec.path}
+          onClick={(event) => openRowMenu(event.currentTarget, spec)}
+          onKeyDown={(event) => {
+            // Match the menu-button pattern: the arrow keys open the menu too.
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              openRowMenu(event.currentTarget, spec);
             }
-          >
-            <EllipsisVertical size={14} aria-hidden />
-          </Button>
-          <Popover
-            placement="bottom end"
-            offset={4}
-            className="animate-rise-in bg-bg-surface border border-border rounded-control shadow-elevation-0 p-1 min-w-[11rem]"
-          >
-            <Menu
-              className="outline-none"
-              onAction={(key) => {
-                if (key === "restore") {
-                  // Reversal takes no input, so it applies straight from the
-                  // menu: the record is deleted and the spec returns to the
-                  // default list (SATCA-FR-021, SATCA-TC-050 S003/S004).
-                  applyLifecycle(spec.slug, null);
-                  return;
-                }
-                openPending(key === "supersede" ? "supersede" : "archive", spec);
-              }}
-            >
-              {spec.lifecycle.archived ? (
-                <MenuItem id="restore" className={LIFECYCLE_MENU_ITEM_CLASS}>
-                  <ArchiveRestore size={14} className="shrink-0" aria-hidden />
-                  <span>
-                    Restore
-                    <span className="block text-11 text-text-secondary">
-                      Return to the live list
-                    </span>
-                  </span>
-                </MenuItem>
-              ) : (
-                <>
-                  <MenuItem id="archive" className={LIFECYCLE_MENU_ITEM_CLASS}>
-                    <Archive size={14} className="shrink-0" aria-hidden />
-                    <span>Archive</span>
-                  </MenuItem>
-                  <MenuItem id="supersede" className={LIFECYCLE_MENU_ITEM_CLASS}>
-                    <Replace size={14} className="shrink-0" aria-hidden />
-                    <span>Supersede</span>
-                  </MenuItem>
-                </>
-              )}
-            </Menu>
-          </Popover>
-        </MenuTrigger>
+          }}
+          className="shrink-0 mt-1 p-1.5 rounded-control outline-none transition-colors text-text-secondary hover:bg-bg-hover active:bg-bg-pressed active:text-text-body focus-visible:ring-2 focus-visible:ring-focus-ring"
+        >
+          <EllipsisVertical size={14} aria-hidden />
+        </button>
       </div>
     );
   };
@@ -866,6 +837,62 @@ export default function SpecPickerModal({
                   </div>
                 </>
               )}
+              <Popover
+                triggerRef={menuTriggerRef}
+                // The popover renders as a dialog, which needs a name. Under a
+                // MenuTrigger it was labelled by its trigger; say the same thing here.
+                aria-label={menuSpec ? `Actions for ${menuSpec.slug}` : undefined}
+                isOpen={menuSpec !== null}
+                onOpenChange={(open) => {
+                  if (!open) setMenuSpec(null);
+                }}
+                placement="bottom end"
+                offset={4}
+                className="animate-rise-in bg-bg-surface border border-border rounded-control shadow-elevation-0 p-1 min-w-[11rem]"
+              >
+                {menuSpec && (
+                  <Menu
+                    aria-label={`Actions for ${menuSpec.slug}`}
+                    autoFocus="first"
+                    className="outline-none"
+                    onAction={(key) => {
+                      const spec = menuSpec;
+                      setMenuSpec(null);
+                      if (key === "restore") {
+                        // Reversal takes no input, so it applies straight from the
+                        // menu: the record is deleted and the spec returns to the
+                        // default list (SATCA-FR-021, SATCA-TC-050 S003/S004).
+                        applyLifecycle(spec.slug, null);
+                        return;
+                      }
+                      openPending(key === "supersede" ? "supersede" : "archive", spec);
+                    }}
+                  >
+                    {menuSpec.lifecycle.archived ? (
+                      <MenuItem id="restore" className={LIFECYCLE_MENU_ITEM_CLASS}>
+                        <ArchiveRestore size={14} className="shrink-0" aria-hidden />
+                        <span>
+                          Restore
+                          <span className="block text-11 text-text-secondary">
+                            Return to the live list
+                          </span>
+                        </span>
+                      </MenuItem>
+                    ) : (
+                      <>
+                        <MenuItem id="archive" className={LIFECYCLE_MENU_ITEM_CLASS}>
+                          <Archive size={14} className="shrink-0" aria-hidden />
+                          <span>Archive</span>
+                        </MenuItem>
+                        <MenuItem id="supersede" className={LIFECYCLE_MENU_ITEM_CLASS}>
+                          <Replace size={14} className="shrink-0" aria-hidden />
+                          <span>Supersede</span>
+                        </MenuItem>
+                      </>
+                    )}
+                  </Menu>
+                )}
+              </Popover>
             </>
           )}
         </Dialog>
