@@ -14,10 +14,10 @@ describe("WaitingBanner", () => {
     expect(screen.getByText("Waiting for your input")).toBeInTheDocument();
   });
 
-  it("carries the amber action-needed dot the tab indicator uses", () => {
+  it("carries the accent action-needed dot the tab indicator uses", () => {
     const { container } = render(<WaitingBanner />);
     const dot = container.querySelector("span.rounded-full");
-    expect(dot?.className).toContain("bg-amber-500");
+    expect(dot?.className).toContain("bg-accent");
     expect(dot?.className).toContain("animate-status-pulse");
   });
 

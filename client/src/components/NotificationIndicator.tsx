@@ -2,8 +2,8 @@ import type { BenchNotification, NotificationPriority } from "@roubo/shared";
 import { getHighestPriority } from "../lib/notifications";
 
 const colorMap: Record<NotificationPriority, string> = {
-  "action-needed": "bg-amber-500",
-  info: "bg-stone-400 dark:bg-stone-500",
+  "action-needed": "bg-accent",
+  info: "bg-text-secondary",
 };
 
 const labelMap: Record<NotificationPriority, string> = {

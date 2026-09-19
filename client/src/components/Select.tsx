@@ -49,15 +49,15 @@ export default function Select({
         placeholder={placeholder}
         aria-label={ariaLabel ?? placeholder ?? "Select"}
       >
-        <Button className="w-full flex items-center justify-between rounded-control bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 text-stone-900 dark:text-stone-200 transition-colors hover:border-stone-400 dark:hover:border-stone-600 focus:outline-none focus:ring-2 focus:ring-focus-ring data-[pressed]:bg-stone-200 dark:data-[pressed]:bg-stone-800">
-          <SelectValue className="truncate data-[placeholder]:text-stone-600 dark:data-[placeholder]:text-stone-400">
+        <Button className="group w-full flex items-center justify-between rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-focus-ring data-[pressed]:bg-bg-pressed">
+          <SelectValue className="truncate data-[placeholder]:text-text-secondary group-data-[pressed]:data-[placeholder]:text-text-body">
             {({ isPlaceholder, selectedText }) => {
               if (isPlaceholder) return <span>{placeholder}</span>;
               const match = normalized.find((item) => item.label === selectedText);
               return match?.renderLabel ?? selectedText;
             }}
           </SelectValue>
-          <ChevronDown size={16} className="shrink-0 ml-2 text-stone-600 dark:text-stone-300" />
+          <ChevronDown size={16} className="shrink-0 ml-2 text-text-secondary" />
         </Button>
         <Popover className="animate-rise-in w-[var(--trigger-width)] rounded-control bg-bg-surface border border-border shadow-elevation-0 py-1 z-50 overflow-auto max-h-60">
           <ListBox className="outline-none">
@@ -66,17 +66,12 @@ export default function Select({
                 key={item.value}
                 id={item.value}
                 textValue={item.label}
-                className="flex items-center justify-between px-3 py-1.5 text-13 text-stone-700 dark:text-stone-300 outline-none cursor-default transition-colors data-[hovered]:bg-stone-100 dark:data-[hovered]:bg-stone-700/50 data-[focused]:bg-stone-100 dark:data-[focused]:bg-stone-700/50 data-[selected]:text-stone-900 dark:data-[selected]:text-stone-100"
+                className="flex items-center justify-between px-3 py-1.5 text-13 text-text-body outline-none cursor-default transition-colors data-[hovered]:bg-bg-hover data-[focused]:bg-bg-hover data-[selected]:text-text-primary"
               >
                 {({ isSelected }) => (
                   <>
                     <span className="truncate">{item.renderLabel ?? item.label}</span>
-                    {isSelected && (
-                      <Check
-                        size={14}
-                        className="text-stone-500 dark:text-stone-400 shrink-0 ml-2"
-                      />
-                    )}
+                    {isSelected && <Check size={14} className="text-accent shrink-0 ml-2" />}
                   </>
                 )}
               </ListBoxItem>
@@ -88,7 +83,7 @@ export default function Select({
         <Button
           aria-label="Clear selection"
           onPress={() => onChange("")}
-          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded-control outline-none transition-colors duration-150 text-stone-600 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400 focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded-control outline-none transition-colors duration-150 text-text-secondary hover:text-text-primary focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <X size={14} />
         </Button>

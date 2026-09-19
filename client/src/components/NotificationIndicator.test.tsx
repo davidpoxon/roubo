@@ -27,23 +27,23 @@ describe("NotificationIndicator", () => {
     expect(renderIndicator([])).toBeNull();
   });
 
-  it("renders amber-500 for action-needed notifications", () => {
+  it("renders the accent dot for action-needed notifications", () => {
     const el = getSpan([makeNotification("action-needed")]);
-    expect(el.className).toContain("bg-amber-500");
+    expect(el.className).toContain("bg-accent");
   });
 
-  it("renders stone-400 for info-only notifications", () => {
+  it("renders the text-secondary dot for info-only notifications", () => {
     const el = getSpan([makeNotification("info", "bench-ready")]);
-    expect(el.className).toContain("bg-stone-400");
+    expect(el.className).toContain("bg-text-secondary");
   });
 
-  it("renders amber-500 when mixed priorities (amber wins)", () => {
+  it("renders the accent dot when mixed priorities (action-needed wins)", () => {
     const el = getSpan([
       makeNotification("info", "bench-ready"),
       makeNotification("action-needed", "bench-error"),
     ]);
-    expect(el.className).toContain("bg-amber-500");
-    expect(el.className).not.toContain("bg-stone-400");
+    expect(el.className).toContain("bg-accent");
+    expect(el.className).not.toContain("bg-text-secondary");
   });
 
   it('has role="img" for screen reader accessibility', () => {

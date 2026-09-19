@@ -13,21 +13,19 @@ export default function UpdatesPage() {
 
   return (
     <div className="p-8 max-w-3xl">
-      <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100 mb-6">Updates</h2>
+      <h2 className="text-20 font-semibold text-text-primary mb-6">Updates</h2>
 
       <div className="flex items-start gap-4">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/50 shrink-0 mt-0.5">
-          <RefreshCw size={16} className="text-stone-600 dark:text-stone-300" />
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-bg-surface border border-border shrink-0 mt-0.5">
+          <RefreshCw size={16} className="text-text-secondary" />
         </div>
 
         <div>
-          <p className="text-13 font-semibold text-stone-800 dark:text-stone-200">Roubo</p>
+          <p className="text-13 font-semibold text-text-primary">Roubo</p>
           {version !== null && (
-            <p className="font-mono text-12 text-stone-500 dark:text-stone-400 mt-0.5">
-              Version {version}
-            </p>
+            <p className="font-mono text-12 text-text-secondary mt-0.5">Version {version}</p>
           )}
-          <p className="text-13 text-stone-500 dark:text-stone-400 mt-3">
+          <p className="text-13 text-text-secondary mt-3">
             Roubo checks for updates automatically every hour.
           </p>
         </div>

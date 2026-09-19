@@ -17,16 +17,20 @@ describe("Select", () => {
     expect(screen.getByText("Choose…")).toBeInTheDocument();
   });
 
-  it("renders the placeholder in a WCAG AA shade on the raised trigger for both themes (#887)", () => {
+  it("renders the placeholder in the text-secondary role for both themes (#887)", () => {
     render(<Select items={items} value="" onChange={vi.fn()} placeholder="Choose…" />);
     const placeholder = screen.getByText("Choose…").closest("[data-placeholder]");
     expect(placeholder).not.toBeNull();
-    // The trigger sits on the stone-100 raised ground, where stone-500 is only 4.40:1,
-    // so light uses text-secondary-raised (stone-600). stone-400 clears 4.5:1 on dark.
-    expect(placeholder?.className).toContain("data-[placeholder]:text-stone-600");
-    expect(placeholder?.className).not.toContain("data-[placeholder]:text-stone-500");
-    expect(placeholder?.className).toContain("dark:data-[placeholder]:text-stone-400");
-    expect(placeholder?.className).not.toContain("dark:data-[placeholder]:text-stone-500");
+    // DESIGN.md sets placeholder text in text-secondary, which clears AA on the
+    // bg-field trigger in both themes. semantic-dark.css switches the role, so
+    // the placeholder carries no dark: pair.
+    expect(placeholder?.className).toContain("data-[placeholder]:text-text-secondary");
+    // The trigger stays pressed while the listbox is open, and text-secondary
+    // misses AA on bg-pressed in dark mode, so DESIGN.md steps it up to text-body.
+    expect(placeholder?.className).toContain(
+      "group-data-[pressed]:data-[placeholder]:text-text-body",
+    );
+    expect(placeholder?.className).not.toContain("dark:");
   });
 
   it("shows the clear button when allowClear is true and a value is selected", () => {
