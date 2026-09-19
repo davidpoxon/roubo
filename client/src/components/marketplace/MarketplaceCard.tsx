@@ -100,14 +100,15 @@ function IncompatiblePill({
 }
 
 function KindPill({ kind }: { kind: MarketplaceListing["kind"] }) {
-  // An agent listing takes the DESIGN.md agent kind pill, so it is identifiable
-  // at a glance (AP-TC-125). DESIGN.md defines no kind role for component or
-  // integration, and amber is reserved for the accent and work in progress, so
-  // both take the neutral chip and the uppercase label tells them apart.
+  // Agent and component listings take their DESIGN.md kind pills, so each kind
+  // is identifiable at a glance (AP-TC-125). DESIGN.md gives integration no kind
+  // role, so it takes the neutral chip, which keeps the three kinds distinct.
   const cls =
     kind === "agent"
       ? "border-kind-agent-border bg-kind-agent-surface text-kind-agent-text"
-      : "border-border-strong bg-bg-hover text-text-secondary";
+      : kind === "component"
+        ? "border-kind-component-border bg-kind-component-surface text-kind-component-text"
+        : "border-border-strong bg-bg-hover text-text-secondary";
   return (
     <span
       data-testid="marketplace-card-kind"

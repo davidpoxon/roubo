@@ -62,8 +62,10 @@ function RoleBadge({ role }: { role: ComponentType | undefined }) {
   return (
     <span
       className={
-        // One neutral chip for every kind until DESIGN.md records kind roles for
-        // components; the label carries the distinction.
+        // One neutral chip for every component type until DESIGN.md records
+        // roles for database, process, and plugin; the label carries the
+        // distinction. The `kind-component-*` role marks the plugin kind in the
+        // marketplace, and every row here is a component, so it does not apply.
         "shrink-0 rounded-full px-2 py-0.5 text-11 font-medium tracking-wide border bg-bg-hover text-text-secondary border-border-strong"
       }
     >

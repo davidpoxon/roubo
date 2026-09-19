@@ -516,6 +516,22 @@ describe("Marketplace catalog", () => {
       }
     });
 
+    // DESIGN.md kind roles: each kind pill takes its own role, so the three
+    // kinds are told apart by colour and not by label alone.
+    it("paints each kind pill with its own DESIGN.md kind role", () => {
+      setCatalog([...CATALOG, AGENT]);
+      render(<Marketplace />);
+      const grounds = new Map<string, string>();
+      for (const card of screen.getAllByTestId("marketplace-card")) {
+        const pill = within(card).getByTestId("marketplace-card-kind");
+        const ground = pill.className.split(/\s+/).find((c) => c.startsWith("bg-"));
+        grounds.set(pill.getAttribute("data-kind") ?? "", ground ?? "");
+      }
+      expect(grounds.get("agent")).toBe("bg-kind-agent-surface");
+      expect(grounds.get("component")).toBe("bg-kind-component-surface");
+      expect(grounds.get("integration")).toBe("bg-bg-hover");
+    });
+
     // AP-TC-125 S003-O01: every agent listing offers install.
     it("offers install on an agent listing that is not yet installed", async () => {
       const mutate = vi.fn();
