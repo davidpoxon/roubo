@@ -49,12 +49,12 @@ export default function SectionInspection({
   if (!inspection) {
     return (
       <div className="py-2">
-        <p className="text-13 text-stone-500 dark:text-stone-400 mb-3">
+        <p className="text-13 text-text-secondary mb-3">
           No inspection configured. This section is optional.
         </p>
         <Button
           onPress={addInspection}
-          className="flex items-center gap-1 text-11 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
+          className="flex items-center gap-1 text-11 text-text-secondary hover:text-text-primary transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
         >
           <Plus size={12} /> Add inspection
         </Button>
@@ -86,7 +86,7 @@ export default function SectionInspection({
         <Button
           onPress={removeInspection}
           aria-label="Remove inspection"
-          className="flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
+          className="flex items-center gap-1 text-11 text-text-secondary hover:text-danger-text transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
         >
           <Trash2 size={12} /> Remove
         </Button>
@@ -112,7 +112,7 @@ export default function SectionInspection({
 
       <fieldset className="space-y-2">
         <legend className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-secondary mb-3">
-          <span className="size-1.5 rounded-full bg-stone-400/70" />
+          <span className="size-1.5 rounded-full bg-border-strong" />
           Environment variables
         </legend>
         {envEntries.map(([key, value], i) => {
@@ -165,7 +165,7 @@ export default function SectionInspection({
                       env: Object.keys(env).length > 0 ? env : undefined,
                     });
                   }}
-                  className="p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
+                  className="p-1 text-text-secondary hover:text-danger-text transition-colors shrink-0 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
                 >
                   <X size={14} />
                 </Button>
@@ -176,7 +176,7 @@ export default function SectionInspection({
         })}
         <Button
           onPress={() => update({ env: { ...inspection.env, "": "" } })}
-          className="flex items-center gap-1 text-11 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
+          className="flex items-center gap-1 text-11 text-text-secondary hover:text-text-primary transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
         >
           <Plus size={12} /> Add variable
         </Button>

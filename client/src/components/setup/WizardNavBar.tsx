@@ -41,11 +41,11 @@ export default function WizardNavBar({
   const nextLabel = isLastBeforeReview && currentSubStep === null ? "Review" : "Continue";
 
   return (
-    <div className="mt-10 pt-6 border-t border-stone-200 dark:border-stone-800/50 flex items-center justify-between">
+    <div className="mt-10 pt-6 border-t border-border flex items-center justify-between">
       {showBack && backLabel ? (
         <Button
           onPress={onBack}
-          className="text-13 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors flex items-center gap-1.5 pressed:text-stone-400 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="text-13 text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1.5 pressed:text-text-body outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           <ArrowLeft size={14} />
           {backLabel}

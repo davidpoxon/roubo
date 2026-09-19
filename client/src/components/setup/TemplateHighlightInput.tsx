@@ -76,14 +76,14 @@ export default function TemplateHighlightInput({
                   key={i}
                   className={`rounded-sm ${
                     invalidVariables?.includes(seg.text)
-                      ? "text-red-500 dark:text-red-400 bg-red-500/10 dark:bg-red-400/10"
-                      : "text-amber-800 dark:text-amber-200 bg-amber-500/10 dark:bg-amber-400/10"
+                      ? "text-danger-text bg-danger-surface"
+                      : "text-accent-text bg-accent-muted"
                   }`}
                 >
                   {seg.text}
                 </span>
               ) : (
-                <span key={i} className="text-stone-800 dark:text-stone-200">
+                <span key={i} className="text-text-primary">
                   {seg.text}
                 </span>
               ),
@@ -94,7 +94,7 @@ export default function TemplateHighlightInput({
       <Input
         ref={inputRef}
         placeholder={placeholder}
-        className={`${baseClass} ${hasVariables ? "!text-transparent caret-stone-600 dark:caret-stone-400" : ""}`}
+        className={`${baseClass} ${hasVariables ? "!text-transparent caret-text-secondary" : ""}`}
       />
     </div>
   );
@@ -103,7 +103,7 @@ export default function TemplateHighlightInput({
 export function TemplateValidationError({ invalidVariables }: { invalidVariables: string[] }) {
   if (invalidVariables.length === 0) return null;
   return (
-    <p className="mt-1 text-11 text-red-400">
+    <p className="mt-1 text-11 text-danger-text">
       Unknown {invalidVariables.length === 1 ? "variable" : "variables"}:{" "}
       {invalidVariables.join(", ")}
     </p>

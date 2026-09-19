@@ -15,15 +15,15 @@ export default function GuidedYamlToggle({ mode, onChange }: Props) {
       onChange={(v) => onChange(v as SetupMode)}
       aria-label="Setup mode"
       orientation="horizontal"
-      className="inline-flex rounded-lg border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/40 p-1"
+      className="inline-flex rounded-lg border border-border bg-bg-base p-1"
     >
       <Radio
         value="guided"
         className={({ isSelected }) =>
           `px-3 py-1.5 rounded-control text-12 font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
             isSelected
-              ? "bg-stone-200 text-stone-900 dark:bg-stone-800 dark:text-stone-100"
-              : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+              ? "bg-bg-pressed text-text-primary"
+              : "text-text-secondary hover:text-text-primary"
           }`
         }
       >
@@ -36,14 +36,14 @@ export default function GuidedYamlToggle({ mode, onChange }: Props) {
         className={({ isSelected }) =>
           `px-3 py-1.5 rounded-control text-12 font-medium inline-flex items-center gap-1.5 cursor-pointer select-none transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
             isSelected
-              ? "bg-stone-200 text-stone-900 dark:bg-stone-800 dark:text-stone-100"
-              : "text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+              ? "bg-bg-pressed text-text-primary"
+              : "text-text-secondary hover:text-text-primary"
           }`
         }
       >
         <Code size={12} />
         YAML
-        <span className="text-11 text-stone-600 dark:text-stone-400 font-mono px-1 py-px rounded bg-stone-100 dark:bg-stone-950/50 border border-stone-200 dark:border-stone-800">
+        <span className="text-11 text-text-secondary font-mono px-1 py-px rounded bg-bg-base border border-border">
           advanced
         </span>
       </Radio>

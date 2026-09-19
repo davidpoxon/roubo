@@ -38,11 +38,8 @@ export default function ComponentRemoveDialog({
           ref={stampAriaModal}
           className="bg-bg-surface border border-border rounded-card shadow-elevation-1 outline-none"
         >
-          <div className="px-5 py-4 border-b border-stone-200 dark:border-stone-800/60">
-            <Heading
-              slot="title"
-              className="text-16 font-semibold text-stone-900 dark:text-stone-100"
-            >
+          <div className="px-5 py-4 border-b border-border">
+            <Heading slot="title" className="text-16 font-semibold text-text-primary">
               {isInUse ? `"${componentName}" is in use` : `Remove "${componentName}"?`}
             </Heading>
           </div>
@@ -51,42 +48,35 @@ export default function ComponentRemoveDialog({
             {isInUse ? (
               <>
                 <div className="flex items-start gap-3">
-                  <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-13 text-stone-700 dark:text-stone-300">
-                    This component is currently running in:
-                  </p>
+                  <AlertTriangle size={16} className="text-accent-text shrink-0 mt-0.5" />
+                  <p className="text-13 text-text-body">This component is currently running in:</p>
                 </div>
                 <ul className="space-y-1 pl-4">
                   {references.map((ref) => (
-                    <li
-                      key={ref.benchId}
-                      className="text-13 text-stone-600 dark:text-stone-400 list-disc"
-                    >
+                    <li key={ref.benchId} className="text-13 text-text-secondary list-disc">
                       bench #{ref.benchId}{" "}
                       <span className="font-mono text-text-secondary">({ref.branch})</span>
                     </li>
                   ))}
                 </ul>
-                <p className="text-12 text-stone-500 dark:text-stone-400">
+                <p className="text-12 text-text-secondary">
                   Removing it will stop tracking it in those benches. The benches themselves will
                   not be cleared.
                 </p>
               </>
             ) : (
-              <p className="text-13 text-stone-700 dark:text-stone-300">
+              <p className="text-13 text-text-body">
                 This will remove{" "}
-                <span className="font-mono text-stone-900 dark:text-stone-100">
-                  {componentName}
-                </span>{" "}
-                from the components list.
+                <span className="font-mono text-text-primary">{componentName}</span> from the
+                components list.
               </p>
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-stone-200 dark:border-stone-800/60">
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
             <Button
               onPress={onCancel}
-              className="px-3 py-1.5 text-13 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Cancel
             </Button>

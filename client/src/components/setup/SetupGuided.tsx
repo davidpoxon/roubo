@@ -51,18 +51,14 @@ interface Props {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400 mb-4">
+    <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-4">
       {children}
     </h3>
   );
 }
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/30 p-6">
-      {children}
-    </div>
-  );
+  return <div className="rounded-xl border border-border bg-bg-base p-6">{children}</div>;
 }
 
 export default function SetupGuided({
@@ -141,34 +137,30 @@ export default function SetupGuided({
             <Link
               to=".."
               relative="path"
-              className="inline-flex items-center gap-1 hover:text-stone-900 dark:hover:text-stone-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="inline-flex items-center gap-1 hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               <ChevronLeft size={12} />
               Settings
             </Link>
-            <span aria-hidden="true" className="text-stone-500 dark:text-stone-400">
+            <span aria-hidden="true" className="text-text-secondary">
               /
             </span>
-            <span aria-current="page" className="text-stone-700 dark:text-stone-300">
+            <span aria-current="page" className="text-text-body">
               Project setup
             </span>
           </nav>
-          <h2 className="text-20 font-semibold text-stone-900 dark:text-stone-100">
-            Project setup
-          </h2>
+          <h2 className="text-20 font-semibold text-text-primary">Project setup</h2>
         </div>
       )}
 
       {/* Mode toggle bar: bottom border anchors the scrolling region below it */}
       {!embedded && (
-        <div className="flex items-center justify-between gap-4 px-8 py-3 shrink-0 border-b border-stone-200 dark:border-stone-800/40">
+        <div className="flex items-center justify-between gap-4 px-8 py-3 shrink-0 border-b border-border">
           <div className="flex items-center gap-3">
             {!isCreateMode && (
               <>
                 <GuidedYamlToggle mode={mode} onChange={onModeChange} />
-                <span className="text-11 text-stone-500 dark:text-stone-400 hidden sm:block">
-                  {modeHint}
-                </span>
+                <span className="text-11 text-text-secondary hidden sm:block">{modeHint}</span>
               </>
             )}
           </div>
@@ -206,7 +198,7 @@ export default function SetupGuided({
               {/* Embedded modals hide the sticky SaveBar (which normally carries the
                   errorSummary), so surface why "Save & register" is disabled here. */}
               {embedded && !saveError && errorSummary && (
-                <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 text-13 text-amber-700 dark:text-amber-400">
+                <div className="mb-4 px-4 py-3 rounded-lg bg-accent-muted border border-accent-border text-13 text-accent-text">
                   {errorSummary}
                 </div>
               )}
@@ -214,7 +206,7 @@ export default function SetupGuided({
               {saveError && (
                 <div
                   role="alert"
-                  className="px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-13 text-red-600 dark:text-red-400"
+                  className="px-4 py-3 rounded-lg bg-danger-surface border border-danger-border text-13 text-danger-text"
                 >
                   {saveError}
                 </div>
@@ -261,7 +253,7 @@ export default function SetupGuided({
                     <span id="section-ports">Ports</span>
                   </SectionHeading>
                   {portEntries.length === 0 ? (
-                    <p className="text-13 text-stone-500 dark:text-stone-400">
+                    <p className="text-13 text-text-secondary">
                       No ports configured. Add components to assign ports.
                     </p>
                   ) : (
@@ -269,22 +261,18 @@ export default function SetupGuided({
                       <div className="space-y-1">
                         {portEntries.map(([name, port]) => (
                           <div key={name} className="flex items-center gap-3 text-12 font-mono">
-                            <span className="text-stone-500 dark:text-stone-400 shrink-0">
-                              {name}
-                            </span>
+                            <span className="text-text-secondary shrink-0">{name}</span>
                             {benchMax > 0 ? (
-                              <span className="text-stone-500 dark:text-stone-400 tabular-nums">
+                              <span className="text-text-secondary tabular-nums">
                                 {port.base} – {port.base + benchMax - 1}
                               </span>
                             ) : (
-                              <span className="text-stone-500 dark:text-stone-400 tabular-nums">
-                                {port.base}
-                              </span>
+                              <span className="text-text-secondary tabular-nums">{port.base}</span>
                             )}
                           </div>
                         ))}
                       </div>
-                      <p className="mt-2 text-11 text-stone-500 dark:text-stone-400">
+                      <p className="mt-2 text-11 text-text-secondary">
                         Stride: +1 per bench. Component port bases are set in roubo.yaml.
                       </p>
                     </div>
@@ -419,7 +407,7 @@ function BenchCapacityFields({
             className="w-24 rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
           />
         </TextField>
-        {max > 99 && <p className="mt-1 text-11 text-red-400">Must be between 1 and 99</p>}
+        {max > 99 && <p className="mt-1 text-11 text-danger-text">Must be between 1 and 99</p>}
       </div>
 
       <div>

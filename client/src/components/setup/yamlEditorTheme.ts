@@ -13,20 +13,20 @@ function buildBaseTheme(dark: boolean): Extension {
         fontFamily: FONT_FAMILY,
         fontSize: "12px",
         lineHeight: "1.65",
-        backgroundColor: dark ? "rgb(12 10 9)" : "rgb(255 255 255)",
-        color: dark ? "rgb(214 211 209)" : "rgb(28 25 23)",
+        backgroundColor: "var(--color-bg-field)",
+        color: "var(--color-text-primary)",
       },
       ".cm-content": {
         fontFamily: FONT_FAMILY,
         padding: "12px 0",
-        caretColor: "rgb(245 158 11)",
+        caretColor: "var(--color-accent)",
       },
       ".cm-cursor, .cm-dropCursor": {
-        borderLeftColor: "rgb(245 158 11)",
+        borderLeftColor: "var(--color-accent)",
         borderLeftWidth: "2px",
       },
       "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-        backgroundColor: "rgba(245,158,11,0.15)",
+        backgroundColor: "var(--color-accent-muted)",
       },
       "&.cm-focused": {
         outline: "none",
@@ -35,9 +35,9 @@ function buildBaseTheme(dark: boolean): Extension {
         padding: "0 16px",
       },
       ".cm-gutters": {
-        backgroundColor: dark ? "rgb(12 10 9)" : "rgb(250 250 249)",
-        borderRight: dark ? "1px solid rgb(41 37 36)" : "1px solid rgb(231 229 228)",
-        color: dark ? "rgb(68 64 60)" : "rgb(168 162 158)",
+        backgroundColor: "var(--color-bg-base)",
+        borderRight: "1px solid var(--color-border)",
+        color: "var(--color-text-secondary)",
         minWidth: "2.5rem",
         userSelect: "none",
       },
@@ -48,37 +48,47 @@ function buildBaseTheme(dark: boolean): Extension {
       ".cm-scroller": {
         fontFamily: FONT_FAMILY,
       },
+      // A wavy underline in the danger role, not CodeMirror's default SVG squiggle,
+      // because a CSS variable cannot reach inside the data URI.
       ".cm-lintRange-error": {
-        backgroundImage:
-          "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3'><path d='m0 3 l2-2 l1 1 l2-2 l1 1' stroke='%23ef4444' fill='none'/></svg>\")",
+        backgroundImage: "none",
+        textDecoration: "underline wavy var(--color-danger)",
+        textDecorationSkipInk: "none",
+        textUnderlineOffset: "3px",
       },
       ".cm-diagnostic-error": {
-        borderLeft: "3px solid rgb(239 68 68)",
+        borderLeft: "3px solid var(--color-danger)",
       },
     },
     { dark },
   );
 }
 
+// The chrome above and the neutral tokens below read DESIGN.md roles through
+// var(--color-<role>), so they follow the theme switch in semantic-dark.css.
+// Keys, strings, and literals keep per-theme hues because DESIGN.md records no
+// code syntax role yet; the proposed syntax-* roles are tracked in #1331.
+const NEUTRAL_SYNTAX = [
+  { tag: tags.comment, color: "var(--color-text-secondary)", fontStyle: "italic" },
+  { tag: [tags.punctuation, tags.meta], color: "var(--color-text-secondary)" },
+  { tag: tags.operator, color: "var(--color-text-secondary)" },
+];
+
 const lightHighlight = syntaxHighlighting(
   HighlightStyle.define([
-    { tag: tags.propertyName, color: "rgb(7 89 133)" }, // sky-800: keys
-    { tag: tags.string, color: "rgb(180 83 9)" }, // amber-700: string values
-    { tag: [tags.number, tags.bool, tags.null], color: "rgb(6 95 70)" }, // emerald-800
-    { tag: tags.comment, color: "rgb(120 113 108)", fontStyle: "italic" }, // stone-500
-    { tag: [tags.punctuation, tags.meta], color: "rgb(120 113 108)" },
-    { tag: tags.operator, color: "rgb(120 113 108)" },
+    { tag: tags.propertyName, color: "rgb(7 89 133)" }, // keys
+    { tag: tags.string, color: "rgb(180 83 9)" }, // string values
+    { tag: [tags.number, tags.bool, tags.null], color: "rgb(6 95 70)" }, // literals
+    ...NEUTRAL_SYNTAX,
   ]),
 );
 
 const darkHighlight = syntaxHighlighting(
   HighlightStyle.define([
-    { tag: tags.propertyName, color: "rgb(186 230 253)" }, // sky-200: keys
-    { tag: tags.string, color: "rgb(252 211 77)" }, // amber-300: string values
-    { tag: [tags.number, tags.bool, tags.null], color: "rgb(110 231 183)" }, // emerald-300
-    { tag: tags.comment, color: "rgb(120 113 108)", fontStyle: "italic" }, // stone-500
-    { tag: [tags.punctuation, tags.meta], color: "rgb(120 113 108)" },
-    { tag: tags.operator, color: "rgb(120 113 108)" },
+    { tag: tags.propertyName, color: "rgb(186 230 253)" }, // keys
+    { tag: tags.string, color: "rgb(252 211 77)" }, // string values
+    { tag: [tags.number, tags.bool, tags.null], color: "rgb(110 231 183)" }, // literals
+    ...NEUTRAL_SYNTAX,
   ]),
 );
 

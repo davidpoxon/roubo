@@ -70,7 +70,7 @@ export default function SectionProjectInfo({
       >
         <Label className="block text-12 text-text-secondary mb-1.5">Name</Label>
         <Input placeholder="my-project" className={INPUT} />
-        {nameError && <p className="mt-1 text-11 text-red-400">{nameError}</p>}
+        {nameError && <p className="mt-1 text-11 text-danger-text">{nameError}</p>}
       </TextField>
 
       <TextField
@@ -82,7 +82,7 @@ export default function SectionProjectInfo({
       >
         <Label className="block text-12 text-text-secondary mb-1.5">Display name</Label>
         <Input placeholder="My Project" className={INPUT} />
-        {displayNameError && <p className="mt-1 text-11 text-red-400">{displayNameError}</p>}
+        {displayNameError && <p className="mt-1 text-11 text-danger-text">{displayNameError}</p>}
       </TextField>
 
       <div>
@@ -94,8 +94,8 @@ export default function SectionProjectInfo({
               onPress={() => updateLayout({ type: t })}
               className={`px-3 py-1.5 text-12 rounded-control transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                 layout?.type === t
-                  ? "bg-stone-700 text-stone-100"
-                  : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
+                  ? "bg-bg-pressed text-text-primary"
+                  : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
               }`}
             >
               {t}
@@ -103,12 +103,12 @@ export default function SectionProjectInfo({
           ))}
         </div>
         {layoutTypeError ? (
-          <p className="mt-1 text-11 text-red-400">{layoutTypeError}</p>
+          <p className="mt-1 text-11 text-danger-text">{layoutTypeError}</p>
         ) : (
           scanResult &&
           layout?.type &&
           layout.type === scanResult.detected.structureType && (
-            <p className="mt-1 text-11 text-stone-500 dark:text-stone-400">Auto-detected</p>
+            <p className="mt-1 text-11 text-text-secondary">Auto-detected</p>
           )
         )}
       </div>
@@ -126,25 +126,25 @@ function DefaultBranchField({ projectId }: { projectId: string }) {
   return (
     <div>
       <Label className="text-12 text-text-secondary mb-1.5 flex items-center gap-1.5">
-        <GitBranch size={12} className="text-stone-500 dark:text-stone-400" />
+        <GitBranch size={12} className="text-text-secondary" />
         Default branch
       </Label>
       {isLoading ? (
-        <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-12 text-text-secondary">
           <Spinner />
           Detecting…
         </div>
       ) : branchError ? (
-        <p className="text-12 text-red-400">{branchError}</p>
+        <p className="text-12 text-danger-text">{branchError}</p>
       ) : branch ? (
         <div>
-          <code className="font-mono text-13 text-stone-800 dark:text-stone-200">{branch}</code>
-          <p className="text-11 text-stone-500 dark:text-stone-400 mt-0.5">
+          <code className="font-mono text-13 text-text-primary">{branch}</code>
+          <p className="text-11 text-text-secondary mt-0.5">
             Detected from <code className="text-11">origin/HEAD</code>
           </p>
         </div>
       ) : (
-        <span className="text-stone-500 dark:text-stone-400 text-13">·</span>
+        <span className="text-text-secondary text-13">·</span>
       )}
     </div>
   );

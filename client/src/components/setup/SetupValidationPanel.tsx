@@ -69,15 +69,15 @@ export default function SetupValidationPanel({
   }
 
   return (
-    <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/30 p-4">
+    <div className="rounded-xl border border-border bg-bg-base p-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400">
+        <div className="text-11 font-semibold uppercase tracking-label text-text-secondary">
           Validation
         </div>
         <Button
           onPress={onValidate}
           isDisabled={isValidating}
-          className="text-11 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline disabled:opacity-40 disabled:cursor-default flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="text-11 text-text-secondary hover:text-text-primary cursor-pointer transition-colors outline-none data-[focus-visible]:underline disabled:opacity-40 disabled:cursor-default flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-focus-ring"
         >
           {isValidating ? <Loader size={12} className="animate-spin" /> : null}
           Check
@@ -89,24 +89,20 @@ export default function SetupValidationPanel({
         <div className="mb-2">
           {isGuidedValid ? (
             <>
-              <div className="flex items-center gap-2 text-12 text-green-600 dark:text-green-400">
+              <div className="flex items-center gap-2 text-12 text-success-text">
                 <Check size={12} />
                 Valid
               </div>
-              <div className="text-11 text-stone-500 dark:text-stone-400 mt-1.5">
-                Ready to save.
-              </div>
+              <div className="text-11 text-text-secondary mt-1.5">Ready to save.</div>
             </>
           ) : (
             <>
-              <div className="flex items-center gap-1.5 text-12 text-red-500 dark:text-red-400 mb-1.5">
+              <div className="flex items-center gap-1.5 text-12 text-danger-text mb-1.5">
                 <AlertCircle size={12} />
                 {guidedIssueCount} {guidedIssueCount === 1 ? "issue" : "issues"}
               </div>
               {guidedFirstMessage && (
-                <div className="text-11 text-red-500 dark:text-red-400 leading-snug">
-                  {guidedFirstMessage}
-                </div>
+                <div className="text-11 text-danger-text leading-snug">{guidedFirstMessage}</div>
               )}
             </>
           )}
@@ -116,20 +112,14 @@ export default function SetupValidationPanel({
       {/* Schema validation status (both modes: shown in YAML always; shown in Guided after first Check) */}
       {(mode === "yaml" || lastCheckedAt) && (
         <div
-          className={
-            mode === "guided" && lastCheckedAt
-              ? "border-t border-stone-200 dark:border-stone-700 pt-2 mt-1"
-              : ""
-          }
+          className={mode === "guided" && lastCheckedAt ? "border-t border-border pt-2 mt-1" : ""}
         >
           {yamlStatus === "idle" && mode === "yaml" && (
-            <p className="text-11 text-stone-500 dark:text-stone-400">
-              Click Check to validate the schema.
-            </p>
+            <p className="text-11 text-text-secondary">Click Check to validate the schema.</p>
           )}
 
           {yamlStatus === "pending" && (
-            <div className="flex items-center gap-2 text-12 text-stone-500 dark:text-stone-400">
+            <div className="flex items-center gap-2 text-12 text-text-secondary">
               <Loader size={12} className="animate-spin" />
               Checking…
             </div>
@@ -137,12 +127,12 @@ export default function SetupValidationPanel({
 
           {yamlStatus === "valid" && (
             <>
-              <div className="flex items-center gap-2 text-12 text-green-600 dark:text-green-400">
+              <div className="flex items-center gap-2 text-12 text-success-text">
                 <Check size={12} />
                 Schema valid
               </div>
               {lastCheckedAt && (
-                <div className="text-11 text-stone-500 dark:text-stone-400 mt-1.5">
+                <div className="text-11 text-text-secondary mt-1.5">
                   Last checked: {formatLastChecked(lastCheckedAt)}
                 </div>
               )}
@@ -151,20 +141,15 @@ export default function SetupValidationPanel({
 
           {yamlStatus === "errors" && (
             <>
-              <div className="flex items-center gap-1.5 text-12 text-red-500 dark:text-red-400 mb-2">
+              <div className="flex items-center gap-1.5 text-12 text-danger-text mb-2">
                 <AlertCircle size={12} />
                 {yamlErrors.length} schema {yamlErrors.length === 1 ? "error" : "errors"}
               </div>
               <div className="space-y-1">
                 {yamlErrors.map((err, i) => (
-                  <div
-                    key={i}
-                    className="text-11 font-mono text-red-500 dark:text-red-400 leading-snug"
-                  >
+                  <div key={i} className="text-11 font-mono text-danger-text leading-snug">
                     {err.line != null && (
-                      <span className="text-stone-500 dark:text-stone-400">
-                        roubo.yaml:{err.line}{" "}
-                      </span>
+                      <span className="text-text-secondary">roubo.yaml:{err.line} </span>
                     )}
                     <span>
                       {err.path}: {err.message}
@@ -173,7 +158,7 @@ export default function SetupValidationPanel({
                 ))}
               </div>
               {lastCheckedAt && (
-                <div className="text-11 text-stone-500 dark:text-stone-400 mt-2">
+                <div className="text-11 text-text-secondary mt-2">
                   Last checked: {formatLastChecked(lastCheckedAt)}
                 </div>
               )}
@@ -184,15 +169,13 @@ export default function SetupValidationPanel({
 
       {/* YAML mode extra: port conflicts and save error */}
       {mode === "yaml" && (conflicts.length > 0 || saveError) && (
-        <div className="border-t border-stone-200 dark:border-stone-700 pt-2 mt-2 space-y-1.5">
+        <div className="border-t border-border pt-2 mt-2 space-y-1.5">
           {conflicts.map((c, i) => (
-            <div key={i} className="text-11 text-amber-600 dark:text-amber-400">
+            <div key={i} className="text-11 text-accent-text">
               Port conflict on "{c.port}"
             </div>
           ))}
-          {saveError && (
-            <div className="text-11 text-red-500 dark:text-red-400 leading-snug">{saveError}</div>
-          )}
+          {saveError && <div className="text-11 text-danger-text leading-snug">{saveError}</div>}
         </div>
       )}
     </div>
