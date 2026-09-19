@@ -52,8 +52,8 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
               onPress={() => update({ type: t })}
               className={`focus-visible:ring-2 focus-visible:ring-focus-ring px-3 py-1.5 text-12 rounded-control transition-colors outline-none ${
                 structure.type === t
-                  ? "bg-stone-700 text-stone-100"
-                  : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
+                  ? "bg-bg-pressed text-text-primary"
+                  : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
               }`}
             >
               {t}
@@ -61,7 +61,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
           ))}
         </div>
         {scanResult && structure.type === scanResult.detected.structureType && (
-          <p className="mt-1 text-11 text-stone-500 dark:text-stone-400">Auto-detected</p>
+          <p className="mt-1 text-11 text-text-secondary">Auto-detected</p>
         )}
       </div>
 
@@ -70,10 +70,10 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
           <label className="block text-12 text-text-secondary mb-1.5">Submodules</label>
           {subEntries.length > 0 && (
             <div className="flex items-center gap-2 mb-1">
-              <span className="flex-1 flex items-center gap-1 text-11 text-stone-500 dark:text-stone-400">
+              <span className="flex-1 flex items-center gap-1 text-11 text-text-secondary">
                 Alias
                 <TooltipTrigger delay={500}>
-                  <Button className="text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
+                  <Button className="text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
                     <Info size={12} />
                   </Button>
                   <Tooltip className="bg-bg-inverse text-text-on-inverse text-12 px-3 py-1.5 rounded-control shadow-elevation-0 max-w-56">
@@ -81,7 +81,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
                   </Tooltip>
                 </TooltipTrigger>
               </span>
-              <span className="flex-1 text-11 text-stone-600">Directory</span>
+              <span className="flex-1 text-11 text-text-secondary">Directory</span>
               <span className="w-[22px] shrink-0" />
             </div>
           )}
@@ -106,7 +106,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
                 </TextField>
                 <Button
                   onPress={() => removeSubmodule(key)}
-                  className="p-1 text-stone-600 hover:text-red-400 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="p-1 text-text-secondary hover:text-danger-text transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <X size={14} />
                 </Button>
@@ -115,7 +115,7 @@ export default function SectionLayout({ structure, scanResult, dispatch }: Props
           </div>
           <Button
             onPress={addSubmodule}
-            className="flex items-center gap-1 mt-2 text-11 text-text-secondary hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="flex items-center gap-1 mt-2 text-11 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Plus size={12} />
             Add submodule

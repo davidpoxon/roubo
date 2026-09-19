@@ -42,7 +42,7 @@ export default function ToolEditor({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-3 rounded-lg bg-stone-100 dark:bg-stone-900/50 px-3 py-3">
+      <div className="space-y-3 rounded-lg bg-bg-base px-3 py-3">
         <div className="flex items-center gap-2">
           <TextField
             value={tool.name}
@@ -52,13 +52,13 @@ export default function ToolEditor({
           >
             <Input
               placeholder="Tool name"
-              className="bg-transparent text-13 text-stone-800 dark:text-stone-200 font-medium focus:outline-none border-none min-w-0 w-full"
+              className="bg-transparent text-13 text-text-primary font-medium focus:outline-none border-none min-w-0 w-full"
             />
           </TextField>
           <Button
             aria-label="Remove tool"
             onPress={() => onRemove(index)}
-            className="p-1 text-stone-600 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
+            className="p-1 text-text-secondary hover:text-danger-text transition-colors shrink-0 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control"
           >
             <Trash2 size={14} />
           </Button>
@@ -66,7 +66,7 @@ export default function ToolEditor({
 
         <div className="flex gap-3">
           <div className="flex-1">
-            <Label className="block text-11 text-stone-600 dark:text-stone-400 mb-1">Icon</Label>
+            <Label className="block text-11 text-text-secondary mb-1">Icon</Label>
             <div role="group" aria-label="Icon" className="flex gap-1">
               {TOOL_ICONS.map((iconName) => {
                 const IconComponent = TOOL_ICON_MAP[iconName];
@@ -78,8 +78,8 @@ export default function ToolEditor({
                     onPress={() => update({ icon: iconName })}
                     className={`p-1.5 rounded-control transition-colors duration-150 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                       isSelected
-                        ? "bg-stone-700 text-stone-100 ring-1 ring-border-strong"
-                        : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/60"
+                        ? "bg-bg-pressed text-text-primary ring-1 ring-border-strong"
+                        : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
                     }`}
                   >
                     <IconComponent size={14} />
@@ -89,7 +89,7 @@ export default function ToolEditor({
             </div>
           </div>
           <div className="flex-1">
-            <Label className="block text-11 text-stone-600 dark:text-stone-400 mb-1">Type</Label>
+            <Label className="block text-11 text-text-secondary mb-1">Type</Label>
             <div role="group" aria-label="Type" className="flex gap-1">
               {(["browser", "shell"] as const).map((t) => (
                 <Button
@@ -97,8 +97,8 @@ export default function ToolEditor({
                   onPress={() => update({ type: t })}
                   className={`px-3 py-1.5 text-12 rounded-control transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                     tool.type === t
-                      ? "bg-stone-700 text-stone-100"
-                      : "text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/60"
+                      ? "bg-bg-pressed text-text-primary"
+                      : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
                   }`}
                 >
                   {t}
@@ -115,9 +115,7 @@ export default function ToolEditor({
         )}
 
         <div>
-          <Label className="block text-11 text-stone-600 dark:text-stone-400 mb-1">
-            Requires component
-          </Label>
+          <Label className="block text-11 text-text-secondary mb-1">Requires component</Label>
           <Select
             items={componentNames}
             value={tool.requires ?? ""}
@@ -133,8 +131,8 @@ export default function ToolEditor({
 }
 
 const INPUT_WRAPPER =
-  "w-full rounded-lg bg-stone-100 dark:bg-stone-800/60 border border-stone-300 dark:border-stone-700/50 px-3 py-2 text-13 flex items-center gap-1";
-const LABEL_CLASS = "block text-11 text-stone-600 dark:text-stone-400 mb-1";
+  "w-full rounded-lg bg-bg-field border border-border-control px-3 py-2 text-13 flex items-center gap-1";
+const LABEL_CLASS = "block text-11 text-text-secondary mb-1";
 
 function BrowserUrlField({
   tool,

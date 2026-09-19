@@ -44,14 +44,10 @@ describe("TemplateInsert", () => {
     expect(description).not.toBeNull();
 
     for (const el of [description as HTMLElement, formula]) {
-      expect(el).toHaveClass(
-        "group-hover/item:text-stone-600",
-        "dark:group-hover/item:text-stone-300",
-      );
-      expect(el).not.toHaveClass("group-hover/item:text-stone-400");
-      expect(el).not.toHaveClass("group-hover/item:text-stone-500");
-      expect(el).not.toHaveClass("dark:group-hover/item:text-stone-500");
-      expect(el).not.toHaveClass("dark:group-hover/item:text-stone-600");
+      // The hover tone is the text-body role (the raised secondary step), which
+      // semantic-dark.css switches per theme, so no dark: pair is needed.
+      expect(el).toHaveClass("group-hover/item:text-text-body");
+      expect(el.className).not.toMatch(/dark:/);
     }
   });
 });

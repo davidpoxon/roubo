@@ -35,7 +35,7 @@ export default function SectionBenches({ benches, ports, dispatch }: Props) {
           className="w-24 rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-focus-ring focus:border-focus-ring aria-[invalid=true]:border-danger data-[invalid]:border-danger"
         />
         {max > 0 && (max < 1 || max > 99) && (
-          <p className="mt-1 text-11 text-red-400">Must be between 1 and 99</p>
+          <p className="mt-1 text-11 text-danger-text">Must be between 1 and 99</p>
         )}
       </TextField>
 
@@ -69,8 +69,8 @@ export default function SectionBenches({ benches, ports, dispatch }: Props) {
           <div className="space-y-1">
             {portEntries.map(([name, port]) => (
               <div key={name} className="flex items-center gap-3 text-12 font-mono">
-                <span className="text-stone-500 dark:text-stone-400 shrink-0">{name}</span>
-                <span className="text-stone-500 dark:text-stone-400 tabular-nums">
+                <span className="text-text-secondary shrink-0">{name}</span>
+                <span className="text-text-secondary tabular-nums">
                   {port.base} – {port.base + max - 1}
                 </span>
               </div>

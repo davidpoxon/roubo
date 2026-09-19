@@ -38,19 +38,19 @@ export default function SetupYaml({
   }, [rawYaml, editorRef, onFormatErrorChange]);
 
   return (
-    <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-950/80 overflow-hidden flex flex-col h-full min-h-[400px]">
+    <div className="rounded-xl border border-border bg-bg-field overflow-hidden flex flex-col h-full min-h-[400px]">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/60 shrink-0">
-        <div className="flex items-center gap-2 text-11 text-stone-500 dark:text-stone-400 font-mono">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-bg-base shrink-0">
+        <div className="flex items-center gap-2 text-11 text-text-secondary font-mono">
           <FileText size={12} />
           roubo.yaml
         </div>
-        <div className="flex items-center gap-3 text-11 text-stone-500 dark:text-stone-400">
-          {saveError && <span className="text-red-500 dark:text-red-400">{saveError}</span>}
-          {formatError && <span className="text-amber-500 dark:text-amber-400">{formatError}</span>}
+        <div className="flex items-center gap-3 text-11 text-text-secondary">
+          {saveError && <span className="text-danger-text">{saveError}</span>}
+          {formatError && <span className="text-accent-text">{formatError}</span>}
           <Button
             onPress={handleFormat}
-            className="hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors outline-none data-[focus-visible]:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="hover:text-text-primary cursor-pointer transition-colors outline-none data-[focus-visible]:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             Format
           </Button>

@@ -57,26 +57,26 @@ export default function YamlOutlinePanel({ rawYaml, onSectionClick }: Props) {
   }, [rawYaml]);
 
   return (
-    <div className="rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/30 p-4">
-      <div className="text-11 font-semibold uppercase tracking-label text-stone-500 dark:text-stone-400 mb-3">
+    <div className="rounded-xl border border-border bg-bg-base p-4">
+      <div className="text-11 font-semibold uppercase tracking-label text-text-secondary mb-3">
         Outline
       </div>
       {parseError ? (
-        <p className="text-11 text-stone-500 dark:text-stone-400 italic">
+        <p className="text-11 text-text-secondary italic">
           YAML unreadable: fix errors in the editor
         </p>
       ) : items.length === 0 ? (
-        <p className="text-11 text-stone-500 dark:text-stone-400 italic">Empty document</p>
+        <p className="text-11 text-text-secondary italic">Empty document</p>
       ) : (
         <div className="space-y-1">
           {items.map(({ key, line, summary }) => (
             <Button
               key={key}
               onPress={() => onSectionClick?.(key, line)}
-              className="w-full flex items-center justify-between text-12 rounded-control px-1 py-0.5 -mx-1 hover:bg-stone-200 dark:hover:bg-stone-800 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring"
+              className="w-full flex items-center justify-between text-12 rounded-control px-1 py-0.5 -mx-1 hover:bg-bg-hover outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring"
             >
-              <span className="text-stone-700 dark:text-stone-300">{key}</span>
-              <span className="font-mono text-stone-500 dark:text-stone-400 truncate max-w-[10rem] text-right">
+              <span className="text-text-body">{key}</span>
+              <span className="font-mono text-text-secondary truncate max-w-[10rem] text-right">
                 {summary}
               </span>
             </Button>

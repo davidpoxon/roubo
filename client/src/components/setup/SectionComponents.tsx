@@ -82,7 +82,7 @@ function InlineNameEditor({ value, onCommit }: { value: string; onCommit: (v: st
     >
       <Input
         ref={inputRef}
-        className="w-full bg-transparent text-13 text-stone-800 dark:text-stone-200 font-medium border-none rounded-control px-1.5 py-0.5 -mx-1.5 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 focus:bg-stone-200/60 dark:focus:bg-stone-800/60 focus:outline-none focus:ring-2 focus:ring-focus-ring transition-colors font-mono"
+        className="w-full bg-transparent text-13 text-text-primary font-medium border-none rounded-control px-1.5 py-0.5 -mx-1.5 hover:bg-bg-hover focus:bg-bg-field focus:outline-none focus:ring-2 focus:ring-focus-ring transition-colors font-mono"
       />
     </TextField>
   );
@@ -252,10 +252,10 @@ export default function SectionComponents({
           <InlineNameEditor value={key} onCommit={(v) => renameComponent(key, v)} />
           {scanResult?.detected.suggestedComponents?.some(
             (s) => s.key === key && s.config.type === component.type,
-          ) && <span className="text-11 text-stone-500 dark:text-stone-400">Auto-detected</span>}
+          ) && <span className="text-11 text-text-secondary">Auto-detected</span>}
           <Button
             onPress={() => dispatch({ type: "REMOVE_COMPONENT", payload: key })}
-            className="ml-auto p-1 text-stone-500 dark:text-stone-400 hover:text-red-400 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="ml-auto p-1 text-text-secondary hover:text-danger-text transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <Trash2 size={14} />
           </Button>
@@ -315,14 +315,14 @@ export default function SectionComponents({
         selectedKey={activeType}
         onSelectionChange={(key) => setActiveType(key as ComponentType | "other")}
       >
-        <TabList className="flex gap-1 border-b border-stone-200 dark:border-stone-800/60 mb-4">
+        <TabList className="flex gap-1 border-b border-border mb-4">
           {visibleTypes.map((type) => {
             const count = componentsByType[type]?.length ?? 0;
             return (
               <Tab key={type} id={type} className={TAB_CLASS}>
                 {COMPONENT_TYPE_LABELS[type] ?? type}
                 {count > 0 && (
-                  <span className="ml-1.5 text-11 bg-stone-200 dark:bg-stone-800 text-text-secondary px-1.5 py-0.5 rounded-full tabular-nums">
+                  <span className="ml-1.5 text-11 bg-bg-hover text-text-secondary px-1.5 py-0.5 rounded-full tabular-nums">
                     {count}
                   </span>
                 )}
@@ -337,7 +337,7 @@ export default function SectionComponents({
               {type !== "other" && (renderItemsForType[type] ?? []).length === 0 ? (
                 <Button
                   onPress={() => addComponent(type as ComponentType)}
-                  className="w-full flex items-center justify-center gap-2 py-6 rounded-control border border-dashed border-stone-300 dark:border-stone-700 hover:border-stone-500 text-13 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="w-full flex items-center justify-center gap-2 py-6 rounded-control border border-dashed border-border-strong hover:border-border-control hover:bg-bg-hover text-13 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <Plus size={16} />
                   Add {COMPONENT_TYPE_LABELS[type] ?? type}
@@ -345,7 +345,7 @@ export default function SectionComponents({
               ) : type !== "other" ? (
                 <Button
                   onPress={() => addComponent(type as ComponentType)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 border border-stone-300 dark:border-stone-800 hover:border-stone-400 dark:hover:border-stone-700 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-secondary hover:text-text-primary border border-border-strong bg-bg-surface hover:bg-bg-hover rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <Plus size={14} />
                   Add {COMPONENT_TYPE_LABELS[type] ?? type}
@@ -362,11 +362,11 @@ export default function SectionComponents({
                 return (
                   <div
                     key={`group:${composeFile}`}
-                    className="border-l-2 border-stone-300 dark:border-stone-700 rounded-lg bg-stone-100/50 dark:bg-stone-900/30 p-3 space-y-2"
+                    className="border-l-2 border-border-strong rounded-lg bg-bg-base p-3 space-y-2"
                   >
                     <div>
                       <label className="flex items-center gap-2 text-11 font-medium uppercase tracking-label text-text-secondary mb-3">
-                        <span className="size-1.5 rounded-full bg-stone-400/70" />
+                        <span className="size-1.5 rounded-full bg-border-strong" />
                         Docker Compose
                       </label>
                       {detected?.dockerComposeFiles.length ? (
@@ -405,15 +405,11 @@ export default function SectionComponents({
       <Button
         key={key}
         onPress={() => dispatch({ type: "SET_SUB_STEP", payload: key })}
-        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-control bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/60 dark:hover:bg-stone-800/60 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-control bg-bg-hover hover:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
       >
-        <span className="flex-1 text-13 font-medium text-stone-700 dark:text-stone-300 font-mono truncate">
-          {key}
-        </span>
-        <span className="text-11 text-stone-600 dark:text-stone-400">
-          {componentTypeBadge(component)}
-        </span>
-        <ChevronRight size={14} className="text-stone-600 dark:text-stone-400 shrink-0" />
+        <span className="flex-1 text-13 font-medium text-text-body font-mono truncate">{key}</span>
+        <span className="text-11 text-text-secondary">{componentTypeBadge(component)}</span>
+        <ChevronRight size={14} className="text-text-secondary shrink-0" />
       </Button>
     );
   }

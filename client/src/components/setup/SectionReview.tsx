@@ -35,7 +35,7 @@ function StatusDot({ status }: { status: SectionStatus }) {
   return (
     <span
       className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-        status === "valid" ? "bg-green-500" : "bg-red-400"
+        status === "valid" ? "bg-status-active" : "bg-status-error"
       }`}
     />
   );
@@ -52,7 +52,7 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <Icon size={14} className="text-stone-600 dark:text-stone-400" />
+      <Icon size={14} className="text-text-secondary" />
       <h3 className="text-11 font-semibold uppercase tracking-label text-text-secondary">
         {label}
       </h3>
@@ -75,16 +75,14 @@ function Row({
   if (!children && (value == null || value === "")) return null;
   return (
     <div className={`flex gap-4 ${mono ? "items-start" : "items-center"}`}>
-      <span
-        className={`text-11 text-stone-600 dark:text-stone-400 shrink-0 w-28 ${mono ? "pt-1" : ""}`}
-      >
+      <span className={`text-11 text-text-secondary shrink-0 w-28 ${mono ? "pt-1" : ""}`}>
         {label}
       </span>
       {children ??
         (mono ? (
           <WrapCode className="flex-1">{String(value)}</WrapCode>
         ) : (
-          <span className="text-12 text-stone-800 dark:text-stone-200 min-w-0">{value}</span>
+          <span className="text-12 text-text-primary min-w-0">{value}</span>
         ))}
     </div>
   );
@@ -92,7 +90,7 @@ function Row({
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex px-2 py-0.5 rounded text-11 font-medium bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
+    <span className="inline-flex px-2 py-0.5 rounded text-11 font-medium bg-bg-pressed text-text-body">
       {children}
     </span>
   );
@@ -110,9 +108,7 @@ function ItemHeader({
   return (
     <div className="flex items-center gap-2">
       {Icon && <Icon size={14} className="text-text-secondary shrink-0" />}
-      <span className="text-12 text-stone-800 dark:text-stone-200 font-mono font-medium">
-        {name}
-      </span>
+      <span className="text-12 text-text-primary font-mono font-medium">{name}</span>
       {badge && <Badge>{badge}</Badge>}
     </div>
   );
@@ -234,7 +230,7 @@ export default function SectionReview({
   return (
     <div className="space-y-5">
       {invalidSections.length > 0 && (
-        <div className="text-12 text-amber-400 space-y-0.5">
+        <div className="text-12 text-accent-text space-y-0.5">
           <p>Incomplete sections:</p>
           {invalidSections.map((s) => (
             <p key={s} className="pl-3">
@@ -249,7 +245,7 @@ export default function SectionReview({
           are owned by the plugin Configure modal now, so Review omits them.
           Identity here only lists the project name. */}
       {config.project && (
-        <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
+        <div className="bg-bg-base rounded-lg px-5 py-4">
           <SectionHeader icon={Globe} label="Project Info" status={sectionStatus.project} />
           <div className="space-y-2">
             <ItemHeader name={config.project.displayName || config.project.name} />
@@ -260,7 +256,7 @@ export default function SectionReview({
 
       {/* Structure */}
       {config.layout && (
-        <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
+        <div className="bg-bg-base rounded-lg px-5 py-4">
           <SectionHeader icon={GitFork} label="Structure" status={sectionStatus.layout} />
           <div className="space-y-2">
             {config.layout.type && <Badge>{config.layout.type}</Badge>}
@@ -270,9 +266,9 @@ export default function SectionReview({
 
       {/* Components */}
       {config.components && Object.keys(config.components).length > 0 && (
-        <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
+        <div className="bg-bg-base rounded-lg px-5 py-4">
           <SectionHeader icon={Server} label="Components" status={sectionStatus.components} />
-          <div className="divide-y divide-stone-200 dark:divide-stone-800/50">
+          <div className="divide-y divide-border">
             {Object.entries(legacyComponents(config.components)).map(([name, component]) => (
               <div key={name} className="py-4 first:pt-0 last:pb-0">
                 <ComponentMiniCard
@@ -288,10 +284,10 @@ export default function SectionReview({
       )}
 
       {/* Tools */}
-      <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
+      <div className="bg-bg-base rounded-lg px-5 py-4">
         <SectionHeader icon={Layers} label="Tools" status={sectionStatus.tools} />
         {config.tools && config.tools.length > 0 ? (
-          <div className="divide-y divide-stone-200 dark:divide-stone-800/50">
+          <div className="divide-y divide-border">
             {config.tools.map((tool, i) => (
               <div key={i} className="py-4 first:pt-0 last:pb-0">
                 <ToolRow tool={tool} />
@@ -299,15 +295,15 @@ export default function SectionReview({
             ))}
           </div>
         ) : (
-          <p className="text-12 text-stone-600 dark:text-stone-400">None configured</p>
+          <p className="text-12 text-text-secondary">None configured</p>
         )}
       </div>
 
       {/* Users */}
-      <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
+      <div className="bg-bg-base rounded-lg px-5 py-4">
         <SectionHeader icon={Users} label="Users" status={sectionStatus.users} />
         {config.users && config.users.length > 0 ? (
-          <div className="divide-y divide-stone-200 dark:divide-stone-800/50">
+          <div className="divide-y divide-border">
             {config.users.map((user, i) => (
               <div key={i} className="py-4 first:pt-0 last:pb-0 space-y-2">
                 <ItemHeader name={user.name || "Untitled"} />
@@ -318,12 +314,12 @@ export default function SectionReview({
             ))}
           </div>
         ) : (
-          <p className="text-12 text-stone-600 dark:text-stone-400">None configured</p>
+          <p className="text-12 text-text-secondary">None configured</p>
         )}
       </div>
 
       {/* Inspection */}
-      <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
+      <div className="bg-bg-base rounded-lg px-5 py-4">
         <SectionHeader icon={TestTube} label="Inspection" status={sectionStatus.inspection} />
         {config.inspection &&
         (config.inspection.framework ||
@@ -339,12 +335,12 @@ export default function SectionReview({
             <Row label="Command" value={config.inspection.command} mono />
             {config.inspection.env && Object.keys(config.inspection.env).length > 0 && (
               <div>
-                <span className="text-11 text-stone-600 dark:text-stone-400">Environment</span>
+                <span className="text-11 text-text-secondary">Environment</span>
                 <div className="mt-1 space-y-0.5 pl-2">
                   {Object.entries(config.inspection.env).map(([k, v]) => (
-                    <div key={k} className="text-12 font-mono text-stone-700 dark:text-stone-300">
-                      <span className="text-stone-500 dark:text-stone-400">{k}</span>
-                      <span className="text-stone-600 dark:text-stone-400">=</span>
+                    <div key={k} className="text-12 font-mono text-text-body">
+                      <span className="text-text-secondary">{k}</span>
+                      <span className="text-text-secondary">=</span>
                       {v}
                     </div>
                   ))}
@@ -353,24 +349,24 @@ export default function SectionReview({
             )}
           </div>
         ) : (
-          <p className="text-12 text-stone-600 dark:text-stone-400">None configured</p>
+          <p className="text-12 text-text-secondary">None configured</p>
         )}
       </div>
 
       {/* Benches */}
       {config.benches && (
-        <div className="bg-stone-100 dark:bg-stone-900/50 rounded-lg px-5 py-4">
+        <div className="bg-bg-base rounded-lg px-5 py-4">
           <SectionHeader icon={Settings} label="Benches" status={sectionStatus.benches} />
           <div className="space-y-2">
             <Row label="Max concurrent" value={config.benches.max} />
             {config.ports && Object.keys(config.ports).length > 0 && config.benches.max && (
               <div>
-                <span className="text-11 text-stone-600 dark:text-stone-400">Port ranges</span>
+                <span className="text-11 text-text-secondary">Port ranges</span>
                 <div className="mt-1 space-y-0.5 pl-2">
                   {Object.entries(config.ports).map(([name, port]) => (
                     <div key={name} className="flex items-center gap-3 text-12 font-mono">
-                      <span className="text-stone-500 dark:text-stone-400 shrink-0">{name}</span>
-                      <span className="text-stone-600 dark:text-stone-400 tabular-nums">
+                      <span className="text-text-secondary shrink-0">{name}</span>
+                      <span className="text-text-secondary tabular-nums">
                         {port.base} &ndash; {port.base + (config.benches?.max ?? 1) - 1}
                       </span>
                     </div>
@@ -399,16 +395,16 @@ export default function SectionReview({
           <Button
             onPress={onRegister}
             isDisabled={isRegistering}
-            className="px-4 py-2 text-13 font-medium text-stone-700 dark:text-stone-300 bg-stone-200 dark:bg-stone-800/80 hover:bg-stone-300 dark:hover:bg-stone-700 disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="px-4 py-2 text-13 font-medium text-text-body bg-bg-hover hover:bg-bg-pressed hover:text-text-primary disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             {isRegistering ? "Registering..." : "Register Project"}
           </Button>
         )}
       </div>
 
-      {saveError && <p className="text-13 text-red-400">{saveError}</p>}
+      {saveError && <p className="text-13 text-danger-text">{saveError}</p>}
       {saveSuccess && (
-        <p className="text-13 text-green-500">
+        <p className="text-13 text-success-text">
           {isEditMode ? "Config saved. Restart components to apply changes." : "Config saved."}
         </p>
       )}

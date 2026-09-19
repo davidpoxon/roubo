@@ -21,7 +21,7 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
     <>
       <DialogTrigger isOpen={isOpen} onOpenChange={setIsOpen}>
         <Button
-          className="p-1 text-stone-500 dark:text-stone-400 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="p-1 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           aria-label="Insert template variable"
         >
           <Braces size={14} />
@@ -45,24 +45,22 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
                       onInsert(v.syntax);
                       setIsOpen(false);
                     }}
-                    className="w-full text-left px-3 py-1.5 hover:bg-stone-100 dark:hover:bg-stone-700/50 transition-colors group/item outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="w-full text-left px-3 py-1.5 hover:bg-bg-hover transition-colors group/item outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <code className="text-11 font-mono text-stone-700 dark:text-stone-300">
-                        {v.syntax}
-                      </code>
+                      <code className="text-11 font-mono text-text-body">{v.syntax}</code>
                       {v.example &&
                         v.example !== "unavailable" &&
                         v.example !== "Not configured" && (
-                          <span className="text-11 font-mono text-stone-500 dark:text-stone-300 tabular-nums shrink-0">
+                          <span className="text-11 font-mono text-text-secondary tabular-nums shrink-0">
                             {v.example.length > 24 ? v.example.slice(0, 24) + "..." : v.example}
                           </span>
                         )}
                     </div>
-                    <p className="text-11 text-stone-500 dark:text-stone-300 mt-0.5 group-hover/item:text-stone-600 dark:group-hover/item:text-stone-300 transition-colors">
+                    <p className="text-11 text-text-secondary mt-0.5 group-hover/item:text-text-body transition-colors">
                       {v.description}
                       {v.formula && (
-                        <span className="text-stone-500 dark:text-stone-300 group-hover/item:text-stone-600 dark:group-hover/item:text-stone-300">
+                        <span className="text-text-secondary group-hover/item:text-text-body">
                           {" "}
                           · {v.formula}
                         </span>
@@ -73,13 +71,13 @@ export default function TemplateInsert({ ctx, onInsert }: TemplateInsertProps) {
               </div>
             ))}
           </div>
-          <div className="border-t border-stone-200 dark:border-stone-700/40 px-3 py-2">
+          <div className="border-t border-border px-3 py-2">
             <Button
               onPress={() => {
                 setIsOpen(false);
                 setShowReference(true);
               }}
-              className="flex items-center gap-1.5 text-11 text-stone-500 dark:text-stone-300 hover:text-stone-600 dark:hover:text-stone-400 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="flex items-center gap-1.5 text-11 text-text-secondary hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             >
               Learn more about template variables
               <ArrowRight size={12} />

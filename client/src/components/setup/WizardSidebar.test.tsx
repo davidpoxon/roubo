@@ -144,10 +144,10 @@ describe("WizardSidebar", () => {
       expect(onAddComponent).toHaveBeenCalledWith("process");
     });
 
-    it("highlights active sub-step with amber color", () => {
+    it("highlights the active sub-step with the accent-muted selection", () => {
       renderSidebar("components", {}, { components, currentSubStep: "server" });
       const serverButton = screen.getByText("server").closest("button");
-      expect(serverButton?.className).toContain("amber");
+      expect(serverButton?.className).toContain("bg-accent-muted");
     });
 
     it("shows no component sub-items when components is empty", () => {
@@ -204,7 +204,7 @@ describe("WizardSidebar", () => {
     it("highlights active tool sub-step", () => {
       renderSidebar("tools", {}, { tools, currentSubStep: "tool-1" });
       const apiButton = screen.getByText("API Docs").closest("button");
-      expect(apiButton?.className).toContain("amber");
+      expect(apiButton?.className).toContain("bg-accent-muted");
     });
 
     it("renders tool icon button without error when icon is unrecognised (Globe fallback)", () => {
@@ -252,7 +252,7 @@ describe("WizardSidebar", () => {
     it("highlights active user sub-step", () => {
       renderSidebar("users", {}, { users, currentSubStep: "user-1" });
       const bobButton = screen.getByText("Bob").closest("button");
-      expect(bobButton?.className).toContain("amber");
+      expect(bobButton?.className).toContain("bg-accent-muted");
     });
   });
 });

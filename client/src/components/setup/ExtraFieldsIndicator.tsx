@@ -15,7 +15,7 @@ export default function ExtraFieldsIndicator({ extraFields }: Props) {
     <TooltipTrigger delay={300}>
       <Button
         data-testid="extra-fields-indicator"
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-11 font-medium outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent-muted text-accent-text ring-1 ring-transparent text-11 font-medium outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring hover:ring-accent-border transition-colors"
       >
         <AlertTriangle size={12} />
         YAML: {label}

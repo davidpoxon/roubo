@@ -63,7 +63,7 @@ export default function ToolChipList({
   return (
     <div className="space-y-2">
       {tools.length === 0 && (
-        <p className="text-13 text-stone-500 dark:text-stone-400 py-2">
+        <p className="text-13 text-text-secondary py-2">
           No tools configured. This section is optional.
         </p>
       )}
@@ -78,17 +78,15 @@ export default function ToolChipList({
               onPress={() => toggleExpand(i)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-control transition-colors text-left outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring ${
                 isExpanded
-                  ? "bg-stone-200/70 dark:bg-stone-800/70 ring-1 ring-border-strong"
-                  : "bg-stone-100 dark:bg-stone-900/50 hover:bg-stone-200/60 dark:hover:bg-stone-800/60"
+                  ? "bg-bg-pressed ring-1 ring-border-strong"
+                  : "bg-bg-hover hover:bg-bg-pressed"
               }`}
             >
-              <IconComponent size={12} className="text-stone-500 dark:text-stone-400 shrink-0" />
-              <span className="flex-1 text-13 font-medium text-stone-700 dark:text-stone-300 truncate">
+              <IconComponent size={12} className="text-text-secondary shrink-0" />
+              <span className="flex-1 text-13 font-medium text-text-body truncate">
                 {tool.name || "Untitled"}
               </span>
-              <span className="text-11 text-stone-600 dark:text-stone-400 shrink-0">
-                {tool.type}
-              </span>
+              <span className="text-11 text-text-secondary shrink-0">{tool.type}</span>
             </Button>
 
             {isExpanded && (
@@ -112,7 +110,7 @@ export default function ToolChipList({
 
       <Button
         onPress={addTool}
-        className="flex items-center gap-1 text-11 text-text-secondary hover:text-stone-700 dark:hover:text-stone-300 transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control mt-1"
+        className="flex items-center gap-1 text-11 text-text-secondary hover:text-text-primary transition-colors outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-focus-ring rounded-control mt-1"
       >
         <Plus size={12} /> Add tool
       </Button>
