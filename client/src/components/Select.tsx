@@ -49,8 +49,8 @@ export default function Select({
         placeholder={placeholder}
         aria-label={ariaLabel ?? placeholder ?? "Select"}
       >
-        <Button className="w-full flex items-center justify-between rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-focus-ring data-[pressed]:bg-bg-pressed">
-          <SelectValue className="truncate data-[placeholder]:text-text-secondary">
+        <Button className="group w-full flex items-center justify-between rounded-control bg-bg-field border border-border-control px-3 py-2 text-13 text-text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-focus-ring data-[pressed]:bg-bg-pressed">
+          <SelectValue className="truncate data-[placeholder]:text-text-secondary group-data-[pressed]:data-[placeholder]:text-text-body">
             {({ isPlaceholder, selectedText }) => {
               if (isPlaceholder) return <span>{placeholder}</span>;
               const match = normalized.find((item) => item.label === selectedText);

@@ -25,6 +25,11 @@ describe("Select", () => {
     // bg-field trigger in both themes. semantic-dark.css switches the role, so
     // the placeholder carries no dark: pair.
     expect(placeholder?.className).toContain("data-[placeholder]:text-text-secondary");
+    // The trigger stays pressed while the listbox is open, and text-secondary
+    // misses AA on bg-pressed in dark mode, so DESIGN.md steps it up to text-body.
+    expect(placeholder?.className).toContain(
+      "group-data-[pressed]:data-[placeholder]:text-text-body",
+    );
     expect(placeholder?.className).not.toContain("dark:");
   });
 
