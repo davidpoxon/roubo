@@ -53,6 +53,7 @@
     "lint:dep-pins": "node scripts/dependency-pin-guard.mjs",
     "lint:design-tokens": "node scripts/design-token-guard.mjs",
     "lint:semantic-dark": "node scripts/semantic-dark-guard.mjs",
+    "lint:emitted-tokens": "node scripts/emitted-tokens-guard.mjs",
     "lint:no-ai-coauthor": "node scripts/check-ai-coauthorship.mjs",
     "generate:schema": "tsx scripts/generate-schema.ts",
     "generate:routes": "tsx scripts/generate-route-inventory.ts",
