@@ -49,6 +49,12 @@ jobs:
       # build still compiles without the line; the light value just renders in
       # dark mode, so nothing else here would notice.
       - run: npm run lint:semantic-dark
+      # #1341: fail the build if DESIGN.md's token block and the generated
+      # design-tokens/tokens.tailwind.css disagree, in either direction. The
+      # emitted file is committed by hand, so a half-finished emit otherwise
+      # merges green: the build compiles and the utility naming the variable
+      # that never arrived just paints nothing.
+      - run: npm run lint:emitted-tokens
 
   format:
     runs-on: ubuntu-latest
