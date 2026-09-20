@@ -212,21 +212,35 @@ describe("flattenTokens (EmittedTokensGuard)", () => {
 
 describe("themeDeclarations (EmittedTokensGuard)", () => {
   it("reads only the declarations inside the @theme block", () => {
-    const css = [
-      ":root { --color-outside: #000000; }",
+    const css = tailwind(["--color-accent: #F59E0B;", "--space-0: 1px;"]).replace(
       "@theme {",
-      "  --color-accent: #F59E0B;",
-      "  --space-0: 1px;",
-      "}",
-    ].join("\n");
+      ":root { --color-outside: #000000; }\n@theme {",
+    );
     expect([...themeDeclarations(css)]).toEqual([
       ["--color-accent", "#F59E0B"],
       ["--space-0", "1px"],
     ]);
   });
 
-  it("throws when there is no @theme block, rather than passing vacuously", () => {
-    expect(() => themeDeclarations(":root { --color-accent: #F59E0B; }\n")).toThrow(/@theme/);
+  // The emitter rewrites nothing outside its sentinels, so a hand-written
+  // `@theme` may legally sit either side of the managed region. Reading one
+  // instead of the generated block would fault every real token as missing,
+  // or hide the generated block entirely.
+  it.each([
+    ["before", (css: string) => `@theme {\n  --color-handwritten: #000000;\n}\n${css}`],
+    ["after", (css: string) => `${css}@theme {\n  --color-handwritten: #000000;\n}\n`],
+  ])("ignores a hand-written @theme %s the managed region", (_where, wrap) => {
+    const css = wrap(tailwind(["--color-accent: #F59E0B;"]));
+    expect([...themeDeclarations(css)]).toEqual([["--color-accent", "#F59E0B"]]);
+  });
+
+  it("throws when there is no managed region, rather than passing vacuously", () => {
+    const unmanaged = "@theme {\n  --color-accent: #F59E0B;\n}\n";
+    expect(() => themeDeclarations(unmanaged)).toThrow(/managed region/);
+  });
+
+  it("throws when the managed region carries no @theme block", () => {
+    expect(() => themeDeclarations(tailwind([]).replace("@theme {\n}", ""))).toThrow(/@theme/);
   });
 });
 
