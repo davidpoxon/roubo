@@ -118,15 +118,26 @@ export function normalizeHex(value) {
  * non-numeric, boolean, or outside [0, 1] all suppress the suffix, so an
  * alpha-less colour stays a plain `#RRGGBB`.
  *
+ * The emitter rounds with Python's `round`, which breaks a tie to the EVEN
+ * neighbour, while `Math.round` breaks it upward. Two recordable alphas land
+ * exactly on a tie whose floor is even: `0.3` is 76.5 and `0.7` is 178.5, so
+ * the emitter writes `4C` and `B2` where `Math.round` would claim `4D` and
+ * `B3`. Getting that wrong fails a correctly regenerated file, and re-running
+ * the emitter cannot fix it, so the tie is broken the emitter's way here.
+ *
  * @param {unknown} alpha
  * @returns {string}
  */
 export function alphaSuffix(alpha) {
   if (!isNumber(alpha) || alpha < 0 || alpha > 1) return "";
-  return Math.round(alpha * 255)
-    .toString(16)
-    .toUpperCase()
-    .padStart(2, "0");
+  const scaled = alpha * 255;
+  const floor = Math.floor(scaled);
+  const fraction = scaled - floor;
+  let byte;
+  if (fraction > 0.5) byte = floor + 1;
+  else if (fraction < 0.5) byte = floor;
+  else byte = floor % 2 === 0 ? floor : floor + 1;
+  return byte.toString(16).toUpperCase().padStart(2, "0");
 }
 
 /**
@@ -309,48 +320,71 @@ export function tokenMismatches(designMd, css) {
   };
 }
 
+/**
+ * The failure report for a set of mismatches: a summary, then one section per
+ * direction, each naming every offending token and the line to add, remove or
+ * replace. Returns "" when there is nothing to report.
+ *
+ * Separate from the CLI so the message itself is testable, since naming the
+ * offending key and its line is the behaviour the gate is judged on.
+ *
+ * @param {ReturnType<typeof tokenMismatches>} mismatches
+ * @returns {string}
+ */
+export function formatReport({ missing, extra, differing }) {
+  const total = missing.length + extra.length + differing.length;
+  if (total === 0) return "";
+
+  const lines = [
+    `${DESIGN_PATH} and ${TAILWIND_PATH} disagree on ${total} token(s). ` +
+      `${TAILWIND_PATH} is generated: re-run the ui-design emit_tokens.py against ` +
+      `${DESIGN_PATH} and commit the result. The exact lines are below.`,
+    "",
+  ];
+
+  if (missing.length > 0) {
+    lines.push(
+      `${missing.length} token(s) ${DESIGN_PATH} records that ${TAILWIND_PATH} does not ` +
+        "emit. Add inside `@theme`:",
+      "",
+      ...missing.map(({ name, expected }) => `  ${name}: ${expected};`),
+      "",
+    );
+  }
+
+  if (extra.length > 0) {
+    lines.push(
+      `${extra.length} token(s) ${TAILWIND_PATH} emits that ${DESIGN_PATH} no longer ` +
+        "records. Remove from `@theme`:",
+      "",
+      ...extra.map(({ name, emitted }) => `  ${name}: ${emitted};`),
+      "",
+    );
+  }
+
+  if (differing.length > 0) {
+    lines.push(
+      `${differing.length} token(s) whose value differs. Replace the line in \`@theme\`:`,
+      "",
+      ...differing.map(
+        ({ name, expected, emitted }) => `  ${name}: ${expected};   (currently ${emitted})`,
+      ),
+      "",
+    );
+  }
+
+  return lines.join("\n");
+}
+
 // Only run the CLI when invoked directly, not when imported by the test.
 if (import.meta.url === `file://${process.argv[1]}`) {
   const designMd = readFileSync(DESIGN_PATH, "utf8");
   const css = readFileSync(TAILWIND_PATH, "utf8");
-  const { missing, extra, differing } = tokenMismatches(designMd, css);
-  const total = missing.length + extra.length + differing.length;
+  const mismatches = tokenMismatches(designMd, css);
+  const report = formatReport(mismatches);
 
-  if (total > 0) {
-    console.error(
-      `${DESIGN_PATH} and ${TAILWIND_PATH} disagree on ${total} token(s). ` +
-        `${TAILWIND_PATH} is generated: re-run the ui-design emit_tokens.py against ` +
-        `${DESIGN_PATH} and commit the result. The exact lines are below.\n`,
-    );
-
-    if (missing.length > 0) {
-      console.error(
-        `${missing.length} token(s) ${DESIGN_PATH} records that ${TAILWIND_PATH} does not ` +
-          "emit. Add inside `@theme`:\n",
-      );
-      for (const { name, expected } of missing) console.error(`  ${name}: ${expected};`);
-      console.error("");
-    }
-
-    if (extra.length > 0) {
-      console.error(
-        `${extra.length} token(s) ${TAILWIND_PATH} emits that ${DESIGN_PATH} no longer ` +
-          "records. Remove from `@theme`:\n",
-      );
-      for (const { name, emitted } of extra) console.error(`  ${name}: ${emitted};`);
-      console.error("");
-    }
-
-    if (differing.length > 0) {
-      console.error(
-        `${differing.length} token(s) whose value differs. Replace the line in \`@theme\`:\n`,
-      );
-      for (const { name, expected, emitted } of differing) {
-        console.error(`  ${name}: ${expected};   (currently ${emitted})`);
-      }
-      console.error("");
-    }
-
+  if (report !== "") {
+    console.error(report);
     process.exit(1);
   }
 

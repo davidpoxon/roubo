@@ -8,6 +8,7 @@ import {
   alphaSuffix,
   designTokens,
   flattenTokens,
+  formatReport,
   normalizeHex,
   themeDeclarations,
   tokenMismatches,
@@ -104,6 +105,17 @@ describe("alphaSuffix (EmittedTokensGuard)", () => {
     expect(alphaSuffix(alpha)).toBe(byte);
   });
 
+  // The emitter rounds with Python's `round`, which breaks a tie to the even
+  // neighbour. These are the only two recordable alphas that land on a tie
+  // with an even floor, so they are the only two where rounding upward would
+  // fail a correctly regenerated file.
+  it.each([
+    [0.3, "4C"],
+    [0.7, "B2"],
+  ])("breaks the tie at alpha %s downward, as the emitter does", (alpha, byte) => {
+    expect(alphaSuffix(alpha)).toBe(byte);
+  });
+
   it("renders no suffix when there is no usable alpha", () => {
     for (const alpha of [undefined, null, "0.4", true, false, -0.1, 1.5, NaN, Infinity]) {
       expect(alphaSuffix(alpha)).toBe("");
@@ -174,6 +186,17 @@ describe("flattenTokens (EmittedTokensGuard)", () => {
     });
     const names = flattenTokens({ spacing, layout: { gutter: "space.99" } }).map((p) => p.name);
     expect(names).not.toContain("--layout-gutter");
+  });
+
+  it("emits the layout content max and containers as key-sorted lengths", () => {
+    // css_slug replaces dots only, so the underscore in `content_max` survives
+    // into the custom property name.
+    const layout = { content_max: 1200, containers: { wide: 1440, narrow: 720 } };
+    expect(flattenTokens({ layout })).toEqual([
+      { name: "--layout-content_max", value: "1200px" },
+      { name: "--layout-containers-narrow", value: "720px" },
+      { name: "--layout-containers-wide", value: "1440px" },
+    ]);
   });
 
   it("ignores the keys DESIGN.md records that the emitter never writes", () => {
@@ -258,5 +281,27 @@ describe("tokenMismatches (EmittedTokensGuard)", () => {
       readFileSync(TAILWIND_PATH, "utf8"),
     );
     expect(mismatches).toEqual({ missing: [], extra: [], differing: [] });
+  });
+});
+
+describe("formatReport (EmittedTokensGuard)", () => {
+  it("reports nothing when there is nothing to report", () => {
+    expect(formatReport({ missing: [], extra: [], differing: [] })).toBe("");
+  });
+
+  it("names every offending token and the line to add, remove or replace", () => {
+    const report = formatReport({
+      missing: [{ name: "--color-kind-component-surface", expected: "#F0FDFA" }],
+      extra: [{ name: "--color-legacy-pill-bg", emitted: "#E7E5E4" }],
+      differing: [{ name: "--radius-1", expected: "6px", emitted: "8px" }],
+    });
+    expect(report).toContain("disagree on 3 token(s)");
+    expect(report).toContain("  --color-kind-component-surface: #F0FDFA;");
+    expect(report).toContain("  --color-legacy-pill-bg: #E7E5E4;");
+    expect(report).toContain("  --radius-1: 6px;   (currently 8px)");
+    // Each direction says what to do with the lines under it.
+    expect(report).toMatch(/does not emit\. Add inside `@theme`:/);
+    expect(report).toMatch(/no longer records\. Remove from `@theme`:/);
+    expect(report).toMatch(/value differs\. Replace the line in `@theme`:/);
   });
 });
