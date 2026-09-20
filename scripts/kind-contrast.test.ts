@@ -57,11 +57,27 @@ function over(token: Token, ground: number[]): number[] {
 const design = readFileSync(DESIGN_PATH, "utf8");
 const colors = designColors(design) as Record<string, Token>;
 
-/** A `role at ratio:1` figure DESIGN.md states in prose, as the test reads it back. */
-function recordedFigure(pattern: RegExp): { role: string; ratio: number } {
-  const match = pattern.exec(design);
+// The figures are read from the kind bullet alone. Its neighbours at
+// DESIGN.md:61 and :63 record their own families the same way, in the same
+// words, so a pattern loosed on the whole file would sooner or later measure
+// kind roles against the issue chip's or the syntax string's number.
+const KIND_BULLET = /^- \*\*Plugin kind pills\*\*.*$/m;
+
+function kindBullet(): string {
+  const match = KIND_BULLET.exec(design);
   if (!match) {
-    throw new Error(`${DESIGN_PATH} no longer records the figure matched by ${pattern}`);
+    throw new Error(`${DESIGN_PATH} no longer carries a "Plugin kind pills" bullet.`);
+  }
+  return match[0];
+}
+
+/** A `role at ratio:1` figure the kind bullet states, as the test reads it back. */
+function recordedFigure(pattern: RegExp): { role: string; ratio: number } {
+  const match = pattern.exec(kindBullet());
+  if (!match) {
+    throw new Error(
+      `${DESIGN_PATH}'s plugin kind pill bullet no longer records the figure matched by ${pattern}`,
+    );
   }
   return { role: match[1], ratio: Number(match[2]) };
 }
@@ -97,6 +113,23 @@ for (const kind of KINDS) {
 
 const lowest = (rows: Measurement[]) => rows.reduce((a, b) => (b.ratio < a.ratio ? b : a));
 
+// DESIGN.md is the source, but the app paints from the emitted custom
+// properties, and that file is maintained by hand. Measuring DESIGN.md alone
+// would stay green through an edit that never reached the CSS, shipping the
+// old colour against a figure that describes the new one.
+const EMITTED_PATH = "design-tokens/tokens.tailwind.css";
+const emitted = readFileSync(EMITTED_PATH, "utf8");
+
+/** The value DESIGN.md's token implies in the emitted file: hex, plus an alpha byte when tinted. */
+function emittedValue(token: Token): string {
+  if (token.alpha === undefined) return token.hex;
+  const byte = Math.round(token.alpha * 255)
+    .toString(16)
+    .padStart(2, "0")
+    .toUpperCase();
+  return `${token.hex}${byte}`;
+}
+
 describe("DESIGN.md plugin kind pill roles", () => {
   it("records a surface, border, and text role for each of the three kinds", () => {
     const kindRoles = Object.keys(colors)
@@ -128,6 +161,18 @@ describe("DESIGN.md plugin kind pill roles", () => {
       expect(colors[`${kind}-border`].alpha).toBeUndefined();
       expect(colors[`${kind}-border-dark`].alpha).toBeUndefined();
     });
+
+    it.each(["surface", "border", "text"])(
+      `emits the measured %s value to ${EMITTED_PATH}`,
+      (part) => {
+        for (const suffix of ["", "-dark"]) {
+          const role = `${kind}-${part}${suffix}`;
+          expect(emitted, `${EMITTED_PATH} does not declare --color-${role}`).toContain(
+            `  --color-${role}: ${emittedValue(colors[role])};\n`,
+          );
+        }
+      },
+    );
 
     describe.each(THEMES)("in %s", (theme) => {
       it.each(GROUNDS)(`clears ${AA_NORMAL}:1 for text over the %s ground`, (ground) => {
