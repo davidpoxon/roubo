@@ -481,27 +481,37 @@ describe("upsertArray (issue #890)", () => {
     });
   });
 
-  it("does not read an inherited property through a match key", () => {
-    seedHooks({ hooks: { stop: [{ note: "plain" }] } });
-
-    executeWorkspaceWrites(workspace, [
-      {
+  it("matches a needle the carrier shell-quoted around a single quote", () => {
+    // `quoteShellWord` wraps most values, leaving the raw needle a substring,
+    // which is why the spaced path above matches. A single quote is the one
+    // character it rewrites (`'` becomes `'\''`), so the raw path is absent
+    // from the command and only the quoted spelling finds the earlier entry.
+    // Miss it and every launch appends another Roubo entry.
+    const quoted = "/Users/o'brien/.roubo/bin/roubo-notify";
+    function write(sessionId: string): WorkspaceWriteSpec {
+      return {
         relPath: ".cursor/hooks.json",
         format: "json",
         ops: [
           {
             op: "upsertArray",
             path: "hooks.stop",
-            value: { command: "roubo" },
-            match: { key: "constructor", contains: "Object" },
+            value: { command: joinShellCommand([quoted, sessionId]) },
+            match: { key: "command", contains: quoted },
           },
         ],
-      },
-    ]);
+      };
+    }
+    seedHooks({ hooks: { stop: [{ command: "my-own-stop-hook" }] } });
 
-    expect(readJson(".cursor/hooks.json")).toEqual({
-      hooks: { stop: [{ note: "plain" }, { command: "roubo" }] },
-    });
+    executeWorkspaceWrites(workspace, [write("sid-1")]);
+    executeWorkspaceWrites(workspace, [write("sid-2")]);
+
+    const stop = (readJson(".cursor/hooks.json").hooks as { stop: unknown[] }).stop;
+    expect(stop).toEqual([
+      { command: "my-own-stop-hook" },
+      { command: joinShellCommand([quoted, "sid-2"]) },
+    ]);
   });
 
   it("replaces a value that is not an array, as unionArray does", () => {

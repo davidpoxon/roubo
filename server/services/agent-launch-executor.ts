@@ -297,13 +297,25 @@ function containerFor(
  * Does this existing array entry belong to the writer the `upsertArray` op
  * declared? Own properties only: reading a plugin-named key straight off the
  * entry would otherwise reach an inherited one, the same hole `splitPath`
- * closes for paths.
+ * closes for paths. Nothing a plain object inherits holds a string, so the
+ * type test below would refuse those anyway; the own-property test is the
+ * cheap half of the pair and does not depend on that staying true.
+ *
+ * The needle is tested in its shell-quoted spelling as well, because a carrier
+ * that joins a value into a command string puts it through `quoteShellWord`
+ * (issue #890). Quoting only wraps, so for almost every value the raw needle is
+ * still a substring and the second test changes nothing. The exception is a
+ * value containing a single quote, which quoting rewrites as `'\''`: the raw
+ * needle is then absent from the command and only the quoted spelling finds the
+ * entry this host wrote last time. Missing it would append a second entry on
+ * every launch rather than replacing the first.
  */
 function matchesUpsert(entry: unknown, match: { key: string; contains: string }): boolean {
   if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return false;
   if (!Object.prototype.hasOwnProperty.call(entry, match.key)) return false;
   const value = (entry as Record<string, unknown>)[match.key];
-  return typeof value === "string" && value.includes(match.contains);
+  if (typeof value !== "string") return false;
+  return value.includes(match.contains) || value.includes(quoteShellWord(match.contains));
 }
 
 /**
@@ -365,8 +377,9 @@ function applyJsonWrite(filePath: string, ops: WriteOp[]): void {
 /**
  * Text-format writes address the whole file body, not a structured path, so only
  * two ops are meaningful: `set` (replace the body, value must be a string) and
- * `delete` (remove the file). `unionArray` has no text meaning and is rejected
- * rather than silently ignored.
+ * `delete` (remove the file). `unionArray` and `upsertArray` address a value at
+ * a path inside a parsed document, so neither has a text meaning, and both are
+ * rejected rather than silently ignored.
  */
 function applyTextWrite(filePath: string, ops: WriteOp[]): void {
   let body: string | null = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf-8") : null;
