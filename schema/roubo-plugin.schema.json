@@ -32,6 +32,17 @@
           "kind": { "const": "agent" }
         }
       }
+    },
+    {
+      "description": "agentPermissionRuleTiers says which permission rule tiers an agent CLI's rules format carries, so it is meaningful only on a kind: agent manifest. Kept in lockstep with the kind gate on PluginManifestSchema in shared/plugin-manifest-schema.ts.",
+      "if": {
+        "required": ["agentPermissionRuleTiers"]
+      },
+      "then": {
+        "properties": {
+          "kind": { "const": "agent" }
+        }
+      }
     }
   ],
   "properties": {
@@ -195,6 +206,16 @@
           }
         }
       }
+    },
+    "agentPermissionRuleTiers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["allow", "ask", "deny"]
+      },
+      "description": "Agent-plugin field: which tiers of Roubo's fine-grained permission rules this plugin's agent CLI actually carries. A tier left out is never written, and the permissions screen offers no control for it. Optional; a plugin that declares nothing is offered all three. Kept in lockstep with AgentPermissionRuleTiersSchema in shared/plugin-manifest-schema.ts.",
+      "examples": [["allow", "deny"]]
     },
     "permissions": {
       "type": "object",

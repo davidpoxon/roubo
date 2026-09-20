@@ -184,4 +184,51 @@ describe("ProjectPermissionsInlineSection", () => {
     expect(screen.getByText(/1 deny/)).toBeInTheDocument();
     expect(screen.getByText(/1 ask/)).toBeInTheDocument();
   });
+
+  // #862: the overview summary is read-only, but it still must not present a
+  // rule the project's agent drops as though it applied.
+  describe("rule tiers the agent does not carry", () => {
+    const TWO_TIER = {
+      agentPluginId: "two-tier",
+      agentName: "Two Tier Agent",
+      postures: ["guarded"],
+      rules: true,
+      ruleTiers: ["allow", "deny"],
+      resync: true,
+    };
+
+    it("labels an un-carried tier in the summary and marks its row", () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({
+          permissions: { allow: ["Read(src/**)"], deny: [], ask: ["Edit(.env*)"] },
+          capabilities: TWO_TIER,
+        }),
+      );
+      renderSection();
+      expect(screen.getByText(/1 allow · 0 deny · 1 ask \(not applied\)/)).toBeInTheDocument();
+      expect(screen.getByText("not applied")).toBeInTheDocument();
+    });
+
+    it("leaves an un-carried tier out of the summary when nothing is stored in it", () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({
+          permissions: { allow: ["Read(src/**)"], deny: [], ask: [] },
+          capabilities: TWO_TIER,
+        }),
+      );
+      renderSection();
+      expect(screen.getByText(/1 rule · 1 allow · 0 deny/)).toBeInTheDocument();
+      expect(screen.queryByText(/ask/)).not.toBeInTheDocument();
+    });
+
+    it("keeps every tier in the summary when the agent declares none", () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({
+          permissions: { allow: ["Read(src/**)"], deny: [], ask: [] },
+        }),
+      );
+      renderSection();
+      expect(screen.getByText(/1 allow · 0 deny · 0 ask/)).toBeInTheDocument();
+    });
+  });
 });

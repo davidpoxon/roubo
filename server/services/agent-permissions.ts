@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { AgentPermissionsCapabilities, ProjectPermissions } from "@roubo/shared";
+import type {
+  AgentPermissionsCapabilities,
+  PermissionRuleTier,
+  ProjectPermissions,
+} from "@roubo/shared";
 import type { AgentPosture } from "@roubo/shared/agent-launch-descriptor-schema";
 import {
   collectWorkspaceWrites,
@@ -34,6 +38,15 @@ import type { ResolvedTemplateContext } from "./config-parser.js";
 // write rules for, so nothing is written.
 
 const DEFAULT_ROUBO_PORT = "3335";
+
+/**
+ * What an agent that declares no `agentPermissionRuleTiers` reports, and the
+ * answer for a project with no agent plugin at all (#862). Every tier stays on
+ * offer, which is the same fail-open choice `rules: true` makes below: the model
+ * is core's own, and hiding a tier a project already uses because a manifest is
+ * silent would lose the user work that agent may well honour.
+ */
+const ALL_RULE_TIERS: PermissionRuleTier[] = ["allow", "ask", "deny"];
 
 /** Which carrier actually applied a project's permissions to a workspace. */
 export type PermissionsCarrier = "agent-plugin" | "none";
@@ -92,6 +105,11 @@ export function resolveProjectAgentPluginId(): string | undefined {
  * report as available, because the model is core's and stays editable so it is
  * ready for whichever agent plugin gets installed; resync does not, because
  * there is nothing to re-inject through until one is.
+ *
+ * The rule TIERS come from the manifest rather than the descriptor (#862): which
+ * tiers an agent CLI's rules format carries is fixed by the CLI, not by a
+ * launch's configuration. A manifest that declares none reports all three, so an
+ * agent plugin written before the key existed is unchanged.
  */
 export async function describeAgentPermissions(
   projectId: string,
@@ -104,6 +122,7 @@ export async function describeAgentPermissions(
       agentName: null,
       postures: [],
       rules: true,
+      ruleTiers: ALL_RULE_TIERS,
       resync: false,
     };
   }
@@ -127,6 +146,7 @@ export async function describeAgentPermissions(
     agentName: prepared.manifest.name,
     postures,
     rules: capability?.rules !== undefined,
+    ruleTiers: prepared.manifest.agentPermissionRuleTiers ?? ALL_RULE_TIERS,
     resync: capability?.rules?.resync === true,
   };
 }

@@ -62,10 +62,13 @@ const NOTIFICATION = {
   correlation: { field: "session_id" as const, source: "agent-native" as const },
 };
 
-function preparedWith(overrides: Record<string, unknown> = {}) {
+function preparedWith(
+  overrides: Record<string, unknown> = {},
+  manifestOverrides: Record<string, unknown> = {},
+) {
   return {
     pluginId: "claude-code",
-    manifest: { id: "claude-code", name: "Claude Code" },
+    manifest: { id: "claude-code", name: "Claude Code", ...manifestOverrides },
     effectiveConfig: {},
     descriptor: {
       schemaVersion: 1,
@@ -243,8 +246,10 @@ describe("describeAgentPermissions", () => {
       agentName: null,
       postures: [],
       // The model is core's own and stays editable, ready for whichever agent
-      // plugin gets installed; there is nothing to re-inject through yet.
+      // plugin gets installed; there is nothing to re-inject through yet. Every
+      // tier stays on offer for the same reason (#862).
       rules: true,
+      ruleTiers: ["allow", "ask", "deny"],
       resync: false,
     });
   });
@@ -258,8 +263,35 @@ describe("describeAgentPermissions", () => {
       agentName: "Claude Code",
       postures: ["read-only", "full-auto"],
       rules: true,
+      ruleTiers: ["allow", "ask", "deny"],
       resync: true,
     });
+  });
+
+  // #862: which tiers an agent CLI's rules format carries is manifest metadata,
+  // not a per-launch decision, so it is read off the manifest rather than the
+  // descriptor. An agent that declares nothing keeps every tier, which is what
+  // makes the key additive for plugins written before it existed.
+  it("reports the rule tiers the manifest declares (APCC-TC-043)", async () => {
+    vi.mocked(pipeline.resolveLaunchAgentId).mockReturnValue("claude-code");
+    vi.mocked(pipeline.prepareAgentLaunch).mockResolvedValue(
+      preparedWith({}, { agentPermissionRuleTiers: ["allow", "deny"] }),
+    );
+
+    const described = await describeAgentPermissions("p1", workspace);
+    expect(described.ruleTiers).toEqual(["allow", "deny"]);
+    expect(described.rules).toBe(true);
+  });
+
+  it("reports every rule tier for a manifest that declares none", async () => {
+    vi.mocked(pipeline.resolveLaunchAgentId).mockReturnValue("claude-code");
+    vi.mocked(pipeline.prepareAgentLaunch).mockResolvedValue(preparedWith());
+
+    expect((await describeAgentPermissions("p1", workspace)).ruleTiers).toEqual([
+      "allow",
+      "ask",
+      "deny",
+    ]);
   });
 
   it("reports no rules for an agent that declares none, so the editor is hidden", async () => {

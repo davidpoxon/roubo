@@ -9,8 +9,9 @@ import { useProjects } from "../../hooks/useProjects";
 import { useToast } from "../../hooks/useToast";
 import { PermissionsRulesTable } from "./PermissionsRulesTable";
 import {
-  RULE_TYPE_ITEMS,
+  ALL_RULE_TYPES,
   flattenPermissions,
+  ruleTypeItemsFor,
   type PermissionRule,
   type RuleType,
 } from "./permissionsTable";
@@ -43,6 +44,12 @@ const POSTURE_HINTS: Record<string, string> = {
   "auto-edit": "The agent edits files without asking, but still asks to run commands.",
   "full-auto": "The agent edits and runs commands without asking.",
 };
+
+/** "ask", or "ask and deny", for prose that names the tiers an agent drops. */
+function listTiers(tiers: RuleType[]): string {
+  if (tiers.length <= 1) return tiers.join("");
+  return `${tiers.slice(0, -1).join(", ")} and ${tiers[tiers.length - 1]}`;
+}
 
 function unflattenPermissions(
   rules: PermissionRule[],
@@ -87,10 +94,37 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
   // `postures` list is the server's own designed answer for an agent that
   // declares none (as does having no agent plugin at all), so it stays hidden until
   // the probe positively reports postures to offer.
+  //
+  // The tiers inside the rules axis fail open for the same reason rules do: an
+  // agent that declares nothing carries all three, so an unanswered probe must
+  // not quietly take a tier away from a project that already uses it (#862).
   const showRules = capabilities?.rules !== false;
   const showResync = showRules && capabilities?.resync !== false;
   const showPosture = (capabilities?.postures.length ?? 0) > 0;
   const agentLabel = capabilities?.agentName ?? "your AI coding agent";
+  const honouredTiers = capabilities?.ruleTiers ?? ALL_RULE_TYPES;
+  const addTypeItems = ruleTypeItemsFor(honouredTiers);
+  // A tier the agent cannot carry is dropped on the way to the workspace, so the
+  // screen offers no way to create one and says what happens to any already
+  // stored. Naming the tiers rather than assuming `ask` keeps this agnostic: a
+  // future agent may drop a different one.
+  const droppedTiers = ALL_RULE_TYPES.filter((tier) => !honouredTiers.includes(tier));
+  // A dropped tier is listed only when the project actually has rules in it, and
+  // then never without saying it is not applied.
+  const tierSummary = ALL_RULE_TYPES.map((tier) => ({
+    tier,
+    count: (currentPermissions[tier] ?? []).length,
+  }))
+    .filter(({ tier, count }) => honouredTiers.includes(tier) || count > 0)
+    .map(
+      ({ tier, count }) =>
+        `${count} ${tier}${honouredTiers.includes(tier) ? "" : " (not applied)"}`,
+    )
+    .join(" · ");
+  // Never leave the composer sitting on a tier it cannot create.
+  const effectiveAddType = honouredTiers.includes(addType)
+    ? addType
+    : ((addTypeItems[0]?.value ?? addType) as RuleType);
 
   const isDuplicateRule = (type: RuleType, pattern: string) =>
     (currentPermissions[type] ?? []).includes(pattern);
@@ -98,13 +132,13 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
   const handleAdd = () => {
     const trimmed = addPattern.trim();
     if (!trimmed) return;
-    if (isDuplicateRule(addType, trimmed)) {
+    if (isDuplicateRule(effectiveAddType, trimmed)) {
       setIsDuplicate(true);
       return;
     }
     updatePermissions({
       ...currentPermissions,
-      [addType]: [...(currentPermissions[addType] ?? []), trimmed],
+      [effectiveAddType]: [...(currentPermissions[effectiveAddType] ?? []), trimmed],
     });
     setAddPattern("");
     setIsDuplicate(false);
@@ -258,9 +292,9 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             <div className="grid grid-cols-12 gap-2 items-center">
               <div className="col-span-2">
                 <Select
-                  aria-label="Rule type"
-                  items={RULE_TYPE_ITEMS}
-                  value={addType}
+                  ariaLabel="Rule type"
+                  items={addTypeItems}
+                  value={effectiveAddType}
                   onChange={(v) => {
                     setAddType(v as RuleType);
                     setIsDuplicate(false);
@@ -311,6 +345,16 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
             </div>
           </div>
 
+          {/* A tier this agent cannot carry is dropped on the way to the bench,
+              so say so rather than letting a saved rule look applied. */}
+          {droppedTiers.length > 0 && (
+            <div className="rounded-xl border border-border bg-bg-base px-4 py-3 text-12 text-text-secondary leading-relaxed">
+              {agentLabel} has no {listTiers(droppedTiers)} tier, so a rule marked{" "}
+              {listTiers(droppedTiers)} is never written for this project and is not offered above.
+              Any already saved stays listed below, marked as not applied, until you remove it.
+            </div>
+          )}
+
           {/* Rules table */}
           <div>
             <PermissionsRulesTable
@@ -319,13 +363,14 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
               emptyMessage="No rules yet. Add one above."
               onRemove={handleRemove}
               onEdit={handleEdit}
+              tiers={honouredTiers}
             />
 
             {/* Resync row: separate from the table card, no border-merge */}
             <div className="mt-3 flex items-center justify-between">
               <div className="text-11 text-text-secondary">
                 {rules.length > 0
-                  ? `${rules.length} rule${rules.length !== 1 ? "s" : ""} · ${currentPermissions.allow.length} allow · ${currentPermissions.deny.length} deny · ${(currentPermissions.ask ?? []).length} ask`
+                  ? `${rules.length} rule${rules.length !== 1 ? "s" : ""} · ${tierSummary}`
                   : "No rules"}
               </div>
               {showResync && (

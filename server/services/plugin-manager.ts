@@ -108,7 +108,20 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // descriptor carrying the op, and that refusal arrives at launch rather than at
 // install. Pinning `roubo: ^1.7.0` moves it forward to the version-named
 // refusal a user can act on, which is why the Cursor manifest declares it.
-export const HOST_API_VERSION = "1.7.0";
+// 1.8.0 (issue #862): the optional `agentPermissionRuleTiers` manifest key
+// lands, naming which tiers of the fine-grained permission rules an agent CLI's
+// own rules format carries, so the permissions screen can stop offering a tier
+// the write would drop. Same additive class and the same reason for its own
+// version as 1.5.0 and 1.6.0: the key is optional, so every plugin built
+// against 1.0.0 through 1.7.0 keeps working unchanged and is still offered all
+// three tiers, but the strict manifest schema means a manifest declaring it
+// must pin `roubo: ^1.8.0` for a clean, version-named refusal from an older
+// host rather than an unknown-key error. It takes its own version rather than
+// riding 1.7.0 because 1.7.0 was already released, as `@roubo/plugin-sdk`
+// 0.6.0, without this key: a host that reports it may well not know the key,
+// so a `^1.7.0` pin would be accepted and then fail on the unrecognised key,
+// which is the failure the floor exists to replace.
+export const HOST_API_VERSION = "1.8.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
 export const SHUTDOWN_GRACE_MS = 5000;

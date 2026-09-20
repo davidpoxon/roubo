@@ -6,6 +6,7 @@ import {
   PluginManifestSchema,
   PluginDefaultIntegrationConfigSchema,
   ChoiceProbeParseModeSchema,
+  PermissionRuleTierSchema,
   isValidAgentInstallLocation,
   type PluginManifest,
 } from "./plugin-manifest-schema.js";
@@ -566,6 +567,55 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
         expect(result.error.path).toBe("agentInstallLocations.0");
         expect(result.error.message).not.toMatch(/\n\s+at\s/);
       }
+    });
+  });
+
+  describe("agentPermissionRuleTiers (#862)", () => {
+    it("accepts a subset of the tiers on a kind: agent manifest", () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "agent", agentPermissionRuleTiers: ["allow", "deny"] }),
+      );
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.agentPermissionRuleTiers).toEqual(["allow", "deny"]);
+      }
+    });
+
+    it("stays optional, so an agent manifest that omits it validates unchanged", () => {
+      const result = PluginManifestSchema.safeParse(makeManifest({ kind: "agent" }));
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.agentPermissionRuleTiers).toBeUndefined();
+    });
+
+    it("rejects an unknown tier rather than dropping it", () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "agent", agentPermissionRuleTiers: ["allow", "maybe"] }),
+      );
+      expectFieldError(result, "agentPermissionRuleTiers.1");
+    });
+
+    // An agent that carries no rules at all declares no `rules` capability on
+    // its descriptor; an empty list here would be a second, quieter way to say
+    // the same thing.
+    it("rejects an empty list", () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "agent", agentPermissionRuleTiers: [] }),
+      );
+      expectFieldError(result, "agentPermissionRuleTiers");
+    });
+
+    it("rejects a repeated tier", () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "agent", agentPermissionRuleTiers: ["allow", "allow"] }),
+      );
+      expectFieldError(result, "agentPermissionRuleTiers");
+    });
+
+    it("rejects the field on a non-agent manifest rather than ignoring it", () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "integration", agentPermissionRuleTiers: ["allow", "deny"] }),
+      );
+      expectFieldError(result, "agentPermissionRuleTiers");
     });
   });
 
@@ -1252,6 +1302,25 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
   // Same reason as the processes gate above: this artifact is hand-authored and
   // exempt from schema-drift, so this suite is the only thing keeping the #712
   // field and its kind gate in lockstep with the zod schema.
+  // Same reason again: hand-authored and exempt from schema-drift, so this is
+  // the only thing keeping the #862 field and its kind gate in lockstep.
+  it("declares an optional agentPermissionRuleTiers array gated to kind: agent (lockstep with zod, #862)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const tiers = properties.agentPermissionRuleTiers;
+    expect(tiers.type).toBe("array");
+    expect(tiers.minItems).toBe(1);
+    expect(tiers.uniqueItems).toBe(true);
+    expect((tiers.items as Record<string, unknown>).enum).toEqual(PermissionRuleTierSchema.options);
+    expect((jsonSchema.required as string[]).includes("agentPermissionRuleTiers")).toBe(false);
+
+    const allOf = jsonSchema.allOf as Array<Record<string, Record<string, unknown>>>;
+    const gate = allOf.find((entry) =>
+      (entry.if?.required as string[] | undefined)?.includes("agentPermissionRuleTiers"),
+    );
+    expect(gate).toBeDefined();
+    expect((gate?.then.properties as Record<string, { const?: string }>).kind.const).toBe("agent");
+  });
+
   it("declares an optional agentInstallLocations array gated to kind: agent (lockstep with zod, #712)", () => {
     const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
     const locations = properties.agentInstallLocations;

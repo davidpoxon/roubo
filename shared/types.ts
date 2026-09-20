@@ -9,8 +9,10 @@ import type {
   JigSettings,
 } from "./config-schema.js";
 import type { AgentPosture } from "./agent-launch-descriptor-schema.js";
+import type { PermissionRuleTier } from "./plugin-manifest-schema.js";
 
 export type { AgentPosture };
+export type { PermissionRuleTier };
 
 export type {
   RouboConfig,
@@ -2044,6 +2046,11 @@ export interface PersistedProjects {
  * fine-grained allow/ask/deny rule strings only plugins declaring the rules
  * capability honour. Core stores and unions the rule strings; it never parses
  * their vocabulary, so no agent-specific wire type reaches these shared types.
+ *
+ * All three rule tiers are stored for every project. Which of them a given agent
+ * can actually carry is a separate question, answered per agent by
+ * `AgentPermissionsCapabilities.ruleTiers`, so switching a project's agent never
+ * discards a rule the previous one honoured.
  */
 export interface ProjectPermissions {
   allow: string[];
@@ -2074,6 +2081,13 @@ export interface AgentPermissionsCapabilities {
   postures: AgentPosture[];
   /** Whether fine-grained allow/ask/deny rules reach this agent at all. */
   rules: boolean;
+  /**
+   * The rule tiers this agent's own rules format carries. A tier absent from the
+   * list is never written, so the screen offers no control for it and says so
+   * rather than letting a rule look applied when it was dropped. An agent that
+   * declares nothing reports all three (#862).
+   */
+  ruleTiers: PermissionRuleTier[];
   /** Whether those rules can be re-injected into already-created benches. */
   resync: boolean;
 }

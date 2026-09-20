@@ -17,11 +17,27 @@ export function flattenPermissions(permissions: ProjectPermissions): PermissionR
   ];
 }
 
+/** Every tier the stored model carries, in the order the pickers offer them. */
 export const RULE_TYPE_ITEMS = [
   { value: "allow", label: "allow" },
   { value: "deny", label: "deny" },
   { value: "ask", label: "ask" },
 ];
+
+/** The tiers offered when the agent's capabilities have not answered yet. */
+export const ALL_RULE_TYPES: RuleType[] = ["allow", "deny", "ask"];
+
+/**
+ * The tier vocabulary a picker may offer (#862, AP-FR-016). `honoured` is what
+ * the project's agent declared it carries; `keep` is a tier the row being
+ * edited already has, which stays on the list even when the agent does not
+ * carry it, so editing such a rule's pattern never silently reassigns its tier.
+ */
+export function ruleTypeItemsFor(honoured: RuleType[], keep?: RuleType) {
+  return RULE_TYPE_ITEMS.filter(
+    (item) => honoured.includes(item.value as RuleType) || item.value === keep,
+  );
+}
 
 export interface SelectionState {
   selectedKeys: Set<string>;

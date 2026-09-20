@@ -120,25 +120,32 @@ vi.mock("node:child_process", async (importOriginal) => {
   };
 });
 
-// Issue #856 (APCC-TC-009): simulate a host that predates the 1.6.0
-// `choiceProbes` manifest key. The switch swaps the strict manifest schema for
-// the same strict schema with that one key removed, which is the schema every
-// pre-1.6.0 host shipped, so a manifest declaring the key fails the parse on an
-// unrecognised key exactly as it would there. Off by default: every other test
-// in this file sees the real schema.
-const manifestSchemaControl = vi.hoisted(() => ({ preFloor: false }));
+// Issue #856 (APCC-TC-009) and #862: simulate a host that predates a manifest
+// key. The switch swaps the strict manifest schema for the same strict schema
+// with the named keys removed, which is the schema the older host shipped, so a
+// manifest declaring one fails the parse on an unrecognised key exactly as it
+// would there. `drop` names the keys that host did not know: `choiceProbes` for
+// a pre-1.6.0 host, `agentPermissionRuleTiers` for a pre-1.7.0 one. Off by
+// default: every other test in this file sees the real schema.
+const manifestSchemaControl = vi.hoisted(() => ({
+  preFloor: false,
+  drop: ["choiceProbes"] as string[],
+}));
 vi.mock("../../shared/plugin-manifest-schema.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../shared/plugin-manifest-schema.js")>();
   const { z } = await import("zod");
-  const preFloorShape: Partial<typeof actual.PluginManifestSchema.shape> = {
-    ...actual.PluginManifestSchema.shape,
+  const preFloorSchemaFor = (drop: string[]) => {
+    const shape = Object.fromEntries(
+      Object.entries(actual.PluginManifestSchema.shape).filter(([key]) => !drop.includes(key)),
+    );
+    return z.object(shape as typeof actual.PluginManifestSchema.shape).strict();
   };
-  delete preFloorShape.choiceProbes;
-  const preFloorSchema = z.object(preFloorShape).strict();
   return {
     ...actual,
     get PluginManifestSchema() {
-      return manifestSchemaControl.preFloor ? preFloorSchema : actual.PluginManifestSchema;
+      return manifestSchemaControl.preFloor
+        ? preFloorSchemaFor(manifestSchemaControl.drop)
+        : actual.PluginManifestSchema;
     },
   };
 });
@@ -253,8 +260,8 @@ afterEach(async () => {
 });
 
 describe("host-API version", () => {
-  it("reports host-API 1.7.0 (upsertArray write op: issue #890)", () => {
-    expect(pluginManager.HOST_API_VERSION).toBe("1.7.0");
+  it("reports host-API 1.8.0 (agentPermissionRuleTiers floor: issue #862)", () => {
+    expect(pluginManager.HOST_API_VERSION).toBe("1.8.0");
   });
 });
 
@@ -517,6 +524,7 @@ describe("a below-floor host refuses a choice-probe manifest by version (issue #
 
   afterEach(() => {
     manifestSchemaControl.preFloor = false;
+    manifestSchemaControl.drop = ["choiceProbes"];
   });
 
   it("the fixture declares the 1.6.0 key and pins the 1.6.0 floor", async () => {
@@ -586,6 +594,86 @@ describe("a below-floor host refuses a choice-probe manifest by version (issue #
     expect(gate("^1.6.0", PRE_FLOOR_HOST)).toBe(REFUSAL);
     expect(gate("^1.6.0", "1.6.0")).toBeNull();
     expect(gate("^1.6.0")).toBeNull();
+  });
+});
+
+// Issue #862, the same gate one version up: a plugin declaring the 1.8.0
+// `agentPermissionRuleTiers` key pins `roubo: ^1.8.0`, and a host below that
+// floor must refuse it with the version it needs rather than an
+// unrecognised-key error. The pre-floor host here is 1.7.0, a version that was
+// really released (as `@roubo/plugin-sdk` 0.6.0) and really does not know the
+// key, so this also proves the floors are independent rather than one lumped
+// bump.
+describe("a below-floor host refuses a rule-tiers manifest by version (issue #862)", () => {
+  const FIXTURE = "agent-rule-tiers";
+  const PRE_FLOOR_HOST = "1.7.0";
+  const REFUSAL = `Plugin requires roubo "^1.8.0" but host is ${PRE_FLOOR_HOST}`;
+
+  beforeEach(() => {
+    manifestSchemaControl.drop = ["agentPermissionRuleTiers"];
+  });
+
+  afterEach(() => {
+    manifestSchemaControl.preFloor = false;
+    manifestSchemaControl.drop = ["choiceProbes"];
+  });
+
+  it("the fixture declares the 1.8.0 key and pins the 1.8.0 floor", async () => {
+    const { parseManifest } = await import("@roubo/shared");
+    const { readFile } = await import("node:fs/promises");
+    const manifestPath = path.join(FIXTURES_ROOT, FIXTURE, "roubo-plugin.yaml");
+    const parsed = parseManifest(await readFile(manifestPath, "utf8"), manifestPath);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.manifest.kind).toBe("agent");
+    expect(parsed.manifest.roubo).toBe("^1.8.0");
+    expect(parsed.manifest.agentPermissionRuleTiers).toEqual(["allow", "deny"]);
+
+    // The simulated older host genuinely fails the strict parse on that key.
+    manifestSchemaControl.preFloor = true;
+    const preFloor = parseManifest(await readFile(manifestPath, "utf8"), manifestPath);
+    expect(preFloor.ok).toBe(false);
+    if (preFloor.ok) return;
+    expect(preFloor.error.message).toContain("agentPermissionRuleTiers");
+    expect(preFloor.error.declaredRoubo).toBe("^1.8.0");
+  });
+
+  it("a host whose schema lacks the key names the version it needs, not the unrecognised key", async () => {
+    manifestSchemaControl.preFloor = true;
+    sandbox = await makeSandbox({ bundled: [FIXTURE] });
+    mgr = await loadManager();
+    mgr.__test.setHostApiVersion(PRE_FLOOR_HOST);
+    await mgr.initialize();
+    const record = findRecord(mgr.listInstalled(), FIXTURE);
+    expect(record.status).toBe("incompatible");
+    expect(record.lastError?.code).toBe("incompatible-host");
+    expect(record.lastError?.message).toBe(REFUSAL);
+    expect(record.lastError?.message).not.toContain("agentPermissionRuleTiers");
+    expect(record.lastError?.message).not.toMatch(/unrecognized|unrecognised/i);
+    expect(record.pid).toBeNull();
+  });
+
+  it("a host that knows the key but sits below the floor gives the same refusal", async () => {
+    sandbox = await makeSandbox({ bundled: [FIXTURE] });
+    mgr = await loadManager();
+    mgr.__test.setHostApiVersion(PRE_FLOOR_HOST);
+    await mgr.initialize();
+    const record = findRecord(mgr.listInstalled(), FIXTURE);
+    expect(record.status).toBe("incompatible");
+    expect(record.manifest?.agentPermissionRuleTiers).toEqual(["allow", "deny"]);
+    expect(record.lastError).toEqual({ code: "incompatible-host", message: REFUSAL });
+    expect(record.pid).toBeNull();
+  });
+
+  it("the current host accepts the manifest and spawns the plugin", async () => {
+    sandbox = await makeSandbox({ bundled: [FIXTURE] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const record = findRecord(mgr.listInstalled(), FIXTURE);
+    expect(record.lastError).toBeFalsy();
+    expect(record.status).toBe("enabled");
+    expect(record.manifest?.agentPermissionRuleTiers).toEqual(["allow", "deny"]);
+    expect(typeof record.pid).toBe("number");
   });
 });
 

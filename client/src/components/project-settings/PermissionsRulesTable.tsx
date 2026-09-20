@@ -4,7 +4,7 @@ import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import Select from "../Select";
 import type { RuleType, PermissionRule } from "./permissionTypes";
 import { ruleKey } from "./permissionsDiff";
-import { RULE_TYPE_ITEMS, type SelectionState } from "./permissionsTable";
+import { ALL_RULE_TYPES, ruleTypeItemsFor, type SelectionState } from "./permissionsTable";
 
 function RuleTypeBadge({ type }: { type: RuleType }) {
   const styles: Record<RuleType, string> = {
@@ -28,6 +28,13 @@ interface PermissionsRulesTableProps {
   showTypeFilter?: boolean;
   selection?: SelectionState;
   highlightKeys?: Set<string>;
+  /**
+   * The rule tiers the project's agent carries (#862). A rule whose tier is not
+   * on this list is still listed, so the user can see and remove it, but it is
+   * marked as not applied and no picker offers that tier to a new rule. Defaults
+   * to every tier, which is what an agent that declares nothing reports.
+   */
+  tiers?: RuleType[];
 }
 
 export function PermissionsRulesTable({
@@ -41,6 +48,7 @@ export function PermissionsRulesTable({
   showTypeFilter = true,
   selection,
   highlightKeys,
+  tiers = ALL_RULE_TYPES,
 }: PermissionsRulesTableProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editType, setEditType] = useState<RuleType>("allow");
@@ -102,15 +110,18 @@ export function PermissionsRulesTable({
     setEditIsDuplicate(false);
   };
 
+  // A chip for a tier the agent does not carry is pointless unless a rule of
+  // that tier is actually stored, in which case the user needs it to find the
+  // rows the notice above the table is telling them about.
   const filterLabels: Array<{
     value: RuleType | "all";
     label: string;
     count: number;
   }> = [
     { value: "all", label: "All", count: counts.all },
-    { value: "allow", label: "allow", count: counts.allow },
-    { value: "deny", label: "deny", count: counts.deny },
-    { value: "ask", label: "ask", count: counts.ask },
+    ...(["allow", "deny", "ask"] as RuleType[])
+      .filter((tier) => tiers.includes(tier) || counts[tier] > 0)
+      .map((tier) => ({ value: tier, label: tier, count: counts[tier] })),
   ];
 
   const gridTemplate = (() => {
@@ -150,8 +161,8 @@ export function PermissionsRulesTable({
                   >
                     <div>
                       <Select
-                        aria-label="Rule type"
-                        items={RULE_TYPE_ITEMS}
+                        ariaLabel="Rule type"
+                        items={ruleTypeItemsFor(tiers, rule.type)}
                         value={editType}
                         onChange={(v) => {
                           setEditType(v as RuleType);
@@ -250,6 +261,11 @@ export function PermissionsRulesTable({
                     </span>
                   )}
                   <RuleTypeBadge type={rule.type} />
+                  {!tiers.includes(rule.type) && (
+                    <span className="text-11 text-text-secondary font-sans whitespace-nowrap">
+                      not applied
+                    </span>
+                  )}
                 </div>
                 <div className="text-text-body truncate">{rule.pattern}</div>
                 {editable && (

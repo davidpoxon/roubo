@@ -494,11 +494,12 @@ GET /api/projects/:projectId/permissions/capabilities
   "agentName": "Claude Code",
   "postures": ["read-only", "guarded", "auto-edit", "full-auto"],
   "rules": true,
+  "ruleTiers": ["allow", "ask", "deny"],
   "resync": true
 }
 ```
 
-Resolves the project's agent plugin and reads the `capabilities.permissions` its launch descriptor declares, so a client can hide the axes that agent ignores (an agent declaring no `rules` capability gets no rules editor and no re-sync control). Nothing is written. When no agent plugin resolves, or the probe fails, there is no carrier at all: `agentPluginId: null`, no postures, `rules: true` (the model is Roubo's own and stays editable, ready for whichever agent plugin gets installed) and `resync: false` (there is nothing to re-inject through yet).
+Resolves the project's agent plugin and reads the `capabilities.permissions` its launch descriptor declares, so a client can hide the axes that agent ignores (an agent declaring no `rules` capability gets no rules editor and no re-sync control). `ruleTiers` comes from the plugin's manifest rather than its descriptor and narrows the rules axis one level further: it names the rule tiers that agent's own rules format carries, so a client can stop offering a tier the write would drop. An agent whose manifest declares none reports all three. Nothing is written. When no agent plugin resolves, or the probe fails, there is no carrier at all: `agentPluginId: null`, no postures, `rules: true` with every tier in `ruleTiers` (the model is Roubo's own and stays editable, ready for whichever agent plugin gets installed) and `resync: false` (there is nothing to re-inject through yet).
 
 ### Re-sync existing benches
 

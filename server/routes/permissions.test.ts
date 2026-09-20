@@ -418,6 +418,7 @@ describe("GET /:projectId/permissions/capabilities", () => {
       agentName: "Claude Code",
       postures: ["read-only", "guarded", "auto-edit", "full-auto"],
       rules: true,
+      ruleTiers: ["allow", "deny"],
       resync: true,
     });
 
@@ -425,6 +426,9 @@ describe("GET /:projectId/permissions/capabilities", () => {
     expect(res.status).toBe(200);
     expect(res.body.agentPluginId).toBe("claude-code");
     expect(res.body.rules).toBe(true);
+    // The tier list rides the same response, so the screen can hide a tier the
+    // agent would drop without a second request (#862).
+    expect(res.body.ruleTiers).toEqual(["allow", "deny"]);
   });
 
   it("degrades to the built-in carrier when the probe fails", async () => {
@@ -437,6 +441,9 @@ describe("GET /:projectId/permissions/capabilities", () => {
       agentName: null,
       postures: [],
       rules: true,
+      // Fails open, exactly as `rules` does: a probe that never answered must
+      // not take a tier away from a project that already uses it.
+      ruleTiers: ["allow", "ask", "deny"],
       resync: true,
     });
   });

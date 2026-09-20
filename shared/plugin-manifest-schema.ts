@@ -292,6 +292,39 @@ export const AgentInstallLocationsSchema = z
   .min(1, "Must name at least one location");
 export type AgentInstallLocations = z.infer<typeof AgentInstallLocationsSchema>;
 
+// ── Agent permission rule tiers ──
+
+// Which tiers of the fine-grained permission rules THIS agent's CLI actually
+// carries (AP-FR-016). Roubo's own model has three, `allow`, `ask` and `deny`.
+// An agent whose rules format has no middle tier cannot write an `ask` rule at
+// all, and prompts for the action by default instead. The permissions screen
+// reads this to offer only the tiers a rule write can reach, so a user is never
+// left believing a rule was written when it was dropped on the way out.
+//
+// It sits here, on install-time metadata, rather than on the per-launch
+// descriptor's `capabilities.permissions.rules`, for the same reason
+// `agentInstallLocations` does: which tiers a rules format carries is fixed by
+// the CLI, not by a launch's effective configuration, and the descriptor stays
+// declarative and per-launch. Core learns only THAT a tier is unreachable,
+// never which agent it was, so `lint:agent-guard` has nothing to catch.
+//
+// Optional, so every existing manifest validates unchanged and an agent that
+// declares nothing keeps being offered all three tiers (AP-NFR-004). An empty
+// list is rejected rather than read as "no tiers": an agent that carries no
+// rules at all says so by declaring no `rules` capability on its descriptor,
+// and a second, quieter way to say the same thing is exactly the ambiguity the
+// `agentInstallLocations` rule above exists to avoid. A repeated tier is
+// rejected for the same reason a malformed install location is: a list that
+// silently collapses is an authoring error worth naming.
+export const PermissionRuleTierSchema = z.enum(["allow", "ask", "deny"]);
+export type PermissionRuleTier = z.infer<typeof PermissionRuleTierSchema>;
+
+export const AgentPermissionRuleTiersSchema = z
+  .array(PermissionRuleTierSchema)
+  .min(1, "Must name at least one tier")
+  .refine((tiers) => new Set(tiers).size === tiers.length, "Must not name the same tier twice");
+export type AgentPermissionRuleTiers = z.infer<typeof AgentPermissionRuleTiersSchema>;
+
 export const AgentCompatibilitySchema = z
   .object({
     minVersion: z
@@ -367,6 +400,11 @@ export const PluginManifestSchema = z
     // keyed by configuration field name. Optional, so every existing manifest
     // validates unchanged. Not kind-gated: the declaration names no agent.
     choiceProbes: ChoiceProbesSchema.optional(),
+    // Which tiers of Roubo's fine-grained permission rules this agent's CLI
+    // carries (#862). Optional, so every existing manifest validates unchanged
+    // and an agent declaring nothing is offered all three. Agent-only, like
+    // `agentInstallLocations`: the key describes an agent CLI's rules format.
+    agentPermissionRuleTiers: AgentPermissionRuleTiersSchema.optional(),
   })
   .strict()
   // An agent plugin may not declare a `processes` permission (issue #632,
@@ -394,10 +432,12 @@ export const PluginManifestSchema = z
   // `parseManifest` surfaces it as a normal schema error at
   // `permissions.processes`.
   //
-  // The second rule is the mirror image and lands for the same reason:
-  // `agentInstallLocations` says where an agent CLI installs itself, so it means
-  // nothing on an integration or component manifest, and a silently-ignored
-  // field is exactly the ambiguity the rule above exists to avoid (#712).
+  // The remaining rules are the mirror image and land for the same reason:
+  // `agentInstallLocations` says where an agent CLI installs itself (#712) and
+  // `agentPermissionRuleTiers` says which permission rule tiers its rules format
+  // carries (#862), so both mean nothing on an integration or component
+  // manifest, and a silently-ignored field is exactly the ambiguity the rule
+  // above exists to avoid.
   .superRefine((manifest, ctx) => {
     if (manifest.kind !== "agent") {
       if (manifest.agentInstallLocations !== undefined) {
@@ -406,6 +446,14 @@ export const PluginManifestSchema = z
           path: ["agentInstallLocations"],
           message:
             "`agentInstallLocations` is an agent-plugin field: only a `kind: agent` manifest declares where its own agent CLI installs.",
+        });
+      }
+      if (manifest.agentPermissionRuleTiers !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["agentPermissionRuleTiers"],
+          message:
+            "`agentPermissionRuleTiers` is an agent-plugin field: only a `kind: agent` manifest declares which permission rule tiers its own agent CLI carries.",
         });
       }
       return;
