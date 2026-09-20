@@ -294,6 +294,16 @@ function containerFor(
 }
 
 /**
+ * Undo the one rewrite `quoteShellWord` performs inside a quoted word: a single
+ * quote cannot appear inside single quotes, so it is written as `'\''` (close,
+ * escaped quote, reopen). Wrapping quotes are left alone, since they only ever
+ * add characters around a needle rather than inside it.
+ */
+function unquoteShellEscapes(value: string): string {
+  return value.split("'\\''").join("'");
+}
+
+/**
  * Does this existing array entry belong to the writer the `upsertArray` op
  * declared? Own properties only: reading a plugin-named key straight off the
  * entry would otherwise reach an inherited one, the same hole `splitPath`
@@ -301,21 +311,24 @@ function containerFor(
  * type test below would refuse those anyway; the own-property test is the
  * cheap half of the pair and does not depend on that staying true.
  *
- * The needle is tested in its shell-quoted spelling as well, because a carrier
- * that joins a value into a command string puts it through `quoteShellWord`
- * (issue #890). Quoting only wraps, so for almost every value the raw needle is
- * still a substring and the second test changes nothing. The exception is a
- * value containing a single quote, which quoting rewrites as `'\''`: the raw
- * needle is then absent from the command and only the quoted spelling finds the
- * entry this host wrote last time. Missing it would append a second entry on
- * every launch rather than replacing the first.
+ * The value is tested a second time with shell single-quote escaping undone,
+ * because a carrier that joins a value into a command string puts it through
+ * `quoteShellWord` (issue #890). Quoting only wraps, so for almost every value
+ * the needle is still a substring of the raw command and the second test
+ * changes nothing. The exception is a value containing a single quote, which
+ * quoting rewrites as `'\''`: the needle is then nowhere in the command as
+ * written, and undoing that one rewrite is what finds the entry this host wrote
+ * last time. Missing it would append a second entry on every launch rather than
+ * replacing the first. Undoing the rewrite rather than re-quoting the needle is
+ * what makes a needle naming only part of the value work too, which is the
+ * shape the SDK documentation recommends.
  */
 function matchesUpsert(entry: unknown, match: { key: string; contains: string }): boolean {
   if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return false;
   if (!Object.prototype.hasOwnProperty.call(entry, match.key)) return false;
   const value = (entry as Record<string, unknown>)[match.key];
   if (typeof value !== "string") return false;
-  return value.includes(match.contains) || value.includes(quoteShellWord(match.contains));
+  return value.includes(match.contains) || unquoteShellEscapes(value).includes(match.contains);
 }
 
 /**

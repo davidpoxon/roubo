@@ -457,6 +457,37 @@ describe("upsertArray (issue #890)", () => {
     });
   });
 
+  it("matches a needle naming only part of a shell-quoted value", () => {
+    // The doc tells an author to needle the part that identifies the write
+    // rather than the whole value, so the match has to survive quoting for a
+    // needle that is not a whole shell word either.
+    const quoted = "/Users/o'brien/.roubo/bin/roubo-notify";
+    function write(sessionId: string): WorkspaceWriteSpec {
+      return {
+        relPath: ".cursor/hooks.json",
+        format: "json",
+        ops: [
+          {
+            op: "upsertArray",
+            path: "hooks.stop",
+            value: { command: joinShellCommand([quoted, sessionId]) },
+            match: { key: "command", contains: "o'brien/.roubo/bin" },
+          },
+        ],
+      };
+    }
+    seedHooks({ hooks: { stop: [{ command: "my-own-stop-hook" }] } });
+
+    executeWorkspaceWrites(workspace, [write("sid-1")]);
+    executeWorkspaceWrites(workspace, [write("sid-2")]);
+
+    const stop = (readJson(".cursor/hooks.json").hooks as { stop: unknown[] }).stop;
+    expect(stop).toEqual([
+      { command: "my-own-stop-hook" },
+      { command: joinShellCommand([quoted, "sid-2"]) },
+    ]);
+  });
+
   it("leaves entries the match does not select, whatever their shape", () => {
     seedHooks({
       hooks: {
