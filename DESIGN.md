@@ -59,7 +59,7 @@ The block records **roles, not shades**. There are no scale keys such as `stone-
 **Categorical hues appear only where the hue identifies something**, and are tuned per ground: the 600 step on light, the 400 step on dark, so a dot holds 3:1 against its surface in both themes.
 
 - **Issue chip tones**, a 15% tint (20% in dark) with a text pair: `issue-open` (emerald), `issue-milestone` (indigo), `issue-type` (violet), and the outlined `issue-label` (cyan). The lowest pair is `issue-label-text` at 4.91:1 on the light hover ground.
-- **Plugin kind pills**, one hue per kind, each a `-surface`, `-border`, `-text` set: `kind-agent` (sky), `kind-component` (violet), `kind-integration` (teal). The lowest pair is `kind-agent-text` at 7.09:1 on its light surface.
+- **Plugin kind pills**, one hue per kind, each a `-surface`, `-border`, `-text` set: `kind-agent` (sky), `kind-component` (violet), `kind-integration` (teal). The border takes the categorical 600 step on light and 400 on dark, so the outline holds 3:1 against the pill and the card alike; the lowest is `kind-integration-border` at 3.43:1 in light. The lowest text pair is `kind-agent-text` at 7.09:1 on its light surface, and `kind-component-text` at 11.14:1 over the dark hover ground.
 - **Code syntax** in an editor: `syntax-key` (sky), `syntax-string` (violet), `syntax-literal` (emerald, for numbers, booleans, and nulls). Text on `bg-field` only, at the 800 step on light (700 for violet) and the 200 or 300 step on dark. The lowest is `syntax-string`, at 7.10:1 in light and 10.70:1 in dark. Comments, punctuation, and operators are not syntax roles: they take `text-secondary`.
 - **Agent swatches** `agent-swatch-1` to `-6`: violet, cyan, emerald, lime, rose, sky. Dots and glyphs only, never text.
 - **Project status** `project-status-in-progress`, `-ready`, `-todo`: blue, fuchsia, cyan. Dots only.
@@ -180,13 +180,13 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
     "issue-label-border": {"hex": "#06B6D4", "role": "border-issue", "alpha": 0.4},
     "issue-label-text": {"hex": "#0E7490", "role": "text-issue"}, "issue-label-text-dark": {"hex": "#67E8F9", "role": "text-issue"},
     "kind-agent-surface": {"hex": "#F0F9FF", "role": "surface-kind-agent"}, "kind-agent-surface-dark": {"hex": "#082F49", "role": "surface-kind-agent", "alpha": 0.2},
-    "kind-agent-border": {"hex": "#BAE6FD", "role": "border-kind-agent"}, "kind-agent-border-dark": {"hex": "#0C4A6E", "role": "border-kind-agent", "alpha": 0.4},
+    "kind-agent-border": {"hex": "#0284C7", "role": "border-kind-agent"}, "kind-agent-border-dark": {"hex": "#38BDF8", "role": "border-kind-agent"},
     "kind-agent-text": {"hex": "#075985", "role": "text-kind-agent"}, "kind-agent-text-dark": {"hex": "#BAE6FD", "role": "text-kind-agent"},
     "kind-component-surface": {"hex": "#F5F3FF", "role": "surface-kind-component"}, "kind-component-surface-dark": {"hex": "#2E1065", "role": "surface-kind-component", "alpha": 0.2},
-    "kind-component-border": {"hex": "#DDD6FE", "role": "border-kind-component"}, "kind-component-border-dark": {"hex": "#4C1D95", "role": "border-kind-component", "alpha": 0.4},
+    "kind-component-border": {"hex": "#7C3AED", "role": "border-kind-component"}, "kind-component-border-dark": {"hex": "#A78BFA", "role": "border-kind-component"},
     "kind-component-text": {"hex": "#5B21B6", "role": "text-kind-component"}, "kind-component-text-dark": {"hex": "#DDD6FE", "role": "text-kind-component"},
     "kind-integration-surface": {"hex": "#F0FDFA", "role": "surface-kind-integration"}, "kind-integration-surface-dark": {"hex": "#042F2E", "role": "surface-kind-integration", "alpha": 0.2},
-    "kind-integration-border": {"hex": "#99F6E4", "role": "border-kind-integration"}, "kind-integration-border-dark": {"hex": "#134E4A", "role": "border-kind-integration", "alpha": 0.4},
+    "kind-integration-border": {"hex": "#0D9488", "role": "border-kind-integration"}, "kind-integration-border-dark": {"hex": "#2DD4BF", "role": "border-kind-integration"},
     "kind-integration-text": {"hex": "#115E59", "role": "text-kind-integration"}, "kind-integration-text-dark": {"hex": "#99F6E4", "role": "text-kind-integration"},
     "syntax-key": {"hex": "#075985", "role": "text-syntax"}, "syntax-key-dark": {"hex": "#BAE6FD", "role": "text-syntax"},
     "syntax-string": {"hex": "#6D28D9", "role": "text-syntax"}, "syntax-string-dark": {"hex": "#C4B5FD", "role": "text-syntax"},
