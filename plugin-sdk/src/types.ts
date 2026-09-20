@@ -965,6 +965,12 @@ export const SUPPORTED_AGENT_CONTRACT_VERSION = 1 as const;
  */
 export type WriteOp =
   | { op: "unionArray"; path: string; values: string[] }
+  | {
+      op: "upsertArray";
+      path: string;
+      value: Record<string, unknown>;
+      match: { key: string; contains: string };
+    }
   | { op: "set"; path: string; value: unknown }
   | { op: "delete"; path: string };
 

@@ -253,8 +253,8 @@ afterEach(async () => {
 });
 
 describe("host-API version", () => {
-  it("reports host-API 1.6.0 (choiceProbes floor: issue #850)", () => {
-    expect(pluginManager.HOST_API_VERSION).toBe("1.6.0");
+  it("reports host-API 1.7.0 (upsertArray write op: issue #890)", () => {
+    expect(pluginManager.HOST_API_VERSION).toBe("1.7.0");
   });
 });
 

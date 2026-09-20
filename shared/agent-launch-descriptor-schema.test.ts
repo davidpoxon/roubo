@@ -160,11 +160,24 @@ describe("capability absence is first-class", () => {
 });
 
 describe("WriteOp", () => {
-  it("parses each of the three ops", () => {
+  it("parses each of the four ops", () => {
     expect(WriteOpSchema.parse({ op: "unionArray", path: "a.b", values: ["x"] })).toEqual({
       op: "unionArray",
       path: "a.b",
       values: ["x"],
+    });
+    expect(
+      WriteOpSchema.parse({
+        op: "upsertArray",
+        path: "a.b",
+        value: { command: "run me" },
+        match: { key: "command", contains: "run" },
+      }),
+    ).toEqual({
+      op: "upsertArray",
+      path: "a.b",
+      value: { command: "run me" },
+      match: { key: "command", contains: "run" },
     });
     expect(WriteOpSchema.parse({ op: "set", path: "a.b", value: { c: 1 } })).toEqual({
       op: "set",
@@ -189,6 +202,37 @@ describe("WriteOp", () => {
     expect(WriteOpSchema.safeParse({ op: "unionArray", path: "a", values: [1] }).success).toBe(
       false,
     );
+  });
+
+  // The match reads `match.key` off each entry, so an op that could never be
+  // matched is an authoring error rather than something to discover on disk
+  // as a second entry after the next launch (issue #890).
+  it("rejects an upsertArray op with no match", () => {
+    expect(
+      WriteOpSchema.safeParse({ op: "upsertArray", path: "a", value: { command: "x" } }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an upsertArray op whose value is not an object", () => {
+    expect(
+      WriteOpSchema.safeParse({
+        op: "upsertArray",
+        path: "a",
+        value: "x",
+        match: { key: "command", contains: "x" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an upsertArray match carrying an unknown key", () => {
+    expect(
+      WriteOpSchema.safeParse({
+        op: "upsertArray",
+        path: "a",
+        value: { command: "x" },
+        match: { key: "command", startsWith: "x" },
+      }).success,
+    ).toBe(false);
   });
 });
 

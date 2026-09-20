@@ -173,12 +173,30 @@ export function resolveWriteTemplates(
       if (op.op === "unionArray") {
         return { ...op, values: op.values.map((v) => resolveTemplate(v, ctx)) };
       }
+      if (op.op === "upsertArray") {
+        // Both halves carry templates: the entry the host writes, and the needle
+        // that recognises the entry it wrote last time. Resolving only the first
+        // would leave the match hunting for a literal `{{...}}` and append a
+        // second entry on every launch.
+        return {
+          ...op,
+          value: resolveUpsertEntry(op.value, ctx),
+          match: { ...op.match, contains: resolveTemplate(op.match.contains, ctx) },
+        };
+      }
       return op;
     }),
   }));
 }
 
 type WriteOpJsonValue = Extract<WriteOp, { op: "set" }>["value"];
+type UpsertEntry = Extract<WriteOp, { op: "upsertArray" }>["value"];
+
+function resolveUpsertEntry(value: UpsertEntry, ctx: ResolvedTemplateContext): UpsertEntry {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, resolveJsonTemplates(entry, ctx)]),
+  );
+}
 
 function resolveJsonTemplates(
   value: WriteOpJsonValue,
@@ -276,6 +294,19 @@ function containerFor(
 }
 
 /**
+ * Does this existing array entry belong to the writer the `upsertArray` op
+ * declared? Own properties only: reading a plugin-named key straight off the
+ * entry would otherwise reach an inherited one, the same hole `splitPath`
+ * closes for paths.
+ */
+function matchesUpsert(entry: unknown, match: { key: string; contains: string }): boolean {
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return false;
+  if (!Object.prototype.hasOwnProperty.call(entry, match.key)) return false;
+  const value = (entry as Record<string, unknown>)[match.key];
+  return typeof value === "string" && value.includes(match.contains);
+}
+
+/**
  * Apply ops in order against the PARSED existing file, so unknown keys the user
  * (or another tool) put there survive. This is the same preserve-unknown-keys
  * contract the removed built-in writer honoured.
@@ -301,6 +332,20 @@ function applyJsonWrite(filePath: string, ops: WriteOp[]): void {
 
     if (op.op === "set") {
       container[leaf] = op.value;
+      continue;
+    }
+
+    if (op.op === "upsertArray") {
+      // The array-of-objects counterpart to unionArray, for a file whose entries
+      // are objects rather than strings (issue #890). Everything the match does
+      // not select is kept, in order, and the new entry goes last, so a user's
+      // own entries survive and the one this host wrote on an earlier launch is
+      // replaced rather than joined by a second copy.
+      const current = container[leaf];
+      const kept = Array.isArray(current)
+        ? current.filter((entry) => !matchesUpsert(entry, op.match))
+        : [];
+      container[leaf] = [...kept, op.value];
       continue;
     }
 

@@ -33,6 +33,8 @@ export const SUPPORTED_AGENT_LAUNCH_SCHEMA_VERSION = 1 as const;
  * it (the preserve-unknown-keys precedent the removed built-in writer set).
  *
  * - `unionArray`: union-merge string values into the array at `path`.
+ * - `upsertArray`: merge one object into the array at `path`, keeping every
+ *   entry the declared `match` does not select and appending `value` last.
  * - `set`: overwrite the value at `path` (JSON-serializable values only).
  * - `delete`: remove the key at `path`.
  */
@@ -42,6 +44,26 @@ export const WriteOpSchema = z.discriminatedUnion("op", [
       op: z.literal("unionArray"),
       path: z.string().min(1),
       values: z.array(z.string()),
+    })
+    .strict(),
+  z
+    .object({
+      op: z.literal("upsertArray"),
+      path: z.string().min(1),
+      // An object rather than any JSON value: `match.key` is read off each
+      // entry, so a scalar could never be matched and never be replaced on the
+      // next write. Narrowing it here makes that an authoring error a plugin
+      // sees at validation rather than a duplicate entry a user sees on disk.
+      value: z.record(z.string(), z.json()),
+      // How the host recognises an entry it wrote before. `contains` rather
+      // than equality because the value a carrier writes can carry a per-launch
+      // id, while the part that identifies the writer stays fixed.
+      match: z
+        .object({
+          key: z.string().min(1),
+          contains: z.string().min(1),
+        })
+        .strict(),
     })
     .strict(),
   z

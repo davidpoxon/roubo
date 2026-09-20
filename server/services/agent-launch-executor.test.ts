@@ -4,11 +4,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { PluginRecord } from "@roubo/shared";
+import type { WorkspaceWriteSpec } from "@roubo/shared/agent-launch-descriptor-schema";
 import {
   AgentDescriptorError,
   collectWorkspaceWrites,
   executeWorkspaceWrites,
   joinShellCommand,
+  resolveWriteTemplates,
   runLaunchDescriptor,
   validateDescriptor,
 } from "./agent-launch-executor.js";
@@ -361,6 +363,209 @@ describe("executeWorkspaceWrites", () => {
       ]),
     ).toThrow(/unsafe segment/);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
+/**
+ * The Cursor hook registration (issue #890, APCC-TC-048). `.cursor/hooks.json`
+ * holds arrays of `{ command }` objects, so `unionArray` cannot merge them and
+ * `set` replaced the whole array, taking a `stop` hook of the user's with it.
+ *
+ * The registered command carries a per-launch session id, so the match needles
+ * on the part that does not change between launches: the notifier path.
+ */
+describe("upsertArray (issue #890)", () => {
+  const NOTIFIER = "/home/u/.roubo/bin/roubo-notify";
+
+  function hooksWrite(sessionId: string): WorkspaceWriteSpec {
+    return {
+      relPath: ".cursor/hooks.json",
+      format: "json",
+      ops: [
+        { op: "set", path: "version", value: 1 },
+        {
+          op: "upsertArray",
+          path: "hooks.stop",
+          value: { command: `${NOTIFIER} ${sessionId}` },
+          match: { key: "command", contains: NOTIFIER },
+        },
+      ],
+    };
+  }
+
+  function seedHooks(contents: Record<string, unknown>): void {
+    fs.mkdirSync(path.join(workspace, ".cursor"), { recursive: true });
+    fs.writeFileSync(path.join(workspace, ".cursor/hooks.json"), JSON.stringify(contents));
+  }
+
+  it("keeps the user's own stop hook and registers the notifier alongside it", () => {
+    seedHooks({
+      version: 1,
+      hooks: {
+        stop: [{ command: "my-own-stop-hook" }],
+        beforeShellExecution: [{ command: "my-own-guard" }],
+      },
+      userKey: "keep",
+    });
+
+    executeWorkspaceWrites(workspace, [hooksWrite("sid-1")]);
+
+    expect(readJson(".cursor/hooks.json")).toEqual({
+      version: 1,
+      hooks: {
+        stop: [{ command: "my-own-stop-hook" }, { command: `${NOTIFIER} sid-1` }],
+        beforeShellExecution: [{ command: "my-own-guard" }],
+      },
+      userKey: "keep",
+    });
+  });
+
+  it("replaces its own earlier entry rather than adding a second one", () => {
+    seedHooks({ version: 1, hooks: { stop: [{ command: "my-own-stop-hook" }] } });
+
+    executeWorkspaceWrites(workspace, [hooksWrite("sid-1")]);
+    executeWorkspaceWrites(workspace, [hooksWrite("sid-2")]);
+
+    expect(readJson(".cursor/hooks.json")).toEqual({
+      version: 1,
+      hooks: {
+        stop: [{ command: "my-own-stop-hook" }, { command: `${NOTIFIER} sid-2` }],
+      },
+    });
+  });
+
+  it("matches the notifier inside a shell-quoted command", () => {
+    const spaced = "/Users/a b/.roubo/bin/roubo-notify";
+    const write: WorkspaceWriteSpec = {
+      relPath: ".cursor/hooks.json",
+      format: "json",
+      ops: [
+        {
+          op: "upsertArray",
+          path: "hooks.stop",
+          value: { command: joinShellCommand([spaced, "sid-1"]) },
+          match: { key: "command", contains: spaced },
+        },
+      ],
+    };
+    seedHooks({ hooks: { stop: [{ command: joinShellCommand([spaced, "sid-0"]) }] } });
+
+    executeWorkspaceWrites(workspace, [write]);
+
+    expect(readJson(".cursor/hooks.json")).toEqual({
+      hooks: { stop: [{ command: `'/Users/a b/.roubo/bin/roubo-notify' sid-1` }] },
+    });
+  });
+
+  it("leaves entries the match does not select, whatever their shape", () => {
+    seedHooks({
+      hooks: {
+        stop: ["a bare string", 7, null, ["nested"], { note: "no command key" }],
+      },
+    });
+
+    executeWorkspaceWrites(workspace, [hooksWrite("sid-1")]);
+
+    expect(readJson(".cursor/hooks.json")).toEqual({
+      version: 1,
+      hooks: {
+        stop: [
+          "a bare string",
+          7,
+          null,
+          ["nested"],
+          { note: "no command key" },
+          { command: `${NOTIFIER} sid-1` },
+        ],
+      },
+    });
+  });
+
+  it("does not read an inherited property through a match key", () => {
+    seedHooks({ hooks: { stop: [{ note: "plain" }] } });
+
+    executeWorkspaceWrites(workspace, [
+      {
+        relPath: ".cursor/hooks.json",
+        format: "json",
+        ops: [
+          {
+            op: "upsertArray",
+            path: "hooks.stop",
+            value: { command: "roubo" },
+            match: { key: "constructor", contains: "Object" },
+          },
+        ],
+      },
+    ]);
+
+    expect(readJson(".cursor/hooks.json")).toEqual({
+      hooks: { stop: [{ note: "plain" }, { command: "roubo" }] },
+    });
+  });
+
+  it("replaces a value that is not an array, as unionArray does", () => {
+    seedHooks({ hooks: { stop: "not an array" } });
+
+    executeWorkspaceWrites(workspace, [hooksWrite("sid-1")]);
+
+    expect(readJson(".cursor/hooks.json")).toEqual({
+      version: 1,
+      hooks: { stop: [{ command: `${NOTIFIER} sid-1` }] },
+    });
+  });
+
+  it("resolves templates in both the entry and the match needle", () => {
+    const [resolved] = resolveWriteTemplates(
+      [
+        {
+          relPath: ".cursor/hooks.json",
+          format: "json",
+          ops: [
+            {
+              op: "upsertArray",
+              path: "hooks.stop",
+              value: { command: "{{notifierCommand}}" },
+              match: { key: "command", contains: "{{notifier}}" },
+            },
+          ],
+        },
+      ],
+      {
+        ports: {},
+        portHttps: {},
+        workspace,
+        components: {},
+        notifier: NOTIFIER,
+        notifierCommand: `${NOTIFIER} sid-1`,
+      },
+    );
+
+    expect(resolved.ops[0]).toEqual({
+      op: "upsertArray",
+      path: "hooks.stop",
+      value: { command: `${NOTIFIER} sid-1` },
+      match: { key: "command", contains: NOTIFIER },
+    });
+  });
+
+  it("rejects upsertArray on a text-format write", () => {
+    expect(() =>
+      executeWorkspaceWrites(workspace, [
+        {
+          relPath: "notes.txt",
+          format: "text",
+          ops: [
+            {
+              op: "upsertArray",
+              path: ".",
+              value: { command: "x" },
+              match: { key: "command", contains: "x" },
+            },
+          ],
+        },
+      ]),
+    ).toThrow(/not supported for a text-format/);
   });
 });
 
