@@ -6,10 +6,10 @@ import { useQuery } from "@tanstack/react-query";
 import * as api from "../../lib/api";
 import Select from "../Select";
 import { PermissionsRulesTable } from "./PermissionsRulesTable";
-import { flattenPermissions } from "./permissionsTable";
+import { ALL_RULE_TYPES, flattenPermissions } from "./permissionsTable";
 import { ruleKey, permissionsDiff, mergeWithSelection } from "./permissionsDiff";
 import type { ProjectPermissions } from "@roubo/shared";
-import type { PermissionRule } from "./permissionTypes";
+import type { PermissionRule, RuleType } from "./permissionTypes";
 
 interface ImportPermissionsModalProps {
   isOpen: boolean;
@@ -17,6 +17,12 @@ interface ImportPermissionsModalProps {
   currentProjectId: string;
   currentPermissions: ProjectPermissions;
   onImport: (rules: PermissionRule[]) => void;
+  /**
+   * The rule tiers THIS project's agent carries (#862). The source project may
+   * have been on another agent, so its rules can include a tier this one drops;
+   * both tables mark those rather than offering them as though they applied.
+   */
+  tiers?: RuleType[];
 }
 
 function projectDisplayName(repoPath: string): string {
@@ -29,6 +35,7 @@ export function ImportPermissionsModal({
   currentProjectId,
   currentPermissions,
   onImport,
+  tiers = ALL_RULE_TYPES,
 }: ImportPermissionsModalProps) {
   const { data: projects } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -184,6 +191,7 @@ export function ImportPermissionsModal({
                       showTypeFilter
                       selection={{ selectedKeys, onToggleKey: toggleKey }}
                       emptyMessage="No rules to import."
+                      tiers={tiers}
                     />
                   )}
                 </div>
@@ -202,6 +210,7 @@ export function ImportPermissionsModal({
                     showTypeFilter
                     highlightKeys={addedKeys}
                     emptyMessage="No rules."
+                    tiers={tiers}
                   />
                 </div>
               </div>

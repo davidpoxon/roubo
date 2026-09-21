@@ -45,10 +45,14 @@ const POSTURE_HINTS: Record<string, string> = {
   "full-auto": "The agent edits and runs commands without asking.",
 };
 
-/** "ask", or "ask and deny", for prose that names the tiers an agent drops. */
+/**
+ * "ask", or "deny or ask", for prose that names the tiers an agent drops. The
+ * list reads as alternatives rather than a conjunction because the sentence it
+ * sits in is about one rule at a time: a rule is marked deny OR ask, never both.
+ */
 function listTiers(tiers: RuleType[]): string {
   if (tiers.length <= 1) return tiers.join("");
-  return `${tiers.slice(0, -1).join(", ")} and ${tiers[tiers.length - 1]}`;
+  return `${tiers.slice(0, -1).join(", ")} or ${tiers[tiers.length - 1]}`;
 }
 
 function unflattenPermissions(
@@ -349,9 +353,10 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
               so say so rather than letting a saved rule look applied. */}
           {droppedTiers.length > 0 && (
             <div className="rounded-xl border border-border bg-bg-base px-4 py-3 text-12 text-text-secondary leading-relaxed">
-              {agentLabel} has no {listTiers(droppedTiers)} tier, so a rule marked{" "}
-              {listTiers(droppedTiers)} is never written for this project and is not offered above.
-              Any already saved stays listed below, marked as not applied, until you remove it.
+              {agentLabel} has no {listTiers(droppedTiers)} tier
+              {droppedTiers.length > 1 ? "s" : ""}, so a rule marked {listTiers(droppedTiers)} is
+              never written for this project and is not offered above. Any already saved stays
+              listed below, marked as not applied, until you remove it.
             </div>
           )}
 
@@ -421,6 +426,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
         currentProjectId={projectId}
         currentPermissions={currentPermissions}
         onImport={handleImport}
+        tiers={honouredTiers}
       />
     </div>
   );

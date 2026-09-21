@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { PermissionsRulesTable } from "./PermissionsRulesTable";
@@ -388,6 +388,29 @@ describe("PermissionsRulesTable", () => {
     it("keeps the filter chip for an un-carried tier that holds rules", () => {
       renderWithProviders(<PermissionsRulesTable rules={rules} tiers={["allow", "deny"]} />);
       expect(screen.getByRole("button", { name: "ask (1)" })).toBeInTheDocument();
+    });
+
+    // Removing the last rule of an un-carried tier takes its chip away. An
+    // active filter still pointing at it would strand the table on "No rules
+    // match this filter." with no chip left to click back out of.
+    it("falls back to All when the active filter's chip stops being offered", () => {
+      const { rerender } = renderWithProviders(
+        <PermissionsRulesTable rules={rules} tiers={["allow", "deny"]} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "ask (1)" }));
+      expect(screen.getByText("Bash(git push:*)")).toBeInTheDocument();
+      expect(screen.queryByText("Read(src/**)")).not.toBeInTheDocument();
+
+      rerender(
+        <PermissionsRulesTable
+          rules={[{ type: "allow", pattern: "Read(src/**)" }]}
+          tiers={["allow", "deny"]}
+        />,
+      );
+
+      expect(screen.queryByText(/No rules match this filter/)).not.toBeInTheDocument();
+      expect(screen.getByText("Read(src/**)")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^ask/ })).not.toBeInTheDocument();
     });
 
     it("offers only the carried tiers, plus the row's own, when editing", async () => {

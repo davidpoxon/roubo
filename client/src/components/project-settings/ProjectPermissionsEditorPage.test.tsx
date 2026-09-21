@@ -454,6 +454,23 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
       ).toBeInTheDocument();
     });
 
+    // An agent may carry only one tier: the schema allows any non-empty subset.
+    // The notice then names two, so the copy has to read correctly in the plural
+    // and as alternatives, since a rule carries one tier at a time.
+    it("names every dropped tier, reading correctly in the plural", () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({
+          capabilities: { ...TWO_TIER_CAPABILITIES, ruleTiers: ["allow"] },
+        }),
+      );
+      renderEditor();
+      expect(
+        screen.getByText(
+          /Two Tier Agent has no deny or ask tiers, so a rule marked deny or ask is never written/i,
+        ),
+      ).toBeInTheDocument();
+    });
+
     it("says nothing when the agent carries every tier", () => {
       mockedUseProjectPermissions.mockReturnValue(
         makeDefaultHook({ capabilities: FULL_CAPABILITIES }),

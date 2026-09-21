@@ -17,6 +17,13 @@ function RuleTypeBadge({ type }: { type: RuleType }) {
   );
 }
 
+/** Says a stored rule's tier is one the project's agent never writes (#862). */
+function NotAppliedMarker() {
+  return (
+    <span className="text-11 text-text-secondary font-sans whitespace-nowrap">not applied</span>
+  );
+}
+
 interface PermissionsRulesTableProps {
   rules: PermissionRule[];
   editable?: boolean;
@@ -67,12 +74,26 @@ export function PermissionsRulesTable({
     [rules],
   );
 
+  // A chip for a tier the agent does not carry is pointless unless a rule of
+  // that tier is actually stored, in which case the user needs it to find the
+  // rows the notice above the table is telling them about.
+  const offeredTypes = (["allow", "deny", "ask"] as RuleType[]).filter(
+    (tier) => tiers.includes(tier) || counts[tier] > 0,
+  );
+
+  // Derived rather than reset through an effect, the way `safePage` clamps to
+  // `totalPages` below: removing the last rule of an un-carried tier takes its
+  // chip away, and an active filter left pointing at it would strand the table
+  // on "No rules match this filter." with no chip to click back out of.
+  const effectiveFilter =
+    typeFilter !== "all" && !offeredTypes.includes(typeFilter) ? "all" : typeFilter;
+
   const filtered = useMemo(
     () =>
       rules
         .map((rule, originalIndex) => ({ rule, originalIndex }))
-        .filter(({ rule }) => typeFilter === "all" || rule.type === typeFilter),
-    [rules, typeFilter],
+        .filter(({ rule }) => effectiveFilter === "all" || rule.type === effectiveFilter),
+    [rules, effectiveFilter],
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -110,18 +131,13 @@ export function PermissionsRulesTable({
     setEditIsDuplicate(false);
   };
 
-  // A chip for a tier the agent does not carry is pointless unless a rule of
-  // that tier is actually stored, in which case the user needs it to find the
-  // rows the notice above the table is telling them about.
   const filterLabels: Array<{
     value: RuleType | "all";
     label: string;
     count: number;
   }> = [
     { value: "all", label: "All", count: counts.all },
-    ...(["allow", "deny", "ask"] as RuleType[])
-      .filter((tier) => tiers.includes(tier) || counts[tier] > 0)
-      .map((tier) => ({ value: tier, label: tier, count: counts[tier] })),
+    ...offeredTypes.map((tier) => ({ value: tier, label: tier, count: counts[tier] })),
   ];
 
   const gridTemplate = (() => {
@@ -238,6 +254,7 @@ export function PermissionsRulesTable({
                       </div>
                       <div className="flex items-center gap-1.5">
                         <RuleTypeBadge type={rule.type} />
+                        {!tiers.includes(rule.type) && <NotAppliedMarker />}
                       </div>
                       <div className="text-text-body truncate">{rule.pattern}</div>
                     </>
@@ -261,11 +278,7 @@ export function PermissionsRulesTable({
                     </span>
                   )}
                   <RuleTypeBadge type={rule.type} />
-                  {!tiers.includes(rule.type) && (
-                    <span className="text-11 text-text-secondary font-sans whitespace-nowrap">
-                      not applied
-                    </span>
-                  )}
+                  {!tiers.includes(rule.type) && <NotAppliedMarker />}
                 </div>
                 <div className="text-text-body truncate">{rule.pattern}</div>
                 {editable && (
@@ -304,7 +317,7 @@ export function PermissionsRulesTable({
                   setPage(1);
                 }}
                 className={`focus-visible:ring-2 focus-visible:ring-focus-ring px-2 py-0.5 text-11 rounded-control transition-colors outline-none ${
-                  typeFilter === value
+                  effectiveFilter === value
                     ? "bg-bg-pressed text-text-primary"
                     : "text-text-secondary hover:text-text-primary"
                 }`}

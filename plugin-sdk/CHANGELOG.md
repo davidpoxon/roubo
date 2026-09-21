@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
+## [Unreleased]
+
+### Added
+
+- **`agentPermissionRuleTiers` on the plugin manifest** (#862). An agent plugin may name which tiers of Roubo's fine-grained permission rules its own CLI's rules format carries, drawn from `allow`, `ask` and `deny`. The permissions screen then offers only those tiers, states that a rule in a tier the agent does not carry is never written, and marks any such rule a project already saved rather than letting it look applied. Each entry appears at most once, the list may not be empty (an agent that carries no rules at all says so by declaring no `rules` capability on its descriptor), and the key is rejected on a non-`agent` manifest. It is a manifest key with no SDK type of its own, like `choiceProbes` and `agentInstallLocations`.
+
+### Compatibility
+
+Nothing here is breaking. The key is optional, so every existing manifest validates unchanged and an agent that declares nothing is offered all three tiers exactly as before. The manifest schema is strict, so a manifest declaring it pins `roubo: ^1.7.0` (the host API moves to 1.7.0 with this change) and a host below that floor refuses it with a message naming the version it needs rather than an unrecognised manifest key. A manifest fixture test asserts that refusal, so it does not depend on release order.
+
 ## [0.6.0] - 2026-09-21
 
 One addition to the workspace-write contract: a merge op for an array of objects. It is an additive member of the `WriteOp` union, nothing is removed or narrowed, and no existing plugin needs a change to build or run against this release.
