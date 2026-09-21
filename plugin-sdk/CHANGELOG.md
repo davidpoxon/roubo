@@ -10,11 +10,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 ### Added
 
-- **`agentPermissionRuleTiers` on the plugin manifest** (#862). An agent plugin may name which tiers of Roubo's fine-grained permission rules its own CLI's rules format carries, drawn from `allow`, `ask` and `deny`. The permissions screen then offers only those tiers, states that a rule in a tier the agent does not carry is never written, and marks any such rule a project already saved rather than letting it look applied. Each entry appears at most once, the list may not be empty (an agent that carries no rules at all says so by declaring no `rules` capability on its descriptor), and the key is rejected on a non-`agent` manifest. It is a manifest key with no SDK type of its own, like `choiceProbes` and `agentInstallLocations`.
+- **`agentPermissionRuleTiers` on the plugin manifest, and the `PermissionRuleTier` type** (#862). An agent plugin may name which tiers of Roubo's fine-grained permission rules its own CLI's rules format carries, drawn from `allow`, `ask` and `deny`. The permissions screen then offers only those tiers, states that a rule in a tier the agent does not carry is never written, and marks any such rule a project already saved rather than letting it look applied. Each entry appears at most once, the list may not be empty (an agent that carries no rules at all says so by declaring no `rules` capability on its descriptor), and the key is rejected on a non-`agent` manifest.
+
+- **New exported types:** `PermissionRuleTier` (from `@roubo/shared`).
 
 ### Compatibility
 
-Nothing here is breaking. The key is optional, so every existing manifest validates unchanged and an agent that declares nothing is offered all three tiers exactly as before. The manifest schema is strict, so a manifest declaring it pins `roubo: ^1.7.0` (the host API moves to 1.7.0 with this change) and a host below that floor refuses it with a message naming the version it needs rather than an unrecognised manifest key. A manifest fixture test asserts that refusal, so it does not depend on release order.
+Nothing here is breaking for a plugin. The key is optional, so every existing manifest validates unchanged and an agent that declares nothing is offered all three tiers exactly as before. The manifest schema is strict, so a manifest declaring it pins `roubo: ^1.7.0` (the host API moves to 1.7.0 with this change) and a host below that floor refuses it with a message naming the version it needs rather than an unrecognised manifest key. A manifest fixture test asserts that refusal, so it does not depend on release order.
+
+`AgentPermissionsCapabilities` gains a required `ruleTiers: PermissionRuleTier[]` field, which narrows an exported interface. It is not classed as breaking the way `AgentPermissionsModel.rules` was in `0.3.0`, because nothing outside the host constructs or implements this one: it is the shape the host's own permissions-capabilities endpoint returns, and a plugin neither receives it nor produces it. A consumer that builds one by hand, such as a test fixture, does have to add the field.
 
 ## [0.6.0] - 2026-09-21
 

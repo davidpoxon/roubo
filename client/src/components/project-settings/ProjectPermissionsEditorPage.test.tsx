@@ -7,6 +7,8 @@ import { renderWithProviders } from "../../test/renderWithProviders";
 import { ProjectPermissionsEditorPage } from "./ProjectPermissionsEditorPage";
 import { useProjectPermissions } from "../../hooks/useProjectPermissions";
 import { useToast } from "../../hooks/useToast";
+import { useProjects } from "../../hooks/useProjects";
+import * as api from "../../lib/api";
 
 vi.mock("../../hooks/useProjectPermissions", () => ({
   useProjectPermissions: vi.fn(),
@@ -20,8 +22,15 @@ vi.mock("../../hooks/useToast", () => ({
   useToast: vi.fn(() => ({ addToast: vi.fn() })),
 }));
 
+// The import dialog this page opens fetches the source project's rules itself.
+vi.mock("../../lib/api", () => ({
+  fetchProjectPermissions: vi.fn(),
+}));
+
 const mockedUseProjectPermissions = vi.mocked(useProjectPermissions);
 const mockedUseToast = vi.mocked(useToast);
+const mockedUseProjects = vi.mocked(useProjects);
+const mockedFetchProjectPermissions = vi.mocked(api.fetchProjectPermissions);
 
 function makeDefaultHook(overrides = {}) {
   return {
@@ -499,6 +508,36 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
 
       await user.click(screen.getByRole("button", { name: /remove/i }));
       expect(updatePermissions).toHaveBeenCalledWith({ allow: [], deny: [], ask: [] });
+    });
+
+    // The page passes its tier list into the import dialog. Nothing else renders
+    // this page, so without this the wiring could be deleted and the suite would
+    // stay green while the dialog went back to offering an un-carried tier as
+    // though importing it would do something.
+    it("carries the tier list into the import dialog", async () => {
+      mockedUseProjects.mockReturnValue({
+        data: [
+          { id: "my-app", repoPath: "/home/user/my-app" },
+          { id: "other", repoPath: "/home/user/other" },
+        ],
+      } as unknown as ReturnType<typeof useProjects>);
+      mockedFetchProjectPermissions.mockResolvedValue({
+        allow: [],
+        deny: [],
+        ask: ["Bash(git push:*)"],
+      });
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({ capabilities: TWO_TIER_CAPABILITIES }),
+      );
+      const user = userEvent.setup();
+      renderEditor();
+
+      await user.click(screen.getByRole("button", { name: /import from project/i }));
+      await user.click(await screen.findByRole("button", { name: /choose a project/i }));
+      await user.click(await screen.findByRole("option", { name: "other" }));
+
+      expect(await screen.findByText("Bash(git push:*)")).toBeInTheDocument();
+      expect(screen.getAllByText("not applied").length).toBeGreaterThan(0);
     });
 
     it("labels an un-honoured tier in the rule count", () => {
