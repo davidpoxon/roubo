@@ -27,3 +27,6 @@ export const AGENT_ARGV_LOG_PATH = path.join(os.tmpdir(), "roubo-e2e-agent-argv.
 
 /** Where `e2e/fixtures/bin/roubo-e2e-codex-stub` writes its own argv as JSON. */
 export const CODEX_ARGV_LOG_PATH = path.join(os.tmpdir(), "roubo-e2e-codex-argv.json");
+
+/** Where `e2e/fixtures/bin/roubo-e2e-cursor-stub` writes its own argv as JSON. */
+export const CURSOR_ARGV_LOG_PATH = path.join(os.tmpdir(), "roubo-e2e-cursor-argv.json");

@@ -3,3 +3,4 @@
 // its exports need declarations for the TypeScript side of the channel.
 export declare const AGENT_ARGV_LOG_PATH: string;
 export declare const CODEX_ARGV_LOG_PATH: string;
+export declare const CURSOR_ARGV_LOG_PATH: string;

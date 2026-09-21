@@ -1,0 +1,71 @@
+#!/usr/bin/env node
+
+// Stub agent CLI for the `cursor-cli` e2e overlay (issue #870).
+//
+// The overlay (../bundled-overlays/cursor-cli/) points its manifest-declared
+// version probe and its launch descriptor at this binary, so the APCC-TC-038
+// journey can launch a Cursor session in a bench and read back the argv the
+// spawned child actually received, posture flags included.
+//
+// Deliberately NOT named `agent`, which is what the Cursor CLI installs itself
+// as: `importLoginShellEnv()` prepends `~/.local/bin` to the server's PATH, so a
+// real Cursor install on a developer machine would win the lookup and the
+// harness would drive the real CLI.
+//
+// Two behaviours, keyed on argv:
+//
+//   --version   print a version inside the overlay's declared compatibility
+//               window and exit 0, so any launch passes the pre-launch gate.
+//   otherwise   write argv (everything after the script path) as JSON to
+//               CURSOR_ARGV_LOG_PATH, then print a ready line and idle so the
+//               PTY session stays live and the host classifies no early-exit
+//               failure.
+//
+// Its own log path, for the reason roubo-e2e-codex-stub gives: each capture file
+// is single-writer, last-write-wins, and the ambient claude overlay stays
+// installed while this one is live.
+//
+// $ROUBO_E2E_AGENT_ARGV_LOG gates the write but does not choose where it lands:
+// the destination is the shared CURSOR_ARGV_LOG_PATH constant, imported below. An
+// environment variable is untrusted input and must not steer a filesystem path.
+
+// ESM: the file has no extension, so Node resolves its module type from the
+// nearest package.json, and roubo/package.json declares `"type": "module"`.
+import fs from "node:fs";
+
+import { CURSOR_ARGV_LOG_PATH } from "../../agent-plugins/_support/argv-log-path.mjs";
+
+// The Cursor CLI reports a date-based build such as `2026.09.15-d2fe57e`, which
+// `parse: semver` reads as `2026.09.15`. This sits exactly on the overlay's
+// tested ceiling, and both bounds are inclusive, so it resolves
+// `within-tested-range`.
+const STUB_VERSION = "2026.09.15-e2e";
+
+const argv = process.argv.slice(2);
+
+if (argv.includes("--version")) {
+  process.stdout.write(`${STUB_VERSION} (Roubo e2e stub)\n`);
+  process.exit(0);
+}
+
+if (process.env.ROUBO_E2E_AGENT_ARGV_LOG) {
+  try {
+    fs.writeFileSync(CURSOR_ARGV_LOG_PATH, `${JSON.stringify(argv)}\n`, "utf-8");
+  } catch (err) {
+    process.stderr.write(`roubo-e2e-cursor-stub: could not write argv log: ${err.message}\n`);
+  }
+}
+
+process.stdout.write("roubo-e2e-cursor-stub ready\n");
+
+// Idle. The spec destroys the session when it is done, and the timer is the only
+// handle keeping the event loop alive, so an unref'd or cleared timer would end
+// the process.
+const keepAlive = setInterval(() => {}, 1000);
+
+for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+  process.on(signal, () => {
+    clearInterval(keepAlive);
+    process.exit(0);
+  });
+}
