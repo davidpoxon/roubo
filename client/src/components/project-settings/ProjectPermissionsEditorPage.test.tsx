@@ -7,6 +7,8 @@ import { renderWithProviders } from "../../test/renderWithProviders";
 import { ProjectPermissionsEditorPage } from "./ProjectPermissionsEditorPage";
 import { useProjectPermissions } from "../../hooks/useProjectPermissions";
 import { useToast } from "../../hooks/useToast";
+import { useProjects } from "../../hooks/useProjects";
+import * as api from "../../lib/api";
 
 vi.mock("../../hooks/useProjectPermissions", () => ({
   useProjectPermissions: vi.fn(),
@@ -20,8 +22,15 @@ vi.mock("../../hooks/useToast", () => ({
   useToast: vi.fn(() => ({ addToast: vi.fn() })),
 }));
 
+// The import dialog this page opens fetches the source project's rules itself.
+vi.mock("../../lib/api", () => ({
+  fetchProjectPermissions: vi.fn(),
+}));
+
 const mockedUseProjectPermissions = vi.mocked(useProjectPermissions);
 const mockedUseToast = vi.mocked(useToast);
+const mockedUseProjects = vi.mocked(useProjects);
+const mockedFetchProjectPermissions = vi.mocked(api.fetchProjectPermissions);
 
 function makeDefaultHook(overrides = {}) {
   return {
@@ -37,13 +46,22 @@ function makeDefaultHook(overrides = {}) {
   };
 }
 
-/** A resolved agent that honours both axes, the Claude Code shape. */
+/** A resolved agent that honours both axes and all three tiers. */
 const FULL_CAPABILITIES = {
   agentPluginId: "claude-code",
   agentName: "Claude Code",
   postures: ["read-only", "guarded", "auto-edit", "full-auto"] as const,
   rules: true,
+  ruleTiers: ["allow", "ask", "deny"] as const,
   resync: true,
+};
+
+/** An agent whose own rules format carries no `ask` tier (#862, APCC-TC-043). */
+const TWO_TIER_CAPABILITIES = {
+  ...FULL_CAPABILITIES,
+  agentPluginId: "two-tier",
+  agentName: "Two Tier Agent",
+  ruleTiers: ["allow", "deny"] as const,
 };
 
 function LocationCapture({ onChange }: { onChange: (path: string) => void }) {
@@ -289,6 +307,7 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
           agentName: "Codex",
           postures: ["guarded"],
           rules: false,
+          ruleTiers: ["allow", "ask", "deny"],
           resync: false,
         },
       }),
@@ -310,6 +329,7 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
           agentName: "Plain Agent",
           postures: [],
           rules: false,
+          ruleTiers: ["allow", "ask", "deny"],
           resync: false,
         },
       }),
@@ -358,6 +378,7 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
           agentName: "Codex",
           postures: ["guarded"],
           rules: false,
+          ruleTiers: ["allow", "ask", "deny"],
           resync: false,
         },
         isError: true,
@@ -381,6 +402,7 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
           agentName: "Codex",
           postures: ["guarded"],
           rules: false,
+          ruleTiers: ["allow", "ask", "deny"],
           resync: false,
         },
         permissions: undefined,
@@ -392,6 +414,174 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
     expect(
       screen.getByText("Failed to load or save permissions. Please try again."),
     ).toBeInTheDocument();
+  });
+
+  // APCC-TC-043 / APCC-FR-016. The rules axis carries three tiers, but an agent
+  // whose own rules format has only two drops the third on the way to the bench.
+  // The screen offers no way to create one, and says what happens to any already
+  // saved, rather than letting the user believe it was written.
+  describe("rule tiers the agent does not carry (#862, APCC-TC-043)", () => {
+    const openAddRuleTypePicker = async (user: ReturnType<typeof userEvent.setup>) =>
+      user.click(screen.getByRole("button", { name: /Rule type/i }));
+
+    it("offers both axes and only the honoured tiers", async () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({ capabilities: TWO_TIER_CAPABILITIES }),
+      );
+      const user = userEvent.setup();
+      renderEditor();
+
+      // S001-O01 and S001-O02: both controls Cursor can honour are offered.
+      expect(screen.getByText("Posture")).toBeInTheDocument();
+      expect(screen.getByText("Add rule")).toBeInTheDocument();
+
+      // S001-O03: nothing is offered for the tier the agent cannot carry.
+      await openAddRuleTypePicker(user);
+      expect(await screen.findByRole("option", { name: "allow" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "deny" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "ask" })).not.toBeInTheDocument();
+    });
+
+    it("offers every tier for an agent that declares none", async () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({ capabilities: FULL_CAPABILITIES }),
+      );
+      const user = userEvent.setup();
+      renderEditor();
+
+      await openAddRuleTypePicker(user);
+      expect(await screen.findByRole("option", { name: "ask" })).toBeInTheDocument();
+    });
+
+    it("states that a rule marked ask is not written", () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({ capabilities: TWO_TIER_CAPABILITIES }),
+      );
+      renderEditor();
+      expect(
+        screen.getByText(/Two Tier Agent has no ask tier, so a rule marked ask is never written/i),
+      ).toBeInTheDocument();
+    });
+
+    // An agent may carry only one tier: the schema allows any non-empty subset.
+    // The notice then names two, so the copy has to read correctly in the plural
+    // and as alternatives, since a rule carries one tier at a time.
+    it("names every dropped tier, reading correctly in the plural", () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({
+          capabilities: { ...TWO_TIER_CAPABILITIES, ruleTiers: ["allow"] },
+        }),
+      );
+      renderEditor();
+      expect(
+        screen.getByText(
+          /Two Tier Agent has no deny or ask tiers, so a rule marked deny or ask is never written/i,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("says nothing when the agent carries every tier", () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({ capabilities: FULL_CAPABILITIES }),
+      );
+      renderEditor();
+      expect(screen.queryByText(/is never written for this project/i)).not.toBeInTheDocument();
+    });
+
+    // A project that switched agents keeps rules the new one cannot carry. They
+    // stay visible and removable, marked, rather than vanishing from a screen
+    // that is the only place to delete them.
+    it("keeps an already saved rule of an un-honoured tier listed and removable", async () => {
+      const updatePermissions = vi.fn();
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({
+          permissions: { allow: [], deny: [], ask: ["Bash(git push:*)"] },
+          capabilities: TWO_TIER_CAPABILITIES,
+          updatePermissions,
+        }),
+      );
+      const user = userEvent.setup();
+      renderEditor();
+
+      expect(screen.getByText("Bash(git push:*)")).toBeInTheDocument();
+      expect(screen.getByText("not applied")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /remove/i }));
+      expect(updatePermissions).toHaveBeenCalledWith({ allow: [], deny: [], ask: [] });
+    });
+
+    // The page passes its tier list into the import dialog. Nothing else renders
+    // this page, so without this the wiring could be deleted and the suite would
+    // stay green while the dialog went back to offering an un-carried tier as
+    // though importing it would do something.
+    it("carries the tier list into the import dialog", async () => {
+      mockedUseProjects.mockReturnValue({
+        data: [
+          { id: "my-app", repoPath: "/home/user/my-app" },
+          { id: "other", repoPath: "/home/user/other" },
+        ],
+      } as unknown as ReturnType<typeof useProjects>);
+      mockedFetchProjectPermissions.mockResolvedValue({
+        allow: [],
+        deny: [],
+        ask: ["Bash(git push:*)"],
+      });
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({ capabilities: TWO_TIER_CAPABILITIES }),
+      );
+      const user = userEvent.setup();
+      renderEditor();
+
+      await user.click(screen.getByRole("button", { name: /import from project/i }));
+      await user.click(await screen.findByRole("button", { name: /choose a project/i }));
+      await user.click(await screen.findByRole("option", { name: "other" }));
+
+      expect(await screen.findByText("Bash(git push:*)")).toBeInTheDocument();
+      expect(screen.getAllByText("not applied").length).toBeGreaterThan(0);
+    });
+
+    it("labels an un-honoured tier in the rule count", () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({
+          permissions: { allow: ["Read(src/**)"], deny: [], ask: ["Bash(git push:*)"] },
+          capabilities: TWO_TIER_CAPABILITIES,
+        }),
+      );
+      renderEditor();
+      expect(screen.getByText(/1 ask \(not applied\)/)).toBeInTheDocument();
+    });
+
+    it("leaves an un-honoured tier out of the count when nothing is stored in it", () => {
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({
+          permissions: { allow: ["Read(src/**)"], deny: [], ask: [] },
+          capabilities: TWO_TIER_CAPABILITIES,
+        }),
+      );
+      renderEditor();
+      expect(screen.getByText("1 rule · 1 allow · 0 deny")).toBeInTheDocument();
+    });
+
+    it("adds into an honoured tier when the composer's default is not carried", async () => {
+      const updatePermissions = vi.fn();
+      mockedUseProjectPermissions.mockReturnValue(
+        makeDefaultHook({
+          capabilities: { ...TWO_TIER_CAPABILITIES, ruleTiers: ["deny"] },
+          updatePermissions,
+        }),
+      );
+      const user = userEvent.setup();
+      renderEditor();
+
+      await user.type(screen.getByPlaceholderText("Bash(pytest:*)"), "Bash(rm:*)");
+      await user.click(screen.getByRole("button", { name: /^add$/i }));
+
+      expect(updatePermissions).toHaveBeenCalledWith({
+        allow: [],
+        deny: ["Bash(rm:*)"],
+        ask: [],
+      });
+    });
   });
 
   it("preserves the stored posture when a rule is added", async () => {

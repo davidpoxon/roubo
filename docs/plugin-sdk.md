@@ -96,6 +96,7 @@ The manifest is validated by [`schema/roubo-plugin.schema.json`](../schema/roubo
 | `agentCompatibility`            | object                                  | Optional (agent plugins). Agent-CLI compatibility window `{ minVersion?, testedCeiling?, probe? }`; the two versions are exact semver. The host blocks a launch below `minVersion`, warns above `testedCeiling`, and uses `probe` to detect the installed version without launching. See [Agent compatibility](#agent-compatibility)                                                                                                                                                                                                                                                                                                             |
 | `agentInstallLocations`         | string[]                                | Optional (agent plugins). Where your agent CLI installs itself, probed in declared order when it is not on the `PATH` the server inherits. Each entry is absolute or `~/`-prefixed, with no `..` segment and no `{{ }}` template. Rejected on a non-`agent` manifest. See [Where your agent CLI installs](#where-your-agent-cli-installs)                                                                                                                                                                                                                                                                                                        |
 | `choiceProbes`                  | object                                  | Optional. Binds a `configSchema` field to a host-executed probe whose output populates that field's choices, keyed by field name. Each value is `{ command, args, parse }`, all three required. See [Configuration choice probes](#configuration-choice-probes)                                                                                                                                                                                                                                                                                                                                                                                  |
+| `agentPermissionRuleTiers`      | string[]                                | Optional (agent plugins). Which tiers of the fine-grained permission rules your agent CLI's own rules format carries, drawn from `allow`, `ask` and `deny`. A tier you leave out is never written and the permissions screen offers no control for it. Rejected on a non-`agent` manifest. See [Which permission rule tiers you carry](#which-permission-rule-tiers-you-carry)                                                                                                                                                                                                                                                                   |
 
 `host.fetch` to a host outside `network.hosts` is rejected with a structured error before any DNS lookup. `host.credentials.get/set` to a slot not declared in `permissions.credentials.slots` is rejected before the keyring is touched.
 
@@ -234,6 +235,26 @@ The declaration lives on the manifest rather than on the descriptor because the 
 `choiceProbes` is optional. An existing agent plugin needs no change: a manifest that omits it validates unchanged, and its configuration fields render from `configSchema` exactly as before.
 
 Note the `roubo` range. The key landed in host API **1.6.0**, and the manifest schema is strict, so the same rule as [`agentInstallLocations`](#where-your-agent-cli-installs) applies: declare `^1.6.0` (or higher) whenever you declare `choiceProbes`.
+
+### Which permission rule tiers you carry
+
+Roubo's fine-grained permission rules have three tiers: `allow`, `ask` and `deny`. Some agent CLIs carry all three. Others have only two, and prompt by default for whatever is neither allowed nor denied, which leaves nothing for an `ask` rule to be written as. If you declare the rules capability and your rules format cannot express a tier, say so:
+
+```yaml
+agentPermissionRuleTiers:
+  - allow
+  - deny
+```
+
+The permissions screen then offers only the tiers you name. A rule a project already saved in a tier you do not carry stays listed, marked as not applied, so the user can still remove it, and the screen states plainly that such a rule is never written. Without the declaration the user would save a rule, see it persist, and never learn it was dropped on the way to the bench.
+
+This is metadata about your CLI, not about a launch, which is why it sits on the manifest beside [`agentInstallLocations`](#where-your-agent-cli-installs) rather than on the descriptor's `capabilities.permissions.rules`. The host never learns which agent dropped a tier, only that one did, so the permissions screen stays agent-agnostic.
+
+Each entry is `allow`, `ask` or `deny`, named at most once, and the list may not be empty: an agent that carries no rules at all says so by declaring no `rules` capability on its descriptor. The key is rejected on a non-`agent` manifest.
+
+`agentPermissionRuleTiers` is optional. An existing agent plugin needs no change: a manifest that omits it validates unchanged and is offered all three tiers, exactly as before.
+
+Note the `roubo` range once more. The key landed in host API **1.8.0**, so declare `^1.8.0` (or higher) whenever you declare `agentPermissionRuleTiers`. It has a version of its own rather than riding 1.7.0 because 1.7.0 shipped before it, so a host reporting 1.7.0 may not know the key at all.
 
 ## Agent contract
 
@@ -428,7 +449,7 @@ Every agent-contract name this document describes is a named export of `@roubo/p
 | `WorkspaceWriteSpec`               | type  | A declared workspace file mutation. See [Workspace writes are declarative, always](#workspace-writes-are-declarative-always)                         |
 | `WriteOp`                          | type  | One op inside a `WorkspaceWriteSpec`: `unionArray`, `upsertArray`, `set`, or `delete`                                                                |
 
-The manifest fields these pair with (`kind: agent`, `agentCompatibility`, `configSchema`, `permissions.processes`) are in the [Manifest reference](#manifest-reference); they are validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json) and have no SDK type of their own.
+The manifest fields these pair with (`kind: agent`, `agentCompatibility`, `agentPermissionRuleTiers`, `configSchema`, `permissions.processes`) are in the [Manifest reference](#manifest-reference); they are validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json) and have no SDK type of their own.
 
 ### `translateLaunch({ config, context }): Promise<AgentLaunchDescriptor>`
 
@@ -493,7 +514,7 @@ permissions: {
 }
 ```
 
-`resync: true` is the plugin's statement that those writes are safe to re-apply to an already-created bench workspace, which is what `POST /api/projects/:projectId/permissions/resync` dispatches through. A plugin that declares no `rules` key gets no rules editor in the UI and is skipped by re-sync; declaring `rules` with `resync: false` keeps the editor but not the re-sync control. Path-escaping patterns in the access-granting groups never reach a plugin: the host rejects an `allow` or `ask` entry naming a path outside the bench workspace when it is stored, and filters any survivors before the model is handed over. `deny` entries are subtractive, so they are passed through as written and a plugin must not assume every rule string it receives is workspace-relative.
+`resync: true` is the plugin's statement that those writes are safe to re-apply to an already-created bench workspace, which is what `POST /api/projects/:projectId/permissions/resync` dispatches through. A plugin that declares no `rules` key gets no rules editor in the UI and is skipped by re-sync; declaring `rules` with `resync: false` keeps the editor but not the re-sync control. A plugin that carries rules but not every tier of them declares that on its manifest instead, with [`agentPermissionRuleTiers`](#which-permission-rule-tiers-you-carry), and the host then sends the model as stored while the screen offers only the tiers it can reach. Path-escaping patterns in the access-granting groups never reach a plugin: the host rejects an `allow` or `ask` entry naming a path outside the bench workspace when it is stored, and filters any survivors before the model is handed over. `deny` entries are subtractive, so they are passed through as written and a plugin must not assume every rule string it receives is workspace-relative.
 
 ### Notification wiring
 

@@ -52,6 +52,7 @@ router.get("/:projectId/permissions/capabilities", (req, res) => {
         agentName: null,
         postures: [],
         rules: true,
+        ruleTiers: ["allow", "ask", "deny"],
         resync: true,
       }),
     );

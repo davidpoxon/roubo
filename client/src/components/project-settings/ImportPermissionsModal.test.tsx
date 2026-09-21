@@ -6,7 +6,7 @@ import { renderWithProviders } from "../../test/renderWithProviders";
 import { ImportPermissionsModal } from "./ImportPermissionsModal";
 import { useProjects } from "../../hooks/useProjects";
 import * as api from "../../lib/api";
-import type { PermissionRule } from "./permissionTypes";
+import type { PermissionRule, RuleType } from "./permissionTypes";
 import type { ProjectPermissions } from "@roubo/shared";
 
 vi.mock("../../hooks/useProjects", () => ({
@@ -38,6 +38,7 @@ function renderModal(
     currentPermissions: ProjectPermissions;
     onImport: (rules: PermissionRule[]) => void;
     onClose: () => void;
+    tiers: RuleType[];
   }> = {},
 ) {
   const defaults = {
@@ -358,5 +359,51 @@ describe("ImportPermissionsModal", () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to load permissions/)).toBeInTheDocument();
     });
+  });
+
+  // #862: the source project may have been on another agent, so its rules can
+  // include a tier THIS project's agent drops. Selecting and previewing such a
+  // rule as though it applied is the same misleading state the editor's notice
+  // exists to prevent, so the marking has to reach inside this dialog too.
+  it("marks a source rule whose tier this project's agent does not carry", async () => {
+    mockedFetchProjectPermissions.mockResolvedValue({
+      allow: [],
+      deny: [],
+      ask: ["Bash(git push:*)"],
+    });
+    const user = userEvent.setup();
+    renderModal({ tiers: ["allow", "deny"] });
+
+    await selectSourceProject(user, "project-b");
+
+    await waitFor(() => {
+      expect(screen.getByText("Bash(git push:*)")).toBeInTheDocument();
+    });
+    // The source list, where the rule is offered for selection.
+    expect(screen.getAllByText("not applied")).toHaveLength(1);
+
+    // And again in the merged preview, once it is actually selected: the
+    // preview is what the user reads before committing to the import.
+    await user.click(screen.getByRole("checkbox", { name: /Select rule Bash\(git push:\*\)/ }));
+    await waitFor(() => {
+      expect(screen.getAllByText("not applied")).toHaveLength(2);
+    });
+  });
+
+  it("marks nothing when this project's agent carries every tier", async () => {
+    mockedFetchProjectPermissions.mockResolvedValue({
+      allow: [],
+      deny: [],
+      ask: ["Bash(git push:*)"],
+    });
+    const user = userEvent.setup();
+    renderModal();
+
+    await selectSourceProject(user, "project-b");
+
+    await waitFor(() => {
+      expect(screen.getByText("Bash(git push:*)")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("not applied")).not.toBeInTheDocument();
   });
 });

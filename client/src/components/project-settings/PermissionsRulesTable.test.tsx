@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { PermissionsRulesTable } from "./PermissionsRulesTable";
@@ -351,6 +351,92 @@ describe("PermissionsRulesTable", () => {
     it("renders no + glyphs when highlightKeys is not provided", () => {
       renderWithProviders(<PermissionsRulesTable rules={rules} />);
       expect(screen.queryByText("+")).not.toBeInTheDocument();
+    });
+  });
+
+  // #862: a rule whose tier the project's agent cannot carry is still listed,
+  // because this table is the only place to see and delete it, but it is marked
+  // and no picker offers that tier to anything else.
+  describe("rule tiers the agent does not carry (#862)", () => {
+    const rules: PermissionRule[] = [
+      { type: "allow", pattern: "Read(src/**)" },
+      { type: "ask", pattern: "Bash(git push:*)" },
+    ];
+
+    it("marks a row whose tier is not carried", () => {
+      renderWithProviders(<PermissionsRulesTable rules={rules} tiers={["allow", "deny"]} />);
+      expect(screen.getByText("Bash(git push:*)")).toBeInTheDocument();
+      expect(screen.getByText("not applied")).toBeInTheDocument();
+    });
+
+    it("marks no row when every tier is carried", () => {
+      renderWithProviders(<PermissionsRulesTable rules={rules} />);
+      expect(screen.queryByText("not applied")).not.toBeInTheDocument();
+    });
+
+    it("drops the filter chip for an un-carried tier with no rules in it", () => {
+      renderWithProviders(
+        <PermissionsRulesTable
+          rules={[{ type: "allow", pattern: "Read(src/**)" }]}
+          tiers={["allow", "deny"]}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "deny (0)" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^ask/ })).not.toBeInTheDocument();
+    });
+
+    it("keeps the filter chip for an un-carried tier that holds rules", () => {
+      renderWithProviders(<PermissionsRulesTable rules={rules} tiers={["allow", "deny"]} />);
+      expect(screen.getByRole("button", { name: "ask (1)" })).toBeInTheDocument();
+    });
+
+    // Removing the last rule of an un-carried tier takes its chip away. An
+    // active filter still pointing at it would strand the table on "No rules
+    // match this filter." with no chip left to click back out of.
+    it("falls back to All when the active filter's chip stops being offered", () => {
+      const { rerender } = renderWithProviders(
+        <PermissionsRulesTable rules={rules} tiers={["allow", "deny"]} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "ask (1)" }));
+      expect(screen.getByText("Bash(git push:*)")).toBeInTheDocument();
+      expect(screen.queryByText("Read(src/**)")).not.toBeInTheDocument();
+
+      rerender(
+        <PermissionsRulesTable
+          rules={[{ type: "allow", pattern: "Read(src/**)" }]}
+          tiers={["allow", "deny"]}
+        />,
+      );
+
+      expect(screen.queryByText(/No rules match this filter/)).not.toBeInTheDocument();
+      expect(screen.getByText("Read(src/**)")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^ask/ })).not.toBeInTheDocument();
+    });
+
+    it("offers only the carried tiers, plus the row's own, when editing", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(
+        <PermissionsRulesTable rules={rules} editable tiers={["allow", "deny"]} />,
+      );
+      await user.click(screen.getAllByRole("button", { name: /^edit$/i })[1]);
+      await user.click(screen.getByRole("button", { name: /Rule type/i }));
+
+      // Its own tier survives, so editing the pattern never reassigns the rule.
+      expect(await screen.findByRole("option", { name: "ask" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "allow" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "deny" })).toBeInTheDocument();
+    });
+
+    it("leaves an un-carried tier out of the picker for a row that does not have it", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(
+        <PermissionsRulesTable rules={rules} editable tiers={["allow", "deny"]} />,
+      );
+      await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+      await user.click(screen.getByRole("button", { name: /Rule type/i }));
+
+      expect(await screen.findByRole("option", { name: "allow" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "ask" })).not.toBeInTheDocument();
     });
   });
 });

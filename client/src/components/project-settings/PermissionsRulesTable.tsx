@@ -4,7 +4,7 @@ import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import Select from "../Select";
 import type { RuleType, PermissionRule } from "./permissionTypes";
 import { ruleKey } from "./permissionsDiff";
-import { RULE_TYPE_ITEMS, type SelectionState } from "./permissionsTable";
+import { ALL_RULE_TYPES, ruleTypeItemsFor, type SelectionState } from "./permissionsTable";
 
 function RuleTypeBadge({ type }: { type: RuleType }) {
   const styles: Record<RuleType, string> = {
@@ -14,6 +14,13 @@ function RuleTypeBadge({ type }: { type: RuleType }) {
   };
   return (
     <span className={`inline-flex px-1.5 py-0.5 rounded text-11 ${styles[type]}`}>{type}</span>
+  );
+}
+
+/** Says a stored rule's tier is one the project's agent never writes (#862). */
+function NotAppliedMarker() {
+  return (
+    <span className="text-11 text-text-secondary font-sans whitespace-nowrap">not applied</span>
   );
 }
 
@@ -28,6 +35,13 @@ interface PermissionsRulesTableProps {
   showTypeFilter?: boolean;
   selection?: SelectionState;
   highlightKeys?: Set<string>;
+  /**
+   * The rule tiers the project's agent carries (#862). A rule whose tier is not
+   * on this list is still listed, so the user can see and remove it, but it is
+   * marked as not applied and no picker offers that tier to a new rule. Defaults
+   * to every tier, which is what an agent that declares nothing reports.
+   */
+  tiers?: RuleType[];
 }
 
 export function PermissionsRulesTable({
@@ -41,6 +55,7 @@ export function PermissionsRulesTable({
   showTypeFilter = true,
   selection,
   highlightKeys,
+  tiers = ALL_RULE_TYPES,
 }: PermissionsRulesTableProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editType, setEditType] = useState<RuleType>("allow");
@@ -59,12 +74,26 @@ export function PermissionsRulesTable({
     [rules],
   );
 
+  // A chip for a tier the agent does not carry is pointless unless a rule of
+  // that tier is actually stored, in which case the user needs it to find the
+  // rows the notice above the table is telling them about.
+  const offeredTypes = (["allow", "deny", "ask"] as RuleType[]).filter(
+    (tier) => tiers.includes(tier) || counts[tier] > 0,
+  );
+
+  // Derived rather than reset through an effect, the way `safePage` clamps to
+  // `totalPages` below: removing the last rule of an un-carried tier takes its
+  // chip away, and an active filter left pointing at it would strand the table
+  // on "No rules match this filter." with no chip to click back out of.
+  const effectiveFilter =
+    typeFilter !== "all" && !offeredTypes.includes(typeFilter) ? "all" : typeFilter;
+
   const filtered = useMemo(
     () =>
       rules
         .map((rule, originalIndex) => ({ rule, originalIndex }))
-        .filter(({ rule }) => typeFilter === "all" || rule.type === typeFilter),
-    [rules, typeFilter],
+        .filter(({ rule }) => effectiveFilter === "all" || rule.type === effectiveFilter),
+    [rules, effectiveFilter],
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -108,9 +137,7 @@ export function PermissionsRulesTable({
     count: number;
   }> = [
     { value: "all", label: "All", count: counts.all },
-    { value: "allow", label: "allow", count: counts.allow },
-    { value: "deny", label: "deny", count: counts.deny },
-    { value: "ask", label: "ask", count: counts.ask },
+    ...offeredTypes.map((tier) => ({ value: tier, label: tier, count: counts[tier] })),
   ];
 
   const gridTemplate = (() => {
@@ -150,8 +177,8 @@ export function PermissionsRulesTable({
                   >
                     <div>
                       <Select
-                        aria-label="Rule type"
-                        items={RULE_TYPE_ITEMS}
+                        ariaLabel="Rule type"
+                        items={ruleTypeItemsFor(tiers, rule.type)}
                         value={editType}
                         onChange={(v) => {
                           setEditType(v as RuleType);
@@ -227,6 +254,7 @@ export function PermissionsRulesTable({
                       </div>
                       <div className="flex items-center gap-1.5">
                         <RuleTypeBadge type={rule.type} />
+                        {!tiers.includes(rule.type) && <NotAppliedMarker />}
                       </div>
                       <div className="text-text-body truncate">{rule.pattern}</div>
                     </>
@@ -250,6 +278,7 @@ export function PermissionsRulesTable({
                     </span>
                   )}
                   <RuleTypeBadge type={rule.type} />
+                  {!tiers.includes(rule.type) && <NotAppliedMarker />}
                 </div>
                 <div className="text-text-body truncate">{rule.pattern}</div>
                 {editable && (
@@ -288,7 +317,7 @@ export function PermissionsRulesTable({
                   setPage(1);
                 }}
                 className={`focus-visible:ring-2 focus-visible:ring-focus-ring px-2 py-0.5 text-11 rounded-control transition-colors outline-none ${
-                  typeFilter === value
+                  effectiveFilter === value
                     ? "bg-bg-pressed text-text-primary"
                     : "text-text-secondary hover:text-text-primary"
                 }`}

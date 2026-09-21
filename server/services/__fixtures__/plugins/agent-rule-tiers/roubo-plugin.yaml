@@ -1,0 +1,24 @@
+# An agent plugin whose own rules format carries no `ask` tier (#862): it
+# declares the 1.8.0 `agentPermissionRuleTiers` key and pins `roubo: ^1.8.0` as
+# the SDK contract documentation tells it to. The manifest fixture test drives
+# it through a simulated pre-1.8.0 host to prove the refusal names the version
+# it needs rather than the unrecognised key. It names no real agent.
+id: agent-rule-tiers
+name: Agent Rule Tiers Fixture
+version: 0.0.0
+description: An agent-kind fixture that declares a two-tier permission rules format
+kind: agent
+roubo: ^1.8.0
+entry: ./index.cjs
+contractVersion: 1
+agentPermissionRuleTiers:
+  - allow
+  - deny
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false
