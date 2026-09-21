@@ -1,25 +1,31 @@
 #!/usr/bin/env node
 
-// Stub agent CLI for the `cursor-cli` e2e overlay (issue #870).
+// Stub agent CLI for the `cursor-cli` e2e overlay (APCC-TC-038, APCC-TC-011).
 //
 // The overlay (../bundled-overlays/cursor-cli/) points its manifest-declared
-// version probe and its launch descriptor at this binary, so the APCC-TC-038
-// journey can launch a Cursor session in a bench and read back the argv the
-// spawned child actually received, posture flags included.
+// version probe, its `model` choice probe and its launch descriptor at this
+// binary. The APCC-TC-038 journey launches a Cursor session in a bench and reads
+// back the argv the spawned child actually received, posture flags included; the
+// APCC-TC-011 journey fills the model field from the probe, then does the same.
 //
 // Deliberately NOT named `agent`, which is what the Cursor CLI installs itself
 // as: `importLoginShellEnv()` prepends `~/.local/bin` to the server's PATH, so a
 // real Cursor install on a developer machine would win the lookup and the
 // harness would drive the real CLI.
 //
-// Two behaviours, keyed on argv:
+// Three behaviours, keyed on argv:
 //
-//   --version   print a version inside the overlay's declared compatibility
-//               window and exit 0, so any launch passes the pre-launch gate.
-//   otherwise   write argv (everything after the script path) as JSON to
-//               CURSOR_ARGV_LOG_PATH, then print a ready line and idle so the
-//               PTY session stays live and the host classifies no early-exit
-//               failure.
+//   --version      print a version inside the overlay's declared compatibility
+//                  window and exit 0, so any launch passes the pre-launch gate.
+//   --list-models  print an excerpt of a real listing and exit 0. The excerpt
+//                  keeps the real shape: the heading, a blank line, the
+//                  `<id> - <label>` pairs, and the trailing tip line, so the
+//                  host's `dash-line-pairs` reader has to skip the same
+//                  non-pair lines it skips on a real run.
+//   otherwise      write argv (everything after the script path) as JSON to
+//                  CURSOR_ARGV_LOG_PATH, then print a ready line and idle so the
+//                  PTY session stays live and the host classifies no early-exit
+//                  failure.
 //
 // Its own log path, for the reason roubo-e2e-codex-stub gives: each capture file
 // is single-writer, last-write-wins, and the ambient claude overlay stays
@@ -28,6 +34,8 @@
 // $ROUBO_E2E_AGENT_ARGV_LOG gates the write but does not choose where it lands:
 // the destination is the shared CURSOR_ARGV_LOG_PATH constant, imported below. An
 // environment variable is untrusted input and must not steer a filesystem path.
+// The two probe paths never write the log: they exit first, and the probe spawn
+// strips every ROUBO_* variable from their environment.
 
 // ESM: the file has no extension, so Node resolves its module type from the
 // nearest package.json, and roubo/package.json declares `"type": "module"`.
@@ -41,10 +49,31 @@ import { CURSOR_ARGV_LOG_PATH } from "../../agent-plugins/_support/argv-log-path
 // `within-tested-range`.
 const STUB_VERSION = "2026.09.15-e2e";
 
+// An excerpt of a recorded real `agent --list-models` listing, lines copied
+// verbatim. Two `-high-fast` ids are kept, so the one APCC-TC-011 picks is not
+// the only id that carries an effort and a speed.
+const LISTING = [
+  "Available models",
+  "",
+  "auto - Auto (current, default)",
+  "gpt-5.3-codex-high - Codex 5.3 High",
+  "gpt-5.3-codex-high-fast - Codex 5.3 High Fast",
+  "composer-2.5 - Composer 2.5",
+  "claude-opus-5-thinking-high-fast - Claude Opus 5 1M Thinking Fast",
+  "",
+  "Tip: use --model <id> (or /model <id> in interactive mode) to switch. Parameterized models also accept quoted overrides, e.g. --model 'claude-opus-4-8[context=1m,effort=high,fast=false]'.",
+  "",
+].join("\n");
+
 const argv = process.argv.slice(2);
 
 if (argv.includes("--version")) {
   process.stdout.write(`${STUB_VERSION} (Roubo e2e stub)\n`);
+  process.exit(0);
+}
+
+if (argv.includes("--list-models")) {
+  process.stdout.write(LISTING);
   process.exit(0);
 }
 

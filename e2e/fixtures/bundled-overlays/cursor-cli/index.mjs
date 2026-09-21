@@ -1,6 +1,7 @@
-// E2E overlay runtime for the `cursor-cli` agent plugin slot (issue #870).
+// E2E overlay runtime for the `cursor-cli` agent plugin slot (APCC-TC-038, APCC-TC-011).
 //
-// SOURCE OF TRUTH: roubo-plugins/plugins/cursor-cli/src/translate-launch.ts. The
+// SOURCE OF TRUTH: roubo-plugins/plugins/cursor-cli/src/translate-launch.ts and
+// src/tokenize.ts. The argv mapping, the tokenizer, the worktree guard, the
 // posture table, the rule translation and the project rules write below are a
 // MIRROR of that module, kept here only because roubo's e2e suite cannot depend
 // on the roubo-plugins workspace (the plugins there build against the published
@@ -15,12 +16,14 @@
 // axes on what the plugin declares, that the posture and rules it saves reach
 // the launch, that the host appends the posture's declared args to the spawned
 // argv, and that the host executes the declared write into the bench workspace.
+// For APCC-TC-011 the model flag's mapping is unit-covered there too; the guard
+// proves that the probed model id the AI Agents form saves reaches the spawned
+// argv unchanged.
 //
-// Deliberately minimal where the real plugin is rich: the model flag, the
-// extra-arguments tokenizer, the worktree guard, the `stop` hook notification
-// wiring and its waiting detection stay out of this file. None is on the
-// APCC-US-005 journey, and reproducing them would add fixture surface no case
-// reads.
+// Deliberately minimal where the real plugin is rich: the `stop` hook
+// notification wiring and its waiting detection stay out of this file. Neither
+// is on the APCC-TC-011 or APCC-TC-038 journey, and reproducing them would add
+// fixture surface no case reads.
 //
 // ESM because the manifest entry is `./index.mjs`; `vscode-jsonrpc/node`
 // resolves from roubo/node_modules.
@@ -49,6 +52,10 @@ const VERSION_PROBE = {
 
 const MODES = ["agent", "plan", "ask"];
 const DEFAULT_MODE = "agent";
+
+/** Mirrors the real plugin's worktree flags. */
+const WORKTREE_LONG_FLAGS = ["--worktree", "--worktree-base", "--skip-worktree-setup"];
+const WORKTREE_SHORT_FLAG = "-w";
 
 /** Mirrors the real plugin's PERMISSIONS_CAPABILITY. */
 const PERMISSIONS_CAPABILITY = {
@@ -88,11 +95,134 @@ function postureSetsMode(posture) {
   return PERMISSIONS_CAPABILITY.postures[posture]?.args.includes("--mode") ?? false;
 }
 
-/** The mode half of the real plugin's `buildArgs`. */
+/**
+ * Split the free-form extra-arguments field into discrete argv tokens. A literal
+ * splitter, not a shell. Mirrors roubo-plugins/plugins/cursor-cli/src/tokenize.ts.
+ */
+function tokenize(extraArgs) {
+  const tokens = [];
+  let current = "";
+  let started = false;
+
+  const flush = () => {
+    if (started) {
+      tokens.push(current);
+      current = "";
+      started = false;
+    }
+  };
+
+  for (let i = 0; i < extraArgs.length; i += 1) {
+    const char = extraArgs[i];
+
+    if (char === " " || char === "\t" || char === "\n" || char === "\r") {
+      flush();
+      continue;
+    }
+
+    if (char === "\\") {
+      const next = extraArgs[i + 1];
+      if (next === undefined) {
+        throw new Error("cursor e2e overlay: extra arguments end with a dangling backslash.");
+      }
+      current += next;
+      started = true;
+      i += 1;
+      continue;
+    }
+
+    if (char === "'") {
+      const end = extraArgs.indexOf("'", i + 1);
+      if (end === -1) throw new Error("cursor e2e overlay: unbalanced single quote.");
+      current += extraArgs.slice(i + 1, end);
+      started = true;
+      i = end;
+      continue;
+    }
+
+    if (char === '"') {
+      started = true;
+      let j = i + 1;
+      let closed = false;
+      for (; j < extraArgs.length; j += 1) {
+        const inner = extraArgs[j];
+        if (inner === "\\") {
+          const next = extraArgs[j + 1];
+          if (next === '"' || next === "\\") {
+            current += next;
+            j += 1;
+          } else {
+            current += inner;
+          }
+          continue;
+        }
+        if (inner === '"') {
+          closed = true;
+          break;
+        }
+        current += inner;
+      }
+      if (!closed) throw new Error("cursor e2e overlay: unbalanced double quote.");
+      i = j;
+      continue;
+    }
+
+    current += char;
+    started = true;
+  }
+
+  flush();
+  return tokens;
+}
+
+function worktreeFlagOf(arg) {
+  for (const flag of WORKTREE_LONG_FLAGS) {
+    if (arg === flag || arg.startsWith(`${flag}=`)) return flag;
+  }
+  if (arg.startsWith(WORKTREE_SHORT_FLAG)) return WORKTREE_SHORT_FLAG;
+  return undefined;
+}
+
+/**
+ * Mirrors the real plugin's `buildArgs`: the selected model id UNCHANGED as one
+ * `--model` pair (never given bracketed parameters, never reduced to a base
+ * name), `--mode` only when it is not the `agent` default and no posture sets
+ * its own, then the tokenized extra arguments, then the worktree guard over the
+ * whole list.
+ */
 function buildArgs(config, opts) {
   const args = [];
+
+  const model = config.model;
+  if (model !== undefined && model !== null) {
+    if (typeof model !== "string") {
+      throw new Error(`cursor e2e overlay: "model" must be a string, but it was ${typeof model}.`);
+    }
+    if (model !== "") args.push("--model", model);
+  }
+
   const mode = readChoice(config.mode, MODES, "mode", DEFAULT_MODE);
   if (mode !== DEFAULT_MODE && !opts.omitMode) args.push("--mode", mode);
+
+  const extraArgs = config.extraArgs;
+  if (extraArgs !== undefined && extraArgs !== null) {
+    if (typeof extraArgs !== "string") {
+      throw new Error(
+        `cursor e2e overlay: "extraArgs" must be a string, but it was ${typeof extraArgs}.`,
+      );
+    }
+    args.push(...tokenize(extraArgs));
+  }
+
+  for (const arg of args) {
+    const flag = worktreeFlagOf(arg);
+    if (flag !== undefined) {
+      throw new Error(
+        `cursor e2e overlay: the "${flag}" flag is not allowed, because Roubo owns the worktree.`,
+      );
+    }
+  }
+
   return args;
 }
 

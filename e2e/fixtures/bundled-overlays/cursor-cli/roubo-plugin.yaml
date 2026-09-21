@@ -1,7 +1,7 @@
 id: cursor-cli
 name: Cursor CLI
 version: 0.2.0
-description: E2E overlay that takes the Cursor CLI agent plugin's slot during Playwright runs. Mirrors the real plugin's permission postures, rule tiers and project rules write against a stub CLI so APCC-TC-038 can drive the integrated set-a-posture-and-rules-then-launch journey. Not for production.
+description: E2E overlay that takes the Cursor CLI agent plugin's slot during Playwright runs. Mirrors the real plugin's configSchema, model choice probe, argv mapping, permission postures, rule tiers and project rules write against a stub CLI, so APCC-TC-011 can drive the configure-a-model journey and APCC-TC-038 the set-a-posture-and-rules-then-launch journey. Not for production.
 kind: agent
 # The same floor as the shipped manifest
 # (roubo-plugins/plugins/cursor-cli/roubo-plugin.yaml): `agentPermissionRuleTiers`
@@ -15,7 +15,7 @@ contractVersion: 1
 # several specs depend on (AP-TC-087, NFR-018). A spec that wants this overlay
 # enables it (POST /api/plugins/cursor-cli/enable) and hands it back disabled.
 #
-# The window is copied from the shipped manifest. The probe names the e2e stub
+# The window is copied from the shipped manifest. The probes name the e2e stub
 # rather than `agent`, because `importLoginShellEnv()` prepends `~/.local/bin`,
 # where the real Cursor installer puts `agent`, so a real install on a developer
 # machine would win the PATH lookup. Keep the stub's version
@@ -28,13 +28,17 @@ agentCompatibility:
     args:
       - --version
     parse: semver
-# Only the shipped plugin's `mode` field, because the posture mapping reads it
-# (a posture carrying its own `--mode` silences it). `model` and its
-# `choiceProbes` entry are left out: the probe is not on the APCC-TC-038 journey,
-# and the choice-probe path already has its own overlay (agent-choice-probe).
+# Copied VERBATIM from the shipped manifest, so the AI Agents card renders the
+# real Model / Mode / Additional CLI arguments fields. `model` shares its key
+# with the claude-code and codex-cli overlays' fields; every spec that reads a
+# `config-field-model` scopes the read to its own agent's card.
 configSchema:
   type: object
   properties:
+    model:
+      title: Model
+      type: string
+      description: The Cursor model id to run, passed unchanged as the value of one --model flag. The choices come from `agent --list-models`. Leave it unset to use your Cursor account default.
     mode:
       title: Mode
       type: string
@@ -47,6 +51,18 @@ configSchema:
           title: Plan
         - const: ask
           title: Ask
+    extraArgs:
+      title: Additional CLI arguments
+      type: string
+      description: Free-form extra arguments appended after the generated flags. Split into discrete argv tokens with quoting honoured; shell metacharacters are never interpreted. Cursor's worktree flags (`-w`, `--worktree`, `--worktree-base`, `--skip-worktree-setup`) are refused, because Roubo owns the worktree.
+# The same probe as the shipped manifest, run against the stub. The host's
+# `dash-line-pairs` reader skips the listing's heading and trailing tip line.
+choiceProbes:
+  model:
+    command: roubo-e2e-cursor-stub
+    args:
+      - --list-models
+    parse: dash-line-pairs
 # Copied VERBATIM from the shipped manifest. This key is what the permissions
 # screen reads to offer only the allow and deny tiers (APCC-FR-016), so it is the
 # half of APCC-TC-038 S002 the overlay has to carry exactly.

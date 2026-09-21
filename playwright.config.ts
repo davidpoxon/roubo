@@ -97,7 +97,11 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     shipped Cursor plugin's posture table, its two rule tiers and its
 //     `.cursor/cli.json` rules write, and its stub captures argv to its OWN
 //     CURSOR_ARGV_LOG_PATH under the ROUBO_E2E_AGENT_ARGV_LOG gate. It is
-//     force-disabled by every /test/__reset like `codex-cli`.
+//     force-disabled by every /test/__reset like `codex-cli`. The same overlay
+//     also carries the APCC-TC-011 configure-a-Cursor-model guard: it mirrors
+//     the shipped `model` field, its `choiceProbes` entry and the model and
+//     extra-arguments half of the argv mapping, and the stub answers
+//     `--list-models` with an excerpt of a real model listing.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
