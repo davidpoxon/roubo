@@ -47,17 +47,12 @@
 import fs from "node:fs";
 
 import { CURSOR_ARGV_LOG_PATH } from "../../agent-plugins/_support/argv-log-path.mjs";
-import { CURSOR_VERSION_PATH } from "../../agent-plugins/_support/cursor-version-path.mjs";
-
-// The Cursor CLI reports a date-based build such as `2026.09.15-d2fe57e`, which
-// `parse: semver` reads as `2026.09.15`. `within` sits exactly on the overlay's
-// tested ceiling, and both bounds are inclusive, so it resolves
-// `within-tested-range`. `below` is older than the `2026.09.08` floor. Keep
-// these equal to CURSOR_BUILDS in cursor-version.ts.
-const BUILDS = {
-  below: "2026.09.01-e2e",
-  within: "2026.09.15-e2e",
-};
+// The builds are defined once, next to the path, so this binary and the spec's
+// expected versions cannot disagree.
+import {
+  CURSOR_BUILDS,
+  CURSOR_VERSION_PATH,
+} from "../../agent-plugins/_support/cursor-version-path.mjs";
 
 // An excerpt of a recorded real `agent --list-models` listing, lines copied
 // verbatim. Two `-high-fast` ids are kept, so the one APCC-TC-011 picks is not
@@ -80,9 +75,9 @@ const argv = process.argv.slice(2);
 function readBuild() {
   try {
     const choice = fs.readFileSync(CURSOR_VERSION_PATH, "utf-8").trim();
-    return BUILDS[choice] ?? BUILDS.within;
+    return CURSOR_BUILDS[choice] ?? CURSOR_BUILDS.within;
   } catch {
-    return BUILDS.within;
+    return CURSOR_BUILDS.within;
   }
 }
 

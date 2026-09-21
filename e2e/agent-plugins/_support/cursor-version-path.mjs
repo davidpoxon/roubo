@@ -18,3 +18,16 @@ import path from "node:path";
 
 /** Where the spec writes, and `roubo-e2e-cursor-stub` reads, the installed build. */
 export const CURSOR_VERSION_PATH = path.join(os.tmpdir(), "roubo-e2e-cursor-version");
+
+/**
+ * The builds the stub prints on `--version`, keyed by the choice written to
+ * CURSOR_VERSION_PATH. The Cursor CLI reports a date-based build such as
+ * `2026.09.15-d2fe57e`, which `parse: semver` reads as `2026.09.15`. `below` is
+ * older than the overlay's `2026.09.08` floor. `within` sits exactly on its
+ * inclusive `2026.09.15` tested ceiling, so it resolves `within-tested-range`,
+ * and it is also what the stub reports when the file is absent.
+ */
+export const CURSOR_BUILDS = {
+  below: "2026.09.01-e2e",
+  within: "2026.09.15-e2e",
+};

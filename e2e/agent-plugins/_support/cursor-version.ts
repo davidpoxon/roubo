@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-import { CURSOR_VERSION_PATH } from "./cursor-version-path.mjs";
+import { CURSOR_BUILDS, CURSOR_VERSION_PATH } from "./cursor-version-path.mjs";
 
 // The installed-build channel for the APCC-TC-052 journey.
 //
@@ -11,23 +11,14 @@ import { CURSOR_VERSION_PATH } from "./cursor-version-path.mjs";
 // refused below the floor drops its cached detection, so the next launch
 // spawns the stub again and sees the build the spec has just written.
 
-export { CURSOR_VERSION_PATH };
+export { CURSOR_BUILDS, CURSOR_VERSION_PATH };
 
 /**
- * Which build the stub reports on `--version`.
- *
- * - `below`: `2026.09.01-e2e`, older than the overlay's `2026.09.08` floor.
- * - `within`: `2026.09.15-e2e`, on the overlay's inclusive tested ceiling. This is
- *   also what the stub reports when the file is absent, so other specs that
- *   launch Cursor pass the gate without touching this channel.
+ * Which build the stub reports on `--version` (see CURSOR_BUILDS). `within` is
+ * also what it reports when the file is absent, so other specs that launch
+ * Cursor pass the gate without touching this channel.
  */
-export type CursorBuild = "below" | "within";
-
-/** The builds the stub prints, keyed by {@link CursorBuild}. */
-export const CURSOR_BUILDS: Record<CursorBuild, string> = {
-  below: "2026.09.01-e2e",
-  within: "2026.09.15-e2e",
-};
+export type CursorBuild = keyof typeof CURSOR_BUILDS;
 
 /** Set the build the next `--version` run reports. */
 export function setCursorBuild(build: CursorBuild): void {

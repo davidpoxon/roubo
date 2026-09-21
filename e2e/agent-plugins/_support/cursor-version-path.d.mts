@@ -2,3 +2,4 @@
 // TypeScript because the extensionless stub binary loads it off disk with no
 // build step, so its export needs a declaration for the TypeScript side.
 export declare const CURSOR_VERSION_PATH: string;
+export declare const CURSOR_BUILDS: { readonly below: string; readonly within: string };
