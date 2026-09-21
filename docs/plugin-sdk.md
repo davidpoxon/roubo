@@ -449,7 +449,7 @@ Every agent-contract name this document describes is a named export of `@roubo/p
 | `WorkspaceWriteSpec`               | type  | A declared workspace file mutation. See [Workspace writes are declarative, always](#workspace-writes-are-declarative-always)                         |
 | `WriteOp`                          | type  | One op inside a `WorkspaceWriteSpec`: `unionArray`, `upsertArray`, `set`, or `delete`                                                                |
 
-The manifest fields these pair with (`kind: agent`, `agentCompatibility`, `agentPermissionRuleTiers`, `configSchema`, `permissions.processes`) are in the [Manifest reference](#manifest-reference); they are validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json) and have no SDK type of their own.
+The manifest fields these pair with (`kind: agent`, `agentCompatibility`, `agentInstallLocations`, `agentPermissionRuleTiers`, `choiceProbes`, `configSchema`, `permissions.processes`) are in the [Manifest reference](#manifest-reference); they are validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json) and have no SDK type of their own.
 
 ### `translateLaunch({ config, context }): Promise<AgentLaunchDescriptor>`
 
