@@ -26,8 +26,9 @@ const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bund
 // is deliberately NOT named `claude`, so prepending cannot shadow a real CLI.
 // AP-TC-113 (#683) adds a second pair on the same wiring: the `codex-cli`
 // overlay and `roubo-e2e-codex-stub`, and AP-TC-115 (#534) a third, `gemini-cli`
-// and `roubo-e2e-gemini-stub`, and APCC-TC-022 (#1306) a fourth,
-// `agent-choice-probe` and `roubo-e2e-probe-stub`. Both hooks are directory
+// and `roubo-e2e-gemini-stub`, APCC-TC-022 (#1306) a fourth,
+// `agent-choice-probe` and `roubo-e2e-probe-stub`, and APCC-TC-038 (#870) a
+// fifth, `cursor-cli` and `roubo-e2e-cursor-stub`. Both hooks are directory
 // walks, so a new overlay directory and a new stub file are picked up with no
 // config change.
 const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
@@ -91,6 +92,12 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     ROUBO_* variable and an env value must not steer a filesystem path, so no
 //     config change is needed here. /test/__reset empties the probe cache so
 //     each test's mode is read afresh, and force-disables the overlay.
+//     A fifth, `cursor-cli` with `roubo-e2e-cursor-stub` (#870), backs the
+//     APCC-TC-038 set-a-posture-and-rules-then-launch guard. It mirrors the
+//     shipped Cursor plugin's posture table, its two rule tiers and its
+//     `.cursor/cli.json` rules write, and its stub captures argv to its OWN
+//     CURSOR_ARGV_LOG_PATH under the ROUBO_E2E_AGENT_ARGV_LOG gate. It is
+//     force-disabled by every /test/__reset like `codex-cli`.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under

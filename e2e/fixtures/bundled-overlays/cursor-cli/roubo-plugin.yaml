@@ -1,0 +1,67 @@
+id: cursor-cli
+name: Cursor CLI
+version: 0.2.0
+description: E2E overlay that takes the Cursor CLI agent plugin's slot during Playwright runs. Mirrors the real plugin's permission postures, rule tiers and project rules write against a stub CLI so APCC-TC-038 can drive the integrated set-a-posture-and-rules-then-launch journey. Not for production.
+kind: agent
+# The same floor as the shipped manifest
+# (roubo-plugins/plugins/cursor-cli/roubo-plugin.yaml): `agentPermissionRuleTiers`
+# below needs host plugin API 1.8.0.
+roubo: ^1.8.0
+entry: ./index.mjs
+contractVersion: 1
+# OPT-IN, not ambient. Every POST /test/__reset forces this id disabled, via
+# OPT_IN_AGENT_FIXTURE_PLUGIN_IDS in server/routes/test.ts, on the same terms as
+# the codex-cli overlay: "exactly one available agent" is a resolution fallback
+# several specs depend on (AP-TC-087, NFR-018). A spec that wants this overlay
+# enables it (POST /api/plugins/cursor-cli/enable) and hands it back disabled.
+#
+# The window is copied from the shipped manifest. The probe names the e2e stub
+# rather than `agent`, because `importLoginShellEnv()` prepends `~/.local/bin`,
+# where the real Cursor installer puts `agent`, so a real install on a developer
+# machine would win the PATH lookup. Keep the stub's version
+# (e2e/fixtures/bin/roubo-e2e-cursor-stub) inside this window.
+agentCompatibility:
+  minVersion: 2026.09.08
+  testedCeiling: 2026.09.15
+  probe:
+    command: roubo-e2e-cursor-stub
+    args:
+      - --version
+    parse: semver
+# Only the shipped plugin's `mode` field, because the posture mapping reads it
+# (a posture carrying its own `--mode` silences it). `model` and its
+# `choiceProbes` entry are left out: the probe is not on the APCC-TC-038 journey,
+# and the choice-probe path already has its own overlay (agent-choice-probe).
+configSchema:
+  type: object
+  properties:
+    mode:
+      title: Mode
+      type: string
+      default: agent
+      description: The operating mode the session starts in, passed as `--mode`. `Agent` is the CLI's own default and sends no flag.
+      oneOf:
+        - const: agent
+          title: Agent
+        - const: plan
+          title: Plan
+        - const: ask
+          title: Ask
+# Copied VERBATIM from the shipped manifest. This key is what the permissions
+# screen reads to offer only the allow and deny tiers (APCC-FR-016), so it is the
+# half of APCC-TC-038 S002 the overlay has to carry exactly.
+agentPermissionRuleTiers:
+  - allow
+  - deny
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  # An agent plugin must declare `processes: false`; the descriptor is its only
+  # write route (PluginManifestSchema enforces this for kind: agent).
+  processes: false
+  ports: false
+  docker: false

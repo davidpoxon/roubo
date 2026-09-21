@@ -489,7 +489,15 @@ function disableFailureFixturePlugins(): void {
 // field is populated by a choice probe. Left enabled it would add a probed
 // control to every AI Agents screen and spawn its stub on every agent read, so
 // it is opt-in on the same terms.
-const OPT_IN_AGENT_FIXTURE_PLUGIN_IDS = ["codex-cli", "gemini-cli", "agent-choice-probe"] as const;
+//
+// APCC-TC-038 (#870) adds a fifth, cursor-cli, the Cursor overlay whose
+// permission postures and two-tier rules back the permissions journey.
+const OPT_IN_AGENT_FIXTURE_PLUGIN_IDS = [
+  "codex-cli",
+  "gemini-cli",
+  "agent-choice-probe",
+  "cursor-cli",
+] as const;
 function disableOptInAgentFixturePlugins(): void {
   for (const id of OPT_IN_AGENT_FIXTURE_PLUGIN_IDS) {
     pluginEnableState.setPluginEnabled(id, false);

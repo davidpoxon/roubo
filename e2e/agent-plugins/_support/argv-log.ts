@@ -1,17 +1,22 @@
 import fs from "node:fs";
 
-import { AGENT_ARGV_LOG_PATH, CODEX_ARGV_LOG_PATH } from "./argv-log-path.mjs";
+import {
+  AGENT_ARGV_LOG_PATH,
+  CODEX_ARGV_LOG_PATH,
+  CURSOR_ARGV_LOG_PATH,
+} from "./argv-log-path.mjs";
 
 // The argv-capture channels used by `playwright.config.ts` (which switches them
 // on for the server as $ROUBO_E2E_AGENT_ARGV_LOG) and by the agent-plugin drift
 // guards that read them back: AP-TC-087 reads the Claude Code channel, and the
-// AP-TC-056 / AP-TC-105 journeys read the Codex one.
+// AP-TC-056 / AP-TC-105 journeys read the Codex one, and the APCC-TC-038
+// journey reads the Cursor one.
 //
 // The paths themselves come from `./argv-log-path.mjs` and are re-exported here,
 // so the stub agent CLIs, which cannot import TypeScript, read the same
 // definitions rather than restating them.
 
-export { AGENT_ARGV_LOG_PATH, CODEX_ARGV_LOG_PATH };
+export { AGENT_ARGV_LOG_PATH, CODEX_ARGV_LOG_PATH, CURSOR_ARGV_LOG_PATH };
 
 /**
  * Drop one capture file, so a subsequent read can only observe the launch under
@@ -63,4 +68,14 @@ export function clearCapturedCodexArgv(): void {
 /** The argv the spawned Codex stub actually received, or `null`. */
 export function readCapturedCodexArgv(): string[] | null {
   return readLog(CODEX_ARGV_LOG_PATH);
+}
+
+/** Remove any argv captured by an earlier Cursor launch. */
+export function clearCapturedCursorArgv(): void {
+  clearLog(CURSOR_ARGV_LOG_PATH);
+}
+
+/** The argv the spawned Cursor stub actually received, or `null`. */
+export function readCapturedCursorArgv(): string[] | null {
+  return readLog(CURSOR_ARGV_LOG_PATH);
 }
