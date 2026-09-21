@@ -28,7 +28,7 @@ const observe = makeObserve("APCC-TC-046");
 // registers, and the notification route the notifier POSTs to. On divergence
 // each observation routes through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s).
+// diverged, the expected-vs-actual, and the owning slice(s).
 //
 // HOW THE CURSOR PLUGIN IS PROVIDED. The shipping plugin lives in the sibling
 // `roubo-plugins` repo and builds against the published SDK, so roubo's e2e
@@ -451,8 +451,11 @@ test(
     );
 
     // --- S003: the first session finishes a turn ------------------------------
-    // Whatever the second bench already carries is the baseline S003-O02 is
+    // Whatever each bench already carries is the baseline its observation is
     // judged against, so only a notification raised after the turn counts.
+    const firstBenchBefore = new Set(
+      (await readNotifications(request, FIRST_BENCH)).map((n) => n.id),
+    );
     const secondBenchBefore = new Set(
       (await readNotifications(request, SECOND_BENCH)).map((n) => n.id),
     );
@@ -465,7 +468,10 @@ test(
     for (let attempt = 0; attempt < 150 && firstSighting === undefined; attempt += 1) {
       firstBenchSeen = await readNotifications(request, FIRST_BENCH);
       firstSighting = firstBenchSeen.find(
-        (n) => n.type === "agent-waiting" && n.sourceSessionId === firstSessionId,
+        (n) =>
+          n.type === "agent-waiting" &&
+          n.sourceSessionId === firstSessionId &&
+          !firstBenchBefore.has(n.id),
       );
       if (firstSighting === undefined) await new Promise((r) => setTimeout(r, 100));
     }
@@ -473,7 +479,7 @@ test(
       STEPS.S003,
       "S003-O01",
       firstSighting !== undefined && firstSighting.metadata === undefined,
-      `${OBSERVATIONS.S003["S003-O01"]} An agent-waiting notification for session ${firstSessionId} on bench ${FIRST_BENCH}, raised by the stop hook (no quiescence label metadata).`,
+      `${OBSERVATIONS.S003["S003-O01"]} An agent-waiting notification for session ${firstSessionId} on bench ${FIRST_BENCH}, raised after the turn finished and by the stop hook (no quiescence label metadata).`,
       describeNotifications(firstBenchSeen),
     );
 
