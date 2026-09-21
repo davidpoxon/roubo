@@ -15,7 +15,7 @@ const observe = makeObserve("AP-TC-087");
 // observations against the REAL built app. On divergence each observation routes
 // through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s).
+// diverged, the expected-vs-actual, and the owning slice(s).
 //
 // HOW THE CLAUDE CODE PLUGIN PRECONDITION IS MET. The shipping plugin lives in
 // the sibling `roubo-plugins` repo and builds against the published SDK, so
@@ -68,11 +68,11 @@ const EXPECTED_ARGV_PREFIX = [
   "sonnet",
 ];
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice.
 const SLICE = {
-  plugin: { issue: 511, title: "Claude Code agent plugin: model, effort, mode, extra-args" },
-  gate: { issue: 536, title: "Verify gate: Phase 1 Contract & Foundation" },
+  plugin: { title: "Claude Code agent plugin: model, effort, mode, extra-args" },
+  gate: { title: "Verify gate: Phase 1 Contract & Foundation" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

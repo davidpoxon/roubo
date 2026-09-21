@@ -19,7 +19,8 @@
 //
 // Run with: npm run lint:semantic-dark
 
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 export const DESIGN_PATH = "DESIGN.md";
 export const SEMANTIC_DARK_PATH = "design-tokens/semantic-dark.css";
@@ -107,7 +108,7 @@ export function missingRedirects(designMd, css) {
 }
 
 // Only run the CLI when invoked directly, not when imported by the test.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const missing = missingRedirects(
     readFileSync(DESIGN_PATH, "utf8"),
     readFileSync(SEMANTIC_DARK_PATH, "utf8"),

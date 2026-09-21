@@ -24,7 +24,7 @@ const observe = makeObserve("AP-TC-057");
 // S001-S004 as ordered, attributable observations against the REAL built app. On
 // divergence each observation routes through the FR-020 failure-output contract
 // (see ../component-plugins/_support/step-runner.ts): the failure reports which
-// step diverged, the expected-vs-actual, and the owning slice issue(s) from this
+// step diverged, the expected-vs-actual, and the owning slice(s) from this
 // unit's blocked_by set.
 //
 // HOW THE CLAUDE CODE PLUGIN PRECONDITION IS MET, and the PARTIAL CIRCULARITY
@@ -70,14 +70,13 @@ const SETTINGS_REL_PATH = path.join(".claude", "settings.local.json");
 const RESYNC_BUTTON = "Re-sync benches";
 const RESYNC_TOAST = `Re-synced ${BENCH_IDS.length} benches`;
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice.
 const SLICE = {
   permissions: {
-    issue: 514,
     title: "Generalized agent permissions with per-agent mapping and bench resync",
   },
-  launch: { issue: 510, title: "Core agent launch pipeline: PTY sessions from descriptors" },
+  launch: { title: "Core agent launch pipeline: PTY sessions from descriptors" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

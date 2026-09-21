@@ -157,7 +157,7 @@ export type ContainerStatus = "running" | "starting" | "stopped" | "not_found" |
  * container id (null when no container matched the query). The id lets callers
  * populate `ComponentStatus.containerId` from the same single listContainers
  * call, so the reconcile / refresh paths surface the id without a second docker
- * round-trip (davidpoxon/roubo-development#410).
+ * round-trip (#892).
  */
 export interface ContainerStatusResult {
   status: ContainerStatus;

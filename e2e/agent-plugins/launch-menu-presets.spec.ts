@@ -67,12 +67,12 @@ const BUILTIN_PLAN_ID = "__builtin_agent_plan__";
 const BUILTIN_SECTION = "Built-in · default agent";
 const AGENT_TOOLS_SECTION = "Agent tools";
 
-// The slice issues that own this behaviour, used by the FR-020 failure-output
+// The slices that own this behaviour, used by the FR-020 failure-output
 // contract to attribute a divergence.
 const SLICE = {
-  menu: { issue: 517, title: "Bench Terminal grouped agent launch menu" },
-  presets: { issue: 516, title: "Agent tool presets: editor, built-ins, resolution" },
-  gate: { issue: 537, title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
+  menu: { title: "Bench Terminal grouped agent launch menu" },
+  presets: { title: "Agent tool presets: editor, built-ins, resolution" },
+  gate: { title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

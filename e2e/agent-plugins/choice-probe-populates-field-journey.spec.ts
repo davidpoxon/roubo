@@ -25,7 +25,7 @@ const observe = makeObserve("APCC-TC-002");
 // the AI Agents form, and the app-level config save. On divergence each
 // observation routes through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s).
+// diverged, the expected-vs-actual, and the owning slice(s).
 //
 // HOW THE PLUGIN AND ITS PROBE ARE PROVIDED. The `agent-choice-probe` bundled
 // overlay (e2e/fixtures/bundled-overlays/agent-choice-probe/) declares a
@@ -56,17 +56,17 @@ const PROBED_CHOICES = [
 /** The choice S004 selects: not the first, so a default cannot pass for a pick. */
 const PICK = PROBED_CHOICES[2];
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice. The journey-to-slice
 // mapping is by requirement and story overlap, so each step names a
 // conservative superset.
 const SLICE = {
-  declare: { issue: 850, title: "Declare a choice probe on a configuration field" },
-  runner: { issue: 851, title: "One host-executed probe runner with a parse-mode registry" },
-  serve: { issue: 852, title: "Serve probed choices through the existing choice path" },
-  notify: { issue: 854, title: "Add the file-registered, stdin-payload notification variant" },
-  compat: { issue: 856, title: "Prove both additions are non-breaking and agent-agnostic" },
-  sdk: { issue: 857, title: "Publish the SDK carrying both contract additions" },
+  declare: { title: "Declare a choice probe on a configuration field" },
+  runner: { title: "One host-executed probe runner with a parse-mode registry" },
+  serve: { title: "Serve probed choices through the existing choice path" },
+  notify: { title: "Add the file-registered, stdin-payload notification variant" },
+  compat: { title: "Prove both additions are non-breaking and agent-agnostic" },
+  sdk: { title: "Publish the SDK carrying both contract additions" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

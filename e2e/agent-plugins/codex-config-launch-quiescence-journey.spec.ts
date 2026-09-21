@@ -29,7 +29,7 @@ import {
 // against the REAL built app. On divergence each observation routes through the
 // FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s). Each case
+// diverged, the expected-vs-actual, and the owning slice(s). Each case
 // binds its OWN observer, so a divergence block names AP-TC-056 or AP-TC-105
 // rather than a shared label.
 //
@@ -175,18 +175,16 @@ const QUIESCENCE_DEBOUNCE_MS = 3000;
  */
 const PER_AGENT_WINDOW_FLOOR_MS = 2500;
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice.
 const SLICE = {
-  spike: { issue: 505, title: "Spike: Codex session correlation and quiescence behavior" },
-  injection: { issue: 512, title: "Jig injection through the agent plugin injection capability" },
+  spike: { title: "Spike: Codex session correlation and quiescence behavior" },
+  injection: { title: "Jig injection through the agent plugin injection capability" },
   notifications: {
-    issue: 513,
     title: "Agent session notifications: hook-driven and quiescence waiting/exited detection",
   },
-  plugin: { issue: 520, title: "Codex CLI agent plugin" },
+  plugin: { title: "Codex CLI agent plugin" },
   gate: {
-    issue: 537,
     title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces (33 gating cases)",
   },
 } as const;

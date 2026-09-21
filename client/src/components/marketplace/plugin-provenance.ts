@@ -23,7 +23,7 @@ export const FIRST_PARTY_LABEL = "Roubo first-party";
 /**
  * Stand-in source for an installed plugin the provenance ledger does not describe.
  * Every install path now stamps a row (a first-party seed, a marketplace install,
- * and the raw git / local paths all record one, davidpoxon/roubo-development#607),
+ * and the raw git / local paths all record one, #981),
  * so in practice this is reached only by a record that predates the ledger. It is
  * NOT a real source id (a generated third-party id ends in an 8-char hex suffix,
  * and "source" is not hex), and exists so such a plugin fails closed to unverified
@@ -126,7 +126,7 @@ export function listingProvenance(
  * git / local install both carried no ledger row and only the id told them apart
  * (CPHMTP-NFR-001, issue #563). Keying trust off a self-asserted id is not a trust
  * root, so every install path now stamps a ledger row (a first-party seed, and the
- * raw git / local paths, davidpoxon/roubo-development#607). With the durable fix in
+ * raw git / local paths, #981). With the durable fix in
  * place, absence no longer needs interpreting: a stamped row is authoritative, and
  * its absence simply fails closed.
  */

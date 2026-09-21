@@ -55,7 +55,7 @@ export interface PluginRecord {
   //
   // Absent FAILS CLOSED to unverified. Every install path now stamps a row: a
   // first-party seed, a marketplace install, and the raw git / local paths all
-  // record one (davidpoxon/roubo-development#607), so the client grades trust by
+  // record one (#981), so the client grades trust by
   // the ledger row rather than the plugin's self-asserted id. A record with no
   // provenance fields (in practice one predating the ledger) therefore reads as
   // unverified, never first-party (CPHMTP-NFR-001, issue #563).

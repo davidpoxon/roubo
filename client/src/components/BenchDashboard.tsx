@@ -161,7 +161,7 @@ export default function BenchDashboard() {
     for (let i = 1; i <= maxBenches; i++) {
       positions.push({ position: i, bench: benchMap.get(i) });
     }
-    // Surface out-of-range benches as their own clearable cards (davidpoxon/roubo-development#21).
+    // Surface out-of-range benches as their own clearable cards (#834).
     // A bench whose id is < 1 or > maxBenches is orphaned: this happens when
     // benches.max in roubo.yaml is lowered after a higher-id bench was created,
     // leaving that bench persisted in state.json but outside the 1..maxBenches

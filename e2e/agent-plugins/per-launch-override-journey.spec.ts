@@ -27,7 +27,7 @@ const observe = makeObserve("AP-TC-028");
 // observations against the REAL built app. On divergence each observation routes
 // through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s).
+// diverged, the expected-vs-actual, and the owning slice(s).
 //
 // The `claude-code` bundled overlay and the `roubo-e2e-claude-stub` binary are
 // the same fixtures the AP-TC-087 guard uses, and its header carries the full
@@ -124,11 +124,11 @@ const LAUNCH_TOAST = `${CLAUDE_AGENT_NAME} session started with overrides`;
  */
 const LAUNCH_TOAST_PREFIX = `${CLAUDE_AGENT_NAME} session started`;
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice.
 const SLICE = {
-  dialog: { issue: 518, title: "Per-launch override dialog with resolution trace" },
-  a11y: { issue: 524, title: "Accessibility audit of the agent surfaces (WCAG 2.1 AA)" },
+  dialog: { title: "Per-launch override dialog with resolution trace" },
+  a11y: { title: "Accessibility audit of the agent surfaces (WCAG 2.1 AA)" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

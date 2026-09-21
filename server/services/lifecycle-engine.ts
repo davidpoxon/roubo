@@ -227,7 +227,7 @@ async function runDocker(
     completePhases(phases);
     // Surface the externally-assigned container id on the running status so the
     // integrated ComponentStatus reports it while the container is up
-    // (davidpoxon/roubo-development#410), mirroring the pid the process path
+    // (#892), mirroring the pid the process path
     // attaches. The user owns this container's lifecycle; the id is theirs.
     push(ctx, "running", phases, undefined, {
       containerId: descriptor.assignedContainerId,
@@ -336,7 +336,7 @@ async function runDocker(
   // Resolve the compose service's container id from the same seam the broker
   // uses after composeUp (docker.getContainerId), and attach it to the running
   // status so the integrated ComponentStatus reports it while the container is
-  // up (davidpoxon/roubo-development#410), mirroring the pid the process path
+  // up (#892), mirroring the pid the process path
   // attaches. composeUp itself does not return the id, so this is a cheap
   // post-success resolution; a null id (no matching container) simply omits it.
   const containerId = await docker.getContainerId(projectName, descriptor.service);

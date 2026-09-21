@@ -35,7 +35,7 @@ const observe = makeObserve("AP-TC-102");
 // S001-S005 as ordered, attributable observations against the REAL built app. On
 // divergence each observation routes through the FR-020 failure-output contract
 // (see ../component-plugins/_support/step-runner.ts): the failure reports which
-// step diverged, the expected-vs-actual, and the owning slice issue(s) from this
+// step diverged, the expected-vs-actual, and the owning slice(s) from this
 // unit's blocked_by set.
 //
 // HOW THE UPGRADE PRECONDITION IS MET. "The user is upgrading from a build that
@@ -89,17 +89,15 @@ const NOTICE_TESTID = "agent-migration-notice";
 const SETTINGS_REL_PATH = path.join(".claude", "settings.local.json");
 const HOOK_ENDPOINT = "/api/hooks/claude-notification";
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice.
 const SLICE = {
   removal: {
-    issue: 521,
     title: "Remove the built-in Claude Code path: first-run notice and core purity guard",
   },
-  inject: { issue: 512, title: "Jig injection through the agent plugin injection capability" },
-  notify: { issue: 513, title: "Agent session notifications: hook-driven waiting/exited" },
+  inject: { title: "Jig injection through the agent plugin injection capability" },
+  notify: { title: "Agent session notifications: hook-driven waiting/exited" },
   permissions: {
-    issue: 514,
     title: "Generalized agent permissions with per-agent mapping and bench resync",
   },
 } as const;

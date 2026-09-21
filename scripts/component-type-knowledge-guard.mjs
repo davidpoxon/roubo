@@ -39,7 +39,8 @@
 // Run with: npm run lint:component-guard
 
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 const ROOTS = ["server", "shared"];
 
@@ -206,7 +207,7 @@ function listFiles() {
 }
 
 // Only run the CLI when invoked directly, not when imported by the test.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const findings = scanFiles(listFiles(), (f) => readFileSync(f, "utf8"));
 
   if (findings.length > 0) {

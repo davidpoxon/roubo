@@ -8,7 +8,7 @@ let tmpDir: string;
 
 // `copyResources` ships built server/client/schema only, with no network step:
 // the app ships no first-party plugin artifacts (the SEED channel was retired,
-// davidpoxon/roubo-development#621), so the packaging step is fully offline.
+// #993), so the packaging step is fully offline.
 
 beforeEach(async () => {
   tmpDir = await mkdtemp(path.join(os.tmpdir(), "copy-resources-test-"));

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // Tests for the shared expectNoAxeFindings helper (issue
-// roubo-development#600), including a repro pinning the axe-core behavior
+// #967), including a repro pinning the axe-core behavior
 // behind the blind spot it closes: a prohibited aria-label on a role-less
 // element with subtree text is downgraded to results.incomplete, which the
 // bare toHaveNoViolations matcher silently ignores.

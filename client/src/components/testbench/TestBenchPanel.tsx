@@ -277,7 +277,7 @@ export default function TestBenchPanel({
   const modeToggle = (
     <div
       // role=group: aria-label is ARIA-prohibited on a role-less div (issue
-      // roubo-development#600), and the segmented switch is a group of toggles.
+      // #967), and the segmented switch is a group of toggles.
       role="group"
       aria-label="TestBench view"
       className="inline-flex self-start rounded-lg ring-1 ring-inset ring-border bg-bg-base p-0.5"

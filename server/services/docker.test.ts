@@ -367,7 +367,7 @@ describe("getContainerStatuses", () => {
 
     // The batch carries the matched container id alongside the status so callers
     // populate ComponentStatus.containerId without a second docker call
-    // (davidpoxon/roubo-development#410).
+    // (#892).
     expect(results.get("proj-1/db")).toEqual({ status: "running", id: "proj-1-container" });
     expect(results.get("proj-2/db")).toEqual({ status: "starting", id: "proj-2-container" });
     expect(results.get("proj-3/db")).toEqual({ status: "not_found", id: null });

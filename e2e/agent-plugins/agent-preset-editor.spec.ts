@@ -65,11 +65,11 @@ const INHERIT_OPTION = { value: "", label: "inherit" } as const;
 const JIG_INHERIT = "__inherit__";
 const JIG_NONE = "__none__";
 
-// The slice issues that own this behaviour, used by the FR-020 failure-output
+// The slices that own this behaviour, used by the FR-020 failure-output
 // contract to attribute a divergence.
 const SLICE = {
-  editor: { issue: 516, title: "Agent tool presets: editor, built-ins, resolution" },
-  gate: { issue: 537, title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
+  editor: { title: "Agent tool presets: editor, built-ins, resolution" },
+  gate: { title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

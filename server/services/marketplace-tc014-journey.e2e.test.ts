@@ -51,7 +51,7 @@
 // of band, so the journey catalog's signature leg drives that same node:crypto
 // ed25519 primitive keyed to the journey's own generated operational public key.
 // The first-party SEED channel (and its committed catalog + bundled key) was
-// retired (davidpoxon/roubo-development#621), so there is no committed catalog to
+// retired (#993), so there is no committed catalog to
 // re-verify here.
 //
 // Drift guard: each it() is named after its CPHM-TC-014 step id and the step's

@@ -12,7 +12,7 @@ import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { MarketplaceListing, PluginRecord } from "@roubo/shared";
 
 // Well-known first-party plugin ids (formerly the retired SEED_PLUGIN_IDS set,
-// davidpoxon/roubo-development#621). Declared locally now that the app no longer
+// #993). Declared locally now that the app no longer
 // exports a seed set: the point of these cases is that even a well-known
 // first-party id earns no trust by name, only by a stamped ledger row (#607).
 const FIRST_PARTY_PLUGIN_IDS = ["github-com", "process", "database"] as const;

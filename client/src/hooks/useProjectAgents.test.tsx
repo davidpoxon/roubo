@@ -41,13 +41,13 @@ describe("useProjectAgents", () => {
     mockedApi.fetchProjectAgents.mockResolvedValue(PAYLOAD as never);
 
     const queryClient = makeQueryClient();
-    const { result } = renderHookWithProviders(() => useProjectAgents("roubo-development"), {
+    const { result } = renderHookWithProviders(() => useProjectAgents("demo"), {
       queryClient,
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(mockedApi.fetchProjectAgents).toHaveBeenCalledWith("roubo-development");
-    expect(queryClient.getQueryData(["project-agents", "roubo-development"])).toEqual(PAYLOAD);
+    expect(mockedApi.fetchProjectAgents).toHaveBeenCalledWith("demo");
+    expect(queryClient.getQueryData(["project-agents", "demo"])).toEqual(PAYLOAD);
   });
 
   it("returns an empty list cleanly when no agent plugin is installed", async () => {
@@ -56,7 +56,7 @@ describe("useProjectAgents", () => {
       orphanedOverrides: [],
     } as never);
 
-    const { result } = renderHookWithProviders(() => useProjectAgents("roubo-development"));
+    const { result } = renderHookWithProviders(() => useProjectAgents("demo"));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isError).toBe(false);
@@ -69,7 +69,7 @@ describe("useProjectAgents", () => {
       orphanedOverrides: [{ pluginId: "ghost-agent", reason: "not-installed" }],
     } as never);
 
-    const { result } = renderHookWithProviders(() => useProjectAgents("roubo-development"));
+    const { result } = renderHookWithProviders(() => useProjectAgents("demo"));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.data?.orphanedOverrides).toEqual([
@@ -83,18 +83,16 @@ describe("useSaveProjectAgentOverride", () => {
     mockedApi.saveProjectAgentOverride.mockResolvedValue({ overrides: {}, effective: {} } as never);
 
     const { result } = renderHookWithProviders(() =>
-      useSaveProjectAgentOverride("roubo-development", "claude-code"),
+      useSaveProjectAgentOverride("demo", "claude-code"),
     );
     await act(async () => {
       result.current.mutate({ model: "sonnet" });
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.saveProjectAgentOverride).toHaveBeenCalledWith(
-      "roubo-development",
-      "claude-code",
-      { model: "sonnet" },
-    );
+    expect(mockedApi.saveProjectAgentOverride).toHaveBeenCalledWith("demo", "claude-code", {
+      model: "sonnet",
+    });
   });
 
   it("invalidates only its own project's query on success", async () => {
@@ -104,7 +102,7 @@ describe("useSaveProjectAgentOverride", () => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHookWithProviders(
-      () => useSaveProjectAgentOverride("roubo-development", "claude-code"),
+      () => useSaveProjectAgentOverride("demo", "claude-code"),
       { queryClient },
     );
     await act(async () => {
@@ -113,7 +111,7 @@ describe("useSaveProjectAgentOverride", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["project-agents", "roubo-development"],
+      queryKey: ["project-agents", "demo"],
     });
   });
 
@@ -121,7 +119,7 @@ describe("useSaveProjectAgentOverride", () => {
     mockedApi.saveProjectAgentOverride.mockRejectedValue(new Error("Invalid agent configuration"));
 
     const { result } = renderHookWithProviders(() =>
-      useSaveProjectAgentOverride("roubo-development", "claude-code"),
+      useSaveProjectAgentOverride("demo", "claude-code"),
     );
     await act(async () => {
       result.current.mutate({ model: "nonsense" });

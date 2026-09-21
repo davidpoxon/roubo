@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Restore the executable bit on node-pty's prebuilt `spawn-helper`
-// (davidpoxon/roubo-development#685).
+// (#1103).
 //
 // node-pty posix_spawnp()s that helper for every PTY it allocates, so a helper
 // extracted mode -rw-r--r-- breaks every terminal in the app at once: plain

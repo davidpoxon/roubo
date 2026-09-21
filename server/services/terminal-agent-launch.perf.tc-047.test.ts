@@ -319,7 +319,7 @@ async function launch(shape: LaunchShape) {
 
 /**
  * Warm the path up, and turn node-pty's opaque `posix_spawnp failed` into the
- * diagnosis it actually has: davidpoxon/roubo-development#685, the platform
+ * diagnosis it actually has: #1103, the platform
  * prebuild's `spawn-helper` extracted without its executable bit. Without this
  * a harness run on a fresh `npm install` reports a perf failure for what is an
  * install problem.
@@ -332,7 +332,7 @@ async function warmUp(): Promise<void> {
     if (guidance.includes("posix_spawnp failed")) {
       throw new Error(
         "node-pty could not allocate a PTY (posix_spawnp failed), so the AP-TC-047 budget was " +
-          "not measured. This is davidpoxon/roubo-development#685: the platform prebuild's " +
+          "not measured. This is #1103: the platform prebuild's " +
           "spawn-helper can be extracted without its executable bit. Run `chmod +x " +
           "node_modules/node-pty/prebuilds/<platform>/spawn-helper` (or `npm rebuild node-pty`) " +
           "and re-run.",

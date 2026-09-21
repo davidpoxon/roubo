@@ -24,7 +24,7 @@ const observe = makeObserve("AP-TC-002");
 // S001-S008 as ordered, attributable observations against the REAL built app. On
 // divergence each observation routes through the FR-020 failure-output contract
 // (see ../component-plugins/_support/step-runner.ts): the failure reports which
-// step diverged, the expected-vs-actual, and the owning slice issue(s).
+// step diverged, the expected-vs-actual, and the owning slice(s).
 //
 // HOW THE CLAUDE CODE PLUGIN PRECONDITION IS MET. The shipping plugin lives in
 // the sibling `roubo-plugins` repo and builds against the published SDK, so
@@ -37,8 +37,8 @@ const observe = makeObserve("AP-TC-002");
 // `buildArgs` + `tokenize` ordering. This is the same precondition the AP-TC-087
 // guard (claude-config-launch-journey.spec.ts) is built on.
 //
-// THE PROJECT IS A FIXTURE, NOT `roubo-development`. AP-TC-002's third
-// precondition names the real `roubo-development` project. The harness has no
+// THE PROJECT IS A FIXTURE, NOT A REAL ONE. AP-TC-002's third precondition
+// names a real, already-registered project. The harness has no
 // such registration and must not depend on the developer's own machine state, so
 // this walks the journey against a fixture project registered through
 // `/test/__register-fixture-project`. Cosmetic: nothing in the journey depends on
@@ -126,36 +126,30 @@ const EXPECTED_EFFECTIVE = "model=sonnet, effort=high, mode=plan";
 // CLI actually received.
 const EXPECTED_ARGV_PREFIX = ["--model", "sonnet", "--effort", "high", "--permission-mode", "plan"];
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice.
 const SLICE = {
-  kind: { issue: 506, title: "Widen the plugin kind discriminator to accept kind: agent" },
+  kind: { title: "Widen the plugin kind discriminator to accept kind: agent" },
   sdk: {
-    issue: 507,
     title: "Add the agent plugin contract to the SDK and load agent plugins through the runtime",
   },
   appConfig: {
-    issue: 508,
     title: "App-level agent configuration and the AI Agents settings screen",
   },
   projectConfig: {
-    issue: 509,
     title: "Project-level agent config overrides with effective-config resolution",
   },
   launch: {
-    issue: 510,
     title: "Core agent launch pipeline: PTY sessions from declarative launch descriptors",
   },
   notifications: {
-    issue: 513,
     title: "Agent session notifications: hook-driven and quiescence waiting/exited detection",
   },
   permissions: {
-    issue: 514,
     title: "Generalized agent permissions with per-agent mapping and bench resync",
   },
-  marketplace: { issue: 522, title: "Marketplace distribution for agent-kind plugins" },
-  gate: { issue: 537, title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
+  marketplace: { title: "Marketplace distribution for agent-kind plugins" },
+  gate: { title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

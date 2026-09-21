@@ -8,22 +8,25 @@ import { expect } from "@playwright/test";
 // authoritative e2e_flow case, the failure message must localise the drift to an
 // attributable slice so an integration break is not a vague red X: it must
 // report (1) which e2e_flow step diverged, (2) the expected-vs-actual at that
-// step, and (3) the owning slice issue(s).
+// step, and (3) the owning slice(s).
+//
+// Owning slices are named by title only. The slices are filed in a tracker that
+// this public repository does not link to, so a bare `#N` would resolve against
+// this repository's own issues and point at the wrong item. The journey/case id
+// in the header is the stable public anchor; the slice title narrows it.
 //
 // This module is the producer side of that contract. Each step is declared with
-// its id, instruction, and the slice issues that own it; an assertion that fails
+// its id, instruction, and the slices that own it; an assertion that fails
 // routes through the observer returned by `makeObserve`, so the thrown error
 // carries the full attribution block. The journey/case id (e.g. "CP-TC-028",
 // "CPHM-TC-081") is bound per spec so each guard's failures name their own case
 // rather than a hardcoded one.
 
 /**
- * One slice from a unit's blocked-by / dispatch set. `issue` is optional: a
- * slice whose issue lives in a tracker this repository does not link to is
- * attributed by its title alone.
+ * One slice from a unit's blocked-by / dispatch set, attributed by its title.
+ * There is deliberately no issue-number field: see the header comment.
  */
 export interface OwningSlice {
-  issue?: number;
   title: string;
 }
 
@@ -31,7 +34,7 @@ export interface OwningSlice {
 export interface JourneyStep {
   id: string;
   instruction: string;
-  /** The slice issue(s) that own the behaviour this step observes. */
+  /** The slice(s) that own the behaviour this step observes. */
   owners: OwningSlice[];
 }
 
@@ -47,9 +50,7 @@ export function formatDivergence(
   expected: string,
   actual: string,
 ): string {
-  const owners = step.owners
-    .map((o) => (o.issue === undefined ? o.title : `#${o.issue} (${o.title})`))
-    .join(", ");
+  const owners = step.owners.map((o) => o.title).join(", ");
   return [
     "",
     `${journeyId} drift detected (FR-020 failure-output contract):`,

@@ -7,13 +7,13 @@ import {
   setMarketplaceReachable,
 } from "./_support/scenario.js";
 
-// CPHM-TC-051 (CPHM-FR-009 / CPHM-NFR-003 / CPHM-US-002, issue #314): end-to-end
+// CPHM-TC-051 (CPHM-FR-009 / CPHM-NFR-003 / CPHM-US-002): end-to-end
 // proof of the offline marketplace journey. The app degrades to the last-known
 // catalog (the on-disk cache), bundled plugins keep running, a NEW install while
 // the marketplace is unreachable is paused with a clear message (not a crash),
 // and reconnecting un-pauses installs.
 //
-// The first-party SEED channel was retired (davidpoxon/roubo-development#621), so
+// The first-party SEED channel was retired (#993), so
 // there is no bundled catalog floor: the offline degrade shows the LAST-VERIFIED
 // CACHE. This journey therefore warms the cache with a reachable fetch first,
 // then goes offline so the served catalog degrades to that cache. (Cold-start
@@ -59,10 +59,10 @@ import {
 const SCENARIO = "default";
 const NOW = "2026-06-28T10:00:00.000Z";
 
-// Owning slice issue from this unit's blocked-by set, surfaced in failure
-// messages so a red step points at one slice (issue #314 acceptance criterion 3).
-const CATALOG_SLICE =
-  "davidpoxon/roubo-development#306 (catalog-client: degrade chain + marketplace-unreachable gate)";
+// Owning slice from this unit's blocked-by set, named by title and surfaced in
+// failure messages so a red step points at one slice (FR-020 failure-output
+// contract).
+const CATALOG_SLICE = "catalog-client: degrade chain + marketplace-unreachable gate";
 
 // A bundled plugin: github-com ships bundled with Roubo (source "bundled") in the
 // e2e harness, so it is the "bundled plugin keeps running offline" subject for

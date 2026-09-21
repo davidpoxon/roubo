@@ -32,7 +32,7 @@ import * as sourcesState from "./marketplace-sources-state.js";
 // verifies them fail-closed against the embedded bootstrap root key, caches the
 // last verified envelope, and degrades NETWORK -> CACHE, bottoming out at an
 // empty listing (the first-party SEED channel was retired in
-// davidpoxon/roubo-development#621). This service reads those verified entries,
+// #993). This service reads those verified entries,
 // cross-references the installed plugin set to annotate each entry's install /
 // update state, and supports search + kind filtering. Install and update REUSE
 // the existing plugin-installer staging -> consent -> commit flow; the expected

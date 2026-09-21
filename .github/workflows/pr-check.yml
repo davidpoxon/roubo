@@ -55,6 +55,10 @@ jobs:
       # merges green: the build compiles and the utility naming the variable
       # that never arrived just paints nothing.
       - run: npm run lint:emitted-tokens
+      # Fail the build if any tracked file names a repository this public
+      # repository must not reference. Cite spec ids or this repository's own
+      # issue and PR numbers instead.
+      - run: npm run lint:repo-refs
 
   format:
     runs-on: ubuntu-latest

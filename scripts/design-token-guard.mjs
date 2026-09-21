@@ -41,7 +41,8 @@
 // Run with: npm run lint:design-tokens
 
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 export const SCAN_ROOT = "client/src";
 export const ALLOWLIST_PATH = "scripts/design-token-allowlist.json";
@@ -312,7 +313,7 @@ export function scanTree() {
 }
 
 // Only run the CLI when invoked directly, not when imported by the test.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const allowlist = JSON.parse(readFileSync(ALLOWLIST_PATH, "utf8")).entries ?? [];
   const { violations, problems } = applyAllowlist(scanTree(), allowlist);
 

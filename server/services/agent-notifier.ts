@@ -15,7 +15,7 @@ import { atomicWrite, getRouboDir } from "./state.js";
  *
  * Two constraints shape it.
  *
- * The `file-notifier` wiring (roubo-development#855) runs the same program
+ * The `file-notifier` wiring (#1265) runs the same program
  * through a shell with the token as its only argument and the event JSON on
  * standard input; see `buildNotifierScript` for how it tells the two apart.
  *
@@ -64,7 +64,7 @@ function notifierEndpoint(port: string): string {
  *   `spawned-notifier` agent appends). The canonical invocation carries exactly
  *   those two, so both readings agree.
  * - exactly one argument: the event JSON is read from standard input (what a
- *   `file-notifier` agent writes, issue roubo-development#855). The read is
+ *   `file-notifier` agent writes, #1265). The read is
  *   bounded by the same five-second window as the request, so a caller that
  *   holds stdin open without sending end of file cannot hang the program, and
  *   the reader is killed and reaped before the request so no child outlives it.

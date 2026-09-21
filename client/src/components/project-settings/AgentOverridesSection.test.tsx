@@ -75,7 +75,7 @@ beforeEach(() => {
 describe("AgentOverridesSection", () => {
   it("shows every field's app default beside its override row (AP-TC-005 S001)", () => {
     mockedList.mockReturnValue(listResult([CLAUDE]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     const card = within(screen.getByTestId("project-agent-card-claude-code"));
     expect(card.getByTestId("project-agent-toggle-claude-code-model")).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("AgentOverridesSection", () => {
 
   it("marks the un-overridden fields as inheriting (AP-TC-005 S002)", async () => {
     mockedList.mockReturnValue(listResult([{ ...CLAUDE, overrides: { model: "sonnet" } }]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     expect(
       screen.queryByTestId("project-agent-inherits-claude-code-model"),
@@ -115,7 +115,7 @@ describe("AgentOverridesSection", () => {
         },
       ]),
     );
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     expect(screen.getByTestId("project-agent-effective-claude-code")).toHaveTextContent(
       "model=sonnet, effort=high, mode=plan",
@@ -125,7 +125,7 @@ describe("AgentOverridesSection", () => {
   it("reverts a field to the app default when its override is toggled off (AP-TC-005 S004)", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([{ ...CLAUDE, overrides: { model: "sonnet" } }]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     await user.click(screen.getByRole("checkbox", { name: "Override Model" }));
 
@@ -138,7 +138,7 @@ describe("AgentOverridesSection", () => {
   it("saves the override subset, not a whole config", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([CLAUDE]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     await user.click(screen.getByRole("checkbox", { name: "Override Model" }));
     await user.click(screen.getByTestId("project-agent-save-claude-code"));
@@ -152,7 +152,7 @@ describe("AgentOverridesSection", () => {
   it("banners a save rejection that names a field this project inherits", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([CLAUDE]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     await user.click(screen.getByRole("checkbox", { name: "Override Model" }));
     await user.click(screen.getByTestId("project-agent-save-claude-code"));
@@ -177,7 +177,7 @@ describe("AgentOverridesSection", () => {
   it("attaches a save rejection to the overridden field it names", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([CLAUDE]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     await user.click(screen.getByRole("checkbox", { name: "Override Model" }));
     await user.click(screen.getByTestId("project-agent-save-claude-code"));
@@ -206,14 +206,14 @@ describe("AgentOverridesSection", () => {
         },
       ]),
     );
-    const { unmount } = render(<AgentOverridesSection projectId="roubo-development" />);
+    const { unmount } = render(<AgentOverridesSection projectId="demo" />);
     expect(screen.getByTestId("project-agent-effective-claude-code")).toHaveTextContent(
       "model=sonnet, effort=low, mode=auto",
     );
     unmount();
 
     mockedList.mockReturnValue(listResult([CLAUDE]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
     expect(screen.getByTestId("project-agent-effective-claude-code")).toHaveTextContent(
       "model=opus, effort=high, mode=plan",
     );
@@ -229,7 +229,7 @@ describe("AgentOverridesSection", () => {
         },
       ]),
     );
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     expect(screen.getByTestId("project-agent-app-default-claude-code-model")).toHaveTextContent(
       "App default: haiku",
@@ -250,7 +250,7 @@ describe("AgentOverridesSection", () => {
         },
       ]),
     );
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     expect(screen.getByTestId("project-agent-effective-claude-code")).toHaveTextContent(
       "model=sonnet, effort=low, mode=plan",
@@ -260,7 +260,7 @@ describe("AgentOverridesSection", () => {
   it("keeps a cleared numeric override defined and escapable (#637)", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([GEMINI]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     await user.click(screen.getByRole("checkbox", { name: "Override Max turns" }));
     await user.clear(screen.getByRole("spinbutton", { name: "Max turns" }));
@@ -285,7 +285,7 @@ describe("AgentOverridesSection", () => {
   it("replaces, rather than appends to, a cleared numeric override (#637)", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([GEMINI]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     await user.click(screen.getByRole("checkbox", { name: "Override Max turns" }));
     await user.clear(screen.getByRole("spinbutton", { name: "Max turns" }));
@@ -305,7 +305,7 @@ describe("AgentOverridesSection", () => {
   it("saves the seeded fallback when a cleared numeric override is left empty (#637)", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([GEMINI]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     await user.click(screen.getByRole("checkbox", { name: "Override Max turns" }));
     await user.clear(screen.getByRole("spinbutton", { name: "Max turns" }));
@@ -322,7 +322,7 @@ describe("AgentOverridesSection", () => {
     // The saved override already equals the app default, so emptying the box
     // changes nothing in the draft and `dirty` stays false.
     mockedList.mockReturnValue(listResult([{ ...GEMINI, overrides: { maxTurns: 12 } }]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     await user.clear(screen.getByRole("spinbutton", { name: "Max turns" }));
 
@@ -339,7 +339,7 @@ describe("AgentOverridesSection", () => {
     mockedList.mockReturnValue(
       listResult([CLAUDE], [{ pluginId: "ghost-agent", reason: "not-installed" }]),
     );
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     expect(screen.getByTestId("project-agent-orphaned-overrides")).toHaveTextContent("ghost-agent");
     expect(screen.queryByTestId("project-agent-card-ghost-agent")).not.toBeInTheDocument();
@@ -351,7 +351,7 @@ describe("AgentOverridesSection", () => {
 
   it("renders an empty state, not an error, with no agent plugins installed", () => {
     mockedList.mockReturnValue(listResult([]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     expect(screen.getByTestId("project-agents-empty-state")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -363,7 +363,7 @@ describe("AgentOverridesSection", () => {
       isLoading: false,
       error: new Error("boom"),
     } as unknown as ReturnType<typeof _useProjectAgents>);
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("Failed to load agent overrides: boom");
   });
@@ -383,7 +383,7 @@ describe("AgentOverridesSection", () => {
       misconfigured: null,
     };
     mockedList.mockReturnValue(listResult([CLAUDE, codex]));
-    render(<AgentOverridesSection projectId="roubo-development" />);
+    render(<AgentOverridesSection projectId="demo" />);
 
     const claude = within(screen.getByTestId("project-agent-card-claude-code"));
     expect(claude.getByText("Model")).toBeInTheDocument();

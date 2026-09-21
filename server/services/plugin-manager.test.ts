@@ -677,11 +677,11 @@ describe("a below-floor host refuses a rule-tiers manifest by version (issue #86
   });
 });
 
-// Clean break (issue davidpoxon/roubo-development#310 / #621, CPHM-FR-008 /
+// Clean break (#858 / #993, CPHM-FR-008 /
 // NFR-005): the app no longer ships or discovers a bundled plugin source dir,
 // and the first-run SEED channel was retired. First-party plugins install from
 // the NETWORK marketplace catalog on demand.
-describe("clean break: bundled discovery dropped (issue #310, CPHM-FR-008 / NFR-005)", () => {
+describe("clean break: bundled discovery dropped (#858, CPHM-FR-008 / NFR-005)", () => {
   it("returns no app-bundled plugin root in production (no ROUBO_BUNDLED_PLUGINS_DIR)", () => {
     const prev = process.env.ROUBO_BUNDLED_PLUGINS_DIR;
     delete process.env.ROUBO_BUNDLED_PLUGINS_DIR;

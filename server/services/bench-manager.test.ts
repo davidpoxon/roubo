@@ -797,7 +797,7 @@ describe("reconcile", () => {
     expect(bench.components.db.status).toBe("running");
     // The crash-recovery reconcile populates the container id from the same
     // batched call, mirroring the pid the process branch tracks
-    // (davidpoxon/roubo-development#410).
+    // (#892).
     expect(bench.components.db.containerId).toBe("db-container-xyz");
   });
 
@@ -5123,7 +5123,7 @@ describe("startAllComponents / stopAllComponents", () => {
     expect(bench.components.frontend.status).toBe("stopped");
   });
 
-  // Closes the CP-TC-033 S008 / CP-TC-034 S005 gap (davidpoxon/roubo-development#410) the hermetic responda
+  // Closes the CP-TC-033 S008 / CP-TC-034 S005 gap the hermetic responda
   // e2e guard could not assert: that guard drives the startup orphan-reap
   // (sweepOrphanedComposeProjects) instead of the integrated stop path, so it
   // never proves that the recorded PIDs are terminated. stopAllComponents calls
@@ -5684,7 +5684,7 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
     ]);
   });
 
-  // Closes the CP-TC-033 S005-O03 gap (davidpoxon/roubo-development#410) that the hermetic responda e2e
+  // Closes the CP-TC-033 S005-O03 gap (#892) that the hermetic responda e2e
   // guard could not assert through the integrated surface: in the real journey
   // the broker resolves a database component's containerId via
   // dockerService.getContainerId(projectName, service) and the plugin surfaces
@@ -5755,7 +5755,7 @@ describe("refreshComponentStatuses", () => {
     if (!bench) throw new Error("expected bench");
     expect(bench.components.db.status).toBe("running");
     // The live refresh carries the container id from the same batched call while
-    // the container runs (davidpoxon/roubo-development#410).
+    // the container runs (#892).
     expect(bench.components.db.containerId).toBe("db-container-xyz");
   });
 
@@ -5936,7 +5936,7 @@ describe("refreshComponentStatuses", () => {
     expect(bench.components.db.status).toBe("stopped");
     expect(bench.components.db.error).toBe("Container health check failed");
     // An unhealthy container is no longer running, so the stale id is dropped
-    // (davidpoxon/roubo-development#410).
+    // (#892).
     expect(bench.components.db.containerId).toBeUndefined();
   });
 
@@ -7394,11 +7394,11 @@ describe("startComponent (per-component Start setup gating)", () => {
 
 describe("createBench global cap", () => {
   // Test-case ids here belong to the `global-bench-limit` spec, whose frozen
-  // `id_code` is `GBL` (davidpoxon/roubo-development#692). Always tag titles with
+  // `id_code` is `GBL` (#1143). Always tag titles with
   // the coded `GBL-` prefix: product-dev:verify's suite mapper matches ids by
   // lowercase-alphanumeric containment, so a bare id whose preceding word ends in
   // another spec's id_code (the "ap" of "cap" spells AP-) manufactures that prefix
-  // and gets read as that spec's case. See davidpoxon/roubo-development#679.
+  // and gets read as that spec's case. See #1099.
 
   // Flushes the void create/teardown background promise chains so seeded benches
   // settle and torn-down benches leave the Map before the next assertion.

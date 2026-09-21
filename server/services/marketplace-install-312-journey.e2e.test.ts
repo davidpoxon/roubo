@@ -23,8 +23,8 @@
 // plugin-installer unit tests). The journey is deterministic, network-free, and
 // runs under `npm test`.
 //
-// Coverage closes davidpoxon/roubo-development#312 (the e2e side of the gap whose
-// implementation is #370): a release-type listing installs to a committed, runnable
+// Coverage is the e2e side of the release-type install fix in #849: a
+// release-type listing installs to a committed, runnable
 // plugin, and a tampered artifact is rejected before commit (no plugin installed).
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";

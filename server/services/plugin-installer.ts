@@ -60,7 +60,7 @@ const ALLOWED_TAR_TYPES = new Set(["File", "OldFile", "ContiguousFile", "Directo
  * every entry point: a marketplace install passes the chosen source, while the raw
  * git / local-directory paths synthesise their own fail-closed row from the git URL
  * or local path (see `rawInstallProvenance`) so every install path stamps a ledger
- * row and absent provenance can fail closed (davidpoxon/roubo-development#607).
+ * row and absent provenance can fail closed (#981).
  */
 export interface InstallProvenance {
   /** The chosen source's id (`first-party`, or a registered source's slug). */
@@ -78,7 +78,7 @@ export interface InstallProvenance {
  * first-party. Stamping this row rather than leaving the ledger empty is what lets
  * the client grade an installed plugin by its ledger row instead of its
  * self-asserted id, so absent provenance fails closed as unverified
- * (davidpoxon/roubo-development#607).
+ * (#981).
  */
 function rawInstallProvenance(sourceRef: string): InstallProvenance {
   return { sourceId: sourceRef, sourceUrl: sourceRef, unverified: true };

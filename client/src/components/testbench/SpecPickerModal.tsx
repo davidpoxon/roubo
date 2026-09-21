@@ -699,7 +699,7 @@ export default function SpecPickerModal({
                               </Button>
                               {allPassedExpanded && (
                                 // role=group: aria-label is ARIA-prohibited on a
-                                // role-less div (issue roubo-development#600).
+                                // role-less div (#967).
                                 <div
                                   role="group"
                                   aria-label="All passed specs"
@@ -767,7 +767,7 @@ export default function SpecPickerModal({
                               </div>
                               {showArchived && (
                                 // role=group: aria-label is ARIA-prohibited on a
-                                // role-less div (issue roubo-development#600).
+                                // role-less div (#967).
                                 <div
                                   id={archivedGroupId}
                                   role="group"

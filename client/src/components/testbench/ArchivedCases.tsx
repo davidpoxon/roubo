@@ -43,7 +43,7 @@ import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useT
 // e2e/e2e-flow/archival-contrast.spec.ts is the browser-rendered guard, because
 // jsdom has no layout engine and so cannot decide the color-contrast rule. That
 // guard reaches the state labels, the situation lines, the retained reason, the
-// replacement reveal and Restore, and, since roubo-development#797, the pass/fail
+// replacement reveal and Restore, and, since #1175, the pass/fail
 // mark colours in ObservationMarks too: no fixture seam can render mark text (the
 // seeded-results synthesizer writes an empty observationMarks map), so the spec
 // marks two observations and retires the case in-app, then scans the entry the

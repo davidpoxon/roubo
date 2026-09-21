@@ -34,7 +34,7 @@ const observe = makeObserve("APCC-TC-038");
 // `.cursor/cli.json` write into the bench workspace. On divergence each
 // observation routes through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s).
+// diverged, the expected-vs-actual, and the owning slice(s).
 //
 // HOW THE PLUGIN IS PROVIDED. The `cursor-cli` bundled overlay
 // (e2e/fixtures/bundled-overlays/cursor-cli/) mirrors the shipped plugin's
@@ -86,13 +86,13 @@ const SETTLE_TIMEOUT_MS = 30_000;
 /** The bench-local rules file the plugin declares (APCC-FR-015). */
 const RULES_REL_PATH = ".cursor/cli.json";
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice. The journey-to-slice
 // mapping is by requirement and story overlap, so each step names a
 // conservative superset.
 const SLICE = {
-  mapping: { issue: 861, title: "Map the permission postures and write the project rules" },
-  axes: { issue: 862, title: "Present only the permission axes Cursor supports" },
+  mapping: { title: "Map the permission postures and write the project rules" },
+  axes: { title: "Present only the permission axes Cursor supports" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

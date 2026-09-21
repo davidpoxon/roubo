@@ -14,7 +14,7 @@ const observe = makeObserve("CP-TC-028");
 // authoritative CP-TC-028 e2e_flow steps S001-S006 as ordered, attributable
 // observations. On divergence each observation routes through the FR-020
 // failure-output contract (see _support/step-runner.ts): the failure reports
-// which step diverged, the expected-vs-actual, and the owning slice issue(s).
+// which step diverged, the expected-vs-actual, and the owning slice(s).
 //
 // Wiring status at authoring time: the bench-manager -> LifecycleEngine
 // dispatch of an imperative component plugin (component.start(BenchContext) and
@@ -39,17 +39,17 @@ const DEPLOY_COMPONENT = "deploy";
 // declares both categories, so the consent gate requires acknowledging both.
 const DECLARED_CATEGORIES = ["network", "processes"];
 
-// The slice issues that own each phase of the journey, used by the FR-020
+// The slices that own each phase of the journey, used by the FR-020
 // failure-output contract to attribute a divergence.
 const SLICE = {
-  manifest: { issue: 602, title: "component manifest kind + permissions" },
-  sdk: { issue: 604, title: "ComponentContract + defineComponentPlugin SDK" },
-  broker: { issue: 605, title: "HostComponentBroker RPC surface" },
-  ledger: { issue: 607, title: "ResourceOwnershipLedger" },
-  cleanup: { issue: 613, title: "crash cleanup + teardown" },
+  manifest: { title: "component manifest kind + permissions" },
+  sdk: { title: "ComponentContract + defineComponentPlugin SDK" },
+  broker: { title: "HostComponentBroker RPC surface" },
+  ledger: { title: "ResourceOwnershipLedger" },
+  cleanup: { title: "crash cleanup + teardown" },
   // The bench-manager -> engine dispatch removal that wires the imperative
   // start hook end to end. OPEN at authoring time.
-  dispatch: { issue: 612, title: "remove component-type dispatch from bench-manager" },
+  dispatch: { title: "remove component-type dispatch from bench-manager" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {
@@ -221,7 +221,7 @@ test("CP-TC-028: imperative deploy lifecycle runs end to end (S003-S006)", async
       `  diverged step:   ${STEPS.S003.id} ${STEPS.S003.instruction}`,
       `  expected:        deploy component reaches a terminal imperative status (completed)`,
       `  actual:          deploy component never leaves the host pre-dispatch state`,
-      `  owning slice(s): #${SLICE.dispatch.issue} (${SLICE.dispatch.title})`,
+      `  owning slice(s): ${SLICE.dispatch.title}`,
     ].join("\n");
     test.info().annotations.push({ type: "blocked-by", description: detail });
     test.fixme(true, detail);

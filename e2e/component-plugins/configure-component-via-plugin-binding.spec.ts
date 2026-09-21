@@ -12,7 +12,7 @@ import { loadAppShell, registerFixtureProject } from "../e2e-flow/_support/scena
 // ordered, attributable observations. On divergence each observation routes
 // through the FR-020 failure-output contract (see _support/step-runner.ts): the
 // failure reports which step diverged, the expected-vs-actual, and the owning
-// slice issue(s).
+// slice(s).
 //
 // Altitude: the guard runs at the integration/API + persistence level, the only
 // altitude that can assert TC-081's load-bearing facts (a plugin-bound component
@@ -44,15 +44,12 @@ import { loadAppShell, registerFixtureProject } from "../e2e-flow/_support/scena
 //     at the browser level (see the marketplace-recovery test below).
 
 const OWNER_301 = {
-  issue: 301,
   title: "Remove the vestigial Role toggle from the Components editor",
 } as const;
 const OWNER_302 = {
-  issue: 302,
   title: "ErroredBanner surfaces the plugin's real lastError",
 } as const;
 const OWNER_496 = {
-  issue: 496,
   title: "Errored component-plugin banner has no marketplace-recovery affordance",
 } as const;
 

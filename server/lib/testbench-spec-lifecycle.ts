@@ -5,7 +5,7 @@
 // archived?" by reading the `lifecycle` subtree of
 // `.specifications/<slug>/manifest.json`. It never writes, and it opens exactly
 // one file. In particular it NEVER opens `flow-state.json`, the legacy stage
-// tracker two spec folders in the roubo-development meta-repo still carry: a
+// tracker that older spec folders can still carry: a
 // legacy folder has no manifest, so the read misses and the spec reads as live.
 // Legacy tolerance is therefore a property of this module's file selection, not
 // of what happens to be in those files today (SATCA-TC-040).

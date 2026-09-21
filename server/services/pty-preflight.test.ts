@@ -1,5 +1,5 @@
 /**
- * davidpoxon/roubo-development#685: node-pty's prebuilt spawn-helper can be
+ * #1103: node-pty's prebuilt spawn-helper can be
  * extracted without its executable bit, which breaks every terminal in the app
  * with an opaque `posix_spawnp failed`. These cover the diagnostic that turns
  * that into a `chmod +x` instruction.

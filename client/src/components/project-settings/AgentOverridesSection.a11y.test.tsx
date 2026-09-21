@@ -76,7 +76,7 @@ beforeEach(() => {
 describe("AgentOverridesSection: axe-core", () => {
   it("has no axe violations with overridden and inherited fields", async () => {
     mockedList.mockReturnValue(listResult(AGENTS));
-    const { container } = render(<AgentOverridesSection projectId="roubo-development" />);
+    const { container } = render(<AgentOverridesSection projectId="demo" />);
     expectNoAxeFindings(await axe(container));
   });
 
@@ -84,13 +84,13 @@ describe("AgentOverridesSection: axe-core", () => {
     mockedList.mockReturnValue(
       listResult(AGENTS, [{ pluginId: "ghost-agent", reason: "not-installed" }]),
     );
-    const { container } = render(<AgentOverridesSection projectId="roubo-development" />);
+    const { container } = render(<AgentOverridesSection projectId="demo" />);
     expectNoAxeFindings(await axe(container));
   });
 
   it("has no axe violations in the no-plugins empty state", async () => {
     mockedList.mockReturnValue(listResult([]));
-    const { container } = render(<AgentOverridesSection projectId="roubo-development" />);
+    const { container } = render(<AgentOverridesSection projectId="demo" />);
     expectNoAxeFindings(await axe(container));
   });
 });

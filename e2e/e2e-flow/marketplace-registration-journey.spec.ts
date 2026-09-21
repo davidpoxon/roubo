@@ -19,7 +19,7 @@ import { makeObserve, type JourneyStep } from "../component-plugins/_support/ste
 // ordered, attributable observations. On divergence each observation routes
 // through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s), so a red run
+// diverged, the expected-vs-actual, and the owning slice(s), so a red run
 // localises the drift to one attributable slice (issue #570 acceptance
 // criterion 9).
 //
@@ -79,16 +79,14 @@ const REGISTER_URL = "https://plugins.example.com/catalog.json";
 // `hasCredential:true` and the row's "· credential attached" meta.
 const CREDENTIAL = "s3cr3t-marketplace-token";
 
-// The slice issues that own each phase of the journey (issue #570 Blocked by),
+// The slices that own each phase of the journey (issue #570 Blocked by),
 // used by the FR-020 failure-output contract to attribute a divergence.
 const SLICE = {
   registry: {
-    issue: 553,
     title:
       "marketplace source registry: GET/POST /api/marketplace/sources, the persisted consent record",
   },
   consentModal: {
-    issue: 562,
     title: "registration consent modal: aria-disabled Register, masked credential, raw URL",
   },
 } as const;

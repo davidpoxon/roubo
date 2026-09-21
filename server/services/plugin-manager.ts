@@ -446,7 +446,7 @@ function bundledPluginsRoot(): string | null {
   // bundled plugin source directory, and the host no longer discovers one.
   // First-party plugins are served from the NETWORK marketplace catalog and
   // installed into the user root on demand (the first-run SEED channel was
-  // retired, davidpoxon/roubo-development#621). Returning null makes the
+  // retired, #993). Returning null makes the
   // bundled-discovery call in initialize() a no-op in production; only the
   // explicit ROUBO_BUNDLED_PLUGINS_DIR override (used by tests and diagnostics)
   // re-enables bundled discovery.

@@ -97,7 +97,7 @@
 // forces this test to be updated.
 //
 // Failure-output contract (issue #576 AC: "On failure the test reports which e2e_flow
-// step diverged, the expected-vs-actual at that step, and the owning slice issue(s) from
+// step diverged, the expected-vs-actual at that step, and the owning slice(s) from
 // Blocked by"): every assertion attaches an expected-vs-actual message naming the
 // diverging step and the owning slice, so a red run localizes the integration drift to
 // one attributable slice. The e2e/component-plugins/_support/step-runner.ts helper cannot

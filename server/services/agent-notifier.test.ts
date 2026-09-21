@@ -173,7 +173,7 @@ describe("the notifier script itself", () => {
     }
   });
 
-  // Issue roubo-development#855 (APCC-TC-005, APCC-TC-006): a token as the
+  // #1265 (APCC-TC-005, APCC-TC-006): a token as the
   // only argument reads the event JSON from standard input and posts the same
   // body to the same endpoint as the argument path.
   describe("with the payload on standard input", () => {

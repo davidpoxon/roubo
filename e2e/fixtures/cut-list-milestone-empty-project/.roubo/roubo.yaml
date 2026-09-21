@@ -18,7 +18,7 @@ benches:
   max: 1
 integration:
   plugin: e2e-stub
-  # roubo-development#425: a page size comfortably larger than the To Do count so
+  # A page size comfortably larger than the To Do count so
   # the two To Do issues provably fit on a single server page (nextCursor stays
   # null, so the client sees hasNext=false). That single-page shape is what makes
   # the pager genuinely hide (CLI-TC-065 S001-O03) when a still-offered milestone
