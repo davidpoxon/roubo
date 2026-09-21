@@ -1,7 +1,7 @@
 id: cursor-cli
 name: Cursor CLI
 version: 0.2.0
-description: E2E overlay that takes the Cursor CLI agent plugin's slot during Playwright runs. Mirrors the real plugin's configSchema, model choice probe, argv mapping, permission postures, rule tiers and project rules write against a stub CLI, so APCC-TC-011 can drive the configure-a-model journey and APCC-TC-038 the set-a-posture-and-rules-then-launch journey. Not for production.
+description: E2E overlay that takes the Cursor CLI agent plugin's slot during Playwright runs. Mirrors the real plugin's configSchema, model choice probe, argv mapping, permission postures, rule tiers and project rules write against a stub CLI, so APCC-TC-011 can drive the configure-a-model journey and APCC-TC-038 the set-a-posture-and-rules-then-launch journey. It also mirrors the file-registered turn-completion notification wiring and quiescence fallback, so APCC-TC-046 can drive the completed-turn-to-notification journey across two benches. Not for production.
 kind: agent
 # The same floor as the shipped manifest
 # (roubo-plugins/plugins/cursor-cli/roubo-plugin.yaml): `agentPermissionRuleTiers`

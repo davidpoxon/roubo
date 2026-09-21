@@ -105,7 +105,11 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     version-gate guard reuses the pair too: the stub reads a build file
 //     (CURSOR_VERSION_PATH, e2e/agent-plugins/_support/cursor-version-path.mjs)
 //     to report a build below the floor or inside the window, on the same
-//     constant-path terms as PROBE_MODE_PATH.
+//     constant-path terms as PROBE_MODE_PATH. So does the APCC-TC-046
+//     completed-turn notification guard: the overlay mirrors the shipped
+//     plugin's file-registered `stop` hook and its quiescence fallback, and the
+//     stub runs that hook when the spec drops a finish-turn file into the bench
+//     worktree.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under

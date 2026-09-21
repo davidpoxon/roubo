@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
-// Stub agent CLI for the `cursor-cli` e2e overlay (APCC-TC-038, APCC-TC-011).
+// Stub agent CLI for the `cursor-cli` e2e overlay (APCC-TC-038, APCC-TC-011,
+// APCC-TC-046).
 //
 // The overlay (../bundled-overlays/cursor-cli/) points its manifest-declared
 // version probe, its `model` choice probe and its launch descriptor at this
 // binary. The APCC-TC-038 journey launches a Cursor session in a bench and reads
 // back the argv the spawned child actually received, posture flags included; the
-// APCC-TC-011 journey fills the model field from the probe, then does the same.
+// APCC-TC-011 journey fills the model field from the probe, then does the same;
+// the APCC-TC-046 journey finishes a turn and watches the notification it raises.
 //
 // Deliberately NOT named `agent`, which is what the Cursor CLI installs itself
 // as: `importLoginShellEnv()` prepends `~/.local/bin` to the server's PATH, so a
@@ -28,9 +30,10 @@
 //                  host's `dash-line-pairs` reader has to skip the same
 //                  non-pair lines it skips on a real run.
 //   otherwise      write argv (everything after the script path) as JSON to
-//                  CURSOR_ARGV_LOG_PATH, then print a ready line and idle so the
-//                  PTY session stays live and the host classifies no early-exit
-//                  failure.
+//                  CURSOR_ARGV_LOG_PATH, print a ready line, and start a turn
+//                  that keeps working until it is told to finish (see below).
+//                  The process then idles, so the PTY session stays live and
+//                  the host classifies no early-exit failure.
 //
 // Its own log path, for the reason roubo-e2e-codex-stub gives: each capture file
 // is single-writer, last-write-wins, and the ambient claude overlay stays
@@ -41,10 +44,29 @@
 // environment variable is untrusted input and must not steer a filesystem path.
 // The two probe paths never write the log: they exit first, and the probe spawn
 // strips every ROUBO_* variable from their environment.
+//
+// A WORKING TURN REDRAWS. The real CLI redraws about every 250ms while a turn
+// runs, and the overlay's 3000ms quiescence fallback is measured against that.
+// The stub writes a heartbeat every HEARTBEAT_MS for the same reason: a session
+// that went silent would raise the fallback's waiting notification, and
+// APCC-TC-046 has to tell the hook's notification apart from the fallback's.
+//
+// FINISHING A TURN. The launch writes a `stop` hook into the bench worktree's
+// `.cursor/hooks.json` before the spawn. The spec cannot type into the session,
+// so it finishes the turn by creating FINISH_TURN_FILE in the worktree, which is
+// this process's working directory. The file name is a constant, not an
+// environment variable, so nothing untrusted steers what is read. On sight the
+// stub stops the heartbeat, lets the last write drain, and runs every
+// `hooks.stop[].command` through a shell with a `stop` event on standard input,
+// which is what the real CLI was measured doing. It writes nothing to the
+// terminal after that: fresh output dismisses a waiting notification, and the
+// real CLI emits nothing after `stop` either.
 
 // ESM: the file has no extension, so Node resolves its module type from the
 // nearest package.json, and roubo/package.json declares `"type": "module"`.
+import { spawn } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 
 import { CURSOR_ARGV_LOG_PATH } from "../../agent-plugins/_support/argv-log-path.mjs";
 // The builds are defined once, next to the path, so this binary and the spec's
@@ -69,6 +91,26 @@ const LISTING = [
   "Tip: use --model <id> (or /model <id> in interactive mode) to switch. Parameterized models also accept quoted overrides, e.g. --model 'claude-opus-4-8[context=1m,effort=high,fast=false]'.",
   "",
 ].join("\n");
+
+/** Created in the worktree by the APCC-TC-046 spec to end the running turn. */
+const FINISH_TURN_FILE = ".roubo-e2e-cursor-finish-turn";
+
+/** The hook registration the launch wrote, relative to the worktree. */
+const HOOKS_FILE = path.join(".cursor", "hooks.json");
+
+const HEARTBEAT_MS = 250;
+const TRIGGER_POLL_MS = 100;
+
+/** A `stop` event, shaped like the payload the real CLI sends. */
+const STOP_PAYLOAD = {
+  conversation_id: "e2e-cursor-conversation",
+  generation_id: "e2e-cursor-generation-1",
+  model: "default",
+  status: "completed",
+  loop_count: 0,
+  session_id: "e2e-cursor-conversation",
+  hook_event_name: "stop",
+};
 
 const argv = process.argv.slice(2);
 
@@ -99,16 +141,66 @@ if (process.env.ROUBO_E2E_AGENT_ARGV_LOG) {
   }
 }
 
+/** Every stop-hook command the worktree's hooks file registers. */
+function readStopCommands() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(HOOKS_FILE, "utf-8"));
+    const stop = parsed?.hooks?.stop;
+    if (!Array.isArray(stop)) return [];
+    return stop.map((entry) => entry?.command).filter((command) => typeof command === "string");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Run one hook command through a shell with the payload on stdin, as the real
+ * CLI does. `/bin/sh` rather than `$SHELL`: the host shell-quotes the command
+ * for any POSIX shell, and a fixed shell keeps a developer's shell startup out
+ * of the run. Its output is discarded, never forwarded to the terminal.
+ */
+function runHook(command) {
+  return new Promise((resolve) => {
+    const child = spawn("/bin/sh", ["-c", command], { stdio: ["pipe", "ignore", "ignore"] });
+    child.on("error", () => resolve());
+    child.on("close", () => resolve());
+    child.stdin.on("error", () => {});
+    child.stdin.end(`${JSON.stringify(STOP_PAYLOAD)}\n`);
+  });
+}
+
 process.stdout.write("roubo-e2e-cursor-stub ready\n");
 
-// Idle. The spec destroys the session when it is done, and the timer is the only
-// handle keeping the event loop alive, so an unref'd or cleared timer would end
-// the process.
+const frames = ["|", "/", "-", "\\"];
+let frame = 0;
+const heartbeat = setInterval(() => {
+  process.stdout.write(`\rworking ${frames[frame % frames.length]}`);
+  frame += 1;
+}, HEARTBEAT_MS);
+
+let finished = false;
+const watcher = setInterval(async () => {
+  if (finished || !fs.existsSync(FINISH_TURN_FILE)) return;
+  finished = true;
+  clearInterval(watcher);
+  clearInterval(heartbeat);
+  // Let the last heartbeat reach the host before the hook's notification does,
+  // so that write cannot arrive after the notification and dismiss it.
+  await new Promise((resolve) => setTimeout(resolve, 2 * HEARTBEAT_MS));
+  for (const command of readStopCommands()) {
+    await runHook(command);
+  }
+}, TRIGGER_POLL_MS);
+
+// Idle. The spec destroys the session when it is done, and this timer keeps the
+// event loop alive once the heartbeat and the watcher have stopped.
 const keepAlive = setInterval(() => {}, 1000);
 
 for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
   process.on(signal, () => {
     clearInterval(keepAlive);
+    clearInterval(heartbeat);
+    clearInterval(watcher);
     process.exit(0);
   });
 }
