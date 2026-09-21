@@ -902,10 +902,13 @@ describe("PluginManifestSchema: every shipped manifest validates unchanged (issu
 
   // Overlays that exist to exercise `choiceProbes` and so declare it on
   // purpose. `agent-choice-probe` (#1306) backs the APCC-TC-022 axe audit of
-  // the AI Agents screen. Each one must still validate, and must declare the
-  // key, so an entry here cannot silently go stale.
+  // the AI Agents screen, and `cursor-cli` (APCC-TC-011) mirrors the
+  // real Cursor plugin's `model` probe for the APCC-TC-011 journey. Each one
+  // must still validate, and must declare the key, so an entry here cannot
+  // silently go stale.
   const CHOICE_PROBE_FIXTURES = new Set([
     "e2e/fixtures/bundled-overlays/agent-choice-probe/roubo-plugin.yaml",
+    "e2e/fixtures/bundled-overlays/cursor-cli/roubo-plugin.yaml",
   ]);
 
   for (const file of manifests.filter((f) => !CHOICE_PROBE_FIXTURES.has(f))) {

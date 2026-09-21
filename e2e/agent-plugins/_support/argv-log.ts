@@ -9,8 +9,8 @@ import {
 // The argv-capture channels used by `playwright.config.ts` (which switches them
 // on for the server as $ROUBO_E2E_AGENT_ARGV_LOG) and by the agent-plugin drift
 // guards that read them back: AP-TC-087 reads the Claude Code channel, and the
-// AP-TC-056 / AP-TC-105 journeys read the Codex one, and the APCC-TC-038
-// journey reads the Cursor one.
+// AP-TC-056 / AP-TC-105 journeys read the Codex one, and the APCC-TC-038 and
+// APCC-TC-011 journeys read the Cursor one.
 //
 // The paths themselves come from `./argv-log-path.mjs` and are re-exported here,
 // so the stub agent CLIs, which cannot import TypeScript, read the same

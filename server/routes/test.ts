@@ -491,7 +491,9 @@ function disableFailureFixturePlugins(): void {
 // it is opt-in on the same terms.
 //
 // APCC-TC-038 (#870) adds a fifth, cursor-cli, the Cursor overlay whose
-// permission postures and two-tier rules back the permissions journey.
+// permission postures and two-tier rules back the permissions journey. Since
+// APCC-TC-011 its `model` field is populated by a choice probe too, so left
+// enabled it would also spawn its stub on every agent read.
 const OPT_IN_AGENT_FIXTURE_PLUGIN_IDS = [
   "codex-cli",
   "gemini-cli",

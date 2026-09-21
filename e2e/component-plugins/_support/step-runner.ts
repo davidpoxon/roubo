@@ -17,9 +17,13 @@ import { expect } from "@playwright/test";
 // "CPHM-TC-081") is bound per spec so each guard's failures name their own case
 // rather than a hardcoded one.
 
-/** One slice issue from a unit's blocked-by / dispatch set. */
+/**
+ * One slice from a unit's blocked-by / dispatch set. `issue` is optional: a
+ * slice whose issue lives in a tracker this repository does not link to is
+ * attributed by its title alone.
+ */
 export interface OwningSlice {
-  issue: number;
+  issue?: number;
   title: string;
 }
 
@@ -43,7 +47,9 @@ export function formatDivergence(
   expected: string,
   actual: string,
 ): string {
-  const owners = step.owners.map((o) => `#${o.issue} (${o.title})`).join(", ");
+  const owners = step.owners
+    .map((o) => (o.issue === undefined ? o.title : `#${o.issue} (${o.title})`))
+    .join(", ");
   return [
     "",
     `${journeyId} drift detected (FR-020 failure-output contract):`,

@@ -37,7 +37,7 @@ export const CODEX_PLUGIN_ID = "codex-cli";
 export const CODEX_AGENT_NAME = "Codex CLI";
 
 /**
- * The Cursor CLI agent overlay (APCC-TC-038, #870). Force-disabled by every
+ * The Cursor CLI agent overlay (APCC-TC-038, APCC-TC-011). Force-disabled by every
  * `/test/__reset` on the same terms as {@link CODEX_PLUGIN_ID}.
  */
 export const CURSOR_PLUGIN_ID = "cursor-cli";
