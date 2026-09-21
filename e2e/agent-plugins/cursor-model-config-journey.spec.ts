@@ -88,7 +88,8 @@ const PICK = LISTED_MODELS[2];
 
 // The slices this unit is blocked by, used by the FR-020 failure-output contract
 // to attribute a divergence to an owning slice. Their issues live in a tracker
-// this repository does not link to, so each is named by title alone. The
+// this repository does not link to, so each is named by a short descriptive
+// label of what it delivers, not by its issue number or issue title. The
 // journey-to-slice mapping is by requirement and story overlap, so each step
 // names a conservative superset.
 const SLICE = {
