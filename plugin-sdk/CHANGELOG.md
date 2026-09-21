@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
+## [0.6.0] - 2026-09-21
+
+One addition to the workspace-write contract: a merge op for an array of objects. It is an additive member of the `WriteOp` union, nothing is removed or narrowed, and no existing plugin needs a change to build or run against this release.
+
+### Added
+
+- **The `upsertArray` write op** (#890). `WorkspaceWriteSpec` could merge an array of strings (`unionArray`) or replace a value outright (`set`), and had nothing in between for an array of objects. A plugin whose write owns one entry in a list the user also writes to therefore had to `set` the whole array, which removed the user's entries on every launch. That is what the Cursor CLI plugin's `stop` hook registration did to a `stop` hook of the user's own in the bench worktree.
+
+  `upsertArray` carries the one entry as `value`, an object, and a `match` of `{ key, contains }`. The host keeps every entry `match` does not select, in order, and appends `value` last. `match` selects an entry whose own `key` is a string containing `contains`, which is a substring test rather than equality because the value a registration writes can carry a per-launch id while the part identifying the writer stays fixed: a hook command holding `{{sessionId}}` differs on every launch, the `{{notifier}}` path inside it does not. The host tests the value a second time with shell single-quote escaping undone, so a needle still matches inside a value a carrier shell-quoted into a command string. Both `value` and `match.contains` are template-resolved. A path holding something other than an array is replaced, as it already was for `unionArray`, and the op is rejected on a `format: "text"` write, as `unionArray` already was.
+
+### Compatibility
+
+Nothing in this release is breaking. `upsertArray` is an additional member of a union no existing plugin names, so every shipped descriptor validates unchanged and both first-party agent plugins build against it without a change. The host API moves to 1.7.0: the launch descriptor schema is strict, so a host below that floor rejects a descriptor carrying the op at launch time. A plugin that emits one pins `roubo: ^1.7.0`, which turns that into a version-named refusal at install rather than a failed launch.
+
 ## [0.5.0] - 2026-09-19
 
 Two optional additions to the agent plugin contract: a choice-probe declaration on the manifest and a `file-notifier` notification variant. Both landed on `main` after `0.4.0` was tagged, so this release carries them together. Both are optional, nothing is removed or narrowed, and no existing plugin needs a change to build or run against this release.

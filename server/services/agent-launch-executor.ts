@@ -173,12 +173,30 @@ export function resolveWriteTemplates(
       if (op.op === "unionArray") {
         return { ...op, values: op.values.map((v) => resolveTemplate(v, ctx)) };
       }
+      if (op.op === "upsertArray") {
+        // Both halves carry templates: the entry the host writes, and the needle
+        // that recognises the entry it wrote last time. Resolving only the first
+        // would leave the match hunting for a literal `{{...}}` and append a
+        // second entry on every launch.
+        return {
+          ...op,
+          value: resolveUpsertEntry(op.value, ctx),
+          match: { ...op.match, contains: resolveTemplate(op.match.contains, ctx) },
+        };
+      }
       return op;
     }),
   }));
 }
 
 type WriteOpJsonValue = Extract<WriteOp, { op: "set" }>["value"];
+type UpsertEntry = Extract<WriteOp, { op: "upsertArray" }>["value"];
+
+function resolveUpsertEntry(value: UpsertEntry, ctx: ResolvedTemplateContext): UpsertEntry {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, resolveJsonTemplates(entry, ctx)]),
+  );
+}
 
 function resolveJsonTemplates(
   value: WriteOpJsonValue,
@@ -276,6 +294,44 @@ function containerFor(
 }
 
 /**
+ * Undo the one rewrite `quoteShellWord` performs inside a quoted word: a single
+ * quote cannot appear inside single quotes, so it is written as `'\''` (close,
+ * escaped quote, reopen). Wrapping quotes are left alone, since they only ever
+ * add characters around a needle rather than inside it.
+ */
+function unquoteShellEscapes(value: string): string {
+  return value.split("'\\''").join("'");
+}
+
+/**
+ * Does this existing array entry belong to the writer the `upsertArray` op
+ * declared? Own properties only: reading a plugin-named key straight off the
+ * entry would otherwise reach an inherited one, the same hole `splitPath`
+ * closes for paths. Nothing a plain object inherits holds a string, so the
+ * type test below would refuse those anyway; the own-property test is the
+ * cheap half of the pair and does not depend on that staying true.
+ *
+ * The value is tested a second time with shell single-quote escaping undone,
+ * because a carrier that joins a value into a command string puts it through
+ * `quoteShellWord` (issue #890). Quoting only wraps, so for almost every value
+ * the needle is still a substring of the raw command and the second test
+ * changes nothing. The exception is a value containing a single quote, which
+ * quoting rewrites as `'\''`: the needle is then nowhere in the command as
+ * written, and undoing that one rewrite is what finds the entry this host wrote
+ * last time. Missing it would append a second entry on every launch rather than
+ * replacing the first. Undoing the rewrite rather than re-quoting the needle is
+ * what makes a needle naming only part of the value work too, which is the
+ * shape the SDK documentation recommends.
+ */
+function matchesUpsert(entry: unknown, match: { key: string; contains: string }): boolean {
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return false;
+  if (!Object.prototype.hasOwnProperty.call(entry, match.key)) return false;
+  const value = (entry as Record<string, unknown>)[match.key];
+  if (typeof value !== "string") return false;
+  return value.includes(match.contains) || unquoteShellEscapes(value).includes(match.contains);
+}
+
+/**
  * Apply ops in order against the PARSED existing file, so unknown keys the user
  * (or another tool) put there survive. This is the same preserve-unknown-keys
  * contract the removed built-in writer honoured.
@@ -304,6 +360,20 @@ function applyJsonWrite(filePath: string, ops: WriteOp[]): void {
       continue;
     }
 
+    if (op.op === "upsertArray") {
+      // The array-of-objects counterpart to unionArray, for a file whose entries
+      // are objects rather than strings (issue #890). Everything the match does
+      // not select is kept, in order, and the new entry goes last, so a user's
+      // own entries survive and the one this host wrote on an earlier launch is
+      // replaced rather than joined by a second copy.
+      const current = container[leaf];
+      const kept = Array.isArray(current)
+        ? current.filter((entry) => !matchesUpsert(entry, op.match))
+        : [];
+      container[leaf] = [...kept, op.value];
+      continue;
+    }
+
     // unionArray: the merge semantics of mergePermissions, order-preserving with
     // existing values first so a resync never reshuffles the user's file.
     const existing = container[leaf];
@@ -320,8 +390,9 @@ function applyJsonWrite(filePath: string, ops: WriteOp[]): void {
 /**
  * Text-format writes address the whole file body, not a structured path, so only
  * two ops are meaningful: `set` (replace the body, value must be a string) and
- * `delete` (remove the file). `unionArray` has no text meaning and is rejected
- * rather than silently ignored.
+ * `delete` (remove the file). `unionArray` and `upsertArray` address a value at
+ * a path inside a parsed document, so neither has a text meaning, and both are
+ * rejected rather than silently ignored.
  */
 function applyTextWrite(filePath: string, ops: WriteOp[]): void {
   let body: string | null = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf-8") : null;

@@ -426,7 +426,7 @@ Every agent-contract name this document describes is a named export of `@roubo/p
 | `AgentPosture`                     | type  | `"read-only" \| "guarded" \| "auto-edit" \| "full-auto"`                                                                                             |
 | `AgentPermissionsModel`            | type  | The model the host layers onto the config as `config.permissions`: an optional `posture` plus `allow` / `ask` / `deny` rules                         |
 | `WorkspaceWriteSpec`               | type  | A declared workspace file mutation. See [Workspace writes are declarative, always](#workspace-writes-are-declarative-always)                         |
-| `WriteOp`                          | type  | One op inside a `WorkspaceWriteSpec`: `unionArray`, `set`, or `delete`                                                                               |
+| `WriteOp`                          | type  | One op inside a `WorkspaceWriteSpec`: `unionArray`, `upsertArray`, `set`, or `delete`                                                                |
 
 The manifest fields these pair with (`kind: agent`, `agentCompatibility`, `configSchema`, `permissions.processes`) are in the [Manifest reference](#manifest-reference); they are validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json) and have no SDK type of their own.
 
@@ -531,7 +531,14 @@ capabilities: {
       workspaceWrite: {
         relPath: ".agent/hooks.json",
         format: "json",
-        ops: [{ op: "set", path: "hooks.stop", value: [{ command: "{{notifierCommand}}" }] }],
+        ops: [
+          {
+            op: "upsertArray",
+            path: "hooks.stop",
+            value: { command: "{{notifierCommand}}" },
+            match: { key: "command", contains: "{{notifier}}" },
+          },
+        ],
       },
       args: ["roubo-notify", "{{sessionId}}"],
     },
@@ -619,11 +626,21 @@ interface WorkspaceWriteSpec {
 
 type WriteOp =
   | { op: "unionArray"; path: string; values: string[] }
+  | {
+      op: "upsertArray";
+      path: string;
+      value: Record<string, unknown>;
+      match: { key: string; contains: string };
+    }
   | { op: "set"; path: string; value: unknown }
   | { op: "delete"; path: string };
 ```
 
 Ops mutate the parsed existing file rather than replacing it, so unknown keys the user (or another tool) put there survive. A `relPath` that escapes the workspace, or an absolute one, aborts the whole batch before anything is written.
+
+`upsertArray` is the merge op for an array of objects, where `unionArray` is the merge op for an array of strings. Use it where your write owns one entry in a list the user also writes to, such as a hook registration. The host keeps every entry `match` does not select, in order, and appends `value` last. `match` selects an entry whose own `key` is a string containing `contains`, so needle the part that identifies your write rather than the whole value: a registration carrying `{{sessionId}}` differs on every launch, while the `{{notifier}}` path inside it does not, and that is what lets the next launch replace its own entry instead of adding a second one. The host tests the value a second time with shell single-quote escaping undone, so a needle still matches inside a value a carrier shell-quoted into a command string, such as a `{{notifier}}` path inside a `{{notifierCommand}}`. A path holding something other than an array is replaced, as it is for `unionArray`.
+
+Note the `roubo` range for `upsertArray`. The op landed in host API **1.7.0**. It is not a manifest key, so the manifest schema has nothing to reject, but a host below 1.7.0 does not know the op, so it rejects the whole descriptor and the launch fails. Declare `^1.7.0` (or higher) whenever your descriptor can return `upsertArray`, as you would for `choiceProbes` or `file-notifier`. A host below the floor then refuses the plugin at install time with a message naming the version it needs.
 
 ### The launch pipeline
 

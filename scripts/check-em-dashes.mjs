@@ -25,7 +25,7 @@ const ALLOWLIST = new Set([
   // The brand guide states the rule and shows the forbidden glyph as an example.
   "docs/brand.md:215",
   // The plugin SDK doc states the same rule and shows the glyph as an example.
-  "docs/plugin-sdk.md:1107",
+  "docs/plugin-sdk.md:1124",
 ]);
 
 const NEEDLE = /—|&mdash;/;

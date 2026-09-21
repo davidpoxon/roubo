@@ -99,7 +99,16 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // drives a Cursor-shaped manifest through a simulated pre-1.6.0 host (both one
 // whose schema lacks the key and one that knows it but sits below the floor)
 // and asserts the refusal names `^1.6.0` rather than an unrecognised key.
-export const HOST_API_VERSION = "1.6.0";
+// 1.7.0 (issue #890): the `upsertArray` write op lands, merging one object into
+// an array in a workspace file and replacing only the entry the host wrote
+// before. Same additive class as the 1.6.0 descriptor members: it is a new
+// member of a union no existing plugin names, so nothing built against 1.0.0
+// through 1.6.0 changes behaviour. The floor matters because the descriptor
+// schema is strict in the same way the manifest is: a pre-1.7.0 host rejects a
+// descriptor carrying the op, and that refusal arrives at launch rather than at
+// install. Pinning `roubo: ^1.7.0` moves it forward to the version-named
+// refusal a user can act on, which is why the Cursor manifest declares it.
+export const HOST_API_VERSION = "1.7.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
 export const SHUTDOWN_GRACE_MS = 5000;
