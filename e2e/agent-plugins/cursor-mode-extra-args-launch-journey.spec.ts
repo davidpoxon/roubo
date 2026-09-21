@@ -30,7 +30,7 @@ const observe = makeObserve("APCC-TC-025");
 // attributable observations against the REAL built app. On divergence each
 // observation routes through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s).
+// diverged, the expected-vs-actual, and the owning slice(s).
 //
 // HOW THE CURSOR CLI PLUGIN PRECONDITION IS MET. The shipping plugin lives in the
 // sibling `roubo-plugins` repo and builds against the published SDK, so roubo's
@@ -98,13 +98,14 @@ const EXPECTED_ARGV = [...GENERATED_ARGV, ...EXTRA_ARGV];
 
 // The slices this unit is blocked by, used by the FR-020 failure-output contract
 // to attribute a divergence to an owning slice. Their issues live in a tracker
-// this repository does not link to, so each is attributed by its title alone.
-// The blocked-by set is a conservative superset of the slices the journey
-// traverses.
+// this repository does not link to, so each is named by a short descriptive
+// label of what it delivers, not by its issue number or issue title. The labels
+// match cursor-model-config-journey.spec.ts, which names the same slices. The
+// blocked-by set is a conservative superset of the slices the journey traverses.
 const SLICE = {
-  spike: { title: "Spike: which Cursor models accept the parameterized model form" },
-  model: { title: "Populate the model field from the probe" },
-  modeAndArgs: { title: "Add the mode axis, extra arguments, and the worktree guard" },
+  spike: { title: "Cursor parameterized model form investigation" },
+  model: { title: "Cursor model field populated from the probe" },
+  modeAndArgs: { title: "Cursor session axes and worktree guard" },
 } as const;
 
 // Instructions copied verbatim from the APCC-TC-025 e2e_flow.
