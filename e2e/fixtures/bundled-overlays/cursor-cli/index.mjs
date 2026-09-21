@@ -1,5 +1,5 @@
 // E2E overlay runtime for the `cursor-cli` agent plugin slot (APCC-TC-038,
-// APCC-TC-011, APCC-TC-046).
+// APCC-TC-011, APCC-TC-046, APCC-TC-031, APCC-TC-056).
 //
 // SOURCE OF TRUTH: roubo-plugins/plugins/cursor-cli/src/translate-launch.ts and
 // src/tokenize.ts. The argv mapping, the tokenizer, the worktree guard, the
@@ -7,8 +7,8 @@
 // notification wiring and its waiting detection below are a
 // MIRROR of that module, kept here only because roubo's e2e suite cannot depend
 // on the roubo-plugins workspace (the plugins there build against the published
-// SDK, and the Cursor plugin is not yet in any catalog). Re-copy them whenever
-// the shipped module changes.
+// SDK, and the harness installs nothing from the real catalog). Re-copy them
+// whenever the shipped module changes.
 //
 // PARTIAL CIRCULARITY, stated plainly: because this overlay implements the
 // mapping itself, the APCC-TC-038 guard cannot prove the real plugin's posture
@@ -27,6 +27,12 @@
 // host installs the notifier, writes the hook registration into the bench's own
 // worktree, registers the correlation token, and raises the notification on the
 // bench that owns the session and on no other.
+//
+// For APCC-TC-031 and APCC-TC-056 the guard proves that a jig bound through a
+// preset reaches the spawned CLI whole as its final argv positional, that the
+// CLI runs in the bench worktree, that a finished turn raises a waiting
+// notification, and that the catalog listing, consent gate and AI Agents form
+// lead to a live session.
 //
 // ESM because the manifest entry is `./index.mjs`; `vscode-jsonrpc/node`
 // resolves from roubo/node_modules.
