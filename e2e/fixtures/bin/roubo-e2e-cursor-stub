@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 
 // Stub agent CLI for the `cursor-cli` e2e overlay (APCC-TC-038, APCC-TC-011,
-// APCC-TC-046).
+// APCC-TC-046, APCC-TC-031, APCC-TC-056).
 //
 // The overlay (../bundled-overlays/cursor-cli/) points its manifest-declared
 // version probe, its `model` choice probe and its launch descriptor at this
 // binary. The APCC-TC-038 journey launches a Cursor session in a bench and reads
 // back the argv the spawned child actually received, posture flags included; the
 // APCC-TC-011 journey fills the model field from the probe, then does the same;
-// the APCC-TC-046 journey finishes a turn and watches the notification it raises.
+// the APCC-TC-046 journey finishes a turn and watches the notification it raises;
+// the APCC-TC-031 journey reads back the jig prompt and the working directory,
+// then finishes a turn; the APCC-TC-056 journey launches it after a catalog
+// install.
 //
 // Deliberately NOT named `agent`, which is what the Cursor CLI installs itself
 // as: `importLoginShellEnv()` prepends `~/.local/bin` to the server's PATH, so a
@@ -30,7 +33,8 @@
 //                  host's `dash-line-pairs` reader has to skip the same
 //                  non-pair lines it skips on a real run.
 //   otherwise      write argv (everything after the script path) as JSON to
-//                  CURSOR_ARGV_LOG_PATH, print a ready line, and start a turn
+//                  CURSOR_ARGV_LOG_PATH and the working directory to
+//                  CURSOR_CWD_LOG_PATH, print a ready line, and start a turn
 //                  that keeps working until it is told to finish (see below).
 //                  The process then idles, so the PTY session stays live and
 //                  the host classifies no early-exit failure.
@@ -39,10 +43,11 @@
 // is single-writer, last-write-wins, and the ambient claude overlay stays
 // installed while this one is live.
 //
-// $ROUBO_E2E_AGENT_ARGV_LOG gates the write but does not choose where it lands:
-// the destination is the shared CURSOR_ARGV_LOG_PATH constant, imported below. An
-// environment variable is untrusted input and must not steer a filesystem path.
-// The two probe paths never write the log: they exit first, and the probe spawn
+// $ROUBO_E2E_AGENT_ARGV_LOG gates both writes but does not choose where they
+// land: the destinations are the shared CURSOR_ARGV_LOG_PATH and
+// CURSOR_CWD_LOG_PATH constants, imported below. An environment variable is
+// untrusted input and must not steer a filesystem path. The two probe paths
+// never write either log: they exit first, and the probe spawn
 // strips every ROUBO_* variable from their environment.
 //
 // A WORKING TURN REDRAWS. The real CLI redraws about every 250ms while a turn
@@ -68,7 +73,10 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { CURSOR_ARGV_LOG_PATH } from "../../agent-plugins/_support/argv-log-path.mjs";
+import {
+  CURSOR_ARGV_LOG_PATH,
+  CURSOR_CWD_LOG_PATH,
+} from "../../agent-plugins/_support/argv-log-path.mjs";
 // The builds are defined once, next to the path, so this binary and the spec's
 // expected versions cannot disagree.
 import {
@@ -138,6 +146,11 @@ if (process.env.ROUBO_E2E_AGENT_ARGV_LOG) {
     fs.writeFileSync(CURSOR_ARGV_LOG_PATH, `${JSON.stringify(argv)}\n`, "utf-8");
   } catch (err) {
     process.stderr.write(`roubo-e2e-cursor-stub: could not write argv log: ${err.message}\n`);
+  }
+  try {
+    fs.writeFileSync(CURSOR_CWD_LOG_PATH, `${process.cwd()}\n`, "utf-8");
+  } catch (err) {
+    process.stderr.write(`roubo-e2e-cursor-stub: could not write cwd log: ${err.message}\n`);
   }
 }
 

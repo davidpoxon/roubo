@@ -656,7 +656,7 @@ export function prefetch(): Promise<void> {
 
 // A small, self-contained catalog fixture the offline-journey seam serves when
 // reachable (replacing the retired committed seed catalog it used to re-sign,
-// #993). Four well-formed entries are enough to walk
+// #993). Five well-formed entries are enough to walk
 // the degrade journey; the digests are placeholders (the offline journey lists
 // and pauses, it never installs).
 //
@@ -665,12 +665,13 @@ export function prefetch(): Promise<void> {
 // all three kinds side by side is what makes the kind-gated compatibility
 // metadata observable (only an agent card shows a CLI window, AP-TC-125).
 //
-// TWO of them are agent-kind: `codex-cli` for the compatibility-line guards, and
-// `gemini-cli` for the AP-TC-115 marketplace-install-to-launch guard (#534),
-// which needs a listing of its own to read. Both point `directory` at a real
-// agent-kind overlay manifest in this repo
-// (e2e/fixtures/bundled-overlays/{codex-cli,gemini-cli}/), so `annotate()`
-// derives each listing's compatibility window from a REAL declared
+// THREE of them are agent-kind: `codex-cli` for the compatibility-line guards,
+// `gemini-cli` for the AP-TC-115 marketplace-install-to-launch guard (#534), and
+// `cursor-cli` for the APCC-TC-056 catalog-install-to-session guard. The last
+// two each need a listing of their own to read. All three point `directory` at a
+// real agent-kind overlay manifest in this repo
+// (e2e/fixtures/bundled-overlays/{codex-cli,gemini-cli,cursor-cli}/), so
+// `annotate()` derives each listing's compatibility window from a REAL declared
 // `agentCompatibility` block rather than from an invented one.
 const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
   {
@@ -736,6 +737,26 @@ const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
       directory: "e2e/fixtures/bundled-overlays/gemini-cli",
     },
     provenance: "roubo/plugins@gemini-cli",
+    integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+    verified: true,
+  },
+  {
+    // APCC-TC-056: the agent-kind listing the Cursor catalog-install-to-session
+    // drift guard reads. Its `directory` points at the bundled overlay, so
+    // `readEntryManifest` enriches the listing with that manifest's declared
+    // compatibility window (floor 2026.09.08, tested <= 2026.09.15), which is
+    // the line S002 observes on the card.
+    id: "cursor-cli",
+    name: "Cursor CLI",
+    kind: "agent",
+    version: "0.2.0",
+    summary: "Run benches on the Cursor AI coding agent.",
+    source: {
+      type: "git",
+      url: "https://github.com/davidpoxon/roubo.git",
+      directory: "e2e/fixtures/bundled-overlays/cursor-cli",
+    },
+    provenance: "roubo/plugins@cursor-cli",
     integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
     verified: true,
   },

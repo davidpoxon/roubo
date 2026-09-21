@@ -1,4 +1,5 @@
-// The single definition of the argv-capture channels (issues #531, #532).
+// The single definition of the argv-capture channels (issues #531, #532), and
+// of the Cursor stub's working-directory channel beside them.
 //
 // Three processes have to agree on these paths: the Playwright process (via
 // `playwright.config.ts` and the specs, both of which reach them through
@@ -30,3 +31,10 @@ export const CODEX_ARGV_LOG_PATH = path.join(os.tmpdir(), "roubo-e2e-codex-argv.
 
 /** Where `e2e/fixtures/bin/roubo-e2e-cursor-stub` writes its own argv as JSON. */
 export const CURSOR_ARGV_LOG_PATH = path.join(os.tmpdir(), "roubo-e2e-cursor-argv.json");
+
+/**
+ * Where `e2e/fixtures/bin/roubo-e2e-cursor-stub` writes its own working
+ * directory, as plain text. No API surface reports where a session runs, so the
+ * APCC-TC-031 journey reads the child's own `process.cwd()` from here.
+ */
+export const CURSOR_CWD_LOG_PATH = path.join(os.tmpdir(), "roubo-e2e-cursor-cwd.txt");

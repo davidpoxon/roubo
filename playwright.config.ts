@@ -109,7 +109,11 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     completed-turn notification guard: the overlay mirrors the shipped
 //     plugin's file-registered `stop` hook and its quiescence fallback, and the
 //     stub runs that hook when the spec drops a finish-turn file into the bench
-//     worktree.
+//     worktree. The APCC-TC-031 / APCC-TC-056 jig-session and catalog-install
+//     guard reuses all of that: the stub also writes its working directory to
+//     CURSOR_CWD_LOG_PATH under the same gate, and the e2e catalog fixture
+//     (server/services/catalog-client.ts) lists the overlay as a `cursor-cli`
+//     agent-kind entry.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
