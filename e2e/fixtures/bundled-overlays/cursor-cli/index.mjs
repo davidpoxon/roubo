@@ -1,8 +1,10 @@
-// E2E overlay runtime for the `cursor-cli` agent plugin slot (APCC-TC-038, APCC-TC-011).
+// E2E overlay runtime for the `cursor-cli` agent plugin slot (APCC-TC-038,
+// APCC-TC-011, APCC-TC-046).
 //
 // SOURCE OF TRUTH: roubo-plugins/plugins/cursor-cli/src/translate-launch.ts and
 // src/tokenize.ts. The argv mapping, the tokenizer, the worktree guard, the
-// posture table, the rule translation and the project rules write below are a
+// posture table, the rule translation, the project rules write, the `stop` hook
+// notification wiring and its waiting detection below are a
 // MIRROR of that module, kept here only because roubo's e2e suite cannot depend
 // on the roubo-plugins workspace (the plugins there build against the published
 // SDK, and the Cursor plugin is not yet in any catalog). Re-copy them whenever
@@ -20,10 +22,11 @@
 // proves that the probed model id the AI Agents form saves reaches the spawned
 // argv unchanged.
 //
-// Deliberately minimal where the real plugin is rich: the `stop` hook
-// notification wiring and its waiting detection stay out of this file. Neither
-// is on the APCC-TC-011 or APCC-TC-038 journey, and reproducing them would add
-// fixture surface no case reads.
+// For APCC-TC-046 the notification wiring is unit-covered there as well (under
+// "cursor-cli notification wiring (APCC-FR-017)"); the guard proves that the
+// host installs the notifier, writes the hook registration into the bench's own
+// worktree, registers the correlation token, and raises the notification on the
+// bench that owns the session and on no other.
 //
 // ESM because the manifest entry is `./index.mjs`; `vscode-jsonrpc/node`
 // resolves from roubo/node_modules.
@@ -49,6 +52,38 @@ const VERSION_PROBE = {
   minVersion: "2026.09.08",
   testedCeiling: "2026.09.15",
 };
+
+/**
+ * Mirrors the real plugin's NOTIFICATION_WIRING verbatim: a `stop` hook
+ * registered in the worktree's `.cursor/hooks.json`, the notifier run with the
+ * Roubo session id as its one argument, and the event JSON on its standard
+ * input.
+ */
+const NOTIFICATION_WIRING = {
+  kind: "file-notifier",
+  event: "turn-complete",
+  carrier: {
+    workspaceWrite: {
+      relPath: ".cursor/hooks.json",
+      format: "json",
+      ops: [
+        { op: "set", path: "version", value: 1 },
+        {
+          op: "upsertArray",
+          path: "hooks.stop",
+          value: { command: "{{notifierCommand}}" },
+          match: { key: "command", contains: "{{notifier}}" },
+        },
+      ],
+    },
+    args: ["{{notifier}}", "{{sessionId}}"],
+  },
+  payload: "json-stdin",
+  correlation: { source: "template", template: "{{sessionId}}" },
+};
+
+/** Mirrors the real plugin's WAITING_DETECTION: the hook, with a 3000ms fallback. */
+const WAITING_DETECTION = { kind: "hook-driven", quiescenceFallbackMs: 3000 };
 
 const MODES = ["agent", "plan", "ask"];
 const DEFAULT_MODE = "agent";
@@ -310,7 +345,9 @@ connection.onRequest("translateLaunch", (params) => {
     initialPrompt: { mode: "argv-positional", maxLength: MAX_PROMPT_LENGTH },
     capabilities: {
       ...(rulesWrite !== undefined && { workspaceWrites: [rulesWrite] }),
+      notification: NOTIFICATION_WIRING,
       versionProbe: VERSION_PROBE,
+      waitingDetection: WAITING_DETECTION,
       permissions: PERMISSIONS_CAPABILITY,
     },
   };
