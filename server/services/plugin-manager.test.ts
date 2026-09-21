@@ -125,7 +125,7 @@ vi.mock("node:child_process", async (importOriginal) => {
 // with the named keys removed, which is the schema the older host shipped, so a
 // manifest declaring one fails the parse on an unrecognised key exactly as it
 // would there. `drop` names the keys that host did not know: `choiceProbes` for
-// a pre-1.6.0 host, `agentPermissionRuleTiers` for a pre-1.7.0 one. Off by
+// a pre-1.6.0 host, `agentPermissionRuleTiers` for a pre-1.8.0 one. Off by
 // default: every other test in this file sees the real schema.
 const manifestSchemaControl = vi.hoisted(() => ({
   preFloor: false,
