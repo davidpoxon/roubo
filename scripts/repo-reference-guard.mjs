@@ -9,7 +9,7 @@
 // e2e/component-plugins/_support/step-runner.ts).
 //
 // The disallowed names are stored only as SHA-256 digests, so this file does not
-// publish what it guards against. Each `roubo-<word>` token in a file is
+// spell them out. Each `roubo-<word>` token in a file is
 // lowercased, hashed, and compared. Every tracked file is scanned, not only
 // source roots, because a workflow, fixture, or spec JSON leaks just as well as
 // a comment. Binary files are skipped. There is no allowlist.

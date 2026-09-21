@@ -48,8 +48,8 @@ describe("findDisallowedRefs (RepoReferenceGuard)", () => {
     ]);
   });
 
-  it("passes the public sibling repositories and a meta-repo layout", () => {
-    const src = "roubo#1 fixed it. layout:\n  type: meta-repo\nroubo-plugins#37 roubo-test\n";
+  it("passes other roubo-* tokens and a meta-repo layout", () => {
+    const src = "roubo#1 fixed it. layout:\n  type: meta-repo\nroubo-plugins#37 roubo-otherword\n";
     expect(findDisallowedRefs("a.md", src)).toEqual([]);
   });
 
