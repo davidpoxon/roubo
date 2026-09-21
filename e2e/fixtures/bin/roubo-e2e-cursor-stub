@@ -15,8 +15,13 @@
 //
 // Three behaviours, keyed on argv:
 //
-//   --version      print a version inside the overlay's declared compatibility
-//                  window and exit 0, so any launch passes the pre-launch gate.
+//   --version      print the build chosen by the file at CURSOR_VERSION_PATH
+//                  and exit 0. The APCC-TC-052 journey writes that file
+//                  (through e2e/agent-plugins/_support/cursor-version.ts) to
+//                  install a build below the floor and then one inside the
+//                  window. An absent or unreadable file reads as `within`, a
+//                  build inside the overlay's declared window, so any other
+//                  launch passes the pre-launch gate.
 //   --list-models  print an excerpt of a real listing and exit 0. The excerpt
 //                  keeps the real shape: the heading, a blank line, the
 //                  `<id> - <label>` pairs, and the trailing tip line, so the
@@ -42,12 +47,17 @@
 import fs from "node:fs";
 
 import { CURSOR_ARGV_LOG_PATH } from "../../agent-plugins/_support/argv-log-path.mjs";
+import { CURSOR_VERSION_PATH } from "../../agent-plugins/_support/cursor-version-path.mjs";
 
 // The Cursor CLI reports a date-based build such as `2026.09.15-d2fe57e`, which
-// `parse: semver` reads as `2026.09.15`. This sits exactly on the overlay's
+// `parse: semver` reads as `2026.09.15`. `within` sits exactly on the overlay's
 // tested ceiling, and both bounds are inclusive, so it resolves
-// `within-tested-range`.
-const STUB_VERSION = "2026.09.15-e2e";
+// `within-tested-range`. `below` is older than the `2026.09.08` floor. Keep
+// these equal to CURSOR_BUILDS in cursor-version.ts.
+const BUILDS = {
+  below: "2026.09.01-e2e",
+  within: "2026.09.15-e2e",
+};
 
 // An excerpt of a recorded real `agent --list-models` listing, lines copied
 // verbatim. Two `-high-fast` ids are kept, so the one APCC-TC-011 picks is not
@@ -67,8 +77,17 @@ const LISTING = [
 
 const argv = process.argv.slice(2);
 
+function readBuild() {
+  try {
+    const choice = fs.readFileSync(CURSOR_VERSION_PATH, "utf-8").trim();
+    return BUILDS[choice] ?? BUILDS.within;
+  } catch {
+    return BUILDS.within;
+  }
+}
+
 if (argv.includes("--version")) {
-  process.stdout.write(`${STUB_VERSION} (Roubo e2e stub)\n`);
+  process.stdout.write(`${readBuild()} (Roubo e2e stub)\n`);
   process.exit(0);
 }
 
