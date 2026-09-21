@@ -18,8 +18,9 @@ contractVersion: 1
 # The window is copied from the shipped manifest. The probes name the e2e stub
 # rather than `agent`, because `importLoginShellEnv()` prepends `~/.local/bin`,
 # where the real Cursor installer puts `agent`, so a real install on a developer
-# machine would win the PATH lookup. Keep the stub's version
-# (e2e/fixtures/bin/roubo-e2e-cursor-stub) inside this window.
+# machine would win the PATH lookup. Keep the stub's default build
+# (e2e/fixtures/bin/roubo-e2e-cursor-stub) inside this window, and its `below`
+# build under the floor: the APCC-TC-052 journey switches between the two.
 agentCompatibility:
   minVersion: 2026.09.08
   testedCeiling: 2026.09.15

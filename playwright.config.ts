@@ -101,7 +101,11 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     also carries the APCC-TC-011 configure-a-Cursor-model guard: it mirrors
 //     the shipped `model` field, its `choiceProbes` entry and the model and
 //     extra-arguments half of the argv mapping, and the stub answers
-//     `--list-models` with an excerpt of a real model listing.
+//     `--list-models` with an excerpt of a real model listing. The APCC-TC-052
+//     version-gate guard reuses the pair too: the stub reads a build file
+//     (CURSOR_VERSION_PATH, e2e/agent-plugins/_support/cursor-version-path.mjs)
+//     to report a build below the floor or inside the window, on the same
+//     constant-path terms as PROBE_MODE_PATH.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
