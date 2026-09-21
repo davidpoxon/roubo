@@ -3,7 +3,7 @@ name: perf
 # Runs the RUN_PERF_HARNESS-gated performance budgets (every *.perf*.test.* and
 # *.scale*.test.* file) once per merge to main.
 #
-# Decision, per davidpoxon/roubo-development#791:
+# Decision, per #1183:
 #   - The budgets are wall-clock assertions, which is exactly why they are gated
 #     out of the default `npm test`. On a shared runner they are a flake source,
 #     so this job runs on `push: [main]` and NOT on `pull_request`: a noisy

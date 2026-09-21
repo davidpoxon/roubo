@@ -41,7 +41,8 @@
 //
 // Run with: npm run lint:emitted-tokens
 
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 export const DESIGN_PATH = "DESIGN.md";
 export const TAILWIND_PATH = "design-tokens/tokens.tailwind.css";
@@ -406,7 +407,7 @@ export function formatReport({ missing, extra, differing }) {
 }
 
 // Only run the CLI when invoked directly, not when imported by the test.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const designMd = readFileSync(DESIGN_PATH, "utf8");
   const css = readFileSync(TAILWIND_PATH, "utf8");
   const mismatches = tokenMismatches(designMd, css);

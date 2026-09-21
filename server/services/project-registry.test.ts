@@ -495,7 +495,7 @@ describe("unregisterProject", () => {
     expect(registryModule.getProject("test-project")).toBeUndefined();
   });
 
-  it("is blocked by an out-of-range bench, then succeeds once it is cleared (davidpoxon/roubo-development#21)", () => {
+  it("is blocked by an out-of-range bench, then succeeds once it is cleared (#834)", () => {
     // makeConfig sets benches.max = 5, but a bench with id 7 is persisted (its
     // id fell out of range after benches.max was lowered). The guard counts
     // every persisted bench regardless of range, so unregister is blocked until

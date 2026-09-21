@@ -21,7 +21,7 @@ let mod: typeof import("./agent-project-overrides.js");
 
 const AGENTS_DIR = "/mock-home/.roubo/agents";
 const GLOBAL_DIR = `${AGENTS_DIR}/_global`;
-const PROJECT_DIR = `${AGENTS_DIR}/roubo-development`;
+const PROJECT_DIR = `${AGENTS_DIR}/demo`;
 
 /** App defaults for AP-TC-005 / AP-TC-010 / AP-TC-016: model/effort/mode. */
 const APP_DEFAULTS = { model: "opus", effort: "high", mode: "plan" };
@@ -68,7 +68,7 @@ afterEach(() => {
 
 describe("resolveProjectAgentPath", () => {
   it("keys the file by project id and plugin id", () => {
-    expect(mod.resolveProjectAgentPath("roubo-development", "claude-code")).toBe(
+    expect(mod.resolveProjectAgentPath("demo", "claude-code")).toBe(
       `${PROJECT_DIR}/claude-code.yaml`,
     );
   });
@@ -80,8 +80,8 @@ describe("resolveProjectAgentPath", () => {
   });
 
   it("keeps two plugins' overrides in the same project in separate files", () => {
-    const a = mod.resolveProjectAgentPath("roubo-development", "claude-code");
-    const b = mod.resolveProjectAgentPath("roubo-development", "codex-cli");
+    const a = mod.resolveProjectAgentPath("demo", "claude-code");
+    const b = mod.resolveProjectAgentPath("demo", "codex-cli");
     expect(a).not.toBe(b);
   });
 
@@ -91,9 +91,7 @@ describe("resolveProjectAgentPath", () => {
     // projectId is a registered project's name, which ProjectConfigSchema
     // constrains to /^[a-z0-9-]+$/, so a project literally named `_global`
     // cannot be registered and can never reach this path.
-    expect(mod.resolveProjectAgentPath("roubo-development", "claude-code")).not.toContain(
-      GLOBAL_DIR,
-    );
+    expect(mod.resolveProjectAgentPath("demo", "claude-code")).not.toContain(GLOBAL_DIR);
   });
 });
 
@@ -126,9 +124,9 @@ describe("path guard", () => {
   for (const pluginId of hostile) {
     it(`rejects the plugin id ${JSON.stringify(pluginId)}`, () => {
       for (const call of [
-        () => mod.loadProjectAgentOverride("roubo-development", pluginId),
-        () => mod.saveProjectAgentOverride("roubo-development", pluginId, { model: "sonnet" }),
-        () => mod.removeProjectAgentOverride("roubo-development", pluginId),
+        () => mod.loadProjectAgentOverride("demo", pluginId),
+        () => mod.saveProjectAgentOverride("demo", pluginId, { model: "sonnet" }),
+        () => mod.removeProjectAgentOverride("demo", pluginId),
       ]) {
         try {
           call();
@@ -148,12 +146,12 @@ describe("path guard", () => {
 
 describe("loadProjectAgentOverride", () => {
   it("returns null when the project overrides nothing for that plugin", () => {
-    expect(mod.loadProjectAgentOverride("roubo-development", "claude-code")).toBeNull();
+    expect(mod.loadProjectAgentOverride("demo", "claude-code")).toBeNull();
   });
 
   it("returns only the overridden fields, not a whole config", () => {
     withFiles({ [`${PROJECT_DIR}/claude-code.yaml`]: { model: "sonnet" } });
-    expect(mod.loadProjectAgentOverride("roubo-development", "claude-code")).toEqual({
+    expect(mod.loadProjectAgentOverride("demo", "claude-code")).toEqual({
       schemaVersion: 1,
       config: { model: "sonnet" },
     });
@@ -163,7 +161,7 @@ describe("loadProjectAgentOverride", () => {
     fsMocks.existsSync.mockReturnValue(true);
     fsMocks.readFileSync.mockReturnValue(":\n  - bad\n  unbalanced");
     try {
-      mod.loadProjectAgentOverride("roubo-development", "claude-code");
+      mod.loadProjectAgentOverride("demo", "claude-code");
       throw new Error("expected throw");
     } catch (err) {
       expect((err as InstanceType<typeof mod.AgentProjectOverrideError>).code).toBe("YAML_PARSE");
@@ -174,7 +172,7 @@ describe("loadProjectAgentOverride", () => {
     fsMocks.existsSync.mockReturnValue(true);
     fsMocks.readFileSync.mockReturnValue("schemaVersion: 1\nintegration:\n  plugin: github-com\n");
     try {
-      mod.loadProjectAgentOverride("roubo-development", "claude-code");
+      mod.loadProjectAgentOverride("demo", "claude-code");
       throw new Error("expected throw");
     } catch (err) {
       expect((err as InstanceType<typeof mod.AgentProjectOverrideError>).code).toBe("SCHEMA");
@@ -184,12 +182,12 @@ describe("loadProjectAgentOverride", () => {
 
 describe("getProjectAgentOverrides", () => {
   it("returns an empty record when the project overrides nothing for that plugin", () => {
-    expect(mod.getProjectAgentOverrides("roubo-development", "claude-code")).toEqual({});
+    expect(mod.getProjectAgentOverrides("demo", "claude-code")).toEqual({});
   });
 
   it("returns just the stored override subset", () => {
     withFiles({ [`${PROJECT_DIR}/claude-code.yaml`]: { model: "sonnet" } });
-    expect(mod.getProjectAgentOverrides("roubo-development", "claude-code")).toEqual({
+    expect(mod.getProjectAgentOverrides("demo", "claude-code")).toEqual({
       model: "sonnet",
     });
   });
@@ -197,20 +195,20 @@ describe("getProjectAgentOverrides", () => {
   it("degrades a malformed file to inheriting everything rather than throwing", () => {
     fsMocks.existsSync.mockReturnValue(true);
     fsMocks.readFileSync.mockReturnValue(":\n  - bad\n  unbalanced");
-    expect(mod.getProjectAgentOverrides("roubo-development", "claude-code")).toEqual({});
+    expect(mod.getProjectAgentOverrides("demo", "claude-code")).toEqual({});
   });
 
   it("degrades a schema-invalid envelope the same way", () => {
     fsMocks.existsSync.mockReturnValue(true);
     fsMocks.readFileSync.mockReturnValue("schemaVersion: 1\nintegration:\n  plugin: github-com\n");
-    expect(mod.getProjectAgentOverrides("roubo-development", "claude-code")).toEqual({});
+    expect(mod.getProjectAgentOverrides("demo", "claude-code")).toEqual({});
   });
 
   it("still throws on a rejected id, which is an input error, not a recoverable state", () => {
     expect(() => mod.getProjectAgentOverrides("../escape", "claude-code")).toThrow(
       mod.AgentProjectOverrideError,
     );
-    expect(() => mod.getProjectAgentOverrides("roubo-development", "../escape")).toThrow(
+    expect(() => mod.getProjectAgentOverrides("demo", "../escape")).toThrow(
       mod.AgentProjectOverrideError,
     );
   });
@@ -218,7 +216,7 @@ describe("getProjectAgentOverrides", () => {
 
 describe("saveProjectAgentOverride", () => {
   it("writes the override subset atomically to the project's own file", () => {
-    mod.saveProjectAgentOverride("roubo-development", "claude-code", { model: "sonnet" });
+    mod.saveProjectAgentOverride("demo", "claude-code", { model: "sonnet" });
     expect(fsMocks.mkdirSync).toHaveBeenCalledWith(PROJECT_DIR, { recursive: true });
     expect(fsMocks.writeFileSync).toHaveBeenCalledWith(
       `${PROJECT_DIR}/claude-code.yaml.tmp`,
@@ -232,7 +230,7 @@ describe("saveProjectAgentOverride", () => {
   });
 
   it("removes the file rather than writing an empty envelope when nothing is overridden", () => {
-    mod.saveProjectAgentOverride("roubo-development", "claude-code", {});
+    mod.saveProjectAgentOverride("demo", "claude-code", {});
     expect(fsMocks.writeFileSync).not.toHaveBeenCalled();
     expect(fsMocks.rmSync).toHaveBeenCalledWith(`${PROJECT_DIR}/claude-code.yaml`, { force: true });
   });
@@ -248,7 +246,7 @@ describe("saveProjectAgentOverride", () => {
 describe("listProjectOverridePluginIds", () => {
   it("returns nothing when the project has no override directory", () => {
     fsMocks.existsSync.mockReturnValue(false);
-    expect(mod.listProjectOverridePluginIds("roubo-development")).toEqual([]);
+    expect(mod.listProjectOverridePluginIds("demo")).toEqual([]);
   });
 
   it("lists the plugin ids the project has override files for", () => {
@@ -259,10 +257,7 @@ describe("listProjectOverridePluginIds", () => {
       "claude-code.yaml.tmp",
       "notes.txt",
     ]);
-    expect(mod.listProjectOverridePluginIds("roubo-development")).toEqual([
-      "claude-code",
-      "codex-cli",
-    ]);
+    expect(mod.listProjectOverridePluginIds("demo")).toEqual(["claude-code", "codex-cli"]);
   });
 });
 
@@ -343,7 +338,7 @@ describe("resolveProjectAgentConfigs", () => {
       ["claude-code.yaml"],
     );
 
-    const { resolved, orphaned } = mod.resolveProjectAgentConfigs("roubo-development", [
+    const { resolved, orphaned } = mod.resolveProjectAgentConfigs("demo", [
       manifest("claude-code", "Claude Code"),
     ]);
 
@@ -368,7 +363,7 @@ describe("resolveProjectAgentConfigs", () => {
       ["claude-code.yaml", "ghost-agent.yaml"],
     );
 
-    const { resolved, orphaned } = mod.resolveProjectAgentConfigs("roubo-development", [
+    const { resolved, orphaned } = mod.resolveProjectAgentConfigs("demo", [
       manifest("claude-code", "Claude Code"),
     ]);
 
@@ -382,7 +377,7 @@ describe("resolveProjectAgentConfigs", () => {
   it("treats an installed but never-configured plugin as app defaults of {}", () => {
     withFiles({ [`${PROJECT_DIR}/claude-code.yaml`]: { model: "sonnet" } }, ["claude-code.yaml"]);
 
-    const { resolved, orphaned } = mod.resolveProjectAgentConfigs("roubo-development", [
+    const { resolved, orphaned } = mod.resolveProjectAgentConfigs("demo", [
       manifest("claude-code", "Claude Code"),
     ]);
 
@@ -400,14 +395,14 @@ describe("resolveProjectAgentConfigs", () => {
     fsMocks.readFileSync.mockReturnValue(":\n  - bad\n  unbalanced");
     fsMocks.readdirSync.mockReturnValue(["claude-code.yaml"]);
 
-    const { resolved } = mod.resolveProjectAgentConfigs("roubo-development", [
+    const { resolved } = mod.resolveProjectAgentConfigs("demo", [
       manifest("claude-code", "Claude Code"),
     ]);
     expect(resolved[0].overrides).toEqual({});
   });
 
   it("returns a clean empty result when no agent plugin is installed", () => {
-    expect(mod.resolveProjectAgentConfigs("roubo-development", [])).toEqual({
+    expect(mod.resolveProjectAgentConfigs("demo", [])).toEqual({
       resolved: [],
       orphaned: [],
     });

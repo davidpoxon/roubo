@@ -65,6 +65,9 @@ npm run typecheck
 npm run lint:design-tokens
 npm run lint:semantic-dark
 npm run lint:emitted-tokens
+
+# No references to disallowed repositories
+npm run lint:repo-refs
 ```
 
 > **Note.** `npm run typecheck` covers the SDK, client, server, project build, plugin, and e2e fixture workspaces. The CI `typecheck` job only runs `client` and `server`, so the local command is the stricter gate: a green CI run does not mean the plugin and fixture workspaces type-check.
@@ -150,6 +153,7 @@ Dependencies are pinned (no `^` ranges) and updated by Renovate. Never widen a r
 - **Never disable an ESLint rule**. Fix the code.
 - All user-facing text must use the Roubo vocabulary (bench, project, component, …). See [brand.md](./brand.md).
 - **No em dashes** in any prose we ship or commit, including code comments, commit messages, and PR descriptions. See [brand.md](./brand.md#punctuation); partially enforced by `npm run lint:em-dash`.
+- **Cite public identifiers only.** In comments, test titles, and fixtures, cite spec case and requirement ids (`APCC-TC-046`, `CPHM-FR-008`) or this repository's own issue and PR numbers. FR-020 journey guards name owning slices by title. `npm run lint:repo-refs` (`scripts/repo-reference-guard.mjs`) fails on a reference to a disallowed repository.
 
 The CI gates that are not visible from the code, and the repo-specific gotchas worth knowing before you run anything, are in [CLAUDE.md](../CLAUDE.md).
 
@@ -183,9 +187,9 @@ npm ls --package-lock-only @electron/rebuild --all
 
 A single installed copy at the pinned version is the correct tree. The `invalid` line is forge 7.11.2's stale range and clears only when forge 8 ships.
 
-**If you bump `@electron/rebuild` by hand, change both files in the same commit.** Dependabot moved them together through #1129, then #1168 raised only `electron/package.json` to 4.2.0 and left the root override at 4.1.0, which is what put two copies of the package in the lockfile (davidpoxon/roubo-development#806).
+**If you bump `@electron/rebuild` by hand, change both files in the same commit.** Dependabot moved them together through #1129, then #1168 raised only `electron/package.json` to 4.2.0 and left the root override at 4.1.0, which is what put two copies of the package in the lockfile (#1180).
 
-Nothing currently catches a repeat. `.github/workflows/dependabot-auto-merge.yml` approves and auto-merges every `dependabot[bot]` PR with no human gate, and no CI check compares the two declarations, so the next automated bump can reintroduce the split without anyone seeing it. A durable guard is tracked in davidpoxon/roubo-development#807.
+Nothing currently catches a repeat. `.github/workflows/dependabot-auto-merge.yml` approves and auto-merges every `dependabot[bot]` PR with no human gate, and no CI check compares the two declarations, so the next automated bump can reintroduce the split without anyone seeing it.
 
 ### `extract-zip` stays on 2.0.1 until Forge 8
 
@@ -209,6 +213,7 @@ npm run lint
 npm run lint:design-tokens
 npm run lint:semantic-dark
 npm run lint:emitted-tokens
+npm run lint:repo-refs
 npm run typecheck
 npm test
 ```

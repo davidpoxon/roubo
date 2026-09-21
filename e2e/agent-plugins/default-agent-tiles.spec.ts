@@ -52,11 +52,11 @@ const observe = makeObserve("AP-TC-018");
 
 const SETTINGS_PATH = "/settings";
 
-// The slice issues that own this behaviour, used by the FR-020 failure-output
+// The slices that own this behaviour, used by the FR-020 failure-output
 // contract to attribute a divergence.
 const SLICE = {
-  picker: { issue: 515, title: "Default agent picker under Settings, Jigs" },
-  gate: { issue: 537, title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
+  picker: { title: "Default agent picker under Settings, Jigs" },
+  gate: { title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

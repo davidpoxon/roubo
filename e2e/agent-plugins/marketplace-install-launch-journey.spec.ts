@@ -24,7 +24,7 @@ const observe = makeObserve("AP-TC-115");
 // against the REAL built app. On divergence each observation routes through the
 // FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s).
+// diverged, the expected-vs-actual, and the owning slice(s).
 //
 // HOW THE GEMINI CLI PRECONDITION IS MET. No Gemini agent plugin exists in
 // roubo-plugins/plugins/, and the harness has no seam serving a downloadable,
@@ -135,29 +135,25 @@ const LAUNCH_DEFAULTS = { modelName: "gemini-2.5-pro", approval: "auto-edit" } a
 const MODEL_OPTION_LABEL = "Gemini 2.5 Pro";
 const APPROVAL_OPTION_LABEL = "Auto edit";
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice.
 const SLICE = {
   sdk: {
-    issue: 507,
     title: "Add the agent plugin contract to the SDK and load agent plugins through the runtime",
   },
   launch: {
-    issue: 510,
     title: "Core agent launch pipeline: PTY sessions from declarative launch descriptors",
   },
   notifications: {
-    issue: 513,
     title: "Agent session notifications: hook-driven and quiescence waiting/exited detection",
   },
   permissions: {
-    issue: 514,
     title: "Generalized agent permissions with per-agent mapping and bench resync",
   },
-  versionGate: { issue: 519, title: "Agent CLI version compatibility gate and surfacing" },
-  removal: { issue: 521, title: "Remove the built-in Claude Code launch path from core" },
-  marketplace: { issue: 522, title: "Marketplace distribution for agent-kind plugins" },
-  gate: { issue: 537, title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
+  versionGate: { title: "Agent CLI version compatibility gate and surfacing" },
+  removal: { title: "Remove the built-in Claude Code launch path from core" },
+  marketplace: { title: "Marketplace distribution for agent-kind plugins" },
+  gate: { title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

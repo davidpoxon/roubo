@@ -27,7 +27,7 @@
 // `agentCompatibility` from the entry's declared manifest, and that manifest is
 // only in reach for an installed record or a `git` source with a local directory,
 // while a published third-party plugin is a `source.type: "release"` entry that is
-// not installed yet. davidpoxon/roubo-development#722 closed that gap by carrying
+// not installed yet. #1133 closed that gap by carrying
 // the author-declared window on `MarketplaceCatalogEntry` itself, with `annotate()`
 // preferring the manifest and falling back to the entry, so the "compatibility not
 // declared" fallback (AP-TC-121) is now reserved for a window neither source

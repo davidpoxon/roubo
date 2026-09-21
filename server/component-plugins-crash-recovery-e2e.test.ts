@@ -538,7 +538,7 @@ describe("Component-plugin crash-recovery E2E (CP-TC-061): crash, sibling surviv
           // Drop the seeded id so the post-recovery assertion proves the REAL
           // engine seam (runDocker -> getContainerId -> running push) repopulates
           // the containerId, not a leftover fixture
-          // (davidpoxon/roubo-development#410).
+          // (#892).
           before.components[DB_COMPONENT].containerId = undefined;
         }
 
@@ -550,7 +550,7 @@ describe("Component-plugin crash-recovery E2E (CP-TC-061): crash, sibling surviv
         // The re-provision drove the containerId back onto the db ComponentStatus
         // through the real engine push, closing the CP-TC-061 S001-O01 half that
         // the pre-fix plugin path left null after a crash-recovery cycle
-        // (davidpoxon/roubo-development#410).
+        // (#892).
         expect(bench?.components[DB_COMPONENT].containerId).toBe(DB_CONTAINER_ID);
         // Re-provision re-recorded the compose project in the live ledger.
         expect(ledger.getEntry(DB_PLUGIN_ID, BENCH_ID)?.composeProjects).toContain(COMPOSE_PROJECT);

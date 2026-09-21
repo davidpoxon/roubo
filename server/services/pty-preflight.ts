@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 // Diagnosis for the one install defect that breaks every terminal at once
-// (davidpoxon/roubo-development#685).
+// (#1103).
 //
 // node-pty posix_spawnp()s a small `spawn-helper` binary for every PTY it
 // allocates. When the prebuild is extracted without its executable bit, every

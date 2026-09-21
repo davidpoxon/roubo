@@ -1,5 +1,5 @@
 // Shared axe-core assertion helper for the client a11y suites (issue
-// roubo-development#600).
+// #967).
 //
 // vitest-axe's `toHaveNoViolations` matcher only inspects `results.violations`.
 // axe-core downgrades some real defects to `results.incomplete` ("needs

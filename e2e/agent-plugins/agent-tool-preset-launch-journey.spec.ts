@@ -95,22 +95,19 @@ const EXPECTED_ARGV_PREFIX = [
 const AGENT_TOOLS_SECTION = "Agent tools";
 const SAVED_TOAST = "Agent tool saved.";
 
-// The slice issues this work unit is blocked by, used by the FR-020
+// The slices this work unit is blocked by, used by the FR-020
 // failure-output contract to attribute a divergence to the slice that owns it.
 const SLICE = {
   contract: {
-    issue: 502,
     title: "Spike: validate the agent-contract shape against Claude Code and Codex",
   },
   pipeline: {
-    issue: 510,
     title: "Core agent launch pipeline: PTY sessions from declarative launch descriptors",
   },
   presets: {
-    issue: 516,
     title: "Agent tools: launch presets with editor, built-ins, and roubo.yaml support",
   },
-  a11y: { issue: 524, title: "Accessibility audit of the agent surfaces (WCAG 2.1 AA)" },
+  a11y: { title: "Accessibility audit of the agent surfaces (WCAG 2.1 AA)" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {

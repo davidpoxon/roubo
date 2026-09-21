@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
-// roubo-development#425: the integration-level drift guard for CLI-TC-065, the
+// The integration-level drift guard for CLI-TC-065, the
 // exhausted-milestone empty state. It closes the S001-O03 fixture gap the
 // cut-list-improvements verification run (test-results.json, PR #421) recorded
 // as a fail: no stub scenario offered a still-live milestone whose To Do issues
@@ -40,9 +40,8 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 //      returns (S002 was reworded to match).
 //
 // Every assertion below carries a descriptive message naming the diverging
-// TC-065 step, the expected-vs-actual, and the owning follow-up
-// (roubo-development#425), so a regression points straight at the step that
-// broke it.
+// TC-065 step, the expected-vs-actual, and the owning slice, so a regression
+// points straight at the step that broke it.
 //
 // Mechanics. Milestone options in the dropdown come from the plugin's
 // `getFacetOptions` (the scenario's `facetOptions.milestone`: the live sprint
@@ -78,8 +77,8 @@ const TODO_REF_2 = "#402";
 // the active filter matches none.
 const EMPTY_STATE_COPY = "No cuts match the active filters";
 
-// The owning follow-up for the failure-output contract.
-const OWNING_ISSUE = "roubo-development#425";
+// The owning slice for the failure-output contract, named by title.
+const OWNING_SLICE = "zero-To-Do milestone fixture";
 
 const filterButton = (page: Page) => page.getByRole("button", { name: /^Filter cut list/ });
 const popover = (page: Page) => page.getByRole("dialog");
@@ -126,15 +125,15 @@ test("TC-065: selecting a still-offered milestone with zero To Do items shows th
   // the selection is what makes S001-O03 meaningful.
   await expect(
     page.getByText(TODO_REF_1, { exact: true }),
-    `TC-065 precondition (${OWNING_ISSUE}): expected To Do issue ${TODO_REF_1} in the loaded cut list`,
+    `TC-065 precondition (${OWNING_SLICE}): expected To Do issue ${TODO_REF_1} in the loaded cut list`,
   ).toBeVisible();
   await expect(
     page.getByText(TODO_REF_2, { exact: true }),
-    `TC-065 precondition (${OWNING_ISSUE}): expected To Do issue ${TODO_REF_2} in the loaded cut list`,
+    `TC-065 precondition (${OWNING_SLICE}): expected To Do issue ${TODO_REF_2} in the loaded cut list`,
   ).toBeVisible();
   await expect(
     pager(page),
-    `TC-065 precondition (${OWNING_ISSUE}): the pager should be present while To Do items are loaded, so its later hide is observable`,
+    `TC-065 precondition (${OWNING_SLICE}): the pager should be present while To Do items are loaded, so its later hide is observable`,
   ).toHaveCount(1);
 
   await facetOptionsResponse;
@@ -146,11 +145,11 @@ test("TC-065: selecting a still-offered milestone with zero To Do items shows th
   await filterButton(page).click();
   await expect(
     popover(page).getByText("Milestone", { exact: true }),
-    `S001 (TC-065, ${OWNING_ISSUE}): expected the Milestone facet section in the filter popover`,
+    `S001 (TC-065, ${OWNING_SLICE}): expected the Milestone facet section in the filter popover`,
   ).toBeVisible();
   await expect(
     popover(page).getByRole("option", { name: EMPTY_MILESTONE }),
-    `S001 (TC-065, ${OWNING_ISSUE}): the exhausted milestone "${EMPTY_MILESTONE}" must still be offered in the dropdown (CLI-FR-015: it is a live value)`,
+    `S001 (TC-065, ${OWNING_SLICE}): the exhausted milestone "${EMPTY_MILESTONE}" must still be offered in the dropdown (CLI-FR-015: it is a live value)`,
   ).toBeVisible();
   await popover(page).getByRole("option", { name: EMPTY_MILESTONE }).click();
 
@@ -160,12 +159,12 @@ test("TC-065: selecting a still-offered milestone with zero To Do items shows th
   // reconciliation).
   await expect(
     page.getByText(EMPTY_STATE_COPY, { exact: true }),
-    `S001-O01 (TC-065, ${OWNING_ISSUE}): selecting "${EMPTY_MILESTONE}" (zero To Do items) must show the shipped empty state "${EMPTY_STATE_COPY}", not a crash or a removed chip`,
+    `S001-O01 (TC-065, ${OWNING_SLICE}): selecting "${EMPTY_MILESTONE}" (zero To Do items) must show the shipped empty state "${EMPTY_STATE_COPY}", not a crash or a removed chip`,
   ).toBeVisible();
   // The previously-visible To Do issues are filtered out.
   await expect(
     page.getByText(TODO_REF_1, { exact: true }),
-    `S001-O01 (TC-065, ${OWNING_ISSUE}): To Do issue ${TODO_REF_1} must be filtered out when "${EMPTY_MILESTONE}" is selected`,
+    `S001-O01 (TC-065, ${OWNING_SLICE}): To Do issue ${TODO_REF_1} must be filtered out when "${EMPTY_MILESTONE}" is selected`,
   ).toHaveCount(0);
 
   // S001-O02: the Milestone chip still shows the active state, so the user
@@ -174,7 +173,7 @@ test("TC-065: selecting a still-offered milestone with zero To Do items shows th
   // badge.
   await expect(
     page.getByRole("button", { name: "Filter cut list, 1 active" }),
-    `S001-O02 (TC-065, ${OWNING_ISSUE}): the filter chip must still show the active state (one active facet) while "${EMPTY_MILESTONE}" is selected and the list is empty`,
+    `S001-O02 (TC-065, ${OWNING_SLICE}): the filter chip must still show the active state (one active facet) while "${EMPTY_MILESTONE}" is selected and the list is empty`,
   ).toBeVisible();
 
   // S001-O03: the pagination footer is hidden. With a single server page
@@ -182,7 +181,7 @@ test("TC-065: selecting a still-offered milestone with zero To Do items shows th
   // is not rendered at all. This is the assertion the missing fixture blocked.
   await expect(
     pager(page),
-    `S001-O03 (TC-065, ${OWNING_ISSUE}): the pager must be hidden when the selected milestone has zero To Do items on a single server page (filteredItems=0, hasPrev=false, hasNext=false)`,
+    `S001-O03 (TC-065, ${OWNING_SLICE}): the pager must be hidden when the selected milestone has zero To Do items on a single server page (filteredItems=0, hasPrev=false, hasNext=false)`,
   ).toHaveCount(0);
 
   // S002 (reconciled): clear the milestone filter via the SHIPPED clear
@@ -193,19 +192,19 @@ test("TC-065: selecting a still-offered milestone with zero To Do items shows th
   // S002-O01: the empty state is replaced by the full To Do list.
   await expect(
     page.getByText(TODO_REF_1, { exact: true }),
-    `S002-O01 (TC-065, ${OWNING_ISSUE}): expected ${TODO_REF_1} back in the full To Do list after clearing the "${EMPTY_MILESTONE}" filter`,
+    `S002-O01 (TC-065, ${OWNING_SLICE}): expected ${TODO_REF_1} back in the full To Do list after clearing the "${EMPTY_MILESTONE}" filter`,
   ).toBeVisible();
   await expect(
     page.getByText(TODO_REF_2, { exact: true }),
-    `S002-O01 (TC-065, ${OWNING_ISSUE}): expected ${TODO_REF_2} back in the full To Do list after clearing the "${EMPTY_MILESTONE}" filter`,
+    `S002-O01 (TC-065, ${OWNING_SLICE}): expected ${TODO_REF_2} back in the full To Do list after clearing the "${EMPTY_MILESTONE}" filter`,
   ).toBeVisible();
   await expect(
     page.getByText(EMPTY_STATE_COPY, { exact: true }),
-    `S002-O01 (TC-065, ${OWNING_ISSUE}): the empty state "${EMPTY_STATE_COPY}" must be gone once the filter is cleared and the full To Do list returns`,
+    `S002-O01 (TC-065, ${OWNING_SLICE}): the empty state "${EMPTY_STATE_COPY}" must be gone once the filter is cleared and the full To Do list returns`,
   ).toHaveCount(0);
   // The chip returns to its default (no-active-selection) state.
   await expect(
     page.getByRole("button", { name: "Filter cut list", exact: true }),
-    `S002-O01 (TC-065, ${OWNING_ISSUE}): expected the filter chip to reset to its default state (no active facet) after clearing`,
+    `S002-O01 (TC-065, ${OWNING_SLICE}): expected the filter chip to reset to its default state (no active facet) after clearing`,
   ).toBeVisible();
 });

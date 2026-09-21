@@ -12,7 +12,7 @@
 // `covers[]` as strings, so a numeric-ref regression makes validateWorkUnits return
 // ok:false and fails this guard.
 //
-// History (roubo#837 / roubo-development#346): the `.specifications/` tree was migrated
+// History (roubo#837 / #839): the `.specifications/` tree was migrated
 // out of this repo and these guards were removed with it. The committed work-units.json
 // artifacts have been re-established under `docs/specifications/` (they are documentation
 // artifacts, not source code), so this guard is restored and re-pointed at that root.

@@ -328,7 +328,7 @@ describe("loadVerifyUnitsWithDiagnostics", () => {
 // envelope-format spec artifacts and catches any future spec that drifts off-contract
 // (which would otherwise re-break the cross-spec Batches/gates view). The artifacts were
 // re-established under `docs/specifications/` after roubo#837 migrated `.specifications/`
-// out of this repo (see roubo-development#346); this guard is re-pointed at that root.
+// out of this repo (see #839); this guard is re-pointed at that root.
 describe("committed work-units.json artifacts", () => {
   const repoRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const specsRoot = path.join(repoRoot, "docs", "specifications");

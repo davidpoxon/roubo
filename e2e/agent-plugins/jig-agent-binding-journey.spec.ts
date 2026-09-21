@@ -32,7 +32,7 @@ const observe = makeObserve("AP-TC-020");
 // attributable observations against the REAL built app. On divergence each
 // observation routes through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s).
+// diverged, the expected-vs-actual, and the owning slice(s).
 //
 // ONE test carries the bare id and it asserts EVERY observation of the case
 // (#680): the suite mapper corroborates a case only when exactly one test claims
@@ -105,16 +105,14 @@ const DEFAULT_AGENT_LABEL = "Default agent";
 const REFACTOR_PRESET_ID = "ap-tc-020-refactor-pass";
 const TRIAGE_PRESET_ID = "ap-tc-020-issue-triage";
 
-// The slice issues this unit is blocked by, used by the FR-020 failure-output
+// The slices this unit is blocked by, used by the FR-020 failure-output
 // contract to attribute a divergence to an owning slice.
 const SLICE = {
   picker: {
-    issue: 515,
     title: "Default agent selection and per-jig agent binding in Jigs settings",
   },
-  a11y: { issue: 524, title: "Accessibility audit of the agent surfaces (WCAG 2.1 AA)" },
+  a11y: { title: "Accessibility audit of the agent surfaces (WCAG 2.1 AA)" },
   gate: {
-    issue: 537,
     title: "Verify gate: Phase 2 Claude Parity & Launch Surfaces (33 gating cases)",
   },
 } as const;

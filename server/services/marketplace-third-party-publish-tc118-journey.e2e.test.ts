@@ -56,7 +56,7 @@
 //    `source.type: "release"`, and `readEntryManifest()` returns a manifest only for
 //    an INSTALLED record or a `git` source with a local `directory`, so the manifest
 //    derivation seam cannot reach that plugin pre-install. This guard originally
-//    pinned that as an unsatisfiable gap; davidpoxon/roubo-development#722 closed it
+//    pinned that as an unsatisfiable gap; #1133 closed it
 //    by carrying the author-declared window on `MarketplaceCatalogEntry` itself,
 //    with `annotate()` preferring the manifest and falling back to the entry. S005
 //    below asserts both routes: a readable-manifest entry declaring nothing at the

@@ -127,7 +127,7 @@ export default function CaseDetail({
     <div
       ref={rootRef}
       // role=region: aria-label is ARIA-prohibited on a role-less div (issue
-      // roubo-development#600), and the detail pane is a significant, navigable
+      // #967), and the detail pane is a significant, navigable
       // surface worth a labelled landmark.
       role="region"
       className="relative flex flex-col min-h-0 flex-1"
@@ -216,7 +216,7 @@ export default function CaseDetail({
 
           {/* Per-case observation progress (#508), distinct from the overall and
               per-level case rollups. role=status: aria-label is ARIA-prohibited
-              on a role-less div (issue roubo-development#600), and the chip is a
+              on a role-less div (#967), and the chip is a
               status readout that updates as observations are marked. */}
           <div
             role="status"

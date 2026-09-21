@@ -39,7 +39,7 @@ import * as sourcesState from "../services/marketplace-sources-state.js";
 // Channel integrity (issue #622) + hosted catalog (issue #306): the catalog is
 // fetched + verified per request via the catalog-client, which degrades
 // NETWORK -> CACHE, bottoming out at an empty listing (the first-party SEED
-// channel was retired in davidpoxon/roubo-development#621). Install/update map
+// channel was retired in #993). Install/update map
 // integrity-failed (422), revoked (410), and marketplace-unreachable (503, the
 // catalog is degraded to cache) codes.
 

@@ -7,7 +7,7 @@ import {
   seedSourceCatalog,
 } from "./_support/scenario.js";
 
-// CPHMTP-TC-073 (CPHMTP-FR-007 / FR-008 / NFR-003 / US-002, issue #575): the
+// CPHMTP-TC-073 (CPHMTP-FR-007 / FR-008 / NFR-003 / US-002): the
 // fresh-clone teammate journey. A cloned project (acme-webapp) declares an
 // UNREGISTERED ACME marketplace in its roubo.yaml plus an `apps-script` component
 // bound to the `google-clasp` plugin that only that marketplace serves. On open,
@@ -91,16 +91,13 @@ const PLUGIN_ID = "google-clasp";
 // client degrades to the seeded per-source cache rather than a live fetch.
 const ACME_URL = "https://ghe.acme.internal/marketplace/catalog.json";
 
-// Owning slice issues from this unit's Blocked-by set (#556, #565, #566),
-// surfaced in failure messages so a red step points at one slice (issue #575
-// acceptance criterion 11 / FR-020 failure-output contract).
+// Owning slices from this unit's blocked-by set, named by title and surfaced in
+// failure messages so a red step points at one slice (FR-020 failure-output
+// contract).
 const SLICE = {
-  declaration:
-    "davidpoxon/roubo-development#556 (roubo.yaml marketplaces: declaration + strict parse)",
-  offer:
-    "davidpoxon/roubo-development#565 (project-declared source registration offer + consent write)",
-  resolution:
-    "davidpoxon/roubo-development#566 (missing-plugin bench-start resolution + install-from-source)",
+  declaration: "roubo.yaml marketplaces: declaration + strict parse",
+  offer: "project-declared source registration offer + consent write",
+  resolution: "missing-plugin bench-start resolution + install-from-source",
 } as const;
 
 // The unsigned third-party catalog entry the registered ACME source serves for

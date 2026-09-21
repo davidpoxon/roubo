@@ -93,7 +93,7 @@ const APP_DEFAULTS = { model: "opus", effort: "high", mode: "plan" };
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(projectRegistry.getProject).mockReturnValue({
-    id: "roubo-development",
+    id: "demo",
     repoPath: "/repo",
   } as never);
   vi.mocked(registry.listAgents).mockReturnValue([]);
@@ -120,7 +120,7 @@ describe("GET /api/projects/:projectId/agents", () => {
   });
 
   it("returns a clean empty list when no agent plugin is installed", async () => {
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ agents: [], orphanedOverrides: [] });
   });
@@ -139,7 +139,7 @@ describe("GET /api/projects/:projectId/agents", () => {
       orphaned: [],
     });
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
     expect(res.status).toBe(200);
     expect(res.body.agents[0]).toMatchObject({
       id: "claude-code",
@@ -166,7 +166,7 @@ describe("GET /api/projects/:projectId/agents", () => {
       orphaned: [{ pluginId: "ghost-agent", reason: "not-installed" }],
     });
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
     expect(res.status).toBe(200);
     expect(res.body.orphanedOverrides).toEqual([
       { pluginId: "ghost-agent", reason: "not-installed" },
@@ -182,7 +182,7 @@ describe("GET /api/projects/:projectId/agents", () => {
       pluginId: "claude-code",
     });
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
     expect(res.body.agents[0].unavailable).toEqual({
       reason: "not-consented",
       message: 'Agent plugin "claude-code" is not-consented.',
@@ -203,7 +203,7 @@ describe("GET /api/projects/:projectId/agents", () => {
       orphaned: [],
     });
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
     expect(res.body.agents[0].misconfigured).toBeNull();
   });
 
@@ -214,7 +214,7 @@ describe("GET /api/projects/:projectId/agents", () => {
       orphaned: [],
     });
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
     expect(res.body.agents[0].unavailable).toBeNull();
     expect(res.body.agents[0].misconfigured.message).toContain("apiKey");
   });
@@ -227,26 +227,24 @@ describe("PUT /api/projects/:projectId/agents/:pluginId/config", () => {
 
   it("persists an override subset and returns the effective overlay", async () => {
     const res = await request(app())
-      .put("/api/projects/roubo-development/agents/claude-code/config")
+      .put("/api/projects/demo/agents/claude-code/config")
       .send({ config: { model: "sonnet" } });
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      projectId: "roubo-development",
+      projectId: "demo",
       pluginId: "claude-code",
       overrides: { model: "sonnet" },
       effective: { model: "sonnet", effort: "high", mode: "plan" },
     });
-    expect(projectOverrides.saveProjectAgentOverride).toHaveBeenCalledWith(
-      "roubo-development",
-      "claude-code",
-      { model: "sonnet" },
-    );
+    expect(projectOverrides.saveProjectAgentOverride).toHaveBeenCalledWith("demo", "claude-code", {
+      model: "sonnet",
+    });
   });
 
   it("clears every override for the plugin on an empty config (AP-TC-005 S004)", async () => {
     const res = await request(app())
-      .put("/api/projects/roubo-development/agents/claude-code/config")
+      .put("/api/projects/demo/agents/claude-code/config")
       .send({ config: {} });
 
     expect(res.status).toBe(200);
@@ -256,7 +254,7 @@ describe("PUT /api/projects/:projectId/agents/:pluginId/config", () => {
 
   it("rejects an out-of-enum override value host-side, naming the allowed values", async () => {
     const res = await request(app())
-      .put("/api/projects/roubo-development/agents/claude-code/config")
+      .put("/api/projects/demo/agents/claude-code/config")
       .send({ config: { model: "gpt-5" } });
 
     expect(res.status).toBe(400);
@@ -268,13 +266,13 @@ describe("PUT /api/projects/:projectId/agents/:pluginId/config", () => {
 
   it("validates against the addressed plugin's schema only", async () => {
     const rejected = await request(app())
-      .put("/api/projects/roubo-development/agents/claude-code/config")
+      .put("/api/projects/demo/agents/claude-code/config")
       .send({ config: { reasoningEffort: "high" } });
     expect(rejected.status).toBe(400);
 
     vi.mocked(appOverrides.getEffectiveAgentConfig).mockReturnValue({});
     const accepted = await request(app())
-      .put("/api/projects/roubo-development/agents/codex-cli/config")
+      .put("/api/projects/demo/agents/codex-cli/config")
       .send({ config: { reasoningEffort: "high" } });
     expect(accepted.status).toBe(200);
   });
@@ -290,7 +288,7 @@ describe("PUT /api/projects/:projectId/agents/:pluginId/config", () => {
 
   it("400s on a malformed plugin id before any write", async () => {
     const res = await request(app())
-      .put("/api/projects/roubo-development/agents/Bad_Id/config")
+      .put("/api/projects/demo/agents/Bad_Id/config")
       .send({ config: {} });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Invalid plugin id");
@@ -299,7 +297,7 @@ describe("PUT /api/projects/:projectId/agents/:pluginId/config", () => {
 
   it("404s on an id that is not an installed agent plugin (AP-TC-008)", async () => {
     const res = await request(app())
-      .put("/api/projects/roubo-development/agents/ghost-agent/config")
+      .put("/api/projects/demo/agents/ghost-agent/config")
       .send({ config: { model: "sonnet" } });
     expect(res.status).toBe(404);
     expect(projectOverrides.saveProjectAgentOverride).not.toHaveBeenCalled();
@@ -307,7 +305,7 @@ describe("PUT /api/projects/:projectId/agents/:pluginId/config", () => {
 
   it("400s on a body that is not { config: object }", async () => {
     const res = await request(app())
-      .put("/api/projects/roubo-development/agents/claude-code/config")
+      .put("/api/projects/demo/agents/claude-code/config")
       .send({ model: "sonnet" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Invalid body: { config: object } required");
@@ -367,7 +365,7 @@ describe("GET /api/projects/:projectId/agents probed choices (#884)", () => {
     vi.mocked(registry.listAgents).mockReturnValue([PROBED]);
     vi.mocked(readChoiceProbe).mockReturnValue(undefined);
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
 
     expect(res.status).toBe(200);
     expect(vi.mocked(warmChoiceProbes)).toHaveBeenCalledWith("cursor-cli", CHOICE_PROBES, [
@@ -381,7 +379,7 @@ describe("GET /api/projects/:projectId/agents probed choices (#884)", () => {
     vi.mocked(registry.listAgents).mockReturnValue([PROBED]);
     resolvedModels();
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
     const { model, effort } = res.body.agents[0].configSchema.properties;
 
     expect(res.body.agents[0].choiceProbes).toEqual({ model: { state: "resolved" } });
@@ -408,7 +406,7 @@ describe("GET /api/projects/:projectId/agents probed choices (#884)", () => {
       at: Date.now(),
     });
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
 
     expect(res.body.agents[0].choiceProbes).toEqual({
       model: { state: "failed", cause: "command-not-found", reason: "Command not found: agent" },
@@ -419,7 +417,7 @@ describe("GET /api/projects/:projectId/agents probed choices (#884)", () => {
   it("omits the state map for a manifest that declares no choice probes", async () => {
     vi.mocked(registry.listAgents).mockReturnValue([CLAUDE]);
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
 
     expect(res.body.agents[0]).not.toHaveProperty("choiceProbes");
     expect(res.body.agents[0].configSchema).toEqual(CLAUDE_SCHEMA);
@@ -434,7 +432,7 @@ describe("GET /api/projects/:projectId/agents probed choices (#884)", () => {
     } as ReturnType<typeof registry.resolveAgent>);
     vi.mocked(readChoiceProbe).mockReturnValue(undefined);
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
 
     expect(vi.mocked(warmChoiceProbes)).not.toHaveBeenCalled();
     expect(res.body.agents[0].unavailable).toMatchObject({ reason: "not-consented" });
@@ -446,7 +444,7 @@ describe("GET /api/projects/:projectId/agents probed choices (#884)", () => {
     // Not one of the probed choices, but valid under the declared plain string.
     resolveWith({ model: "custom-model" });
 
-    const res = await request(app()).get("/api/projects/roubo-development/agents");
+    const res = await request(app()).get("/api/projects/demo/agents");
 
     expect(res.body.agents[0].choiceProbes).toEqual({ model: { state: "resolved" } });
     expect(res.body.agents[0].misconfigured).toBeNull();
@@ -458,7 +456,7 @@ describe("GET /api/projects/:projectId/agents probed choices (#884)", () => {
     resolvedModels();
 
     const res = await request(app())
-      .put("/api/projects/roubo-development/agents/cursor-cli/config")
+      .put("/api/projects/demo/agents/cursor-cli/config")
       .send({ config: { model: "custom-model" } });
 
     expect(res.status).toBe(200);

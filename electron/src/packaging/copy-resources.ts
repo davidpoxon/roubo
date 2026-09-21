@@ -29,7 +29,7 @@ export async function copyResources({
   // Defensive: never carry a stale plugin-source or seed dir from an earlier
   // build into the packaged app. The app ships no first-party plugin artifacts:
   // first-party plugins are served from the NETWORK catalog only (the SEED
-  // channel was retired, davidpoxon/roubo-development#621).
+  // channel was retired, #993).
   await rm(path.join(resourcesDir, "plugins"), { recursive: true, force: true });
   await rm(path.join(resourcesDir, "seed"), { recursive: true, force: true });
 

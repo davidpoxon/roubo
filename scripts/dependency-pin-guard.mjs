@@ -40,7 +40,8 @@
 //
 // Run with: npm run lint:dep-pins
 
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 const DEP_KINDS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 
@@ -243,7 +244,7 @@ export function loadTree(readFn) {
 }
 
 // Only run the CLI when invoked directly, not when imported by the test.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const { lock, manifests } = loadTree((f) => readFileSync(f, "utf8"));
   const findings = scanPins(lock, manifests);
 

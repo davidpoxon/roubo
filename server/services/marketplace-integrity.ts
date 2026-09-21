@@ -36,7 +36,7 @@ import path from "node:path";
  * release; operational keys rotate via the signed key-ring (CPHM-FR-007 /
  * CPHM-NFR-004).
  *
- * This is the real published bootstrap root public key (davidpoxon/roubo-development#368).
+ * This is the real published bootstrap root public key (#847).
  * Its private half is held only in the roubo-plugins release CI secret
  * (`MARKETPLACE_ROOT_SIGNING_KEY`) and signs the published key-ring; it is never
  * committed. With the real key embedded, the fetched key-ring verifies and the

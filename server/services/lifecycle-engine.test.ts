@@ -115,12 +115,12 @@ describe("lifecycle-engine runDescriptor", () => {
       expect(final?.status).toBe("running");
       // The running push carries the container id resolved from the same seam the
       // broker uses after composeUp, so the integrated ComponentStatus reports it
-      // while the container is up (davidpoxon/roubo-development#410).
+      // while the container is up (#892).
       expect(h.docker.getContainerId).toHaveBeenCalledWith("roubo-proj1-bench-3", "postgres");
       expect(final?.containerId).toBe("container-abc123");
     });
 
-    it("omits the container id on the running push when none can be resolved (davidpoxon/roubo-development#410)", async () => {
+    it("omits the container id on the running push when none can be resolved (#892)", async () => {
       const h = setup();
       (h.docker.getContainerId as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       const descriptor = {
@@ -397,7 +397,7 @@ describe("lifecycle-engine runDescriptor", () => {
       expect(h.led.recordComposeProject).not.toHaveBeenCalled();
       // The running push carries the externally-assigned container id (resolved
       // from the descriptor, not a compose lookup) so the integrated
-      // ComponentStatus reports it (davidpoxon/roubo-development#410).
+      // ComponentStatus reports it (#892).
       expect(h.statuses.at(-1)?.containerId).toBe("ext-container-123");
       expect(h.docker.getContainerId).not.toHaveBeenCalled();
     });

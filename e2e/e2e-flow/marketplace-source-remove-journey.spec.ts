@@ -8,7 +8,7 @@ import {
   seedMarketplaceSource,
 } from "./_support/scenario.js";
 
-// CPHMTP-TC-011 (CPHMTP-FR-009 / CPHMTP-US-006, issue #571): end-to-end proof of
+// CPHMTP-TC-011 (CPHMTP-FR-009 / CPHMTP-US-006): end-to-end proof of
 // the "remove a third-party marketplace, then confirm the orphaned aftermath"
 // journey against the integrated app. Removing a source is a cascade the operator
 // consents to through a consequences dialog: the source's installed plugins stay
@@ -62,14 +62,12 @@ const SCENARIO = "default";
 const NOW = "2026-07-18T10:00:00.000Z";
 const PLUGIN_ID = "e2e-stub";
 
-// Owning slices from this unit's blocked-by set (#571 AC7 / FR-020), surfaced in
-// failure messages so a red step points at the slice that owns the behaviour.
-const REGISTRY_SLICE =
-  "davidpoxon/roubo-development#561 (Marketplaces settings list: source rows + Remove seam)";
-const REMOVAL_SLICE =
-  "davidpoxon/roubo-development#564 (removal consequences dialog + confirmation + cascade)";
-const ORPHAN_SLICE =
-  "davidpoxon/roubo-development#560 (orphan-stamp the provenance ledger on source removal)";
+// Owning slices from this unit's blocked-by set, named by title (FR-020
+// failure-output contract) and surfaced in failure messages so a red step points
+// at the slice that owns the behaviour.
+const REGISTRY_SLICE = "Marketplaces settings list: source rows + Remove seam";
+const REMOVAL_SLICE = "removal consequences dialog + confirmation + cascade";
+const ORPHAN_SLICE = "orphan-stamp the provenance ledger on source removal";
 
 /**
  * Open a global Settings section by its hash. The built server's SPA fallback 404s

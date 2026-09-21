@@ -581,7 +581,7 @@ describe("BenchDashboard", () => {
       expect(screen.getAllByTestId("empty-bench-card")).toHaveLength(2);
     });
 
-    it("surfaces an out-of-range bench (id > maxBenches) as a clearable card (davidpoxon/roubo-development#21)", () => {
+    it("surfaces an out-of-range bench (id > maxBenches) as a clearable card (#834)", () => {
       // max=3, but a bench with id 5 is persisted (e.g. benches.max was lowered
       // after bench 5 was created). It must still render so it can be cleared,
       // otherwise the project can never be unregistered.

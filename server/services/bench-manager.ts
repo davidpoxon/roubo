@@ -317,7 +317,7 @@ export async function reconcile() {
         // Populate the container id while the container runs, and clear it
         // otherwise, so a crash-recovery reconcile surfaces the live id (and
         // drops a stale one) the same way the sibling process branch tracks the
-        // pid (davidpoxon/roubo-development#410).
+        // pid (#892).
         const containerId = newStatus === "running" ? (entry?.id ?? undefined) : undefined;
         if (bench.components[name]) {
           bench.components[name].status = newStatus;
@@ -3118,7 +3118,7 @@ export async function refreshComponentStatuses() {
         // Track the container id alongside the live status so the reported
         // ComponentStatus carries the id while the container runs, and drops it
         // when the container goes unhealthy or stops out of band
-        // (davidpoxon/roubo-development#410).
+        // (#892).
         if (containerStatus === "running") {
           componentStatus.status = "running";
           componentStatus.containerId = entry?.id ?? undefined;

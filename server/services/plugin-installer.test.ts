@@ -554,7 +554,7 @@ describe("commit records the marketplace provenance (issue #558, AC4)", () => {
     // No marketplace source, so the raw path records its own unverified row keyed
     // on the git URL rather than leaving the ledger empty. Stamping every install
     // path is what lets the client fail closed on absent provenance instead of
-    // reading it as first-party (davidpoxon/roubo-development#607).
+    // reading it as first-party (#981).
     expect(pluginProvenanceState.recordProvenance).toHaveBeenCalledWith({
       pluginId: "echo",
       sourceId: gitUrl,

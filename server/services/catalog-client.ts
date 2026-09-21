@@ -26,7 +26,7 @@ import {
 // Fetches the signed catalog over the network, verifies it fail-closed, and
 // caches the last verified envelope on disk. The degrade chain is
 // NETWORK -> CACHE, bottoming out at an EMPTY listing when neither is available.
-// The first-party SEED channel was retired in davidpoxon/roubo-development#621:
+// The first-party SEED channel was retired in #993:
 // the app no longer ships a committed seed catalog, so there is one channel and
 // one source of truth (roubo-plugins). A new install while the marketplace is
 // unreachable is paused with a clear message rather than crashing.
@@ -373,7 +373,7 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
         return fromCache;
       }
       // No network and no usable cache: bottom out at an empty listing. The
-      // first-party SEED floor was retired (davidpoxon/roubo-development#621),
+      // first-party SEED floor was retired (#993),
       // so there is no bundled catalog to fall back on. This mirrors the
       // third-party client's empty degrade (createThirdPartyCatalogClient below).
       const empty: VerifiedCatalog = { entries: [], source: "cache", fetchedAt: null };
@@ -656,7 +656,7 @@ export function prefetch(): Promise<void> {
 
 // A small, self-contained catalog fixture the offline-journey seam serves when
 // reachable (replacing the retired committed seed catalog it used to re-sign,
-// davidpoxon/roubo-development#621). Four well-formed entries are enough to walk
+// #993). Four well-formed entries are enough to walk
 // the degrade journey; the digests are placeholders (the offline journey lists
 // and pauses, it never installs).
 //

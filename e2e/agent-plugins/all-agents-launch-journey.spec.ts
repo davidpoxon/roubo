@@ -27,7 +27,7 @@ const observe = makeObserve("AP-TC-022");
 // attributable observations against the REAL built app. On divergence each
 // observation routes through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
-// diverged, the expected-vs-actual, and the owning slice issue(s).
+// diverged, the expected-vs-actual, and the owning slice(s).
 //
 // WHAT MAKES THIS CASE DIFFERENT from its sibling guard in
 // launch-menu-presets.spec.ts, which shares almost all of this scaffolding: this
@@ -66,13 +66,13 @@ const ALL_AGENTS_SECTION = "All agents";
 /** The command the `codex-cli` overlay's launch descriptor names. */
 const CODEX_COMMAND = "roubo-e2e-codex-stub";
 
-// The slice issues this unit covers, used by the FR-020 failure-output contract
+// The slices this unit covers, used by the FR-020 failure-output contract
 // to attribute a divergence.
 const SLICE = {
-  contract: { issue: 502, title: "Spike: agent-contract shape against Claude Code and Codex" },
-  pipeline: { issue: 510, title: "Core agent launch pipeline: PTY sessions from descriptors" },
-  menu: { issue: 517, title: "Terminal tab agent launch UX: split-button and grouped launch menu" },
-  a11y: { issue: 524, title: "Accessibility audit of the agent surfaces (WCAG 2.1 AA)" },
+  contract: { title: "Spike: agent-contract shape against Claude Code and Codex" },
+  pipeline: { title: "Core agent launch pipeline: PTY sessions from descriptors" },
+  menu: { title: "Terminal tab agent launch UX: split-button and grouped launch menu" },
+  a11y: { title: "Accessibility audit of the agent surfaces (WCAG 2.1 AA)" },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {
