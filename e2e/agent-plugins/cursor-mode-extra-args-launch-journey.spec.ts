@@ -49,15 +49,16 @@ const observe = makeObserve("APCC-TC-025");
 // launch resolving them through the four-layer config, the pre-launch version
 // gate passing, and the values reaching the spawned CLI as separate argv tokens.
 //
-// "THE ASSEMBLED COMMAND" AND "THE PREVIEWED COMMAND" ARE THE CAPTURED ARGV.
-// S004 says "read the assembled command" and S005 says the session starts "with
-// the previewed command", but Roubo has no command-preview surface: no UI and no
-// API reports an agent session's argv before or after launch. The AP-TC-087 and
-// AP-TC-105 guards met the same wording the same way, and so does this one: the
-// assembled command is the argv the spawned child actually received. The overlay
-// names a stub binary (e2e/fixtures/bin/roubo-e2e-cursor-stub, deliberately NOT
-// called `agent` so a real install cannot win the PATH lookup) which writes its
-// OWN `process.argv.slice(2)` as JSON to CURSOR_ARGV_LOG_PATH. Reconstructing the
+// THE ASSEMBLED COMMAND IS THE CAPTURED ARGV. S004 says "read the assembled
+// command" and S005 says the session starts "with the command the plugin
+// assembled for the saved configuration", and Roubo has no command-preview
+// surface: no UI and no API reports an agent session's argv before or after
+// launch. The AP-TC-087 and AP-TC-105 guards met the same wording the same way,
+// and so does this one: the assembled command is the argv the spawned child
+// actually received. The overlay names a stub binary
+// (e2e/fixtures/bin/roubo-e2e-cursor-stub, deliberately NOT called `agent` so a
+// real install cannot win the PATH lookup) which writes its OWN
+// `process.argv.slice(2)` as JSON to CURSOR_ARGV_LOG_PATH. Reconstructing the
 // argv host-side would assert our own arithmetic rather than the child's reality.
 //
 // THE LAUNCH THEREFORE PRECEDES THE S004 OBSERVATIONS. The command only exists
@@ -522,14 +523,14 @@ test(
       shown,
     );
 
-    // --- S005: the session starts with the previewed command ---------------------
+    // --- S005: the session starts with the assembled command ---------------------
     observe(
       STEPS.S005,
       "S005-O01",
       live !== undefined &&
         live.command === CURSOR_COMMAND &&
         JSON.stringify(captured) === JSON.stringify(EXPECTED_ARGV),
-      `The session starts with the previewed command: a live ${AGENT_NAME} session (agentPluginId=${PLUGIN_ID}, command=${CURSOR_COMMAND}) whose child received ${JSON.stringify(EXPECTED_ARGV)}`,
+      `The session starts with the command the plugin assembled for the saved configuration: a live ${AGENT_NAME} session (agentPluginId=${PLUGIN_ID}, command=${CURSOR_COMMAND}) whose child received ${JSON.stringify(EXPECTED_ARGV)}`,
       `${live === undefined ? describeSessions(seen) : `${live.id}: status=${live.status}, agent=${live.agentPluginId}, command=${live.command}`}; argv=${shown}`,
     );
   },

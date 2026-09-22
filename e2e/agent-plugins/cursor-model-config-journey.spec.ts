@@ -46,14 +46,14 @@ const observe = makeObserve("APCC-TC-011");
 // field, the form persisting the selected id rather than its label, and that id
 // reaching the spawned CLI unchanged through a real launch.
 //
-// S004 READS THE LAUNCHED ARGV, NOT A SCREEN PREVIEW. The case says "Read the
-// assembled command the screen previews", but the AI Agents screen has no
-// command preview: the "Assembled command" card exists only in the spec's
-// prototype, and no slice builds one yet. The assembled command is therefore
-// read the way AP-TC-087 and AP-TC-105 read theirs: the stub writes its own
-// `process.argv.slice(2)` as JSON to CURSOR_ARGV_LOG_PATH, and S004's
-// observations are asserted over that array. Its three observations are about
-// the command, not about the preview widget, so they carry over unchanged.
+// S004 READS THE LAUNCHED ARGV. The case says "Launch a session from a bench and
+// read the command the plugin assembled for the saved configuration". The AI
+// Agents screen has no command preview (the "Assembled command" card exists only
+// in the spec's prototype, and the case was reworded to observe the launched
+// command rather than build one), and no API reports an agent session's argv.
+// The assembled command is therefore read the way AP-TC-087 and AP-TC-105 read
+// theirs: the stub writes its own `process.argv.slice(2)` as JSON to
+// CURSOR_ARGV_LOG_PATH, and S004's observations are asserted over that array.
 //
 // NOT COVERED: whether the Cursor server really runs a session on the requested
 // model. That needs a paid Cursor account, since the Free plan refuses every
@@ -120,7 +120,8 @@ const STEPS: Record<string, JourneyStep> = {
   },
   S004: {
     id: "S004",
-    instruction: "Read the assembled command the screen previews.",
+    instruction:
+      "Launch a session from a bench and read the command the plugin assembled for the saved configuration.",
     owners: [SLICE.paramForm, SLICE.modelField, SLICE.axes],
   },
 };
@@ -404,7 +405,7 @@ test(
       `field shows ${JSON.stringify(reloadedText)}, persisted config=${JSON.stringify(persisted)}`,
     );
 
-    // --- S004: the assembled command (see the header on the preview) ---------
+    // --- S004: the assembled command (see the header on the launched argv) ---
     await openTerminalTab(page);
     clearCapturedCursorArgv();
     await launchCursorFromAllAgents(page);
