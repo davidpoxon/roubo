@@ -13,11 +13,11 @@ import { canonicalize, fingerprintKeyId } from "./marketplace-integrity.js";
 import { createCatalogClient } from "./catalog-client.js";
 
 // Catalog-client degrade-chain tests (CPHM-FR-001 / FR-009 / NFR-003, issue
-// #306). The client is exercised through dependency injection: a generated root
+// #845). The client is exercised through dependency injection: a generated root
 // + operational keypair (never the embedded bootstrap root, whose private half
 // is held out of band), a fake fetch, a temp cache dir, and a no-op log sink so
 // the run is silent. The degrade chain is NETWORK -> CACHE, bottoming out at an
-// empty listing (the first-party SEED channel was retired, #621).
+// empty listing (the first-party SEED channel was retired, #993).
 
 const CACHE_FILENAME = "catalog-cache.json";
 
@@ -273,7 +273,7 @@ describe("getVerifiedCatalog network path", () => {
   });
 });
 
-describe("getVerifiedCatalog size budget (CPHM-NFR-002, issue #495)", () => {
+describe("getVerifiedCatalog size budget (CPHM-NFR-002, #944)", () => {
   it("rejects an over-budget catalog mid-stream and degrades instead of serving it (AC1, AC2, mirrors CPHM-TC-010)", async () => {
     const keys = makeKeys();
     // A validly signed but oversized catalog. Declared content-length lies small
@@ -390,7 +390,7 @@ describe("getVerifiedCatalog cache degrade", () => {
   });
 });
 
-describe("getVerifiedCatalog empty degrade (bottoms out empty, no seed floor, #621)", () => {
+describe("getVerifiedCatalog empty degrade (bottoms out empty, no seed floor, #993)", () => {
   it("serves an empty listing when there is no cache and the network is down (TC-047)", async () => {
     const result = await clientWith({ fetchImpl: failingFetch }).getVerifiedCatalog({
       forceRefresh: true,
@@ -452,7 +452,7 @@ describe("prefetch", () => {
   });
 });
 
-// ── ROUBO_E2E offline-journey seam (issue #314, CPHM-TC-051) ──────────────────
+// ── ROUBO_E2E offline-journey seam (#850, CPHM-TC-051) ──────────────────
 // The seam (the ROUBO_E2E branch in getDefaultClient plus __setE2EMarketplaceReachable
 // and its helpers) is what the marketplace-offline-journey e2e flips to walk
 // offline -> install-paused -> reconnect. Unlike the dependency-injection tests
@@ -460,7 +460,7 @@ describe("prefetch", () => {
 // from getRouboDir(); so these tests redirect getRouboDir() at a throwaway tmp dir
 // and re-import the module fresh per test (vi.resetModules) so the cached default
 // client and the generated-keypair seam are rebuilt under the pinned ROUBO_E2E.
-describe("__setE2EMarketplaceReachable (ROUBO_E2E offline-journey seam, #314)", () => {
+describe("__setE2EMarketplaceReachable (ROUBO_E2E offline-journey seam, #850)", () => {
   const originalE2E = process.env.ROUBO_E2E;
   let cacheHome: string;
 
@@ -497,7 +497,7 @@ describe("__setE2EMarketplaceReachable (ROUBO_E2E offline-journey seam, #314)", 
   it("degrades to an empty listing when unreachable with no warmed cache", async () => {
     process.env.ROUBO_E2E = "1";
     const mod = await import("./catalog-client.js");
-    // No warmed cache and no bundled seed floor (#621), so the chain bottoms out
+    // No warmed cache and no bundled seed floor (#993), so the chain bottoms out
     // at an empty listing reported as cache.
     expect(await mod.__setE2EMarketplaceReachable(false)).toBe("cache");
   });
@@ -514,7 +514,7 @@ describe("__setE2EMarketplaceReachable (ROUBO_E2E offline-journey seam, #314)", 
   });
 });
 
-describe("seedThirdPartyCacheForE2E (ROUBO_E2E third-party-source seam, #575)", () => {
+describe("seedThirdPartyCacheForE2E (ROUBO_E2E third-party-source seam, #989)", () => {
   const originalE2E = process.env.ROUBO_E2E;
   let cacheHome: string;
 

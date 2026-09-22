@@ -1,5 +1,5 @@
 // The resolution trace behind the per-launch override dialog (AP-FR-011, issue
-// #518).
+// #1072).
 //
 // The four layers a launch resolves through, in the order the host resolves
 // them: application defaults, project overrides, the preset, then this launch.

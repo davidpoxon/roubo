@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // The shared trust badge's rendering (CPHMTP-FR-006 / CPHMTP-NFR-001, issue
-// #563): which pills each trust treatment produces, that source provenance always
+// #977): which pills each trust treatment produces, that source provenance always
 // accompanies the badge, and that there is no dismiss affordance to find
 // (CPHMTP-TC-041). The trust DECISION this renders is pinned separately in
 // plugin-provenance.test.ts.
@@ -131,7 +131,7 @@ describe("ProvenanceBadge rendering (CPHMTP-TC-030 / CPHMTP-TC-056)", () => {
     expect(screen.getByTestId("provenance-trust")).toHaveTextContent("Unverified");
   });
 
-  // Issue #596: the pills are role-less spans (ARIA role `generic`), which cannot
+  // #965: the pills are role-less spans (ARIA role `generic`), which cannot
   // carry an aria-label, so their context must be sr-only subtree text.
   it("announces source and warning context as screen-reader-only text, not aria-labels", () => {
     render(

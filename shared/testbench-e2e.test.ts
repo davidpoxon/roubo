@@ -1,11 +1,11 @@
 // Integration-level E2E test for the schema author -> generate -> validate
-// journey, asserting the authoritative e2e_flow case TC-056 end to end (#442).
+// journey, asserting the authoritative e2e_flow case TC-056 end to end (#455).
 //
 // This is the journey's drift guard: it exercises the full pipeline through the
 // already-pure, importable seams of the slices it spans, rather than
-// re-implementing any of them. The slices owned by this work unit are #405
-// (versioned $id contracts), #408 (zod-to-JSON-Schema spike), #410 (runtime
-// validators) and #411 (generate script + CI drift guard); a failing step is
+// re-implementing any of them. The slices owned by this work unit are #425
+// (versioned $id contracts), #431 (zod-to-JSON-Schema spike), #445 (runtime
+// validators) and #449 (generate script + CI drift guard); a failing step is
 // localised back to the owning slice via OWNING_SLICES below (FR-020).
 //
 // Validation note: the repo validates with zod (no ajv / JSON-Schema instance
@@ -14,7 +14,7 @@
 // exact contract the JSON Schema is generated from, AND assert the generated
 // JSON Schema file's structural integrity (written, parses, $id present and
 // semver-versioned). Introducing ajv to do strict JSON-Schema-instance
-// validation is deliberately avoided (no new dependency); see #442.
+// validation is deliberately avoided (no new dependency); see #455.
 
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,11 +34,12 @@ import {
 } from "./testbench-contracts.js";
 import { renderSchema } from "../scripts/generate-schema.js";
 
-// The slices this journey integrates, from #442's blocked_by / covers set.
+// The slices this journey integrates, from the work unit's blocked_by / covers set.
 // Reported when a step diverges so a failure is attributable (FR-020).
-const OWNING_SLICES = "#405, #408, #410, #411";
+const OWNING_SLICES =
+  "published-schema contract spike, zod to JSON Schema spike, testbench-contracts zod schemas + validators, schema generate script + CI drift guard";
 
-// A semver-versioned $id URI ends in /vX.Y.Z.json (the #408 spike decision).
+// A semver-versioned $id URI ends in /vX.Y.Z.json (the #431 spike decision).
 const SEMVER_ID = /\/v\d+\.\d+\.\d+\.json$/;
 
 // Canonical TC-056 step labels, declared once as the single source of truth.
@@ -105,7 +106,7 @@ function makeResults(): TestResultsFile {
     schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
     planHash: "sha256:abc",
     updatedAt: "2026-06-08T00:00:00.000Z",
-    // Flattened in v2.0.0 (#493): case results live at the top level (one file
+    // Flattened in v2.0.0 (#494): case results live at the top level (one file
     // per worktree). Keyed by the plan's case id only; the plan is never embedded
     // or edited.
     caseResults: {
@@ -127,7 +128,7 @@ function makeResults(): TestResultsFile {
 // ── FR-020 failure-output wrapper ──
 //
 // Each TC-056 step runs inside step(): on divergence it reports the diverging
-// e2e_flow step label, the expected-vs-actual, and the owning slice issue(s),
+// e2e_flow step label, the expected-vs-actual, and the owning slice(s),
 // so a failure is attributable to a slice rather than the whole journey.
 async function step<T>(label: string, expectation: string, body: () => T | Promise<T>): Promise<T> {
   try {
@@ -247,7 +248,7 @@ describe("TestBench schema E2E (TC-056): author -> generate -> validate", () => 
   });
 
   // AC6 / FR-020: prove the failure-output wrapper localises a diverging step,
-  // reporting expected-vs-actual and the owning slice issue(s).
+  // reporting expected-vs-actual and the owning slice(s).
   it("on failure reports the diverging step, expected-vs-actual, and owning slices", async () => {
     await expect(
       step(

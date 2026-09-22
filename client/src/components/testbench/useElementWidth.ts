@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
 
-// Measure a ref'd element's content-box width in px via ResizeObserver (#524).
+// Measure a ref'd element's content-box width in px via ResizeObserver (#525).
 //
 // Layout decisions in the TestBench detail pane (inline notes rail vs bottom
 // drawer) must key on the space actually available to that pane, not the global

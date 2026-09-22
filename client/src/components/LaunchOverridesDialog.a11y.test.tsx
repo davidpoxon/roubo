@@ -31,7 +31,7 @@ const CLAUDE: ProjectAgentState = {
   misconfigured: null,
 };
 
-/** A selectable preset, so the preset picker (issue #668) is part of the scan. */
+/** A selectable preset, so the preset picker (#1085) is part of the scan. */
 const PRESET: ResolvedAgentPreset = {
   id: "at-deep",
   name: "Deep work",

@@ -43,7 +43,7 @@ describe("MarketplaceDrawer", () => {
     expect(screen.getByText("Redis")).toBeInTheDocument();
   });
 
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the modality explicit to AT.
   it("stamps aria-modal on the dialog", () => {
     render(
@@ -58,7 +58,7 @@ describe("MarketplaceDrawer", () => {
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
   });
 
-  // Issue #720: the drawer carries the same host-range mark as the card and
+  // #1134: the drawer carries the same host-range mark as the card and
   // withholds the same install affordance, so the two surfaces cannot disagree
   // about whether a listing is installable.
   it("marks a host-incompatible entry and offers no install button", () => {

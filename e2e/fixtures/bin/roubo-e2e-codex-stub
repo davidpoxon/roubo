@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Stub agent CLI for the `codex-cli` e2e overlay (issues #683, #532).
+// Stub agent CLI for the `codex-cli` e2e overlay (#1095, #1128).
 //
 // The overlay (../bundled-overlays/codex-cli/) points its manifest-declared
 // version probe and its launch descriptor at this binary. It exists so the AI
@@ -21,7 +21,7 @@
 //               CODEX_ARGV_LOG_PATH, then print a ready line and idle so the PTY
 //               session stays live and the host classifies no early-exit failure.
 //
-// WHY A SECOND LOG PATH rather than the one roubo-e2e-claude-stub writes (#532).
+// WHY A SECOND LOG PATH rather than the one roubo-e2e-claude-stub writes (#1128).
 // Each capture file is single-writer, last-write-wins, and the AP-TC-056 /
 // AP-TC-105 journeys hold a live codex session while the ambient claude overlay
 // is still installed, so one shared destination would let either child clobber
@@ -53,7 +53,7 @@ import { CODEX_ARGV_LOG_PATH } from "../../agent-plugins/_support/argv-log-path.
 // marker keeps a stray real invocation legible in a log.
 //
 // Inside the overlay's declared window (floor 0.144.0, tested ceiling 0.144.1,
-// re-based on the shipped Codex plugin's manifest in #520), so the gate neither
+// re-based on the shipped Codex plugin's manifest), so the gate neither
 // blocks a launch nor emits a staleness notice. Both bounds are inclusive, so
 // sitting exactly on the ceiling still resolves `within-tested-range`.
 const STUB_VERSION = "0.144.1";

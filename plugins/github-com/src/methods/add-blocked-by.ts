@@ -11,7 +11,7 @@ interface ResolveNodeIdsResponse {
 // `blockedBy`/`blocking` READ graph in github-fetchers.ts). Given the gate
 // (blocked) issue and the fix (blocker) issue, it records "blocked is blocked by
 // blocker". The mutation's GA status is instance- and date-dependent (spike
-// #704), so a schema/availability rejection is surfaced as a legible error the
+// #732), so a schema/availability rejection is surfaced as a legible error the
 // gateway can degrade on, never swallowed.
 const ADD_BLOCKED_BY_MUTATION = `mutation($blockedId: ID!, $blockerId: ID!) {
   addIssueDependency(input: { issueId: $blockedId, blockedByIssueId: $blockerId }) {
@@ -32,7 +32,7 @@ function buildResolveQuery(): string {
 
 /**
  * Register an "is blocked by" relationship on GitHub (verify-gate VG-FR-010/VG-FR-011,
- * spike #704): `blockedRef` becomes blocked by `blockerRef`. Resolves both
+ * spike #732): `blockedRef` becomes blocked by `blockerRef`. Resolves both
  * issues' GraphQL node ids, then issues the issue-dependencies write mutation,
  * the WRITE neighbour of the `blockedBy`/`blocking` READ already shipping in
  * `github-fetchers.ts`.

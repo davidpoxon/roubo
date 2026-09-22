@@ -69,7 +69,7 @@ export function useRestartPlugin() {
   });
 }
 
-// Issue #756: reinstall a bundled plugin into the shared ~/.roubo/plugins/
+// #758: reinstall a bundled plugin into the shared ~/.roubo/plugins/
 // location so OS-level docker isolation can engage. Invalidates the plugins
 // query so the card re-renders as the now-user copy (and the isolation notice
 // clears once the docker tier engages).
@@ -136,7 +136,7 @@ export function useInstallPluginCancel() {
   });
 }
 
-// Issue #615 (CP-FR-011 / CP-FR-012): read the consent status for a plugin
+// #656 (CP-FR-011 / CP-FR-012): read the consent status for a plugin
 // (declared permissions, first-party flag, and whether consent has been
 // granted). Consumed before a component plugin is allowed to run.
 const CONSENT_KEY_PREFIX = "plugin-consent";

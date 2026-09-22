@@ -10,7 +10,7 @@ import {
 import { readSpecLifecycle } from "./testbench-spec-lifecycle.js";
 import { UnsafePathError } from "./safe-path.js";
 
-// #773, SATCA-FR-020/FR-021, SATCA-TC-047/048/049/050, SATCA-NFR-001/NFR-003.
+// #1166, SATCA-FR-020/FR-021, SATCA-TC-047/048/049/050, SATCA-NFR-001/NFR-003.
 // The manifest half of the LifecycleWriter, exercised against a real temp repo
 // (no fs mocking: the merge-write and the temp-then-rename are the behaviour
 // under test, so they run for real).

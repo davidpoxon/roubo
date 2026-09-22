@@ -5,7 +5,7 @@ import { useReinstallShared } from "../../../hooks/usePlugins";
 
 interface Props {
   notices: IsolationNotice[];
-  /** Plugin id, used to trigger the shared-location reinstall (issue #756). */
+  /** Plugin id, used to trigger the shared-location reinstall (#758). */
   pluginId: string;
   /** Plugin source: the reinstall action is offered only for bundled plugins. */
   source: PluginSource;
@@ -21,13 +21,13 @@ const ACTION_BUTTON_CLASS =
   "self-start px-2.5 py-1 text-12 font-medium rounded-control border border-accent-border text-accent-text not-disabled:hover:bg-accent-muted disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
 
 /**
- * Surfaces docker isolation-tier notices (#743) on the plugin card. The plugin
+ * Surfaces docker isolation-tier notices (#746) on the plugin card. The plugin
  * keeps running on the broker-only floor, so this is an amber advisory (not a
  * red error): it tells the user the OS-isolation tier could not engage and how
  * to enable it. One banner per notice, each naming the plugin dir and the
  * remediation carried in the notice message.
  *
- * Issue #756: when the plugin is bundled and at least one notice is a
+ * #758: when the plugin is bundled and at least one notice is a
  * `docker-mount-unshared` notice, offer a one-click "Reinstall in shared
  * location" action. It copies the bundled plugin into `~/.roubo/plugins/<id>/`
  * (already a shared path), supersedes the bundled entry, and starts the user

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Stub agent CLI for the AP-TC-087 drift guard (issue #531).
+// Stub agent CLI for the AP-TC-087 drift guard (#1083).
 //
 // The `claude-code` bundled overlay (../bundled-overlays/claude-code/) points its
 // launch descriptor and its version probe at this binary. It exists so the

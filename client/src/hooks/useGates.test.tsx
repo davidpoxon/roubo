@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #702 (VG-FR-012): the gate-state hooks fetch project-level gate state, do not
+// #726 (VG-FR-012): the gate-state hooks fetch project-level gate state, do not
 // retry on failure, gate the fetch on `enabled`, and expose an invalidation
 // helper the batch view uses to live-update after a mark (AC2).
 
@@ -39,7 +39,7 @@ const gate = {
 };
 
 // fetchGates now resolves the GatesResponse shape ({ gates, invalidSpecs }) rather
-// than a bare array (#371).
+// than a bare array (#874).
 const gatesResponse = { gates: [gate], invalidSpecs: [] };
 
 describe("query keys", () => {
@@ -48,11 +48,11 @@ describe("query keys", () => {
     expect(gateQueryKey("p1", "WU-099")).toEqual(["gate", "p1", "WU-099"]);
   });
 
-  // #549: scoping the list to a focused spec appends the slug as a third element,
+  // #952: scoping the list to a focused spec appends the slug as a third element,
   // so two benches on different specs never share one cache entry. The slug-less
   // form stays a prefix of the scoped key, so the mutations' prefix invalidation
   // (which keys on `gatesQueryKey(projectId)`) still matches every scoped entry.
-  it("appends the focused-spec slug when scoping to a spec (#549)", () => {
+  it("appends the focused-spec slug when scoping to a spec (#952)", () => {
     expect(gatesQueryKey("p1", "brigade")).toEqual(["gates", "p1", "brigade"]);
     const prefix = gatesQueryKey("p1");
     const scoped = gatesQueryKey("p1", "brigade");
@@ -69,9 +69,9 @@ describe("useGates", () => {
     expect(result.current.data).toEqual(gatesResponse);
   });
 
-  // #549: when a focused-spec slug is passed the fetch is scoped to it and the
+  // #952: when a focused-spec slug is passed the fetch is scoped to it and the
   // result caches under the slug-scoped key.
-  it("fetches scoped to the focused-spec slug when given (#549)", async () => {
+  it("fetches scoped to the focused-spec slug when given (#952)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesResponse as never);
     const queryClient = makeQueryClient();
     const { result } = renderHookWithProviders(() => useGates("p1", "brigade"), { queryClient });
@@ -169,7 +169,7 @@ describe("useResetGateOverrides", () => {
   });
 });
 
-// #830 (VG-FR-007/VG-FR-008): sign-off closes the gate's tracker issue; reopen reopens
+// #833 (VG-FR-007/VG-FR-008): sign-off closes the gate's tracker issue; reopen reopens
 // it. Both invalidate the open gate AND the overview list so the button re-reads
 // the server's `signedOff` signal.
 describe("useSignOffGate", () => {
@@ -206,7 +206,7 @@ describe("useReopenGate", () => {
   });
 });
 
-// #706 (VG-FR-009/VG-FR-010): filing a fix issue resolves a FixIssueRecord for BOTH a
+// #735 (VG-FR-009/VG-FR-010): filing a fix issue resolves a FixIssueRecord for BOTH a
 // 201 complete and a 207 link_pending outcome (the api call does not throw on
 // 207), and on success invalidates the gate + gates + the bench's testbench plan
 // so the still-blocked state re-reads.

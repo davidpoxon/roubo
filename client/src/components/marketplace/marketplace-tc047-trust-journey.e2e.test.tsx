@@ -8,14 +8,14 @@
 // it until they explicitly choose a source, and finally installs it from the
 // unsigned ACME source, where it lands Unverified with its ACME provenance
 // recorded. It asserts the authoritative e2e_flow case CPHMTP-TC-047 step by step
-// (issue #573).
+// (#987).
 //
 // This is the journey's drift guard: it exercises the integrated journey through
-// the already-shipped, real seams of the slices it spans (#558 the cross-source
-// collision + pick-a-source refusal, #563 the single shared trust treatment),
+// the already-shipped, real seams of the slices it spans (#966 the cross-source
+// collision + pick-a-source refusal, #977 the single shared trust treatment),
 // rather than re-testing any single slice. A failing step is localised back to the
 // owning slice(s) via OWNERS below (CPHMTP-FR-020 / AC-7): each step() reports the
-// diverging label, the expected-vs-actual, and the owning slice issue(s) from the
+// diverging label, the expected-vs-actual, and the owning slice(s) from the
 // issue's "Blocked by" set.
 //
 // Hermetic by construction (matching the marketplace-journey-e2e.test.tsx
@@ -146,7 +146,7 @@ const SOURCES = [FIRST_PARTY_STATUS, ACME_STATUS];
 
 // The id served by BOTH the first-party catalog and the unsigned ACME source:
 // two cards, each annotated with the same collision set, neither presented as the
-// winner (CPHMTP-FR-005, issue #558).
+// winner (CPHMTP-FR-005, #966).
 const COLLISION_SOURCES = [FIRST_PARTY_SOURCE_ID, ACME_SOURCE_ID];
 
 // The browse catalog: a clean first-party entry, a plain third-party entry (the
@@ -269,20 +269,21 @@ const TC047_SEQUENCE = [
   TC047_STEPS.chooseInstall,
 ];
 
-// The owning slice(s) per step, from the issue's Blocked by (#558, #563). Reported
+// The owning slice(s) per step, from the issue's Blocked by (#966, #977). Reported
 // on divergence so a failure is attributable to the slice that owns the behaviour.
 const OWNERS = {
-  browse: "#563",
-  drawer: "#563",
-  collision: "#558",
-  blocked: "#558",
-  chooseInstall: "#558, #563",
+  browse: "unverified and orphaned badges plus provenance across surfaces",
+  drawer: "unverified and orphaned badges plus provenance across surfaces",
+  collision: "cross-source id-collision detection and ambiguity error",
+  blocked: "cross-source id-collision detection and ambiguity error",
+  chooseInstall:
+    "cross-source id-collision detection and ambiguity error, unverified and orphaned badges plus provenance across surfaces",
 } as const;
 
 // ── AC-7 failure-output wrapper ──
 //
 // Each CPHMTP-TC-047 step runs inside step(): on divergence it reports the
-// diverging step label, the expected-vs-actual, and the owning slice issue(s), so a
+// diverging step label, the expected-vs-actual, and the owning slice(s), so a
 // failure is attributable to a slice rather than the whole journey.
 async function step<T>(
   label: string,
@@ -392,7 +393,7 @@ describe("Marketplace trust-visibility + collision journey E2E (CPHMTP-TC-047)",
     // treatment, first-party entries the Verified treatment, and the two sets are
     // disjoint: no first-party card reads Unverified and no third-party card reads
     // Verified (CPHMTP-NFR-001, no state where a third-party entry gets first-party
-    // styling) (owning #563).
+    // styling) (owning #977).
     await track(
       TC047_STEPS.browse,
       "the grid shows verified first-party cards and unverified third-party cards, with the treatments never crossing sources",
@@ -427,7 +428,7 @@ describe("Marketplace trust-visibility + collision journey E2E (CPHMTP-TC-047)",
     );
 
     // S002: a third-party plugin's card AND its detail drawer both carry the
-    // Unverified badge, and it is non-dismissible in both surfaces (owning #563).
+    // Unverified badge, and it is non-dismissible in both surfaces (owning #977).
     await track(
       TC047_STEPS.drawer,
       "the ACME Widget card and drawer both show the Unverified badge with no dismiss control",
@@ -460,7 +461,7 @@ describe("Marketplace trust-visibility + collision journey E2E (CPHMTP-TC-047)",
     // S003: the 'process' id is served by two sources, so BOTH cards render and
     // both are marked with the red 'Served by 2 sources' collision pill; neither is
     // presented as the winner, and the two source provenances are both present
-    // (owning #558).
+    // (owning #966).
     await track(
       TC047_STEPS.collision,
       "both 'process' cards show a data-source-count=2 collision pill and together carry the first-party and ACME provenance chips",
@@ -482,7 +483,7 @@ describe("Marketplace trust-visibility + collision journey E2E (CPHMTP-TC-047)",
     // S004: pressing Install on a colliding card sends NO source (the card must not
     // resolve the collision by which card was clicked), the server refuses with the
     // ambiguous-source 409, and the pick-a-source banner blocks: no consent modal
-    // opens and no install proceeds silently (owning #558).
+    // opens and no install proceeds silently (owning #966).
     await track(
       TC047_STEPS.blocked,
       "the install is refused with sourceId undefined and the ambiguous-source banner blocks, offering one explicit choice per source",
@@ -510,7 +511,7 @@ describe("Marketplace trust-visibility + collision journey E2E (CPHMTP-TC-047)",
     // ACME source, opens the consent modal for the unverified plugin, and on
     // ack + confirm commits and records the ACME provenance via the consent POST.
     // The reloaded catalog then shows the installed 'process' Unverified with its
-    // ACME provenance chip (owning #558 for the pick, #563 for the trust outcome).
+    // ACME provenance chip (owning #966 for the pick, #977 for the trust outcome).
     await track(
       TC047_STEPS.chooseInstall,
       "the ACME choice installs 'process' from the unsigned source, Unverified, recording the ACME provenance on the install record",

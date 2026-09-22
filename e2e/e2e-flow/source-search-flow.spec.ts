@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "./_support/scenario.js";
 import { addSource, externalIds, openConfigure, readSources, save } from "./_support/picker.js";
 
-// JSS-WU-008 (#357): the source-search-area end-to-end journey for the searchable,
+// JSS-WU-008 (#433): the source-search-area end-to-end journey for the searchable,
 // project-first Jira source picker. This mirrors the single `e2e_flow` case in
 // the `source-search` area of `.specifications/jira-sources-scale/test-cases.json`:
 //

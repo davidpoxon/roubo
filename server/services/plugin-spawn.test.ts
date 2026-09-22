@@ -144,8 +144,8 @@ describe("plugin-spawn", () => {
     });
   });
 
-  // Issue #633: the executable allowlist says what may run; these two say where.
-  describe("spawn confinement (issue #633)", () => {
+  // #1034: the executable allowlist says what may run; these two say where.
+  describe("spawn confinement (#1034)", () => {
     let tmpRoot: string;
     let pluginDir: string;
     let declaredDir: string;

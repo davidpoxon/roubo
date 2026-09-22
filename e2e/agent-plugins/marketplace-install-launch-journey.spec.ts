@@ -14,12 +14,12 @@ import {
 // "AP-TC-115".
 const observe = makeObserve("AP-TC-115");
 
-// AP-TC-115 (#534, AP-WU-033) - E2E: install an agent plugin from the
+// AP-TC-115 (#1127, AP-WU-033) - E2E: install an agent plugin from the
 // marketplace end to end and see it in launch surfaces.
 //
 // The integration-level drift guard for the AP-US-011 journey (AP-FR-022,
-// AP-NFR-001, AP-NFR-006), spanning the slices this unit is blocked by (#507,
-// #510, #513, #514, #519, #521, #522, #537). It walks the authoritative
+// AP-NFR-001, AP-NFR-006), spanning the slices this unit is blocked by (delivered in #1026,
+// #1048, #1055, #1058, #1064, #1114, #1112). It walks the authoritative
 // AP-TC-115 e2e_flow steps S001-S007 as ordered, attributable observations
 // against the REAL built app. On divergence each observation routes through the
 // FR-020 failure-output contract (see

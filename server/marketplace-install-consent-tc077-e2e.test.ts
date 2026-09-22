@@ -1,4 +1,4 @@
-// Marketplace install-from-source consent journey (CPHMTP-TC-077 S003, issue #617).
+// Marketplace install-from-source consent journey (CPHMTP-TC-077 S003, #991).
 //
 // The bug: POST /api/plugins/install/:token/confirm committed the plugin but never
 // recorded a ConsentRecord, so the resumed bench start dead-ended at the
@@ -137,7 +137,7 @@ beforeEach(() => {
   vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
 });
 
-describe("Marketplace install-from-source consent journey (CPHMTP-TC-077, issue #617)", () => {
+describe("Marketplace install-from-source consent journey (CPHMTP-TC-077, #991)", () => {
   it("records consent on confirm so the resumed start's consent gate passes for the just-installed plugin", async () => {
     // Pre-install: the plugin is not installed and no consent exists, so the consent
     // gate (which reads exactly this) would dead-end the resumed start with

@@ -23,7 +23,7 @@ import {
 } from "./disk-snapshot-store.js";
 
 /**
- * Bounded page-walk caps for the whole-set materialisation (#844).
+ * Bounded page-walk caps for the whole-set materialisation (#1224).
  *
  * Cross-page unblocked-first ordering is only decidable with every result in one
  * place: blocked state is knowable per fetched page (the GitHub plugin resolves
@@ -63,7 +63,7 @@ const CURSOR_VERSION = 1;
 
 /**
  * Encode a host-owned cut-list cursor: an offset into the ordered, materialised
- * result set (#844). The host, not the plugin, now owns the cursor the client
+ * result set (#1224). The host, not the plugin, now owns the cursor the client
  * echoes back, because a page is a slice of the host's ordered set rather than
  * whatever window the plugin would return for its own cursor.
  */
@@ -119,7 +119,7 @@ export interface QueryFirstOrPageInput {
   sortBy?: string;
   sortDir?: "asc" | "desc";
   /**
-   * A one-shot force-refresh request from the cut-list refresh control (#653).
+   * A one-shot force-refresh request from the cut-list refresh control (#654).
    * When true on a first-page request the warm disk snapshot is NOT served:
    * the live `listIssues` RPC runs synchronously, its fresh result is persisted
    * back to the disk snapshot (keeping the cache warm with current data), and
@@ -183,7 +183,7 @@ interface RawListIssues {
 /**
  * The whole result set for one query: every page the plugin would have returned,
  * deduped once across the walk and ordered unblocked-first across the lot
- * (#844). Host pages are slices of `items`.
+ * (#1224). Host pages are slices of `items`.
  */
 interface MaterializedSet {
   items: NormalizedIssue[];
@@ -221,7 +221,7 @@ export class CutListQueryService {
    * neutralises the persistence inside the e2e harness. Overridable for tests.
    *
    * Not `readonly`: the ROUBO_E2E-gated `/test/__set-cut-list-disk-cache` route
-   * flips it at runtime so the warm-snapshot journey (CLI-TC-017, the #568 drift
+   * flips it at runtime so the warm-snapshot journey (CLI-TC-017, the #590 drift
    * guard) can reach the disk path the harness otherwise bypasses. `/test/__reset`
    * restores the env-derived default so other specs keep the bypass.
    */
@@ -234,7 +234,7 @@ export class CutListQueryService {
    */
   private readonly onObserve: (event: CacheObserveEvent) => void;
   /**
-   * In-process materialisation cache (#844), keyed by the same cache-key hash
+   * In-process materialisation cache (#1224), keyed by the same cache-key hash
    * the disk snapshot uses so it discriminates plugin, instance, project,
    * sources, filters, exclusions, sort, and pageSize exactly as the disk store
    * does. It exists so Prev/Next slices an already-walked set rather than
@@ -263,7 +263,7 @@ export class CutListQueryService {
   /**
    * Toggle whether the persistent disk snapshot is bypassed, at runtime. The
    * ROUBO_E2E-gated `/test/__set-cut-list-disk-cache` route uses this so the
-   * warm-snapshot journey (CLI-TC-017, the #568 e2e drift guard) can reach the
+   * warm-snapshot journey (CLI-TC-017, the #590 e2e drift guard) can reach the
    * disk path the harness bypasses by default. Passing `enabled: true` un-bypasses
    * the disk (warm serve reachable); `false` (or `/test/__reset`'s call to
    * `restoreBypassDefault`) returns to the env-derived bypass. Production never
@@ -404,7 +404,7 @@ export class CutListQueryService {
         : (persistedSort ?? (await this.resolvePersistedSort(projectId, active.pluginId)));
     const params = this.buildListParams(projectId, input, resolvedPersistedSort);
     const isFirstPage = input.cursor === null;
-    // The cursor is host-owned (#844): an offset into the ordered materialised
+    // The cursor is host-owned (#1224): an offset into the ordered materialised
     // set, not a plugin token. A cursor the host cannot read degrades to 0.
     const offset = isFirstPage ? 0 : decodeCutListCursor(input.cursor);
     const key = this.buildKey(projectId, active.pluginId, params);
@@ -421,7 +421,7 @@ export class CutListQueryService {
     const healthy = pluginManager.getRecord(active.pluginId)?.status === "enabled";
 
     if (isFirstPage && healthy && !this.bypassDisk) {
-      // Force-refresh (#653): an explicit refresh is a request for current
+      // Force-refresh (#654): an explicit refresh is a request for current
       // data, so skip the warm-serve entirely. Run the live RPC synchronously,
       // persist the fresh result so the cache stays warm with current data, and
       // report a `miss`. The disk snapshot is never read on this path, so a
@@ -468,7 +468,7 @@ export class CutListQueryService {
     // unhealthy plugin) always re-walks, so the memo never shadows the disk
     // snapshot's stale-while-revalidate behaviour.
     //
-    // An explicit force-refresh (#653) bypasses the memo here for the same
+    // An explicit force-refresh (#654) bypasses the memo here for the same
     // reason it bypasses the disk snapshot above: a refresh is a request for
     // current data, and the refresh control is reachable from any page, not
     // just the first. Reading the memo on this path would answer a refresh
@@ -546,7 +546,7 @@ export class CutListQueryService {
 
   /**
    * Walk the plugin's whole cursor chain, dedup across the walk, and order the
-   * result unblocked-first (#844).
+   * result unblocked-first (#1224).
    *
    * The ordering has to sit above the page boundary: `blockedBy` is resolved by
    * the plugin per fetched page and no source can sort on it, so partitioning a

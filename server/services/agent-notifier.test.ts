@@ -1,6 +1,6 @@
 /**
  * The notifier program core ships for the `spawned-notifier` notification
- * wiring (issue #698).
+ * wiring (#1113).
  *
  * `atomicWrite` is deliberately NOT mocked: the point of these cases is that a
  * real file lands on disk, executable, with the resolved endpoint baked in. Only
@@ -42,7 +42,7 @@ afterAll(() => {
   fs.rmSync(home, { recursive: true, force: true });
 });
 
-describe("ensureNotifierInstalled (issue #698)", () => {
+describe("ensureNotifierInstalled (#1113)", () => {
   it("writes an executable program under the Roubo state dir", () => {
     const installed = ensureNotifierInstalled("51234");
 
@@ -121,7 +121,7 @@ describe("the notifier script itself", () => {
     expect(stdout.toString()).toBe("");
   });
 
-  // Regression guard for the json_string pipeline (issue #707). Only the
+  // Regression guard for the json_string pipeline (#1116). Only the
   // double-quote rule was previously guarded (by spawned-notifier-e2e.test.ts,
   // whose payload has no backslash and no newline), so deleting the
   // backslash-doubling rule or the newline rule left the suite green. Asserting

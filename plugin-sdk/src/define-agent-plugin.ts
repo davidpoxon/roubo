@@ -83,7 +83,7 @@ export function defineAgentPlugin(
   // gets strictly less than an integration plugin: the same v1 host surface
   // (`host.fs.*` confined to its own directory, `host.credentials.*`,
   // `host.fetch`) and no `host.process.spawn` at all, because an agent
-  // manifest must declare `processes: false` (issue #632). A spawned child
+  // manifest must declare `processes: false` (#1030). A spawned child
   // would not inherit the filesystem broker allowlist, so it could sidestep
   // the declarative launch descriptor.
   connection.listen();

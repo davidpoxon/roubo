@@ -49,7 +49,7 @@ beforeEach(() => {
 });
 
 describe("parseVersion", () => {
-  it("reads the semver out of both agents' --version formats (spike #504 AC3)", () => {
+  it("reads the semver out of both agents' --version formats (launch-failure spike AC3)", () => {
     expect(parseVersion("2.1.207 (Claude Code)")).toBe("2.1.207");
     expect(parseVersion("codex-cli 0.144.1")).toBe("0.144.1");
   });
@@ -203,7 +203,7 @@ describe("a date-based version (APCC-TC-053)", () => {
   });
 });
 
-describe("probeAgentVersion through the probe runner (#851)", () => {
+describe("probeAgentVersion through the probe runner (#1266)", () => {
   it("reports a probe killed at the time bound as probe-failed, cause probe-error", async () => {
     vi.mocked(spawnProbe).mockResolvedValue({ code: 1, stdout: "", stderr: "", timedOut: true });
     const result = await probeAgentVersion("claude-code", "claude", SPEC);
@@ -226,7 +226,7 @@ describe("probeAgentVersion through the probe runner (#851)", () => {
   });
 });
 
-describe("probeAgentVersion against the launch's PATH (issue #660)", () => {
+describe("probeAgentVersion against the launch's PATH (#1075)", () => {
   it("resolves AND spawns against the supplied search path, not the server's", async () => {
     probeOutput("2.1.180 (Claude Code)");
     await probeAgentVersion("claude-code", "claude", SPEC, "/opt/agent/bin");
@@ -244,10 +244,10 @@ describe("probeAgentVersion against the launch's PATH (issue #660)", () => {
     expect(resolveAgentCommand).toHaveBeenCalledWith("claude", process.env.PATH, undefined);
   });
 
-  // #712: the probe and the spawn must agree on which binary they are talking
+  // #1115: the probe and the spawn must agree on which binary they are talking
   // about, so the launching plugin's manifest-declared install locations reach
   // the resolution here exactly as they reach `createAgentSession`.
-  it("passes the plugin's declared install locations through to the resolution (#712)", async () => {
+  it("passes the plugin's declared install locations through to the resolution (#1115)", async () => {
     probeOutput("0.144.1 (codex-cli)");
     await probeAgentVersion("codex", "codex", SPEC, "/opt/agent/bin", [
       "~/.local/bin/codex",
@@ -311,11 +311,11 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     expect(result?.testedCeiling).toBe("2.1.205");
   });
 
-  // #712: the declared locations and the declared window come off the same
+  // #1115: the declared locations and the declared window come off the same
   // manifest, so the screen that renders one resolves against the other. Without
   // this the card would report "CLI not detected" for an agent installed exactly
   // where its manifest says it installs.
-  it("carries the manifest's declared install locations into the resolution (#712)", async () => {
+  it("carries the manifest's declared install locations into the resolution (#1115)", async () => {
     probeOutput("2.1.180 (Claude Code)");
     await probeDeclaredAgentVersion("claude-code", DECLARED, ["~/.local/bin/claude"]);
 
@@ -324,7 +324,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     ]);
   });
 
-  it("carries them through the background warm too (#712)", async () => {
+  it("carries them through the background warm too (#1115)", async () => {
     probeOutput("2.1.180 (Claude Code)");
     warmAgentVersion("claude-code", DECLARED, ["~/.local/bin/claude"]);
     await vi.waitFor(() => expect(getCachedAgentVersion("claude-code")).toBeDefined());
@@ -367,7 +367,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     expect(spawnProbe).not.toHaveBeenCalled();
   });
 
-  // The one cached state that must NOT end warming (issue #522). The card tells a
+  // The one cached state that must NOT end warming (#1112). The card tells a
   // user with no CLI to install it and reopen the screen, and warming is the only
   // thing that re-probes for that screen, so a cached miss that stopped warming
   // would leave the card stuck on "CLI not detected" until the app restarted.
@@ -404,7 +404,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     expect(result.status).toBe("probe-failed");
     expect(result.reason).toContain("no recognisable version");
     expect(result.minVersion).toBe("2.1.111");
-    // The CLI was found and ran, so this is not a missing tool (issue #522).
+    // The CLI was found and ran, so this is not a missing tool (#1112).
     expect(result.cause).toBe("probe-error");
   });
 
@@ -426,7 +426,7 @@ describe("probeDeclaredAgentVersion and warmAgentVersion", () => {
     expect(spawnProbe).not.toHaveBeenCalled();
   });
 
-  // AP-TC-122 (issue #522). This outcome used to return WITHOUT caching, so the
+  // AP-TC-122 (#1112). This outcome used to return WITHOUT caching, so the
   // AI Agents screen (a cache-only read) saw nothing and reported `unknown`,
   // rendering "Ready" for an agent that cannot launch.
   it("caches the missing-CLI outcome so a cache-only read can see it (AP-TC-122)", async () => {

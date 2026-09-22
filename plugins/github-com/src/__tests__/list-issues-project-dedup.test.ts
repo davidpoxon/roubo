@@ -1,5 +1,5 @@
 /**
- * Project-board issue dedup for `listIssues` (issue #548).
+ * Project-board issue dedup for `listIssues` (#549).
  *
  * A GitHub Project (v2) board can list the same underlying issue in more than
  * one item (the same issue parked under two Status columns, or a board that
@@ -64,7 +64,7 @@ function noBlocking(...issueNumbers: number[]) {
   return { repository };
 }
 
-describe("listIssues project-board dedup (#548)", () => {
+describe("listIssues project-board dedup (#549)", () => {
   let mocks: ReturnType<typeof installMocks>;
 
   beforeEach(() => {
@@ -96,7 +96,7 @@ describe("listIssues project-board dedup (#548)", () => {
   });
 
   it("deduped board items are not re-queried for blocking relationships", async () => {
-    // Slowness backstop (#548): a board issue listed twice must not produce two
+    // Slowness backstop (#549): a board issue listed twice must not produce two
     // blocking lookups. Dedup runs before the per-repo blocking fan-out, so the
     // duplicate never reaches `numbersByRepo`.
     const sources: ConfiguredSource[] = [{ kind: "project", externalId: "davidpoxon/#1" }];
@@ -119,7 +119,7 @@ describe("listIssues project-board dedup (#548)", () => {
     expect(blockingQuery.match(/issue_601:/g) ?? []).toHaveLength(1);
   });
 
-  it("fetches the project board once and serves later pages from cache (#548)", async () => {
+  it("fetches the project board once and serves later pages from cache (#549)", async () => {
     // Caching behaviour: the whole board is loaded on page 1 and cached, so
     // paging the same board does not re-run the project-items GraphQL query.
     const sources: ConfiguredSource[] = [{ kind: "project", externalId: "davidpoxon/#1" }];

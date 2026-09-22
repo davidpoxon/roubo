@@ -7,9 +7,9 @@ import {
   setCutListDiskCacheEnabled,
 } from "./_support/scenario.js";
 
-// #568: the integration-level drift guard for the US-002 journey "cut list
+// #590: the integration-level drift guard for the US-002 journey "cut list
 // refresh shows progress and updates the last-updated indicator". It spans the
-// slices #557 (last-updated / in-progress / stale indicators) and #560
+// slices #581 (last-updated / in-progress / stale indicators) and #587
 // (stale-while-revalidate serving + cache-state wiring) and asserts the
 // integrated journey against the authoritative e2e_flow case CLI-TC-017, not
 // whatever any single slice implemented.
@@ -26,7 +26,7 @@ import {
 // 'revalidating' -> the `warm` badge). `/test/__reset` restores the bypass
 // default so the warm path never leaks into another spec.
 //
-// TC-017 DIVERGENCES (decided: adapt to the shipped contract, tracked by #589):
+// TC-017 DIVERGENCES (decided: adapt to the shipped contract, tracked by #596):
 //
 //   1. S001-O02 wording. TC-017 says the indicator shows a snapshot-aged
 //      time-ago string such as "updated 2m ago" on the warm open. The shipped
@@ -36,7 +36,7 @@ import {
 //      snapshot-aged wording. The snapshot-aged "snapshot Nm ago" wording only
 //      appears on the FR-014 stale path (plugin unavailable), a different
 //      journey. We assert a recognizable fresh "updated ..." string plus the
-//      `warm` badge. Reconciling TC-017's wording is deferred to #589.
+//      `warm` badge. Reconciling TC-017's wording is deferred to #596.
 //
 //   2. S004-O04 "reflects the latest data". Driving an observable per-call
 //      content delta through the warm-then-revalidate path is brittle: each
@@ -44,11 +44,11 @@ import {
 //      the stub independently of the client refetch. We assert the rows
 //      re-render and the indicator/badge settle (spinner stops, indicator reads
 //      "updated just now", badge returns to `warm`) rather than a literal
-//      content swap. Deferred to #589.
+//      content swap. Deferred to #596.
 //
 // FR-020 failure-output contract: every assertion below carries a descriptive
 // message naming the diverging e2e_flow step, the expected-vs-actual, and the
-// owning slice issues #557/#560, so a regression points straight at the step
+// owning slice #581/#587, so a regression points straight at the step
 // and the slice that broke it.
 //
 // The fixture project (e2e/fixtures/cut-list-refresh-project) pins the e2e-stub
@@ -57,7 +57,8 @@ import {
 
 const SCENARIO = "cut-list-refresh";
 const NOW = "2026-05-21T13:00:00.000Z";
-const OWNING_SLICES = "#557/#560";
+const OWNING_SLICES =
+  "refresh in-progress state + last-updated / stale indicators / stale-while-revalidate serving + cache-state wiring";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_PATH = path.resolve(__dirname, "..", "fixtures", "cut-list-refresh-project");
@@ -118,7 +119,7 @@ test("TC-017: open a warm cut list, refresh, watch progress, see the indicator s
   // badge), the cached rows render, and the indicator shows a fresh time-ago
   // string. (TC-017 S001-O02 expects the snapshot-aged "updated 2m ago"; the
   // shipped warm path keys on the client's just-completed fetch and reads
-  // "updated just now". Divergence tracked by #589.)
+  // "updated just now". Divergence tracked by #596.)
   await page.reload();
   await expectRefsVisible(page, "S001 warm serve renders cached rows");
   await expect(
@@ -182,7 +183,7 @@ test("TC-017: open a warm cut list, refresh, watch progress, see the indicator s
   // state. The spinner stops, the indicator reads "updated just now", the badge
   // returns to "warm", and the rows re-render with fresh data (TC-017 S004-O04
   // "reflects the latest data" is asserted as a re-render + settled indicator,
-  // not a literal content swap; divergence tracked by #589).
+  // not a literal content swap; divergence tracked by #596).
   await expect(
     lastUpdated(page),
     `S004-O02 (TC-017, slices ${OWNING_SLICES}): after revalidation the indicator must read "updated just now", got "${await lastUpdated(page).textContent()}"`,

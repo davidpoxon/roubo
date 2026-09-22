@@ -160,7 +160,7 @@ describe("useIssues", () => {
     expect(result.current.cacheStatus).toBeNull();
   });
 
-  it("reports the page's excludedCount, treating absence as zero (#358)", async () => {
+  it("reports the page's excludedCount, treating absence as zero (#436)", async () => {
     mockedFetch.mockResolvedValueOnce({
       items: [makeIssue("1")],
       nextCursor: "c1",
@@ -172,7 +172,7 @@ describe("useIssues", () => {
     expect(result.current.excludedCount).toBe(2);
   });
 
-  it("defaults excludedCount to zero when the page reports none (#358)", async () => {
+  it("defaults excludedCount to zero when the page reports none (#436)", async () => {
     mockedFetch.mockResolvedValueOnce({
       items: [makeIssue("1")],
       nextCursor: null,
@@ -259,7 +259,7 @@ describe("useIssues", () => {
     });
   });
 
-  describe("force-refresh wiring (#653)", () => {
+  describe("force-refresh wiring (#654)", () => {
     it("normal loads pass refresh=false", async () => {
       mockedFetch.mockResolvedValueOnce({ items: [], nextCursor: null } as PaginatedIssues);
       renderHookWithProviders(() => useIssues("p1"));

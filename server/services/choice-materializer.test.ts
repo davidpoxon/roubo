@@ -39,7 +39,7 @@ function reader(outcomes: Record<string, ProbeResult<ProbeChoice[]> | undefined>
   return (field: string) => outcomes[field];
 }
 
-describe("materializeChoices (#852)", () => {
+describe("materializeChoices (#1268)", () => {
   it("serves resolved choices as oneOf const/title branches, id as const and label as title (APCC-TC-002)", () => {
     const { configSchema } = materializeChoices(schema(), PROBES, reader({ model: ok(CHOICES) }));
     const model = (configSchema?.properties as Record<string, Record<string, unknown>>).model;

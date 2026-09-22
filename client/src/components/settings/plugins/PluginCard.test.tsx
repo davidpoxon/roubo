@@ -29,7 +29,7 @@ vi.mock("../../../hooks/useGlobalPluginIntegration", () => ({
     reset: vi.fn(),
   }),
 }));
-// ErroredBanner (rendered by PluginCard on errored status, issue #496) calls
+// ErroredBanner (rendered by PluginCard on errored status, #945) calls
 // these marketplace mutation hooks and useToast unconditionally to drive its
 // Reinstall affordance. Stub them so the errored-status renders need no
 // QueryClientProvider / ToastProvider; these tests assert the banner renders,
@@ -366,7 +366,7 @@ describe("PluginCard: Connect-on-disabled gesture (acceptance criterion 2)", () 
     expect(screen.getByRole("status").textContent).toMatch(/Loading plugin configuration/);
   });
 
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref makes the configure loading dialog's modality explicit to AT.
   it("stamps aria-modal on the configure loading dialog", async () => {
     const user = userEvent.setup();
@@ -375,7 +375,7 @@ describe("PluginCard: Connect-on-disabled gesture (acceptance criterion 2)", () 
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
   });
 
-  // The error variant is an alertdialog; it too carries the stamped modality (issue #612).
+  // The error variant is an alertdialog; it too carries the stamped modality (#985).
   it("stamps aria-modal on the configure error dialog", async () => {
     const user = userEvent.setup();
     mockedGlobalIntegration.mockReturnValue({
@@ -532,7 +532,7 @@ describe("PluginCard: lifecycle banners", () => {
     expect(banner.textContent).toContain("Missing required field: entry");
   });
 
-  it("explains an incompatible record that has no manifest (issue #719)", () => {
+  it("explains an incompatible record that has no manifest (#1118)", () => {
     // A manifest declaring a key this host does not know never survives the
     // strict parse, so the host reports the declared range with a null manifest.
     // The card must still say why rather than showing a bare pill.
@@ -550,7 +550,7 @@ describe("PluginCard: lifecycle banners", () => {
   });
 });
 
-describe("PluginCard: auth-problem branch (issue #204)", () => {
+describe("PluginCard: auth-problem branch (#227)", () => {
   it('labels the primary button "Sign in again" when live status is auth-problem', () => {
     mockedConnectionStatus.mockReturnValue({
       data: { state: "auth-problem", detail: "Token expired" },
@@ -590,7 +590,7 @@ describe("PluginCard: auth-problem branch (issue #204)", () => {
   });
 });
 
-describe("PluginCard: rechecking lifecycle (issue #204)", () => {
+describe("PluginCard: rechecking lifecycle (#227)", () => {
   it('shows a pulsing "rechecking..." on the pill while the connection-status query is in flight', () => {
     mockedConnectionStatus.mockReturnValue({
       data: { state: "connected", checkedAt: "2026-05-26T09:00:00.000Z" },
@@ -613,7 +613,7 @@ describe("PluginCard: rechecking lifecycle (issue #204)", () => {
   });
 });
 
-describe("PluginCard: consent affordance for component plugins (issue #490)", () => {
+describe("PluginCard: consent affordance for component plugins (#938)", () => {
   const declared = componentManifest().permissions;
 
   function consentStatus(consentedAt?: string) {
@@ -679,10 +679,10 @@ describe("PluginCard: consent affordance for component plugins (issue #490)", ()
   });
 });
 
-// Issue #507 (AP-TC-014 S001/S002): an agent plugin is consent-gated on exactly
+// #1026 (AP-TC-014 S001/S002): an agent plugin is consent-gated on exactly
 // the same terms as a component plugin, so enabling one presents the existing
 // consent flow and declining leaves it inert (no config surface is activated).
-describe("PluginCard: consent affordance for agent plugins (issue #507)", () => {
+describe("PluginCard: consent affordance for agent plugins (#1026)", () => {
   const declared = agentManifest().permissions;
 
   function consentStatus(consentedAt?: string) {
@@ -741,13 +741,13 @@ describe("PluginCard: keyboard tab order (TC-135, NFR-016)", () => {
   });
 });
 
-// Issue #563 (CPHMTP-FR-006 / CPHMTP-US-005): the installed-plugins settings tab
+// #977 (CPHMTP-FR-006 / CPHMTP-US-005): the installed-plugins settings tab
 // is one of the surfaces the persistent Unverified badge must reach. It was
 // provenance-blind before this: a plugin installed from an unsigned third-party
 // source was indistinguishable here from a bundled first-party one. The record's
-// provenance fields (stamped from the provenance ledger, issue #558/#560) drive
+// provenance fields (stamped from the provenance ledger, #966/#968) drive
 // the badge; the trust derivation itself is pinned in ProvenanceBadge.test.tsx.
-describe("PluginCard: unverified and orphaned badges (issue #563)", () => {
+describe("PluginCard: unverified and orphaned badges (#977)", () => {
   const ACME_SOURCE_ID = "marketplace-acme-example-1a2b3c4d";
 
   function thirdPartyRecord(over: Partial<PluginRecord> = {}): PluginRecord {
@@ -777,7 +777,7 @@ describe("PluginCard: unverified and orphaned badges (issue #563)", () => {
   });
 
   // A seeded first-party default now carries a STAMPED first-party provenance row
-  // (the seed install writes one, #607), and that row is what earns the verified
+  // (the seed install writes one, #981), and that row is what earns the verified
   // treatment: the badge grades the seed by its ledger row, not its self-asserted
   // id. Post-clean-break a seed is `source: "user"` like any other install.
   it("shows the verified first-party treatment for a seeded plugin carrying a stamped first-party row", () => {
@@ -809,7 +809,7 @@ describe("PluginCard: unverified and orphaned badges (issue #563)", () => {
 
   // CPHMTP-TC-056 S002-O01 on this surface. A plugin with no provenance ledger row
   // (in practice one predating the ledger, now that every install path stamps one,
-  // #607) must not wear the first-party treatment: absence fails closed to
+  // #981) must not wear the first-party treatment: absence fails closed to
   // unverified, not first-party.
   it("shows Unverified for a non-seeded plugin installed with no provenance fields", () => {
     render(

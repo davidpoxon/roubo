@@ -211,7 +211,7 @@ export type InstallSource =
   | { type: "git"; url: string; directory?: string }
   // A built-artifact install: the installer streams the Release asset tarball
   // named by `assetUrl`, unpacks it under containment + size limits, and
-  // verifies the unpacked artifact's digest before commit (issue #370). No git
+  // verifies the unpacked artifact's digest before commit (#849). No git
   // clone and no build step run on the user's machine.
   | { type: "release"; assetUrl: string }
   | { type: "local"; path: string };
@@ -232,20 +232,20 @@ export type InstallErrorCode =
   | "update-target-missing"
   // The Release asset could not be downloaded (non-200 response, network error,
   // or it exceeded the maximum download size) on the built-artifact install path
-  // (issue #370). Nothing is written or executed.
+  // (#849). Nothing is written or executed.
   | "download-failed"
   // The downloaded tarball could not be safely unpacked: a path-escaping
   // (zip-slip) entry, a symlink/hardlink/device entry, or an over-size /
-  // over-entry-count tarball (issue #370). Fails closed: nothing is written
+  // over-entry-count tarball (#849). Fails closed: nothing is written
   // outside staging.
   | "unpack-failed"
   // The staged package's content digest did not match the digest published for
   // the artifact (CP-FR-021): a tampered or substituted package. Reachable from
-  // the signed first-party catalog and, since issue #559, from an unsigned
+  // the signed first-party catalog and, since #961, from an unsigned
   // third-party source, whose per-artifact digest is its only integrity anchor.
   | "integrity-failed"
   // A third-party (unsigned) catalog entry carries no usable per-artifact sha256
-  // digest: absent, empty, or malformed (CPHMTP-NFR-004, issue #559). An unsigned
+  // digest: absent, empty, or malformed (CPHMTP-NFR-004, #961). An unsigned
   // source offers no signature chain, so the per-artifact digest is the only
   // integrity anchor and is therefore mandatory. Rejected fail-closed BEFORE the
   // artifact is fetched: nothing is downloaded, written, or executed. Distinct
@@ -270,14 +270,14 @@ export interface InstallErrorBody {
   code: InstallErrorCode;
 }
 
-// --- Marketplace catalog (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621) ----
+// --- Marketplace catalog (CP-FR-020 / CP-NFR-007 / CP-US-010, #688) ----
 //
 // The marketplace serves a first-party-curated catalog of plugins (both
 // `component` and `integration` kinds). The catalog is a static, checked-in
 // manifest read server-side; each entry is cross-referenced against the
 // installed plugin set to annotate its install / update state.
 //
-// Channel integrity (CP-FR-021, issue #622): the catalog is wrapped in a signed
+// Channel integrity (CP-FR-021, #690): the catalog is wrapped in a signed
 // envelope (a detached ed25519 signature over the canonical payload bytes,
 // verified against a bundled first-party public key) and every entry carries an
 // expected content `integrity` digest plus an optional `revoked` flag. The
@@ -299,12 +299,12 @@ export type MarketplaceKind = "component" | "integration" | "agent";
  * is a discriminated union (mirroring the installer's InstallSource) naming where
  * the install/update flow stages the plugin from: a `git` source is cloned (its
  * optional `directory` names the subdirectory of the cloned repository that holds
- * the plugin package, the monorepo-subdir source model, issue #750, so a component
+ * the plugin package, the monorepo-subdir source model, #751, so a component
  * published inside a monorepo, e.g. `plugins/process`, stages and installs just
  * that subdirectory rather than the whole repo); a `release` source is a built
  * artifact whose tarball is downloaded from `assetUrl` and unpacked (its optional
  * `sha256` is the reproducible asset digest the publish gate self-checks, issue
- * #370). `verified` is the display-only first-party curation flag.
+ * #849). `verified` is the display-only first-party curation flag.
  *
  * `integrity` is the expected content digest of the staged package
  * (`sha256-<hex>`); after staging and before commit, the installer recomputes
@@ -314,7 +314,7 @@ export type MarketplaceKind = "component" | "integration" | "agent";
  * install / update.
  *
  * `agentCompatibility` is the AUTHOR-DECLARED agent-CLI window an `agent`-kind
- * entry may carry (issue #722), so a not-yet-installed, `release`-sourced agent
+ * entry may carry (#1133), so a not-yet-installed, `release`-sourced agent
  * listing can render its floor and tested ceiling before anything is downloaded:
  * `readEntryManifest()` reaches a manifest only for an installed record or a
  * `git` source with a local `directory`, which a genuinely published plugin is
@@ -332,12 +332,12 @@ export type MarketplaceKind = "component" | "integration" | "agent";
  * `MarketplaceAgentCompatibility | null` projection and stay assignable here.
  *
  * `roubo` is the AUTHOR-DECLARED host semver range the plugin's manifest carries
- * (issue #720), so a listing this host is out of range for can be marked
+ * (#1134), so a listing this host is out of range for can be marked
  * incompatible and have its install action refused BEFORE any artifact is
  * downloaded. Same trust class and same optionality as `agentCompatibility`: it
  * rides on the (unsigned, for a third-party source) payload, so a hostile source
  * can declare a trivially-satisfied range, which is accepted because this gate
- * only ever ADDS a refusal and the post-download check (issue #719) remains
+ * only ever ADDS a refusal and the post-download check (#1118) remains
  * authoritative. A catalog build emits the key only when the manifest declares
  * one, so an entry without it behaves exactly as before.
  */
@@ -415,8 +415,8 @@ export interface SignedKeyRing {
 
 /**
  * The agent-CLI compatibility window a marketplace listing renders PRE-INSTALL
- * (AP-FR-022, issue #522): the declared version floor and tested ceiling, and
- * nothing else. Since issue #722 the same shape types both sources of that
+ * (AP-FR-022, #1112): the declared version floor and tested ceiling, and
+ * nothing else. Since #1133 the same shape types both sources of that
  * window, the manifest-derived one and the author-declared one a catalog entry
  * may carry, so a not-yet-installed release listing can render bounds before any
  * manifest is in reach.
@@ -435,7 +435,7 @@ export type MarketplaceAgentCompatibility = Pick<
 >;
 
 /**
- * A listing whose declared `roubo` range EXCLUDES the running host (issue #720).
+ * A listing whose declared `roubo` range EXCLUDES the running host (#1134).
  * Carries just enough to say so without the client re-implementing semver: the
  * range the plugin declared and the host version it was evaluated against.
  *
@@ -460,7 +460,7 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   installed: boolean;
   installedVersion: string | null;
   updateAvailable: boolean;
-  // Derived, PRE-INSTALL provenance the detail drawer renders (issue #401).
+  // Derived, PRE-INSTALL provenance the detail drawer renders (#883).
   // `declaredPermissions` and `lifecycle` are NOT part of the signed catalog
   // `payload` (putting them there requires the out-of-band signing key and would
   // trip the marketplace drift guard); the server derives them in `annotate()` by
@@ -475,7 +475,7 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // `lifecycle` is the component lifecycle shape (long-running / one-shot), or
   // `null` for integration plugins and when the manifest is unavailable.
   // `agentCompatibility` is the agent-CLI window an AGENT-kind entry declared
-  // (AP-FR-022, issue #522), gated on the kind here on the server so a component
+  // (AP-FR-022, #1112), gated on the kind here on the server so a component
   // or integration listing can never render CLI compatibility metadata
   // (AP-TC-125). It narrows the OPTIONAL entry field of the same name to a
   // required, always-present projection, and it is the one field here with two
@@ -483,7 +483,7 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // (authoritative for what is on the machine, empty answer included) and only
   // falls back to the entry's own declaration when no manifest is in reach, so a
   // not-yet-installed release listing still shows what its author declared
-  // (issue #722) while an installed plugin's card can never contradict its own
+  // (#1133) while an installed plugin's card can never contradict its own
   // on-disk manifest. `null` for every other kind, and whenever the answering
   // source yields no bound (a readable manifest declaring none, or no readable
   // manifest and no entry declaration): the one null branch the card renders its
@@ -491,7 +491,7 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // manifest and an undeclared window read the same rather than one of them
   // rendering an empty row.
   //
-  // `hostCompatibility` is the HOST-range verdict (issue #720), derived here on
+  // `hostCompatibility` is the HOST-range verdict (#1134), derived here on
   // the server from the entry's declared `roubo` range against this host's API
   // version. Non-null means this host is out of range, so the card and the drawer
   // mark the listing incompatible and render no install affordance; null means
@@ -506,7 +506,7 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   hostCompatibility: MarketplaceHostIncompatibility | null;
   // The id of the marketplace source this entry came from: `FIRST_PARTY_SOURCE_ID`
   // for the built-in catalog, otherwise the registered source's generated id
-  // (CPHMTP-FR-004, issue #557). Every listing carries exactly one, so the card
+  // (CPHMTP-FR-004, #962). Every listing carries exactly one, so the card
   // renders exactly one provenance chip and the source filter chips can scope the
   // merged list to a single source.
   //
@@ -520,7 +520,7 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
   // Neither means "originating marketplace source".
   sourceId: string;
   // Set when this plugin id is served by MORE THAN ONE source (CPHMTP-FR-005,
-  // issue #558). `sourceIds` names every source serving the id, in fan-out order
+  // #582). `sourceIds` names every source serving the id, in fan-out order
   // (first-party first, then registered sources in registration order), and always
   // includes this listing's own `sourceId`.
   //
@@ -538,7 +538,7 @@ export interface MarketplaceListing extends MarketplaceCatalogEntry {
 
 /**
  * The health and provenance of ONE marketplace source in a merged multi-source
- * listing (CPHMTP-FR-004 / CPHMTP-NFR-007, issue #557). `MarketplaceCatalogResponse`
+ * listing (CPHMTP-FR-004 / CPHMTP-NFR-007, #962). `MarketplaceCatalogResponse`
  * carries one of these per source alongside the merged listings, so a single dead
  * source can show as unavailable while every healthy source lists normally, rather
  * than one catalog-wide scalar forcing an all-or-nothing degrade.
@@ -560,7 +560,7 @@ export interface MarketplaceSourceStatus {
 
 /**
  * Where the served catalog came from, surfaced so the Plugins view can render an
- * offline / staleness banner (CPHM-FR-009 / CPHM-NFR-003, issue #372). The
+ * offline / staleness banner (CPHM-FR-009 / CPHM-NFR-003, #851). The
  * catalog-client degrades NETWORK -> CACHE (bottoming out at an empty listing);
  * `cache` means the hosted marketplace was unreachable and the last verified
  * catalog is being shown. The server-side `CatalogSource` (catalog-client.ts)
@@ -571,7 +571,7 @@ export type MarketplaceCatalogSource = "network" | "cache";
 /**
  * Response shape for `GET /api/marketplace/plugins`. `listings` is the merged
  * multi-source catalog: the first-party entries plus every registered source's
- * entries, each stamped with its own `sourceId` (CPHMTP-FR-004, issue #557).
+ * entries, each stamped with its own `sourceId` (CPHMTP-FR-004, #962).
  *
  * `source` and `fetchedAt` carry the FIRST-PARTY catalog's provenance to the
  * client: when `source !== "network"` the first-party marketplace was unreachable
@@ -609,7 +609,7 @@ export interface MarketplaceCatalogErrorBody {
 /**
  * Error body returned by `POST /api/marketplace/plugins/:id/install` and
  * `/update` (HTTP 409) when the id is served by more than one registered source
- * and the request named none (CPHMTP-FR-005, issue #558).
+ * and the request named none (CPHMTP-FR-005, #582).
  *
  * The refusal is deliberate and happens BEFORE any artifact is fetched: with no
  * precedence order, picking a source for the caller would silently choose whose
@@ -631,7 +631,7 @@ export interface MarketplaceAmbiguousSourceErrorBody {
 /**
  * ONE marketplace source that serves a bound-but-uninstalled plugin id, as named
  * by a `COMPONENT_NOT_BOUND` error's `resolution` payload (CPHMTP-FR-008, issue
- * #566).
+ * #978).
  *
  * `label` is the source's display name (the first-party catalog's own label, or a
  * registered source's URL host), so the error and its actions can name the source
@@ -651,7 +651,7 @@ export interface MissingPluginSourceOffer {
 /**
  * How a bound-but-uninstalled component plugin id resolves against the merged
  * multi-source catalog, attached to the `COMPONENT_NOT_BOUND` bench-start error so
- * the missing-plugin surface can be actionable (CPHMTP-FR-008, issue #566).
+ * the missing-plugin surface can be actionable (CPHMTP-FR-008, #978).
  *
  * The three states are the three honest outcomes of the FR-005 no-precedence rule,
  * and each one fixes what the surface may offer:
@@ -755,7 +755,7 @@ export interface GlobalPluginIntegrationState {
 
 /**
  * One installed `agent`-kind plugin as the AI Agents settings screen sees it
- * (AP-FR-002, AP-FR-003, issue #508).
+ * (AP-FR-002, AP-FR-003, #1032).
  *
  * `configSchema` is the plugin's own manifest schema, rendered verbatim by the
  * schema-driven form, which is what makes two agent plugins produce two
@@ -780,7 +780,7 @@ export interface AgentPluginState {
    */
   compatibility?: AgentCompatibilityState;
   /**
-   * Each probed configuration field's state, keyed by field name (#852,
+   * Each probed configuration field's state, keyed by field name (#1268,
    * APCC-FR-002). A resolved field's choices are already merged into
    * `configSchema` as `oneOf` const/title branches, so the form reads them like
    * any static choice list; this map only says which fields are still loading or
@@ -800,7 +800,7 @@ export type AgentChoiceProbeFailureCause =
 
 /**
  * One probed configuration field's state as the settings response serves it
- * (#852). `loading` means no probe outcome exists yet, `resolved` means the
+ * (#1268). `loading` means no probe outcome exists yet, `resolved` means the
  * field's choices are in the schema, `failed` carries the cause and reason.
  */
 export interface AgentChoiceProbeState {
@@ -813,14 +813,14 @@ export interface AgentChoiceProbeState {
 
 /**
  * How a detected agent-CLI version sits against a plugin's declared window
- * (spike #504 AC3). `unknown` is the honest fourth state the host reports before
+ * (launch-failure spike AC3). `unknown` is the honest fourth state the host reports before
  * any probe has run: it is not a verdict, so no surface may render it as one.
  */
 export type AgentVersionStatus =
   "within-tested-range" | "above-tested-ceiling" | "below-floor" | "probe-failed";
 
 /**
- * WHY a `probe-failed` probe could not decide (AP-TC-122, issue #522).
+ * WHY a `probe-failed` probe could not decide (AP-TC-122, #1112).
  *
  * `probe-failed` on its own conflates two states that need different words and
  * different guidance: `command-not-found` means the agent's CLI could not be
@@ -846,14 +846,14 @@ export interface AgentCompatibilityState {
   reason?: string;
   /**
    * WHICH kind of failure it was, present only when `status` is probe-failed
-   * (AP-TC-122, issue #522). The screen branches on this, not on `status`, so a
+   * (AP-TC-122, #1112). The screen branches on this, not on `status`, so a
    * user whose CLI is merely misbehaving is not told to install it.
    */
   cause?: AgentVersionProbeFailureCause;
 }
 
 /**
- * The closed set of ways an agent launch fails (spike #504 AC4). Every class
+ * The closed set of ways an agent launch fails (launch-failure spike AC4). Every class
  * ends in an actionable surface, which is the whole point: AP-NFR-003 allows no
  * silent dead terminal.
  */
@@ -910,7 +910,7 @@ export interface AgentConfigResponse {
 
 /**
  * One installed agent plugin as a project's Agent overrides section sees it
- * (AP-FR-004, issue #509).
+ * (AP-FR-004, #1044).
  *
  * The three config records are the whole two-layer story. `appDefaults` is what
  * the AI Agents screen saved, `overrides` holds ONLY the fields this project
@@ -942,7 +942,7 @@ export interface ProjectAgentState {
    */
   misconfigured: { message: string } | null;
   /**
-   * Each probed configuration field's state, keyed by field name (#884), the
+   * Each probed configuration field's state, keyed by field name (#1273), the
    * same map `AgentPluginState.choiceProbes` carries. A resolved field's choices
    * are already merged into `configSchema` as `oneOf` const/title branches; this
    * map only says which fields are still loading or failed. Absent when the
@@ -1106,7 +1106,7 @@ export interface IntegrationConfigUpdate {
 }
 
 /**
- * Response of `GET /integration/status-categories` (issue #453). `supported` is
+ * Response of `GET /integration/status-categories` (#461). `supported` is
  * true only when the active plugin's discovery RPC returned; on any failure
  * (no active plugin, discovery unimplemented, network / auth error) the host
  * returns `{ supported: false, categories: [] }` so the Configure dialog falls
@@ -1205,7 +1205,7 @@ export interface RegisteredProject {
   // Path-keyed config errors when the config is invalid. Populated from the zod
   // parse pass and from the plugin-aware component-binding second pass so
   // invalid component config surfaces as path-keyed errors at config-load
-  // (issue #399, CP-TC-005).
+  // (#884, CP-TC-005).
   fieldErrors?: ConfigFieldError[];
   settings: ProjectSettings;
 }
@@ -1253,7 +1253,7 @@ export interface ComponentStatus {
   phases?: ComponentPhase[];
   /**
    * An access URL the component discovered while running and pushed back
-   * through `host.component.reportStatus` (#833). Unlike `statusDetail`, which
+   * through `host.component.reportStatus` (#1206). Unlike `statusDetail`, which
    * is a transient in-flight marker the host clears once a launch settles, this
    * is durable: it survives a stop and a host restart (persisted as
    * `PersistedBench.componentUrls`) so a Tools entry can still open it. It is
@@ -1269,7 +1269,7 @@ export interface ComponentStatus {
    * never holds that sink, so it declares the URL on its ProvisionDescriptor
    * instead (`url.template`, or `url.fromOutput` to pull it out of the
    * command's own output) and the LifecycleEngine carries it into the
-   * component's terminal status push (#834).
+   * component's terminal status push (#1207).
    */
   url?: string;
   /**
@@ -1292,7 +1292,7 @@ export interface ComponentLogLine {
 }
 
 /**
- * The permission categories the broker enforces (F2.1, #618). Every broker
+ * The permission categories the broker enforces (F2.1, #673). Every broker
  * method maps to one of these; a call whose category the plugin did not declare
  * is denied with a permission-denied error before reaching the host delegate.
  */
@@ -1336,7 +1336,7 @@ export interface AuditEntry {
   /** Whether the plugin held the required permission category. */
   outcome: "allowed" | "denied";
   /**
-   * Where the entry was attributed (F2.3, #620). Omitted (or "broker") for the
+   * Where the entry was attributed (F2.3, #676). Omitted (or "broker") for the
    * always-on broker choke-point; "sandbox" for an OS-layer denial the
    * PluginIsolationSandbox could attribute to the plugin (e.g. an undeclared
    * outbound connection blocked at the container/VM boundary). The broker and
@@ -1381,7 +1381,7 @@ export interface GateAuditEntry {
 
 /**
  * One record of a privileged tracker-action plugin call routed through the
- * TrackerActionGateway (verify-gate FR-011, NFR-001, NFR-005; #705). These ops
+ * TrackerActionGateway (verify-gate FR-011, NFR-001, NFR-005; #734). These ops
  * (create-issue, add-blocking-link, close-gate) are project-scoped, not
  * bench-scoped, so they do not fit the bench-scoped broker `AuditEntry` (which
  * carries a `benchId` and a `host.*` method); and unlike the gate-close-only
@@ -1432,14 +1432,14 @@ export interface TrackerActionAuditEntry {
  * fix issue was created AND registered as a blocker on the gate. `link_pending`
  * means the issue was created but the block-link step failed afterwards, so the
  * partial state is surfaced for a link-only retry (verify-gate FR-009, FR-010,
- * NFR-003; #706). The gate is never falsely passable in either state: the failed
+ * NFR-003; #735). The gate is never falsely passable in either state: the failed
  * gating case keeps it non-passable regardless of the link's outcome.
  */
 export type FixIssueLinkStatus = "complete" | "link_pending";
 
 /**
  * The per-request outcome of filing a fix issue for a failed gating case and
- * wiring it to block the gate (verify-gate FR-009, FR-010, NFR-003; #706).
+ * wiring it to block the gate (verify-gate FR-009, FR-010, NFR-003; #735).
  *
  * The filer is create-then-link: it creates the tracker issue, then registers it
  * as a blocker on the gate. When the link step fails after the issue is created,
@@ -1466,7 +1466,7 @@ export interface FixIssueRecord {
 
 /**
  * Request body for `POST /api/projects/:projectId/gates/:gateId/fix-issues`
- * (verify-gate FR-009, FR-010, NFR-001, NFR-003; #706). `notes` is required and
+ * (verify-gate FR-009, FR-010, NFR-001, NFR-003; #735). `notes` is required and
  * must be non-empty (empty notes are rejected with a 422). `evidence` is an
  * optional in-workspace relative path for a notes artifact, confined by the
  * `resolveWithin` safe-path barrier (a path-escaping value is rejected). The
@@ -1487,7 +1487,7 @@ export interface FileFixIssueRequest {
 
 /**
  * The OS-isolation tiers the PluginIsolationSandbox can place a component plugin
- * process inside (F2.3, #620; backend chosen by SPK-2 / spike #599). Ordered
+ * process inside (F2.3, #676; backend chosen by SPK-2 / spike #635). Ordered
  * highest-isolation-first: `vz-vm` (Virtualization.framework per-plugin VM) is
  * the strongest, then `apple-container` (the macOS 15+ Apple container
  * framework), then `docker` (container-per-plugin where a Docker engine is
@@ -1498,7 +1498,7 @@ export interface FileFixIssueRequest {
 export type IsolationTier = "vz-vm" | "apple-container" | "docker" | "broker-only";
 
 /**
- * Which OS-isolation runtimes the host can actually drive (F2.3, #620). Probed
+ * Which OS-isolation runtimes the host can actually drive (F2.3, #676). Probed
  * at runtime via the NFR-005 host-capability gate, never assumed: a host without
  * any runtime degrades to the `broker-only` floor. Each flag is true only when
  * the runtime is present AND usable (e.g. the Docker daemon is reachable, not
@@ -1515,7 +1515,7 @@ export interface IsolationCapabilities {
 
 /**
  * The egress policy the sandbox applies to a plugin process, derived from the
- * manifest's `permissions.network` declaration (F2.3, #620). When the plugin
+ * manifest's `permissions.network` declaration (F2.3, #676). When the plugin
  * declares no network hosts, the sandbox denies all egress (`mode: "deny-all"`)
  * so an undeclared outbound connection is blocked at the OS layer: there is no
  * `host.network.*` broker method, so undeclared egress can only be stopped
@@ -1530,7 +1530,7 @@ export interface SandboxEgressPolicy {
 
 /**
  * The concrete spawn the host should perform to run a plugin under a non-floor
- * isolation tier (F2.3, #620). `command` + `args` replace the direct
+ * isolation tier (F2.3, #676). `command` + `args` replace the direct
  * `spawn(process.execPath, [entry])`. For the `docker` tier the shape depends
  * on the egress policy:
  *
@@ -1570,7 +1570,7 @@ export interface BrokerContext {
    * The component whose lifecycle this context was last registered for. An
    * imperative plugin's `host.component.reportStatus` arrives as a JSON-RPC
    * notification carrying no `name` (the SDK never stamps one), so the broker
-   * routes that push to this component when the status omits `name` (#396).
+   * routes that push to this component when the status omits `name` (#887).
    * Optional: a context registered by the declarative path may leave it unset.
    */
   componentName?: string;
@@ -1582,13 +1582,13 @@ export interface BrokerContext {
    * Push sink invoked by `host.component.reportLog`. The `componentName` is the
    * one the call named in its params, so a bench with two plugin-bound
    * components routes each component's output to its own log instead of
-   * overwriting whichever provisioned last (#685).
+   * overwriting whichever provisioned last (#687).
    */
   reportLog: (componentName: string, line: ComponentLogLine) => void;
   /**
    * Permission check. Returns false when the plugin did not declare a category.
    * The broker denies any call whose category returns false with a
-   * permission-denied error, before delegating to the host (F2.1, #618).
+   * permission-denied error, before delegating to the host (F2.1, #673).
    */
   hasPermission: (category: BrokerPermissionCategory) => boolean;
   /**
@@ -1666,7 +1666,7 @@ export interface Bench {
    * completion for this bench. `benches.setup` is documented as running once
    * after worktree creation, so the `bench-setup` provisioning step is only
    * seeded while this is false, and it flips to `true` after a successful run
-   * (#630). A new bench starts out `false` even when the project defines no
+   * (#997). A new bench starts out `false` even when the project defines no
    * `benches.setup`, so that a setup command added to roubo.yaml later still
    * runs once; the flag is inert until a command exists, since both the step
    * seeding and the run block also gate on `benches.setup` being set.
@@ -1735,7 +1735,7 @@ export interface ResolvedTool {
   enabled: boolean;
   requiresUserPicker: boolean;
   /**
-   * Present only on `agent` tools (AP-FR-008, issue #516): the preset resolved
+   * Present only on `agent` tools (AP-FR-008, #1057): the preset resolved
    * against the live agent registry and the current default agent. Agent tools
    * are not executed through the browser/shell path; they launch through
    * terminal session creation.
@@ -1743,7 +1743,7 @@ export interface ResolvedTool {
   preset?: ResolvedAgentPreset;
 }
 
-// ── Agent tool preset types (AP-FR-008, AP-FR-009, issue #516) ──
+// ── Agent tool preset types (AP-FR-008, AP-FR-009, #1057) ──
 
 /**
  * One stored agent tool: a named launch preset binding an agent (a plugin id,
@@ -1802,7 +1802,7 @@ export interface ResolvedAgentPreset {
    * Advisory only: the preset resolved cleanly but is not doing what its name
    * promises, because the bound agent's `configSchema` refused or never
    * declared keys it sets and those keys were dropped rather than the preset
-   * dying (issues #654 and #743, `withValidatedParams`). `droppedParams` names
+   * dying (#1070, #1149, `withValidatedParams`). `droppedParams` names
    * those keys. A built-in degrades on any such key; a preset that binds the
    * default agent also degrades on a key the schema never declares, whatever
    * its source, because switching the default is what caused the mismatch.
@@ -1810,14 +1810,14 @@ export interface ResolvedAgentPreset {
    * Deliberately a sibling of `unresolved` rather than a reason inside it: a
    * degraded preset is still launchable, so this field must never gate
    * `enabled`, which launch surfaces derive from `unresolved` alone (issue
-   * #665). A preset is never both `degraded` and `unresolved`.
+   * #1080). A preset is never both `degraded` and `unresolved`.
    */
   degraded?: { droppedParams: string[]; message: string };
 }
 
 /**
  * Result of GET /api/projects/:projectId/agent-presets, and of its app-scoped
- * sibling GET /api/agents/presets (issue #672). The shape is identical: the two
+ * sibling GET /api/agents/presets (#1084). The shape is identical: the two
  * differ only in whether a project's `roubo.yaml` presets are part of the list.
  */
 export interface AgentPresetsResponse {
@@ -1965,7 +1965,7 @@ export interface PersistedBench {
   componentSetupState?: Record<string, boolean>;
   /**
    * Persisted mirror of `bench.components[name].url`, keyed by component name,
-   * holding only the components that reported one (#833). A runtime-discovered
+   * holding only the components that reported one (#1206). A runtime-discovered
    * URL is often minted once per bench by a guarded one-shot step, so without
    * this the value would be unrecoverable after a restart and the Tools entry
    * that opens it would break. Absent on benches written before this field
@@ -1975,7 +1975,7 @@ export interface PersistedBench {
   /**
    * Persisted mirror of `Bench.benchSetupComplete`: whether `benches.setup`
    * has already run to completion for this bench, so a later bench-level Start
-   * skips it (#630). Absent on benches written before this field existed;
+   * skips it (#997). Absent on benches written before this field existed;
    * load-time migration coerces those to `true`.
    */
   benchSetupComplete?: boolean;
@@ -1984,7 +1984,7 @@ export interface PersistedBench {
 /**
  * One ResourceOwnershipLedger entry: the processes and compose projects the
  * host started on a single plugin's behalf, scoped to a single bench. The host
- * owns every handle, so the ledger is how the startup orphan sweep (issue #613)
+ * owns every handle, so the ledger is how the startup orphan sweep (#657)
  * can reap resources that escaped a plugin crash or a host restart (FR-015).
  *
  * Stored as a flat array of entries (not a nested `Record<pluginId, ...>`) so a
@@ -2012,7 +2012,7 @@ export interface PersistedState {
    */
   resourceOwnership?: ResourceOwnershipEntry[];
   /**
-   * Single commit point for the pre-plugin → plugin migration (WU-024 / issue #42).
+   * Single commit point for the pre-plugin → plugin migration (WU-024 / #91).
    * Absent on pre-migration installs; bumped to 1 only after every migration
    * side-effect has succeeded. Used as the idempotency gate.
    */
@@ -2021,7 +2021,7 @@ export interface PersistedState {
   migration?: MigrationRecord;
   /**
    * Legacy one-time notice markers (marker id to ISO 8601 timestamp or the
-   * `"seeded"` sentinel) written by older builds (issue #558). Nothing reads or
+   * `"seeded"` sentinel) written by older builds (#582). Nothing reads or
    * writes this key any more (#1278); it stays on the type so existing
    * `state.json` files that still carry it are tolerated and preserved.
    */
@@ -2085,7 +2085,7 @@ export interface AgentPermissionsCapabilities {
    * The rule tiers this agent's own rules format carries. A tier absent from the
    * list is never written, so the screen offers no control for it and says so
    * rather than letting a rule look applied when it was dropped. An agent that
-   * declares nothing reports all three (#862).
+   * declares nothing reports all three (#1345).
    */
   ruleTiers: PermissionRuleTier[];
   /** Whether those rules can be re-injected into already-created benches. */
@@ -2230,7 +2230,7 @@ export interface TerminalCreateRequest {
   /**
    * The third and fourth effective-config layers (AP-FR-011), above the stored
    * application defaults and project overrides. Both are optional inputs; their
-   * producers are the preset and per-launch surfaces (#516, #518).
+   * producers are the preset and per-launch surfaces (#1057, #1072).
    */
   presetOverrides?: Record<string, unknown>;
   perLaunchOverrides?: Record<string, unknown>;
@@ -2406,7 +2406,7 @@ export interface ListIssuesWarning {
 
 /**
  * Category of the non-fatal warning the host emits when its whole-set cut-list
- * materialisation hits a walk cap (#844). Host-owned rather than source-owned,
+ * materialisation hits a walk cap (#1224). Host-owned rather than source-owned,
  * so `sourceExternalId` is empty: the truncation is a property of the walk
  * across every configured source, not of any one of them.
  *
@@ -2494,7 +2494,7 @@ export interface ListIssuesParams {
  * FR-014: when the active plugin is `errored` or `disabled` and a prior
  * first-page response was cached, the host serves that snapshot with
  * `stale: true` and `snapshotCapturedAt` set to the ISO timestamp of the
- * captured response. The matching cut-list banner is tracked in #263.
+ * captured response. The matching cut-list banner is tracked in #274.
  */
 export interface PaginatedIssues {
   items: NormalizedIssue[];
@@ -2650,7 +2650,7 @@ export interface JigMeta {
   updatedAt?: string; // ISO-8601
   approxTokens?: number; // chars/4 estimate, lets UIs render a context-usage signal
   /**
-   * The `agent`-kind plugin this jig launches with (AP-FR-006, issue #515).
+   * The `agent`-kind plugin this jig launches with (AP-FR-006, #1051).
    * Absent means "use the default agent". Stored in the jig's own frontmatter,
    * so an app-level jig and a repo-level jig both carry their binding with them.
    */
@@ -2801,7 +2801,7 @@ export interface UserPreferences {
   theme: ThemeMode;
   jigs?: JigSettings;
   /**
-   * App-level agent tool presets (AP-FR-008, issue #516). Built-in presets are
+   * App-level agent tool presets (AP-FR-008, #1057). Built-in presets are
    * never persisted here; only presets the user created in the editor are.
    */
   agentTools?: AgentToolPreset[];
@@ -2824,7 +2824,7 @@ export interface BranchConflictInfo {
 
 /**
  * What a user is told when a launch resolves no agent. Core stopped launching an
- * agent CLI of its own in #521, so this has to name the way out: agents arrive as
+ * agent CLI of its own in #1114, so this has to name the way out: agents arrive as
  * plugins, and the AI Agents screen is where they are installed and made the
  * default (AP-FR-019, AP-TC-103).
  *

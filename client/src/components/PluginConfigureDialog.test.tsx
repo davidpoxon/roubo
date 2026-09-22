@@ -225,7 +225,7 @@ describe("PluginConfigureDialog", () => {
     expect(pill).toHaveAttribute("data-state", "connected");
   });
 
-  it("announces modality: aria-modal on the dialog and an inert background (issue #424)", () => {
+  it("announces modality: aria-modal on the dialog and an inert background (#902)", () => {
     installMocks({ test: vi.fn(), save: vi.fn() });
     // A background node present before the modal opens: React Aria's
     // ariaHideOutside should inert it, and the dialog itself must announce its
@@ -363,7 +363,7 @@ describe("PluginConfigureDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  describe("status-category exclusion (issue #435)", () => {
+  describe("status-category exclusion (#454)", () => {
     const verifyOk = () => vi.fn().mockResolvedValue({ ok: true, identity: { externalId: "u-1" } });
     const jiraPlugin = () =>
       makePlugin({
@@ -446,7 +446,7 @@ describe("PluginConfigureDialog", () => {
       expect(save.mock.calls[0][0].excludedStatusCategories).toBeUndefined();
     });
 
-    // FR-013 (issue #558): the actionable To-Do category can never be excluded.
+    // FR-013 (#582): the actionable To-Do category can never be excluded.
     it("renders the actionable To-Do category disabled and unchecked", () => {
       installMocks({ test: vi.fn(), save: vi.fn() });
       renderDialog({
@@ -490,9 +490,9 @@ describe("PluginConfigureDialog", () => {
     });
   });
 
-  // FR-014 (issue #558): the GitHub family has no native In Progress category,
+  // FR-014 (#582): the GitHub family has no native In Progress category,
   // so the dialog shows the open/closed mapping note instead of a toggle.
-  describe("GitHub-family status mapping note (issue #558)", () => {
+  describe("GitHub-family status mapping note (#582)", () => {
     it("renders the mapping note for the GitHub family and no category toggle", () => {
       installMocks({ test: vi.fn(), save: vi.fn() });
       // The default plugin is ghe with no defaultIntegrationConfig.
@@ -521,7 +521,7 @@ describe("PluginConfigureDialog", () => {
     });
   });
 
-  describe("live status-category discovery (issue #453)", () => {
+  describe("live status-category discovery (#461)", () => {
     const jiraPlugin = () =>
       makePlugin({
         name: "Jira",
@@ -569,7 +569,7 @@ describe("PluginConfigureDialog", () => {
       expect(legacy).toBeChecked();
     });
 
-    // Issue #423 (CLI-TC-052 S002-O01): when discovery reports that this instance
+    // #900 (CLI-TC-052 S002-O01): when discovery reports that this instance
     // has no native status categories, the section explains that exclusions fall
     // back to status-name matching.
     it("renders the status-name fallback note when discovery reports categories unsupported", () => {
@@ -1027,7 +1027,7 @@ describe("PluginConfigureDialog (global scope)", () => {
     expect(mockedUseSave("demo").mutateAsync).not.toHaveBeenCalled();
   });
 
-  it('exposes aria-modal="true" on the global-scope dialog (issue #424)', () => {
+  it('exposes aria-modal="true" on the global-scope dialog (#902)', () => {
     installGlobalMocks({ test: vi.fn(), save: vi.fn() });
     renderGlobalDialog();
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
@@ -1067,7 +1067,7 @@ describe("PluginConfigureDialog (global scope)", () => {
   });
 
   it("omits `sources` from the Verify snapshot even when it leaks into effective.advanced", async () => {
-    // Issue #125 defence-in-depth: a stale `advanced.sources` that survives
+    // #231 defence-in-depth: a stale `advanced.sources` that survives
     // into `effective` (e.g. an un-canonicalised global override file) must
     // not ride into the form values via the `key in advanced` passthrough.
     // seedInitialValues skips array/object configSchema properties BEFORE

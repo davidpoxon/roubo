@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// The 4-step install/update progress widget (issue #374, CPHM-TC-017 S002-O01).
+// The 4-step install/update progress widget (#855, CPHM-TC-017 S002-O01).
 // It is purely presentational: given a per-stage status array it renders the
 // four labelled stages with the prototype's treatment (numbered badge -> check
 // on done, amber active, red cross + fail-closed message on failure) and the
@@ -84,7 +84,7 @@ describe("MarketplaceInstallProgress", () => {
     expect(within(failed).queryByText("3")).not.toBeInTheDocument();
   });
 
-  it("shows a code-accurate failure message on the Unpack & install stage: an unpack containment rejection is not a digest mismatch (issue #374 corr-1)", () => {
+  it("shows a code-accurate failure message on the Unpack & install stage: an unpack containment rejection is not a digest mismatch (#855 corr-1)", () => {
     // unpack-failed's failing stage is index 3 (Unpack & install); the digest
     // stage (index 2) is left pending because unpack runs before the digest
     // check, so it was never reached.

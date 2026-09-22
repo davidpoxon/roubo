@@ -1,4 +1,4 @@
-// Permission rule guard (issue #514, AP-FR-016, AP-NFR-001, AP-TC-081).
+// Permission rule guard (#1058, AP-FR-016, AP-NFR-001, AP-TC-081).
 //
 // A permission rule is an opaque string as far as core is concerned: the
 // agent-launch descriptor contract is explicit that core "stores, unions, and

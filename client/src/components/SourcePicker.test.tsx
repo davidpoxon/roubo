@@ -312,7 +312,7 @@ describe("SourcePicker", () => {
       expect(screen.queryByTestId("stale-sources-notice")).not.toBeInTheDocument();
     });
 
-    describe("mine source control (#396)", () => {
+    describe("mine source control (#401)", () => {
       it("renders the 'Assigned to me' category with the switch off when unset", () => {
         render(
           <SourcePicker candidates={SEARCHABLE} value={{}} onChange={vi.fn()} projectId="p1" />,

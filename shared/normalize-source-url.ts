@@ -1,4 +1,4 @@
-// Shared marketplace source URL normalisation (CPHMTP-FR-007, issue #565).
+// Shared marketplace source URL normalisation (CPHMTP-FR-007, #982).
 //
 // A single WHATWG-URL normalisation used on BOTH sides of the trust boundary:
 //   - the server's registration path (marketplace-sources-state.ts) persists the

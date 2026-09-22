@@ -3,14 +3,14 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
-// #572: the integration-level drift guard for the US-006 journey "milestone
+// #640: the integration-level drift guard for the US-006 journey "milestone
 // filter offers only live values and filters the list". It spans the slices
-// #555 (source-side facet-value exclusion / FR-015), #556 (cursor pagination /
-// FR-008), and #565 (the milestone filter affordance / FR-008), and asserts the
+// #577 (source-side facet-value exclusion / FR-015), #580 (cursor pagination /
+// FR-008), and #636 (the milestone filter affordance / FR-008), and asserts the
 // integrated journey against the authoritative e2e_flow case CLI-TC-059, not
 // whatever any single slice implemented.
 //
-// TC-059 reconciliations (mirroring how #584 reconciled CLI-TC-032 S001-O01 to
+// TC-059 reconciliations (mirroring how #632 reconciled CLI-TC-032 S001-O01 to
 // the shipped pager contract). Two literal step texts in test-cases.json
 // describe behaviour the shipped UI does not emit; this spec asserts the
 // shipped observable signals instead, and test-cases.json was updated to match:
@@ -34,8 +34,8 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 //
 // FR-020 failure-output contract: every assertion below carries a descriptive
 // message naming the diverging e2e_flow step, TC-059, the expected-vs-actual,
-// and the owning slice issue(s) (#555 for only-live facet values, #556 for the
-// page-1 reset, #565 for the milestone filter), so a regression points straight
+// and the owning slice(s) (#577 for only-live facet values, #580 for the
+// page-1 reset, #636 for the milestone filter), so a regression points straight
 // at the step and the slice that broke it.
 //
 // Mechanics. Milestone options in the dropdown come from the plugin's
@@ -70,9 +70,9 @@ const PAGE_1_SPRINT_25_REF = "#302";
 const PAGE_2_REFS = ["#303", "#304"] as const;
 
 // Owning slices for the FR-020 failure-output contract.
-const SLICE_ONLY_LIVE = "#555";
-const SLICE_PAGING = "#556";
-const SLICE_FILTER = "#565";
+const SLICE_ONLY_LIVE = "GHE filterFacets / getFacetOptions";
+const SLICE_PAGING = "Prev/Next pagination";
+const SLICE_FILTER = "source-side facet-value exclusion";
 
 const filterButton = (page: Page) => page.getByRole("button", { name: /^Filter cut list/ });
 const popover = (page: Page) => page.getByRole("dialog");
@@ -149,7 +149,7 @@ test("TC-059: milestone filter offers only live values, filters the list, and re
 
   // S001 (AC1): open the filter popover and assert the Milestone dropdown lists
   // only the live sprints; the closed sprint name appears zero times (only-live
-  // values, the FR-015 drift guard owned by slice #555).
+  // values, the FR-015 drift guard owned by slice #577).
   await filterButton(page).click();
   // Scope to the popover dialog so the "Milestone" header isn't confused with
   // any issue text in the cut list.
@@ -218,7 +218,7 @@ test("TC-059: milestone filter offers only live values, filters the list, and re
   // S002-O03 (reconciled): pagination resets to page 1 with Prev disabled. (The
   // literal TC-059 "Filtered to milestone ..." live-region announcement is not a
   // shipped signal; see the header reconciliation. The shipped observable is the
-  // FR-008 page-1 reset, owned by slice #556.)
+  // FR-008 page-1 reset, owned by slice #580.)
   await expect(
     indicator(page),
     `S002-O03 (TC-059, slice ${SLICE_PAGING}): a milestone selection must reset paging to "Page 1", got "${await indicator(page).textContent()}"`,

@@ -2,11 +2,11 @@ import type { ResourceOwnershipEntry } from "@roubo/shared";
 import { loadState, saveState } from "./state.js";
 
 /**
- * ResourceOwnershipLedger (FR-015, issue #607).
+ * ResourceOwnershipLedger (FR-015, #647).
  *
  * Records, per plugin and per bench, the processes and compose projects the
  * host started on the plugin's behalf. Because the host owns every handle, the
- * ledger is the only way the startup orphan sweep (issue #613) can reap
+ * ledger is the only way the startup orphan sweep (#657) can reap
  * resources that escaped a plugin crash or a host restart, satisfying the
  * zero-orphaned-resources invariant (NFR-003).
  *
@@ -22,8 +22,8 @@ import { loadState, saveState } from "./state.js";
  * as an object key, keeping the persisted shape off the CodeQL prototype-
  * pollution surface.
  *
- * Out of scope here: the cleanup sweep that consumes the ledger (issue #613)
- * and the LifecycleEngine wiring that calls these methods (issue #606). This
+ * Out of scope here: the cleanup sweep that consumes the ledger (#657)
+ * and the LifecycleEngine wiring that calls these methods (#650). This
  * module is the callable data-store the engine and the sweep build on.
  */
 

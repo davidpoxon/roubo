@@ -8,11 +8,11 @@ import {
   setCutListDiskCacheEnabled,
 } from "./_support/scenario.js";
 
-// #567: the integration-level drift guard for the US-001 journey "warm cut list
-// loads instantly after restart, then revalidates". It spans the slices #553,
-// #559, #560, #561 and asserts the integrated journey against the authoritative
+// #595: the integration-level drift guard for the US-001 journey "warm cut list
+// loads instantly after restart, then revalidates". It spans the slices #576,
+// #586, #587, #591 and asserts the integrated journey against the authoritative
 // e2e_flow case CLI-TC-001, not whatever any single slice implemented. This is
-// the warm-restart sibling of the cut-list-refresh drift guard (#568 /
+// the warm-restart sibling of the cut-list-refresh drift guard (#590 /
 // CLI-TC-017); it is modelled closely on that spec (same imports, beforeEach /
 // afterEach shape, badge / last-updated locators, warm-path technique, and
 // FR-020 failure-message convention).
@@ -33,7 +33,7 @@ import {
 //
 // CLI-TC-001 HARNESS ADAPTATIONS (decided: adapt to the e2e harness):
 //
-//   1. S001-O04 (RECONCILED, no longer a divergence; #592 reconciled the
+//   1. S001-O04 (RECONCILED, no longer a divergence; #597 reconciled the
 //      wording). S001-O04 in the authoritative case now reads as the
 //      e2e-level no-network-wait proxy this guard asserts: the first visible row
 //      renders from the persisted on-disk snapshot without waiting on a live
@@ -47,7 +47,7 @@ import {
 //      first meaningful paint came from the snapshot, not a cold network
 //      round-trip. The literal <200ms p95 budget stays owned by the perf unit
 //      test client/src/components/cut-list-warm-paint.perf.tc-011.test.tsx
-//      (CLI-TC-011 / CLI-NFR-002). #592 reconciled S001-O04's spec wording to
+//      (CLI-TC-011 / CLI-NFR-002). #597 reconciled S001-O04's spec wording to
 //      this proxy (the audit trail for why the proxy stands in for the literal
 //      budget).
 //
@@ -61,11 +61,11 @@ import {
 //      `warm -> revalidating -> warm` transition is to trigger a client
 //      revalidation via the Refresh control (exactly as the sibling TC-017 guard
 //      does) and hold its refetch open. This deliberate TC-001 divergence (manual
-//      trigger standing in for "background revalidation runs") is tracked by #592.
+//      trigger standing in for "background revalidation runs") is tracked by #597.
 //
 // FR-020 failure-output contract: every assertion below carries a descriptive
 // message naming the diverging e2e_flow step (S001/S002/S003 + observation id),
-// the expected-vs-actual, and the owning slice issues #553/#559/#560/#561, so a
+// the expected-vs-actual, and the owning slice #576/#586/#587/#591, so a
 // regression points straight at the step and the slice that broke it.
 //
 // The fixture project (e2e/fixtures/cut-list-refresh-project) pins the e2e-stub
@@ -74,7 +74,8 @@ import {
 
 const SCENARIO = "cut-list-refresh";
 const NOW = "2026-05-21T13:00:00.000Z";
-const OWNING_SLICES = "#553/#559/#560/#561";
+const OWNING_SLICES =
+  "cache key, invalidation and lifecycle contract spike / CutListQueryService + DiskSnapshotStore first-page cache / stale-while-revalidate serving + cache-state wiring / cache lifecycle eviction + observability logging";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_PATH = path.resolve(__dirname, "..", "fixtures", "cut-list-refresh-project");
@@ -147,7 +148,7 @@ test("TC-001: warm cut list loads instantly after restart, then revalidates", as
   // persisted disk snapshot (a cold miss shows no chip), the `warm` badge over
   // rendered rows is the integrated proof that first meaningful paint came from
   // the snapshot, not a cold network round-trip (the literal <200ms p95 budget is
-  // owned by the TC-011 perf unit test; divergence tracked by #592).
+  // owned by the TC-011 perf unit test; divergence tracked by #597).
   await expect(
     cacheBadge(page),
     `S001-O02 (TC-001, slices ${OWNING_SLICES}): the cache-state badge must read "warm" on the warm serve after restart, got "${await cacheBadge(page).textContent()}"`,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #775 (SATCA-TC-019, SATCA-NFR-005): the accessibility contract of the archived
+// #1173 (SATCA-TC-019, SATCA-NFR-005): the accessibility contract of the archived
 // cases section. Its controls (Restore, and the "Replaced by" reveal) are
 // reachable and operable by keyboard alone, the section is a named landmark, the
 // lifecycle state of every entry is carried as text rather than by colour, and
@@ -50,7 +50,7 @@ function results(caseResults: BenchResults["caseResults"]): BenchResults {
 }
 
 // Omitting the lifecycle block yields a live case, which is what a revealable
-// replacement pointer has to name (#789).
+// replacement pointer has to name (#1165).
 function lifecycleCase(id: string, lifecycle?: CaseLifecycle): Case {
   return {
     id,
@@ -119,7 +119,7 @@ describe("ArchivedCases a11y: keyboard operation (SATCA-TC-019 S002-O01)", () =>
     renderSection({ archived: archivedFor([RETIRED]) });
 
     // Reached by tabbing, never by a mouse click. The section itself is the first
-    // tab stop (#832: it is a capped scroll container, so it must be keyboard
+    // tab stop (#1200: it is a capped scroll container, so it must be keyboard
     // scrollable), and a retired entry offers Restore as its only control, so the
     // second Tab lands on it.
     await user.tab();
@@ -144,7 +144,7 @@ describe("ArchivedCases a11y: keyboard operation (SATCA-TC-019 S002-O01)", () =>
     const onSelectCase = vi.fn();
     renderSection({ archived: archivedFor([SUPERSEDED, LIVE_TARGET]), onSelectCase });
 
-    // The section's own tab stop comes first (#832), then the reveal.
+    // The section's own tab stop comes first (#1200), then the reveal.
     await user.tab();
     expect(screen.getByTestId("archived-cases")).toHaveFocus();
     await user.tab();
@@ -157,7 +157,7 @@ describe("ArchivedCases a11y: keyboard operation (SATCA-TC-019 S002-O01)", () =>
     const user = userEvent.setup();
     renderSection({ archived: archivedFor([SUPERSEDED, LIVE_TARGET]), onSelectCase: vi.fn() });
 
-    // The scroll container leads (#832), then every control in order; the entries
+    // The scroll container leads (#1200), then every control in order; the entries
     // themselves stay skipped.
     await user.tab();
     expect(screen.getByTestId("archived-cases")).toHaveFocus();
@@ -167,7 +167,7 @@ describe("ArchivedCases a11y: keyboard operation (SATCA-TC-019 S002-O01)", () =>
     expect(screen.getByRole("button", { name: /Restore/ })).toHaveFocus();
   });
 
-  // #832. The section is a capped scroll container, so it needs a tab stop of its
+  // #1200. The section is a capped scroll container, so it needs a tab stop of its
   // own: without one, a shape holding no control leaves the content below the cap
   // with no keyboard route to it (axe scrollable-region-focusable, WCAG 2.1.1).
   // An orphaned-result entry is exactly that shape, since a case removed from the
@@ -190,7 +190,7 @@ describe("ArchivedCases a11y: keyboard operation (SATCA-TC-019 S002-O01)", () =>
   });
 });
 
-// #775 AC4. Retiring a case removes it from the live list, unmounting the
+// #1173 AC4. Retiring a case removes it from the live list, unmounting the
 // control that applied the action; the panel names the arriving case so this
 // section can land focus on it rather than letting it fall to the body.
 describe("ArchivedCases a11y: focus lands on the arriving case (SATCA-TC-057)", () => {

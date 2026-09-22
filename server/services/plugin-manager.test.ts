@@ -42,7 +42,7 @@ const enableStateMocks = vi.hoisted(() => {
 });
 vi.mock("./plugin-enable-state.js", () => enableStateMocks);
 
-// Issue #399 (CP-TC-096): uninstall drops the plugin's ConsentRecord. Mock the
+// #884 (CP-TC-096): uninstall drops the plugin's ConsentRecord. Mock the
 // consent-state persistence boundary so the uninstall call-site is asserted
 // without touching the real ~/.roubo/plugins-consent.json (the file IO itself is
 // covered by plugin-consent-state.test.ts). uninstallForUpdate must NOT call it.
@@ -51,7 +51,7 @@ const consentStateMocks = vi.hoisted(() => ({
 }));
 vi.mock("./plugin-consent-state.js", () => consentStateMocks);
 
-// Issue #558 (CPHMTP-FR-005/006): makeRecord stamps a rebuilt record with the
+// #966 (CPHMTP-FR-005/006): makeRecord stamps a rebuilt record with the
 // marketplace source the consumer chose, read back from the provenance ledger.
 // Mock that persistence boundary for the same reason as the two above: these
 // tests must not touch the real ~/.roubo/plugins-provenance.json (the file IO is
@@ -64,8 +64,8 @@ const provenanceStateMocks = vi.hoisted(() => ({
 }));
 vi.mock("./plugin-provenance-state.js", () => provenanceStateMocks);
 
-// dockerode is lazy-imported by the real isolation probe (#675) and by
-// ensureImage (#740). Mock it so the boot-install and image-pull branches can
+// dockerode is lazy-imported by the real isolation probe (#684) and by
+// ensureImage (#742). Mock it so the boot-install and image-pull branches can
 // be exercised without a live daemon. Individual mocks are reassigned per test.
 let dockerPingMock: () => Promise<unknown> = () => Promise.reject(new Error("no daemon"));
 // ensureImage mocks: inspect resolves when the image is present, rejects when absent.
@@ -104,7 +104,7 @@ vi.mock("dockerode", () => ({
 // docker invocation) while every other test delegates to the real spawn and is
 // unaffected. `override` is null by default, so the file-wide behaviour is the
 // real spawn; a test sets `override` to intercept and resets it in afterEach.
-// #740: exercises the sandbox-fallback retry-on-floor branch.
+// #742: exercises the sandbox-fallback retry-on-floor branch.
 type SpawnFn = (typeof import("node:child_process"))["spawn"];
 const childProcessControl = vi.hoisted(() => ({
   override: null as SpawnFn | null,
@@ -120,7 +120,7 @@ vi.mock("node:child_process", async (importOriginal) => {
   };
 });
 
-// Issue #856 (APCC-TC-009) and #862: simulate a host that predates a manifest
+// #1269 (APCC-TC-009) and #1345: simulate a host that predates a manifest
 // key. The switch swaps the strict manifest schema for the same strict schema
 // with the named keys removed, which is the schema the older host shipped, so a
 // manifest declaring one fails the parse on an unrecognised key exactly as it
@@ -260,7 +260,7 @@ afterEach(async () => {
 });
 
 describe("host-API version", () => {
-  it("reports host-API 1.8.0 (agentPermissionRuleTiers floor: issue #862)", () => {
+  it("reports host-API 1.8.0 (agentPermissionRuleTiers floor: #1345)", () => {
     expect(pluginManager.HOST_API_VERSION).toBe("1.8.0");
   });
 });
@@ -277,11 +277,11 @@ describe("discovery", () => {
     expect(findRecord(installed, "incompatible").source).toBe("user");
   });
 
-  // Issue #558 AC4 / CPHMTP-TC-042: a record is re-derived from the plugin
+  // #966 AC4 / CPHMTP-TC-042: a record is re-derived from the plugin
   // directory on every load, so the source the consumer chose at install can only
   // survive via the ledger. These assert the read-back that makes the choice (and
   // its trust treatment) durable across a reload.
-  describe("marketplace provenance stamping (issue #558, AC4)", () => {
+  describe("marketplace provenance stamping (#966, AC4)", () => {
     it("stamps a record from its ledger row", async () => {
       provenanceStateMocks.getProvenance.mockImplementation((id) =>
         id === "echo"
@@ -304,7 +304,7 @@ describe("discovery", () => {
       expect(echo.unverified).toBe(true);
     });
 
-    // Issue #560 / CPHMTP-FR-009 AC4: the source-removal stamp survives the rebuild
+    // #968 / CPHMTP-FR-009 AC4: the source-removal stamp survives the rebuild
     // too, so an orphaned plugin still reads as orphaned after a restart.
     it("stamps orphaned from the ledger row when the source was removed", async () => {
       provenanceStateMocks.getProvenance.mockImplementation((id) =>
@@ -430,7 +430,7 @@ describe("discovery", () => {
   });
 });
 
-describe("an unknown manifest key is reported against the declared roubo range (issue #719)", () => {
+describe("an unknown manifest key is reported against the declared roubo range (#1118)", () => {
   const UNKNOWN_KEY = "somethingThisHostDoesNotKnow";
 
   function manifestWithUnknownKey(id: string, roubo: string): string {
@@ -509,15 +509,15 @@ permissions:
   });
 });
 
-// Issue #856 (APCC-NFR-004, APCC-TC-009): a plugin declaring the 1.6.0
+// #1269 (APCC-NFR-004, APCC-TC-009): a plugin declaring the 1.6.0
 // `choiceProbes` key pins `roubo: ^1.6.0`, and a host below that floor must
 // refuse it with the version it needs, never with an unrecognised-key error.
 // Both kinds of older host are simulated: one whose strict schema does not know
 // the key (the refusal has to come from the declared range before the schema
-// error wins, #719) and one that knows the key but sits below the floor. The
+// error wins, #1118) and one that knows the key but sits below the floor. The
 // fixture is a real on-disk manifest, so this is a gate on the behaviour rather
 // than a release-order convention.
-describe("a below-floor host refuses a choice-probe manifest by version (issue #856)", () => {
+describe("a below-floor host refuses a choice-probe manifest by version (#1269)", () => {
   const FIXTURE = "agent-choice-probe";
   const PRE_FLOOR_HOST = "1.5.0";
   const REFUSAL = `Plugin requires roubo "^1.6.0" but host is ${PRE_FLOOR_HOST}`;
@@ -597,14 +597,14 @@ describe("a below-floor host refuses a choice-probe manifest by version (issue #
   });
 });
 
-// Issue #862, the same gate one version up: a plugin declaring the 1.8.0
+// #1345, the same gate one version up: a plugin declaring the 1.8.0
 // `agentPermissionRuleTiers` key pins `roubo: ^1.8.0`, and a host below that
 // floor must refuse it with the version it needs rather than an
 // unrecognised-key error. The pre-floor host here is 1.7.0, a version that was
 // really released (as `@roubo/plugin-sdk` 0.6.0) and really does not know the
 // key, so this also proves the floors are independent rather than one lumped
 // bump.
-describe("a below-floor host refuses a rule-tiers manifest by version (issue #862)", () => {
+describe("a below-floor host refuses a rule-tiers manifest by version (#1345)", () => {
   const FIXTURE = "agent-rule-tiers";
   const PRE_FLOOR_HOST = "1.7.0";
   const REFUSAL = `Plugin requires roubo "^1.8.0" but host is ${PRE_FLOOR_HOST}`;
@@ -704,12 +704,12 @@ describe("clean break: bundled discovery dropped (#858, CPHM-FR-008 / NFR-005)",
   });
 });
 
-// Issue #608 (CP-FR-010, CP-FR-003): a component-kind plugin is discovered,
+// #651 (CP-FR-010, CP-FR-003): a component-kind plugin is discovered,
 // validated against HOST_API_VERSION, spawned, and supervised exactly as an
 // integration plugin. The supervision path is kind-agnostic; these tests pin
 // that a `kind: component` manifest rides the same discovery/spawn/restart
 // machinery, and that the live connection is reachable for the registry.
-describe("component plugins (issue #608)", () => {
+describe("component plugins (#651)", () => {
   it("discovers, validates, and spawns a component plugin like an integration plugin", async () => {
     sandbox = await makeSandbox({ bundled: ["component-echo"] });
     mgr = await loadManager();
@@ -730,7 +730,7 @@ describe("component plugins (issue #608)", () => {
     expect(result).toBe("pong");
   });
 
-  // Issue #399 (CP-TC-005): getComponentManifests exposes only component-kind
+  // #884 (CP-TC-005): getComponentManifests exposes only component-kind
   // manifests, which the project registry uses to validate component bindings.
   it("getComponentManifests returns only component-kind manifests", async () => {
     sandbox = await makeSandbox({ bundled: ["component-echo", "echo"] });
@@ -813,14 +813,14 @@ describe("component plugins (issue #608)", () => {
   }, 30_000);
 });
 
-// Issue #507 (AP-FR-001, AP-NFR-001): an agent-kind plugin rides the SAME
+// #1026 (AP-FR-001, AP-NFR-001): an agent-kind plugin rides the SAME
 // kind-agnostic discovery / spawn / supervision machinery as an integration
 // plugin, answers the declarative `translateLaunch` contract method, and is
 // granted NO component broker surface (`host.process.start`/`run`/`stop`/
 // `status`/`logs`, `host.docker.*`, `host.ports.*`), only the same v1 host
 // surface an integration plugin already gets. That absence is the "no new
 // privileges" guarantee, so it is asserted here rather than assumed.
-describe("agent plugins (issue #507)", () => {
+describe("agent plugins (#1026)", () => {
   it("discovers, validates, and spawns an agent plugin like an integration plugin", async () => {
     sandbox = await makeSandbox({ bundled: ["agent-echo"] });
     mgr = await loadManager();
@@ -829,7 +829,7 @@ describe("agent plugins (issue #507)", () => {
     expect(rec.manifest?.kind).toBe("agent");
     // The per-agent candidate list a real on-disk manifest declares survives
     // discovery, so `createAgentSession` and the version probe can resolve the
-    // CLI from it (#712). The base name is not `claude`, which is the whole
+    // CLI from it (#1115). The base name is not `claude`, which is the whole
     // point: core's own table knows one base name and is frozen there.
     expect(rec.manifest?.agentInstallLocations).toEqual([
       "~/.local/bin/echo-agent",
@@ -909,7 +909,7 @@ describe("agent plugins (issue #507)", () => {
   });
 });
 
-describe("per-bench BrokerContext registry (#677)", () => {
+describe("per-bench BrokerContext registry (#686)", () => {
   function makeCtx(pluginId: string, benchId: number): BrokerContext {
     return {
       pluginId,
@@ -936,7 +936,7 @@ describe("per-bench BrokerContext registry (#677)", () => {
     expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBe(ctx);
   });
 
-  it("routes each call to its own bench when a plugin backs several (#685)", () => {
+  it("routes each call to its own bench when a plugin backs several (#687)", () => {
     const a = makeCtx("p", 1);
     const b = makeCtx("p", 2);
     pluginManager.registerBrokerContext("p", 1, a);
@@ -975,7 +975,7 @@ describe("per-bench BrokerContext registry (#677)", () => {
   });
 });
 
-describe("component-plugin crash hooks (issue #613)", () => {
+describe("component-plugin crash hooks (#657)", () => {
   afterEach(() => {
     // Hook registration is module-level state that __test.reset does not clear,
     // so restore a clean slate between tests.
@@ -1027,7 +1027,7 @@ describe("component-plugin crash hooks (issue #613)", () => {
     expect(recovered.pid).not.toBeNull();
   }, 30_000);
 
-  it("awaits a slow onComponentPluginPreRestart before firing onComponentPluginRestarted (issue #398)", async () => {
+  it("awaits a slow onComponentPluginPreRestart before firing onComponentPluginRestarted (#885)", async () => {
     // Regression guard for the auto-recovery race: the pre-restart teardown's
     // `docker compose down -v` (~10-15s) must fully settle before the post-restart
     // re-provision runs, or the late `down` destroys the freshly recovered
@@ -1071,8 +1071,8 @@ describe("component-plugin crash hooks (issue #613)", () => {
     expect(order).toEqual(["pre-restart:start", "pre-restart:end", "restarted"]);
   }, 30_000);
 
-  it("re-provisions once after all teardowns settle across overlapping crashes within budget (issue #403)", async () => {
-    // Overlapping-crash race (follow-up to #398): within the restart budget two
+  it("re-provisions once after all teardowns settle across overlapping crashes within budget (#890)", async () => {
+    // Overlapping-crash race (follow-up to #885): within the restart budget two
     // SIGKILL crashes leave two pre-restart teardowns (each a `docker compose
     // down -v` on the same deterministic compose project) in flight at once.
     // Re-provision must be sequenced against ALL of them, not just the latest, or
@@ -1084,7 +1084,7 @@ describe("component-plugin crash hooks (issue #613)", () => {
     // earlier one is still in flight): this is the reverse ordering that a design
     // awaiting only the latest teardown would get wrong. We assert re-provision
     // never fires while any teardown is unsettled and fires exactly once after
-    // every teardown has settled. The single-crash #398 test never reaches this
+    // every teardown has settled. The single-crash #885 test never reaches this
     // multiple-in-flight-teardown path.
     type Deferred = { promise: Promise<void>; settle: () => void; settled: boolean };
     const makeDeferred = (): Deferred => {
@@ -1197,7 +1197,7 @@ describe("component-plugin crash hooks (issue #613)", () => {
     expect(budgetExhausted).not.toHaveBeenCalled();
   }, 30_000);
 
-  it("fires onComponentPluginBudgetExhausted when a component plugin exhausts its restart budget (#397)", async () => {
+  it("fires onComponentPluginBudgetExhausted when a component plugin exhausts its restart budget (#886)", async () => {
     const budgetExhausted = vi.fn();
     sandbox = await makeSandbox({ bundled: ["component-crashy"] });
     mgr = await loadManager();
@@ -1292,7 +1292,7 @@ describe("lifecycle", () => {
 
     await expect(mgr.enable("crashy")).rejects.toThrow(/exit/i);
 
-    // IP-TC-154 (#222): enable() rolls the record back to "disabled" (not
+    // IP-TC-154 (#261): enable() rolls the record back to "disabled" (not
     // "errored") when the spawned process dies during startup, so the user
     // can retry without a restart cycle and the UI reflects a clean state.
     const rec = findRecord(mgr.listInstalled(), "crashy");
@@ -1312,7 +1312,7 @@ describe("lifecycle", () => {
     const disabled = findRecord(mgr.listInstalled(), "echo");
     expect(disabled.status).toBe("disabled");
     expect(disabled.pid).toBeNull();
-    // FR-004 / NFR-001 (Spike 553, #553): disable EVICTS the persistent disk
+    // FR-004 / NFR-001 (Spike 553, #576): disable EVICTS the persistent disk
     // cache (distinct from the in-memory cache kept warm for the IP-FR-014
     // fallback).
     expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("echo");
@@ -1611,7 +1611,7 @@ describe("restart budget (IP-TC-015)", () => {
     expect(rec.restartHistory.length).toBeGreaterThanOrEqual(3);
   }, 30_000);
 
-  // IP-TC-163 (#240): the e2e harness uses `__test.crashRunningPlugin` to drive
+  // IP-TC-163 (#272): the e2e harness uses `__test.crashRunningPlugin` to drive
   // the supervisor through the same restart-budget arithmetic that IP-TC-015
   // exercises via a self-crashing fixture. This test pins the helper's
   // contract independently: a healthy `echo` plugin SIGKILLed three times in
@@ -1890,7 +1890,7 @@ permissions:
     expect(rec.lastError?.code).toBe("invalid-entry");
   });
 
-  // #759: a component plugin whose manifest entry points at a file that does
+  // #760: a component plugin whose manifest entry points at a file that does
   // not exist on disk (e.g. dist/index.js never built) must fail fast with an
   // actionable, plugin-scoped "missing-entry" error rather than crash-looping
   // on a raw Node MODULE_NOT_FOUND until the restart budget is exhausted.
@@ -1923,7 +1923,7 @@ permissions:
     expect(rec.status).toBe("errored");
     expect(rec.lastError?.code).toBe("missing-entry");
     expect(rec.lastError?.message).toContain("dist/index.js");
-    // #496: a component plugin is installed from the marketplace, so its
+    // #945: a component plugin is installed from the marketplace, so its
     // recovery guidance points there, not at a local build.
     expect(rec.lastError?.message).toContain("reinstall it from the marketplace");
     expect(rec.lastError?.message).not.toContain("check its build output exists");
@@ -1932,7 +1932,7 @@ permissions:
     expect(rec.restartHistory).toEqual([]);
   });
 
-  // #496: the missing-entry recovery hint is kind-aware. A non-component plugin
+  // #945: the missing-entry recovery hint is kind-aware. A non-component plugin
   // (e.g. integration) has no marketplace-reinstall recovery, so it keeps the
   // build-output guidance rather than the marketplace copy.
   it("keeps the build-output guidance for a non-component plugin whose entry file is missing", async () => {
@@ -1970,7 +1970,7 @@ permissions:
     expect(rec.restartHistory).toEqual([]);
   });
 
-  // #761: existsSync/statSync follow symlinks, so an entry symlinked to a real
+  // #763: existsSync/statSync follow symlinks, so an entry symlinked to a real
   // file OUTSIDE the plugin dir passes the host existence check yet is
   // unresolvable inside the read-only /roubo-plugin bind mount (only the plugin
   // dir is mounted). The container follows the symlink to an unmounted path and
@@ -2017,7 +2017,7 @@ permissions:
     expect(rec.restartHistory).toEqual([]);
   });
 
-  // #761: the containment guard must not over-reach. A symlinked entry whose
+  // #763: the containment guard must not over-reach. A symlinked entry whose
   // real target stays INSIDE the plugin dir is mounted too, so it resolves in
   // the container and must still spawn normally.
   it("still spawns a plugin whose entry symlink resolves inside the plugin dir", async () => {
@@ -2117,10 +2117,10 @@ permissions:
     // IP-WU-046: uninstall must also drop the plugin from plugins-state.json so
     // a future install of the same id starts from the default.
     expect(enableStateMocks.removePlugin).toHaveBeenCalledWith("to-remove");
-    // Issue #399 (CP-TC-096): uninstall drops the plugin's ConsentRecord so a
+    // #884 (CP-TC-096): uninstall drops the plugin's ConsentRecord so a
     // stale consent does not survive; a re-install must re-acknowledge.
     expect(consentStateMocks.removeConsent).toHaveBeenCalledWith("to-remove");
-    // Issue #558: and its marketplace provenance row, for the same reason. A
+    // #966: and its marketplace provenance row, for the same reason. A
     // re-installed id is a fresh install-from choice, so a stale row must not
     // make it look like it still came from the previously chosen source.
     expect(provenanceStateMocks.removeProvenance).toHaveBeenCalledWith("to-remove");
@@ -2191,7 +2191,7 @@ permissions:
   });
 });
 
-describe("uninstallForUpdate (issue #621)", () => {
+describe("uninstallForUpdate (#688)", () => {
   async function makeRealUserPluginDir(parent: string, id: string): Promise<string> {
     const dir = path.join(parent, id);
     await mkdir(dir, { recursive: true });
@@ -2244,10 +2244,10 @@ permissions:
     expect(dirStillThere).toBe(true);
     expect(enableStateMocks.removePlugin).toHaveBeenCalledWith("to-update");
     expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("to-update");
-    // Issue #399 (CP-TC-096): an in-place update keeps the same id, so its
+    // #884 (CP-TC-096): an in-place update keeps the same id, so its
     // ConsentRecord is preserved. uninstallForUpdate must NOT remove consent.
     expect(consentStateMocks.removeConsent).not.toHaveBeenCalled();
-    // Issue #558: likewise the provenance row. The update re-stamps it itself,
+    // #966: likewise the provenance row. The update re-stamps it itself,
     // so dropping it here would strand the copy on disk with no recorded source.
     expect(provenanceStateMocks.removeProvenance).not.toHaveBeenCalled();
   });
@@ -2329,7 +2329,7 @@ describe("registerInstalled (IP-WU-011)", () => {
   });
 });
 
-describe("reinstallIntoUserRoot (#756)", () => {
+describe("reinstallIntoUserRoot (#758)", () => {
   // A self-contained bundled plugin built as REAL files (not a symlink to the
   // shared fixtures) with a zero-dependency keep-alive entry, so the copied
   // user copy spawns successfully from the temp user root (which has no
@@ -2516,7 +2516,7 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
     expect(findRecord(mgr.listInstalled(), "echo").status).toBe("enabled");
   });
 
-  // IP-TC-154 (#222): IP-NFR-024 ("plugin remains in its previous disabled state"
+  // IP-TC-154 (#261): IP-NFR-024 ("plugin remains in its previous disabled state"
   // on spawn failure) is the invariant that broke when IP-WU-046 ordered the
   // plugins-state.json write before the spawn attempt. This test pins the
   // corrected ordering: a plugin whose entry script crashes on launch must
@@ -3143,12 +3143,12 @@ describe("e2e config argv propagation (IP-WU-063)", () => {
   });
 });
 
-// PluginIsolationSandbox runtime wiring (F2.3, #620). These exercise the
+// PluginIsolationSandbox runtime wiring (F2.3, #676). These exercise the
 // plugin-manager-side seam (tier resolution via injected probes and the
 // OS-attributed sandbox audit log) without a live daemon, so they are
 // deterministic. The pure sandbox model (egress derivation, spawn shape, tier
 // degradation) is covered in plugin-isolation-sandbox.test.ts.
-describe("PluginIsolationSandbox wiring (#620)", () => {
+describe("PluginIsolationSandbox wiring (#676)", () => {
   beforeEach(() => {
     pluginManager.__test.reset();
   });
@@ -3229,7 +3229,7 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
     expect(pluginManager.querySandboxAudit({ benchId: 2 })).toHaveLength(2);
   });
 
-  describe("boot-time real-probe install (#675)", () => {
+  describe("boot-time real-probe install (#684)", () => {
     const prevNodeEnv = process.env.NODE_ENV;
     const prevRouboE2e = process.env.ROUBO_E2E;
     beforeEach(() => {
@@ -3292,7 +3292,7 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
     });
   });
 
-  describe("ensureImage gating and sandbox-fallback (#740)", () => {
+  describe("ensureImage gating and sandbox-fallback (#742)", () => {
     // These tests exercise the docker tier spawn path inside plugin-manager:
     // - When docker tier is selected and ensureImage succeeds, spawnPlugin
     //   uses the sandboxed command.
@@ -3331,7 +3331,7 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
       dockerFollowProgressMock = (_stream, cb) => cb(null);
     });
 
-    it("falls back to the broker-only floor (plugin starts on floor) when ensureImage fails (#740)", async () => {
+    it("falls back to the broker-only floor (plugin starts on floor) when ensureImage fails (#742)", async () => {
       // Simulate: docker daemon reachable (tier = docker), but image pull fails.
       // The plugin should still start on the broker-only floor without a crash-loop.
       dockerPingMock = () => Promise.resolve("OK");
@@ -3344,18 +3344,18 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
       mgr = await loadManager();
       await mgr.initialize();
       // The plugin should be enabled (started on the floor) despite the image
-      // pull failure. The crash-loop from #740 must not occur.
+      // pull failure. The crash-loop from #742 must not occur.
       const rec = findRecord(mgr.listInstalled(), "echo");
       expect(rec.status).toBe("enabled");
       expect(typeof rec.pid).toBe("number");
     });
 
-    it("retries once on the floor and records a sandbox-fallback event when the docker spawn fails (#740)", async () => {
+    it("retries once on the floor and records a sandbox-fallback event when the docker spawn fails (#742)", async () => {
       // The docker tier is selected and ensureImage succeeds, but the `docker`
       // spawn itself fails (e.g. the docker CLI is absent, or the bind-mount
       // path is not shared on macOS Docker Desktop). The host must retry ONCE on
       // the broker-only floor, record a `sandbox-fallback` restart event, and
-      // start the plugin: the #740 crash-loop must not occur.
+      // start the plugin: the #742 crash-loop must not occur.
       dockerPingMock = () => Promise.resolve("OK");
       // Image present, so ensureImage resolves and the docker spawn is attempted.
       dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
@@ -3390,8 +3390,8 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
       expect(fallbackEvents).toHaveLength(1);
     });
 
-    // #743: isolation notices for the docker-mount-unshared condition.
-    describe("docker-mount-unshared isolation notices (#743)", () => {
+    // #746: isolation notices for the docker-mount-unshared condition.
+    describe("docker-mount-unshared isolation notices (#746)", () => {
       it("records exactly one isolation notice when the docker spawn fails with a mount-unavailable message", async () => {
         dockerPingMock = () => Promise.resolve("OK");
         dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
@@ -3417,7 +3417,7 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
         await mgr.initialize();
 
         const rec = findRecord(mgr.listInstalled(), "echo");
-        // Plugin still starts on the floor (no #740 regression).
+        // Plugin still starts on the floor (no #742 regression).
         expect(rec.status).toBe("enabled");
         expect(typeof rec.pid).toBe("number");
         // Exactly one notice was added.
@@ -3494,9 +3494,9 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
         expect(rec.isolationNotices ?? []).toHaveLength(0);
       });
 
-      // #748: the pre-check must ALSO downgrade effectiveTier so the doomed
+      // #749: the pre-check must ALSO downgrade effectiveTier so the doomed
       // docker spawn is never attempted (no crash-loop path).
-      it("spawns on broker-only floor and records isolation notice without attempting docker when dir is a known-unshared path (#748)", async () => {
+      it("spawns on broker-only floor and records isolation notice without attempting docker when dir is a known-unshared path (#749)", async () => {
         dockerPingMock = () => Promise.resolve("OK");
         dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
         process.env.NODE_ENV = "production";
@@ -3518,7 +3518,7 @@ describe("PluginIsolationSandbox wiring (#620)", () => {
 
         // Override the known-unshared predicate so any plugin dir matches,
         // simulating a plugin installed under /Applications/Roubo.app/... without
-        // needing actual files in /Applications on the test runner (#748).
+        // needing actual files in /Applications on the test runner (#749).
         // Must be set after loadManager() since loadManager calls __test.reset().
         pluginManager.__test.setKnownUnsharedDockerPathFn(() => true);
 

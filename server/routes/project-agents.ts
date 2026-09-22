@@ -24,7 +24,7 @@ import { validateAgentConfig } from "../services/agent-config-validator.js";
 import { readChoiceProbe, warmChoiceProbes } from "../services/agent-probe-runner.js";
 import { materializeChoices } from "../services/choice-materializer.js";
 
-// Project-level agent configuration API (AP-FR-004, issue #509).
+// Project-level agent configuration API (AP-FR-004, #1044).
 //
 // Backs the Agent overrides section of project settings: for each installed
 // agent plugin, its app-level defaults, this project's override subset, and the
@@ -32,7 +32,7 @@ import { materializeChoices } from "../services/choice-materializer.js";
 // whole config: a key present means the project overrides that field, and an
 // empty object clears every override for that plugin.
 //
-// Probed choices (#884) are served exactly as GET /api/agents serves them: the
+// Probed choices (#1273) are served exactly as GET /api/agents serves them: the
 // probes are warmed in the background only for an agent that resolves, read
 // from the cache only, and a resolved field's choices are merged into a copy of
 // the schema beside a `choiceProbes` state map. Save validation and the

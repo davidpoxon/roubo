@@ -123,7 +123,7 @@ export function validateTemplateVariables(value: string, ctx: TemplateVariableCo
     if (key.startsWith("urls.")) {
       const name = key.slice("urls.".length);
       // A port name resolves to the derived `http://localhost:<port>` form, but
-      // any component may also report its URL at runtime (#833), and a one-shot
+      // any component may also report its URL at runtime (#1206), and a one-shot
       // that mints one has no allocated port at all. So a bare component name is
       // valid here too; flagging it would tell the user the placeholder is wrong
       // in exactly the case it was added for.

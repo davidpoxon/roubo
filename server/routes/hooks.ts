@@ -62,7 +62,7 @@ router.post("/claude-notification", (req, res) => {
 });
 
 /**
- * The receiving end of the `spawned-notifier` notification wiring (issue #698).
+ * The receiving end of the `spawned-notifier` notification wiring (#1113).
  *
  * One agent-generic endpoint rather than a route per agent: the body carries a
  * correlation token, core trades it for the session that registered it at

@@ -5,14 +5,14 @@
 //
 // The "running system" here is the REAL, already-merged gate stack composed as one
 // continuous journey, not a mock of the gate logic (AC-1):
-//   - S001 exercises the real `applyGateOverrides` (#703,
+//   - S001 exercises the real `applyGateOverrides` (#728,
 //     server/lib/gate-overrides.ts): one recorded `merge` op over the two loaded
 //     verify units yields one synthetic combined gate whose gating set is the
 //     union TC-019, TC-020, TC-024, TC-030.
-//   - S002 exercises the real `evaluateGate` (#701,
+//   - S002 exercises the real `evaluateGate` (#725,
 //     server/lib/gate-evaluator.ts): the combined gate reads pending before the
 //     four cases are passed, then `passed` once all four are marked passed.
-//   - S003 exercises the real `onGatePassed` (#701/#702,
+//   - S003 exercises the real `onGatePassed` (#725/#726,
 //     server/services/gate-lifecycle-coordinator.ts): it closes the combined
 //     gate's tracker via the plugin transition and audit-logs the close; then a
 //     re-application of `applyGateOverrides` confirms no separate Phase 2 / Phase 3
@@ -27,10 +27,10 @@
 // in .specifications/verify-gate/test-cases.json forces this test to be updated.
 //
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
-// message naming the owning slice issue from this unit's blocked-by set, so a red
+// message naming the owning slice from this unit's blocked-by set, so a red
 // run localizes the integration drift to one attributable slice:
-//   S001 -> #703 (batch merge/split), S002 -> #701 (gate API + batch-subset),
-//   S003 -> #701/#702 (sign-off: close on pass + batch UI).
+//   S001 -> #728 (batch merge/split), S002 -> #725 (gate API + batch-subset),
+//   S003 -> #725/#726 (sign-off: close on pass + batch UI).
 
 import { describe, it, expect } from "vitest";
 import { applyGateOverrides, type WorkUnitCaseMap } from "../lib/gate-overrides.js";
@@ -50,10 +50,10 @@ import {
 } from "@roubo/shared/gate-overrides-contract";
 import type { BenchResults, CaseResult, CaseStatus } from "@roubo/shared/testbench-contracts";
 
-// ── Owning slices (this e2e unit's blocked-by set: #701, #702, #703) ──
-const SLICE_S001 = "#703 (batch merge/split, operator override)";
-const SLICE_S002 = "#701 (gate API routes + batch-subset)";
-const SLICE_S003 = "#701/#702 (sign-off: close on pass + TestBench batch UI)";
+// ── Owning slices (this e2e unit's blocked-by set: #725, #726, #728) ──
+const SLICE_S001 = "batch merge/split, operator override";
+const SLICE_S002 = "gate API routes + batch-subset";
+const SLICE_S003 = "sign-off: close on pass + TestBench batch UI";
 
 // ── Fixture identifiers (VG-TC-025 preconditions) ──
 const PROJECT_ID = "proj-verify-gate";
@@ -181,7 +181,7 @@ const deps: GateLifecycleDeps = {
 describe("VG-TC-025: operator merges two batches then verifies and signs off the combined gate", () => {
   it("S001: merge the Phase 2 and Phase 3 gates -> one combined gate replaces the two; gating set is TC-019, TC-020, TC-024, TC-030 (S001-O01)", () => {
     // S001: open the batches overview and merge the Phase 2 and Phase 3 gates;
-    // confirm. Drive the REAL applyGateOverrides (#703) with the recorded merge op.
+    // confirm. Drive the REAL applyGateOverrides (#728) with the recorded merge op.
     const { gates, dropped } = applyGateOverrides(loaded, overrides, caseMap);
 
     // No op should be dropped: both source gates are present and same-slug.
@@ -216,7 +216,7 @@ describe("VG-TC-025: operator merges two batches then verifies and signs off the
     const combined = applyGateOverrides(loaded, overrides, caseMap).gates[0].unit;
 
     // Precondition: before the four cases flip, the combined gate is not passed.
-    // Drive the REAL evaluateGate (#701) over the combined gating set.
+    // Drive the REAL evaluateGate (#725) over the combined gating set.
     const before = evaluateGate(combined, results("in_progress"), PLAN_HASH);
     expect(
       before.status,
@@ -266,7 +266,7 @@ describe("VG-TC-025: operator merges two batches then verifies and signs off the
       `TC-025 step S003 diverged: expected the combined gate to be passed before sign-off, got "${state.status}". Owning slice: ${SLICE_S003}.`,
     ).toBe("passed");
 
-    // S003: sign off the combined batch. Drive the REAL onGatePassed (#701/#702)
+    // S003: sign off the combined batch. Drive the REAL onGatePassed (#725/#726)
     // against the shared fake plugin.
     await onGatePassed(PROJECT_ID, signedOffGate, PLUGIN_ID, deps);
 

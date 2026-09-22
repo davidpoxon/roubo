@@ -66,7 +66,7 @@ describe("ConnectionStatusPill: WCAG 2.1 AA contrast (IP-TC-142, IP-NFR-016)", (
   // switch semantic-dark.css makes under .dark). An alpha ground such as
   // accent-muted is composited over the card surface the pill sits on. At
   // 12px/normal these pills are not WCAG "large text", so the 4.5:1 threshold
-  // applies to every variant in both themes (issue #448).
+  // applies to every variant in both themes (#921).
   const TOKENS_CSS = readFileSync(
     resolve(process.cwd(), "design-tokens/tokens.tailwind.css"),
     "utf8",

@@ -5,7 +5,7 @@ import { useWindowedRows } from "./useWindowedRows";
 import CaseRow from "./CaseRow";
 import ProgressBar from "./ProgressBar";
 
-// Windowed, keyboard-navigable case list (#419, NFR-002 p95 < 300ms for 500
+// Windowed, keyboard-navigable case list (#466, NFR-002 p95 < 300ms for 500
 // cases). Only the rows intersecting the scroll viewport (plus a small overscan)
 // are mounted via useWindowedRows, so a 500-case plan renders a bounded number of
 // DOM nodes regardless of plan size.
@@ -14,9 +14,9 @@ import ProgressBar from "./ProgressBar";
 // move focus between case rows (skipping the priority headers); Home/End jump to
 // the first/last case. A row shows the amber ring only via :focus-visible, so the
 // ring tracks real DOM focus rather than lingering on the roving-tabindex row
-// after focus has moved elsewhere (#508).
+// after focus has moved elsewhere (#510).
 //
-// Level headers are collapsible (#508): a focusable, clickable header toggles its
+// Level headers are collapsible (#510): a focusable, clickable header toggles its
 // level. A collapsed level hides its priority subheaders and case rows (filtered
 // out before windowing), so the list stays compact for large plans. Priority
 // subheaders remain decorative readouts and are never focusable.
@@ -37,7 +37,7 @@ export default function CaseList({
   selectedCaseId,
 }: {
   rows: FlatRow[];
-  // Lift the active case up to the host (#420): fired when a case row is
+  // Lift the active case up to the host (#471): fired when a case row is
   // activated (click or Enter/Space) so the host can render its detail pane.
   onSelect?: (caseId: string) => void;
   // The case currently shown in the detail pane, highlighted distinctly from
@@ -46,7 +46,7 @@ export default function CaseList({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Collapsed level keys (#508). A level header toggles its membership; a
+  // Collapsed level keys (#510). A level header toggles its membership; a
   // collapsed level hides its priority subheaders and case rows.
   const [collapsedLevels, setCollapsedLevels] = useState<ReadonlySet<string>>(() => new Set());
   const toggleLevel = useCallback((level: string) => {
@@ -81,7 +81,7 @@ export default function CaseList({
   // Track the focused case by stable id, not array position. Collapsing a level
   // re-filters `rows`, so a positional index would silently point at a different
   // case after the shift; resolving by id keeps the roving tabindex and focus
-  // ring on the same case across collapse/expand (#508). Undefined falls back to
+  // ring on the same case across collapse/expand (#510). Undefined falls back to
   // the first case below.
   const [focusedCaseId, setFocusedCaseId] = useState<string | undefined>(undefined);
 
@@ -173,7 +173,7 @@ export default function CaseList({
         e.preventDefault();
         moveFocus(caseIndices[caseIndices.length - 1]);
       } else if (e.key === "Enter" || e.key === " ") {
-        // Activate the focused case: open its detail pane (#420).
+        // Activate the focused case: open its detail pane (#471).
         const row = rows[activeFocusIndex];
         if (row?.kind === "case") {
           e.preventDefault();

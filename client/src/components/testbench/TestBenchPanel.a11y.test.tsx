@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #419 TC-005/TC-029/TC-030/TC-035: the TestBench review panel renders the
+// #466 TC-005/TC-029/TC-030/TC-035: the TestBench review panel renders the
 // grouped case list + rollup with zero axe violations, never serialises raw
 // JSON into the DOM, and handles loading / empty / error states.
 
@@ -14,12 +14,12 @@ import { expectNoAxeFindings } from "../../test/axe";
 vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: vi.fn(),
   useSetTestbenchFocus: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
-  // #772: the panel's archived entries and the case detail pane both reach for
+  // #1167: the panel's archived entries and the case detail pane both reach for
   // the lifecycle mutation; neither is under test here, so stub it inert.
   useSetCaseLifecycle: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   caseLifecycleErrorMessage: () => null,
 }));
-// The panel now mounts the staleness/reconcile surface (#440 integration), which
+// The panel now mounts the staleness/reconcile surface (#487 integration), which
 // pulls in the reconcile mutation hooks; mock them so the panel renders without a
 // QueryClientProvider.
 vi.mock("../../hooks/useReconcile", () => ({
@@ -74,7 +74,7 @@ function setData(data: Partial<TestbenchPlanResponse> & { plan: TestCasesPlan })
 const VIEWPORT = 400;
 beforeEach(() => {
   mockUseTestbenchPlan.mockReset();
-  // The panel now defaults to the Batches view on first visit (#359); these
+  // The panel now defaults to the Batches view on first visit (#842); these
   // cases assert the Cases view, so seed the persisted per-bench view to "cases".
   localStorage.clear();
   localStorage.setItem(
@@ -186,7 +186,7 @@ describe("TestBenchPanel", () => {
     expect(screen.getByText(/No test-cases.json/i)).toBeTruthy();
   });
 
-  it("shows a preparing placeholder (not an error) while the bench is preparing (#500)", () => {
+  it("shows a preparing placeholder (not an error) while the bench is preparing (#503)", () => {
     // The disabled plan query returns no data and no error on first load; the
     // panel must render the preparing placeholder, never the error branch.
     mockUseTestbenchPlan.mockReturnValue({
@@ -201,7 +201,7 @@ describe("TestBenchPanel", () => {
     expect(screen.queryByText(/could not load the testbench plan/i)).toBeNull();
   });
 
-  it("does not strand an error-status bench on the preparing placeholder (#500)", () => {
+  it("does not strand an error-status bench on the preparing placeholder (#503)", () => {
     // `error`/`clearing` are reached only after the worktree exists (e.g. a
     // component-start failure), so the plan is loadable and the panel must fall
     // through to the real plan/error branches, never the preparing placeholder.
@@ -216,7 +216,7 @@ describe("TestBenchPanel", () => {
     expect(screen.getByText(/boom/i)).toBeTruthy();
   });
 
-  it("does not fire the plan query while the bench is clearing (#500)", () => {
+  it("does not fire the plan query while the bench is clearing (#503)", () => {
     // During teardown the worktree is removed, so firing the query would 404. The
     // panel shows the placeholder rather than the spurious plan-load error.
     mockUseTestbenchPlan.mockReturnValue({

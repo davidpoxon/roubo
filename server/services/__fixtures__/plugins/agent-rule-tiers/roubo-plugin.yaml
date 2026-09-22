@@ -1,4 +1,4 @@
-# An agent plugin whose own rules format carries no `ask` tier (#862): it
+# An agent plugin whose own rules format carries no `ask` tier (#1345): it
 # declares the 1.8.0 `agentPermissionRuleTiers` key and pins `roubo: ^1.8.0` as
 # the SDK contract documentation tells it to. The manifest fixture test drives
 # it through a simulated pre-1.8.0 host to prove the refusal names the version

@@ -5,7 +5,7 @@ import { ServiceError } from "./service-error.js";
  * Single source of truth for the blank-workspacePath operability invariant.
  *
  * A persisted bench whose workspacePath fails the safe-path allowlist loads with
- * workspacePath = "" and status "error" (see bench-manager.initialize(), CodeQL #31,
+ * workspacePath = "" and status "error" (see bench-manager.initialize(), CodeQL #68,
  * js/command-line-injection). Such a bench must never reach a spawn/git/fs sink: every
  * consumer that resolves a path against it would otherwise root the operation at the
  * server's own cwd (path.resolve("", x), path.join("", x), spawn({ cwd: "" }),

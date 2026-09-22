@@ -9,7 +9,7 @@ vi.mock("./project-registry.js", () => ({
 // Only `loadSettings` is stubbed, over an `importOriginal` spread: the real
 // bench-manager loaded below does `import * as stateService from "./state.js"`
 // and needs the rest of the module intact. Stubbing it both makes the read
-// count observable (issue #657) and stops these cases resolving off the
+// count observable (#1067) and stops these cases resolving off the
 // developer's own ~/.roubo.
 const stateMocks = vi.hoisted(() => ({
   loadSettings: vi.fn<() => UserPreferences>(() => ({ theme: "dark" })),
@@ -396,7 +396,7 @@ describe("executeTool with user", () => {
   });
 });
 
-// Agent tools (AP-FR-008, issue #516). They share the `tools:` list with
+// Agent tools (AP-FR-008, #1057). They share the `tools:` list with
 // browser and shell tools but not its execution path: an agent launches through
 // terminal session creation, so this fire-and-forget exec path must refuse them
 // outright rather than exec nothing and report success (AP-TC-032).
@@ -430,12 +430,12 @@ describe("agent tools", () => {
     expect(execFile).not.toHaveBeenCalled();
   });
 
-  // Issue #649 hoisted the default-agent read out of the per-tool loop, and this
+  // #1062 hoisted the default-agent read out of the per-tool loop, and this
   // route is polled every few seconds per open bench while `loadSettings` is
   // uncached. `resolveAgentPreset` still falls back to its own read when the
   // third argument is omitted, so without these two counts dropping the hoisted
   // `defaults` argument would be behaviour-identical and silently regress the
-  // hot path back to one file parse per agent tool per poll (issue #657).
+  // hot path back to one file parse per agent tool per poll (#1067).
   it("reads settings once for the whole list however many agent tools it holds", () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       makeProject({

@@ -345,7 +345,7 @@ router.post("/:projectId/benches/:benchId/inject-jig", async (req, res) => {
     ...issueCtx,
   });
 
-  // Find a live agent session for this bench. Since #521 an agent session is
+  // Find a live agent session for this bench. Since #1114 an agent session is
   // identified by the plugin that launched it, never by its command name.
   const sessions = terminalService.getSessions(projectId, benchId);
   const agentSession = sessionId

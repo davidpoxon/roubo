@@ -4,7 +4,7 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 import { makeObserve, type JourneyStep } from "../component-plugins/_support/step-runner.js";
 
 // CPHMTP-TC-002 (CPHMTP-FR-001 / FR-002 / FR-003 / NFR-003 / US-001 / US-004,
-// issue #570): end-to-end proof of the register-a-third-party-marketplace
+// #986): end-to-end proof of the register-a-third-party-marketplace
 // journey. An operator opens Settings > Marketplaces, clicks "Add marketplace…",
 // consents in the registration dialog (raw URL shown verbatim, a masked
 // credential, the arbitrary-code acknowledgement gating Register), registers,
@@ -12,15 +12,15 @@ import { makeObserve, type JourneyStep } from "../component-plugins/_support/ste
 // the registration date and credential.
 //
 // This is the integration-level drift guard for the journey spanning slices
-// #553 (the marketplace source registry: GET/POST /api/marketplace/sources, the
-// persisted row that doubles as the FR-002 consent record) and #562 (the
+// #955 (the marketplace source registry: GET/POST /api/marketplace/sources, the
+// persisted row that doubles as the FR-002 consent record) and #975 (the
 // registration consent modal: aria-disabled Register, masked credential, raw
 // URL). It drives the authoritative CPHMTP-TC-002 e2e_flow steps S001-S008 as
 // ordered, attributable observations. On divergence each observation routes
 // through the FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
 // diverged, the expected-vs-actual, and the owning slice(s), so a red run
-// localises the drift to one attributable slice (issue #570 acceptance
+// localises the drift to one attributable slice (#986 acceptance
 // criterion 9).
 //
 // UI observations are asserted directly against the shipped selectors; backend
@@ -58,7 +58,7 @@ import { makeObserve, type JourneyStep } from "../component-plugins/_support/ste
 // CLI makes that write succeed; on a headless CI runner with no secret service
 // the write can fail and the pure-write POST would 500. The server tests all
 // mock credential-store (they never touch a real keyring), so this is the first
-// e2e path to exercise a real keyring write. See the final summary / issue #570
+// e2e path to exercise a real keyring write. See the final summary / #986
 // notes: if the CI e2e job lacks a keyring, the credential leg needs a keyring
 // step in .github/workflows/e2e.yml (or an e2e credential-store stub), which is
 // out of scope for this test-authoring unit. This guard asserts the keyring
@@ -79,7 +79,7 @@ const REGISTER_URL = "https://plugins.example.com/catalog.json";
 // `hasCredential:true` and the row's "· credential attached" meta.
 const CREDENTIAL = "s3cr3t-marketplace-token";
 
-// The slices that own each phase of the journey (issue #570 Blocked by),
+// The slices that own each phase of the journey (#986 Blocked by),
 // used by the FR-020 failure-output contract to attribute a divergence.
 const SLICE = {
   registry: {

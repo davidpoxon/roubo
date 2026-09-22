@@ -1,5 +1,5 @@
 // The trust derivation behind the shared badge (CPHMTP-FR-006 / CPHMTP-NFR-001 /
-// CPHMTP-US-005, issue #563). CPHMTP-NFR-001 requires "0 UI states where a
+// CPHMTP-US-005, #977). CPHMTP-NFR-001 requires "0 UI states where a
 // third-party plugin renders first-party verified styling" (CPHMTP-TC-056
 // S002-O01). Every plugin surface renders ProvenanceBadge and nothing else
 // decides trust, so that property reduces to this one function: if the verified
@@ -14,7 +14,7 @@ import type { MarketplaceListing, PluginRecord } from "@roubo/shared";
 // Well-known first-party plugin ids (formerly the retired SEED_PLUGIN_IDS set,
 // #993). Declared locally now that the app no longer
 // exports a seed set: the point of these cases is that even a well-known
-// first-party id earns no trust by name, only by a stamped ledger row (#607).
+// first-party id earns no trust by name, only by a stamped ledger row (#981).
 const FIRST_PARTY_PLUGIN_IDS = ["github-com", "process", "database"] as const;
 import {
   FIRST_PARTY_LABEL,
@@ -109,10 +109,10 @@ describe("trustTreatmentOf: the single trust gate (CPHMTP-NFR-001)", () => {
 });
 
 // Catalog signing is a SOURCE property, decoupled from the per-entry curation flag
-// that `trustTreatmentOf` gates on (issue #603). An uncurated first-party entry is
+// that `trustTreatmentOf` gates on (#979). An uncurated first-party entry is
 // still signed by Roubo (the catalog it reached the UI through validated), even
 // though it grades unverified for curation.
-describe("isFirstPartySource: the source-signature predicate (issue #603)", () => {
+describe("isFirstPartySource: the source-signature predicate (#979)", () => {
   it("is true for a first-party provenance regardless of the curation flag", () => {
     expect(isFirstPartySource(provenance({ curated: true }))).toBe(true);
     expect(isFirstPartySource(provenance({ curated: false }))).toBe(true);
@@ -145,7 +145,7 @@ describe("listingProvenance / recordProvenance normalisation", () => {
     );
   });
 
-  // The durable fix (#607): every install path now stamps a ledger row, so the
+  // The durable fix (#981): every install path now stamps a ledger row, so the
   // client no longer reads a well-known first-party id as first-party on absence.
   // Such an id with no provenance fields (in practice a record predating the
   // ledger) fails closed to unverified, exactly like any other unstamped record:
@@ -160,7 +160,7 @@ describe("listingProvenance / recordProvenance normalisation", () => {
   });
 
   // A first-party install carries a STAMPED first-party row (the install writes
-  // one, #607), and that row, not the id, is what earns the verified treatment.
+  // one, #981), and that row, not the id, is what earns the verified treatment.
   it("reads a first-party plugin carrying a stamped first-party row as verified first-party", () => {
     for (const id of FIRST_PARTY_PLUGIN_IDS) {
       const result = recordProvenance(
@@ -185,7 +185,7 @@ describe("listingProvenance / recordProvenance normalisation", () => {
   // The fail-open this closes (CPHMTP-NFR-001, CPHMTP-TC-056 S002-O01). Absence
   // fails closed regardless of id: a record with no provenance fields grades
   // unverified, so arbitrary code can never wear the green first-party treatment
-  // in the installed-plugins tab by carrying no row (#607).
+  // in the installed-plugins tab by carrying no row (#981).
   it("reads an unknown plugin with no provenance fields as unverified, not first-party", () => {
     const result = recordProvenance(record({ id: "totally-evil", source: "user" }));
     expect(result.sourceId).toBe(UNKNOWN_SOURCE_ID);

@@ -205,7 +205,7 @@ describe("benches.max", () => {
   });
 });
 
-describe("benches.shell (#836)", () => {
+describe("benches.shell (#1218)", () => {
   it("accepts an omitted shell", () => {
     expect(
       RouboConfigSchema.safeParse(makeConfig({ benches: { max: 5, setup: "npm ci" } })).success,
@@ -356,11 +356,11 @@ describe("components map", () => {
   });
 });
 
-// Issue #608 (CP-FR-010): the component-to-plugin binding shape the
-// ComponentPluginRegistry reads. With #609 the binding is the ONLY component
+// #651 (CP-FR-010): the component-to-plugin binding shape the
+// ComponentPluginRegistry reads. With #652 the binding is the ONLY component
 // shape: a component binds to a plugin (`plugin: { id, source? }`); the legacy
 // `type` enum is gone, so a component with no plugin reference is rejected.
-describe("component plugin binding (issue #608)", () => {
+describe("component plugin binding (#651)", () => {
   it("accepts a component bound to a plugin", () => {
     const config = makeConfig({
       components: { db: { plugin: { id: "postgres-component" } } },

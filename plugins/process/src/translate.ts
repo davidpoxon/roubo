@@ -19,7 +19,7 @@ import type { BenchContext, ProcessProvisionDescriptor } from "@roubo/plugin-sdk
  * - `directory`: a workspace-relative working directory. It maps to the
  *   descriptor's `cwd`, which the engine resolves against the bench
  *   `workspacePath`. Omitted means the workspace root.
- * - `shell`: opt-in shell interpretation for `command` AND `setup` (#836).
+ * - `shell`: opt-in shell interpretation for `command` AND `setup` (#1218).
  *   Omitted, both run as argv, exactly as before. `true` runs them through
  *   `/bin/sh -c`; a string such as `zsh -i` is the shell invocation they are
  *   appended to as `-c`, and is the only form that reaches an interactive

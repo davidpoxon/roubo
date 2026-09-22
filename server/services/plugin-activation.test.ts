@@ -120,11 +120,11 @@ describe("ensurePluginActivated", () => {
     // No instance / advanced fields => nothing plugin-wide to push.
     expect(pluginManager.invoke).not.toHaveBeenCalled();
     // ...and no instance constraint is recorded, so host.fetch stays governed
-    // by the manifest allowlist alone (#338).
+    // by the manifest allowlist alone (#340).
     expect(getInstanceHost(GITHUB_PLUGIN)).toBeNull();
   });
 
-  it("records the configured instance host for host.fetch enforcement (#338)", async () => {
+  it("records the configured instance host for host.fetch enforcement (#340)", async () => {
     mockGheProject({ instance: "https://GHE.Example.com:8443" });
     vi.mocked(pluginManager.invoke).mockResolvedValue({ ok: true });
 
@@ -228,7 +228,7 @@ describe("ensurePluginActivated", () => {
     expect(pluginManager.invoke).toHaveBeenCalledTimes(2);
   });
 
-  it("filters stale advanced keys (issue #125) so no RPC is sent when nothing legitimate remains", async () => {
+  it("filters stale advanced keys (#231) so no RPC is sent when nothing legitimate remains", async () => {
     // Reproduces the production state where ~/.roubo/integrations/_global/
     // github-com.yaml carries a stale `advanced.sources: ""` from before
     // commit 23ea55b. github-com's manifest declares `sources` only at the
@@ -254,7 +254,7 @@ describe("ensurePluginActivated", () => {
   });
 
   it("swallows MethodNotFound when the plugin has plugin-wide config but no setActiveConfig handler, and caches the snapshot", async () => {
-    // Even with #125 fixed there is still a legitimate scenario for the
+    // Even with #231 fixed there is still a legitimate scenario for the
     // MethodNotFound swallow: a plugin that has real plugin-wide config the
     // host can push (e.g. an `instance`) but doesn't register a handler. The
     // host should not page the user; treat it as a no-op and cache.

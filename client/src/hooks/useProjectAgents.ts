@@ -3,7 +3,7 @@ import * as api from "../lib/api";
 
 /**
  * One project's agent plugins with their app defaults, override subsets, and
- * resolved effective configs (AP-FR-004, issue #509).
+ * resolved effective configs (AP-FR-004, #1044).
  *
  * Keyed by project id so two projects' override screens never share a cache
  * entry. One query for the whole list, mirroring `useAgentPlugins`: every

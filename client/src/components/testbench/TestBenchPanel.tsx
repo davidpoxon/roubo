@@ -32,15 +32,15 @@ function focusedSpecSlug(path: string): string {
   return segments.length >= 2 ? segments[segments.length - 2] : (segments[0] ?? path);
 }
 
-// TestBench review tab content (#419/#420/#423, FR-005/FR-006/FR-007/FR-024). A
+// TestBench review tab content (#466/#471/#472, FR-005/FR-006/FR-007/FR-024). A
 // header row carries the focused-spec identity and an explicit "Change focused
 // spec" action that opens the spec-picker in re-point mode; below it sits the
 // overall progress rollup above a virtualised, level/priority-grouped case list,
-// with a case detail pane beside the list once a case is selected (#420). The
+// with a case detail pane beside the list once a case is selected (#471). The
 // selected-case id lives here so the list and detail pane stay in sync; the
 // detail pane drives the per-case mark/override mutations.
 //
-// Re-point (#423) is explicit only: dismissing the picker changes nothing. On
+// Re-point (#472) is explicit only: dismissing the picker changes nothing. On
 // confirm the mutation PUTs the focus endpoint and invalidates the plan query, so
 // the panel reloads the newly focused plan, its independently preserved results,
 // and the server-computed `stale` flag. Per-spec result isolation is enforced
@@ -56,7 +56,7 @@ export default function TestBenchPanel({
   focusedSpecPath?: string;
   benchStatus?: BenchStatus;
 }) {
-  // Gate the plan query on worktree readiness (#500). The query reads
+  // Gate the plan query on worktree readiness (#503). The query reads
   // `.specifications/<slug>/test-cases.json` from the bench worktree, so firing it
   // when that worktree is absent 404s with MissingPlanError. Two states lack a
   // readable worktree: `preparing` (set before the worktree is added on create,
@@ -72,7 +72,7 @@ export default function TestBenchPanel({
   });
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  // The case most recently retired or superseded from the detail pane (#775,
+  // The case most recently retired or superseded from the detail pane (#1173,
   // AC4). Retiring removes the case from the live list, which unmounts the
   // control that applied the action; without this, focus falls to the document
   // body and nothing says what happened. The id drives two things: the archived
@@ -87,8 +87,8 @@ export default function TestBenchPanel({
   const setFocus = useSetTestbenchFocus();
 
   // Per-bench UI state, persisted via localStorage so it survives tab/bench
-  // navigation and reload: the case-list collapse (#524) and the Cases/Batches
-  // view (#359).
+  // navigation and reload: the case-list collapse (#525) and the Cases/Batches
+  // view (#842).
   const {
     testbenchCaseListCollapsed,
     setTestbenchCaseListCollapsed,
@@ -96,10 +96,10 @@ export default function TestBenchPanel({
     setTestbenchViewMode,
   } = useBenchViewState(projectId, benchId);
 
-  // View mode (#702/#359): the existing whole-spec case review ("cases") or the
+  // View mode (#726/#842): the existing whole-spec case review ("cases") or the
   // verify-gate batch surface ("batches"). Derived directly from the per-bench
   // persisted value (no local mirror), defaulting to "batches" on first visit
-  // (no remembered view, #359). Reading straight from the hook each render is
+  // (no remembered view, #842). Reading straight from the hook each render is
   // deliberate: the bench route is keyless, so navigating to another bench reuses
   // this panel instance with a new benchId, and a useState mirror would keep the
   // previous bench's view (its initialiser never re-runs on a prop change) and
@@ -112,7 +112,7 @@ export default function TestBenchPanel({
   const viewMode = testbenchViewMode ?? "batches";
   const [openGateId, setOpenGateId] = useState<string | null>(null);
 
-  // Reconcile (#422/#413, FR-016/FR-017, NFR-003). The server computes staleness
+  // Reconcile (#465/#450, FR-016/FR-017, NFR-003). The server computes staleness
   // and the add/changed/orphan classification; this panel only renders them and
   // dispatches the preview/apply/purge calls. The classification is fetched via a
   // preview (no write) when the dialog opens, then Apply persists the
@@ -158,13 +158,13 @@ export default function TestBenchPanel({
   // The plan's own slug is threaded in so the rollup can tell a same-spec
   // replacement pointer ("TC-004") from a cross-spec one ("other-spec:TC-004"),
   // which is what decides whether the archived section can reveal the
-  // replacement in this panel's live list (#769).
+  // replacement in this panel's live list (#1161).
   const model = useMemo(
     () => (data ? buildRollup(data.plan.cases, data.results, data.plan.specSlug) : null),
     [data],
   );
   const flatRows = useMemo(() => (model ? flattenRollup(model) : []), [model]);
-  // The outcome of the last lifecycle write, in words (#775, AC4). Derived from
+  // The outcome of the last lifecycle write, in words (#1173, AC4). Derived from
   // the refetched rollup rather than from what was submitted, so it states what
   // the server actually recorded and stays empty until the case really has moved.
   const archivedNotice = useMemo(() => {
@@ -174,7 +174,7 @@ export default function TestBenchPanel({
     return `${entry.case.id} is now ${entry.state}. It has moved to the Archived section, where it can be restored.`;
   }, [archivedCaseId, model]);
   // The case ids in list (grouped) order, so the detail pane's Next action can
-  // advance to the case that visually follows the current one (#508).
+  // advance to the case that visually follows the current one (#510).
   const orderedCaseIds = useMemo(
     () => flatRows.filter((r) => r.kind === "case").map((r) => r.row.case.id),
     [flatRows],
@@ -211,7 +211,7 @@ export default function TestBenchPanel({
     );
   };
 
-  // Archived indicator for the focused spec (#770, SATCA-FR-018). The server
+  // Archived indicator for the focused spec (#1162, SATCA-FR-018). The server
   // reads the lifecycle record from THIS bench's own workspace and attaches it to
   // the plan response; an older server omits the field entirely, so an absent
   // `lifecycle` reads as live. Nothing else in the panel keys off it: a spec that
@@ -271,7 +271,7 @@ export default function TestBenchPanel({
     />
   ) : null;
 
-  // Cases / Batches mode toggle (#702). A two-segment switch above the body that
+  // Cases / Batches mode toggle (#726). A two-segment switch above the body that
   // flips between the whole-spec case review and the verify-gate batch surface.
   // Switching back to the overview clears any open batch.
   const modeToggle = (
@@ -313,10 +313,10 @@ export default function TestBenchPanel({
     </div>
   );
 
-  // Batches mode (#702): the verify-gate surface. It renders independently of the
+  // Batches mode (#726): the verify-gate surface. It renders independently of the
   // bench's plan query (load / error / empty) and is short-circuited before the
   // plan branches below. The overview is scoped to the bench's focused spec slug
-  // (issue #549), the same way the Cases tab scopes to `focusedSpecPath`, so two
+  // (#952), the same way the Cases tab scopes to `focusedSpecPath`, so two
   // benches on different specs each show only their own batches; with no focused
   // spec the overview shows a "focus a spec" empty state.
   if (viewMode === "batches") {
@@ -338,7 +338,7 @@ export default function TestBenchPanel({
     );
   }
 
-  // While the worktree is still provisioning the plan query is disabled (#500), so
+  // While the worktree is still provisioning the plan query is disabled (#503), so
   // there is no data and no error yet. Render an explicit "preparing" placeholder
   // BEFORE the error branch so a disabled query is never mistaken for a failure.
   if (!ready) {
@@ -388,7 +388,7 @@ export default function TestBenchPanel({
         {selectedCase && testbenchCaseListCollapsed ? (
           // Collapsed strip: the list is hidden so the detail pane (which still
           // shows the selected case) takes the freed width. An expand button
-          // restores the list (#524).
+          // restores the list (#525).
           <div className="shrink-0 flex flex-col">
             <Button
               onPress={() => setTestbenchCaseListCollapsed(false)}
@@ -435,7 +435,7 @@ export default function TestBenchPanel({
       </div>
       {/* Always mounted while the case review is on screen, so the region exists
           before its text changes; a live region that mounts together with its
-          message is not reliably announced (#775, AC4). */}
+          message is not reliably announced (#1173, AC4). */}
       <div aria-live="polite" className="sr-only" data-testid="testbench-lifecycle-live">
         {archivedNotice}
       </div>

@@ -27,7 +27,7 @@ vi.mock("../services/agent-overrides.js", async () => {
 // boundaries are stubbed: the settings read (which supplies the default agent
 // and the app-level presets) and the launch pipeline's default-agent resolution.
 // Stubbing `listAgentPresets` itself would pin nothing, because the degrade the
-// route exists to surface is produced inside it (issue #672).
+// route exists to surface is produced inside it (#1084).
 vi.mock("../services/state.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/state.js")>();
   return { ...actual, loadSettings: vi.fn() };
@@ -141,7 +141,7 @@ describe("GET /api/agents", () => {
   });
 });
 
-// Issue #672: the app-scoped resolved-preset list Settings reads. The point of
+// #1084: the app-scoped resolved-preset list Settings reads. The point of
 // the route is that the client never re-derives resolution, so these cases pin
 // the fields it consumes, in particular the advisory `degraded` block.
 describe("GET /api/agents/presets", () => {
@@ -192,7 +192,7 @@ describe("GET /api/agents/presets", () => {
     expect(presets.find((preset) => preset.id === "__builtin_agent__")?.degraded).toBeUndefined();
   });
 
-  // Issue #743: the shipped agent plugins leave `additionalProperties` unset,
+  // #1149: the shipped agent plugins leave `additionalProperties` unset,
   // so the drop above never fired for them and the route reported no degrade at
   // all. A schema that just omits `mode` now reads the same as one refusing it.
   it("reports the same degrade when the bound agent's schema merely omits the param", async () => {
@@ -455,7 +455,7 @@ describe("GET /api/agents compatibility block (AP-TC-113, AP-TC-114)", () => {
   });
 });
 
-describe("GET /api/agents probed choices (#852, APCC-TC-002, APCC-TC-003)", () => {
+describe("GET /api/agents probed choices (#1268, APCC-TC-002, APCC-TC-003)", () => {
   const CHOICE_PROBES = {
     model: { command: "agent", args: ["models"], parse: "dash-line-pairs" as const },
   };

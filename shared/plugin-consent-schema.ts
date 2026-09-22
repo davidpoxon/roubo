@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { PluginPermissions } from "./plugin-manifest-schema.js";
 
-// Issue #615 / CP-FR-011, CP-FR-012, CP-NFR-001. Per-plugin consent record.
+// #656 / CP-FR-011, CP-FR-012, CP-NFR-001. Per-plugin consent record.
 // See:
 //   .specifications/component-plugins/prd.md (CP-FR-011, CP-FR-012, CP-NFR-001)
 //   .specifications/component-plugins/architecture.md ('Data model', lines 61, 108-109)

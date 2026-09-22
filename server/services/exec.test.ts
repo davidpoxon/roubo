@@ -220,7 +220,7 @@ describe("parseCommand", () => {
   });
 });
 
-// #836: resolveSpawn is the single owner of the argv-vs-shell branch every
+// #1218: resolveSpawn is the single owner of the argv-vs-shell branch every
 // descriptor spawn site routes through.
 describe("resolveSpawn", () => {
   it("splits the command into argv when shell is omitted (AC1)", () => {

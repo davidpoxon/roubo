@@ -254,7 +254,7 @@ describe("IssueQueuePanel", () => {
     expect(screen.getByTestId("stalled-note")).toHaveTextContent(/plugin paging appears stuck/i);
   });
 
-  it("surfaces the walk-truncation note so a capped cut list never reads as complete (#844)", () => {
+  it("surfaces the walk-truncation note so a capped cut list never reads as complete (#1224)", () => {
     mockedUseIssues.mockReturnValue(
       defaultResult({
         walkTruncated: "Ordering covers the first 2000 item(s): the cut list exceeded the limit.",
@@ -268,7 +268,7 @@ describe("IssueQueuePanel", () => {
     );
   });
 
-  it("shows no walk-truncation note when the whole cut list was walked (#844)", () => {
+  it("shows no walk-truncation note when the whole cut list was walked (#1224)", () => {
     mockedUseIssues.mockReturnValue(defaultResult({ walkTruncated: null }));
     renderWithProviders(
       <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
@@ -276,7 +276,7 @@ describe("IssueQueuePanel", () => {
     expect(screen.queryByTestId("walk-truncated-note")).not.toBeInTheDocument();
   });
 
-  it("shows the excluded-count note when issues were filtered out in-query (#358)", () => {
+  it("shows the excluded-count note when issues were filtered out in-query (#436)", () => {
     mockedUseIssues.mockReturnValue(defaultResult({ excludedCount: 3 }));
     renderWithProviders(
       <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
@@ -284,7 +284,7 @@ describe("IssueQueuePanel", () => {
     expect(screen.getByTestId("excluded-count-note")).toHaveTextContent("3 filtered out by status");
   });
 
-  it("hides the excluded-count note when nothing was filtered out (#358)", () => {
+  it("hides the excluded-count note when nothing was filtered out (#436)", () => {
     mockedUseIssues.mockReturnValue(defaultResult({ excludedCount: 0 }));
     renderWithProviders(
       <IssueQueuePanel projectId="proj-1" benches={noBenches} projectConfig={config} />,
@@ -386,7 +386,7 @@ describe("IssueQueuePanel", () => {
       expect(screen.queryByTestId("cut-list-cache-state")).toBeNull();
     });
 
-    it("keeps the badge 'warm' after a force-refresh settles to cacheStatus 'miss' (#653)", () => {
+    it("keeps the badge 'warm' after a force-refresh settles to cacheStatus 'miss' (#654)", () => {
       // A force-refresh re-persists the disk snapshot but the server reports the
       // bypassing fetch as `miss`. Once a warm serve has been observed for this
       // query shape, that settled `miss` must still read "warm" so the badge does
@@ -926,7 +926,7 @@ describe("IssueQueuePanel", () => {
     });
   });
 
-  describe("refresh feedback (issue #557)", () => {
+  describe("refresh feedback (#581)", () => {
     function renderPanel() {
       return renderWithProviders(
         <MemoryRouter>
@@ -1095,7 +1095,7 @@ describe("IssueQueuePanel", () => {
     });
   });
 
-  describe("issue #653: force-refresh wiring and unblocked-first ordering", () => {
+  describe("#654: force-refresh wiring and unblocked-first ordering", () => {
     function renderPanel() {
       return renderWithProviders(
         <MemoryRouter>

@@ -427,7 +427,7 @@ describe("GET /:projectId/permissions/capabilities", () => {
     expect(res.body.agentPluginId).toBe("claude-code");
     expect(res.body.rules).toBe(true);
     // The tier list rides the same response, so the screen can hide a tier the
-    // agent would drop without a second request (#862).
+    // agent would drop without a second request (#1345).
     expect(res.body.ruleTiers).toEqual(["allow", "deny"]);
   });
 

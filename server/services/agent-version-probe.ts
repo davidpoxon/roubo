@@ -16,21 +16,21 @@ import {
 
 export { parseVersion } from "./probe-parse-registry.js";
 
-// Agent version probe (issue #519, AP-FR-014, AP-NFR-006).
+// Agent version probe (#1064, AP-FR-014, AP-NFR-006).
 //
 // The per-agent generalisation of claude-version.ts: instead of one hardcoded
 // `claude --version` with one hardcoded floor, an agent plugin declares a
 // `capabilities.versionProbe` on its launch descriptor (args, `parse: "semver"`,
 // an optional inclusive floor and an optional tested ceiling) and core executes
 // it. The semver regex, the comparison and the 5s timeout are ported unchanged
-// from claude-version.ts, which spike #504 AC3 validated against both Claude Code
+// from claude-version.ts, which the launch-failure spike AC3 validated against both Claude Code
 // and Codex CLI output formats.
 //
-// That module is now gone: #521 removed the built-in launch path along with the
+// That module is now gone: #1114 removed the built-in launch path along with the
 // auto-mode detection it also served, so this probe is the only version gate
 // left.
 //
-// Since #851 this module no longer spawns anything itself. Resolution, the
+// Since #1266 this module no longer spawns anything itself. Resolution, the
 // bounded spawn, the `semver` reader and the per-binary cache all live in the
 // shared probe runner (agent-probe-runner.ts), which the configuration choice
 // probe uses too. What stays here is what makes it a VERSION probe: the
@@ -69,7 +69,7 @@ export function isAtLeast(version: string, minimum: string): boolean {
 }
 
 /**
- * Where a detected version sits in a declared window (spike #504 AC3).
+ * Where a detected version sits in a declared window (launch-failure spike AC3).
  *
  * Both bounds are inclusive and both are optional: a spec with no floor can
  * never block, and one with no ceiling can never warn. A spec declaring neither
@@ -106,7 +106,7 @@ function probeFailed(
 
 /**
  * The runner's four causes folded onto the two a version surface distinguishes
- * (AP-TC-122, issue #522). Only a missing command is fixed by installing the CLI;
+ * (AP-TC-122, #1112). Only a missing command is fixed by installing the CLI;
  * a probe error, unreadable output and a timeout all mean the CLI was found and
  * could not be read, which is what `probe-error` has always meant here.
  */
@@ -134,12 +134,12 @@ function verdict(result: ProbeResult<string>, spec: VersionProbeSpec): AgentVers
  * `searchPath` is the PATH the launch will spawn the agent with, which a launch
  * descriptor's `env.PATH` can replace outright. Passing it is what keeps the
  * promise `docs/plugin-sdk.md` makes to plugin authors true: the probe resolves,
- * runs and caches under the same binary the launch will spawn (#660). It defaults
+ * runs and caches under the same binary the launch will spawn (#1075). It defaults
  * to the server's own PATH for callers with no launch environment to speak of,
  * such as the manifest-declared warm probe.
  *
  * `installLocations` is the launching plugin's manifest-declared
- * `agentInstallLocations` (#712), passed for the same reason `searchPath` is:
+ * `agentInstallLocations` (#1115), passed for the same reason `searchPath` is:
  * the resolution below has to land on the binary the launch will spawn, and
  * `createAgentSession` passes the same list. Omitting it here would leave the
  * probe resolving through PATH and the legacy table alone, so a CLI found only
@@ -204,10 +204,10 @@ export function invalidateAgentVersionProbe(pluginId: string): void {
  * It probes against the server's own PATH. That is the only PATH available
  * without a launch descriptor, and this probe gates nothing, so it is the honest
  * choice. The PATH-scoped cache key then correctly keeps a launch that overrides
- * `env.PATH` from reusing this detection (#660). `installLocations`, by
+ * `env.PATH` from reusing this detection (#1075). `installLocations`, by
  * contrast, comes off the same manifest as `declared` and is available here, so
  * it is passed through: without it this screen would report "CLI not detected"
- * for an agent installed only where its manifest says it installs (#712).
+ * for an agent installed only where its manifest says it installs (#1115).
  *
  * Resolves to `undefined` when the manifest declares no probe, which is the
  * honest answer for a plugin that opted out: the card then shows the declared
@@ -246,7 +246,7 @@ const warming = new Set<string>();
  * spawn per poll.
  *
  * A cached `command-not-found` miss is the ONE cached state that does not end
- * warming (issue #522). It is the only outcome the user is told to go and fix
+ * warming (#1112). It is the only outcome the user is told to go and fix
  * ("install the agent's command-line tool, then reopen this screen"), so warming
  * has to keep asking or that instruction is false: nothing else re-probes for
  * this screen, and the card would sit on "CLI not detected" until the app was

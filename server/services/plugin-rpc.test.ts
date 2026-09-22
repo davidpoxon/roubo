@@ -140,7 +140,7 @@ describe("plugin-rpc", () => {
     }
   });
 
-  it("routes an unregistered method to the star fallback handler end-to-end (#409)", async () => {
+  it("routes an unregistered method to the star fallback handler end-to-end (#893)", async () => {
     const proc = spawnCaller();
     const conn = createConnection(proc);
     // A single-function registration installs the star/fallback handler that

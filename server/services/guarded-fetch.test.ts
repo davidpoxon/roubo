@@ -1,7 +1,7 @@
-// Guarded-fetch transport tests (issue #554, CPHMTP-NFR-002 / NFR-005 /
+// Guarded-fetch transport tests (#956, CPHMTP-NFR-002 / NFR-005 /
 // FR-003). Two layers:
 //
-//   1. Pure guard-shape vectors lifted from the resolved spike #551 prototype
+//   1. Pure guard-shape vectors lifted from the resolved spike #956 prototype
 //      (.specifications/.../spikes/spike-551/url-guard-probe.mjs): encoding
 //      variants of loopback / link-local / metadata all block un-consented, HARD
 //      is un-overridable even when consented, SOFT is reachable only as the
@@ -44,7 +44,7 @@ import {
 
 const denyAll = { allowHttp: false, allowedOrigins: new Set<string>() };
 
-describe("validateSourceUrl: encoding vectors block un-consented (spike #551 AC2)", () => {
+describe("validateSourceUrl: encoding vectors block un-consented (spike #956 AC2)", () => {
   it("blocks every spelling of loopback 127.0.0.1 (SOFT), canonicalised to one host", () => {
     for (const url of [
       "https://127.0.0.1/catalog.json",
@@ -98,7 +98,7 @@ describe("validateSourceUrl: encoding vectors block un-consented (spike #551 AC2
   });
 });
 
-describe("validateSourceUrl: consent, HARD override, scheme policy (spike #551 AC1)", () => {
+describe("validateSourceUrl: consent, HARD override, scheme policy (spike #956 AC1)", () => {
   it("allows a consented https public origin, blocks the same host un-consented", () => {
     const policy = {
       allowHttp: false,
@@ -291,7 +291,7 @@ function at(origin: "A" | "B", path: string): SeenRequest {
   return match;
 }
 
-// guardedFetch now defaults to npm undici's fetch (so the issue #590 connect-pin
+// guardedFetch now defaults to npm undici's fetch (so the #960 connect-pin
 // dispatcher is honoured); the download path uses npm undici too. The transports
 // array still pins both node-global and npm-undici for the redirect parity cases
 // (a redirect case per transport; those hops are IP literals, so no pin is
@@ -309,7 +309,7 @@ async function drain(res: Response): Promise<void> {
 // Transport that maps the public hostname for server B back to loopback, so a
 // guard-permitted PUBLIC cross-origin hop physically reaches the loopback server.
 // Routes through npm undici's fetch (not Node's built-in global fetch) so a
-// guarded hop carrying the issue #590 connect-pinning dispatcher, an npm undici
+// guarded hop carrying the #960 connect-pinning dispatcher, an npm undici
 // Agent, dispatches on a protocol-compatible transport. The rewritten loopback
 // literal means the pinned lookup is never consulted (an IP literal skips DNS).
 const routedFetch: typeof globalThis.fetch = (input, init) => {
@@ -570,7 +570,7 @@ describe("guardedFetch: SSRF / redirect guard (CPHMTP-NFR-005)", () => {
   );
 });
 
-describe("guardedFetch: DNS resolve-and-recheck (issue #554 decision point)", () => {
+describe("guardedFetch: DNS resolve-and-recheck (#956 decision point)", () => {
   it("blocks a consented DNS origin that resolves to a cloud-metadata address (rebinding)", async () => {
     const fetchImpl = vi.fn();
     // The name is consented (it is the source origin), but it resolves into the
@@ -626,7 +626,7 @@ describe("guardedFetch: DNS resolve-and-recheck (issue #554 decision point)", ()
 });
 
 // ---------------------------------------------------------------------------
-// Layer 3: pin the validated IP to the socket connect (issue #590). Closes the
+// Layer 3: pin the validated IP to the socket connect (#960). Closes the
 // residual TOCTOU DNS-rebinding window by forcing the connect to the exact
 // address that passed the range check. Deterministic and socket-free: the pin
 // helper is exercised directly, and the wiring is asserted through the injected
@@ -653,7 +653,7 @@ function lookupSingle(
   );
 }
 
-describe("guardedFetch: pin the validated IP to the socket connect (issue #590)", () => {
+describe("guardedFetch: pin the validated IP to the socket connect (#960)", () => {
   it("buildPinnedLookup answers only with the validated pinned addresses, correct family, both node forms", async () => {
     const lookup = buildPinnedLookup([
       { address: "93.184.216.34" },

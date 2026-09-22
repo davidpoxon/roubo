@@ -92,7 +92,7 @@ function CompatibilityLine({
               ? "bg-accent-muted text-accent-text"
               : // The chip sits on the hover ground rather than the card surface.
                 // text-secondary clears AA body on every ground DESIGN.md defines,
-                // so the chip needs no darker tone of its own (#703).
+                // so the chip needs no darker tone of its own (#1111).
                 "bg-bg-hover text-text-secondary"
           }`}
         >

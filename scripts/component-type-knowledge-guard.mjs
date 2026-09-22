@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// ComponentTypeKnowledgeGuard (issue #617, CP-NFR-006). After the component
-// plugin refactor (#612) removed type dispatch from core, this guard makes the
+// ComponentTypeKnowledgeGuard (#665, CP-NFR-006). After the component
+// plugin refactor (#663) removed type dispatch from core, this guard makes the
 // zero-core-knowledge invariant permanent: it fails the build if a
 // component-type literal or a core docker/compose field branch reappears in
 // core (server/ + shared/), outside the bundled plugins and the small set of
@@ -20,7 +20,7 @@
 //      engine, and the descriptor schema. Everywhere else, reading a docker
 //      field means core has regrown container knowledge.
 //
-//      bench-manager is a narrower case (issue #400, CP-TC-042): post-#612 it
+//      bench-manager is a narrower case (#888, CP-TC-042): post-#612 it
 //      reads only the PLUGIN's cached `descriptor` (its typed output, not a
 //      config docker-field) to drive teardown / reconcile, and it calls the
 //      docker facade methods for that teardown. A blanket file allowlist there
@@ -56,7 +56,7 @@ const DOCKER_FIELD_ALLOWLIST = new Set([
 ]);
 
 // Files where a docker-field READ is allowed only on the `descriptor` receiver
-// (the plugin's typed output), not wholesale (issue #400, CP-TC-042). Rule 2
+// (the plugin's typed output), not wholesale (#888, CP-TC-042). Rule 2
 // runs against these files but flags a docker-field read whose receiver is any
 // object other than `descriptor`; facade method calls are left to the method
 // carve-out below. This is the receiver-scoped middle ground between "fully

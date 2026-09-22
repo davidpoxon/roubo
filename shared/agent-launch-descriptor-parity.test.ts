@@ -1,4 +1,4 @@
-// APCC-TC-010 (issue #854): the notification union is defined twice, once as
+// APCC-TC-010 (#1264): the notification union is defined twice, once as
 // the authoritative Zod schema in shared/ and once as the structural copy the
 // plugin SDK ships, and the two must carry the same members.
 //

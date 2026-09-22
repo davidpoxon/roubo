@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #774 (SATCA-TC-073..077 accessibility pass, SATCA-FR-028/FR-029): the
+// #1169 (SATCA-TC-073..077 accessibility pass, SATCA-FR-028/FR-029): the
 // replacement picker is fully keyboard operable (arrow keys move the active
 // case, Enter confirms, Escape dismisses) and the open dialog has zero axe
 // violations. Focus restoration to the opening control is covered where the
@@ -127,13 +127,13 @@ describe("ReplacementPicker keyboard operation", () => {
   });
 });
 
-// #775 (SATCA-TC-078, AC3/AC6): the dialog declares its modality, the filter is
+// #1173 (SATCA-TC-078, AC3/AC6): the dialog declares its modality, the filter is
 // labelled, and the result count is announced as the query narrows the list.
-describe("ReplacementPicker dialog and filter semantics (#775)", () => {
+describe("ReplacementPicker dialog and filter semantics (#1173)", () => {
   it("stamps aria-modal on the dialog", () => {
     mountPicker();
     // React Aria omits aria-modal and strips the prop, so the shared
-    // stampAriaModal ref is what makes the modality explicit to AT (#612/#424).
+    // stampAriaModal ref is what makes the modality explicit to AT (#985/#902).
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
   });
 

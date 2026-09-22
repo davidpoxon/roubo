@@ -10,7 +10,7 @@ import {
 } from "./probe-parse-registry.js";
 import { PROBE_MAX_OUTPUT_BYTES, PROBE_TIMEOUT_MS, spawnProbe } from "./probe-spawn.js";
 
-// The one host-executed probe runner (#851, APCC-FR-001, APCC-NFR-001).
+// The one host-executed probe runner (#1266, APCC-FR-001, APCC-NFR-001).
 //
 // Every probe the host runs against an agent CLI goes through here: the version
 // probe (agent-version-probe.ts) and the configuration choice probe. The runner
@@ -22,7 +22,7 @@ import { PROBE_MAX_OUTPUT_BYTES, PROBE_TIMEOUT_MS, spawnProbe } from "./probe-sp
 // Caching is keyed by RESOLVED BINARY plus probe argv plus parse mode, not by
 // plugin, so two plugins pointing at the same CLI probe it once. When the
 // resolution lands on a bare name, the key also carries the search path it was
-// resolved against (#660): a bare name is only fully identified together with its
+// resolved against (#1075): a bare name is only fully identified together with its
 // PATH, so two launches whose PATH differs name two different binaries under one
 // name.
 
@@ -77,7 +77,7 @@ export interface ProbeRequest<M extends ProbeParseMode> {
   failurePolicy: ProbeFailurePolicy;
   /** The PATH the probe resolves and spawns against. Defaults to the server's own. */
   searchPath?: string;
-  /** The plugin's manifest-declared `agentInstallLocations` (#712). */
+  /** The plugin's manifest-declared `agentInstallLocations` (#1115). */
   installLocations?: readonly string[];
 }
 
@@ -118,7 +118,7 @@ function cacheKey(
   // result across every caller: that is what lets two plugins pointing at the
   // same CLI probe it once. A bare name is not, because `resolveAgentCommand`
   // returns it unchanged once it finds it on the search path, so that path is
-  // part of which binary the result is actually about (#660).
+  // part of which binary the result is actually about (#1075).
   const scope = isPathShaped(binary) ? "" : (searchPath ?? "");
   return `${binary}\u0000${args.join("\u0001")}\u0000${parse}\u0000${scope}`;
 }
@@ -168,7 +168,7 @@ export async function runProbe<M extends ProbeParseMode>(
 
   let binary: string;
   try {
-    // The same resolution the spawn uses (#645): PATH, then the declared and
+    // The same resolution the spawn uses (#1056): PATH, then the declared and
     // well-known install locations, so the probe and the launch agree on which
     // binary they are talking about.
     binary = resolveAgentCommand(command, searchPath, request.installLocations);
@@ -221,7 +221,7 @@ async function execute<M extends ProbeParseMode>(
     // Resolution alone does not pin the binary down: `resolveAgentCommand`
     // returns a bare name unchanged when it finds it on the search path, and the
     // spawn otherwise inherits the SERVER's environment. PATH is overridden so
-    // the spawn's own lookup lands on the file the resolution found (#660).
+    // the spawn's own lookup lands on the file the resolution found (#1075).
     const output = await spawnProbe(
       binary,
       args,

@@ -73,9 +73,9 @@ export async function loadAppShell(page: Page): Promise<void> {
  * Switch the open TestBench panel to the whole-spec "Cases" review.
  *
  * The view toggle defaults to the verify-gate "Batches" surface on a bench's
- * first visit (#359), but these journeys assert on the Cases review (the
+ * first visit (#842), but these journeys assert on the Cases review (the
  * Overall rollup, the case list, recorded results). Press "Cases" so those
- * assertions see the right surface. The choice is remembered per bench (#359),
+ * assertions see the right surface. The choice is remembered per bench (#842),
  * so this holds across later tab navigation and reloads within the same bench;
  * the helper is idempotent (a no-op when Cases is already active). Call it after
  * the TestBench tab is open and its panel is rendered.
@@ -105,7 +105,7 @@ export async function expectConnectionStatePillState(
 }
 
 /**
- * #568 (CLI-TC-017): un-bypass the persistent cut-list disk snapshot for the
+ * #590 (CLI-TC-017): un-bypass the persistent cut-list disk snapshot for the
  * duration of one spec via the ROUBO_E2E-gated `/test/__set-cut-list-disk-cache`
  * endpoint. The harness bypasses the disk path by default (so a snapshot from
  * one scenario is never served to a later one, IP-NFR-018), which makes the
@@ -123,7 +123,7 @@ export async function setCutListDiskCacheEnabled(
 }
 
 /**
- * #314 (CPHM-TC-051): flip the marketplace catalog client between reachable
+ * #850 (CPHM-TC-051): flip the marketplace catalog client between reachable
  * (network source) and unreachable (degrade to cache/seed) for the duration of
  * one offline-journey step, via the ROUBO_E2E-gated
  * `/test/__set-marketplace-reachable` endpoint. The toggle busts the catalog
@@ -144,7 +144,7 @@ export async function setMarketplaceReachable(
 }
 
 /**
- * #575 (CPHMTP-TC-073): seed a registered third-party source's per-source catalog
+ * #989 (CPHMTP-TC-073): seed a registered third-party source's per-source catalog
  * CACHE via the ROUBO_E2E-gated `/test/__seed-source-catalog` endpoint, so the
  * source deterministically serves the given entries with NO real network.
  * Registering a source is a pure write (CPHMTP-NFR-003) and the declared ACME URL
@@ -169,7 +169,7 @@ export async function seedSourceCatalog(
 }
 
 /**
- * #571 (CPHMTP-TC-011): stand up the marketplace-removal journey's preconditions
+ * #990 (CPHMTP-TC-011): stand up the marketplace-removal journey's preconditions
  * via the ROUBO_E2E-gated `POST /test/__seed-marketplace-source`: a third-party
  * source registered WITH a credential, and one plugin (default `e2e-stub`) whose
  * provenance ledger row ties it to that source, plus the source's catalog cache
@@ -190,7 +190,7 @@ export async function seedMarketplaceSource(
 }
 
 /**
- * #571 (CPHMTP-TC-011): re-derive the live plugin records from the provenance
+ * #990 (CPHMTP-TC-011): re-derive the live plugin records from the provenance
  * ledger via `POST /test/__refresh-plugin-provenance`, without a server restart. A
  * source removal stamps the ledger orphaned, but a PluginRecord only picks that up
  * on its next rebuild (a relaunch in production, see plugin-manager's
@@ -204,7 +204,7 @@ export async function refreshPluginProvenance(request: APIRequestContext): Promi
 }
 
 /**
- * #571 (CPHMTP-TC-011): read the on-disk aftermath of a source removal (S006) via
+ * #990 (CPHMTP-TC-011): read the on-disk aftermath of a source removal (S006) via
  * `GET /test/__inspect-marketplace-source`, so the drift guard can assert the
  * registry row, the per-source catalog cache dir, and the keyring credential are
  * all gone without poking the filesystem/keyring from the test process.
@@ -225,7 +225,7 @@ export async function inspectMarketplaceSource(
 /**
  * Register a throwaway project for the duration of one spec, pinned to the
  * requested plugin via an integration override. The fixture is torn down by
- * the next `/test/__reset` call (see #232), so specs that need a registered
+ * the next `/test/__reset` call (see #249), so specs that need a registered
  * project can compose this with `resetWithScenario` in `beforeEach`. The
  * returned `projectId` is suitable for `page.goto(`/projects/${id}/settings`)`.
  */
@@ -246,7 +246,7 @@ export async function registerFixtureProject(
     // resolves to a success state (the server derives sources from
     // `config.project.repo`).
     projectRepo?: string;
-    // CLI-TC-062 (#573): optional port base written into the fixture
+    // CLI-TC-062 (#643): optional port base written into the fixture
     // roubo.yaml. A spec that registers two fixture projects at once must give
     // each a distinct base, since the port allocator rejects overlapping
     // ranges. Defaults to the route's high base when omitted.
@@ -259,25 +259,25 @@ export async function registerFixtureProject(
     // mutation (e.g. an integration switch) without paying the cost of the
     // real bench-provisioning flow.
     seedBenches?: Array<{ assignedIssue: AssignedIssue }>;
-    // TC-001 (#438): optional specs to seed into the fixture repo as
+    // TC-001 (#478): optional specs to seed into the fixture repo as
     // `.specifications/<slug>/test-cases.json`, so TestBench spec discovery and
     // the create flow run against real files. Each `testCases` value is written
     // verbatim as the spec's plan JSON.
-    // TSPF-TC-010 (#486): an entry may also carry `seedResults` to emit a
+    // TSPF-TC-010 (#940): an entry may also carry `seedResults` to emit a
     // hash-matching `test-results.json` sidecar synthesized from its plan, so the
     // spec lands in a known verification classification ("all-passed" behind the
     // picker disclosure, or "partial" needs-attention with a real pass-state
     // summary). Omitted => no sidecar (needs-attention, "no results yet").
-    // SATCA-TC-035/036/037 (#770): an entry may also carry `lifecycle`, the
+    // SATCA-TC-035/036/037 (#1162): an entry may also carry `lifecycle`, the
     // record written into the spec's `.specifications/<slug>/manifest.json`, so
     // the spec reads archived (and optionally superseded) to the lifecycle
     // reader. Omitted => no manifest, which is the live state.
-    // SATCA-TC-047/049 (#773): an entry may also carry `manifest`, the whole
+    // SATCA-TC-047/049 (#1166): an entry may also carry `manifest`, the whole
     // `manifest.json` written verbatim into the spec folder, so a fixture can
     // stage a realistic product-dev manifest (stage tracking, id counters, an
     // unrecognised key) for an in-app lifecycle write to merge into. Combines
     // with `lifecycle`, which is merged in as the subtree.
-    // SATCA-TC-033 (#777): an entry may also carry `workUnits`, the whole
+    // SATCA-TC-033 (#1176): an entry may also carry `workUnits`, the whole
     // `work-units.json` written verbatim into the spec folder, so the spec
     // declares verify gates and the Batches surface has something to render.
     // Validated against the published contract server-side.
@@ -289,26 +289,26 @@ export async function registerFixtureProject(
       manifest?: Record<string, unknown>;
       workUnits?: unknown;
     }>;
-    // TC-001 (#438): when true, the server `git init`s + commits the fixture
+    // TC-001 (#478): when true, the server `git init`s + commits the fixture
     // repo and pins its worktree source to the local HEAD, so a real TestBench
     // worktree can be provisioned without an `origin` remote.
     gitInit?: boolean;
-    // VG-TC-032 (#708): when true, the fixture roubo.yaml sets
+    // VG-TC-032 (#724): when true, the fixture roubo.yaml sets
     // `benches.enforceIssueDependencies: true`, turning the host's hard
     // start-gate ON at the project level (no reliance on the global default).
     // The start-gate e2e drives the blocked -> allowed journey against it.
     enforceIssueDependencies?: boolean;
-    // CP-TC-028 (#626): optional id of a component plugin to bind a `deploy`
+    // CP-TC-028 (#662): optional id of a component plugin to bind a `deploy`
     // component to in the fixture roubo.yaml (alongside the default `app`
     // process component). The route writes both bindings, so a spec can model
     // an existing roubo.yaml that binds process + a second component plugin
     // (e.g. CPHM-TC-061 binding process + database).
     componentPlugin?: string;
-    // CPHMTP-TC-073 (#575): optional third-party marketplace URLs written into
+    // CPHMTP-TC-073 (#989): optional third-party marketplace URLs written into
     // the fixture roubo.yaml `marketplaces:` block, so the project-open flow has
     // a declared-but-unregistered source to offer registering.
     declaredMarketplaces?: string[];
-    // CPHMTP-TC-073 (#575): optional binding of an arbitrary named component to
+    // CPHMTP-TC-073 (#989): optional binding of an arbitrary named component to
     // an arbitrary (possibly uninstalled) plugin id, e.g. an `apps-script`
     // component bound to `google-clasp`. Drives the missing-plugin bench-start
     // resolution for a plugin served only by a declared marketplace.
@@ -337,11 +337,11 @@ export async function fetchConnectionStateLog(
 }
 
 /**
- * TC-043 (#440): overwrite a provisioned TestBench's focused test-cases.json via
+ * TC-043 (#487): overwrite a provisioned TestBench's focused test-cases.json via
  * the ROUBO_E2E-gated `/test/__rewrite-spec-cases` endpoint. The create-a-
  * TestBench UI does not expose a plan editor, so the persist -> staleness ->
  * reconcile spec drives the mid-test plan edit (remove a case, add a case)
- * through this harness write. As of #493 the server resolves the spec directory
+ * through this harness write. As of #494 the server resolves the spec directory
  * from the bench's own worktree (the same path the live TestBench routes
  * read/write), so the next plan load detects staleness against the rewritten
  * source.
@@ -355,7 +355,7 @@ export async function rewriteSpecTestCases(
 }
 
 /**
- * #487 (TSPF-TC-011): seed a plan-hash-matching test-results.json sidecar for a
+ * #942 (TSPF-TC-011): seed a plan-hash-matching test-results.json sidecar for a
  * discovered spec in a fixture project's repo via the ROUBO_E2E-gated
  * `POST /test/__seed-spec-results`, so the spec picker's server-side
  * classification sorts it into the partition's "all-passed" group. Only the plan
@@ -375,10 +375,10 @@ export async function seedSpecResults(
 }
 
 /**
- * TC-043 (#440): read a provisioned TestBench's on-disk test-results.json sidecar
+ * TC-043 (#487): read a provisioned TestBench's on-disk test-results.json sidecar
  * (plus the source test-cases.json sha256) via `/test/__read-spec-results`. The
  * spec uses this to assert the NFR-003 integrity invariant directly against disk:
- * the flattened results (#493) retain the archived (orphaned) case after
+ * the flattened results (#494) retain the archived (orphaned) case after
  * reconcile, and the source plan's checksum is unchanged (reconcile never
  * rewrites the source plan).
  */
@@ -396,7 +396,7 @@ export async function readTestResults(
 }
 
 /**
- * #779 (SATCA-TC-058): inspect a provisioned TestBench worktree's git state via the
+ * #1178 (SATCA-TC-058): inspect a provisioned TestBench worktree's git state via the
  * ROUBO_E2E-gated `GET /test/__inspect-bench-git`. The in-app-actions journey asserts
  * GIT facts ("exactly one file is modified", "the diff shows only the added lifecycle
  * record", "nothing has been committed", "the tree returns to clean") that the
@@ -433,7 +433,7 @@ export async function inspectBenchGit(
 }
 
 /**
- * #773 (SATCA-TC-047/048/049): read one spec's `.specifications/<slug>/manifest.json`
+ * #1166 (SATCA-TC-047/048/049): read one spec's `.specifications/<slug>/manifest.json`
  * out of a fixture project's repo, plus the sha256 of its test-cases.json, via
  * `/test/__read-spec-manifest`. The archival write drift guard uses it to assert
  * directly against disk what the picker's Archive / Supersede / Restore actions
@@ -464,7 +464,7 @@ export async function readSpecManifest(
 }
 
 /**
- * #777 (SATCA-TC-033 S003-O03): read one spec's `.specifications/<slug>/work-units.json`
+ * #1176 (SATCA-TC-033 S003-O03): read one spec's `.specifications/<slug>/work-units.json`
  * out of a fixture project's repo (the copy the gate loader reads) via
  * `/test/__read-spec-work-units`. The gate-release drift guard uses it to prove the
  * negative the case states: the gate flipped from pending to passed with the work
@@ -496,7 +496,7 @@ export async function readSpecWorkUnits(
 }
 
 /**
- * #567 (CLI-TC-001): read the persisted cut-list first-page snapshot file for a
+ * #595 (CLI-TC-001): read the persisted cut-list first-page snapshot file for a
  * project via the ROUBO_E2E-gated `/test/__read-cut-list-cache-file`. The
  * warm-restart drift guard uses this to assert the on-disk file's S003
  * invariants directly against disk: the file mode is exactly 0600 (CLI-NFR-001)
@@ -517,7 +517,7 @@ export async function readCutListCacheFile(
 
 /**
  * Fetch a single plugin's record by id from `GET /api/plugins`. The endpoint
- * returns the full installed list; IP-TC-163 (#240) keeps the helper focused so
+ * returns the full installed list; IP-TC-163 (#272) keeps the helper focused so
  * specs don't repeat the find-by-id boilerplate.
  */
 export async function fetchPluginRecord(
@@ -531,7 +531,7 @@ export async function fetchPluginRecord(
 }
 
 /**
- * IP-TC-163 (#240): SIGKILL the named plugin's live child via the
+ * IP-TC-163 (#272): SIGKILL the named plugin's live child via the
  * `/test/__crash-plugin` ROUBO_E2E-gated endpoint so the supervisor sees an
  * unexpected exit. The endpoint returns 409 when the plugin is not running;
  * callers should `waitForPluginRestart` before chaining additional crashes.
@@ -542,7 +542,7 @@ export async function crashStubPlugin(request: APIRequestContext, pluginId: stri
 }
 
 /**
- * IP-TC-163 (#240): poll `GET /api/plugins` until the named plugin's record
+ * IP-TC-163 (#272): poll `GET /api/plugins` until the named plugin's record
  * matches the supplied predicate. Used to observe restart-budget transitions
  * (history grew, respawned with a new pid, transitioned to errored) without
  * tying the spec to backoff timing. Total timeout matches the
@@ -570,7 +570,7 @@ export async function waitForPluginRecord(
 
 /**
  * Read the persisted plugin-enable-state file via the e2e harness endpoint.
- * IP-TC-154 (#222) asserts the IP-NFR-024 invariant ("plugin remains in its
+ * IP-TC-154 (#261) asserts the IP-NFR-024 invariant ("plugin remains in its
  * previous disabled state on spawn failure") by snapshotting this map before
  * and after the Enable click; the snapshot lets the spec verify that the
  * on-disk file was not mutated, without poking the filesystem from the

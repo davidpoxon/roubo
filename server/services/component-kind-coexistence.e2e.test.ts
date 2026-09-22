@@ -1,9 +1,9 @@
 /**
- * CP-TC-029 drift guard (issue #630): the component kind coexists with
+ * CP-TC-029 drift guard (#660): the component kind coexists with
  * integration plugins (no regression).
  *
  * This is the integration-level drift guard for the journey that spans slices
- * #600 and #609. It asserts the *integrated* journey against the authoritative
+ * #633, #652. It asserts the *integrated* journey against the authoritative
  * e2e_flow case CP-TC-029 in .specifications/component-plugins/test-cases.json,
  * not whatever any single slice implemented. It does NOT re-test slice
  * internals (out of scope per the issue).
@@ -24,7 +24,7 @@
  *
  * FR-020 failure-output contract: every assertion runs through `expectStep`,
  * which on failure surfaces (1) the diverged e2e_flow step id, (2) the
- * expected-vs-actual at that step, and (3) the owning slice issue(s) from this
+ * expected-vs-actual at that step, and (3) the owning slice(s) from this
  * unit's blocked-by set, so integration drift is localized to an attributable
  * slice.
  *
@@ -54,26 +54,41 @@ const BUNDLED_GITHUB_MANIFEST = path.join(REPO_ROOT, "plugins", "github-com", "r
 
 // --- FR-020 failure-output helper ------------------------------------------
 //
-// The journey spans slices #600 and #609 (the issue's blocked-by set). On a
+// The journey spans slices #633, #652 (the issue's blocked-by set). On a
 // step assertion failure we surface the diverged e2e_flow step id, the
-// expected-vs-actual, and the owning slice issue(s) so the drift is
+// expected-vs-actual, and the owning slice(s) so the drift is
 // attributable to a slice rather than to "the e2e test".
-const BLOCKED_BY = ["#600", "#609"];
+const BLOCKED_BY = [
+  "host-RPC broker granularity + capability versioning spike",
+  "roubo.yaml components map as plugin bindings",
+];
 
 const STEP_OWNERS: Record<string, string[]> = {
   // Manifest discovery / validation / spawn parity rides the plugin-kind
   // contract slice work that introduced the component kind and the
   // HOST_API_VERSION bump.
-  S001: ["#600", "#609"],
+  S001: [
+    "host-RPC broker granularity + capability versioning spike",
+    "roubo.yaml components map as plugin bindings",
+  ],
   // The integration RPC route (assign) is exercised against the unchanged
   // integration surface; a regression here implicates the kind-coexistence
   // slice that touched plugin-manager dispatch.
-  S002: ["#600", "#609"],
+  S002: [
+    "host-RPC broker granularity + capability versioning spike",
+    "roubo.yaml components map as plugin bindings",
+  ],
   // OAuth flow is integration-plugin-only; a component-kind-introduced break
   // implicates the same coexistence slice set.
-  S003: ["#600", "#609"],
+  S003: [
+    "host-RPC broker granularity + capability versioning spike",
+    "roubo.yaml components map as plugin bindings",
+  ],
   // Broker-namespace isolation is the component-broker wiring slice.
-  S004: ["#600", "#609"],
+  S004: [
+    "host-RPC broker granularity + capability versioning spike",
+    "roubo.yaml components map as plugin bindings",
+  ],
 };
 
 function expectStep(
@@ -90,7 +105,7 @@ function expectStep(
       `CP-TC-029 drift at e2e_flow step ${stepId}: ${what}`,
       context && "expected" in context ? `  expected: ${JSON.stringify(context.expected)}` : null,
       context && "actual" in context ? `  actual:   ${JSON.stringify(context.actual)}` : null,
-      `  owning slice issue(s): ${owners.join(", ")}`,
+      `  owning slice(s): ${owners.join(", ")}`,
       `  underlying assertion: ${err instanceof Error ? err.message : String(err)}`,
     ].filter((l): l is string => l !== null);
     throw new Error(lines.join("\n"), { cause: err });
@@ -135,7 +150,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<vo
   throw new Error(`waitFor timed out after ${timeoutMs}ms`);
 }
 
-describe("CP-TC-029: the component kind coexists with integration plugins (issue #630)", () => {
+describe("CP-TC-029: the component kind coexists with integration plugins (#660)", () => {
   let sandbox: Sandbox | null = null;
 
   afterEach(async () => {
@@ -204,7 +219,7 @@ describe("CP-TC-029: the component kind coexists with integration plugins (issue
         // Deliberately asserted against the LIVE constant rather than a pinned
         // literal: the invariant CP-TC-029 guards is that the unchanged
         // integration manifest keeps validating as the host API grows (1.3.0
-        // for the component kind, 1.4.0 for the agent kind: #507). The exact
+        // for the component kind, 1.4.0 for the agent kind: #1026). The exact
         // value is pinned once, in plugin-manager.test.ts.
         expect(
           semver.satisfies(pluginManager.HOST_API_VERSION, parsed.manifest.roubo, {

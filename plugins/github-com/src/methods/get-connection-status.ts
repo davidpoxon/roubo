@@ -8,13 +8,13 @@ const GITHUB_API_BASE_URL = "https://api.github.com";
  * Returns whether any of the three alert categories (Code Scanning, Secret
  * Scanning, Dependabot) is enabled for any configured source. Today this
  * always returns `false` because per-source category toggles do not yet exist
- * in the plugin's `configSchema`. When #106 lands and introduces those
+ * in the plugin's `configSchema`. When #184 lands and introduces those
  * toggles, this resolver reads the same plugin-side state the (future)
  * listIssues alert wiring reads and ORs the three booleans together.
  */
 let resolveHasAlertCategoryEnabled: () => boolean = () => false;
 
-/** Replace the gate resolver. Only call this in tests (and from #106's wiring). */
+/** Replace the gate resolver. Only call this in tests (and from #184's wiring). */
 export function __setHasAlertCategoryEnabledForTests(resolver: () => boolean): void {
   resolveHasAlertCategoryEnabled = resolver;
 }
@@ -28,7 +28,7 @@ export function __resetHasAlertCategoryEnabled(): void {
  * verify the credential, then inspects the `X-OAuth-Scopes` header to surface
  * an `auth-problem` when the token is missing the `security_events` scope and
  * the user has enabled at least one alert category. Both signals are needed:
- * tokens issued before #105 routinely lack `security_events`, so we MUST NOT
+ * tokens issued before #172 routinely lack `security_events`, so we MUST NOT
  * blanket-fail those users until they ask for alert data.
  *
  * The host caches this result for 30 s (plugin-manager.ts), so this method

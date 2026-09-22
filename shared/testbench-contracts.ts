@@ -7,7 +7,7 @@
 //
 // Scope note: this module authors the zod source schemas, the inferred types,
 // the runtime validators, and the versioned `$id` constants. The roots carry
-// `.meta({ $id })` so the generate script + CI drift guard (FR-023, #411) can
+// `.meta({ $id })` so the generate script + CI drift guard (FR-023, #449) can
 // emit versioned JSON Schema from them; the store IO (#11) is out of scope here.
 
 import { z } from "zod";
@@ -34,7 +34,7 @@ import { z } from "zod";
 //     top-level caseResults. The store loader detects a prior-major file and
 //     fails open with a version-migration-required signal pointing at that doc.
 //   - test-cases 1.1.0 -> 1.2.0 added the optional case lifecycle block
-//     (SATCA-FR-001, #764). Purely additive under the rule above: the field is
+//     (SATCA-FR-001, #1158). Purely additive under the rule above: the field is
 //     optional, absent means live, and a 1.1.0 file still validates unchanged.
 //     `schemaVersion` and `$schema` are free strings on the envelope, so a file
 //     recorded at either version parses; nothing rewrites a spec's recorded
@@ -98,7 +98,7 @@ export type TargetingField = z.infer<typeof TargetingFieldSchema>;
 //
 // Authored outside Roubo (by product-dev) and read-only to every results path:
 // marking, overriding, noting, and reconciling touch the sidecar alone. As of
-// #772 that is no longer the same as "never mutated": the in-app lifecycle
+// #1167 that is no longer the same as "never mutated": the in-app lifecycle
 // actions write one case's `lifecycle` block back into this file, atomically and
 // uncommitted, through server/lib/testbench-lifecycle-write.ts. That is the ONLY
 // write Roubo makes here; nothing else in the plan is ever rewritten.
@@ -146,7 +146,7 @@ export const RECOMMENDED_CASE_TYPES = [
   "structural",
 ] as const;
 
-// The optional case lifecycle block (SATCA-FR-001, SATCA-FR-002, #764), added
+// The optional case lifecycle block (SATCA-FR-001, SATCA-FR-002, #1158), added
 // additively at schema v1.2.0. Absent means the case is LIVE: there is no
 // `live` state to record, so every pre-1.2.0 spec keeps its meaning unchanged.
 //
@@ -159,7 +159,7 @@ export const RECOMMENDED_CASE_TYPES = [
 // `replacement` is validated as a non-empty string ONLY. Both the bare case-id
 // form ("TC-004") and the slug-qualified form ("other-spec:TC-004") are
 // accepted and preserved verbatim: the contract never parses, normalises, or
-// resolves the pointer. Resolution is LifecycleResolver's job (#766), and
+// resolves the pointer. Resolution is LifecycleResolver's job (#1159), and
 // keeping the syntax opaque here is what lets both forms round-trip untouched.
 export const CaseLifecycleSchema = z.discriminatedUnion("state", [
   z
@@ -200,7 +200,7 @@ export const CaseSchema = z
     tags: z.array(z.string()),
     linked_requirement_ids: z.array(z.string()).min(1),
     linked_user_story_ids: z.array(z.string()),
-    // Optional end-of-life declaration, added at v1.2.0 (#764). Absent = live.
+    // Optional end-of-life declaration, added at v1.2.0 (#1158). Absent = live.
     lifecycle: CaseLifecycleSchema.optional(),
   })
   .strict();
@@ -293,17 +293,17 @@ export const CaseResultSchema = z
     // and excluded from the rollup (FR-013, FR-017).
     orphaned: z.literal(true).optional(),
     // The per-case canonical body snapshot reconcile compares against the live
-    // plan to classify changed vs unchanged (#413, spike-407 AC3). Optional so a
+    // plan to classify changed vs unchanged (#450, spike-407 AC3). Optional so a
     // result with no stored snapshot still parses and is conservatively
     // classified changed; persisting it lets the signal survive a round-trip to
-    // disk (#447).
+    // disk (#489).
     caseCanon: z.string().optional(),
   })
   .strict();
 export type CaseResult = z.infer<typeof CaseResultSchema>;
 
 // The recorded-results body for a single spec: case results keyed by case id,
-// plus a write timestamp. As of the v2.0.0 flatten (#493), one results file
+// plus a write timestamp. As of the v2.0.0 flatten (#494), one results file
 // lives per worktree (sibling of test-cases.json), so there is exactly one of
 // these per file and it sits at the top level. This stays a named type because
 // it is also the API result shape the client reads (the route projects the file
@@ -322,7 +322,7 @@ export const TestResultsFileSchema = z
     $schema: z.string(),
     schemaVersion: z.string(),
     planHash: z.string(),
-    // Flattened in v2.0.0 (#493): one results file per worktree means exactly
+    // Flattened in v2.0.0 (#494): one results file per worktree means exactly
     // one bench per file, so case results sit at the top level rather than
     // nested under a per-bench `benches` map. Keyed by case id.
     caseResults: z.record(z.string(), CaseResultSchema),

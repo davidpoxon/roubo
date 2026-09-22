@@ -133,7 +133,7 @@ describe("GET /:projectId/benches", () => {
     expect(res.body[0].id).toBe(1);
   });
 
-  it("excludes alert-backed benches whose alert number collides with the issue (#291)", async () => {
+  it("excludes alert-backed benches whose alert number collides with the issue (#297)", async () => {
     const allBenches = [
       { id: 1, assignedIssue: { number: 42, externalId: "42" } },
       { id: 2, assignedIssue: { number: 42, externalId: "owner/repo#code-scanning-42" } },
@@ -251,7 +251,7 @@ describe("POST /:projectId/benches with externalId (security alert)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // A plugin IS active here, so the #437 no-plugin pre-check is skipped.
+    // A plugin IS active here, so the #915 no-plugin pre-check is skipped.
     vi.mocked(resolveActivePlugin).mockReturnValue({ pluginId: "github-com" } as any);
     vi.mocked(getActivePluginOrRespond).mockResolvedValue({
       pluginId: "github-com",
@@ -323,7 +323,7 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // A plugin IS active here, so the #437 no-plugin pre-check is skipped.
+    // A plugin IS active here, so the #915 no-plugin pre-check is skipped.
     vi.mocked(resolveActivePlugin).mockReturnValue({ pluginId: "jira-self-hosted" } as any);
     vi.mocked(getActivePluginOrRespond).mockResolvedValue({
       pluginId: "jira-self-hosted",
@@ -391,7 +391,7 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
   });
 });
 
-describe("POST /:projectId/benches with externalId (hard start-gate, #699)", () => {
+describe("POST /:projectId/benches with externalId (hard start-gate, #722)", () => {
   const issue = {
     integrationId: "github-com",
     externalId: "owner/repo#42",
@@ -401,7 +401,7 @@ describe("POST /:projectId/benches with externalId (hard start-gate, #699)", () 
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // A plugin IS active here, so the #437 no-plugin pre-check is skipped.
+    // A plugin IS active here, so the #915 no-plugin pre-check is skipped.
     vi.mocked(resolveActivePlugin).mockReturnValue({ pluginId: "github-com" } as any);
     vi.mocked(getActivePluginOrRespond).mockResolvedValue({
       pluginId: "github-com",
@@ -492,7 +492,7 @@ describe("POST /:projectId/benches with externalId (hard start-gate, #699)", () 
     expect(benchManager.createBench).not.toHaveBeenCalled();
   });
 
-  it("ON + prefetch fails: the bounded read fails closed with 409 GATE_INDETERMINATE before the gate runs (#438)", async () => {
+  it("ON + prefetch fails: the bounded read fails closed with 409 GATE_INDETERMINATE before the gate runs (#917)", async () => {
     // Enforcement ON: fetchIssueForStart bounds the getIssue prefetch and, on a
     // hung or failing read, throws GATE_INDETERMINATE. That must surface as a
     // clean 409, not be remapped as a 502/504 plugin RPC error, and the gate
@@ -512,11 +512,11 @@ describe("POST /:projectId/benches with externalId (hard start-gate, #699)", () 
   });
 });
 
-describe("POST /:projectId/benches with externalId (no active plugin, #437)", () => {
+describe("POST /:projectId/benches with externalId (no active plugin, #915)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // No active integration plugin, so the create-and-assign flow runs the gate
-    // before getActivePluginOrRespond (#437 / NFR-003 / TC-033).
+    // before getActivePluginOrRespond (#915 / NFR-003 / TC-033).
     vi.mocked(resolveActivePlugin).mockReturnValue(null);
     vi.mocked(fetchPluginComments).mockResolvedValue([]);
   });
@@ -907,7 +907,7 @@ describe("POST /:projectId/benches/:id/components/:name/start", () => {
     expect(res.body.error).toBe("start component failed");
   });
 
-  // Issue #566 (CPHMTP-FR-008): the missing-plugin resolution rides along with the
+  // #978 (CPHMTP-FR-008): the missing-plugin resolution rides along with the
   // COMPONENT_NOT_BOUND body so the client can offer install-from-<source> without
   // re-resolving the sources itself.
   it("serialises the missing-plugin resolution payload", async () => {
@@ -938,7 +938,7 @@ describe("POST /:projectId/benches/:id/components/:name/start", () => {
     expect(res.body).not.toHaveProperty("resolution");
   });
 
-  // Issue #617 (AC3): a bound-but-unconsented plugin rides its `consent.pluginId`
+  // #991 (AC3): a bound-but-unconsented plugin rides its `consent.pluginId`
   // along with the COMPONENT_NOT_BOUND body so the bench page can open an actionable
   // consent prompt (this route is exactly where the resumed start's consent-gate 400
   // lands). Absent for every other error, so the key is omitted, never null.
@@ -1134,7 +1134,7 @@ describe("POST /:projectId/benches/:id/tools/:index/execute", () => {
   });
 });
 
-// ── Agent tool preset route tests (#655) ──
+// ── Agent tool preset route tests (#1066) ──
 //
 // The preset service and the agent registry behind it run for real here: the two
 // contracts this pins (a `roubo.yaml` `type: agent` tool surfacing as

@@ -22,12 +22,12 @@ import {
 // "AP-TC-020".
 const observe = makeObserve("AP-TC-020");
 
-// AP-TC-020 (#526, AP-WU-025) - E2E: set a default agent, bind one jig, leave
+// AP-TC-020 (#1124, AP-WU-025) - E2E: set a default agent, bind one jig, leave
 // another unbound, then confirm a jig-driven launch honours the binding first
 // and the default second.
 //
 // The integration-level drift guard for the AP-US-003 journey (AP-FR-005,
-// AP-FR-006), spanning the slices this unit is blocked by (#515, #524, #537).
+// AP-FR-006), spanning the slices this unit is blocked by (delivered in #1051, #1110).
 // It walks the authoritative AP-TC-020 e2e_flow steps S001-S005 as ordered,
 // attributable observations against the REAL built app. On divergence each
 // observation routes through the FR-020 failure-output contract (see
@@ -35,7 +35,7 @@ const observe = makeObserve("AP-TC-020");
 // diverged, the expected-vs-actual, and the owning slice(s).
 //
 // ONE test carries the bare id and it asserts EVERY observation of the case
-// (#680): the suite mapper corroborates a case only when exactly one test claims
+// (#1097): the suite mapper corroborates a case only when exactly one test claims
 // it, and the id never sits on a `describe`, because the mapper matches
 // `classname` + `name` and every test in the file would inherit it.
 //
@@ -72,7 +72,7 @@ const observe = makeObserve("AP-TC-020");
 // GET /api/projects/:id/benches/:n/terminals is that answer directly. The argv
 // channels the other guards read would answer a different question (which flags
 // a session carries), and each stub writes its own file anyway
-// (AGENT_ARGV_LOG_PATH for claude, CODEX_ARGV_LOG_PATH for codex, #532), so
+// (AGENT_ARGV_LOG_PATH for claude, CODEX_ARGV_LOG_PATH for codex, #1128), so
 // neither adds anything to a case about agent RESOLUTION.
 //
 // WHY EACH LAUNCH IS OBSERVED TWICE. The two launch surfaces resolve the agent
@@ -121,7 +121,7 @@ const STEPS: Record<string, JourneyStep> = {
   S001: {
     id: "S001",
     instruction: "Open Settings, Jigs and select Claude Code as the default agent",
-    // #524 owns the accessible names this step locates the surface by (the
+    // #1110 owns the accessible names this step locates the surface by (the
     // "Default agent" radiogroup and its radios), so a rename there breaks this
     // step and has to be attributable to it.
     owners: [SLICE.picker, SLICE.a11y],

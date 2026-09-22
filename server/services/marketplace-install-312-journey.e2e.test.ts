@@ -1,6 +1,6 @@
-// #312 (e2e_flow): install a plugin from the marketplace listing to a running
+// E2E flow: install a plugin from the marketplace listing to a running
 // plugin, for a `release`-type (built-artifact) catalog entry. This is the
-// end-to-end verification that #370 (route marketplace install()/update() to the
+// end-to-end verification that #849 (route marketplace install()/update() to the
 // release preview) makes pass: before the fix, install() unconditionally called
 // the git-clone preview, so a release entry (which has no `source.url`) failed
 // with "Git URL is required" downstream of the network gate. After the fix, a
@@ -51,13 +51,13 @@ vi.mock("./plugin-manager.js", () => ({
 
 vi.mock("undici", () => ({
   fetch: vi.fn(),
-  // guarded-fetch builds a connect-pinning Agent (issue #590); the mocked fetch
+  // guarded-fetch builds a connect-pinning Agent (#960); the mocked fetch
   // ignores the dispatcher, so a constructable stub is all this mock needs.
   Agent: vi.fn(),
 }));
 
 // This journey drives the REAL install() and commit(), and commit now records the
-// chosen marketplace source to ~/.roubo/plugins-provenance.json (issue #558). Mock
+// chosen marketplace source to ~/.roubo/plugins-provenance.json (#966). Mock
 // that persistence boundary so the journey cannot write the developer's own state
 // dir; the ledger's file IO is covered by plugin-provenance-state.test.ts.
 vi.mock("./plugin-provenance-state.js", () => ({
@@ -212,7 +212,7 @@ afterEach(async () => {
   await rm(pluginsRoot, { recursive: true, force: true });
 });
 
-describe("#312: install a release-type marketplace listing to a running plugin (#370)", () => {
+describe("install a release-type marketplace listing to a running plugin (#849)", () => {
   it("installs end to end: resolve -> install() -> previewFromRelease -> commit -> runnable plugin", async () => {
     // The catalog's recorded integrity is the unpacked artifact's true digest, so
     // the host's verify-before-commit passes.
@@ -223,7 +223,7 @@ describe("#312: install a release-type marketplace listing to a running plugin (
     const resolved = await marketplace.resolveEntry(PLUGIN_ID);
     expect(resolved?.source.type).toBe("release");
 
-    // install() routes a release entry to the download/unpack preview. Before #370
+    // install() routes a release entry to the download/unpack preview. Before #849
     // this threw "Git URL is required"; now it stages the built artifact.
     const preview = await marketplace.install(PLUGIN_ID);
     expect(preview.manifest.id).toBe(PLUGIN_ID);

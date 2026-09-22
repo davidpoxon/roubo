@@ -466,7 +466,7 @@ router.put("/:projectId/integration/config", (req, res) => {
     if (update.instance !== undefined) nextIntegration.instance = update.instance;
     if (update.sources !== undefined) nextIntegration.sources = update.sources;
     if (update.advanced !== undefined) {
-      // Issue #125: strip any keys not in the active plugin's manifest schema
+      // #231: strip any keys not in the active plugin's manifest schema
       // before writing, so stale leftovers from earlier schema versions
       // don't keep round-tripping through the per-project override file.
       const manifest =
@@ -547,12 +547,12 @@ router.get("/:projectId/integration/sources", async (req, res) => {
   }
 });
 
-// Discover the connected instance's live status categories (issue #453) to
+// Discover the connected instance's live status categories (#461) to
 // seed the Configure dialog's exclusion toggle. Always returns 200 with a
 // `supported` flag: any failure (no active plugin, MethodNotFound, network /
 // auth error) yields `{ supported: false, categories: [] }` so the dialog
 // falls back to its canonical set and stays usable. Caching/refresh of this
-// list is deferred (#460).
+// list is deferred (#461).
 router.get("/:projectId/integration/status-categories", async (req, res) => {
   const project = projectRegistry.getProject(req.params.projectId);
   if (!project) {

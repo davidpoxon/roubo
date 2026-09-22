@@ -16,18 +16,18 @@ import {
   TSPF_PASSED_SPEC_SLUG,
 } from "./_support/testbench-plan.js";
 
-// E2E (#487): the authoritative `e2e_flow` drift guard for TSPF-TC-011, the
+// E2E (#942): the authoritative `e2e_flow` drift guard for TSPF-TC-011, the
 // "change an active TestBench's focused spec through the identical partitioned
 // picker" journey (TSPF-US-003, TSPF-FR-005). It is the re-point sibling of the
-// #486 create-flow guard (TSPF-TC-010) and mirrors the TC-007 re-point spec's
+// #940 create-flow guard (TSPF-TC-010) and mirrors the TC-007 re-point spec's
 // structure: labelled `test.step`s, an owning-slice map for failure localization,
 // plan projections seeded into a `git init`-ed fixture repo, and assertions
 // against the BUILT app.
 //
 // The wrinkle over TC-007 is asserting the PARTITION. Both the create picker
-// (#418) and the re-point picker (#423) render the SAME SpecPickerModal off the
+// (#467) and the re-point picker (#472) render the SAME SpecPickerModal off the
 // SAME endpoint (`GET /:projectId/testbench/specs`), whose per-spec
-// `verification.classification` (owned server-side by #483) drives the split:
+// `verification.classification` (owned server-side by #937) drives the split:
 // needs-attention specs fill the prominent main space, all-passed specs sit behind
 // a single collapsed disclosure. This spec drives BOTH pickers on ONE project with
 // ONE repo state and proves they render the IDENTICAL partition, then re-points to
@@ -42,7 +42,7 @@ import {
 // "1 of 3 passed" summary is real, not merely "no results yet"). Per-spec result
 // isolation is enforced server-side (results are keyed by the focused spec's slug
 // under the bench's own worktree; re-point only swaps `bench.focusedSpecPath`), so
-// this spec proves that contract rather than implementing it. Unlike #483's unit
+// this spec proves that contract rather than implementing it. Unlike #937's unit
 // tests, this asserts the integrated journey; each step is wrapped in a labelled
 // `test.step` so a failure localises the diverging step, reports expected-vs-actual
 // at that step, and names the owning slice (AC5, the failure-output contract).
@@ -277,7 +277,7 @@ test("TSPF-TC-011: change an active TestBench's focused spec through the identic
   request,
 }) => {
   // ── Preconditions: feature enabled, project carrying both classifications ─────
-  await test.step("Precondition: enable the TestBench feature (#414)", async () => {
+  await test.step("Precondition: enable the TestBench feature (#456)", async () => {
     await enableTestBench(request);
   });
 
@@ -320,7 +320,7 @@ test("TSPF-TC-011: change an active TestBench's focused spec through the identic
   // ── The create picker's partition (AC2 baseline for the identity comparison) ──
   const createDialog = page.getByRole("dialog", { name: "Create a TestBench" });
   let createSignature: PartitionSignature = { needsAttention: [], allPassedCount: 0 };
-  await test.step("Open the create picker; capture the partition it renders on this repo state (#483)", async () => {
+  await test.step("Open the create picker; capture the partition it renders on this repo state (#937)", async () => {
     await page.getByText("Bench 1").locator("xpath=ancestor::button[1]").click();
     await page.getByRole("button", { name: "Create a TestBench" }).click();
     await expect(
@@ -340,7 +340,7 @@ test("TSPF-TC-011: change an active TestBench's focused spec through the identic
   });
 
   // ── Precondition: create the TestBench bound to the active spec ───────────────
-  await test.step("Precondition: create a TestBench bound to the active (needs-attention) spec (#416/#418)", async () => {
+  await test.step("Precondition: create a TestBench bound to the active (needs-attention) spec (#459/#467)", async () => {
     const activeRow = createDialog.getByRole("radio", {
       name: new RegExp(`^${TSPF_ACTIVE_SPEC_SLUG}`),
     });
@@ -396,7 +396,7 @@ test("TSPF-TC-011: change an active TestBench's focused spec through the identic
 
   // ── Open the TestBench tab; confirm the recorded active-spec result loads ─────
   const tablist = page.getByRole("tablist");
-  await test.step("Open the TestBench tab; the recorded active-spec result is reflected (#416)", async () => {
+  await test.step("Open the TestBench tab; the recorded active-spec result is reflected (#459)", async () => {
     // The result was recorded out-of-band via the API after the panel already
     // rendered, so reload to fetch the panel's plan + results fresh.
     await page.reload();
@@ -416,7 +416,7 @@ test("TSPF-TC-011: change an active TestBench's focused spec through the identic
 
   // ── S001+S002 (AC1/AC2): re-point picker renders the IDENTICAL partition ──────
   const repointDialog = page.getByRole("dialog", { name: "Change focused spec" });
-  await test.step("S001+S002 (AC1/AC2): 'Change focused spec' opens the re-point picker with the identical partition (#483)", async () => {
+  await test.step("S001+S002 (AC1/AC2): 'Change focused spec' opens the re-point picker with the identical partition (#937)", async () => {
     await page.getByRole("button", { name: "Change focused spec" }).click();
     await expect(
       repointDialog,
@@ -443,7 +443,7 @@ test("TSPF-TC-011: change an active TestBench's focused spec through the identic
   });
 
   // ── S003 (AC2/AC3): re-point to a needs-attention spec, results preserved ─────
-  await test.step("S003 (AC3): select a needs-attention spec, re-point -> header shows it, its plan loads (#483)", async () => {
+  await test.step("S003 (AC3): select a needs-attention spec, re-point -> header shows it, its plan loads (#937)", async () => {
     const attentionRow = repointDialog.getByRole("radio", {
       name: new RegExp(`^${TSPF_ATTENTION_SPEC_SLUG}`),
     });
@@ -482,7 +482,7 @@ test("TSPF-TC-011: change an active TestBench's focused spec through the identic
     ).toBeVisible();
   });
 
-  await test.step("S003 (AC3): re-point back -> the previous spec's results are preserved intact (#483)", async () => {
+  await test.step("S003 (AC3): re-point back -> the previous spec's results are preserved intact (#937)", async () => {
     await page.getByRole("button", { name: "Change focused spec" }).click();
     await expect(repointDialog).toBeVisible();
     // The attention spec is now the active (focused) spec.

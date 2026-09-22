@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #706 (VG-FR-009/VG-FR-010, VG-US-006; verify-gate VG-TC-045 / VG-TC-052 / VG-TC-053): the
+// #735 (VG-FR-009/VG-FR-010, VG-US-006; verify-gate VG-TC-045 / VG-TC-052 / VG-TC-053): the
 // fix-issue panel captures failure notes and files a tracker issue wired to block
 // the gate. A 201 complete confirms the filed refs; a 207 link_pending surfaces an
 // amber "Link step failed" warning plus a "Retry link only" action that re-files

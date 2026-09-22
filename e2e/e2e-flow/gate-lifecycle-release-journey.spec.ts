@@ -18,7 +18,7 @@ import {
   SATCA_TC033_WORK_UNITS,
 } from "./_support/testbench-plan.js";
 
-// E2E (#777): the integrated drift guard for the VERIFY-GATE release journey
+// E2E (#1176): the integrated drift guard for the VERIFY-GATE release journey
 // (SATCA-TC-033, SATCA-FR-008/FR-011, SATCA-US-003). It runs against the BUILT app
 // and proves what neither the evaluator's unit tests nor the write path's own
 // tests can prove alone: retiring the single case that was holding a gate pending
@@ -36,7 +36,7 @@ import {
 // app, and leaves the other untouched, so the gate is held by exactly one
 // never-started case. The gate must declare that second, already-passed case:
 // retiring the ONLY declared case would empty the gating set, and an empty set is
-// deliberately `no_gating_cases` rather than a pass (#436, VG-NFR-007), which is
+// deliberately `no_gating_cases` rather than a pass (#912, VG-NFR-007), which is
 // not what the case says happens.
 //
 // Each assertion carries the owning slice from this unit's blocked-by set via
@@ -167,7 +167,7 @@ test("SATCA-TC-033: retiring the only blocking case releases a pending gate", as
       projectId: PROJECT_ID,
       // git init + commit so a real spec-bound worktree provisions on Create. The
       // gate reads its work-units.json from the PROJECT repo and its plan/results
-      // from the bench's worktree (#432), so both copies matter.
+      // from the bench's worktree (#910), so both copies matter.
       gitInit: true,
       seedSpecs: [
         {

@@ -201,7 +201,7 @@ export function getEffectiveIntegrationConfig(
 
   // Enforce the "advanced never holds a top-level IntegrationConfig key"
   // invariant on the read boundary. A stale `advanced.sources: ""` (issue
-  // #125 leftover) merged in from any layer would otherwise reach the
+  // #231 leftover) merged in from any layer would otherwise reach the
   // Configure dialog seed and the Verify snapshot, where the GitHub-family
   // plugins reject it with "sources must be an array". Write paths run the
   // manifest-aware `filterAdvancedAgainstManifest`; reads only need the

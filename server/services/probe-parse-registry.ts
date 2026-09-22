@@ -2,7 +2,7 @@ import type { AgentVersionProbeDirective, ChoiceProbeParseMode } from "@roubo/sh
 import type { VersionProbeSpec } from "@roubo/shared/agent-launch-descriptor-schema";
 import type { ProbeSpawnOutput } from "./probe-spawn.js";
 
-// The parse-mode registry (#851, APCC-FR-001).
+// The parse-mode registry (#1266, APCC-FR-001).
 //
 // A probe declaration names HOW its output is read with a `parse` literal, and
 // this module is the one place a literal turns into a core-owned reader. The
@@ -42,10 +42,10 @@ export type ProbeReader<M extends ProbeParseMode> = (
   output: ProbeSpawnOutput,
 ) => ProbeReading<ProbeValueByMode[M]>;
 
-/** The most lines a `dash-line-pairs` listing may carry (spike #848). */
+/** The most lines a `dash-line-pairs` listing may carry (model-probe spike). */
 export const DASH_LINE_PAIRS_MAX_LINES = 2000;
 
-/** The line rule for `dash-line-pairs` (spike #848). Takes no options. */
+/** The line rule for `dash-line-pairs` (model-probe spike). Takes no options. */
 const DASH_LINE_PAIR = /^(\S+) - (.+)$/;
 
 /** Parse the first semver anywhere in arbitrary command output. */
@@ -79,7 +79,7 @@ function readSemver(output: ProbeSpawnOutput): ProbeReading<string> {
 }
 
 /**
- * `dash-line-pairs`: a listing of `<value> - <label>` lines (spike #848).
+ * `dash-line-pairs`: a listing of `<value> - <label>` lines (model-probe spike).
  *
  * Output cut at the size bound is refused first. Otherwise it reads stdout only,
  * and only after a zero exit. A nonzero exit is a probe error

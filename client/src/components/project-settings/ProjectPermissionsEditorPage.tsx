@@ -101,7 +101,7 @@ export function ProjectPermissionsEditorPage({ projectId }: ProjectPermissionsEd
   //
   // The tiers inside the rules axis fail open for the same reason rules do: an
   // agent that declares nothing carries all three, so an unanswered probe must
-  // not quietly take a tier away from a project that already uses it (#862).
+  // not quietly take a tier away from a project that already uses it (#1345).
   const showRules = capabilities?.rules !== false;
   const showResync = showRules && capabilities?.resync !== false;
   const showPosture = (capabilities?.postures.length ?? 0) > 0;

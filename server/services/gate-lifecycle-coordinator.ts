@@ -1,13 +1,13 @@
-// Gate lifecycle coordinator (#700, VG-FR-007, VG-US-005, VG-NFR-001).
+// Gate lifecycle coordinator (#721, VG-FR-007, VG-US-005, VG-NFR-001).
 //
 // The impure, I/O side that complements the pure `evaluateGate`
-// (`server/lib/gate-evaluator.ts`, #698). When a verify gate's state has
+// (`server/lib/gate-evaluator.ts`, #720). When a verify gate's state has
 // transitioned to `passed`, `onGatePassed` closes the gate's tracker issue
 // through the active integration plugin so the tracker's blocking relationship
 // clears and the next batch's units unblock (architecture.md "Happy path",
 // lines 155-166).
 //
-// Scope (issue #700): this module owns the close-on-pass step only. The caller
+// Scope (#721): this module owns the close-on-pass step only. The caller
 // gates on `evaluateGate` returning `passed`; a failed / pending / stale gate is
 // never handed here, so a premature unblock is impossible by construction. The
 // sign-off path that wires `evaluateGate` -> `onGatePassed` is a separate
@@ -90,7 +90,7 @@ function defaultDeps(): GateLifecycleDeps {
  * Whether a normalized issue is in a terminal/done state (idempotency check). An
  * issue whose `currentState` is already done needs no transition; closing it
  * again would be a redundant privileged call. Exported so the gate-read path can
- * derive a `signedOff` signal from the tracker issue's state (issue #830).
+ * derive a `signedOff` signal from the tracker issue's state (#833).
  */
 export function isDone(issue: NormalizedIssue): boolean {
   return DONE_STATUSES.has(issue.currentState.toLowerCase());
@@ -102,7 +102,7 @@ export function isDone(issue: NormalizedIssue): boolean {
  * (`plugins/github-com/src/normalize.ts`), so the common case is direct. The
  * selection is tolerant of casing and of trackers (e.g. Jira) whose transition
  * names embed a done-ish verb. When no transition can be determined, the caller
- * surfaces a clear error rather than guessing (issue #700 open question 1).
+ * surfaces a clear error rather than guessing (#721 open question 1).
  */
 export function pickDoneTransition(issue: NormalizedIssue): string | undefined {
   const transitions = issue.allowedTransitions;
@@ -126,7 +126,7 @@ export function pickDoneTransition(issue: NormalizedIssue): string | undefined {
 
 /**
  * Pick a reopen-bound transition from a done issue's `allowedTransitions` (issue
- * #830). The GitHub / GHE plugins expose exactly `["reopen"]` for a closed issue
+ * #833). The GitHub / GHE plugins expose exactly `["reopen"]` for a closed issue
  * (`plugins/github-com/src/normalize.ts`), so the common case is direct. The
  * selection mirrors `pickDoneTransition`: tolerant of casing and of trackers
  * whose transition names embed a reopen-ish verb. When no transition can be
@@ -237,7 +237,7 @@ export async function onGatePassed(
 
 /**
  * Reopen a signed-off gate's tracker issue so the gate can be edited again or
- * re-verified (issue #830). The mirror of `onGatePassed`: hand this a gate whose
+ * re-verified (#833). The mirror of `onGatePassed`: hand this a gate whose
  * tracker issue the operator wants reopened. The flow is:
  *
  *   1. Resolve the gate's tracker issue ref (`gate.tracker.ref`). A gate with no

@@ -10,7 +10,7 @@ import {
   save,
 } from "./_support/picker.js";
 
-// JSS-WU-010 (#359): the config-area end-to-end journey for team-default vs
+// JSS-WU-010 (#437): the config-area end-to-end journey for team-default vs
 // personal source sets. This mirrors the single `e2e_flow` case in the
 // `config` area of `.specifications/jira-sources-scale/test-cases.json`:
 //

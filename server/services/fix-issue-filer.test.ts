@@ -216,7 +216,7 @@ describe("FixIssueFiler: capability-absent degrades up front, never an orphan is
   });
 });
 
-describe("FixIssueFiler: one fix issue blocks every source-gate ref for a merged/split gate (issue #435/#445)", () => {
+describe("FixIssueFiler: one fix issue blocks every source-gate ref for a merged/split gate (#911/#919)", () => {
   it("links the created fix issue against gateRef AND each additionalGateRef", async () => {
     const { deps, createIssue, addBlockedBy } = makeDeps();
 

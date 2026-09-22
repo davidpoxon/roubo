@@ -3,7 +3,7 @@ import type { ConfigFieldError, PluginManifest } from "@roubo/shared";
 
 /**
  * Validates one agent plugin's app-level config record against that plugin's
- * manifest `configSchema` (AP-FR-003, AP-TC-011, issue #508).
+ * manifest `configSchema` (AP-FR-003, AP-TC-011, #1032).
  *
  * The server is the primary rejection path: the AI Agents form renders enum
  * fields as selects, but a client that posts an out-of-enum value directly must
@@ -134,7 +134,7 @@ const KEY_SET_WIDENING_KEYWORDS = [
 
 /**
  * The subset of `keys` that `manifest.configSchema` gives no way to accept
- * (issue #743).
+ * (#1149).
  *
  * Ajv only errors on an unknown key when the schema sets
  * `additionalProperties: false`, but a manifest that simply lists its

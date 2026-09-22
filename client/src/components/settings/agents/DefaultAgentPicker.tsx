@@ -3,7 +3,7 @@ import type { AgentPluginState } from "@roubo/shared";
 import DefaultAgentTile from "./DefaultAgentTile";
 
 /**
- * The Settings, Jigs default-agent picker (AP-FR-005, issue #515).
+ * The Settings, Jigs default-agent picker (AP-FR-005, #1051).
  *
  * Lifted out of `ProjectSettings`'s Jigs tab so the radiogroup can be scanned
  * and driven on its own (AP-TC-050) without mounting the whole settings screen.

@@ -156,7 +156,7 @@ describe("request helper (tested through exported functions)", () => {
     }
   });
 
-  // Issue #566 (CPHMTP-FR-008): the guard gates whether the missing-plugin dialog
+  // #978 (CPHMTP-FR-008): the guard gates whether the missing-plugin dialog
   // opens at all, so it must match ONLY an actionable resolution.
   describe("isMissingPluginError", () => {
     function notBound(resolution?: unknown) {
@@ -203,7 +203,7 @@ describe("request helper (tested through exported functions)", () => {
     });
   });
 
-  // Issue #617 (AC3): a bound-but-unconsented plugin carries `consent.pluginId` on
+  // #991 (AC3): a bound-but-unconsented plugin carries `consent.pluginId` on
   // the COMPONENT_NOT_BOUND body so the bench page can open an actionable consent
   // prompt.
   describe("isConsentError", () => {
@@ -1025,7 +1025,7 @@ describe("fetchTestbenchPlan", () => {
     expect(result).toEqual(response);
   });
 
-  it("appends a ?gateIds= filter when gate ids are supplied (#702)", async () => {
+  it("appends a ?gateIds= filter when gate ids are supplied (#726)", async () => {
     mockFetch.mockResolvedValue(
       jsonResponse({
         plan: { $schema: "x", schemaVersion: "1.0.0", specSlug: "demo", cases: [] },
@@ -1044,8 +1044,8 @@ describe("fetchTestbenchPlan", () => {
   });
 });
 
-describe("fetchGates / fetchGate (#702)", () => {
-  it("GETs the project's gates and invalidSpecs (#371)", async () => {
+describe("fetchGates / fetchGate (#726)", () => {
+  it("GETs the project's gates and invalidSpecs (#874)", async () => {
     const body = {
       gates: [
         {
@@ -1063,8 +1063,8 @@ describe("fetchGates / fetchGate (#702)", () => {
     expect(result).toEqual(body);
   });
 
-  // #549: scope the list to the bench's focused spec via ?slug=, url-encoded.
-  it("appends the focused-spec slug as ?slug= when given (#549)", async () => {
+  // #952: scope the list to the bench's focused spec via ?slug=, url-encoded.
+  it("appends the focused-spec slug as ?slug= when given (#952)", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ gates: [], invalidSpecs: [] }));
     await fetchGates("p1", "brigade-activity-report");
     expect(mockFetch).toHaveBeenCalledWith(
@@ -1133,7 +1133,7 @@ describe("reconcileTestbench", () => {
   });
 });
 
-describe("fetchPluginConsent (issue #615)", () => {
+describe("fetchPluginConsent (#656)", () => {
   it("GETs the consent endpoint and returns the parsed status", async () => {
     mockFetch.mockResolvedValue(
       jsonResponse({ declared: { network: { hosts: [] } }, firstParty: true }),
@@ -1147,7 +1147,7 @@ describe("fetchPluginConsent (issue #615)", () => {
   });
 });
 
-describe("grantPluginConsent (issue #615)", () => {
+describe("grantPluginConsent (#656)", () => {
   it("POSTs the acknowledged categories", async () => {
     mockFetch.mockResolvedValue(
       jsonResponse({
@@ -1168,7 +1168,7 @@ describe("grantPluginConsent (issue #615)", () => {
   });
 });
 
-// Issue #557: the merged multi-source catalog. `sourceId` is the source filter
+// #962: the merged multi-source catalog. `sourceId` is the source filter
 // chip's scoping param and rides alongside the existing q / kind params.
 describe("fetchMarketplaceCatalog", () => {
   it("requests the bare catalog when no params are given", async () => {
@@ -1196,7 +1196,7 @@ describe("fetchMarketplaceCatalog", () => {
   });
 });
 
-// Issue #562: the consent dialog's write. The endpoint is a pure write (no call
+// #975: the consent dialog's write. The endpoint is a pure write (no call
 // to the candidate URL), so this POST is the whole of "registering" a source, and
 // the row it returns is the consent record (CPHMTP-FR-002 / CPHMTP-NFR-003).
 describe("registerMarketplaceSource", () => {

@@ -99,7 +99,7 @@ afterEach(() => {
 });
 
 describe("readPlanAndResults", () => {
-  // #493: one results file per worktree, case results at the top level (no
+  // #494: one results file per worktree, case results at the top level (no
   // per-bench keying). The plan + results both resolve under the worktree root.
   it("reads the plan and the worktree's top-level results", async () => {
     writePlan(planFor());
@@ -114,7 +114,7 @@ describe("readPlanAndResults", () => {
     expect(fs.existsSync(resultsFilePath())).toBe(true);
   });
 
-  // #493: case results live at the top level of the file, not nested under a
+  // #494: case results live at the top level of the file, not nested under a
   // `benches` map.
   it("writes case results at the top level of the file (no benches map)", async () => {
     writePlan(planFor());
@@ -153,7 +153,7 @@ describe("readPlanAndResults", () => {
     expect(view.recovered).toBe(true);
     // NFR-005: the recovery reason names WHY it recovered (here: no prior file).
     expect(view.recoveryReason).toBe("missing");
-    // Issue #469: only a prior-major recovery names the migration guide; every
+    // #928: only a prior-major recovery names the migration guide; every
     // other reason (here: missing) leaves it null.
     expect(view.migrationGuide).toBeNull();
     expect(view.stale).toBe(false);
@@ -168,7 +168,7 @@ describe("readPlanAndResults", () => {
     expect(view.results).toBeNull();
     expect(view.recovered).toBe(true);
     expect(view.recoveryReason).toBe("corrupt-json");
-    // Issue #469: a generic corruption recovery does not name the migration guide.
+    // #928: a generic corruption recovery does not name the migration guide.
     expect(view.migrationGuide).toBeNull();
   });
 
@@ -203,7 +203,7 @@ describe("readPlanAndResults", () => {
     expect(view.results).toBeNull();
     expect(view.recovered).toBe(true);
     expect(view.recoveryReason).toBe("version-migration-required");
-    // Issue #469 (AC1/AC3): the observable payload names the documented migration
+    // #928 (AC1/AC3): the observable payload names the documented migration
     // path so a user can find the migration steps, not just the reason token.
     expect(view.migrationGuide).toBe(TESTBENCH_MIGRATION_GUIDE_PATH);
     expect(view.migrationGuide).toBe("docs/testbench-schema-migrations.md");
@@ -307,7 +307,7 @@ describe("markObservation", () => {
     expect(result.derivedStatus).toBe("failed");
   });
 
-  // #508: a single fail moves the case to failed even before every observation
+  // #510: a single fail moves the case to failed even before every observation
   // is marked.
   it("derives failed from one fail with other observations still unmarked", async () => {
     const result = await markObservation(repo, SLUG, "TC-001", "O1", "fail");
@@ -315,7 +315,7 @@ describe("markObservation", () => {
     expect(result.observationMarks.O2).toBeUndefined();
   });
 
-  // #508: a null result un-sets the mark entirely and recomputes derivedStatus.
+  // #510: a null result un-sets the mark entirely and recomputes derivedStatus.
   it("clears a mark when result is null and recomputes derivedStatus", async () => {
     await markObservation(repo, SLUG, "TC-001", "O1", "pass");
     let result = await markObservation(repo, SLUG, "TC-001", "O2", "pass");
@@ -334,7 +334,7 @@ describe("markObservation", () => {
     expect(view.results?.caseResults["TC-001"].observationMarks).toEqual({});
   });
 
-  // #508: clearing an observation that was never marked is a harmless no-op.
+  // #510: clearing an observation that was never marked is a harmless no-op.
   it("is a no-op when clearing an unmarked observation", async () => {
     const result = await markObservation(repo, SLUG, "TC-001", "O1", null);
     expect(result.observationMarks).toEqual({});
@@ -373,7 +373,7 @@ describe("markObservation", () => {
     expect(planBytes().equals(before)).toBe(true);
   });
 
-  // SATCA-TC-012 / SATCA-NFR-004 (#764): a spec recorded at the PREVIOUS case
+  // SATCA-TC-012 / SATCA-NFR-004 (#1158): a spec recorded at the PREVIOUS case
   // schema version is never silently re-versioned. Reading it and marking an
   // observation touches the results sidecar only, so the case file keeps both
   // its bytes and its recorded 1.1.0 version. The version is raised only when a
@@ -484,7 +484,7 @@ function twoCasePlan(): TestCasesPlan {
   return plan;
 }
 
-describe("caseCanon stamping on the write path (#504)", () => {
+describe("caseCanon stamping on the write path (#505)", () => {
   beforeEach(() => writePlan(planFor()));
 
   it("stamps caseCanon equal to canonicalizeCase(planCase) after markObservation", async () => {
@@ -609,7 +609,7 @@ describe("reconcile (NFR-003 orphan-not-delete)", () => {
     expect(file.planHash).toBe(computePlanHash(planFor()));
   });
 
-  // NFR-003 / #447: a confirmed reconcile of a marked, in-plan case persists the
+  // NFR-003 / #489: a confirmed reconcile of a marked, in-plan case persists the
   // per-case caseCanon snapshot testbench-domain stamps, and that file must
   // round-trip through the strict published contract. The contract now declares
   // caseCanon, so the snapshot lands on disk and re-reads cleanly: the
@@ -635,13 +635,13 @@ describe("reconcile (NFR-003 orphan-not-delete)", () => {
   });
 });
 
-// #767 (SATCA-FR-022, SATCA-TC-055): the v1.2.0 lifecycle block (#764) is excluded
+// #1160 (SATCA-FR-022, SATCA-TC-055): the v1.2.0 lifecycle block (#1158) is excluded
 // from the canonical case body, so the plan hash covers the TESTABLE plan only.
 // canonicalize's own suite locks the canonical STRING; these lock the rest of the
 // chain: sha256 (computePlanHash), the store's `stale` flag, and reconcile's
 // classification. Each assertion is paired with a negative control, so the
 // exclusion can never be mistaken for staleness detection having stopped working.
-describe("lifecycle exclusion from the plan hash (#767, SATCA-FR-022)", () => {
+describe("lifecycle exclusion from the plan hash (#1160, SATCA-FR-022)", () => {
   function retiredPlan(): TestCasesPlan {
     const plan = planFor();
     plan.cases[0].lifecycle = { state: "retired", reason: "Login flow was replaced" };
@@ -711,11 +711,11 @@ describe("lifecycle exclusion from the plan hash (#767, SATCA-FR-022)", () => {
   });
 });
 
-// #427: the read sinks resolve `.specifications/<slug>/…` under repoPath through
+// #903: the read sinks resolve `.specifications/<slug>/…` under repoPath through
 // the lexical resolveWithin guard, which cannot see an on-disk symlink whose name
 // is a valid slug. The path helpers now apply the realpath barrier before the fs
 // read, so a symlinked spec dir cannot make a read resolve outside repoPath.
-describe("path-safety: symlinked spec dir cannot escape repoPath (#427)", () => {
+describe("path-safety: symlinked spec dir cannot escape repoPath (#903)", () => {
   // Mirrors TC-052: a valid-slug `.specifications/<slug>` symlink pointing outside
   // the repo passes the lexical check but is rejected by the realpath barrier
   // before the plan is read, so a plan sitting outside the repo is never read.

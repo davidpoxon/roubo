@@ -107,9 +107,9 @@ describe("process plugin translate (CP-FR-005, CP-FR-007)", () => {
   });
 });
 
-// #836: the plugin stays a pure mapping. It copies `shell` onto the descriptor
+// #1218: the plugin stays a pure mapping. It copies `shell` onto the descriptor
 // and the host's LifecycleEngine owns the argv-vs-shell branch.
-describe("process plugin translate: shell (#836)", () => {
+describe("process plugin translate: shell (#1218)", () => {
   it("omits shell from the descriptor when the config omits it", () => {
     const descriptor = translate({ config: { command: "npm run dev" }, context });
     expect("shell" in descriptor).toBe(false);

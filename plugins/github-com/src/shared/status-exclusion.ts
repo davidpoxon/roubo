@@ -1,6 +1,6 @@
-// Shared github-family server-side status exclusion (issue #399).
+// Shared github-family server-side status exclusion (#404).
 //
-// After #354 the host no longer filters excluded statuses client-side, so each
+// After #402 the host no longer filters excluded statuses client-side, so each
 // plugin must honor its resolved `excludedStatuses` itself. For the github
 // family the only status beyond open/closed is a GitHub Projects v2 "Status"
 // column value (e.g. "In review", "PR open", "Done"); github.com has no

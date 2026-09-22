@@ -20,7 +20,7 @@ import {
 // "AP-TC-055".
 const observe = makeObserve("AP-TC-055");
 
-// AP-TC-055 (#530, AP-WU-029) - E2E: a jig-driven agent session injects its
+// AP-TC-055 (#1125, AP-WU-029) - E2E: a jig-driven agent session injects its
 // prompt, fires the notification hook, and raises waiting then exited
 // notifications.
 //

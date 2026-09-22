@@ -47,7 +47,7 @@ test("connected chip surfaces on the project Issue Source tile header", async ({
 }) => {
   // Placement 3 needs a registered project whose active integration is the
   // e2e-stub plugin so `IssueSourceTile` renders its `configured` variant
-  // (IssueSourceTile.tsx:198-203). The fixture (#232) registers the project
+  // (IssueSourceTile.tsx:198-203). The fixture (#249) registers the project
   // and pins the override; /test/__reset in `beforeEach` tears it down.
   const { projectId } = await registerFixtureProject(request, {
     projectId: FIXTURE_PROJECT_ID,

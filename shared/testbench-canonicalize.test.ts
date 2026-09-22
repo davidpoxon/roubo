@@ -210,7 +210,7 @@ describe("canonicalize (spike-407 AC1/AC2)", () => {
     expect(canonicalize(plan(["beta", "alpha"]))).not.toBe(canonicalize(plan(["alpha", "beta"])));
   });
 
-  // #764: the lifecycle block is metadata about a case, not part of its testable
+  // #1158: the lifecycle block is metadata about a case, not part of its testable
   // body, so the allowlist projection drops it. Retiring or superseding a case
   // must therefore leave the plan hash (and that case's changed/unchanged
   // classification) untouched.

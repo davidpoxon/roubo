@@ -40,7 +40,7 @@ import type { DiscoveredSpec, SpecLifecycleRecordInput } from "../../lib/api";
 import Select from "../Select";
 import Spinner from "../Spinner";
 
-// The leading marker for a pass-state summary line (#483, TSPF-FR-006). Each
+// The leading marker for a pass-state summary line (#937, TSPF-FR-006). Each
 // marker maps to a specific dot or icon; the summary text always accompanies it,
 // so state is never conveyed by colour alone (a dot/icon plus words in every
 // case). Decorative only (aria-hidden), the adjacent text carries the meaning.
@@ -73,8 +73,8 @@ type Selection =
   | { kind: "manual"; slug: string; path: string }
   | null;
 
-// Copy that differs between the two flows the picker drives. `create` (#418) binds
-// a brand-new bench to a focused spec; `repoint` (#423, FR-024) re-points an active
+// Copy that differs between the two flows the picker drives. `create` (#467) binds
+// a brand-new bench to a focused spec; `repoint` (#472, FR-024) re-points an active
 // TestBench to a different focused spec. The selection UI and explicit-confirm
 // contract are identical; only the title, helper text, and button labels change.
 const MODE_COPY = {
@@ -96,7 +96,7 @@ const MODE_COPY = {
 
 export type SpecPickerMode = keyof typeof MODE_COPY;
 
-// The two lifecycle actions that need input before they can be applied (#773,
+// The two lifecycle actions that need input before they can be applied (#1166,
 // SATCA-FR-020). Restore takes none, so it is applied straight from the menu.
 type PendingLifecycleAction = { kind: "archive" | "supersede"; spec: DiscoveredSpec };
 
@@ -126,8 +126,8 @@ const LIFECYCLE_COPY = {
 const LIFECYCLE_MENU_ITEM_CLASS =
   "flex items-start gap-2.5 px-3 py-2 rounded-chip text-12 cursor-default outline-none transition-colors text-text-secondary data-[focused]:bg-bg-hover data-[focused]:text-text-primary";
 
-// Spec picker shared by the create flow (#418, FR-001/FR-002/FR-003) and the
-// re-point flow (#423, FR-024). Lists the discovered specs and offers a manual-path
+// Spec picker shared by the create flow (#467, FR-001/FR-002/FR-003) and the
+// re-point flow (#472, FR-024). Lists the discovered specs and offers a manual-path
 // escape hatch with live validation. Confirm stays disabled until a valid selection
 // exists; on confirm it calls onCreate with the chosen focusedSpecPath and the host
 // owns the create / re-point flow. Dismissal (Cancel / overlay / Escape) never calls
@@ -147,7 +147,7 @@ export default function SpecPickerModal({
   onCreate: (focusedSpecPath: string) => void;
   isCreating?: boolean;
   mode?: SpecPickerMode;
-  // Re-point only (#423/#444, TC-007 step 2): the currently focused spec's
+  // Re-point only (#472/#486, TC-007 step 2): the currently focused spec's
   // path, so the matching discovered row is flagged as the active spec. Unset
   // in create mode (no bench is bound yet).
   activePath?: string;
@@ -159,20 +159,20 @@ export default function SpecPickerModal({
   const [manualPath, setManualPath] = useState("");
   const [selectedDiscoveredPath, setSelectedDiscoveredPath] = useState<string | null>(null);
   // The all-passed disclosure is collapsed by default and reset to collapsed on
-  // every close (see reset()), so it is always collapsed on reopen (#483,
+  // every close (see reset()), so it is always collapsed on reopen (#937,
   // TSPF-FR-005). Selection lives in selectedDiscoveredPath, shared across both
   // groups, so collapsing the tail never drops a selection made inside it.
   const [allPassedExpanded, setAllPassedExpanded] = useState(false);
   // Archived specs are hidden from the default list and revealed only by the
   // "Show archived" control, which starts off and is reset on every close (see
-  // reset()), so the picker always reopens showing the live specs alone (#770,
+  // reset()), so the picker always reopens showing the live specs alone (#1162,
   // SATCA-FR-015/FR-016). Revealed rows join the same controlled selection group,
   // so an archived spec stays loadable.
   const [showArchived, setShowArchived] = useState(false);
   // Ties the reveal control to the group it discloses (aria-controls) so the
-  // relationship is machine-readable rather than only visual (#775, AC2).
+  // relationship is machine-readable rather than only visual (#1173, AC2).
   const archivedGroupId = useId();
-  // The lifecycle confirm step (#773). While set, the picker body is replaced by
+  // The lifecycle confirm step (#1166). While set, the picker body is replaced by
   // the confirm form for that one spec, rather than opening a second modal on
   // top of this one: nesting dialogs would aria-hide the picker while it still
   // holds focusable rows.
@@ -180,7 +180,7 @@ export default function SpecPickerModal({
   const [archiveReason, setArchiveReason] = useState("");
   const [supersedeTarget, setSupersedeTarget] = useState("");
   const [lifecycleError, setLifecycleError] = useState<string | null>(null);
-  // The one row-actions menu, shared by every row (#773). Each row renders only a
+  // The one row-actions menu, shared by every row (#1166). Each row renders only a
   // native trigger button; the spec whose menu is open and the button it anchors
   // to live here. A react-aria MenuTrigger + Button per row made the triggers
   // about 40% of the cost of opening the picker on a 25-spec payload
@@ -290,18 +290,18 @@ export default function SpecPickerModal({
   const showEmptyDiscovery = !isLoading && !isError && (specs?.length ?? 0) === 0 && !hasInvalid;
   const showInvalidSpecs = !isLoading && !isError && hasInvalid;
 
-  // Partition the discovered specs (#483, TSPF-FR-003; #770, SATCA-FR-015):
+  // Partition the discovered specs (#937, TSPF-FR-003; #1162, SATCA-FR-015):
   // archived specs are split off first and hidden until "Show archived" is
   // pressed, then the live ones divide into needs-attention (the prominent main
   // space) and all-passed (the collapsed tail disclosure). Purely presentational,
   // keyed on the server's lifecycle and classification.
   const { needsAttention, allPassed, archived } = partitionSpecs(specs ?? []);
 
-  // Every LIVE discovered spec is all-passed (#484, TSPF-FR-007): the main space
+  // Every LIVE discovered spec is all-passed (#939, TSPF-FR-007): the main space
   // would otherwise be blank, so we show an explicit empty state pointing at the
   // completed group below and the manual-path field. Keyed on the all-passed
   // group rather than the raw spec count so a project whose only remaining specs
-  // are archived does not claim they all passed (#770), and not on hasInvalid:
+  // are archived does not claim they all passed (#1162), and not on hasInvalid:
   // the invalid panel keeps its own separate messaging.
   const showAllPassedEmptyState =
     !isLoading && !isError && allPassed.length > 0 && needsAttention.length === 0;
@@ -311,7 +311,7 @@ export default function SpecPickerModal({
   // rows via colour hierarchy (the slug drops to text-secondary). Every text
   // class holds the AA floor (text-secondary clears 4.5:1 on the modal's
   // bg-surface in both themes); the path sits at that floor in both
-  // groups, so muting collapses there and the hierarchy reads via the slug (#493).
+  // groups, so muting collapses there and the hierarchy reads via the slug (#943).
   const openRowMenu = (
     trigger: HTMLButtonElement,
     spec: DiscoveredSpec,
@@ -328,12 +328,12 @@ export default function SpecPickerModal({
     const summary = deriveSpecSummary(spec);
     // Archived rows (only ever rendered inside the revealed archived group) carry
     // a text label distinguishing a superseded spec from a merely archived one,
-    // plus the superseding slug and any recorded reason (#770, SATCA-FR-016).
+    // plus the superseding slug and any recorded reason (#1162, SATCA-FR-016).
     const archivedLabel = spec.lifecycle.archived ? deriveArchivedLabel(spec) : null;
     // The lifecycle actions trigger is a SIBLING of the toggle, never a child of
     // it: a row is a single ToggleButton, and nesting a menu trigger inside one
     // would nest interactive elements. Both sit in a flex row so they still read
-    // as one line (#773, SATCA-FR-020/FR-021). The menu itself is rendered once,
+    // as one line (#1166, SATCA-FR-020/FR-021). The menu itself is rendered once,
     // below, and anchors to whichever trigger opened it.
     const toggle = (
       <ToggleButton
@@ -455,7 +455,7 @@ export default function SpecPickerModal({
               </div>
 
               {/* The confirm step replaces the picker body rather than stacking a
-                  second dialog on top of it (#773). One dialog stays open
+                  second dialog on top of it (#1166). One dialog stays open
                   throughout, so the rows behind are unmounted rather than left
                   focusable inside an aria-hidden subtree. */}
               {pendingAction !== null && (
@@ -618,7 +618,7 @@ export default function SpecPickerModal({
                         </div>
                       )}
 
-                      {/* Every discovered spec is all-passed (#484, TSPF-FR-007):
+                      {/* Every discovered spec is all-passed (#939, TSPF-FR-007):
                       an explicit message fills the main space instead of a blank
                       list, pointing at the completed group below and the
                       manual-path field. Rendered above the group so the collapsed
@@ -711,7 +711,7 @@ export default function SpecPickerModal({
                             </>
                           )}
 
-                          {/* Archived specs (#770, SATCA-FR-015/FR-016) sit behind
+                          {/* Archived specs (#1162, SATCA-FR-015/FR-016) sit behind
                           their own reveal control at the very tail, off by
                           default and reset off on close. Like the all-passed
                           disclosure the control is a plain Button interspersed in
@@ -749,7 +749,7 @@ export default function SpecPickerModal({
                                 </span>
                               </Button>
                               {/* What the reveal did to the list, in words
-                                  (#775, AC2). aria-pressed alone tells a screen
+                                  (#1173, AC2). aria-pressed alone tells a screen
                                   reader the control's own state; this says what
                                   changed below it, which is the thing the
                                   reviewer cannot see happen. Always mounted so

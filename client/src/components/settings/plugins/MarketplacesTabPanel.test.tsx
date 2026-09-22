@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 //
 // Container wiring for the Marketplaces settings section. MarketplacesTab exposes
-// the Add and per-row Remove seams (issue #561); this container wires both.
+// the Add and per-row Remove seams (#976); this container wires both.
 //
-// Add (CPHMTP-FR-002 / CPHMTP-US-001, issue #609): the Add control opens the
+// Add (CPHMTP-FR-002 / CPHMTP-US-001, #983): the Add control opens the
 // registration consent dialog with an empty URL field, and a confirmed
 // registration calls useRegisterMarketplaceSource and closes the dialog. These
 // cover that Add opens the dialog empty, that confirming a typed URL calls the
@@ -12,7 +12,7 @@
 // already-registered) surfaces inline without dismissing the dialog or losing
 // typed input, and that focus returns to the Add control on close (CPHMTP-NFR-008).
 //
-// Remove (CPHMTP-FR-009 / CPHMTP-US-006, issue #564): MarketplacesTab exposes the
+// Remove (CPHMTP-FR-009 / CPHMTP-US-006, #980): MarketplacesTab exposes the
 // per-row Remove seam; this container wires it to the removal consequences dialog
 // and drives DELETE /api/marketplace/sources/:id on confirm. These cover that
 // Remove… opens the dialog (CPHMTP-TC-011 S002, CPHMTP-TC-012), that confirming
@@ -151,7 +151,7 @@ function backdrop(baseElement: HTMLElement) {
   return el as HTMLElement;
 }
 
-// CPHMTP-FR-002 / CPHMTP-US-001 (issue #609): the Add control mounts the shared
+// CPHMTP-FR-002 / CPHMTP-US-001 (#983): the Add control mounts the shared
 // consent dialog with an empty URL field the user types into.
 describe("MarketplacesTabPanel: opening the add dialog (CPHMTP-FR-002)", () => {
   it("opens the consent dialog with an empty URL field when Add is pressed", async () => {

@@ -25,7 +25,7 @@
 // network-free, and runs under `npm test`.
 //
 // Two digests live in this journey, and the drift-guard keeps their roles distinct
-// (this reconciles the #765 built-artifact migration note in marketplace-integrity.ts):
+// (this reconciles the #792 built-artifact migration note in marketplace-integrity.ts):
 //   - the normalized-tarball sha256 (from the pack recipe) is the reproducible asset
 //     digest the publish-gate self-check (roubo-plugins/scripts/release/self-check.mjs)
 //     re-hashes the uploaded `.tgz` against; it is recorded on the catalog entry's
@@ -42,7 +42,7 @@
 // Failure-output contract (AC: "On failure the test reports the diverging step,
 // expected vs actual, and the owning slice issue(s)"): every assertion attaches an
 // expected-vs-actual message naming the diverging step and the owning slice from
-// #316's blocked-by set, so a red run localizes the integration drift to one
+// the work unit's blocked-by set, so a red run localizes the integration drift to one
 // attributable slice.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -59,16 +59,14 @@ import {
   verifyPackageIntegrity,
 } from "./marketplace-integrity.js";
 
-// ── Owning slices (this e2e unit's blocked-by set, from #316) ──
+// ── Owning slices (this e2e unit's blocked-by set, from #840) ──
 // Each step localizes a divergence to the slice(s) that own its behaviour, so a red
 // run points at one attributable issue rather than the whole journey.
 const SLICE_SDK_PUBLISH =
-  "#300 (publish @roubo/plugin-sdk + shared + shared-github for out-of-repo builds)";
-const SLICE_REPO_SPLIT =
-  "#303 (roubo-plugins repo split: the author builds against the published SDK)";
-const SLICE_CI_PUBLISH = "#304 (CI build/sign/publish pipeline with reproducible digest)";
-const SLICE_TRUSTED_PUBLISHERS =
-  "#323 (npm trusted publishers for @roubo/shared + @roubo/shared-github)";
+  "publish @roubo/plugin-sdk + shared + shared-github for out-of-repo builds";
+const SLICE_REPO_SPLIT = "roubo-plugins repo split: the author builds against the published SDK";
+const SLICE_CI_PUBLISH = "CI build/sign/publish pipeline with reproducible digest";
+const SLICE_TRUSTED_PUBLISHERS = "npm trusted publishers for @roubo/shared + @roubo/shared-github";
 
 // ── Fixture identifiers (TC-070 preconditions) ──
 // A plugin author has a plugin project in the separate plugins repo with PINNED @roubo

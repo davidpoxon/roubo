@@ -17,10 +17,10 @@ import {
 // keyring credential are all deleted.
 //
 // This drives the shipped surfaces end to end: the Marketplaces settings list and
-// its Remove seam (issue #561), the removal consequences dialog + confirmation
-// toast (issue #564), and the orphan stamp the removal writes to the provenance
-// ledger (issue #560), which the installed-plugins card renders through the shared
-// ProvenanceBadge (issue #563). The removal itself runs the real
+// its Remove seam (#976), the removal consequences dialog + confirmation
+// toast (#980), and the orphan stamp the removal writes to the provenance
+// ledger (#968), which the installed-plugins card renders through the shared
+// ProvenanceBadge (#977). The removal itself runs the real
 // DELETE /api/marketplace/sources/:id cascade (marketplace-sources-state.removeSource:
 // registry-row delete, per-source cache-dir delete, keyring-credential delete, and
 // the ledger orphan stamp).
@@ -29,9 +29,9 @@ import {
 // case CPHMTP-TC-011 step for step (S001-S006). If that case changes, update this
 // spec to match.
 //
-// Failure-output contract (issue #571 acceptance criteria 6-7 / FR-020): every
+// Failure-output contract (#990 acceptance criteria 6-7 / FR-020): every
 // assertion below names the diverging step / observation id, the expected-vs-actual,
-// and the owning slice issue from this unit's blocked-by set (#561 / #564 / #560),
+// and the owning slice from this unit's blocked-by set (delivered in #976 / #980 / #968),
 // so a red run localizes the drift to one attributable slice.
 //
 // TEST SEAMS (there is no pure-UI path to the preconditions or to inspecting the

@@ -4,7 +4,7 @@ import path from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
-// Issue #558 / CPHMTP-FR-005 AC4: the ledger that remembers which marketplace
+// #966 / CPHMTP-FR-005 AC4: the ledger that remembers which marketplace
 // source a plugin was installed from. Mirrors plugin-consent-state.test.ts: a
 // sandboxed HOME per test, and a fresh module import so the in-process lastKnown
 // cache never leaks between cases.
@@ -157,7 +157,7 @@ describe("recordProvenance", () => {
   });
 });
 
-// Issue #560 / CPHMTP-FR-009 AC4: removing a source stamps the plugins that came
+// #968 / CPHMTP-FR-009 AC4: removing a source stamps the plugins that came
 // from it, and the stamp is persisted rather than recomputed by joining against
 // the (now gone) source registry.
 describe("markOrphanedBySource", () => {

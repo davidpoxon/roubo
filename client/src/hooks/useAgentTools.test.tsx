@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// Issue #672: the app-scoped resolved-preset query the Settings agent tools
+// #1084: the app-scoped resolved-preset query the Settings agent tools
 // listing reads its advisory `degraded` field from. The cases here pin the one
 // thing a component test cannot, because it mocks this hook: that the query is
 // keyed on the default agent, so the degrade verdict is re-derived when the

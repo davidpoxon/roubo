@@ -14,7 +14,7 @@ import { resetWithScenario } from "../e2e-flow/_support/scenario.js";
 //
 // Adding more endpoints or assertions here would duplicate that coverage and
 // widen the harness self-test's own flake surface. IP-NFR-018 demands zero
-// retries; the suite-wide 10-run reliability budget is tracked at #216
+// retries; the suite-wide 10-run reliability budget is tracked at #246
 // (IP-TC-148).
 
 const SCENARIO = "meta-e2e-self-test";

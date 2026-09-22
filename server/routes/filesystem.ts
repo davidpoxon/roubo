@@ -14,7 +14,7 @@ const router = Router();
 // to keep a runaway caller from hammering the filesystem. Applied router-wide
 // because this router has a single route mounted on its own /api/filesystem/browse
 // prefix. Mirrors the pattern in plugins-github-oauth.ts and satisfies CodeQL
-// js/missing-rate-limiting (#38).
+// js/missing-rate-limiting (#83).
 const browseRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 30,

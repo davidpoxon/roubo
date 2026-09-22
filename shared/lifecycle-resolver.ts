@@ -1,5 +1,5 @@
 // LifecycleResolver: the single pure owner of every supersession-resolution rule
-// (#766, SATCA-FR-009, SATCA-FR-010, SATCA-FR-012). The live predicate, the
+// (#1159, SATCA-FR-009, SATCA-FR-010, SATCA-FR-012). The live predicate, the
 // transitive walk, the cycle guard, the depth limit, cross-spec resolution
 // against a caller-supplied plan map, and the closed six-value vocabulary of
 // unresolved reasons all live here and nowhere else.
@@ -27,11 +27,11 @@
 //
 // The rules below are transcribed from the spike that settled them, not
 // re-derived: `.specifications/spec-and-test-case-archival/spikes/
-// spike-763-supersession-pointer-resolution-rules.md` (#763).
+// spike-763-supersession-pointer-resolution-rules.md`.
 
 // ── The depth limit ──
 //
-// A module constant with no configuration surface (#763 AC1). Depth counts HOPS
+// A module constant with no configuration surface (pointer-rules spike AC1). Depth counts HOPS
 // FOLLOWED, not nodes visited: the origin case is depth 0, following its
 // replacement pointer lands at depth 1. A chain that reaches a live case on hop
 // 10 RESOLVES; only a landing that is still superseded at hop 10, and so would
@@ -40,7 +40,7 @@ export const MAX_SUPERSESSION_DEPTH = 10;
 
 // ── The closed unresolved vocabulary ──
 //
-// Exhaustive over the failure space and closed: #763 AC3 is explicit that a
+// Exhaustive over the failure space and closed: the pointer-rules spike's AC3 is explicit that a
 // retired case inside an archived spec reports `target archived` rather than
 // minting a seventh value, because both `SATCA-FR-010` and `SATCA-FR-029` quote
 // this list and widening it would put the PRD behind the resolver.
@@ -146,16 +146,16 @@ export interface Resolution {
   reason: UnresolvedReason | null;
   // The final landing's own case state, where it could be determined. Null when
   // the landing's spec was not supplied, or when the case id exists in no plan.
-  // Carried alongside `reason` so #774's authoring-time preview can say "that
+  // Carried alongside `reason` so #1169's authoring-time preview can say "that
   // specification is archived, and that case is retired within it" without a
-  // seventh reason value (#763 AC3).
+  // seventh reason value (pointer-rules spike AC3).
   targetCaseState: CaseState | null;
   // The final landing's spec state.
   targetSpecState: SpecState;
   // Remedy hint only: the `supersededBy` slug recorded on an archived target
   // spec. Spec-level supersession is NEVER walked, because a slug names no case,
   // so nothing in the data model says which case in the successor spec carries
-  // the obligation (#763 AC2).
+  // the obligation (pointer-rules spike AC2).
   supersededBy: string | null;
 }
 
@@ -251,11 +251,11 @@ function findCase(plan: ResolverPlan | undefined, caseId: string): ResolverCase 
 //
 // `originCase` is passed alongside its slug rather than looked up, so the entry
 // point is total: there is no "the origin does not exist" outcome to represent,
-// and the six reasons stay statements about TARGETS, exactly as #763 scopes them.
+// and the six reasons stay statements about TARGETS, exactly as the pointer-rules spike scopes them.
 //
 // The origin's own spec state is deliberately NOT a gate here. Whether a case in
 // an archived spec is gated at all is a gating-set question owned by
-// SpecDiscovery and GateEvaluator; the walk's rules concern targets (#763 AC2).
+// SpecDiscovery and GateEvaluator; the walk's rules concern targets (pointer-rules spike AC2).
 export function resolveCase(
   originSlug: string,
   originCase: ResolverCase,
@@ -320,7 +320,7 @@ export function resolveCase(
   });
 
   // The visited-set is seeded with the origin, so a chain that points back at
-  // its own head is a cycle rather than a re-walk (#763 AC1).
+  // its own head is a cycle rather than a re-walk (pointer-rules spike AC1).
   const visited = new Set<string>([visitedKey(origin)]);
 
   let currentSlug = originSlug;
@@ -340,7 +340,7 @@ export function resolveCase(
 
     // Guards before the hop, cycle first. `cycle detected` takes precedence over
     // `depth exceeded` wherever both could apply, because re-entry is detected
-    // the moment it happens (#763 AC1).
+    // the moment it happens (pointer-rules spike AC1).
     if (visited.has(visitedKey(pointer))) {
       // Append the repeated node so the reported chain shows the loop closing.
       chain.push(pointer);
@@ -369,7 +369,7 @@ export function resolveCase(
     chain.push(pointer);
     visited.add(visitedKey(pointer));
 
-    // Landing checks, in the order #763 AC3 fixes: spec state before case state.
+    // Landing checks, in the order the pointer-rules spike's AC3 fixes: spec state before case state.
     const targetPlan = plans.get(pointer.slug);
     if (!targetPlan) {
       return unresolved("target spec not supplied", null, "not supplied", null);
@@ -379,7 +379,7 @@ export function resolveCase(
     const targetCase = findCase(targetPlan, pointer.caseId);
     if (archived !== undefined) {
       // Fail closed whatever the target case's own state, and carry that state
-      // in the payload so the preview can name both facts (#763 AC2, AC3).
+      // in the payload so the preview can name both facts (pointer-rules spike AC2, AC3).
       return unresolved(
         "target archived",
         targetCase ? caseStateOf(targetCase) : null,

@@ -8,7 +8,7 @@ import { CATEGORY_META } from "../../marketplace/permission-categories";
 import ProvenanceBadge from "../../marketplace/ProvenanceBadge";
 import { trustTreatmentOf, type PluginProvenance } from "../../marketplace/plugin-provenance";
 
-// Consent affordance for an already-installed component plugin (issue #490).
+// Consent affordance for an already-installed component plugin (#938).
 // Bundled component plugins (process / database) ship installed but never pass
 // through the marketplace install flow, so they have no ConsentRecord and no
 // reachable way to mint one: every bench start then fails with `not-consented`.
@@ -19,7 +19,7 @@ import { trustTreatmentOf, type PluginProvenance } from "../../marketplace/plugi
 // flow (staging token, 4-step install-progress widget, "Install/Update" labels),
 // all of which would mislead here since the plugin is already installed.
 //
-// The trust banner is provenance-driven (CPHMTP-FR-006, issue #563): this dialog
+// The trust banner is provenance-driven (CPHMTP-FR-006, #977): this dialog
 // is one of the enumerated plugin surfaces, so a third-party plugin must wear its
 // non-dismissible Unverified badge and its source provenance here too, and the
 // lead copy must not assert first-party verification the record does not carry
@@ -53,7 +53,7 @@ interface Props {
   onClose: () => void;
   /**
    * Fired after consent is successfully recorded, before `onClose`. The bench-page
-   * consent fallback (issue #617, AC3) uses it to resume the component start the
+   * consent fallback (#991, AC3) uses it to resume the component start the
    * consent gate blocked; the Settings caller omits it and just closes.
    */
   onGranted?: () => void;

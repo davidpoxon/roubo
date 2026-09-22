@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #524: useElementWidth observes a ref'd element and returns its content-box
+// #525: useElementWidth observes a ref'd element and returns its content-box
 // width in px. jsdom has no layout (clientWidth is 0), so these tests stub
 // clientWidth to assert the hook reads it on mount and re-reads on resize.
 

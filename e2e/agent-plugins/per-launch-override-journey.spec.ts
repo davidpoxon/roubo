@@ -18,11 +18,11 @@ import {
 // "AP-TC-028".
 const observe = makeObserve("AP-TC-028");
 
-// AP-TC-028 (#529, AP-WU-028) - E2E: the per-launch override dialog applies its
+// AP-TC-028 (#1121, AP-WU-028) - E2E: the per-launch override dialog applies its
 // draft to one session and persists nothing.
 //
 // The integration-level drift guard for the AP-US-006 journey (AP-FR-010),
-// spanning the slices this unit is blocked by (#518, #524). It walks the
+// spanning the slices this unit is blocked by (delivered in #1072, #1110). It walks the
 // authoritative AP-TC-028 e2e_flow steps S001-S005 as ordered, attributable
 // observations against the REAL built app. On divergence each observation routes
 // through the FR-020 failure-output contract (see
@@ -464,7 +464,7 @@ test("AP-TC-028: a per-launch override applies to one session and persists nothi
 
   // S003-O02 asserts both halves the case names: that a toast confirms the
   // session started, and that it says the launch carried overrides. The toast
-  // once said only the former; #690's precedent (see launch-menu-presets.spec.ts)
+  // once said only the former; #1104's precedent (see launch-menu-presets.spec.ts)
   // is that a case-vs-copy divergence is settled in favour of the case, so
   // `TerminalTabs` now appends the suffix whenever a launch carries a non-empty
   // per-launch draft.

@@ -154,10 +154,10 @@ describe("buildRollup grouping", () => {
   });
 });
 
-// #769 (SATCA-FR-005/FR-006/FR-007). Live-ness is read from the LifecycleResolver,
+// #1161 (SATCA-FR-005/FR-006/FR-007). Live-ness is read from the LifecycleResolver,
 // so a case with no lifecycle block groups and counts exactly as it always did,
 // and a retired or superseded case leaves the counts and the list for `archived`.
-describe("buildRollup lifecycle exclusion (#769)", () => {
+describe("buildRollup lifecycle exclusion (#1161)", () => {
   function retired(id: string, reason: string, level = 1): Case {
     return { ...makeCase(id, level, "P0"), lifecycle: { state: "retired", reason } };
   }
@@ -297,10 +297,10 @@ describe("buildRollup lifecycle exclusion (#769)", () => {
     expect(model.archived.map((x) => x.isSameSpec)).toEqual([true, false]);
   });
 
-  // #789. `isSameSpec` is a fact about the pointer's slug alone. Revealing the
+  // #1165. `isSameSpec` is a fact about the pointer's slug alone. Revealing the
   // target in the panel's live list additionally needs it to BE in this plan and
   // to be live, or the panel would render a control that resolves to nothing.
-  it("#789: a same-spec pointer is revealable only when the target is present and live", () => {
+  it("#1165: a same-spec pointer is revealable only when the target is present and live", () => {
     const cases = [
       superseded("to-live", "live-1"),
       superseded("to-missing", "TC-404"),
@@ -328,7 +328,7 @@ describe("buildRollup lifecycle exclusion (#769)", () => {
     expect(flags.get("cross")).toEqual([false, false]);
   });
 
-  it("#789: a retired case, which carries no pointer, is never revealable", () => {
+  it("#1165: a retired case, which carries no pointer, is never revealable", () => {
     const model = buildRollup([retired("a", "obsolete")], null, "spec");
     expect(model.archived[0].isSameSpec).toBe(false);
     expect(model.archived[0].isRevealable).toBe(false);
@@ -356,7 +356,7 @@ describe("flattenRollup", () => {
     expect(flat.filter((f) => f.kind === "case").length).toBe(500);
   });
 
-  it("#508: carries the owning level on each case row (for collapse filtering)", () => {
+  it("#510: carries the owning level on each case row (for collapse filtering)", () => {
     const cases = [makeCase("a", 1, "P0"), makeCase("b", 2, "P0")];
     const flat = flattenRollup(buildRollup(cases, null));
     const caseRows = flat.filter((f) => f.kind === "case");
@@ -364,7 +364,7 @@ describe("flattenRollup", () => {
   });
 });
 
-describe("caseObservationProgress (#508)", () => {
+describe("caseObservationProgress (#510)", () => {
   function caseWithObservations(observationCount: number): Case {
     return {
       ...makeCase("TC", 1, "P0"),

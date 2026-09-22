@@ -187,7 +187,7 @@ describe("createPluginFetcher: allowlist enforcement", () => {
   });
 });
 
-describe("createPluginFetcher: instance-host enforcement (#338)", () => {
+describe("createPluginFetcher: instance-host enforcement (#340)", () => {
   it("constrains a `**` manifest to the configured instance host", async () => {
     const fetchImpl = vi.fn(async () => new Response("ok", { status: 200 }));
     const fetcher = createPluginFetcher(manifest(["**"]), {

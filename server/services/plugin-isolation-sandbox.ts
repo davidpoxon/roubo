@@ -10,11 +10,11 @@ import type {
 } from "@roubo/shared";
 
 /**
- * PluginIsolationSandbox (F2.3, #620). The opt-in, capability-gated OS-isolation
+ * PluginIsolationSandbox (F2.3, #676). The opt-in, capability-gated OS-isolation
  * tier the host wraps around a component plugin process, on top of the always-on
  * broker floor (the PermissionEnforcer / AuditLog the F2.1 broker carries).
  *
- * Per spike #599 (SPK-2): the broker is the unconditional floor that contains
+ * Per spike #635 (SPK-2): the broker is the unconditional floor that contains
  * accidental damage, honest plugins, and casual abuse; this slice adds the
  * highest-isolation-first OS tier that closes the determined-attacker gap the
  * broker alone cannot. There is NO `host.network.*` broker method, so an
@@ -176,7 +176,7 @@ export async function detectIsolationCapabilities(
 /**
  * Select the isolation tier: the highest-isolation runtime the host supports,
  * degrading to the `broker-only` floor when none is present. Highest-first
- * matches spike #599 rung order (vz-vm > apple-container > docker > broker-only)
+ * matches spike #635 rung order (vz-vm > apple-container > docker > broker-only)
  * and is a pure function of the detected capabilities, so the floor is always
  * reachable and enforcement never depends on Docker (FR-018).
  */
@@ -446,7 +446,7 @@ export async function ensureEgressImage(): Promise<void> {
  *   declared hosts before handing off to node.
  *
  * The `vz-vm` and `apple-container` rungs are modelled and selected-if-present,
- * but a full VM backend is out of scope for this slice (spike #599 keeps them
+ * but a full VM backend is out of scope for this slice (spike #635 keeps them
  * opt-in/highest-first with a broker-only floor); when their runtime is absent
  * `selectTier` never returns them, and if a caller asks to build one anyway we
  * return `null` so the host degrades to the floor rather than spawning into a
@@ -521,17 +521,17 @@ export function buildSandboxedSpawn(
       // script ends with a backgrounded loop (`...} &`), and in POSIX sh (dash, in
       // node:24-slim) `&` is itself a command terminator, so a `;` immediately
       // after it is a syntax error (`sh: 1: Syntax error: ";" unexpected`), which
-      // crash-looped the container before node ran (#762). A newline is a valid
+      // crash-looped the container before node ran (#764). A newline is a valid
       // separator after both a normal command and a `&`-backgrounded job, so it is
       // robust regardless of how the setup script ends.
       const shellCmd = `${egressSetup}\nexec node "$ROUBO_PLUGIN_ENTRY"`;
       // The image already provides the node binary; the host execPath (the
-      // Electron binary) is never passed into the container (#740).
+      // Electron binary) is never passed into the container (#742).
       args.push(DOCKER_EGRESS_IMAGE, "sh", "-c", shellCmd);
     } else {
       // deny-all path: plain node invocation, no wrapper needed.
       // The image already provides the node binary; the host execPath (the
-      // Electron binary) is never passed into the container (#740).
+      // Electron binary) is never passed into the container (#742).
       args.push(DOCKER_IMAGE, "node", containerEntry);
     }
 

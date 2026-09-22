@@ -1,4 +1,4 @@
-// E2E overlay runtime for the `codex-cli` agent plugin slot (issues #683, #532).
+// E2E overlay runtime for the `codex-cli` agent plugin slot (#1095, #1128).
 //
 // SOURCE OF TRUTH: roubo-plugins/plugins/codex/src/translate-launch.ts and
 // roubo-plugins/plugins/codex/src/tokenize.ts. The flag ordering, the concrete

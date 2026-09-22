@@ -93,7 +93,7 @@ permissions:
   });
 });
 
-describe("parseManifest surfaces the declared roubo range on a schema failure (issue #719)", () => {
+describe("parseManifest surfaces the declared roubo range on a schema failure (#1118)", () => {
   function manifestWithUnknownKey(roubo: string): string {
     return `id: my-plugin
 name: My Plugin

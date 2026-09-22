@@ -70,7 +70,7 @@ export const PluginPermissionsSchema = z
 export type PluginPermissions = z.infer<typeof PluginPermissionsSchema>;
 
 // Per-capability flags a tracker plugin declares for the privileged tracker-action
-// ops the TrackerActionGateway gates (verify-gate FR-011, NFR-005; spike #704).
+// ops the TrackerActionGateway gates (verify-gate FR-011, NFR-005; spike #732).
 // A flag is true only when the plugin implements the op for the connected
 // instance. The gateway reads these up front and degrades with a legible error
 // (never a silent no-op) when a flag is absent or false. close-gate is not a new
@@ -82,7 +82,7 @@ export const PluginCapabilitiesSchema = z
     /**
      * The plugin implements `addBlockedBy` AND the connected instance exposes the
      * blocking-link write (the GitHub GA / GHE version / Jira link-type condition
-     * from spike #704). May be resolved at runtime, not just statically.
+     * from spike #732). May be resolved at runtime, not just statically.
      */
     supportsBlockingLinks: z.boolean().optional(),
   })
@@ -124,7 +124,7 @@ export type PluginIcon = z.infer<typeof PluginIconSchema>;
 export const PluginKindSchema = z.enum(["integration", "component", "agent"]);
 export type PluginKind = z.infer<typeof PluginKindSchema>;
 
-// A component plugin's static, PRE-INSTALL lifecycle shape (issue #401). A
+// A component plugin's static, PRE-INSTALL lifecycle shape (#883). A
 // `long-running` component is supervised across start / stop / health / logs; a
 // `one-shot` component's start runs to completion and then reports completed
 // (no long-running supervision). This is a declarative manifest field so the
@@ -171,13 +171,13 @@ export function isValidRouboRange(range: string): boolean {
 // version floor or ceiling is one concrete version.
 //
 // The shape is a BARE `major.minor.patch`, matching the `(\d+\.\d+\.\d+)` the
-// runtime version probe parses (spike #502), with no prerelease and no build
+// runtime version probe parses (agent-contract spike), with no prerelease and no build
 // metadata. That is not cosmetic: `compareVersions`
 // (server/services/agent-version-probe.ts) does `split(".").map(Number)`, so a
 // suffix lands inside a segment. `"2.1.111-beta.1"` splits to
 // `["2", "1", "111-beta", "1"]` and `Number("111-beta")` is NaN, which reads
 // `false` in every comparison and classifies a detected version `below-floor`
-// for no legible reason (issues #661 and #669). A bound that cannot be compared
+// for no legible reason (#1076, #1082). A bound that cannot be compared
 // is worse than no bound, so both schemas refuse the shape up front and turn a
 // silent misclassification into a legible authoring error.
 const EXACT_SEMVER = /^\d+\.\d+\.\d+$/;
@@ -195,7 +195,7 @@ export function isExactSemverVersion(version: string): boolean {
 // proceeds with a staleness warning). Both are exact semver versions and both
 // optional, so the whole block is optional and imposes zero new required fields
 // on existing manifests (AP-NFR-004). The vocabulary mirrors the runtime
-// VersionProbeSpec from spike #502; the pre-launch probe and gate themselves are
+// VersionProbeSpec from the agent-contract spike; the pre-launch probe and gate themselves are
 // runtime concerns handled outside this schema.
 //
 // The optional `probe` block is what lets the host read a detected CLI version
@@ -218,7 +218,7 @@ export type AgentVersionProbeDirective = z.infer<typeof AgentVersionProbeDirecti
 // ── Choice probes ──
 
 // A plugin may bind a configuration field to a host-executed probe whose output
-// populates that field's choices (#850, APCC-FR-001). The declaration mirrors
+// populates that field's choices (#1263, APCC-FR-001). The declaration mirrors
 // `AgentVersionProbeDirectiveSchema` field for field, differing only in the
 // parse literal, and it lives on the manifest rather than on the launch
 // descriptor because a settings-time probe runs before any launch context
@@ -226,8 +226,8 @@ export type AgentVersionProbeDirective = z.infer<typeof AgentVersionProbeDirecti
 //
 // `parse` is a closed set of literals that each name an OUTPUT SHAPE, never an
 // agent, so the set stays agent-agnostic and `lint:agent-guard` has nothing to
-// catch. `dash-line-pairs` (spike #848) is a listing of `<value> - <label>`
-// lines; the line rule itself belongs to the probe runner (#851), and the
+// catch. `dash-line-pairs` (model-probe spike) is a listing of `<value> - <label>`
+// lines; the line rule itself belongs to the probe runner (#1266), and the
 // literal takes no options. An unrecognised mode is rejected at the `parse`
 // path rather than ignored: a probe the host cannot read is an authoring error.
 //
@@ -255,7 +255,7 @@ export type ChoiceProbes = z.infer<typeof ChoiceProbesSchema>;
 // ── Agent install locations ──
 
 // Where an agent plugin's own CLI installs itself when it is not on the PATH the
-// server process inherits (#712). The host probes these as CANDIDATES, in the
+// server process inherits (#1115). The host probes these as CANDIDATES, in the
 // declared order, exactly as it probes its own legacy table: each one still has
 // to be a regular file the host may execute before it is spawned, and a total
 // miss still fails the launch with an error naming every location tried. That is
@@ -370,7 +370,7 @@ export const PluginManifestSchema = z
     // (FR-001/FR-002); the host validates the registered-method set against it.
     contractVersion: z.number().int().positive().optional(),
     // Static lifecycle shape surfaced PRE-INSTALL in the marketplace detail
-    // drawer (issue #401). Absent means long-running.
+    // drawer (#883). Absent means long-running.
     lifecycle: PluginLifecycleSchema.optional(),
     // Optional ProvisionDescriptor schema version a declarative component plugin
     // emits, so the host can reject a descriptor-schema mismatch (FR-017).
@@ -381,7 +381,7 @@ export const PluginManifestSchema = z
     // `imperative` implements the `start`/`stop`/`health`/`cleanup` hooks and the
     // host invokes them directly (the SDK enforces translate XOR hooks). This is
     // the explicit host-read signal that tells bench-manager which dispatch path
-    // to take, rather than probing the plugin for a `translate` method (#396).
+    // to take, rather than probing the plugin for a `translate` method (#887).
     componentMode: z.enum(["declarative", "imperative"]).optional(),
     // Agent plugins declare agent-CLI compatibility metadata (AP-FR-014): the
     // version floor and tested ceiling the host probes before launch. Optional,
@@ -389,25 +389,25 @@ export const PluginManifestSchema = z
     // (AP-NFR-004).
     agentCompatibility: AgentCompatibilitySchema.optional(),
     // Where THIS plugin's agent CLI installs itself, probed by the host when the
-    // CLI is not on the server's PATH (#712). The candidate list lives here, on
+    // CLI is not on the server's PATH (#1115). The candidate list lives here, on
     // install-time metadata, rather than on the per-launch descriptor (which
     // stays declarative and host-agnostic) or in core (which would keep
     // accreting per-agent knowledge the `lint:agent-guard` gate exists to stop).
     // Optional, so every existing manifest validates unchanged; a plugin that
     // declares nothing resolves through PATH alone, as it does today.
     agentInstallLocations: AgentInstallLocationsSchema.optional(),
-    // Configuration fields whose choices a host-executed probe populates (#850),
+    // Configuration fields whose choices a host-executed probe populates (#1263),
     // keyed by configuration field name. Optional, so every existing manifest
     // validates unchanged. Not kind-gated: the declaration names no agent.
     choiceProbes: ChoiceProbesSchema.optional(),
     // Which tiers of Roubo's fine-grained permission rules this agent's CLI
-    // carries (#862). Optional, so every existing manifest validates unchanged
+    // carries (#1345). Optional, so every existing manifest validates unchanged
     // and an agent declaring nothing is offered all three. Agent-only, like
     // `agentInstallLocations`: the key describes an agent CLI's rules format.
     agentPermissionRuleTiers: AgentPermissionRuleTiersSchema.optional(),
   })
   .strict()
-  // An agent plugin may not declare a `processes` permission (issue #632,
+  // An agent plugin may not declare a `processes` permission (#1030,
   // AP-NFR-001 "0 plugin-initiated writes outside broker allowlists"). A child
   // process started through `host.process.spawn` does not inherit the
   // filesystem broker allowlist, so an agent plugin with spawn access could
@@ -418,7 +418,7 @@ export const PluginManifestSchema = z
   // This is the narrow, kind-gated half of the fix. The broader confinement,
   // pinning every spawned child's working directory to the plugin directory and
   // denying bench-workspace paths as cwd, executable, or argument, landed for
-  // every kind in #633. The kind gate still stands on top of it: that argument
+  // every kind in #1034. The kind gate still stands on top of it: that argument
   // scanning is a second barrier rather than a guarantee (it cannot see a path
   // composed inside a string the child itself interprets), so an agent plugin
   // keeps the descriptor as its only write route. Rejecting rather than
@@ -433,9 +433,9 @@ export const PluginManifestSchema = z
   // `permissions.processes`.
   //
   // The remaining rules are the mirror image and land for the same reason:
-  // `agentInstallLocations` says where an agent CLI installs itself (#712) and
+  // `agentInstallLocations` says where an agent CLI installs itself (#1115) and
   // `agentPermissionRuleTiers` says which permission rule tiers its rules format
-  // carries (#862), so both mean nothing on an integration or component
+  // carries (#1345), so both mean nothing on an integration or component
   // manifest, and a silently-ignored field is exactly the ambiguity the rule
   // above exists to avoid.
   .superRefine((manifest, ctx) => {

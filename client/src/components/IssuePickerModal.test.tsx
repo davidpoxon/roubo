@@ -76,7 +76,7 @@ describe("IssuePickerModal", () => {
     expect(screen.getByRole("heading", { name: /pick an issue/i })).toBeInTheDocument();
   });
 
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the modality explicit to AT.
   it("stamps aria-modal on the dialog", () => {
     mockUseIssues.mockReturnValue(defaultResult({ isLoading: true }));
@@ -245,7 +245,7 @@ describe("IssuePickerModal", () => {
     expect(screen.getByTestId("stalled-note")).toHaveTextContent(/plugin paging appears stuck/i);
   });
 
-  it("surfaces the walk-truncation note so a capped picker never reads as complete (#844)", () => {
+  it("surfaces the walk-truncation note so a capped picker never reads as complete (#1224)", () => {
     mockUseIssues.mockReturnValue(
       defaultResult({
         walkTruncated: "Ordering covers the first 2000 item(s): the cut list exceeded the limit.",
@@ -259,7 +259,7 @@ describe("IssuePickerModal", () => {
     );
   });
 
-  it("shows no walk-truncation note when the whole cut list was walked (#844)", () => {
+  it("shows no walk-truncation note when the whole cut list was walked (#1224)", () => {
     mockUseIssues.mockReturnValue(defaultResult({ walkTruncated: null }));
     render(
       <IssuePickerModal isOpen onClose={vi.fn()} onSelect={vi.fn()} projectId="p1" benches={[]} />,

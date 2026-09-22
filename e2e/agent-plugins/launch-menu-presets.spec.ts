@@ -20,12 +20,12 @@ import {
 const observe026 = makeObserve("AP-TC-026");
 const observe027 = makeObserve("AP-TC-027");
 
-// AP-TC-026 and AP-TC-027 (#681, AP-WU-036) - E2E: what the bench Terminal
+// AP-TC-026 and AP-TC-027 (#1101, AP-WU-036) - E2E: what the bench Terminal
 // launch menu lists, and what a launch fired from it actually starts.
 //
 // The two cases share a surface (the grouped launch menu), a fixture project and
 // a bench, so they share a file; each has ONE test carrying its bare id and
-// asserting EVERY observation of that case (#680). The id is never on the
+// asserting EVERY observation of that case (#1097). The id is never on the
 // describe, because the suite mapper matches `classname` + `name` and every test
 // would inherit it.
 //
@@ -45,7 +45,7 @@ const observe027 = makeObserve("AP-TC-027");
 // name the resolved agent. It once diverged: `presetSummary` spent its single
 // summary slot on the param summary whenever a preset had params, so the two
 // built-ins carrying `mode` rendered "plan" and "auto" where the case expects
-// the arrow. Issue #690 decided that in favour of the case, and the slot now
+// the arrow. #1104 decided that in favour of the case, and the slot now
 // carries both halves, as `plan → Claude Code`.
 
 const PROJECT_ID = "ap-tc-026-launch-menu";
@@ -378,7 +378,7 @@ test("AP-TC-027: built-in presets resolve to the default agent and launch with t
 
   // The rendered summary slot. Every built-in names the agent it resolves to,
   // and the two parameterised ones still lead with their mode, so the row says
-  // both what it will launch with and what it will launch (issue #690).
+  // both what it will launch with and what it will launch (#1104).
   const summaries = await readPresetSummaries(page, BUILTIN_IDS);
   const arrow = `→ ${CLAUDE_AGENT_NAME}`;
   observe027(

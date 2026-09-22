@@ -32,7 +32,7 @@ interface PartitionedErrors {
  * error can hang off. `ConfigSchemaForm` renders one control per declared
  * property, so an error whose top-level key is not a declared property (an
  * unexpected-property rejection, say, or a stale key from an earlier plugin
- * version) would otherwise be dropped and replaced by a generic message (#634).
+ * version) would otherwise be dropped and replaced by a generic message (#1033).
  */
 function partitionFieldErrors(
   err: unknown,

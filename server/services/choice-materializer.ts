@@ -2,7 +2,7 @@ import type { AgentChoiceProbeState, ChoiceProbes } from "@roubo/shared";
 import type { ProbeResult } from "./agent-probe-runner.js";
 import type { ProbeChoice } from "./probe-parse-registry.js";
 
-// Serve probed choices through the existing choice path (#852, APCC-FR-002).
+// Serve probed choices through the existing choice path (#1268, APCC-FR-002).
 //
 // The settings form reads a choice list through one seam (`enumOptions` in the
 // client's config-schema-utils): a bare `enum`, or a `oneOf` whose every branch

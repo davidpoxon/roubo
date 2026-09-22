@@ -17,7 +17,7 @@ import {
   SATCA_TC010_SUPERSEDE_CASE_ID,
 } from "./_support/testbench-plan.js";
 
-// E2E (#776): the integrated drift guard for the case lifecycle FORMAT journey
+// E2E (#1170): the integrated drift guard for the case lifecycle FORMAT journey
 // (SATCA-TC-010, SATCA-FR-001/FR-002/FR-003, SATCA-US-001/US-002). It runs
 // against the BUILT app and proves the one thing no single slice can prove on
 // its own: a retirement AUTHORED BY HAND in the spec's case file is read, end to
@@ -35,11 +35,11 @@ import {
 // S002 supersedes a second case with a bare pointer at a third (which stays
 // live, so the pointer resolves same-spec and present), S003 opens the panel and
 // reads it. Each assertion carries the owning slice from this unit's blocked-by
-// set (#763, #764, #766, #768, #769, #774, #781) so an integrated failure is
+// set (#1158, #1159, #1164, #1161, #1169) so an integrated failure is
 // attributable to a slice rather than to "the journey".
 //
 // Out of scope, deliberately: any single slice's internals. The in-app retire /
-// supersede WRITE path is #772's journey, the spec-level lifecycle is #770/#773's.
+// supersede WRITE path is #1167's journey, the spec-level lifecycle is #1162/#1166's.
 
 const SCENARIO = "default";
 const NOW = "2026-07-10T09:00:00.000Z";
@@ -93,7 +93,7 @@ async function createSpecBoundBench(page: Page, projectId: string): Promise<numb
 }
 
 // Open the bench's TestBench tab on the Cases review. The view toggle opens on
-// the verify-gate "Batches" surface by default (#359), and this journey reads
+// the verify-gate "Batches" surface by default (#842), and this journey reads
 // the live case list and the archived section.
 async function openCasesReview(page: Page): Promise<void> {
   await page
@@ -123,7 +123,7 @@ test("SATCA-TC-010: a file-authored retirement is read end to end by the applica
       projectId: PROJECT_ID,
       // git init + commit so a real spec-bound worktree provisions on Create.
       // The hand edit lands in that worktree, which is where the live TestBench
-      // routes read the plan from (#493).
+      // routes read the plan from (#494).
       gitInit: true,
       seedSpecs: [{ slug: SATCA_TC010_SPEC_SLUG, testCases: SATCA_TC010_LIVE_PLAN }],
     });

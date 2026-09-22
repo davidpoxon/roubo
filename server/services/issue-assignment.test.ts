@@ -51,7 +51,7 @@ vi.mock("./terminal.js", () => ({
   writeToSession: vi.fn(),
 }));
 
-// #521: create-and-assign resolves an agent plugin and launches through the
+// #1114: create-and-assign resolves an agent plugin and launches through the
 // plugin runtime. There is no built-in path left to fall through to.
 vi.mock("./agent-launch-pipeline.js", () => ({
   resolveLaunchAgentId: vi.fn().mockReturnValue("acme-agent"),
@@ -429,7 +429,7 @@ describe("assignIssue", () => {
     expect(jigManager.resolveJigContent).toHaveBeenCalled();
   });
 
-  it("preserves benchSetupComplete on every persist (#630)", async () => {
+  it("preserves benchSetupComplete on every persist (#997)", async () => {
     // updateBench replaces the whole record, so dropping the flag erases it from
     // state.json and initialize hydrates an absent flag as `true`. Assigning an
     // issue to a bench whose `benches.setup` has not yet succeeded would then
@@ -514,7 +514,7 @@ describe("assignIssue", () => {
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
   });
 
-  it("forwards the project's permissions model to the agent launch (#521)", async () => {
+  it("forwards the project's permissions model to the agent launch (#1114)", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
     vi.mocked(runCommand).mockResolvedValue({
@@ -534,7 +534,7 @@ describe("assignIssue", () => {
     );
   });
 
-  it("creates no session at all when no agent plugin resolves (#521)", async () => {
+  it("creates no session at all when no agent plugin resolves (#1114)", async () => {
     vi.mocked(pipeline.resolveLaunchAgentId).mockReturnValueOnce(undefined);
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
@@ -1370,7 +1370,7 @@ describe("unassignIssue", () => {
     expect(stateService.updateBench).toHaveBeenCalled();
   });
 
-  it("preserves benchSetupComplete when persisting (#630)", async () => {
+  it("preserves benchSetupComplete when persisting (#997)", async () => {
     // updateBench replaces the whole record, so dropping the flag erases it from
     // state.json and initialize hydrates an absent flag as `true`. Unassigning
     // on a bench whose `benches.setup` has not yet succeeded would otherwise

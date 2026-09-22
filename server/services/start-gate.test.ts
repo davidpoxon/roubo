@@ -194,7 +194,7 @@ describe("fetchIssueForStart", () => {
     try {
       vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
       // A getIssue that never settles must be bounded by the 3s gate timer, not
-      // the plugin manager's 30s RPC default (#438, VG-NFR-002).
+      // the plugin manager's 30s RPC default (#917, VG-NFR-002).
       vi.mocked(pluginManager.invoke).mockReturnValue(new Promise<never>(() => {}));
 
       const pending = fetchIssueForStart("proj", "owner/repo#42", "github-com");

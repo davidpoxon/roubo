@@ -1,4 +1,4 @@
-// Server-side spec discovery + manual-path validation for the TestBench (#416).
+// Server-side spec discovery + manual-path validation for the TestBench (#459).
 //
 // Two responsibilities, both confined to a single registered project's repoPath:
 //   - discoverSpecs(repoPath): enumerate every `.specifications/<slug>/test-cases.json`
@@ -12,11 +12,11 @@
 // the SPEC_SLUG_RE allowlist (assertSafeIdentifier). A path that escapes repoPath,
 // or a slug carrying a separator/traversal segment, is rejected before it reaches
 // disk. This module never writes; it only reads-and-validates, and the lifecycle
-// path it gained in #765 keeps that true: computeLifecycle below delegates to the
+// path it gained in #1157 keeps that true: computeLifecycle below delegates to the
 // read-only reader (testbench-spec-lifecycle.ts). The claim is scoped to this
 // module, not to the data it reads: the `lifecycle` subtree of
 // `.specifications/<slug>/manifest.json` IS written, by the sibling
-// testbench-spec-lifecycle-write.ts (#773), which is its only writer.
+// testbench-spec-lifecycle-write.ts (#1166), which is its only writer.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -34,9 +34,9 @@ import { caseStateOf } from "@roubo/shared/lifecycle-resolver";
 import { computePlanHash, loadResultsFile } from "./testbench-store.js";
 import { readSpecLifecycle } from "./testbench-spec-lifecycle.js";
 
-// Per-status case tally for one spec (#482). Non-negative integers keyed by the
+// Per-status case tally for one spec (#936). Non-negative integers keyed by the
 // five CaseStatus values; the tally is computed over the CURRENT plan's LIVE case
-// ids only (#835), so it always sums to the spec's caseCount, which counts the
+// ids only (#1217), so it always sums to the spec's caseCount, which counts the
 // same live cases.
 export interface SpecStatusCounts {
   not_started: number;
@@ -46,7 +46,7 @@ export interface SpecStatusCounts {
   blocked: number;
 }
 
-// The read-only, fail-open verification state discovery computes per spec (#482,
+// The read-only, fail-open verification state discovery computes per spec (#936,
 // TSPF-FR-001/FR-002). It carries classification inputs, not presentation strings:
 //   - classification: "all-passed" iff a readable, schema-valid, hash-matching
 //     results sidecar is present AND every LIVE current-plan case is effectively
@@ -70,7 +70,7 @@ export interface SpecVerification {
   aggregationError: boolean;
 }
 
-// The read-only, fail-open lifecycle state discovery computes per spec (#765,
+// The read-only, fail-open lifecycle state discovery computes per spec (#1157,
 // SATCA-FR-014). Flattened from the spec's manifest lifecycle record so the
 // response shape stays additive and the client never has to distinguish "no
 // record" from "unreadable record" by probing for an absent object:
@@ -90,9 +90,9 @@ export interface SpecLifecycleState {
 
 // One discovered, contract-valid spec: the slug naming its `.specifications/<slug>/`
 // folder, the absolute path to its test-cases.json, the number of LIVE cases in it
-// (retired and superseded cases are excluded, #835),
-// its read-only per-spec verification state (#482), and its read-only lifecycle
-// state (#765).
+// (retired and superseded cases are excluded, #1217),
+// its read-only per-spec verification state (#936), and its read-only lifecycle
+// state (#1157).
 export interface DiscoveredSpec {
   slug: string;
   path: string;
@@ -131,19 +131,19 @@ function zeroStatusCounts(): SpecStatusCounts {
 }
 
 // Compute one spec's read-only verification state from its results sidecar and the
-// already-parsed, contract-valid plan (#482, TSPF-FR-001/FR-002). Read-only and
+// already-parsed, contract-valid plan (#936, TSPF-FR-001/FR-002). Read-only and
 // fail-open per spec:
 //   - Results IO is delegated to the store's read-only loadResultsFile (the sole
 //     owner of test-results.json IO); no plan re-read happens (planHashMatch reuses
 //     the already-parsed plan via computePlanHash).
-//   - The tally covers the plan's LIVE cases only (#835, SATCA-FR-005). A retired
+//   - The tally covers the plan's LIVE cases only (#1217, SATCA-FR-005). A retired
 //     or superseded case has no live obligation, so counting it let a recorded
 //     failure on an ended case hold the whole spec in needs-attention. Live-ness is
 //     read from the shared LifecycleResolver (caseStateOf), never by branching on
 //     the raw state, matching the convention rollup.ts documents. The live cases
 //     arrive already filtered so the caller can reuse the same array for caseCount;
 //     `plan` stays the WHOLE plan because computePlanHash must keep hashing every
-//     case (the hash is the results-staleness contract, #767).
+//     case (the hash is the results-staleness contract, #1160).
 //   - Effective status per case = statusOverride.status ?? derivedStatus; a live
 //     plan case with no caseResults entry counts as not_started; caseResults entries
 //     for cases that are no longer live, or no longer in the plan at all, are
@@ -222,7 +222,7 @@ function computeVerification(
   }
 }
 
-// Compute one spec's read-only lifecycle state from its manifest (#765,
+// Compute one spec's read-only lifecycle state from its manifest (#1157,
 // SATCA-FR-014). Delegates the IO and the fail-open ladder to the reader
 // (testbench-spec-lifecycle.ts), and wraps the call in the same per-spec
 // try/catch computeVerification uses: the reader's path-safety barriers are
@@ -231,7 +231,7 @@ function computeVerification(
 // (SATCA-NFR-003).
 //
 // Exported because the plan route needs the same answer for a single slug read
-// out of the BENCH's own workspace (#770, SATCA-FR-018), which discovery never
+// out of the BENCH's own workspace (#1162, SATCA-FR-018), which discovery never
 // walks: reusing this keeps one fail-open ladder rather than two.
 export function computeLifecycle(repoPath: string, slug: string): SpecLifecycleState {
   try {
@@ -278,7 +278,7 @@ export function discoverSpecs(repoPath: string): SpecDiscovery {
   try {
     // resolveWithin is lexical; assertRealpathWithin follows symlinks so a
     // `.specifications` that is itself a symlink escaping the repo is rejected
-    // before the readdir enumerates outside repoPath (#427). A rejection is
+    // before the readdir enumerates outside repoPath (#903). A rejection is
     // fail-open to empty here, consistent with an unreadable directory.
     assertRealpathWithin(repoPath, specsRoot, ".specifications dir");
     entries = fs.readdirSync(specsRoot, { withFileTypes: true });
@@ -308,7 +308,7 @@ export function discoverSpecs(repoPath: string): SpecDiscovery {
       // A real slug dir whose test-cases.json is a symlink escaping the repo passes
       // the lexical check; the realpath barrier rejects it before the read so the
       // leaf read never resolves outside repoPath. A throwing entry is skipped,
-      // consistent with the unsafe-slug skip above (#427).
+      // consistent with the unsafe-slug skip above (#903).
       assertRealpathWithin(repoPath, casesPath, "spec cases path");
     } catch {
       continue;
@@ -337,7 +337,7 @@ export function discoverSpecs(repoPath: string): SpecDiscovery {
     }
 
     const plan = validation.data;
-    // Live cases only (#835, SATCA-FR-005): a retired or superseded case is excluded
+    // Live cases only (#1217, SATCA-FR-005): a retired or superseded case is excluded
     // from caseCount and from the verification tally alike, so the two keep moving
     // together and the picker card counts the obligations that are still open.
     const liveCases = plan.cases.filter((planCase) => caseStateOf(planCase) === "live");
@@ -345,10 +345,10 @@ export function discoverSpecs(repoPath: string): SpecDiscovery {
       slug,
       path: casesPath,
       caseCount: liveCases.length,
-      // Per-spec, read-only, fail-open verification state (#482). Computed here in
+      // Per-spec, read-only, fail-open verification state (#936). Computed here in
       // the existing loop where the parsed, contract-valid plan is already in hand.
       verification: computeVerification(repoPath, slug, plan, liveCases),
-      // Per-spec, read-only, fail-open lifecycle state (#765). Computed in the
+      // Per-spec, read-only, fail-open lifecycle state (#1157). Computed in the
       // same loop, on the same already-allowlisted slug.
       lifecycle: computeLifecycle(repoPath, slug),
     });
@@ -400,7 +400,7 @@ export function resolveFocusedSpec(
   // escaping the repo passes it. The realpath barrier rejects it fail-closed
   // (throwing UnsafePathError, matching this function's existing error contract)
   // so a focused path that resolves outside repoPath through a symlink is refused
-  // before any downstream read (#427).
+  // before any downstream read (#903).
   assertRealpathWithin(repoPath, contained, "focusedSpecPath");
   return { slug, resolvedPath: contained };
 }
@@ -412,7 +412,7 @@ export function resolveFocusedSpec(
 //   3. read as JSON and validate against the published test-cases contract.
 // Any failure returns { ok: false, errors }. On success it returns the resolved
 // slug + LIVE case count, the same shape and the same live-only basis discoverSpecs
-// reports per entry (#835), so the escape hatch agrees with the discovered rows.
+// reports per entry (#1217), so the escape hatch agrees with the discovered rows.
 export function validateManualPath(repoPath: string, rawPath: string): ManualPathValidation {
   if (typeof rawPath !== "string" || rawPath.trim().length === 0) {
     return { ok: false, errors: ["path must be a non-empty string"] };
@@ -446,7 +446,7 @@ export function validateManualPath(repoPath: string, rawPath: string): ManualPat
     // resolveWithinRoots is lexical; a valid-slug `.specifications/<slug>` symlink
     // escaping the repo passes it. The realpath barrier rejects it before the read
     // so the leaf read never resolves outside repoPath, returning the same
-    // { ok: false } shape as the other rejections (#427).
+    // { ok: false } shape as the other rejections (#903).
     assertRealpathWithin(repoPath, contained, "manual spec path");
   } catch (err) {
     return { ok: false, errors: [(err as UnsafePathError).message] };

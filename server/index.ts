@@ -75,7 +75,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     initialEnvPort = process.env.ROUBO_PORT;
     envInitialized = true;
     // A non-executable node-pty spawn-helper breaks every terminal, but stays
-    // invisible until someone opens one (#685). Say so at boot instead.
+    // invisible until someone opens one (#1103). Say so at boot instead.
     const spawnHelperProblem = describeSpawnHelperProblem();
     if (spawnHelperProblem !== undefined) console.warn(spawnHelperProblem);
   }
@@ -135,7 +135,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     if (!isNaN(issue)) {
       // The ?issue= filter targets GitHub issue numbers. Alert-backed benches reuse
       // assignedIssue.number for the alert number, so skip them to avoid colliding
-      // with a real issue #N. See #291.
+      // with a real issue #N. See #297.
       benches = benches.filter(
         (b) => b.assignedIssue?.number === issue && !isAlertExternalId(b.assignedIssue?.externalId),
       );
@@ -168,7 +168,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Initializing project registry...");
   projectRegistry.initialize();
 
-  // Wire the registry's unregister guard to the in-memory bench map (issue #830).
+  // Wire the registry's unregister guard to the in-memory bench map (#1204).
   // `bench-manager` imports `project-registry`, so the registry cannot import it
   // back; the composition root injects the accessor instead. This must land before
   // `app.listen()` so no DELETE /projects/:id can arrive with the seam unwired.
@@ -202,11 +202,11 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   // project's component bindings could not be validated against their bound
   // plugin's configSchema at registry-init time. Re-run that second pass now
   // that the component manifests are available, still before the HTTP listener
-  // binds, so any invalid component config surfaces at config-load (issue #399,
+  // binds, so any invalid component config surfaces at config-load (#884,
   // CP-TC-005).
   projectRegistry.revalidateComponentBindings();
 
-  // Wire the component-plugin crash-cleanup / auto-recovery hooks (issue #613).
+  // Wire the component-plugin crash-cleanup / auto-recovery hooks (#657).
   // The supervisor fires these when a `component` plugin crashes: pre-restart
   // reaps the resources the plugin owned (no orphans, no duplicate containers on
   // restart), and restarted re-provisions its components (auto-recovery). They
@@ -275,7 +275,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Initializing bench manager...");
   benchManager.initialize();
 
-  // Startup orphan sweep (issue #613): replay the ledger and reap any compose
+  // Startup orphan sweep (#657): replay the ledger and reap any compose
   // project that escaped a hard host kill (matching `roubo-<projectId>-bench-<N>`
   // only), before reconcile rebuilds the live bench view. Best-effort: a failure
   // here must not block boot.

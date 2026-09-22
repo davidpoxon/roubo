@@ -5,7 +5,7 @@ import type { CaseStatus, Note } from "@roubo/shared/testbench-contracts";
 import { useAppendNote } from "../../hooks/useTestbenchNotes";
 import { ApiError } from "../../lib/api";
 
-// Append-only notes rail (#421, FR-011/FR-012, US-006). Renders a per-case
+// Append-only notes rail (#464, FR-011/FR-012, US-006). Renders a per-case
 // timeline where every note is stamped author + timestamp + status-at-write,
 // with no edit or delete affordance. Notes are an immutable audit trail; this
 // component never mutates an existing note, it only appends new ones.
@@ -72,7 +72,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
           // Return focus to the textarea BEFORE clearing the text. Clearing
           // flips canSubmit to false, which disables the submit button; if that
           // button still held keyboard focus, the browser would drop focus to
-          // document.body and keyboard users would lose their place (#478).
+          // document.body and keyboard users would lose their place (#931).
           textAreaRef.current?.focus();
           setText("");
         },
@@ -127,10 +127,10 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
 
       <form
         // px-0.5 keeps the textarea's 2px focus ring off the rail's clipping
-        // edge so it is not cut off on the left and right (#508, Image #2).
+        // edge so it is not cut off on the left and right (#510, Image #2).
         // shrink-0 pins the form so a short pane scrolls the notes list above it
         // rather than squeezing/clipping the "Add a note" field off the bottom
-        // (#806).
+        // (#808).
         className="flex shrink-0 flex-col gap-2 px-0.5"
         onSubmit={(event) => {
           event.preventDefault();
@@ -144,7 +144,7 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
             rows={3}
             placeholder="Append an immutable note"
             // ring-inset draws the focus ring inside the field's box, so a
-            // clipping ancestor never shaves the left/right edges off it (#508).
+            // clipping ancestor never shaves the left/right edges off it (#510).
             className="w-full resize-y rounded-control border border-border-control bg-bg-field px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:border-focus-ring focus:ring-2 focus:ring-focus-ring focus:ring-inset aria-[invalid=true]:border-danger data-[invalid]:border-danger"
           />
         </TextField>

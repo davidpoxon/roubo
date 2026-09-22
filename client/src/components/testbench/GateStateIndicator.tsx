@@ -1,6 +1,6 @@
 import type { GateStatus } from "../../lib/api";
 
-// Gate status indicator (#702, VG-FR-012). A coloured dot plus an always-present
+// Gate status indicator (#726, VG-FR-012). A coloured dot plus an always-present
 // text label, in the StatusIndicator mold (DESIGN.md "Status indicator"): colour
 // is never the sole carrier of meaning (WCAG 2.1 AA, VG-NFR-004). Gate statuses are
 // passed / failed / pending / stale, distinct from per-case CaseStatus, so this

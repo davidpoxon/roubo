@@ -6,11 +6,11 @@ import { AGENT_ARGV_LOG_PATH, clearCapturedArgv, readCapturedArgv } from "./_sup
 // "AP-TC-087".
 const observe = makeObserve("AP-TC-087");
 
-// AP-TC-087 (#531, AP-WU-030) - E2E: configure the Claude Code model, effort,
+// AP-TC-087 (#1083, AP-WU-030) - E2E: configure the Claude Code model, effort,
 // mode and extra args, then launch and verify the assembled CLI invocation.
 //
 // The integration-level drift guard for the AP-US-008 journey (AP-FR-017),
-// spanning the slices this unit is blocked by (#511, #536). It walks the
+// spanning the slices this unit is blocked by. It walks the
 // authoritative AP-TC-087 e2e_flow steps S001-S008 as ordered, attributable
 // observations against the REAL built app. On divergence each observation routes
 // through the FR-020 failure-output contract (see

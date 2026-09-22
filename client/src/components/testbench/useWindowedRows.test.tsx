@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #419 NFR-002: the windowing hook mounts only the rows intersecting the
+// #466 NFR-002: the windowing hook mounts only the rows intersecting the
 // viewport, so a large list stays bounded in the DOM.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";

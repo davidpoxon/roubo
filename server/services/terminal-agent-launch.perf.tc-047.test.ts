@@ -35,7 +35,7 @@
  * of S001's observations. A second id-tagged entry (a skipped sentinel, or an
  * enclosing `describe` whose children inherit the id through `classname`) would
  * leave verify's suite mapper with a skipped or ambiguous winner and corroborate
- * nothing, so neither describe below may name the case (#680, #682).
+ * nothing, so neither describe below may name the case (#1097, #1096).
  */
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import fs from "node:fs";
@@ -101,13 +101,13 @@ vi.mock("./env.js", () => ({
   },
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
-  // Identity: binary resolution (#645) is env.ts's job and is pinned in env.test.ts.
+  // Identity: binary resolution (#1056) is env.ts's job and is pinned in env.test.ts.
   resolveAgentCommand: (command: string) => command,
 }));
 
 const spawnedAt = vi.hoisted(() => ({ last: 0 }));
 // Delegation is opt-in per test, not per run: only the gated budget test wants
-// a real PTY, and the structural tests below stay hermetic (and #685-proof) in
+// a real PTY, and the structural tests below stay hermetic (and #1103-proof) in
 // both arms.
 const realPty = vi.hoisted(() => ({ enabled: false }));
 // Call recorder, armed in BOTH arms so the structural tests read the same argv
@@ -350,7 +350,7 @@ it.runIf(RUN)(
     // rather than mocked away.
     realPty.enabled = true;
     try {
-      await warmUp(); // first-call module and directory costs, plus the #685 preflight
+      await warmUp(); // first-call module and directory costs, plus the #1103 preflight
 
       const samples: number[] = [];
       const byAffordance = new Map<string, number[]>(
@@ -447,7 +447,7 @@ describe("the launch path does exactly one round trip before spawning", () => {
 
   // The rotation is only worth timing if the three affordances really do reach
   // the server as three different resolutions; otherwise the harness would be
-  // measuring one entry point three times over (#682).
+  // measuring one entry point three times over (#1096).
   it("resolves a distinct effective config per launch affordance", async () => {
     const configs: Record<string, unknown>[] = [];
     for (const shape of LAUNCH_SHAPES) {

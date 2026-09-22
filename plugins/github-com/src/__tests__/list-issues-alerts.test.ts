@@ -272,7 +272,7 @@ describe("listIssues + alerts (IP-WU-030)", () => {
     expect(seenUrls).toContain(CODE_URL_2);
   });
 
-  it("keeps a repo's alerts even when all its board issues are status-excluded (issue #399)", async () => {
+  it("keeps a repo's alerts even when all its board issues are status-excluded (#404)", async () => {
     // The board's only issue is in an excluded Status column, so no issue
     // reaches the cut list. Alerts fan out over the pre-exclusion repo set, so
     // the repo's code-scanning alert must still surface.

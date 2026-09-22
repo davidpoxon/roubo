@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 //
-// #420 TC-019/TC-021/TC-022/TC-023/TC-024/TC-031/TC-036: the case detail pane
+// #471 TC-019/TC-021/TC-022/TC-023/TC-024/TC-031/TC-036: the case detail pane
 // renders the case in full (metadata, preconditions, ordered steps, expected
 // observations), each observation carries a keyboard-operable segmented pass/fail
 // mark control, the per-case status reflects the marks and an override is shown
 // distinctly from the derived value, and the pane has zero axe violations.
 //
-// #522: the pass/fail mark control is a toggle (re-pressing the selected segment
+// #523: the pass/fail mark control is a toggle (re-pressing the selected segment
 // clears it, no eraser); selecting a new case scrolls the left column back to
 // the top; and when the pane is narrow the notes are a bottom drawer rather than
 // a side rail.
 //
-// #524: the rail-vs-drawer choice is now driven by the pane's measured container
+// #525: the rail-vs-drawer choice is now driven by the pane's measured container
 // width (NOTES_RAIL_MIN_WIDTH), not a viewport breakpoint. jsdom reports a width
 // of 0 (no layout), so the default here is the bottom-drawer layout; the
 // width-gated tests stub clientWidth to exercise the inline-rail branch.
@@ -27,12 +27,12 @@ import { expectNoAxeFindings } from "../../test/axe";
 vi.mock("../../hooks/useTestbenchMarks");
 import { useMarkObservation, useSetStatusOverride } from "../../hooks/useTestbenchMarks";
 
-// CaseDetail now mounts the NotesRail (#440 integration), which calls
+// CaseDetail now mounts the NotesRail (#487 integration), which calls
 // useAppendNote; mock it so the pane renders without a QueryClientProvider.
 vi.mock("../../hooks/useTestbenchNotes");
 import { useAppendNote } from "../../hooks/useTestbenchNotes";
 
-// #772: the pane now offers the lifecycle write path, which mounts the
+// #1167: the pane now offers the lifecycle write path, which mounts the
 // useSetCaseLifecycle mutation; mock it for the same reason as the notes hook.
 vi.mock("../../hooks/useTestbenchPlan", () => ({
   useSetCaseLifecycle: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock("../../hooks/useTestbenchPlan", () => ({
 }));
 import { useSetCaseLifecycle } from "../../hooks/useTestbenchPlan";
 
-// #774: the supersede form no longer takes a typed pointer; it opens the
+// #1169: the supersede form no longer takes a typed pointer; it opens the
 // ReplacementPicker, which loads its candidate closure through this hook. The
 // picker itself is real here, so the pointer these tests record is the one the
 // picker actually hands back.
@@ -177,7 +177,7 @@ describe("CaseDetail observation mark control (TC-021/TC-031)", () => {
     );
   });
 
-  it("clears the mark when the already-selected segment is re-pressed (toggle-to-unset, #522)", async () => {
+  it("clears the mark when the already-selected segment is re-pressed (toggle-to-unset, #523)", async () => {
     const user = userEvent.setup();
     const mutate = vi.fn();
     mockMark.mockReturnValue(makeMutationMock(mutate));
@@ -276,7 +276,7 @@ describe("CaseDetail status override (TC-022/TC-024)", () => {
   });
 });
 
-describe("CaseDetail close / next / progress (#508)", () => {
+describe("CaseDetail close / next / progress (#510)", () => {
   it("renders a Close button (not a back-link) that calls onBack", async () => {
     const user = userEvent.setup();
     const onBack = vi.fn();
@@ -345,7 +345,7 @@ describe("CaseDetail close / next / progress (#508)", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers no separate Clear / eraser control (the mark is a toggle, #522)", () => {
+  it("offers no separate Clear / eraser control (the mark is a toggle, #523)", () => {
     const result: CaseResult = {
       observationMarks: {
         o1: { result: "pass", author: { name: "Ada", email: "a@e.com" }, timestamp: "t" },
@@ -358,7 +358,7 @@ describe("CaseDetail close / next / progress (#508)", () => {
   });
 });
 
-describe("CaseDetail scroll reset on case change (#522)", () => {
+describe("CaseDetail scroll reset on case change (#523)", () => {
   it("resets the left column scroll position to the top when a different case is selected", () => {
     const { rerender, container } = render(
       <CaseDetail projectId="p1" benchId={1} testCase={CASE} result={undefined} />,
@@ -375,7 +375,7 @@ describe("CaseDetail scroll reset on case change (#522)", () => {
   });
 });
 
-describe("CaseDetail notes drawer (#522)", () => {
+describe("CaseDetail notes drawer (#523)", () => {
   it("renders a Notes toggle with the note count and reveals the notes panel when opened", async () => {
     const user = userEvent.setup();
     const result: CaseResult = {
@@ -406,7 +406,7 @@ describe("CaseDetail notes drawer (#522)", () => {
   });
 });
 
-describe("CaseDetail notes layout gated on container width (#524)", () => {
+describe("CaseDetail notes layout gated on container width (#525)", () => {
   // Stub clientWidth so useElementWidth reports a measured pane width; jsdom has
   // no layout and otherwise reports 0. Restored after each test.
   function withClientWidth(px: number, run: () => void) {
@@ -448,7 +448,7 @@ describe("CaseDetail notes layout gated on container width (#524)", () => {
     });
   });
 
-  it("keeps the inline-rail notes list scrollable and the add-note form pinned on a short pane (#806)", () => {
+  it("keeps the inline-rail notes list scrollable and the add-note form pinned on a short pane (#808)", () => {
     // jsdom has no layout, so assert the flex sizing structure rather than
     // rendered geometry: the notes list is the internal scroll container and
     // the add-note form stays rendered and pinned even when vertical space is
@@ -568,10 +568,10 @@ describe("CaseDetail machine verification provenance", () => {
   });
 });
 
-// #772 (SATCA-TC-046, SATCA-FR-019, SATCA-US-006): retiring and superseding are
+// #1167 (SATCA-TC-046, SATCA-FR-019, SATCA-US-006): retiring and superseding are
 // applied from the panel. The reversal is deliberately NOT here: a retired case
 // leaves the live list, so Restore sits on the archived entry instead.
-describe("CaseDetail lifecycle actions (#772)", () => {
+describe("CaseDetail lifecycle actions (#1167)", () => {
   it("retires a case with a reason", async () => {
     const mutate = vi.fn();
     mockSetLifecycle.mockReturnValue(makeMutationMock(mutate));
@@ -607,7 +607,7 @@ describe("CaseDetail lifecycle actions (#772)", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  // #774: the pointer is chosen in the picker, never typed. A cross-spec choice
+  // #1169: the pointer is chosen in the picker, never typed. A cross-spec choice
   // is recorded slug-qualified (SATCA-TC-074 S002).
   it("supersedes a case with a pointer chosen in the picker, reason optional", async () => {
     const mutate = vi.fn();
@@ -662,7 +662,7 @@ describe("CaseDetail lifecycle actions (#772)", () => {
     );
   });
 
-  // #774 AC7: dismissing the picker returns focus to the control that opened it.
+  // #1169 AC7: dismissing the picker returns focus to the control that opened it.
   it("returns focus to the opening control when the picker is dismissed", async () => {
     const user = userEvent.setup();
     render(<CaseDetail projectId="p1" benchId={4} testCase={CASE} result={undefined} />);
@@ -691,7 +691,7 @@ describe("CaseDetail lifecycle actions (#772)", () => {
     expect(alert).toHaveTextContent(/reload/i);
   });
 
-  // #775 AC1/AC3 (SATCA-TC-057): the retire and supersede forms are inline
+  // #1173 AC1/AC3 (SATCA-TC-057): the retire and supersede forms are inline
   // disclosures, not dialogs, so each toggle declares its expanded state and
   // names the panel it governs instead of leaving the relationship visual only.
   it("declares each lifecycle toggle's disclosure state and the panel it controls", async () => {
@@ -743,7 +743,7 @@ describe("CaseDetail lifecycle actions (#772)", () => {
     expect(screen.getByTestId("case-supersede-submit")).toBeDisabled();
   });
 
-  // #775 AC4: the case is about to leave the live list, which unmounts these
+  // #1173 AC4: the case is about to leave the live list, which unmounts these
   // controls. The pane hands the id up so the panel can place focus on the
   // archived entry and announce the outcome, rather than losing focus to the body.
   it("reports the archived case id once the write succeeds, so focus can be placed", async () => {

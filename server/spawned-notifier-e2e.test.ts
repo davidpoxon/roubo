@@ -1,5 +1,5 @@
 // Integration-level E2E test for the `spawned-notifier` notification wiring
-// (issue #698): a descriptor declares the variant, and a turn-complete
+// (#1113): a descriptor declares the variant, and a turn-complete
 // notification arrives at the bench without quiescence being involved.
 //
 // Every unit around this is pinned elsewhere (terminal-agent-session.test.ts for
@@ -124,7 +124,7 @@ const DESCRIPTOR: AgentLaunchDescriptor = {
   },
 };
 
-describe("spawned-notifier wiring, end to end (issue #698)", () => {
+describe("spawned-notifier wiring, end to end (#1113)", () => {
   it("turns a declared descriptor into a real turn-complete notification", async () => {
     const app = express();
     app.use(express.json());

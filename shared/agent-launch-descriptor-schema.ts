@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { isExactSemverVersion } from "./plugin-manifest-schema.js";
 
-// Issue #507 / AP-FR-001: the typed AgentLaunchDescriptor an agent plugin emits
+// #1026 / AP-FR-001: the typed AgentLaunchDescriptor an agent plugin emits
 // from `translateLaunch` and the host executes. See:
 //   .specifications/agent-plugins/prd.md (AP-FR-001, AP-NFR-001, AP-US-001)
 //   .specifications/agent-plugins/spikes/spike-502-agent-contract-shape.md
 //
-// The shape is frozen by spike #502, which validated it against real Claude Code
+// The shape is frozen by the agent-contract spike, which validated it against real Claude Code
 // and Codex CLI invocations. It lives in shared/ so both the host and the plugin
 // SDK reference one contract without a circular dependency (the SDK carries a
 // structural restatement in plugin-sdk/src/types.ts; this Zod schema is the
@@ -96,10 +96,10 @@ export type WorkspaceWriteSpec = z.infer<typeof WorkspaceWriteSpecSchema>;
 
 // ── Notification wiring ──
 //
-// Discriminated on `kind`, covering the two real shapes spike #502 validated: an
+// Discriminated on `kind`, covering the two real shapes the agent-contract spike validated: an
 // agent that POSTs to core itself (Claude Code's Notification hook) and an agent
 // that spawns a notifier program per event (Codex `notify`). A third shape
-// (issue #854, APCC-FR-004) pairs the first one's registration carrier with the
+// (#1264, APCC-FR-004) pairs the first one's registration carrier with the
 // second one's execution model: the hook is registered by a workspace file, the
 // agent spawns core's notifier, and the payload arrives on the notifier's stdin.
 // The `event` field tells core what the signal means, so waiting semantics never
@@ -130,7 +130,7 @@ export const NotificationWiringSchema = z.discriminatedUnion("kind", [
       // resolve. {{notifier}} is the absolute path of the notifier program core
       // installs for this launch, and is exclusive to the two notifier arms; the
       // program's directory also leads the agent's PATH, so a bare
-      // `roubo-notify` resolves without it (issue #698).
+      // `roubo-notify` resolves without it (#1113).
       carrier: z.object({ args: z.array(z.string()) }).strict(),
       payload: z.literal("json-arg"),
       // Resolved through the same substitution, in the same context, as the
@@ -193,7 +193,7 @@ export type NotificationWiring = z.infer<typeof NotificationWiringSchema>;
 // NaN, every comparison reads false, and the agent is hard blocked as
 // `below-floor` for every detected version with a message naming a floor the user
 // cannot act on. Rejecting the bound here turns that silent misclassification
-// into a legible authoring error (issues #661 and #669).
+// into a legible authoring error (#1076, #1082).
 //
 // The refinement is `isExactSemverVersion`, the single predicate this schema now
 // shares with `AgentCompatibilitySchema` on the manifest side. Prerelease and
@@ -249,7 +249,7 @@ export type WaitingDetectionSpec = z.infer<typeof WaitingDetectionSpecSchema>;
 
 // ── Permissions ──
 //
-// One user-facing model with two axes (AP-FR-016, narrowed by spike #502): the
+// One user-facing model with two axes (AP-FR-016, narrowed by the agent-contract spike): the
 // fine-grained rules core always sends, honored only by plugins declaring the
 // rules capability, plus an optional universal `posture` every agent plugin
 // maps to its native mechanism, absent whenever the project has never chosen

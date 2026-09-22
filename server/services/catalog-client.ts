@@ -21,7 +21,7 @@ import {
   verifyKeyRing,
 } from "./marketplace-integrity.js";
 
-// Marketplace catalog client (CPHM-FR-001 / FR-009 / NFR-003, issue #306).
+// Marketplace catalog client (CPHM-FR-001 / FR-009 / NFR-003, #845).
 //
 // Fetches the signed catalog over the network, verifies it fail-closed, and
 // caches the last verified envelope on disk. The degrade chain is
@@ -51,7 +51,7 @@ import {
 // hosted feed and are overridable only via createCatalogClient options (tests /
 // embedding), never from the environment, so the classic env-derived
 // request-forgery (SSRF) vector stays closed. Every fetch now flows through the
-// shared guardedFetch transport (issue #554), which validates the scheme and
+// shared guardedFetch transport (#956), which validates the scheme and
 // range table on every hop and blocks link-local / loopback / cloud-metadata
 // targets before connecting.
 
@@ -59,7 +59,7 @@ import {
  * Where the served catalog came from. A re-export of the shared
  * `MarketplaceCatalogSource` (the single source-of-truth union, surfaced on
  * `MarketplaceCatalogResponse` so the client can render the offline / staleness
- * banner, issue #372); the value behaviour is unchanged.
+ * banner, #851); the value behaviour is unchanged.
  */
 export type CatalogSource = MarketplaceCatalogSource;
 
@@ -81,7 +81,7 @@ interface CachedCatalog {
 const DEFAULT_CATALOG_URL = "https://davidpoxon.github.io/roubo-plugins/catalog.json";
 const DEFAULT_KEY_RING_URL = "https://davidpoxon.github.io/roubo-plugins/key-ring.json";
 const FETCH_TIMEOUT_MS = 5000;
-// Size budget for a fetched catalog / key-ring payload (CPHM-NFR-002, issue #495).
+// Size budget for a fetched catalog / key-ring payload (CPHM-NFR-002, #944).
 // The network fetch is bounded to this many bytes, enforced both up front (declared
 // content-length) and as bytes flow (mirroring the release-asset limiter in
 // plugin-installer.ts). An oversized payload, even a validly signed one, is rejected
@@ -141,7 +141,7 @@ export interface CatalogClient {
  * Guarded, size-capped JSON fetch shared by the first-party envelope fetch
  * (fetchEnvelope, inside createCatalogClient) and the third-party per-source
  * fetch (createThirdPartyCatalogClient). Routes through the shared guardedFetch
- * transport (issue #554: SSRF / redirect guarding and per-hop range validation),
+ * transport (#956: SSRF / redirect guarding and per-hop range validation),
  * then bounds the payload to `maxBytes` the same two ways as the release-asset
  * limiter in plugin-installer.ts: reject a declared content-length over the cap
  * up front, and count bytes as they stream and stop the moment the cap is
@@ -245,7 +245,7 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
   const cacheFile = path.join(cacheDir, CACHE_FILENAME);
   const rootPublicKeyPem = options.rootPublicKeyPem;
   // Default to npm undici's fetch (not Node's built-in global fetch) so the
-  // guarded transport's connect-pinning dispatcher (issue #590), built from the
+  // guarded transport's connect-pinning dispatcher (#960), built from the
   // same undici, is protocol-compatible on this catalog path.
   const doFetch = options.fetchImpl ?? (undiciFetch as unknown as typeof fetch);
   const log = options.log ?? ((message: string) => console.warn(message));
@@ -281,7 +281,7 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
   }
 
   async function fetchEnvelope<T>(url: string): Promise<T | null> {
-    // Route through the shared guarded transport (issue #554) and the shared
+    // Route through the shared guarded transport (#956) and the shared
     // size-capped JSON fetch. The first-party feed origin is the consented source
     // origin; this path attaches no credential and requires https (credential and
     // allowHttp are left unset), so the classic SSRF vector stays closed. doFetch
@@ -396,7 +396,7 @@ export function createCatalogClient(options: CatalogClientOptions = {}): Catalog
 //
 // createThirdPartyCatalogClient is a SEPARATE top-level factory, wholly distinct
 // from createCatalogClient. The trust separation holds BY CONSTRUCTION, not by a
-// runtime flag (CPHMTP-NFR-001, issue #555): the first-party signed verify chain
+// runtime flag (CPHMTP-NFR-001, #959): the first-party signed verify chain
 // (verifyEnvelopePair) is a closure INSIDE createCatalogClient, so a sibling
 // top-level factory cannot reach it. There is no verifier / key-ring parameter,
 // no signature step, and no seed floor here. The degrade chain is
@@ -480,7 +480,7 @@ export function createThirdPartyCatalogClient(
     options.cacheDir ?? path.join(getRouboDir(), "marketplace", "sources", source.id);
   const cacheFile = path.join(cacheDir, CACHE_FILENAME);
   // Must default to npm undici's fetch, not globalThis.fetch: guardedFetch attaches a
-  // DNS-pinned-connect dispatcher (issue #590) built from npm undici, and only npm
+  // DNS-pinned-connect dispatcher (#960) built from npm undici, and only npm
   // undici's fetch honours a foreign init.dispatcher. Node's built-in global fetch
   // bundles a different undici major that rejects it with UND_ERR_INVALID_ARG, so every
   // DNS-hostname source (i.e. every real one) silently failed and degraded to "empty" /
@@ -637,7 +637,7 @@ export function prefetch(): Promise<void> {
   return getDefaultClient().prefetch();
 }
 
-// ── ROUBO_E2E offline-journey seam (issue #314, CPHM-TC-051) ──────────────────
+// ── ROUBO_E2E offline-journey seam (#850, CPHM-TC-051) ──────────────────
 //
 // The marketplace-offline-journey e2e
 // (e2e/e2e-flow/marketplace-offline-journey.spec.ts) walks the degrade journey
@@ -660,13 +660,13 @@ export function prefetch(): Promise<void> {
 // the degrade journey; the digests are placeholders (the offline journey lists
 // and pauses, it never installs).
 //
-// Every kind is represented, deliberately (AP-FR-022, issue #522): the agent
+// Every kind is represented, deliberately (AP-FR-022, #1112): the agent
 // entries are what give an e2e run an agent-kind listing to render, and having
 // all three kinds side by side is what makes the kind-gated compatibility
 // metadata observable (only an agent card shows a CLI window, AP-TC-125).
 //
 // THREE of them are agent-kind: `codex-cli` for the compatibility-line guards,
-// `gemini-cli` for the AP-TC-115 marketplace-install-to-launch guard (#534), and
+// `gemini-cli` for the AP-TC-115 marketplace-install-to-launch guard (#1127), and
 // `cursor-cli` for the APCC-TC-056 catalog-install-to-session guard. The last
 // two each need a listing of their own to read. All three point `directory` at a
 // real agent-kind overlay manifest in this repo
@@ -721,7 +721,7 @@ const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
     verified: true,
   },
   {
-    // AP-TC-115 (#534): the agent-kind listing the marketplace-install-to-launch
+    // AP-TC-115 (#1127): the agent-kind listing the marketplace-install-to-launch
     // drift guard reads. Its `directory` points at the bundled overlay, so
     // `readEntryManifest` enriches the listing with that manifest's declared
     // compatibility window (floor 0.9.0, tested <= 1.2.3), which is the line
@@ -862,7 +862,7 @@ export async function __setE2EMarketplaceReachable(
   return resolved.source;
 }
 
-// ── ROUBO_E2E third-party-source seam (issue #575, CPHMTP-TC-073) ──────────────
+// ── ROUBO_E2E third-party-source seam (#989, CPHMTP-TC-073) ──────────────
 //
 // The declared-source-consent-install-journey e2e
 // (e2e/e2e-flow/declared-source-consent-install-journey.spec.ts) walks the

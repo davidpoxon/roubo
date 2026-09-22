@@ -7,7 +7,7 @@ vi.mock("node:fs");
 vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
 
 /**
- * Points the automocked fs at a synthetic tree for the executability gate (#651).
+ * Points the automocked fs at a synthetic tree for the executability gate (#1060).
  * `files` are regular files, `dirs` are directories, and `executable` names the
  * subset carrying the execute bit (defaulting to every file). Anything unnamed
  * does not exist. Resolution tests drive statSync/accessSync through this rather
@@ -611,7 +611,7 @@ describe("getContextWindow", () => {
   });
 });
 
-describe("resolveAgentCommand (#645)", () => {
+describe("resolveAgentCommand (#1056)", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -648,7 +648,7 @@ describe("resolveAgentCommand (#645)", () => {
     expect(resolveAgentCommand("acme", "/child/bin")).toBe("acme");
   });
 
-  it("skips a PATH entry that is not an executable file (#651)", async () => {
+  it("skips a PATH entry that is not an executable file (#1060)", async () => {
     // /usr/bin/claude is a directory and /bin/claude lacks the execute bit, so
     // neither may be spawned: resolution must fall through to the well-known list.
     mockFs({
@@ -671,8 +671,8 @@ describe("resolveAgentCommand (#645)", () => {
     expect(resolveAgentCommand("claude")).toBe(expected());
   });
 
-  it("skips a well-known candidate that exists but is not executable (#651)", async () => {
-    // The shadowing case from #651: a broken ~/.local/bin/claude must not win
+  it("skips a well-known candidate that exists but is not executable (#1060)", async () => {
+    // The shadowing case from #1060: a broken ~/.local/bin/claude must not win
     // over a working /opt/homebrew/bin/claude further down the list.
     mockFs({
       files: [
@@ -686,7 +686,7 @@ describe("resolveAgentCommand (#645)", () => {
     expect(resolveAgentCommand("claude")).toBe("/opt/homebrew/bin/claude");
   });
 
-  it("throws when every candidate exists but none is executable (#651)", async () => {
+  it("throws when every candidate exists but none is executable (#1060)", async () => {
     const candidates = [
       "/usr/bin/claude",
       "/bin/claude",
@@ -746,7 +746,7 @@ describe("resolveAgentCommand (#645)", () => {
   });
 });
 
-describe("resolveAgentCommand well-known install locations (#645, #651)", () => {
+describe("resolveAgentCommand well-known install locations (#1056, #1060)", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -769,7 +769,7 @@ describe("resolveAgentCommand well-known install locations (#645, #651)", () => 
     }
   });
 
-  it("falls through past a non-executable candidate to the next one (#651)", async () => {
+  it("falls through past a non-executable candidate to the next one (#1060)", async () => {
     const { wellKnownPathsFor, resolveAgentCommand } = await import("./env.js");
     const candidates = wellKnownPathsFor("claude");
     expect(candidates.length).toBeGreaterThan(1);
@@ -784,12 +784,12 @@ describe("resolveAgentCommand well-known install locations (#645, #651)", () => 
   });
 });
 
-// The per-agent half of the same fallback (#712): the candidate list comes from
+// The per-agent half of the same fallback (#1115): the candidate list comes from
 // the launching agent plugin's manifest (`agentInstallLocations`), so a CLI
 // other than `claude` resolves on an install whose PATH the server never
 // inherits. The host keeps doing the probing throughout, so nothing here lets a
 // plugin name a path and have it spawned unconditionally.
-describe("resolveAgentCommand manifest-declared install locations (#712)", () => {
+describe("resolveAgentCommand manifest-declared install locations (#1115)", () => {
   const originalEnv = { ...process.env };
   const CODEX_LOCATIONS = ["~/.local/bin/codex", "/opt/homebrew/bin/codex", "/usr/local/bin/codex"];
   const expandedCodexLocations = (): string[] => [
@@ -828,7 +828,7 @@ describe("resolveAgentCommand manifest-declared install locations (#712)", () =>
     expect(resolveAgentCommand("codex", process.env.PATH, CODEX_LOCATIONS)).toBe("codex");
   });
 
-  it("falls through a declared candidate that is not an executable file (#651)", async () => {
+  it("falls through a declared candidate that is not an executable file (#1060)", async () => {
     const declared = expandedCodexLocations();
     mockFs({
       dirs: [declared[0]],
@@ -952,7 +952,7 @@ describe("loginShellScriptArgs", () => {
 
   it("adds -i for zsh so rc-defined tools such as nvm resolve", async () => {
     // zsh reads ~/.zshrc only for interactive shells, and that is where the
-    // stock nvm/fnm/asdf snippets live, so `-lc` alone cannot see them (#628).
+    // stock nvm/fnm/asdf snippets live, so `-lc` alone cannot see them (#996).
     process.env.SHELL = "/bin/zsh";
     const { loginShellScriptArgs } = await import("./env.js");
     expect(loginShellScriptArgs("nvm use && npm i")).toEqual(["-ilc", "nvm use && npm i"]);

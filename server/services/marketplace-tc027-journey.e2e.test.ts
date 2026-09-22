@@ -81,7 +81,7 @@
 // .specifications/component-plugins-hosted-marketplace-third-party/test-cases.json
 // forces this test to be updated.
 //
-// Failure-output contract (issue #572 AC: "On failure the test reports which e2e_flow
+// Failure-output contract (#988 AC: "On failure the test reports which e2e_flow
 // step diverged, the expected-vs-actual at that step, and the owning slice(s)
 // from Blocked by"): every assertion attaches an expected-vs-actual message naming the
 // diverging step and the owning slice, so a red run localizes the integration drift to
@@ -101,18 +101,18 @@ import type { MarketplaceCatalogEntry, PluginRecord } from "@roubo/shared";
 import type { ThirdPartyCatalogResult, VerifiedCatalog } from "./catalog-client.js";
 
 // ── Owning slices ──
-// #572's blocked-by set is {#557, #559, #560, #563}. Each step localizes a divergence
+// The work unit's blocked-by set was delivered in #962, #961, #968, #977. Each step localizes a divergence
 // to the slice that actually owns the diverging behaviour, so a red run points at one
 // attributable issue rather than the whole journey. All four are CLOSED (merged), so
 // this unit is a drift guard over them.
 const SLICE_MULTI_SOURCE_LISTING =
-  "#557 (multi-source listing: merged catalog, per-entry provenance stamp, source filter, parallel fetch)";
+  "multi-source listing: merged catalog, per-entry provenance stamp, source filter, parallel fetch";
 const SLICE_MANDATORY_DIGEST =
-  "#559 (mandatory integrity digest + guarded artifact download for unsigned third-party installs)";
+  "mandatory integrity digest + guarded artifact download for unsigned third-party installs";
 const SLICE_PROVENANCE_LEDGER =
-  "#560 (install-record source provenance stored + surfaced across list/card/drawer)";
+  "install-record source provenance stored + surfaced across list/card/drawer";
 const SLICE_UNVERIFIED_BADGE =
-  "#563 (persistent unverified badge + provenance across list, card, and drawer surfaces)";
+  "persistent unverified badge + provenance across list, card, and drawer surfaces";
 
 // ── Fixture identifiers (TC-027 preconditions) ──
 // The registered workplace source: consented as unsigned, with an attached credential
@@ -123,7 +123,7 @@ const SLICE_UNVERIFIED_BADGE =
 const WORKPLACE_CATALOG_URL = "https://marketplace.acme.example.invalid/catalog.json";
 // The asset lives on the SAME origin as the catalog: guarded-fetch scopes a
 // third-party download to the source's consented origin, so a cross-origin asset would
-// be refused before reaching the digest recompute (#554/#559).
+// be refused before reaching the digest recompute (#956/#961).
 const WORKPLACE_ASSET_URL = "https://marketplace.acme.example.invalid/acme-hosted-widget-1.0.0.tgz";
 const WORKPLACE_CREDENTIAL = "acme-workplace-token";
 // A distinct, non-bundled, non-first-party id (see the header note on why not `ghe`).
@@ -156,13 +156,13 @@ vi.mock("./plugin-manager.js", () => ({
 
 vi.mock("undici", () => ({
   fetch: vi.fn(),
-  // guarded-fetch builds a connect-pinning Agent (issue #590); the mocked fetch
+  // guarded-fetch builds a connect-pinning Agent (#960); the mocked fetch
   // ignores the dispatcher, so a constructable stub is all this mock needs.
   Agent: vi.fn(),
 }));
 
 // The provenance ledger's persistence boundary: commit records the chosen source to
-// ~/.roubo/plugins-provenance.json (issue #558/#560). Mocked so the journey cannot
+// ~/.roubo/plugins-provenance.json (#966/#968). Mocked so the journey cannot
 // write the developer's own state dir; its file IO is covered by
 // plugin-provenance-state.test.ts. This journey asserts the stamping happens (the
 // recordProvenance call) and its arguments (the stored provenance), which is the
@@ -631,7 +631,7 @@ describe("CPHMTP-TC-027: browse, filter to a workplace source, install with the 
     // ── S007 (persistent drawer badge, attributed, NOT re-asserted here) ──
     // "Open the plugin drawer for the newly installed ghe plugin -> the drawer shows the
     // SAME Unverified badge, confirming the badge is persistent across list, card, and
-    // drawer surfaces" is a pure web-client render observation owned by #563. Whether a
+    // drawer surfaces" is a pure web-client render observation owned by #977. Whether a
     // badge renders in the drawer, and that it is the same non-dismissible pill the list
     // and card show, is not observable from a service call; it is asserted by
     // MarketplaceDrawer.test.tsx and ProvenanceBadge.test.tsx. What IS observable, and is

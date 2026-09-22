@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 //
-// #484 TSPF-NFR-003 / TSPF-TC-015: the partitioned spec picker reports zero axe
+// #939 TSPF-NFR-003 / TSPF-TC-015: the partitioned spec picker reports zero axe
 // violations in BOTH modes (create + repoint) and BOTH partition states (a mixed
 // needs-attention/all-passed list and the all-passed-only empty state), including
 // the expanded all-passed disclosure. Asserts through the shared expectNoAxeFindings
 // helper (client/src/test/axe.ts) and the hook-mock setup from SpecPickerModal.test.tsx.
 //
-// Coverage gap (#493): jsdom has no layout/paint engine, so axe cannot execute the
+// Coverage gap (#943): jsdom has no layout/paint engine, so axe cannot execute the
 // color-contrast rule here (it silently reports zero contrast violations even when
 // text fails WCAG AA in a real browser). Real-rendering color-contrast is therefore
 // verified separately in the Playwright spec e2e/e2e-flow/spec-picker-contrast.spec.ts,
@@ -50,7 +50,7 @@ function verification(
 }
 
 // Lifecycle defaults to live (no record on disk); the archived fixtures below
-// state only the fields they need (#770).
+// state only the fields they need (#1162).
 function lifecycle(over: Partial<SpecLifecycleState> = {}): SpecLifecycleState {
   return { archived: false, reason: null, supersededBy: null, recordError: null, ...over };
 }
@@ -123,7 +123,7 @@ const ALL_PASSED: DiscoveredSpec[] = [
   },
 ];
 
-// #770: the mixed list plus one merely-archived and one superseded spec, both
+// #1162: the mixed list plus one merely-archived and one superseded spec, both
 // hidden until the reveal control is pressed.
 const WITH_ARCHIVED: DiscoveredSpec[] = [
   ...MIXED,
@@ -172,8 +172,8 @@ async function expectNoViolations() {
   expectNoAxeFindings(results);
 }
 
-describe("SpecPickerModal a11y (#484)", () => {
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+describe("SpecPickerModal a11y (#939)", () => {
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the modality explicit to AT.
   it("stamps aria-modal on the dialog", () => {
     renderModal();
@@ -211,7 +211,7 @@ describe("SpecPickerModal a11y (#484)", () => {
     });
   });
 
-  // #770 (SATCA-FR-015/FR-016): the reveal control and the group it discloses.
+  // #1162 (SATCA-FR-015/FR-016): the reveal control and the group it discloses.
   describe("archived reveal", () => {
     beforeEach(() => {
       mockUseTestbenchSpecs.mockReturnValue(specsQuery(WITH_ARCHIVED));
@@ -233,7 +233,7 @@ describe("SpecPickerModal a11y (#484)", () => {
       expect(screen.getByRole("group", { name: "Archived specs" })).toBeInTheDocument();
     });
 
-    // #775 AC2. aria-pressed says what the control is; aria-controls says what it
+    // #1173 AC2. aria-pressed says what the control is; aria-controls says what it
     // governs, so the group it discloses is reachable from the control itself.
     it("points the reveal control at the group it discloses", async () => {
       renderModal();
@@ -244,7 +244,7 @@ describe("SpecPickerModal a11y (#484)", () => {
       expect(group.id).not.toBe("");
     });
 
-    // #775 AC2: the resulting LIST change is announced, not just the control's
+    // #1173 AC2: the resulting LIST change is announced, not just the control's
     // own pressed state. The region is mounted before the change so the update is
     // announced rather than being swallowed as initial content.
     it("announces the resulting list change in a polite live region", async () => {
@@ -288,7 +288,7 @@ describe("SpecPickerModal a11y (#484)", () => {
     });
   });
 
-  // #773 (SATCA-FR-020/FR-021): the per-row actions menu and the confirm step
+  // #1166 (SATCA-FR-020/FR-021): the per-row actions menu and the confirm step
   // it opens. The row is a ToggleButton, so the trigger MUST be a sibling of it,
   // never a child: the axe scans below are what hold that line.
   describe("lifecycle actions menu", () => {

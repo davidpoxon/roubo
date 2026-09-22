@@ -1,8 +1,8 @@
-// Regression guard (issue #799): every committed `docs/specifications/<slug>/work-units.json`
+// Regression guard (#800): every committed `docs/specifications/<slug>/work-units.json`
 // that is in the work-units envelope format must satisfy the real strict contract
 // (shared/work-units-contract.ts).
 //
-// The defect in #799 was a committed spec file (component-plugins-hosted-marketplace)
+// The defect in #800 was a committed spec file (component-plugins-hosted-marketplace)
 // that stored numeric `tracker.ref`, `tracker.blocked_by_refs[]`, and `covers[]` values
 // where the canonical model and the strict contract both require strings. The on-load
 // e2e tests only exercise fixtures under shared/__fixtures__/, so the malformed real spec
@@ -21,7 +21,7 @@
 // object whose `$schema` is WORK_UNITS_SCHEMA_ID. That is exactly the format validateWorkUnits
 // targets. A handful of older specs may predate the work-units.json envelope migration and
 // carry a different (top-level array) shape; they are not consumed through validateWorkUnits
-// and are intentionally out of this guard's scope. A numeric-ref defect like #799 never
+// and are intentionally out of this guard's scope. A numeric-ref defect like #800 never
 // alters `$schema`, so envelope files remain fully covered by this guard.
 //
 // The glob root is derived robustly from this file's location: shared/ sits one level below

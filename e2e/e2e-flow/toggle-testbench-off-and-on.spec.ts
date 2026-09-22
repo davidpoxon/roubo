@@ -2,7 +2,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from "@
 import { loadAppShell, registerFixtureProject, resetWithScenario } from "./_support/scenario.js";
 import { TC_069, TC_069_OWNING_SLICES } from "./_support/testbench-plan.js";
 
-// E2E (#441): the authoritative `e2e_flow` drift guard for the
+// E2E (#485): the authoritative `e2e_flow` drift guard for the
 // "toggle TestBench off, verify the surface is hidden, toggle back on, verify it
 // is restored" journey (TC-069, US-010, FR-018/FR-001). It walks the integrated
 // system end to end against the BUILT app: with the feature enabled, open the
@@ -10,7 +10,7 @@ import { TC_069, TC_069_OWNING_SLICES } from "./_support/testbench-plan.js";
 // disappears from the bench list), then back on (asserting the surface returns),
 // and assert each leg matches TC-069.
 //
-// Unlike the per-slice unit tests (#414/#416/#417/#418 own those), this asserts
+// Unlike the per-slice unit tests (#456/#459/#462/#467 own those), this asserts
 // the journey, not any single slice's implementation. Each step is wrapped in a
 // labelled `test.step` so a failure localises the diverging step, reports the
 // expected-vs-actual at that step, and names the owning slice (FR-020 / AC6).
@@ -40,7 +40,7 @@ async function enableTestBench(request: APIRequestContext): Promise<void> {
   // PUT /api/settings replaces the whole preferences object and validates a
   // required `theme`, so round-trip the current settings with testBench.enabled
   // flipped on rather than sending a partial body. This makes the precondition
-  // explicit and deterministic regardless of the persisted default (#417 owns the
+  // explicit and deterministic regardless of the persisted default (#462 owns the
   // testBench.enabled persistence this round-trips through).
   const current = await request.get("/api/settings");
   expect(current.status(), TC_069_OWNING_SLICES.persistence).toBe(200);
@@ -109,7 +109,7 @@ test("TC-069: toggle TestBench off and on, surface hidden then restored", async 
   request,
 }) => {
   // ── Preconditions: feature enabled, project registered, app shell loaded ─────
-  await test.step("Precondition: TestBench is enabled (toggle ON) (#414/#417)", async () => {
+  await test.step("Precondition: TestBench is enabled (toggle ON) (#456/#462)", async () => {
     await enableTestBench(request);
   });
 
@@ -127,7 +127,7 @@ test("TC-069: toggle TestBench off and on, surface hidden then restored", async 
   // TC-069 steps "Open app settings", "Navigate to the 'TestBench' tab", "Observe
   // the switch state" => "Switch is ON (amber) with no disabled helper text".
   const toggle = page.getByRole("switch", { name: "Enable TestBench" });
-  await test.step("Step 1: open app settings, TestBench tab -> switch ON, no disabled helper text (AC1, #414)", async () => {
+  await test.step("Step 1: open app settings, TestBench tab -> switch ON, no disabled helper text (AC1, #456)", async () => {
     await gotoSettingsTestBenchTab(page);
     // React Aria's Switch renders a native <input role="switch" type="checkbox">,
     // so its on/off state reflects on the native `checked` property (not an
@@ -143,7 +143,7 @@ test("TC-069: toggle TestBench off and on, surface hidden then restored", async 
   });
 
   // ── Step 2: toggle OFF -> switch OFF + disabled helper text appears (AC2) ─────
-  await test.step("Step 2: click the switch to toggle OFF -> switch OFF, disabled helper text appears (AC2, #414)", async () => {
+  await test.step("Step 2: click the switch to toggle OFF -> switch OFF, disabled helper text appears (AC2, #456)", async () => {
     await clickTestBenchSwitch(toggle);
     await expect(
       toggle,
@@ -156,7 +156,7 @@ test("TC-069: toggle TestBench off and on, surface hidden then restored", async 
   });
 
   // ── Step 3: close settings -> create-TestBench option absent / surface gone (AC3) ─
-  await test.step("Step 3: close settings -> create-TestBench option absent, surface not accessible (AC3, #418/#416)", async () => {
+  await test.step("Step 3: close settings -> create-TestBench option absent, surface not accessible (AC3, #467/#459)", async () => {
     await gotoBenchList(page, PROJECT_ID);
     await openEmptySlotMenu(page);
     await expect(
@@ -166,7 +166,7 @@ test("TC-069: toggle TestBench off and on, surface hidden then restored", async 
   });
 
   // ── Step 4: re-open settings, toggle ON -> switch ON, helper text removed (AC4) ─
-  await test.step("Step 4: re-open settings, toggle the switch back ON -> switch ON, helper text removed (AC4, #414)", async () => {
+  await test.step("Step 4: re-open settings, toggle the switch back ON -> switch ON, helper text removed (AC4, #456)", async () => {
     await gotoSettingsTestBenchTab(page);
     // After navigating back, the toggle reflects the persisted OFF state.
     await expect(
@@ -182,7 +182,7 @@ test("TC-069: toggle TestBench off and on, surface hidden then restored", async 
   });
 
   // ── Step 5: close settings -> create-TestBench option visible again (AC4) ─────
-  await test.step("Step 5: close settings -> create-TestBench option visible again, surface accessible (AC4, #418/#416)", async () => {
+  await test.step("Step 5: close settings -> create-TestBench option visible again, surface accessible (AC4, #467/#459)", async () => {
     await gotoBenchList(page, PROJECT_ID);
     await openEmptySlotMenu(page);
     await expect(

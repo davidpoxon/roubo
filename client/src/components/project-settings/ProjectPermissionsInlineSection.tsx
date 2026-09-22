@@ -18,7 +18,7 @@ export function ProjectPermissionsInlineSection({
   const hasRules = allow.length > 0 || deny.length > 0 || ask.length > 0;
   const total = allow.length + deny.length + ask.length;
   // Same fail-open default as the editor page: an agent that declares nothing,
-  // and a probe that has not answered, carry every tier (#862).
+  // and a probe that has not answered, carry every tier (#1345).
   const honouredTiers = capabilities?.ruleTiers ?? ALL_RULE_TYPES;
   const counts = { allow: allow.length, deny: deny.length, ask: ask.length };
   const tierSummary = ALL_RULE_TYPES.filter(

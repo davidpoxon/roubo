@@ -66,7 +66,7 @@ beforeEach(() => {
 });
 
 describe("ImportPermissionsModal", () => {
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the modality explicit to AT.
   it("stamps aria-modal on the dialog", () => {
     renderModal();
@@ -361,7 +361,7 @@ describe("ImportPermissionsModal", () => {
     });
   });
 
-  // #862: the source project may have been on another agent, so its rules can
+  // #1345: the source project may have been on another agent, so its rules can
   // include a tier THIS project's agent drops. Selecting and previewing such a
   // rule as though it applied is the same misleading state the editor's notice
   // exists to prevent, so the marking has to reach inside this dialog too.

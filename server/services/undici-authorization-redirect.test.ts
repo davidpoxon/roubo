@@ -1,9 +1,9 @@
-// undici Authorization cross-origin redirect pinning suite (spike #552,
+// undici Authorization cross-origin redirect pinning suite (spike #953,
 // CPHMTP-NFR-002).
 //
 // Pins, on the pinned Node version (.nvmrc) and the pinned npm undici
 // (package.json), the redirect-time credential behaviour the guarded-fetch
-// transport (#554) builds on. Findings live in the meta-repo at
+// transport (#956) builds on. Findings live in the meta-repo at
 // .specifications/component-plugins-hosted-marketplace-third-party/spikes/
 // spike-552-undici-authorization-cross-origin.md.
 //
@@ -133,7 +133,7 @@ function at(origin: "A" | "B", path: string): SeenRequest {
 
 // Both undici transports present in the tree. plugin-installer.ts imports the
 // npm undici fetch; Node's global fetch is the Node-bundled undici. The spike
-// pins both so #554 may standardise on either without re-running the research.
+// pins both so #956 may standardise on either without re-running the research.
 const transports: [name: string, doFetch: typeof globalThis.fetch][] = [
   ["node-global-fetch (Node-bundled undici)", globalThis.fetch],
   [
@@ -185,7 +185,7 @@ describe.each(transports)("%s", (_name, doFetch) => {
     // Origin B stands in for a non-source origin. undici performs no
     // attach-time origin check: the header the caller sets is the header sent.
     // The attach-only-on-origin-equality rule of CPHMTP-NFR-002 therefore
-    // cannot be delegated to undici; guarded-fetch (#554) must enforce it.
+    // cannot be delegated to undici; guarded-fetch (#956) must enforce it.
     const res = await doFetch(`${origins.B}/target`, {
       headers: { authorization: AUTH },
     });

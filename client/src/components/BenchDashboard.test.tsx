@@ -839,7 +839,7 @@ describe("BenchDashboard", () => {
       );
     });
 
-    it("surfaces a launchWarning toast when the bench was created but no agent session opened (#521, AP-NFR-003)", async () => {
+    it("surfaces a launchWarning toast when the bench was created but no agent session opened (#1114, AP-NFR-003)", async () => {
       const { addToast, getCapturedOptions, getCapturedToastOptions } = stubDefaults({
         projects: [makeProject()],
         benches: [],
@@ -1516,7 +1516,7 @@ describe("BenchDashboard", () => {
     });
   });
 
-  describe("breadcrumb (#179)", () => {
+  describe("breadcrumb (#214)", () => {
     const githubIntegration: ProjectIntegrationState = {
       effective: { plugin: "github-com" },
       committed: { plugin: "github-com" },
@@ -1564,7 +1564,7 @@ describe("BenchDashboard", () => {
     });
   });
 
-  describe("TestBench create flow (#418)", () => {
+  describe("TestBench create flow (#467)", () => {
     function setTestBench(enabled: boolean) {
       mockedUseSettings.mockReturnValue({
         settings: { theme: "system", testBench: { enabled } },

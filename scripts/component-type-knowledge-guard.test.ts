@@ -81,7 +81,7 @@ describe("scanFiles (ComponentTypeKnowledgeGuard, CP-NFR-006)", () => {
     expect(findings).toEqual([]);
   });
 
-  it("flags an injected CONFIG docker-field read in bench-manager (CP-TC-042, #400)", () => {
+  it("flags an injected CONFIG docker-field read in bench-manager (CP-TC-042, #888)", () => {
     // The blanket bench-manager allowlist let this slip through. Receiver-scoped,
     // a read whose receiver is a config object (not `descriptor`) is a violation.
     const findings = scan({

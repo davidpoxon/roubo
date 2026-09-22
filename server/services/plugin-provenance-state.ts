@@ -8,7 +8,7 @@ import {
 } from "@roubo/shared";
 import { atomicWrite, ensureDirs, getRouboDir } from "./state.js";
 
-// Issue #558 / CPHMTP-FR-005, CPHMTP-FR-006: persistent per-plugin record of which
+// #966 / CPHMTP-FR-005, CPHMTP-FR-006: persistent per-plugin record of which
 // marketplace source a plugin was installed from. See:
 //   .specifications/component-plugins-hosted-marketplace-third-party/prd.md
 //   .specifications/component-plugins-hosted-marketplace-third-party/architecture.md
@@ -102,7 +102,7 @@ export function getProvenance(pluginId: string): PluginProvenanceRecord | null {
  *
  * An update re-stamps the row rather than merging: the update was resolved against
  * a specific source too, so the newest choice is the truth. That also clears any
- * `orphaned` stamp (issue #560): reinstalling from a re-registered source resolved
+ * `orphaned` stamp (#968): reinstalling from a re-registered source resolved
  * against a source that exists again, so a stale orphan marker must not survive.
  */
 export function recordProvenance(input: {
@@ -131,7 +131,7 @@ export function recordProvenance(input: {
 
 /**
  * Stamps `orphaned: true` on every ledger row installed from `sourceId`, called
- * when that source is removed from the registry (issue #560 / CPHMTP-FR-009).
+ * when that source is removed from the registry (#968 / CPHMTP-FR-009).
  *
  * The stamp is persisted rather than recomputed at read time by joining records
  * against the live source registry: the row keeps its `sourceUrl`, so an orphaned

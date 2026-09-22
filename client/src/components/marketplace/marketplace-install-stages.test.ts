@@ -1,5 +1,5 @@
 // Unit tests for the client-derived 4-step install progress helpers (issue
-// #374). These are pure functions, so they are tested in isolation from the
+// #855). These are pure functions, so they are tested in isolation from the
 // widget: the InstallErrorCode -> failing-stage map, the mutation-lifecycle ->
 // per-stage status derivation (fail-closed precedence), and the artifact meta
 // label.
@@ -49,7 +49,7 @@ describe("stageIndexForErrorCode", () => {
     expect(stageIndexForErrorCode("unpack-failed")).not.toBe(INSTALL_STAGE_INDEX.artifactDigest);
   });
 
-  it("maps missing-integrity to the Verify artifact digest stage, not the default (issue #559)", () => {
+  it("maps missing-integrity to the Verify artifact digest stage, not the default (#961)", () => {
     // A pre-fetch refusal must not fall through to "Unpack & install", which would
     // misreport an unverifiable entry as an unpack failure.
     expect(stageIndexForErrorCode("missing-integrity")).toBe(INSTALL_STAGE_INDEX.artifactDigest);
@@ -100,7 +100,7 @@ describe("stageFailMessage", () => {
     expect(stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest)).toMatch(/^Digest mismatch:/);
   });
 
-  it("states an unpack containment rejection on the Unpack & install stage, not the digest stage (issue #374 corr-1)", () => {
+  it("states an unpack containment rejection on the Unpack & install stage, not the digest stage (#855 corr-1)", () => {
     const message = stageFailMessage(INSTALL_STAGE_INDEX.unpackInstall, "unpack-failed");
     expect(message).toMatch(/could not be safely unpacked/i);
     expect(message).not.toMatch(/digest mismatch/i);
@@ -111,7 +111,7 @@ describe("stageFailMessage", () => {
     );
   });
 
-  it("states a missing digest makes the plugin uninstallable, not tampered (issue #559)", () => {
+  it("states a missing digest makes the plugin uninstallable, not tampered (#961)", () => {
     const message = stageFailMessage(INSTALL_STAGE_INDEX.artifactDigest, "missing-integrity");
     expect(message).toMatch(/uninstallable without a per-artifact digest/i);
     // There was no digest to compare against and nothing was fetched, so neither
@@ -191,7 +191,7 @@ describe("deriveStageStatuses", () => {
   });
 
   it("fails the Unpack & install stage (4) on a staging unpack-failed failure, leaving the digest stage (3) pending", () => {
-    // unpack runs BEFORE the digest check in the real pipeline (issue #370), so
+    // unpack runs BEFORE the digest check in the real pipeline (#849), so
     // an unpack failure means the digest was never verified: stage 3 must not be
     // marked "done" just because it sits earlier in the labelled list.
     expect(

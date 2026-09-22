@@ -51,7 +51,7 @@ export function useSaveIntegrationConfig(projectId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["project-integration", projectId] });
       // The status-category exclusion lives in this config and shapes the cut
-      // list in-query, so refresh the cut list live after a save (issue #435).
+      // list in-query, so refresh the cut list live after a save (#454).
       void queryClient.invalidateQueries({ queryKey: ["issues"] });
     },
   });
@@ -69,7 +69,7 @@ export function useSourceCandidates(projectId: string, enabled: boolean) {
   });
 }
 
-// Live status-category discovery (issue #453). Fetched lazily, only when the
+// Live status-category discovery (#461). Fetched lazily, only when the
 // Configure dialog's exclusion section is shown, since it requires a live
 // plugin connection. The endpoint never errors: it returns `supported: false`
 // on any failure so the dialog falls back to its canonical set.

@@ -11,7 +11,7 @@ import { ChevronDown } from "lucide-react";
 import type { CaseStatus } from "@roubo/shared/testbench-contracts";
 import { STATUS_LABEL } from "./StatusIndicator";
 
-// Status override control (#420, FR-010).
+// Status override control (#471, FR-010).
 //
 // Lets the reviewer set any of the five statuses, or fall back to the derived
 // value. The currently-overridden status (or the derived status when none is

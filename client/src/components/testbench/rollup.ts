@@ -1,4 +1,4 @@
-// Pure view-model derivation for the TestBench review tab (#419, FR-005/FR-006/FR-013).
+// Pure view-model derivation for the TestBench review tab (#466, FR-005/FR-006/FR-013).
 //
 // Given a validated plan and this bench's results, group the plan's cases by
 // level then priority, resolve each case's effective status (a status override
@@ -8,7 +8,7 @@
 // grouping iterates the plan's cases, so an orphaned result simply has no case
 // to attach to and never contributes.
 //
-// Lifecycle exclusion (#769, SATCA-FR-005/FR-006/FR-007) lands here for the same
+// Lifecycle exclusion (#1161, SATCA-FR-005/FR-006/FR-007) lands here for the same
 // reason: this is the pure view model both the panel and the batch view consume,
 // so a retired or superseded case drops out of every count and out of the
 // flattened list in one place. Live-ness is read from the LifecycleResolver
@@ -19,7 +19,7 @@
 // already shows, rather than losing them entirely.
 //
 // A same-spec pointer is additionally checked against THIS plan before it is
-// called revealable (#789): naming a case in this spec is not the same as that
+// called revealable (#1165): naming a case in this spec is not the same as that
 // case being present and live, and only a present, live target can actually be
 // revealed in the panel's live list. That check is a single lookup over the
 // plan's own cases, not a chain walk.
@@ -47,7 +47,7 @@ export function effectiveCaseStatus(caseId: string, results: BenchResults | null
   return result.statusOverride?.status ?? result.derivedStatus;
 }
 
-// Per-case observation progress (#508): how many of a case's observations have
+// Per-case observation progress (#510): how many of a case's observations have
 // been marked, out of the total defined across its steps. Drives the per-case
 // progress indicator in the detail pane, distinct from the per-level and overall
 // case rollups.
@@ -103,7 +103,7 @@ export interface LevelGroup {
 }
 
 // A case excluded from the live list and every count by its own lifecycle block
-// (#769). Distinct from an orphaned result, which is a result whose case left the
+// (#1161). Distinct from an orphaned result, which is a result whose case left the
 // plan: a non-live case is STILL in the plan, which is why its marks, notes, and
 // status override are untouched on disk and still readable here.
 export interface ArchivedCaseModel {
@@ -123,7 +123,7 @@ export interface ArchivedCaseModel {
   // pointer's slug: it says nothing about whether such a case exists.
   isSameSpec: boolean;
   // True when the replacement can actually be revealed in the panel's live list
-  // (#789): `isSameSpec` AND the named case is present in this plan AND that
+  // (#1165): `isSameSpec` AND the named case is present in this plan AND that
   // case is itself live. A same-spec pointer to a case that was never in the
   // plan, or that is itself retired or superseded, is inert: activating it would
   // select an id the panel cannot resolve, so it is named as text instead.
@@ -186,7 +186,7 @@ function archivedModel(
     replacementRef,
     isSameSpec,
     // Same-spec is necessary but not sufficient: the target must be in this plan
-    // and live, or there is nothing for the panel to reveal (#789). Live-ness is
+    // and live, or there is nothing for the panel to reveal (#1165). Live-ness is
     // asked of the resolver, never read off the raw state.
     isRevealable:
       isSameSpec &&
@@ -206,7 +206,7 @@ export function buildRollup(
   const archived: ArchivedCaseModel[] = [];
 
   for (const c of cases) {
-    // Ask the resolver, never the raw state (#769). A case with no lifecycle
+    // Ask the resolver, never the raw state (#1161). A case with no lifecycle
     // block is live, so every pre-1.2.0 plan groups exactly as it always did.
     const state = caseStateOf(c);
     if (state !== "live") {
@@ -264,7 +264,7 @@ export type FlatRow =
   | { kind: "level"; key: string; level: string; counts: StatusCounts }
   | { kind: "priority"; key: string; level: string; priority: string; counts: StatusCounts }
   // `level` is carried on the case row too so a collapsed-level filter can hide
-  // its cases without re-deriving the grouping (#508).
+  // its cases without re-deriving the grouping (#510).
   | { kind: "case"; key: string; level: string; row: CaseRowModel };
 
 export function flattenRollup(model: RollupModel): FlatRow[] {

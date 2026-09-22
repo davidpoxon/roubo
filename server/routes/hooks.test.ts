@@ -254,7 +254,7 @@ describe("POST /claude-notification", () => {
   });
 });
 
-describe("POST /agent-notification (issue #698)", () => {
+describe("POST /agent-notification (#1113)", () => {
   const sessionId = "550e8400-e29b-41d4-a716-446655440000";
   const token = `roubo:${sessionId}`;
 

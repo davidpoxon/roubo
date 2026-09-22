@@ -69,7 +69,7 @@ export async function composeDown(
 
 /**
  * Tears a compose project down by project name alone, without a compose file
- * (issue #613). `docker compose -p <name> down -v` resolves the project from the
+ * (#657). `docker compose -p <name> down -v` resolves the project from the
  * `com.docker.compose.project` label Docker stamped on every container at
  * `composeUp`, so the original compose file is not needed. This is what the
  * startup orphan sweep uses to reap an escaped `roubo-<projectId>-bench-<N>`
@@ -266,7 +266,7 @@ export async function getContainerStatusById(containerId: string): Promise<Conta
  * Resolve identity + published port for ANY container by id, independent of its
  * image type. Replaces the database-image-pattern lookup (`listDatabaseContainers`)
  * in the assign-container path so core carries no docker-image/component-type
- * knowledge there (#612, NFR-006): the host validates the assigned container
+ * knowledge there (#663, NFR-006): the host validates the assigned container
  * exists and exposes a port, and the bound plugin (via its `assignedContainerId`
  * descriptor) owns the type-specific adoption. Returns null when no container by
  * that id exists.

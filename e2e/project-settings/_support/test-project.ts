@@ -26,7 +26,7 @@ export interface RegisterTestProjectOptions {
   // roubo.yaml. Drives the github-com Configure modal's derived-sources
   // preview to its success state (sources are derived from `project.repo`).
   projectRepo?: string;
-  // CLI-TC-062 (#573): optional port base for the generated fixture roubo.yaml.
+  // CLI-TC-062 (#643): optional port base for the generated fixture roubo.yaml.
   // Required when a spec registers two fixture projects at once so their port
   // ranges do not overlap (the allocator rejects overlaps).
   portBase?: number;
@@ -40,7 +40,7 @@ export interface RegisterTestProjectResult {
 /**
  * Thin wrapper around the canonical `registerFixtureProject` helper from
  * `e2e-flow/_support/scenario.ts` (which posts to
- * `/test/__register-fixture-project`, see #232). Kept here so the IP-WU-068
+ * `/test/__register-fixture-project`, see #249). Kept here so the IP-WU-068
  * project-settings specs can use a stable import path while the older API
  * shape (`projectName`, `pluginId`) is migrated to main's
  * `{ projectId, plugin }` contract. The `integrationConfig` field is

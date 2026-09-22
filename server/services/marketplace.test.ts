@@ -10,7 +10,7 @@ import type {
 import type { CatalogSource, ThirdPartyCatalogResult, VerifiedCatalog } from "./catalog-client.js";
 
 // HOST_API_VERSION is pinned in the mock rather than re-exported from the real
-// module: the host-range derivation (issue #720) compares against it, and pinning
+// module: the host-range derivation (#1134) compares against it, and pinning
 // it here keeps the incompatible / compatible fixtures below stable when the real
 // host version is bumped.
 const MOCK_HOST_API_VERSION = "1.5.0";
@@ -45,7 +45,7 @@ vi.mock("./catalog-client.js", () => ({
 
 const FIRST_PARTY_URL = "https://davidpoxon.github.io/roubo-plugins/catalog.json";
 
-// What install/update record for a first-party install (issue #558): the built-in
+// What install/update record for a first-party install (#966): the built-in
 // source, and verified, since the first-party signed chain is the only thing that
 // can assert verification.
 const FIRST_PARTY_PROVENANCE = {
@@ -115,7 +115,7 @@ const ENTRIES: MarketplaceCatalogEntry[] = [
 
 // A `release`-type (built-artifact) entry: the hosted catalog serves these, and
 // install/update must route to the download/unpack preview, not the git clone
-// (issue #370). The asset digest lives on source.sha256; the host's expected
+// (#849). The asset digest lives on source.sha256; the host's expected
 // package digest is the entry's `integrity`.
 const RELEASE_ENTRY: MarketplaceCatalogEntry = {
   id: "image-optimizer",
@@ -281,14 +281,14 @@ describe("listCatalog", () => {
     expect(annotated.updateAvailable).toBe(true);
   });
 
-  it("never flags updateAvailable for a bundled installed plugin (issue #752)", async () => {
+  it("never flags updateAvailable for a bundled installed plugin (#753)", async () => {
     listInstalled.mockReturnValue([installedRecord("database", "0.0.1", "bundled")]);
     const annotated = await annotatedById("database");
     expect(annotated.installed).toBe(true);
     expect(annotated.updateAvailable).toBe(false);
   });
 
-  it("still flags updateAvailable for a user-installed plugin behind the catalog (issue #752)", async () => {
+  it("still flags updateAvailable for a user-installed plugin behind the catalog (#753)", async () => {
     listInstalled.mockReturnValue([installedRecord("database", "0.0.1", "user")]);
     const annotated = await annotatedById("database");
     expect(annotated.installed).toBe(true);
@@ -309,11 +309,11 @@ describe("listCatalog", () => {
     expect(listings.some((l) => l.id === "worker-queue")).toBe(false);
   });
 
-  // #621: the first-party SEED floor was retired, so the offline degrade can now
+  // #993: the first-party SEED floor was retired, so the offline degrade can now
   // bottom out at an empty listing (source "cache", no entries) rather than a
   // non-zero seed floor. The FR-009 "never zero" invariant is intentionally
   // dropped offline.
-  it("serves an empty listing on the empty cache degrade (no seed floor, #621)", async () => {
+  it("serves an empty listing on the empty cache degrade (no seed floor, #993)", async () => {
     setCatalog("cache", [], null);
     const { listings, source, fetchedAt } = await marketplace.listCatalog();
     expect(listings).toEqual([]);
@@ -321,11 +321,11 @@ describe("listCatalog", () => {
     expect(fetchedAt).toBeNull();
   });
 
-  // CPHM-FR-009 / CPHM-NFR-003 (issue #372): the served catalog's provenance is
+  // CPHM-FR-009 / CPHM-NFR-003 (#851): the served catalog's provenance is
   // threaded through so the route can forward it and the client can render the
   // offline / staleness banner. A live network fetch reports source "network"
   // with a fetch timestamp.
-  it("threads through the network source and fetch timestamp (issue #372)", async () => {
+  it("threads through the network source and fetch timestamp (#851)", async () => {
     setCatalog("network");
     const result = await marketplace.listCatalog();
     expect(result.source).toBe("network");
@@ -343,12 +343,12 @@ describe("listCatalog", () => {
   });
 });
 
-// Issue #401: annotate() enriches each listing with PRE-INSTALL provenance the
+// #883: annotate() enriches each listing with PRE-INSTALL provenance the
 // detail drawer renders: the plugin's declared permissions and, for components,
 // its lifecycle. These are derived (not part of the signed catalog payload):
 // preferred from the installed record's manifest, else read from the bundled
 // plugins/<id> source manifest the git+directory entry points at.
-describe("annotate enrichment: declared permissions + lifecycle (issue #401)", () => {
+describe("annotate enrichment: declared permissions + lifecycle (#883)", () => {
   const richPermissions: PluginPermissions = {
     network: { hosts: ["api.example.com"] },
     credentials: { slots: [] },
@@ -425,10 +425,10 @@ describe("annotate enrichment: declared permissions + lifecycle (issue #401)", (
   });
 });
 
-// Issue #522 (AP-FR-022 / AP-NFR-006): annotate() derives the agent-CLI
+// #1112 (AP-FR-022 / AP-NFR-006): annotate() derives the agent-CLI
 // compatibility window an AGENT listing renders pre-install, from the same
 // declared-manifest seam declaredPermissions / lifecycle already use. Unlike
-// those two it is ALSO carried on MarketplaceCatalogEntry itself (issue #722):
+// those two it is ALSO carried on MarketplaceCatalogEntry itself (#1133):
 // the first-party catalog build emits it for every kind: agent entry it packs,
 // which is the only way a not-yet-installed release listing can show a window at
 // all, since that seam cannot reach its manifest. annotate() answers from a
@@ -437,7 +437,7 @@ describe("annotate enrichment: declared permissions + lifecycle (issue #401)", (
 // The kind gate lives HERE, on the server, which is what makes AP-TC-125 ("only
 // agent listings show CLI compat metadata") true by construction rather than by a
 // client-side branch that could be forgotten.
-describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
+describe("annotate enrichment: agent-CLI compatibility (#1112)", () => {
   // The one agent-kind manifest in this repo that declares a compatibility
   // window. Real, on-disk, and read through the same git+directory seam the
   // CP-TC-097 one-shot test uses, so the derivation is proven against a genuine
@@ -579,7 +579,7 @@ describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
     expect(annotated.agentCompatibility).toEqual({ minVersion: "9.9.9" });
   });
 
-  // Issue #722: a genuinely published third-party agent is `source.type:
+  // #1133: a genuinely published third-party agent is `source.type:
   // "release"` and not yet installed, so `readEntryManifest()` reaches no
   // manifest at all. The window the author declared on the CATALOG ENTRY is the
   // fallback that lets such a listing render its bounds pre-install.
@@ -599,7 +599,7 @@ describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
     agentCompatibility: { minVersion: "3.0.0", testedCeiling: "3.4.0" },
   };
 
-  it("renders a NOT-yet-installed release entry's own declared window (issue #722)", async () => {
+  it("renders a NOT-yet-installed release entry's own declared window (#1133)", async () => {
     listInstalled.mockReturnValue([]);
     setCatalog("network", [...ENTRIES, RELEASE_AGENT_DECLARING_WINDOW]);
     const annotated = await annotatedById("acme-agent");
@@ -613,7 +613,7 @@ describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
     });
   });
 
-  it("lets the MANIFEST window win over a conflicting entry-declared one (issue #722)", async () => {
+  it("lets the MANIFEST window win over a conflicting entry-declared one (#1133)", async () => {
     // The manifest is authoritative for what is on the machine, so the card and
     // the post-install state cannot disagree even when the catalog entry claims
     // different bounds.
@@ -638,7 +638,7 @@ describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
     expect(annotated.agentCompatibility).toEqual({ minVersion: "9.9.9" });
   });
 
-  it("lets an INSTALLED manifest declaring NO window suppress the entry's (issue #722)", async () => {
+  it("lets an INSTALLED manifest declaring NO window suppress the entry's (#1133)", async () => {
     // The sharp edge of preferring the manifest: "no bounds on disk" and "no
     // manifest in reach" are different states, and only the second may fall back
     // to the catalog. An installed plugin whose own manifest declares nothing
@@ -697,11 +697,11 @@ describe("annotate enrichment: agent-CLI compatibility (issue #522)", () => {
   });
 });
 
-// Issue #720: an entry may carry the plugin's declared `roubo` host range, so a
+// #1134: an entry may carry the plugin's declared `roubo` host range, so a
 // listing this host is out of range for is marked incompatible and refused BEFORE
 // any artifact is downloaded. The derivation is one function feeding both the
 // listing mark and the install/update gate, so the two cannot disagree.
-describe("host compatibility from the entry's declared roubo range (issue #720)", () => {
+describe("host compatibility from the entry's declared roubo range (#1134)", () => {
   // A published entry whose declared range excludes this host. Deliberately a
   // release source: nothing local can be read for it, which is exactly why the
   // range has to ride on the entry rather than be read off a manifest.
@@ -743,7 +743,7 @@ describe("host compatibility from the entry's declared roubo range (issue #720)"
   });
 
   it("leaves an entry declaring no range exactly as it was before the field existed", async () => {
-    // Every catalog published before #720 is this shape, so this is the
+    // Every catalog published before #1134 is this shape, so this is the
     // no-op-by-default guarantee.
     const { listings } = await marketplace.listCatalog();
     for (const listing of listings) {
@@ -753,7 +753,7 @@ describe("host compatibility from the entry's declared roubo range (issue #720)"
 
   it("degrades an unparseable range to compatible rather than a hard error", async () => {
     // A malformed declaration is nobody's evaluable verdict, so it must not
-    // delist a plugin on a typo. The post-download check (#719) still sees the
+    // delist a plugin on a typo. The post-download check (#1118) still sees the
     // real manifest and still refuses.
     setCatalog("network", [...ENTRIES, { ...OUT_OF_RANGE, roubo: "not a range" }]);
     expect((await annotatedById("future-plugin")).hostCompatibility).toBeNull();
@@ -791,11 +791,11 @@ describe("host compatibility from the entry's declared roubo range (issue #720)"
   });
 });
 
-// Issue #557 (CPHMTP-FR-004 / NFR-006 / NFR-007): listCatalog fans out over the
+// #962 (CPHMTP-FR-004 / NFR-006 / NFR-007): listCatalog fans out over the
 // first-party catalog AND every registered source concurrently, merges the
 // results with per-entry provenance, and reports each source's health on its own
 // row so one dead source cannot take the others down with it.
-describe("multi-source listing (issue #557)", () => {
+describe("multi-source listing (#962)", () => {
   const ACME_URL = "https://marketplace.acme.example/catalog.json";
   const OTHER_URL = "https://plugins.other.example/catalog.json";
 
@@ -1262,7 +1262,7 @@ describe("multi-source listing (issue #557)", () => {
     expect(readSourceCredential).toHaveBeenCalledTimes(1);
   });
 
-  // Issue #595: the cache entry used to be `set` only AFTER the keyring read
+  // #964: the cache entry used to be `set` only AFTER the keyring read
   // resolved, so a rotation landing inside that window found no entry, deleted
   // nothing, and the resuming build then cached a pre-rotation client that every
   // later call reused (the exact failure the invalidation exists to prevent).
@@ -1354,7 +1354,7 @@ describe("install", () => {
       (entry.source as { type: "git"; url: string; directory?: string }).directory,
       // A first-party install passes NO ThirdPartyInstallContext (the seam that
       // makes the digest mandatory applies to unsigned sources only), and records
-      // first-party, verified provenance (issue #558).
+      // first-party, verified provenance (#966).
       undefined,
       FIRST_PARTY_PROVENANCE,
     );
@@ -1362,10 +1362,10 @@ describe("install", () => {
     expect(previewFromRelease).not.toHaveBeenCalled();
   });
 
-  // Issue #370: a `release`-type catalog entry must route to the download/unpack
+  // #849: a `release`-type catalog entry must route to the download/unpack
   // preview (with assetUrl + the entry integrity), never the git clone path that
   // throws "Git URL is required" for a source with no `url`.
-  it("routes a release-type entry to previewFromRelease with the asset URL and integrity (issue #370)", async () => {
+  it("routes a release-type entry to previewFromRelease with the asset URL and integrity (#849)", async () => {
     setCatalog("network", [...ENTRIES, RELEASE_ENTRY]);
     previewFromRelease.mockResolvedValue({
       stagingToken: "t",
@@ -1424,9 +1424,9 @@ describe("update", () => {
     expect(previewUpdateFromRelease).not.toHaveBeenCalled();
   });
 
-  // Issue #370: a `release`-type entry's update routes to previewUpdateFromRelease
+  // #849: a `release`-type entry's update routes to previewUpdateFromRelease
   // (asset URL + the entry id + integrity), never the git update path.
-  it("routes a release-type entry to previewUpdateFromRelease with the asset URL, id, and integrity (issue #370)", async () => {
+  it("routes a release-type entry to previewUpdateFromRelease with the asset URL, id, and integrity (#849)", async () => {
     setCatalog("network", [...ENTRIES, RELEASE_ENTRY]);
     previewUpdateFromRelease.mockResolvedValue({
       stagingToken: "t",
@@ -1463,11 +1463,11 @@ describe("update", () => {
   });
 });
 
-// Issue #558 (CPHMTP-FR-005 / CPHMTP-US-005): a plugin id served by more than one
+// #966 (CPHMTP-FR-005 / CPHMTP-US-005): a plugin id served by more than one
 // source is a collision. The listing marks it and names the sources; install and
 // update refuse it with an ambiguity error until a source is named. There is no
 // precedence and no shadowing anywhere in this block: that is the point of the FR.
-describe("cross-source id collisions (issue #558)", () => {
+describe("cross-source id collisions (#966)", () => {
   const ACME_URL = "https://marketplace.acme.example/catalog.json";
   const OTHER_URL = "https://plugins.other.example/catalog.json";
   const ACME_ID = "marketplace-acme-example-1a2b3c4d";
@@ -1800,11 +1800,11 @@ describe("cross-source id collisions (issue #558)", () => {
     });
   });
 
-  // Issue #566 (CPHMTP-FR-008): the missing-plugin surface needs to know WHICH
+  // #978 (CPHMTP-FR-008): the missing-plugin surface needs to know WHICH
   // sources serve an id, which resolveEntry explicitly refuses to answer. These
   // must stay in lockstep with the collision index and the install gate above: the
   // three read the same merged fan-out, so they cannot disagree about ambiguity.
-  describe("resolveServingSources (issue #566)", () => {
+  describe("resolveServingSources (#978)", () => {
     it("names the one source serving a third-party-only id", async () => {
       wire([{ row: row(ACME_ID, ACME_URL), entries: [entry("acme-only")] }]);
       const serving = await marketplace.resolveServingSources("acme-only");

@@ -7,15 +7,15 @@ export type BenchTabId = "components" | "terminal" | "inspection" | "info" | "te
 type BenchViewEntry = {
   activeTab?: BenchTabId;
   activeTerminalSessionId?: string;
-  // TestBench case-list collapse (#524). Persisted per bench so reclaiming
+  // TestBench case-list collapse (#525). Persisted per bench so reclaiming
   // horizontal space for the case-detail pane survives navigation and reload.
   testbenchCaseListCollapsed?: boolean;
-  // TestBench Cases/Batches view (#359). Persisted per bench so the active view
+  // TestBench Cases/Batches view (#842). Persisted per bench so the active view
   // survives tab and bench navigation. Left undefined until the user picks a
   // view; an unset value is the first-visit signal the panel reads to default
   // to Batches.
   testbenchViewMode?: "cases" | "batches";
-  // BenchDetail header collapse (#805). Persisted per bench so reclaiming
+  // BenchDetail header collapse (#809). Persisted per bench so reclaiming
   // vertical space (hiding metadata + tabs, keeping the title row + actions)
   // survives navigation and reload.
   headerCollapsed?: boolean;
@@ -45,7 +45,7 @@ function writeEntry(benchKey: string, patch: Partial<BenchViewEntry>): void {
 // Imperatively set a bench's active tab in storage without mounting the hook.
 // Used when a bench is created and we want it to open on a specific tab before
 // BenchDetail renders (e.g. a freshly created TestBench opening on the "testbench"
-// tab, #418). Writing the persisted entry is enough: BenchDetail reads it on mount.
+// tab, #467). Writing the persisted entry is enough: BenchDetail reads it on mount.
 export function setBenchActiveTab(projectId: string, benchId: number, tab: BenchTabId): void {
   writeEntry(`${projectId}:${benchId}`, { activeTab: tab });
 }

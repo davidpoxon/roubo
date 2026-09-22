@@ -95,7 +95,7 @@ describe("AgentPluginCard compatibility line (AP-TC-113, AP-TC-114)", () => {
   });
 });
 
-// AP-TC-122 (issue #522): installing an agent plugin whose CLI is absent still
+// AP-TC-122 (#1112): installing an agent plugin whose CLI is absent still
 // SUCCEEDS as an install. The plugin is installed, compatible, consented and
 // running, so the registry's availability chain reports no blocker; what is
 // missing is the agent's own binary, which only the version probe can see. The

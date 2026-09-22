@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // Removal consequences dialog for a third-party marketplace source
-// (CPHMTP-FR-009 / CPHMTP-US-006, issue #564). These cover what the operator is
+// (CPHMTP-FR-009 / CPHMTP-US-006, #980). These cover what the operator is
 // shown before confirming a removal (CPHMTP-TC-011 S002-S003, CPHMTP-TC-012), that
 // the destructive action never opens focused (CPHMTP-TC-012 S001-O02), that
 // declining (Cancel, Escape, backdrop) fires no confirmation (CPHMTP-TC-021), and

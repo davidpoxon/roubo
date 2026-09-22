@@ -79,7 +79,7 @@ describe("findSpawnHelper", () => {
 });
 
 describe("ensureSpawnHelperExecutable", () => {
-  it("adds the missing executable bit (the #685 defect)", () => {
+  it("adds the missing executable bit (the #1103 defect)", () => {
     const helper = seedPrebuild(0o644);
     const result = ensureSpawnHelperExecutable({
       nodePtyRoot: root,

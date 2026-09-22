@@ -28,7 +28,7 @@ const BUILTIN_PLAN: ResolvedAgentPreset = {
 
 /**
  * A built-in whose `mode` the resolved agent's schema rejected, so the host
- * dropped it and the preset launches as plain `Agent` (issue #665). Advisory,
+ * dropped it and the preset launches as plain `Agent` (#1080). Advisory,
  * so it carries no `unresolved`.
  */
 const BUILTIN_PLAN_DEGRADED: ResolvedAgentPreset = {
@@ -170,7 +170,7 @@ describe("AgentLaunchMenu", () => {
     expect(names[2]).toEqual(["Claude Code", "Codex CLI"]);
   });
 
-  // Issue #690: the summary slot used to hold the params OR the arrow, so a
+  // #1104: the summary slot used to hold the params OR the arrow, so a
   // parameterised preset never said which agent it would really start. It now
   // holds both, which is what makes AP-TC-027 S001-O01 true of every built-in
   // rather than only of the parameterless one.
@@ -246,7 +246,7 @@ describe("AgentLaunchMenu", () => {
     ).not.toBe("true");
   });
 
-  // Issue #665: the degrade is advisory. The row must say the preset will not
+  // #1080: the degrade is advisory. The row must say the preset will not
   // do what its name promises, and must still launch when picked.
   it("notes a degraded preset's dropped params while leaving it selectable", () => {
     open({ presets: [BUILTIN_AGENT, BUILTIN_PLAN_DEGRADED] });
@@ -293,7 +293,7 @@ describe("AgentLaunchMenu", () => {
     expect(onLaunchPreset).toHaveBeenCalledWith(BUILTIN_PLAN);
   });
 
-  it("opens the per-launch override dialog from the overrides action (#518)", () => {
+  it("opens the per-launch override dialog from the overrides action (#1072)", () => {
     open();
 
     const overrides = screen.getByRole("menuitem", { name: /Launch with overrides/ });

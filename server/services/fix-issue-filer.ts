@@ -1,10 +1,10 @@
-// Failed-case fix-issue filer (#706, VG-FR-009, VG-FR-010, VG-NFR-003; spec
+// Failed-case fix-issue filer (#735, VG-FR-009, VG-FR-010, VG-NFR-003; spec
 // .specifications/verify-gate/architecture.md "FixIssueFiler").
 //
 // On marking a gating case failed or blocked, the verifier captures notes and
 // files a tracker fix issue that is wired to block the gate. This service is the
 // orchestrator for that flow: it sits on top of the already-shipped
-// tracker-action gateway (#705) and turns its two privileged ops (createIssue,
+// tracker-action gateway (#734) and turns its two privileged ops (createIssue,
 // addBlockedBy) into a single create-then-link operation with partial-failure
 // recovery.
 //
@@ -102,7 +102,7 @@ export interface FileFixIssueParams {
    * Extra tracker refs the SAME fix issue must also block, beyond `gateRef`. A
    * normally-loaded gate has none (its single target is `gateRef`); a merged (or
    * split-of-a-merge) synthetic gate fans out over its source gates, so the fix
-   * issue blocks every source's filed issue (issue #435, issue #445), mirroring
+   * issue blocks every source's filed issue (#911, #919), mirroring
    * "sign-off closes every source". Absent/empty keeps the single-target flow
    * behaviour-identical to before.
    */
@@ -182,7 +182,7 @@ export async function fileFixIssueAndBlock(
 
   const { failedCaseId, gateRef } = params;
   // Every ref the fix issue must block: the primary gate ref plus any source-gate
-  // fan-out refs (merged/split gate, issue #435/#445). For a single-target gate
+  // fan-out refs (merged/split gate, #911/#919). For a single-target gate
   // this is just [gateRef], so one addBlockedBy call, identical to before.
   const blockedRefs = [gateRef, ...(params.additionalGateRefs ?? [])];
 

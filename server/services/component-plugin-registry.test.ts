@@ -149,7 +149,7 @@ describe("resolveBinding", () => {
     expect(result).toEqual({ reason: "plugin-unavailable", pluginId: "db-plugin" });
   });
 
-  it("reports not-installed when the bound plugin id has no PluginRecord (issue #408, CP-TC-025)", () => {
+  it("reports not-installed when the bound plugin id has no PluginRecord (#891, CP-TC-025)", () => {
     projectRegistryMocks.getProject.mockReturnValue(
       makeProject({ components: { ghost: { plugin: { id: "not-a-real-plugin" } } } }),
     );
@@ -158,7 +158,7 @@ describe("resolveBinding", () => {
     expect(result).toEqual({ reason: "not-installed", pluginId: "not-a-real-plugin" });
   });
 
-  it("short-circuits not-installed before the consent gate (issue #408, CP-TC-025)", () => {
+  it("short-circuits not-installed before the consent gate (#891, CP-TC-025)", () => {
     projectRegistryMocks.getProject.mockReturnValue(
       makeProject({ components: { ghost: { plugin: { id: "not-a-real-plugin" } } } }),
     );
@@ -172,7 +172,7 @@ describe("resolveBinding", () => {
     expect(consentMocks.hasConsent).not.toHaveBeenCalled();
   });
 
-  it("reports incompatible with the required range and host version (issue #408, CP-TC-011)", () => {
+  it("reports incompatible with the required range and host version (#891, CP-TC-011)", () => {
     projectRegistryMocks.getProject.mockReturnValue(
       makeProject({ components: { db: { plugin: { id: "db-plugin" } } } }),
     );
@@ -194,7 +194,7 @@ describe("resolveBinding", () => {
     });
   });
 
-  it("surfaces incompatible before the consent gate even when unconsented (issue #408, CP-TC-011)", () => {
+  it("surfaces incompatible before the consent gate even when unconsented (#891, CP-TC-011)", () => {
     projectRegistryMocks.getProject.mockReturnValue(
       makeProject({ components: { db: { plugin: { id: "db-plugin" } } } }),
     );
@@ -218,7 +218,7 @@ describe("resolveBinding", () => {
     expect(consentMocks.hasConsent).not.toHaveBeenCalled();
   });
 
-  it("refuses to resolve when the bound plugin has no ConsentRecord (issue #615, AC5)", () => {
+  it("refuses to resolve when the bound plugin has no ConsentRecord (#656, AC5)", () => {
     projectRegistryMocks.getProject.mockReturnValue(
       makeProject({ components: { db: { plugin: { id: "db-plugin" } } } }),
     );

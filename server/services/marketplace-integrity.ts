@@ -2,7 +2,7 @@ import { createHash, createPublicKey, verify, type KeyObject } from "node:crypto
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-// Marketplace channel-integrity primitives (CP-FR-021, issue #622).
+// Marketplace channel-integrity primitives (CP-FR-021, #690).
 //
 // The marketplace distributes executable code, so two layers of integrity are
 // enforced server-side (the server is the authoritative gate; the client cannot
@@ -18,10 +18,10 @@ import path from "node:path";
 //      ReleaseAsset file set: dist/index.js + roubo-plugin.yaml + package.json +
 //      README, with no `src/` and no `node_modules`), not the cloned source
 //      subdir. The digest primitive and the catalog contract bind to that built
-//      artifact (issue #765). Wiring the production install path to recompute
+//      artifact (#792). Wiring the production install path to recompute
 //      the digest over the unpacked artifact (rather than the cloned-source
 //      staging tree it digests today) lands with the download/unpack installer
-//      in #370; until then the installed digest input is unchanged.
+//      in #849; until then the installed digest input is unchanged.
 //
 // Verification uses node:crypto only (no third-party crypto dependency). The
 // private signing key is held out of band by maintainers; only the public key
@@ -197,11 +197,11 @@ export function resolveActiveKey(ring: Map<string, KeyRingKey>, keyId: string): 
  * target is the unpacked built artifact (the ReleaseAsset file set: dist/index.js
  * + roubo-plugin.yaml + package.json + README), not the cloned source subdir,
  * because an installed plugin runs from `dist/`, so binding integrity to the
- * built artifact is what makes the check meaningful (issue #765). The catalog
+ * built artifact is what makes the check meaningful (#792). The catalog
  * contract and these primitives' tests bind to that built artifact. The
  * production install path still hands this function its cloned-source staging
  * tree; pointing it at the unpacked artifact lands with the download/unpack
- * installer in #370.
+ * installer in #849.
  *
  * The digest is normalized and deterministic: relative paths are sorted, path
  * separators normalized to "/", and the `.git` directory is excluded (it is

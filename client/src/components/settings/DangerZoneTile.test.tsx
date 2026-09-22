@@ -153,7 +153,7 @@ describe("DangerZoneTile", () => {
     expect(screen.getByText("Unregister My App?")).toBeInTheDocument();
   });
 
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the modality explicit to AT.
   it("stamps aria-modal on the confirmation dialog", async () => {
     setupMocks();
@@ -525,7 +525,7 @@ describe("DangerZoneTile", () => {
     ).toBeInTheDocument();
   });
 
-  // --- HAS_BENCHES recovery (#829) ---
+  // --- HAS_BENCHES recovery (#1191) ---
 
   function hasBenchesError(benchCount: number, benchIds: number[]) {
     return new ApiError(

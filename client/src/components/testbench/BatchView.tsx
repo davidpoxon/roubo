@@ -12,13 +12,13 @@ import GateStatePanel from "./GateStatePanel";
 import FileFixIssuePanel from "./FileFixIssuePanel";
 import Spinner from "../Spinner";
 
-// Batch view (#702, VG-FR-008, AC2/AC3). Opening a gate shows only its gating
+// Batch view (#726, VG-FR-008, AC2/AC3). Opening a gate shows only its gating
 // subset: the plan is fetched with the ?gateIds= filter so the case list is
 // narrowed to the gate's declared test_case_ids. The gate-state panel sits above
 // the list and live-updates as cases are marked (AC2), driven by re-fetching the
 // gate via React Query after each mark settle (SSE push is out of scope).
 //
-// Sign-off (AC3, VG-FR-007/VG-FR-008, issue #830) is now a real, persisted action: it
+// Sign-off (AC3, VG-FR-007/VG-FR-008, #833) is now a real, persisted action: it
 // closes the gate's tracker issue through the active integration plugin (the
 // server enforces the same load-bearing guard, rejecting sign-off whenever the
 // gate's evaluated status is anything other than `passed`). The button's state is
@@ -90,7 +90,7 @@ export default function BatchView({
 
   const gate = gateQuery.data;
   const canSignOff = gate?.status === "passed";
-  // Server-sourced sign-off signal (issue #830): derived from the gate's
+  // Server-sourced sign-off signal (#833): derived from the gate's
   // tracker-issue state, not local React state, so it survives navigation.
   const signedOff = gate?.signedOff ?? false;
 
@@ -181,7 +181,7 @@ export default function BatchView({
   // narrow out of the default policy, e.g. all L3/L4). The `?gateIds=` subset uses
   // the gate's RAW declared ids, so an all-L3/L4 gate still renders case rows here;
   // driving the elision off the evaluated status makes the notice fire for it too
-  // (issue #436). The live rollup total is checked as well (#769): the subset plan
+  // (#912). The live rollup total is checked as well (#1161): the subset plan
   // can be non-empty while every case in it is retired or superseded, in which case
   // the rollup excludes them all and `flatRows` is empty. Without this the card
   // would render an unlabelled empty list, which AC2 forbids.

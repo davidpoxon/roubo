@@ -12,7 +12,7 @@ import {
 import { atomicWrite, getRouboDir } from "./state.js";
 import { getEffectiveAgentConfig } from "./agent-overrides.js";
 
-// Project-level agent configuration overrides (AP-FR-004, issue #509).
+// Project-level agent configuration overrides (AP-FR-004, #1044).
 //
 // One layer below `agent-overrides.ts`. App-level defaults live in
 // `~/.roubo/agents/_global/<pluginId>.yaml`; a project's overrides of those

@@ -54,7 +54,7 @@ function seedConfigForSchema(schema: Record<string, unknown> | undefined): Recor
 }
 
 function RoleBadge({ role }: { role: ComponentType | undefined }) {
-  // A plugin-bound component (issue #608) carries no legacy `type`; render a
+  // A plugin-bound component (#651) carries no legacy `type`; render a
   // neutral "Plugin" badge for it. Existing database/process components are
   // unchanged.
   const isDb = role === "database";
@@ -179,7 +179,7 @@ export default function ComponentRowEditor({
 
   const stride = maxBenches > 1 ? maxBenches - 1 : 0;
 
-  // Component-plugin binding (issue #390, CPHM-FR-010). Only `component`-kind
+  // Component-plugin binding (#882, CPHM-FR-010). Only `component`-kind
   // plugins are bindable here; integration plugins are filtered out. Selecting
   // a plugin sets `plugin: { id }` and re-seeds `config` for that plugin's
   // schema. The deprecated `component.type` is never written.

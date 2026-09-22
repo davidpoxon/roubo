@@ -92,7 +92,7 @@ describe("scanFiles (AgentIdentifierGuard, AP-NFR-006, AP-TC-112)", () => {
   });
 
   it('flags the removed built-in dispatch `command === "claude"` (AP-TC-104)', () => {
-    // The exact construct #521 deleted from server/routes/terminal.ts. Rule 1
+    // The exact construct #1114 deleted from server/routes/terminal.ts. Rule 1
     // blanks string CONTENTS by design, so only rule 3 can see this; without it
     // the built-in launch branch could return with zero guard violations.
     const findings = scan({
@@ -194,7 +194,7 @@ describe("scanFiles (AgentIdentifierGuard, AP-NFR-006, AP-TC-112)", () => {
   });
 });
 
-// Issue #856 (APCC-NFR-006, APCC-TC-008): the guard can only keep a third agent
+// #1269 (APCC-NFR-006, APCC-TC-008): the guard can only keep a third agent
 // out of core if it can see that agent's name. Cursor is matched in its qualified
 // spellings (`cursor-cli`, `cursor-agent`, `CursorCli`, `cursorAgent`), never as
 // bare `cursor`, which core uses for pagination.
@@ -270,7 +270,7 @@ describe("scanFiles recognises a Cursor-specific identifier (APCC-TC-008)", () =
   });
 });
 
-// Issue #856 (APCC-NFR-006, APCC-TC-008): the two contract additions introduce
+// #1269 (APCC-NFR-006, APCC-TC-008): the two contract additions introduce
 // identifiers that name an output shape and a carrier, never an agent. Read them
 // off the live schemas so a later literal that names an agent fails here.
 describe("the contract additions name no agent (APCC-TC-008)", () => {

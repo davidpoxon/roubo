@@ -1,7 +1,7 @@
 id: github-com
 name: GitHub.com
 version: 0.1.0
-description: Spawnable integration-kind fixture mirroring the bundled github-com plugin for the CP-TC-029 drift guard (issue #630).
+description: Spawnable integration-kind fixture mirroring the bundled github-com plugin for the CP-TC-029 drift guard (#660).
 kind: integration
 roubo: ^1.0.0
 entry: ./index.cjs

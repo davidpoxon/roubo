@@ -23,7 +23,7 @@ import { listAgentPresets } from "../services/agent-presets.js";
 import { readChoiceProbe, warmChoiceProbes } from "../services/agent-probe-runner.js";
 import { materializeChoices } from "../services/choice-materializer.js";
 
-// App-level agent configuration API (AP-FR-002, AP-FR-003, issue #508).
+// App-level agent configuration API (AP-FR-002, AP-FR-003, #1032).
 //
 // Backs the Settings > AI Agents screen: the inventory of installed agent
 // plugins with each one's declared configSchema and saved defaults, plus the
@@ -31,7 +31,7 @@ import { materializeChoices } from "../services/choice-materializer.js";
 // the routes are as isolated as the files behind them (AP-TC-003, AP-TC-009).
 //
 // It also serves the app-scoped resolved-preset list the Settings agent tools
-// listing reads (issue #672), which belongs here rather than under a project
+// listing reads (#1084), which belongs here rather than under a project
 // because app settings has no project in scope.
 
 const router = Router();
@@ -66,7 +66,7 @@ function toState(manifest: PluginManifest): AgentPluginState {
   // command spawned on its behalf either. Its card still renders the declared
   // window, just without a detected version.
   //
-  // Choice probes (#852) follow the same rule: warmed in the background under the
+  // Choice probes (#1268) follow the same rule: warmed in the background under the
   // same gate, read from the cache only. A resolved field's choices are merged
   // into a copy of the schema as oneOf const/title branches, so the form draws it
   // like any static choice list; the sibling map reports each probed field's
@@ -106,7 +106,7 @@ router.get("/", (_req, res) => {
 });
 
 // The app-scoped sibling of GET /api/projects/:projectId/agent-presets (issue
-// #672). Same service, same envelope, minus the project layer: built-ins and
+// #1084). Same service, same envelope, minus the project layer: built-ins and
 // app-level presets only, which is exactly the pair Settings lists. It exists so
 // the app-level listing can read the server's advisory `degraded` field instead
 // of re-deriving the drop client-side, which would fork preset resolution into a

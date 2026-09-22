@@ -14,7 +14,7 @@ let activeConnection: MessageConnection | null = null;
  * The routing key the host needs to dispatch a broker call to the right bench
  * (and, for reportLog, the right component). A component plugin is spawned once
  * and multiplexes benches over one shared connection, so the broker params must
- * name the bench the call acts for (#685). The SDK stamps this from the
+ * name the bench the call acts for (#687). The SDK stamps this from the
  * in-flight lifecycle call rather than burdening plugin authors with passing it
  * by hand: each lifecycle handler dispatch sets the routing context for the
  * duration of the call (see defineComponentPlugin), and every outgoing host.*

@@ -27,7 +27,7 @@ import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
  * `PaginatedIssues` payload shape changes in a way the reader cannot tolerate.
  * A stored value older than this is a cold miss on read.
  *
- * v2 (#844): the persisted `nextCursor` changed owner. It used to be the
+ * v2 (#1224): the persisted `nextCursor` changed owner. It used to be the
  * plugin's own token; it is now a host-issued offset into the ordered
  * materialised result set. A v1 file's cursor is unreadable by the host decoder
  * (it degrades to offset 0), so serving one would make Next re-render page 1.

@@ -24,9 +24,9 @@ vi.mock("./services/project-registry.js", () => ({
   getProjects: vi.fn(() => []),
   getProject: vi.fn(),
   onProjectConfigLoaded: vi.fn(),
-  // Issue #830: startServer injects the in-memory bench accessor into the registry.
+  // #1204: startServer injects the in-memory bench accessor into the registry.
   registerLiveBenchSource: vi.fn(),
-  // Issue #399: startServer re-runs the component-binding second pass after the
+  // #884: startServer re-runs the component-binding second pass after the
   // plugin manager initializes.
   revalidateComponentBindings: vi.fn(),
 }));
@@ -102,7 +102,7 @@ describe.sequential("startServer", () => {
     await handle.shutdown();
   });
 
-  it("runs the startup orphan sweep before reconcile and registers the crash hooks (issue #613)", async () => {
+  it("runs the startup orphan sweep before reconcile and registers the crash hooks (#657)", async () => {
     const pluginManager = await import("./services/plugin-manager.js");
     const sweep = vi.mocked(benchManager.sweepOrphanedComposeProjects);
     const reconcile = vi.mocked(benchManager.reconcile);
@@ -153,7 +153,7 @@ describe.sequential("startServer", () => {
     await expect(fetch(`http://127.0.0.1:${handle.port}/api/benches`)).rejects.toThrow();
   });
 
-  it("GET /api/benches?issue=N excludes alert-backed benches that collide on the alert number (#291)", async () => {
+  it("GET /api/benches?issue=N excludes alert-backed benches that collide on the alert number (#297)", async () => {
     vi.mocked(benchManager.getBenches).mockReturnValue([
       { id: 1, assignedIssue: { number: 42, externalId: "42" } },
       { id: 2, assignedIssue: { number: 42, externalId: "owner/repo#code-scanning-42" } },

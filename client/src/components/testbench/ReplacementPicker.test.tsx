@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #774 (SATCA-TC-073/074/075/076/077, SATCA-FR-028, SATCA-FR-029): the two-stage
+// #1169 (SATCA-TC-073/074/075/076/077, SATCA-FR-028, SATCA-FR-029): the two-stage
 // replacement picker. Stage one is a specification selector defaulting to the
 // case's own spec; stage two is a filterable, area-grouped list of that spec's
 // cases with the case being superseded excluded. Before anything is confirmed the

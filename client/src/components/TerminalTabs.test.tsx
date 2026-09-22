@@ -326,7 +326,7 @@ describe("TerminalTabs: agent launch and jig resolution", () => {
     );
   });
 
-  // Issue #518: the dialog is the producer of the transient fourth layer, so the
+  // #1072: the dialog is the producer of the transient fourth layer, so the
   // whole chain (menu action -> dialog -> mutation payload) is asserted here.
   // Without `perLaunchOverrides` reaching the request the layer the server
   // already merges would have no producer at all (AP-TC-030).
@@ -390,7 +390,7 @@ describe("TerminalTabs: agent launch and jig resolution", () => {
     expect("perLaunchOverrides" in payload).toBe(false);
   });
 
-  // Issue #676: the dialog launches with the bench's own jig baseline, never the
+  // #1086: the dialog launches with the bench's own jig baseline, never the
   // selected preset's jig, so its Agent select has to resolve through that same
   // baseline. Resolving through the preset's jig instead would name an agent
   // bound by a jig this session never runs under.
@@ -1218,7 +1218,7 @@ describe("TerminalTabs: agent-generic session tabs", () => {
     expect(icon.getAttribute("class")).toContain("text-agent-swatch-2");
   });
 
-  it("shows no agent glyph for a session whose only carrier is a command name (#521)", () => {
+  it("shows no agent glyph for a session whose only carrier is a command name (#1114)", () => {
     setup([
       {
         id: "legacy-session",

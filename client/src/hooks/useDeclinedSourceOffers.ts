@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 
 // Session-scoped memory of declined project-declared source registration offers
-// (CPHMTP-FR-007, issue #565). The context is split out of the provider file so
+// (CPHMTP-FR-007, #982). The context is split out of the provider file so
 // the provider module can stay a component-only export (react-refresh), mirroring
 // useRegisterProjectModal alongside RegisterProjectModalProvider.
 

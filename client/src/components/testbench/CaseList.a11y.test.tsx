@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #419 TC-018/TC-029/TC-037: the virtualised case list windows the DOM (a
+// #466 TC-018/TC-029/TC-037: the virtualised case list windows the DOM (a
 // 500-case plan mounts far fewer than 500 case rows), is keyboard navigable with
 // visible focus, and has zero axe violations.
 
@@ -189,7 +189,7 @@ describe("CaseList keyboard navigation", () => {
   });
 });
 
-describe("CaseList selection (#420)", () => {
+describe("CaseList selection (#471)", () => {
   it("lifts the activated case id to onSelect on click and on Enter", () => {
     const onSelect = vi.fn();
     render(<CaseList rows={rowsFor(20)} onSelect={onSelect} />);
@@ -215,7 +215,7 @@ describe("CaseList selection (#420)", () => {
     expect(pressed.length).toBe(1);
   });
 
-  it("highlights the selected row with the accent-muted role (#522)", () => {
+  it("highlights the selected row with the accent-muted role (#523)", () => {
     const rows = rowsFor(20);
     const firstCase = rows.find((r) => r.kind === "case");
     const selectedId = firstCase?.kind === "case" ? firstCase.row.case.id : undefined;
@@ -232,7 +232,7 @@ describe("CaseList selection (#420)", () => {
   });
 });
 
-describe("CaseList level collapse (#508)", () => {
+describe("CaseList level collapse (#510)", () => {
   it("toggles a level via a focusable header, hiding then restoring its case rows", () => {
     // Cases across three levels; collapsing Level 1 must hide its cases while
     // leaving the other levels' cases mounted.

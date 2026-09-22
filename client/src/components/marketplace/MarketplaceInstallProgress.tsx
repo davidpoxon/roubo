@@ -7,7 +7,7 @@ import {
   type StageStatus,
 } from "./marketplace-install-stages";
 
-// The 4-step install/update progress surface (issue #374, CPHM-TC-017 S002-O01).
+// The 4-step install/update progress surface (#855, CPHM-TC-017 S002-O01).
 // It mirrors the prototype's labelled steps
 // (.specifications/component-plugins-hosted-marketplace/prototype/index.html):
 // a numbered badge that flips to a check on completion, an amber active state, a

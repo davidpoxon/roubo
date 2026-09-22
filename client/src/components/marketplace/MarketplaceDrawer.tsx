@@ -16,21 +16,21 @@ import { CATEGORY_META } from "./permission-categories";
 import ProvenanceBadge from "./ProvenanceBadge";
 import { isFirstPartySource, listingProvenance } from "./plugin-provenance";
 
-// Detail drawer for one catalog entry (CP-FR-020, issue #621; CP-FR-021, issue
-// #622). A right-side modal panel mirroring the prototype: identity, summary,
+// Detail drawer for one catalog entry (CP-FR-020, #688; CP-FR-021, issue
+// #690). A right-side modal panel mirroring the prototype: identity, summary,
 // metadata (integrity, provenance, sandbox status, kind, version, curation), and
 // the same state-aware affordance as the card (Update / Installed / Install).
 // The Provenance row shows the registry path; the Sandbox row flags that enforced
 // isolation is not yet active.
 //
-// The Integrity row is provenance-dependent (CPHMTP-FR-006, issue #563). Only the
+// The Integrity row is provenance-dependent (CPHMTP-FR-006, #977). Only the
 // first-party catalog carries a signature, so only a first-party entry can claim
 // "signed by Roubo": a third-party source is unsigned, and its integrity floor is
 // the per-artifact sha256 digest the installer recomputes and fails closed on
 // (CPHMTP-NFR-004), which is what its row says instead. The claim keys off the
 // SOURCE (`isFirstPartySource`), not the per-entry curation flag: catalog signing
 // is a source property, so an uncurated first-party entry is still signed by Roubo
-// even though its Curation row grades it Unverified (issue #603). The Curation row
+// even though its Curation row grades it Unverified (#979). The Curation row
 // renders the shared ProvenanceBadge, so the drawer carries the same
 // non-dismissible Unverified badge and source provenance as the card (CPHMTP-TC-031).
 
@@ -47,11 +47,11 @@ const STRINGS = {
   sandbox: "Sandbox",
   unsandboxed: "Unsandboxed (v2)",
   lifecycle: "Lifecycle",
-  // The agent-CLI compatibility window (AP-FR-022, issue #522), phrased exactly
+  // The agent-CLI compatibility window (AP-FR-022, #1112), phrased exactly
   // as the card's line so the two surfaces agree word for word.
   agentCompatibility: "Agent CLI",
   agentCompatibilityUndeclared: "compatibility not declared",
-  // The host-range mark (issue #720), worded as the card's pill is so the two
+  // The host-range mark (#1134), worded as the card's pill is so the two
   // surfaces agree. The row appears only when this host is out of range: a
   // compatible listing is the unremarkable case and gains no row.
   hostCompatibility: "Roubo",
@@ -64,7 +64,7 @@ const STRINGS = {
   installed: "Installed",
 };
 
-// Human-readable lifecycle rendering shown in the Lifecycle row (issue #401,
+// Human-readable lifecycle rendering shown in the Lifecycle row (#883,
 // CP-TC-097 / CP-TC-104). The one-shot copy names the run-to-completion shape;
 // the long-running copy names the supervised start / stop / health / logs shape,
 // so a one-shot plugin's drawer shows no long-running (start / stop / health /
@@ -118,14 +118,14 @@ export default function MarketplaceDrawer({
   const showInstalled = listing.installed && !listing.updateAvailable;
   const provenance = listingProvenance(listing, sourceLabel);
   const isSigned = isFirstPartySource(provenance);
-  // PRE-INSTALL provenance the server derived onto the listing (issue #401): the
+  // PRE-INSTALL provenance the server derived onto the listing (#883): the
   // declared permission categories (exactly those the manifest requests, via
   // `declaredCategories`) and the component lifecycle. Both are null when the
   // manifest is unavailable pre-install (a non-bundled, not-yet-installed entry),
   // in which case the corresponding section / row is omitted.
   const declaredPermissions = listing.declaredPermissions;
   const permissionCategories = declaredPermissions ? declaredCategories(declaredPermissions) : [];
-  // Issue #720: the server-derived host-range verdict, non-null only when this
+  // #1134: the server-derived host-range verdict, non-null only when this
   // host is outside the range the plugin declared. Same suppression rule as the
   // card, so opening the drawer on a marked listing cannot offer an install the
   // card refused.

@@ -12,14 +12,14 @@ import { clearProbeMode, setProbeMode, type ProbeMode } from "./_support/probe-m
 // every choice-probe state, APCC-TC-022. The jsdom suite
 // (client/src/components/ConfigSchemaForm.a11y.test.tsx) runs axe too, but jsdom
 // computes no colour, so it stayed green while the live screen failed WCAG AA
-// twice: the Select placeholder in dark (#887, fixed by #1276) and the active
+// twice: the Select placeholder in dark (#1276, fixed by #1276) and the active
 // sidebar item in light (fixed by #1304). This spec injects the bundled axe-core
 // into Chromium against the BUILT app and runs the FULL ruleset over the whole
 // page, failing on any serious or critical violation, in both themes.
 //
 // The whole page, not the card: the #1304 regression sat in the sidebar.
 //
-// HOW EACH PROBE STATE IS PRODUCED. The #887 manual recipe restarted the server
+// HOW EACH PROBE STATE IS PRODUCED. The #1276 manual recipe restarted the server
 // between states to empty the probe cache. One shared server serves this whole
 // run, so instead:
 //

@@ -162,7 +162,7 @@ describe("CutListFilterBar", () => {
     });
   });
 
-  describe("source-side exclusion note (issue #423, TC-057/058/067)", () => {
+  describe("source-side exclusion note (#900, TC-057/058/067)", () => {
     it("renders the exact milestone note for a milestone facet", async () => {
       const facets: FilterFacet[] = [{ id: "milestone", label: "Milestone", type: "enum-async" }];
       renderBar({ facets, derivedOptions: {} });

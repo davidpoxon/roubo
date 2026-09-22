@@ -63,7 +63,7 @@ describe("useAgentPlugins", () => {
   });
 });
 
-describe("useAgentPlugins: choice-probe polling (#853, APCC-TC-019)", () => {
+describe("useAgentPlugins: choice-probe polling (#1274, APCC-TC-019)", () => {
   function agentWith(state: "loading" | "resolved" | "failed") {
     return {
       agents: [

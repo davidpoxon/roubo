@@ -31,7 +31,7 @@ interface Props {
  * A named jig is described by its DISPLAY NAME, unprefixed, so the line reads as
  * the user's own vocabulary ("opus · max · plan · Refactor pass") rather than as
  * a stored field ("... · jig: refactor-pass"). AP-TC-024 S003-O02 scripts that
- * wording, and issue #690 already settled this class of gap in favour of the
+ * wording, and #1104 already settled this class of gap in favour of the
  * case. The id is the fallback for a jig that no longer resolves, which is
  * better than showing nothing at all where a jig is still pinned.
  */
@@ -118,7 +118,7 @@ function AgentToolRow({
           </div>
         )}
         {!unresolved && degraded && (
-          // Advisory, never a blocker (issue #672): the preset still launches,
+          // Advisory, never a blocker (#1084): the preset still launches,
           // it just will not do what its name promises, so this is stone rather
           // than the amber the unresolved notice above uses, and it leaves the
           // row's Edit and Delete controls alone. The wording and the Info mark
@@ -159,7 +159,7 @@ function AgentToolRow({
 }
 
 /**
- * The Agent tools section of Settings, Jigs (AP-FR-008, AP-FR-009, issue #516).
+ * The Agent tools section of Settings, Jigs (AP-FR-008, AP-FR-009, #1057).
  *
  * Lists the built-in presets Roubo ships followed by the app-level presets the
  * editor writes. Project-level presets declared in `roubo.yaml tools:` are not
@@ -169,7 +169,7 @@ function AgentToolRow({
  * Binding and params are rendered from the stored preset, which is all a row
  * needs. The one thing it cannot compute is whether the bound agent's
  * `configSchema` rejects a built-in's hardcoded params, because that answer
- * belongs to the server's resolution (issue #672). So the advisory `degraded`
+ * belongs to the server's resolution (#1084). So the advisory `degraded`
  * field is read off the app-scoped resolved-preset endpoint and matched by id,
  * rather than re-derived here: a second client-side `validateAgentConfig` would
  * be a second source of truth for what a preset actually launches with.

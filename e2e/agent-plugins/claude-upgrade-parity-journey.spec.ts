@@ -23,7 +23,7 @@ import {
 // "AP-TC-102".
 const observe = makeObserve("AP-TC-102");
 
-// AP-TC-102 (#530, AP-WU-029) - E2E: an existing user upgrades, configures the
+// AP-TC-102 (#1125, AP-WU-029) - E2E: an existing user upgrades, configures the
 // plugin, and launches with parity intact.
 //
 // #1277 removed the first-run agent migration notice from the UI, so S001 now
@@ -40,7 +40,7 @@ const observe = makeObserve("AP-TC-102");
 //
 // HOW THE UPGRADE PRECONDITION IS MET. "The user is upgrading from a build that
 // had built-in agent settings" is a state nothing in the product can produce any
-// more: #521 deleted the field and left only a reader
+// more: #1114 deleted the field and left only a reader
 // (`hasLegacyAgentSettings`). `POST /test/__seed-legacy-agent-settings` (ROUBO_E2E only) plants that residue, and
 // the teardown removes it, because `/test/__reset` does not truncate
 // `settings.json` and a seeded upgrade would otherwise leak into every later

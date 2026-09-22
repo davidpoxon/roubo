@@ -6,18 +6,18 @@
 // system" here is the REAL, already-merged batch stack composed as one continuous
 // journey, not a mock of the gate logic (AC-1):
 //   - S001 + S004 (overview cards) read the gate state through the REAL gates-route
-//     projection (#701, server/routes/gates.ts: evaluateLoadedGate / effectiveGates),
+//     projection (#725, server/routes/gates.ts: evaluateLoadedGate / effectiveGates),
 //     driven over HTTP with supertest exactly as gates.test.ts exercises it. The
-//     projection wraps the REAL evaluateGate (#698, server/lib/gate-evaluator.ts).
+//     projection wraps the REAL evaluateGate (#720, server/lib/gate-evaluator.ts).
 //     We do NOT hand-roll a divergent card mapping: the card status IS the route's
 //     GateState.status, with passed->passed and pending->verifying.
 //   - S002 (TestBench scope) reads the Phase 2 gate's implements.test_case_ids, the
-//     pre-resolved gating subset the batch view scopes to (#701 batch-subset; #702
+//     pre-resolved gating subset the batch view scopes to (#725 batch-subset; #726
 //     batch view).
 //   - S003 (mark passed) flips the three gating CaseResults and drives the REAL
-//     evaluateGate (#698): pending -> passed with an empty unresolved set, which is
-//     the signal that makes the sign-off action active (#702).
-//   - S004 (sign off) drives the REAL onGatePassed (#700,
+//     evaluateGate (#720): pending -> passed with an empty unresolved set, which is
+//     the signal that makes the sign-off action active (#726).
+//   - S004 (sign off) drives the REAL onGatePassed (#721,
 //     server/services/gate-lifecycle-coordinator.ts): it closes the Phase 2 tracker
 //     via the plugin transition, audit-logs it, and the downstream Phase 3 unit's
 //     blockedBy clears, so the overview re-reads Phase 2 passed/closed and Phase 3
@@ -40,10 +40,10 @@
 // .specifications/verify-gate/test-cases.json forces this test to be updated.
 //
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
-// message naming the owning slice issue from this unit's blocked-by set ([#701,
-// #702], from .specifications/verify-gate/issues.json), so a red run localizes the
+// message naming the owning slice from this unit's blocked-by set ([#725,
+// #726], from .specifications/verify-gate/issues.json), so a red run localizes the
 // integration drift to one attributable slice. Where a step composes a function
-// owned by an upstream slice (evaluateGate #698, onGatePassed #700), the message
+// owned by an upstream slice (evaluateGate #720, onGatePassed #721), the message
 // names the blocked-by slice whose surface drives that function in this journey
 // (the gate API / batch UI), with the composed-function slice noted alongside.
 
@@ -53,7 +53,7 @@ import request from "supertest";
 
 // ── Disk seams the gates route reads, faked at the module boundary exactly as
 // gates.test.ts does, so the REAL route projection (evaluateLoadedGate /
-// effectiveGates, #701) runs over an in-memory world. ──
+// effectiveGates, #725) runs over an in-memory world. ──
 vi.mock("../services/project-registry.js", () => ({
   getProject: vi.fn(),
 }));
@@ -63,7 +63,7 @@ vi.mock("../services/work-unit-loader.js", async () => {
     "../services/work-unit-loader.js",
   );
   const loadVerifyUnits = vi.fn();
-  // effectiveGates now loads via loadVerifyUnitsWithDiagnostics (#371); delegate to
+  // effectiveGates now loads via loadVerifyUnitsWithDiagnostics (#874); delegate to
   // the mocked loadVerifyUnits with no invalid specs so this journey's overview
   // reads drive the route unchanged.
   const loadVerifyUnitsWithDiagnostics = vi.fn((repoPath: string, slug?: string) => ({
@@ -75,7 +75,7 @@ vi.mock("../services/work-unit-loader.js", async () => {
     loadVerifyUnits,
     loadVerifyUnitsWithDiagnostics,
     buildWorkUnitCaseMap: vi.fn(() => new Map()),
-    // The blockedBy derivation (#433) reads the full per-slug unit graph. This
+    // The blockedBy derivation (#914) reads the full per-slug unit graph. This
     // journey models Phase 3's block via the plugin issue's blockedBy, not the
     // route's derived field, so an empty graph (no route-derived blockers) is fine.
     loadAllUnitsForSlug: vi.fn(() => []),
@@ -122,15 +122,14 @@ import type { GateAuditEntry, NormalizedIssue } from "@roubo/shared";
 import type { Tracker } from "@roubo/shared/work-units-contract";
 import type { BenchResults, Case, CaseResult, CaseStatus } from "@roubo/shared/testbench-contracts";
 
-// ── Owning slices (this e2e unit's blocked-by set, [#701, #702] per
+// ── Owning slices (this e2e unit's blocked-by set, [#725, #726] per
 // .specifications/verify-gate/issues.json). Each step is attributed to the
 // blocked-by slice whose surface drives it; the composed-function slice is noted
-// where it differs (evaluateGate is #698, onGatePassed is #700). ──
-const SLICE_S001 = "#701 (gate API routes: the GateState overview projection)";
-const SLICE_S002 = "#701 (batch-subset) / #702 (TestBench batch view scope)";
-const SLICE_S003 = "#702 (batch view: mark-passed drives the real evaluateGate, #698)";
-const SLICE_S004 =
-  "#702 (batch view: sign-off action drives the real onGatePassed, #700) / #701 (overview re-read)";
+// where it differs (evaluateGate is #720, onGatePassed is #721). ──
+const SLICE_S001 = "gate API routes: the GateState overview projection";
+const SLICE_S002 = "batch-subset / TestBench batch view scope";
+const SLICE_S003 = "batch view: mark-passed drives the real evaluateGate";
+const SLICE_S004 = "batch view: sign-off action drives the real onGatePassed / overview re-read";
 
 // ── Fixture identifiers (VG-TC-024 preconditions: three phases, milestone-aligned
 // units, Phase 1 closed, Phase 2 verifying over [TC-019, TC-020, TC-024], Phase 3
@@ -342,7 +341,7 @@ async function readOverview(): Promise<Record<string, { status: string; card: st
   const res = await request(app).get(`/${PROJECT_ID}/gates`);
   expect(
     res.status,
-    `TC-024 overview read diverged (serves S001 and S004): expected GET /${PROJECT_ID}/gates to return 200, got ${res.status}. Owning slice: #701 (gate API routes).`,
+    `TC-024 overview read diverged (serves S001 and S004): expected GET /${PROJECT_ID}/gates to return 200, got ${res.status}. Owning slice: gate API routes.`,
   ).toBe(200);
   const byId: Record<string, { status: string; card: string }> = {};
   for (const entry of res.body.gates as { gateId: string; status: string }[]) {
@@ -408,7 +407,7 @@ describe("VG-TC-024: verifier opens the overview, picks Phase 2, verifies the su
 
   it("S002: click the Phase 2 gate card -> TestBench opens scoped to exactly TC-019, TC-020, TC-024 (S002-O01)", () => {
     // S002-O01: the batch view scopes to the Phase 2 gate's pre-resolved gating
-    // set. Resolve that set through the REAL evaluateGate (#698) rather than
+    // set. Resolve that set through the REAL evaluateGate (#720) rather than
     // re-reading the fixture's own implements input: with every gating case still
     // not_started, the gate reads verifying (pending) and its unresolvedCaseIds IS
     // the full gating subset the batch view scopes to. So the scope the verifier
@@ -428,7 +427,7 @@ describe("VG-TC-024: verifier opens the overview, picks Phase 2, verifies the su
 
   it("S003: mark TC-019, TC-020, TC-024 passed -> all three show passed and the sign-off action becomes active (S003-O01)", () => {
     // Precondition: before the flips, the Phase 2 gate is not passed (sign-off is
-    // not yet active). Drive the REAL evaluateGate (#698) with the recorded
+    // not yet active). Drive the REAL evaluateGate (#720) with the recorded
     // not_started cases.
     const before = evaluateGate(phase2Gate, phase2Results({}), PLAN_HASH);
     expect(
@@ -458,7 +457,7 @@ describe("VG-TC-024: verifier opens the overview, picks Phase 2, verifies the su
   });
 
   it("S004: sign off the Phase 2 batch -> overview reads Phase 2 passed/closed (S004-O01) and Phase 3 unblocks (S004-O02)", async () => {
-    // S004: sign off. Drive the REAL onGatePassed (#700) against the shared fake
+    // S004: sign off. Drive the REAL onGatePassed (#721) against the shared fake
     // plugin: it closes the Phase 2 tracker and clears it from Phase 3's blockedBy.
     await onGatePassed(PROJECT_ID, phase2Gate, PLUGIN_ID, deps);
 

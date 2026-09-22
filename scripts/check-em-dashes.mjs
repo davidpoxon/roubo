@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Repo-wide guard against em dashes (issue #371). docs/brand.md forbids the em dash
+// Repo-wide guard against em dashes (#384). docs/brand.md forbids the em dash
 // (U+2014) and its HTML entity (&mdash;) in code comments, commit messages, PR
 // descriptions, README, docs, in-app strings, and any other prose we ship or
 // commit. This script scans the source globs and fails if it finds one outside

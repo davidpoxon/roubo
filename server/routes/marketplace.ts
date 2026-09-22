@@ -9,8 +9,8 @@ import * as marketplace from "../services/marketplace.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
 import * as sourcesState from "../services/marketplace-sources-state.js";
 
-// Marketplace routes (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621;
-// CP-FR-021 / CP-US-011, issue #622).
+// Marketplace routes (CP-FR-020 / CP-NFR-007 / CP-US-010, #688;
+// CP-FR-021 / CP-US-011, #690).
 //
 //   GET  /api/marketplace/plugins?q=&kind=&sourceId=   merged catalog, annotated
 //   POST /api/marketplace/plugins/:id/install  { sourceId? } -> InstallPreview
@@ -22,12 +22,12 @@ import * as sourcesState from "../services/marketplace-sources-state.js";
 // third-party submission route here: entries come from the first-party curated
 // catalog and from sources the consumer explicitly registered.
 //
-// Multi-source listing (issue #557): GET /plugins serves the MERGED catalog
+// Multi-source listing (#962): GET /plugins serves the MERGED catalog
 // (first-party plus every registered source, fetched concurrently), each listing
 // stamped with its `sourceId`, plus a per-source `sources` status array. `sourceId`
 // scopes the list to one source.
 //
-// Cross-source collisions (issue #558, CPHMTP-FR-005): a listing whose id is served
+// Cross-source collisions (#966, CPHMTP-FR-005): a listing whose id is served
 // by several sources carries a `collision`, and install/update of such an id is
 // refused with 409 `{ code: "ambiguous-source", sourceIds }` unless the body names
 // a `sourceId`. There is no precedence: the server never picks a source for the
@@ -36,7 +36,7 @@ import * as sourcesState from "../services/marketplace-sources-state.js";
 // digest and origin-scoped download), so install/update are no longer
 // first-party-only.
 //
-// Channel integrity (issue #622) + hosted catalog (issue #306): the catalog is
+// Channel integrity (#690) + hosted catalog (#845): the catalog is
 // fetched + verified per request via the catalog-client, which degrades
 // NETWORK -> CACHE, bottoming out at an empty listing (the first-party SEED
 // channel was retired in #993). Install/update map
@@ -55,7 +55,7 @@ function installErrorStatus(code: InstallErrorCode): number {
   switch (code) {
     case "invalid-input":
     case "clone-failed":
-    case "download-failed": // release-asset fetch failure; mirrors clone-failed (#370)
+    case "download-failed": // release-asset fetch failure; mirrors clone-failed (#849)
     case "missing-manifest":
     case "invalid-manifest":
     case "incompatible-host":
@@ -71,8 +71,8 @@ function installErrorStatus(code: InstallErrorCode): number {
     // A tampered package whose digest does not match the signed catalog entry:
     // 422 Unprocessable Entity (the request was well-formed but the content
     // failed verification). unpack-failed (zip-slip / bad entry / over limit) is
-    // the same unprocessable-content class (#370). missing-integrity (an unsigned
-    // entry with no usable per-artifact digest, #559) is the same class: the
+    // the same unprocessable-content class (#849). missing-integrity (an unsigned
+    // entry with no usable per-artifact digest, #961) is the same class: the
     // request is well-formed but the entry is unverifiable, so it is refused
     // before any artifact is fetched.
     case "integrity-failed":
@@ -108,7 +108,7 @@ function sendInstallError(
 // `listCatalog` reads that as "no kind filter" rather than as an error. So a kind
 // missing from this list is silent, not loud, and the client's filter chip for it
 // renders the ENTIRE catalog. `agent` is listed here for exactly that reason
-// (AP-FR-022, issue #522); the union is not enumerable at runtime, so this stays
+// (AP-FR-022, #1112); the union is not enumerable at runtime, so this stays
 // a hand-maintained list with a route test per kind.
 function parseKind(raw: unknown): MarketplaceKind | undefined {
   return raw === "component" || raw === "integration" || raw === "agent" ? raw : undefined;
@@ -117,7 +117,7 @@ function parseKind(raw: unknown): MarketplaceKind | undefined {
 /**
  * The id is served by several sources and the request named none, so the
  * install/update is refused with 409 and the contributing source ids
- * (CPHMTP-FR-005, issue #558). The client renders one explicit
+ * (CPHMTP-FR-005, #966). The client renders one explicit
  * install-from-<source> choice per id and re-issues the request with a `sourceId`.
  *
  * Its own sender rather than a `sendInstallError` code: `sendInstallError`
@@ -152,7 +152,7 @@ router.get("/plugins", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q : undefined;
   const kind = parseKind(req.query.kind);
   // Scope the merged multi-source list to one source (the source filter chips,
-  // issue #557). An unknown id simply matches no listings; there is nothing to
+  // #962). An unknown id simply matches no listings; there is nothing to
   // reject, since the id space is the registered sources the client just read off
   // this same response.
   const sourceId = typeof req.query.sourceId === "string" ? req.query.sourceId : undefined;
@@ -164,9 +164,9 @@ router.get("/plugins", async (req, res) => {
     });
     // Forward the first-party catalog's provenance so the client can render the
     // offline / staleness banner when the marketplace was unreachable (the
-    // catalog degraded to cache/seed, source !== "network"; issue #372), plus the
+    // catalog degraded to cache/seed, source !== "network"; #851), plus the
     // per-source status of every source in the fan-out so a single dead source
-    // renders as unavailable while the rest list normally (issue #557).
+    // renders as unavailable while the rest list normally (#962).
     const body: MarketplaceCatalogResponse = {
       curated: true,
       listings,
@@ -227,7 +227,7 @@ router.post("/plugins/:id/update", async (req, res) => {
   }
 });
 
-// Third-party marketplace source registry (issue #553; CPHMTP-FR-001,
+// Third-party marketplace source registry (#955; CPHMTP-FR-001,
 // CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003).
 //
 //   GET    /api/marketplace/sources        list registered sources (+ built-in)
@@ -262,8 +262,8 @@ router.post("/sources", async (req, res) => {
     if (result.outcome === "replaced") {
       // The URL is already registered: no second entry is created, but the
       // credential was replaced. Reject the duplicate registration with 409 while
-      // returning the (updated) row (CPHMTP-FR-001 / issue #553 AC). The cached
-      // client still holds the OLD credential, so drop it (issue #557).
+      // returning the (updated) row (CPHMTP-FR-001 / #955 AC). The cached
+      // client still holds the OLD credential, so drop it (#962).
       marketplace.invalidateSourceClient(result.source.id);
       res.status(409).json(result.source);
       return;

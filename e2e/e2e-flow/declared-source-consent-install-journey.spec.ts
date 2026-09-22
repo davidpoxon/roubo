@@ -17,13 +17,13 @@ import {
 // actionable install action rather than a dead end.
 //
 // This is the integration-level drift guard for the journey spanning slices
-// #556 (roubo.yaml `marketplaces:` declaration + strict parse), #565 (the
-// project-declared source registration offer + consent write), and #566 (the
+// #954 (roubo.yaml `marketplaces:` declaration + strict parse), #982 (the
+// project-declared source registration offer + consent write), and #978 (the
 // missing-plugin bench-start resolution + install-from-source). It walks the
 // authoritative e2e_flow case CPHMTP-TC-073 step for step (S001-S009). If that
 // case changes, update this spec to match.
 //
-// Failure-output contract (issue #575 acceptance criterion 11, FR-020): every
+// Failure-output contract (#989 acceptance criterion 11, FR-020): every
 // assertion names the diverging step id, the expected-vs-actual, and the owning
 // slice issue from the Blocked-by set, so a red run localizes the drift to one
 // attributable slice.

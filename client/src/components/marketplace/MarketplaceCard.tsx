@@ -4,13 +4,13 @@ import type { MarketplaceListing } from "@roubo/shared";
 import ProvenanceBadge from "./ProvenanceBadge";
 import { listingProvenance } from "./plugin-provenance";
 
-// One catalog card (CP-FR-020 / CP-US-010, issue #621). State-aware affordance:
+// One catalog card (CP-FR-020 / CP-US-010, #688). State-aware affordance:
 //   - update available -> Update button
 //   - installed (current) -> "Installed" badge, NO install affordance
 //   - not installed -> Install button
 // Each card shows the version and one ProvenanceBadge: the shared trust treatment
 // (Verified / Unverified) plus exactly one source provenance chip naming where the
-// entry came from (CPHMTP-FR-004, issue #557; CPHMTP-FR-006, issue #563). The card
+// entry came from (CPHMTP-FR-004, #962; CPHMTP-FR-006, #977). The card
 // renders no trust marker of its own: the badge owns that decision so a third-party
 // entry cannot reach the first-party verified styling from here (CPHMTP-NFR-001).
 
@@ -19,7 +19,7 @@ const STRINGS = {
   update: "Update",
   installed: "Installed",
   // The agent-CLI compatibility window an agent listing declares (AP-FR-022,
-  // issue #522). The `floor x · tested <= y` phrasing is lifted verbatim from
+  // #1112). The `floor x · tested <= y` phrasing is lifted verbatim from
   // the AI Agents card's CompatibilityLine, so the pre-install listing and the
   // post-install card read as one system rather than two vocabularies for the
   // same window.
@@ -27,7 +27,7 @@ const STRINGS = {
   floorPrefix: "floor",
   ceilingPrefix: "tested <=",
   compatibilityUndeclared: "compatibility not declared",
-  // The host-range incompatibility mark (issue #720). Names the required Roubo
+  // The host-range incompatibility mark (#1134). Names the required Roubo
   // version, so the card says WHY the plugin cannot be installed rather than just
   // that it cannot.
   incompatiblePill: "Incompatible",
@@ -42,7 +42,7 @@ const STRINGS = {
 };
 
 /**
- * The cross-source collision pill (CPHMTP-FR-005, issue #558). Renders beside the
+ * The cross-source collision pill (CPHMTP-FR-005, #966). Renders beside the
  * SourceChip on every card whose id another source also serves, so each colliding
  * card is marked and none is presented as the winner: there is no precedence, and
  * the ambiguity is surfaced rather than resolved.
@@ -67,7 +67,7 @@ function CollisionPill({ sourceLabels }: { sourceLabels: string[] }) {
 }
 
 /**
- * The pre-install host-incompatibility pill (issue #720). Rendered from the
+ * The pre-install host-incompatibility pill (#1134). Rendered from the
  * server-derived `hostCompatibility`, whose presence IS the verdict: the client
  * evaluates no semver range of its own, so the mark and the server's install
  * refusal cannot disagree.
@@ -192,7 +192,7 @@ export default function MarketplaceCard({
 }: Props) {
   const showInstalled = listing.installed && !listing.updateAvailable;
   const isCollision = listing.collision !== undefined;
-  // Issue #720: this host is outside the range the plugin declared. The mark
+  // #1134: this host is outside the range the plugin declared. The mark
   // replaces BOTH install affordances (Install and Update), since the server
   // refuses both before it downloads anything and offering either would be an
   // action that cannot succeed. It does not replace the Installed badge: a plugin

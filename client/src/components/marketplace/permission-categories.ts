@@ -5,7 +5,7 @@ import type { PermissionCategory, PluginPermissions } from "@roubo/shared";
 // The icon / label / plain-language description for each declared permission
 // category, shared so the install consent modal (MarketplaceConsentModal) and
 // the marketplace detail drawer (MarketplaceDrawer) render the SAME labels,
-// descriptions, and icons for a plugin's declared access (issue #401,
+// descriptions, and icons for a plugin's declared access (#883,
 // CP-TC-080 / CP-TC-104). `describe` takes the plugin's full PluginPermissions
 // so it can name the specific hosts / slots / paths / executables / ports the
 // plugin requests. Pair this with `declaredCategories(permissions)` from

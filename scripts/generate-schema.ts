@@ -6,9 +6,9 @@
 // re-runs this script and `git diff --exit-code`s schema/, failing the build
 // if the committed JSON Schema has drifted from the zod source.
 //
-// Scope (#411): this drives the real authored TestBench contracts
+// Scope (#449): this drives the real authored TestBench contracts
 // (schema/test-cases.schema.json, schema/test-results.schema.json) plus the
-// retained #408 spike artifact. Retrofitting generation onto the
+// retained #431 spike artifact. Retrofitting generation onto the
 // roubo-config/roubo-plugin schemas is out of scope.
 //
 // Run with: npm run generate:schema  (executes via tsx, the repo's TS runner)

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
-// #440: the TestBench panel mounts the staleness banner + reconcile dialog +
-// archived-cases surface (the #422 components, previously built standalone). This
+// #487: the TestBench panel mounts the staleness banner + reconcile dialog +
+// archived-cases surface (the #465 components, previously built standalone). This
 // covers the wiring: the amber banner renders only when the server reports the
 // plan stale, clicking Reconcile runs a preview and opens the dialog with the
 // server-computed classification, Apply dispatches the apply mutation, and an
@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within } from "@testing-library/react";
-// The spec picker this panel opens uses a react-query mutation (#773), so the
+// The spec picker this panel opens uses a react-query mutation (#1166), so the
 // panel must render inside a QueryClientProvider.
 import { renderWithProviders as render } from "../../test/renderWithProviders";
 import userEvent from "@testing-library/user-event";
@@ -24,7 +24,7 @@ const mockApplyMutate = vi.hoisted(() => vi.fn());
 vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: () => mockUseTestbenchPlan(),
   useSetTestbenchFocus: () => ({ mutate: vi.fn(), isPending: false }),
-  // #772: the panel's archived entries and the case detail pane both reach for
+  // #1167: the panel's archived entries and the case detail pane both reach for
   // the lifecycle mutation; neither is under test here, so stub it inert.
   useSetCaseLifecycle: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   caseLifecycleErrorMessage: () => null,
@@ -86,7 +86,7 @@ const CLASSIFICATION: ReconcileClassification = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // The panel now defaults to the Batches view on first visit (#359); this suite
+  // The panel now defaults to the Batches view on first visit (#842); this suite
   // exercises the Cases view, so seed the persisted per-bench view to "cases".
   localStorage.clear();
   localStorage.setItem(
@@ -95,7 +95,7 @@ beforeEach(() => {
   );
 });
 
-describe("TestBenchPanel reconcile wiring (#440)", () => {
+describe("TestBenchPanel reconcile wiring (#487)", () => {
   it("does not render the staleness banner when the plan is not stale", () => {
     setPlan({ plan: plan([makeCase("TC-A")]), stale: false });
     render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);

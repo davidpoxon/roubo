@@ -28,7 +28,7 @@ export default function ProjectSidebar() {
   const { data: projects } = useProjects();
   const { data: allBenches } = useAllBenches();
   const { open: openRegisterModal } = useRegisterProjectModal();
-  // Projects-sidebar collapse (#524): reclaim its fixed 240px so the main
+  // Projects-sidebar collapse (#525): reclaim its fixed 240px so the main
   // content (e.g. the TestBench case-detail pane) can grow wide enough for its
   // expanded layouts. Persisted app-wide.
   const { collapsed, setCollapsed } = useSidebarCollapsed();
@@ -50,7 +50,7 @@ export default function ProjectSidebar() {
 
   if (collapsed) {
     // Icon-only rail: All Projects, an expand control, and Settings. The project
-    // list is hidden to free horizontal space (#524).
+    // list is hidden to free horizontal space (#525).
     return (
       <aside className="w-12 h-full flex flex-col items-center border-r border-border bg-bg-base shrink-0">
         <div className="flex-1 px-1.5 pt-3 flex flex-col items-center gap-1">

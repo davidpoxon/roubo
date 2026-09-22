@@ -195,7 +195,7 @@ describe("getEffectiveIntegrationConfig", () => {
     expect(effective).toEqual({ plugin: "github-com", instance: "from-global" });
   });
 
-  it("issue #125: strips a stale `advanced.sources` shadow merged in from the global layer", () => {
+  it("#231: strips a stale `advanced.sources` shadow merged in from the global layer", () => {
     // Mirrors a real ~/.roubo/integrations/_global/github-com.yaml that still
     // carries the pre-fix `advanced.sources: ""` leftover. Left in place it
     // rides into the Configure dialog seed and the Verify snapshot, where the
@@ -217,7 +217,7 @@ describe("getEffectiveIntegrationConfig", () => {
     });
   });
 
-  it("issue #125: drops the `advanced` key entirely when its only key was a shadow", () => {
+  it("#231: drops the `advanced` key entirely when its only key was a shadow", () => {
     const effective = mod.getEffectiveIntegrationConfig(
       undefined,
       {
@@ -356,7 +356,7 @@ describe("getEffectiveWithGlobal", () => {
     ).toEqual({ instance: "from-committed", advanced: { token: "p" } });
   });
 
-  it("issue #125: strips a stale `advanced.sources` from a real-shaped global file", () => {
+  it("#231: strips a stale `advanced.sources` from a real-shaped global file", () => {
     // The actual ~/.roubo/integrations/_global/github-com.yaml that broke
     // Verify/Save for ai-agent-marketplace.
     fsMocks.existsSync.mockImplementation((p: string) => p === `${GLOBAL_DIR}/github-com.yaml`);

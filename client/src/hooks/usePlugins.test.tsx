@@ -117,7 +117,7 @@ describe("useRestartPlugin", () => {
   });
 });
 
-describe("useReinstallShared (#756)", () => {
+describe("useReinstallShared (#758)", () => {
   const userRecord = {
     id: "github-com",
     manifest: null,
@@ -276,7 +276,7 @@ describe("usePluginLogs", () => {
   });
 });
 
-describe("useConsentStatus (issue #615)", () => {
+describe("useConsentStatus (#656)", () => {
   it("fetches the consent status for a plugin", async () => {
     mockedApi.fetchPluginConsent.mockResolvedValue({
       declared: {
@@ -299,7 +299,7 @@ describe("useConsentStatus (issue #615)", () => {
   });
 });
 
-describe("useGrantConsent (issue #615)", () => {
+describe("useGrantConsent (#656)", () => {
   it("posts the acknowledged categories", async () => {
     mockedApi.grantPluginConsent.mockResolvedValue({
       pluginId: "db-plugin",

@@ -185,7 +185,7 @@ async function linuxDelete(account: string): Promise<void> {
   );
 }
 
-// Issue #571 (CPHMTP-TC-011): a ROUBO_E2E-gated, process-local in-memory keyring.
+// #990 (CPHMTP-TC-011): a ROUBO_E2E-gated, process-local in-memory keyring.
 // The real backends (macOS `security`, Linux `secret-tool`) are not portable
 // under the e2e harness: a headless Linux CI runner typically has no Secret
 // Service, so `secret-tool` would raise `keyring-unavailable` and make the
@@ -246,7 +246,7 @@ export async function deleteSlot(pluginId: string, slot: string): Promise<void> 
   return platform === "darwin" ? macosDelete(account) : linuxDelete(account);
 }
 
-// Test-only reset for the ROUBO_E2E in-memory keyring (issue #571), so each
+// Test-only reset for the ROUBO_E2E in-memory keyring (#990), so each
 // Playwright spec starts with no leaked credentials. Called from the e2e
 // /test/__reset handler; a no-op on the real platform backends.
 export const __test = {

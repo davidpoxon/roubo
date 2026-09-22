@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { cleanEnv } from "./env.js";
 
-// The bounded spawn behind every host-executed probe (#851, APCC-NFR-001).
+// The bounded spawn behind every host-executed probe (#1266, APCC-NFR-001).
 //
 // It lives apart from `runCommand` in exec.ts on purpose. That helper serves a
 // dozen unrelated callers, buffers without limit, and reports a timeout only as a
@@ -14,7 +14,7 @@ import { cleanEnv } from "./env.js";
 // It is a module of its own so tests can replace the spawn without replacing the
 // runner that calls it.
 
-/** How long a probe may run before it is killed (spike #848: the CLI can hang forever). */
+/** How long a probe may run before it is killed (model-probe spike: the CLI can hang forever). */
 export const PROBE_TIMEOUT_MS = 5000;
 
 /** The most output, across stdout and stderr together, a probe reads before it is killed. */

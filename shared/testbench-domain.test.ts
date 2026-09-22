@@ -36,13 +36,13 @@ describe("deriveStatus (FR-009 truth table)", () => {
     expect(deriveStatus(["O1", "O2"], { O1: mark("fail"), O2: mark("fail") })).toBe("failed");
   });
 
-  it("#508: one fail with other observations still unmarked => failed", () => {
+  it("#510: one fail with other observations still unmarked => failed", () => {
     // A single failed observation moves the case to failed immediately, even
     // though O2 and O3 are unmarked (would otherwise be in_progress).
     expect(deriveStatus(["O1", "O2", "O3"], { O1: mark("fail") })).toBe("failed");
   });
 
-  it("#508: fail wins over a pending pass mark too", () => {
+  it("#510: fail wins over a pending pass mark too", () => {
     expect(deriveStatus(["O1", "O2", "O3"], { O1: mark("pass"), O2: mark("fail") })).toBe("failed");
   });
 
@@ -141,9 +141,9 @@ describe("reconcile (spike-407 AC3 classification)", () => {
     expect(classification.unchanged).toEqual([]);
   });
 
-  // #767 (SATCA-FR-022, SATCA-TC-055): reconcile compares the stored caseCanon
+  // #1160 (SATCA-FR-022, SATCA-TC-055): reconcile compares the stored caseCanon
   // against canonicalizeCase(planCase), and the canonical projection excludes the
-  // v1.2.0 lifecycle block (#764), so retiring or superseding a case must NOT
+  // v1.2.0 lifecycle block (#1158), so retiring or superseding a case must NOT
   // re-classify it as changed. TC-003 is the negative control: an edit to the
   // case body still reads as changed.
   it("does not classify a case as changed solely because its lifecycle block changed", () => {

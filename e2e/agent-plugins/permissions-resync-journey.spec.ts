@@ -16,7 +16,7 @@ import {
 // "AP-TC-057".
 const observe = makeObserve("AP-TC-057");
 
-// AP-TC-057 (#530, AP-WU-029) - E2E: editing the project's agent permissions and
+// AP-TC-057 (#1125, AP-WU-029) - E2E: editing the project's agent permissions and
 // re-syncing writes the mapped rules into every bench workspace's settings file.
 //
 // One of the three integration-level drift guards for the AP-US-007 journey

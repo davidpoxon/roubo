@@ -11,7 +11,7 @@ import {
 // clicks Test connection, and asserts the per-category strip shows Issues OK +
 // Dependabot scope-missing.
 //
-// #279: PR #278 removed the per-source SecurityAlertsDisclosure (and the inline
+// #284: PR #278 removed the per-source SecurityAlertsDisclosure (and the inline
 // Re-consent chip it hosted) in favour of server-side source auto-derivation.
 // The result strip itself (CategoryRow) is presentation-only and unchanged, so
 // this spec asserts that surface plus the read-only derived-sources preview,

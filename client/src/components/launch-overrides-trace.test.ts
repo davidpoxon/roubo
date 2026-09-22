@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildResolutionTrace } from "./launch-overrides-trace";
 
-// The layering the per-launch dialog renders (AP-TC-030, AP-TC-036, issue #518),
+// The layering the per-launch dialog renders (AP-TC-030, AP-TC-036, #1072),
 // tested apart from the JSX so the resolution order is asserted directly rather
 // than read off rendered text.
 

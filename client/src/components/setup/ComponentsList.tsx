@@ -17,7 +17,7 @@ interface Props {
 }
 
 // A newly added component is plugin-agnostic: it carries no legacy `type`
-// (#301). The binding to an installed component plugin is set elsewhere; the
+// (#871). The binding to an installed component plugin is set elsewhere; the
 // editor never seeds the deprecated `component.type` field.
 function newComponentDefaults(): ComponentConfig {
   return {};

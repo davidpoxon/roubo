@@ -1,6 +1,6 @@
 import { expect, type APIRequestContext } from "@playwright/test";
 
-// Shared setup for the agent-plugin e2e specs (issue #681).
+// Shared setup for the agent-plugin e2e specs (#1101).
 //
 // Every helper here drives a REAL API route rather than touching disk, for the
 // same reason the AP-TC-087 guard clears its Claude defaults through
@@ -509,7 +509,7 @@ export async function setProjectPermissions(
 
 /**
  * Plant (or, with `null`, remove) the retired built-in agent preferences block
- * (AP-FR-021, issue #530).
+ * (AP-FR-021, #1125).
  *
  * The one signal that an install is an upgrade rather than a fresh one. Nothing
  * in the product writes it any more and `/test/__reset` does not truncate

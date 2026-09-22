@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // CPHMTP-FR-001 / CPHMTP-US-001, verified by CPHMTP-TC-001 and CPHMTP-TC-004
-// (issue #561): the Marketplaces settings section lists the built-in first-party
+// (#976): the Marketplaces settings section lists the built-in first-party
 // source alongside every registered third-party source, and offers add and
 // per-row remove entry points.
 

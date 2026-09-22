@@ -1,13 +1,13 @@
-// AP-TC-118 (issue #533, AP-WU-032): a THIRD-PARTY developer publishes an agent
+// AP-TC-118 (#1126, AP-WU-032): a THIRD-PARTY developer publishes an agent
 // plugin against the published @roubo SDK, it appears as an agent-kind marketplace
 // listing carrying its compatibility metadata, and it installs after integrity
 // verification. This file walks S001-S006 of the authoritative case in
 // .specifications/agent-plugins/test-cases.json, in order, one it() per step.
 //
 // This is a drift guard for an already-shipped journey, not new product behaviour.
-// The work unit spans five slices (#519 compatibility metadata, #521 core purity,
-// #522 marketplace distribution for agent-kind plugins, #523 the published SDK
-// surface and authoring docs, #537 the Phase 2 verify gate), each of which is
+// The work unit spans five slices (#1064 compatibility metadata, #1114 core purity,
+// #1112 marketplace distribution for agent-kind plugins, #1109 the published SDK
+// surface and authoring docs, and the Phase 2 verify gate), each of which is
 // tested on its own; what nothing tested until now is that the five compose into
 // the one journey a third-party author actually walks.
 //
@@ -111,7 +111,7 @@ vi.mock("./plugin-manager.js", () => ({
 
 vi.mock("undici", () => ({
   fetch: vi.fn(),
-  // guarded-fetch builds a connect-pinning Agent (issue #590); the mocked fetch
+  // guarded-fetch builds a connect-pinning Agent (#960); the mocked fetch
   // ignores the dispatcher, so a constructable stub is all this mock needs.
   Agent: vi.fn(),
 }));
@@ -155,15 +155,15 @@ import { fetch } from "undici";
 // ── Owning slices (AP-FR-020) ──
 //
 // From this unit's blocked_by/covers set in .specifications/agent-plugins/
-// issues.json: [#519, #521, #522, #523, #537]. Each step names the slice whose
+// issues.json, delivered in #1064, #1114, #1112, #1109. Each step names the slice whose
 // surface the step drives, so a divergence is attributable.
-const SLICE_SDK = "#523 (publish the agent-plugin SDK surface and third-party authoring docs)";
-const SLICE_COMPAT = "#519 (version gating, compatibility metadata, and launch-failure surfacing)";
-const SLICE_MARKETPLACE = "#522 (marketplace distribution for agent-kind plugins)";
-// #521 (core purity guard) and #537 (the Phase 2 verify gate) are in blocked_by
+const SLICE_SDK = "publish the agent-plugin SDK surface and third-party authoring docs";
+const SLICE_COMPAT = "version gating, compatibility metadata, and launch-failure surfacing";
+const SLICE_MARKETPLACE = "marketplace distribution for agent-kind plugins";
+// #1114 (core purity guard) and the Phase 2 verify gate are in blocked_by
 // because this journey cannot run before they land, but neither owns a step of its
-// own: #521's guarantee is enforced by `npm run lint:agent-guard`, and #537 is the
-// gate this unit reports into.
+// own: #1114's guarantee is enforced by `npm run lint:agent-guard`, and the verify gate is
+// the gate this unit reports into.
 const SLICE_ALL = `${SLICE_SDK}, ${SLICE_COMPAT}, ${SLICE_MARKETPLACE}`;
 
 // ── The published SDK, on disk ──
@@ -208,7 +208,7 @@ const TESTED_CEILING = "2.1.7";
 
 // A complete, valid AGENT manifest authored against the published SDK.
 // `permissions.processes: false` is not decoration: the real PluginManifestSchema
-// REFUSES a `processes` permission for kind agent (issue #632), so this fixture
+// REFUSES a `processes` permission for kind agent (#1030), so this fixture
 // parses only because it is a genuine agent plugin.
 const MANIFEST = `id: ${PLUGIN_ID}
 name: ACME Agent
@@ -353,7 +353,7 @@ function fakeDownload(tgzPath: string) {
 /**
  * The published entry as the hosted marketplace serves it: a release artifact,
  * carrying the compatibility window the author declared in the manifest at S003.
- * That entry-level declaration (issue #722) is what makes the window reachable
+ * That entry-level declaration (#1133) is what makes the window reachable
  * pre-install, since a release source has no local manifest to read.
  */
 function releaseEntry(integrity: string): MarketplaceCatalogEntry {
@@ -687,9 +687,9 @@ describe("AP-TC-118: a third-party agent plugin is published, listed, and instal
 
     // And THE SHAPE A GENUINELY PUBLISHED PLUGIN ACTUALLY HAS: a release entry with
     // no local manifest to read. The catalog entry now carries the author-declared
-    // window itself (issue #722), so `annotate()` falls back to it and the card
+    // window itself (#1133), so `annotate()` falls back to it and the card
     // renders the floor and ceiling before anything is installed, which is what
-    // S005-O02 asks for. Until #722 this projected null and the card showed the
+    // S005-O02 asks for. Until #1133 this projected null and the card showed the
     // "compatibility not declared" fallback (AP-TC-121), which that fallback is now
     // reserved for a genuinely undeclared window.
     marketplace.__test.resetSourceClients();

@@ -184,7 +184,7 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn", () => {
     expect(result?.args[wIdx + 1]).toBe(DOCKER_CONTAINER_DIR);
   });
 
-  it("runs `node <containerEntry>` inside the image, NOT the host execPath (#740)", () => {
+  it("runs `node <containerEntry>` inside the image, NOT the host execPath (#742)", () => {
     const result = buildSandboxedSpawn(manifest([]), "docker", opts);
     // Image, then node, then the container-relative entry path.
     const imageIdx = result?.args.indexOf(DOCKER_IMAGE) ?? -1;
@@ -193,14 +193,14 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn", () => {
     expect(result?.args[imageIdx + 2]).toBe(`${DOCKER_CONTAINER_DIR}/index.js`);
   });
 
-  it("does NOT include the host absolute entry path in the docker args (#740)", () => {
+  it("does NOT include the host absolute entry path in the docker args (#742)", () => {
     const result = buildSandboxedSpawn(manifest([]), "docker", opts);
     // The absolute host entry path must never appear in the container command
     // because it does not exist inside the container.
     expect(result?.args).not.toContain(entryPath);
   });
 
-  it("does NOT include a host node binary or Electron execPath in the docker args (#740)", () => {
+  it("does NOT include a host node binary or Electron execPath in the docker args (#742)", () => {
     // The host process.execPath (which may be the Electron binary) must not
     // appear anywhere in the docker command.
     const hostExecPath = process.execPath;
@@ -208,7 +208,7 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn", () => {
     expect(result?.args).not.toContain(hostExecPath);
   });
 
-  it("does NOT pass --network none when the plugin declared hosts (allow-listed egress, #741)", () => {
+  it("does NOT pass --network none when the plugin declared hosts (allow-listed egress, #744)", () => {
     const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", opts);
     expect(result?.args).not.toContain("none");
     expect(result?.egress).toEqual({ mode: "allow-listed", allowedHosts: ["api.example.com"] });
@@ -295,7 +295,7 @@ describe("plugin-isolation-sandbox: ensureImage", () => {
   });
 });
 
-describe("plugin-isolation-sandbox: buildEgressSetupScript (#741, #745)", () => {
+describe("plugin-isolation-sandbox: buildEgressSetupScript (#744, #747)", () => {
   it("creates the ROUBO_EGRESS chain once (tolerates already-exists via || true)", () => {
     const script = buildEgressSetupScript(["api.example.com"]);
     expect(script).toContain("iptables -N ROUBO_EGRESS");
@@ -335,7 +335,7 @@ describe("plugin-isolation-sandbox: buildEgressSetupScript (#741, #745)", () => 
     expect(script).not.toContain('iptables -A OUTPUT -d "$ip" -j ACCEPT');
   });
 
-  it("defines roubo_reresolve that flushes ROUBO_EGRESS before re-adding rules (#745 AC-2)", () => {
+  it("defines roubo_reresolve that flushes ROUBO_EGRESS before re-adding rules (#747 AC-2)", () => {
     const script = buildEgressSetupScript(["api.example.com"]);
     expect(script).toContain("roubo_reresolve()");
     // The function must flush the chain first so stale IPs are not accumulated.
@@ -357,7 +357,7 @@ describe("plugin-isolation-sandbox: buildEgressSetupScript (#741, #745)", () => 
     expect(callIdx).toBeGreaterThan(defEnd);
   });
 
-  it("backgrounds a periodic re-resolution loop that uses sleep and & (#745 AC-1)", () => {
+  it("backgrounds a periodic re-resolution loop that uses sleep and & (#747 AC-1)", () => {
     const script = buildEgressSetupScript(["api.example.com"]);
     // The loop must be present: while, sleep with the configured interval, and
     // the roubo_reresolve call backgrounded with &.
@@ -401,7 +401,7 @@ describe("plugin-isolation-sandbox: buildEgressSetupScript (#741, #745)", () => 
   });
 });
 
-describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#741)", () => {
+describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#744)", () => {
   const pluginDir = "/plugins/demo";
   const entryPath = "/plugins/demo/index.js";
   const opts = { pluginDir, entryPath };
@@ -472,7 +472,7 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#74
     expect(result?.args).not.toContain("none");
   });
 
-  it("joins the backgrounded egress loop and exec node with no '&;' sequence (#762)", () => {
+  it("joins the backgrounded egress loop and exec node with no '&;' sequence (#764)", () => {
     // The egress setup ends with `...} &`. Joining it to `exec node` with `; `
     // produces `} &;`, which is a POSIX sh syntax error (dash, node:24-slim) and
     // crash-looped the container. The generated shellCmd must contain no `&`
@@ -486,7 +486,7 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#74
     expect(shellCmd).toContain('exec node "$ROUBO_PLUGIN_ENTRY"');
   });
 
-  it("emits a shellCmd that parses under POSIX sh -n (#762)", async () => {
+  it("emits a shellCmd that parses under POSIX sh -n (#764)", async () => {
     // Validate the generated script with the real shell's parser. `sh -n` only
     // parses (no execution), reads the script from stdin, and exits 0 when the
     // syntax is valid. Done deterministically via child_process to catch the
@@ -523,7 +523,7 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#74
   });
 });
 
-describe("plugin-isolation-sandbox: ensureEgressImage (#741)", () => {
+describe("plugin-isolation-sandbox: ensureEgressImage (#744)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     inspectMock = () =>
@@ -572,7 +572,7 @@ describe("plugin-isolation-sandbox: ensureEgressImage (#741)", () => {
   });
 });
 
-describe("plugin-isolation-sandbox: defaultIsolationProbes (#675 real runtime detection)", () => {
+describe("plugin-isolation-sandbox: defaultIsolationProbes (#684 real runtime detection)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     pingMock = () => Promise.resolve("OK");

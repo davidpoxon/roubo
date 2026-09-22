@@ -5,7 +5,7 @@
  *
  * All three steps are measured here, because one test has to carry the bare
  * `AP-TC-049` and a case may not be corroborated on a subset of its
- * observations (#680, #682):
+ * observations (#1097, #1096):
  *
  *   S001  a default-agent tile is selected, and every default-bound preset row
  *         re-resolves to the newly chosen agent

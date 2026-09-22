@@ -96,7 +96,7 @@ function detectLegacyJigKeys(raw: unknown): string | null {
 
 /**
  * The marketplace URLs a project declares in its roubo.yaml (CPHMTP-FR-007,
- * issue #556). The project-open flow reads this to offer registering the
+ * #954). The project-open flow reads this to offer registering the
  * declared third-party marketplaces. Each entry is a URL only (never a
  * credential), already validated as http(s) by the strict schema parse. This is
  * a pure accessor: it performs no network I/O. Returns an empty array when the
@@ -112,7 +112,7 @@ export interface ResolvedTemplateContext {
   workspace: string;
   components: Record<string, { connection?: string }>;
   /**
-   * Runtime-reported access URLs, keyed by component name (#833). Overlaid onto
+   * Runtime-reported access URLs, keyed by component name (#1206). Overlaid onto
    * a context by `applyComponentUrlOverrides` rather than built from config,
    * because the value only exists once the component has run. Absent from a
    * context nobody overlaid, which is why `{{urls.<name>}}` still falls back to
@@ -135,7 +135,7 @@ export interface ResolvedTemplateContext {
   /**
    * The absolute path of the notifier program core installed for this launch,
    * supplied only when resolving a descriptor whose notification wiring is
-   * `spawned-notifier` (issue #698) or `file-notifier` (issue #854). A plugin declares `{{notifier}}` when it
+   * `spawned-notifier` (#1113) or `file-notifier` (#1264). A plugin declares `{{notifier}}` when it
    * needs the program by path rather than by PATH lookup, and never learns
    * where core keeps it.
    */
@@ -143,7 +143,7 @@ export interface ResolvedTemplateContext {
   /**
    * The shell-quoted, space-joined notifier invocation, supplied only when
    * resolving a descriptor whose notification wiring is `file-notifier` (issue
-   * #854). Its registration write declares `{{notifierCommand}}` where the hook
+   * #1264). Its registration write declares `{{notifierCommand}}` where the hook
    * command goes, because the agent runs that command through a shell rather
    * than from an argv array.
    */
@@ -163,7 +163,7 @@ export function resolveTemplate(template: string, ctx: ResolvedTemplateContext):
     if (key.startsWith("urls.")) {
       const componentName = key.slice("urls.".length);
       // A URL the component reported while running wins over the port-derived
-      // form (#833): it is the component's real access point, and it is the
+      // form (#1206): it is the component's real access point, and it is the
       // only form available at all when the component has no allocated port.
       const reported = ctx.urls?.[componentName];
       if (reported !== undefined && reported !== "") return reported;
@@ -216,8 +216,8 @@ export function stripSurroundingQuotes(value: string): string {
 
 // Read a component's connection template, preferring the migrated location
 // (`config.connection.template`, validated by the database plugin's
-// configSchema per #614) and falling back to the legacy top-level
-// `connection.template` for any not-yet-migrated configs (#666). `config` is
+// configSchema per #664) and falling back to the legacy top-level
+// `connection.template` for any not-yet-migrated configs (#667). `config` is
 // opaque to core (`Record<string, unknown>`), so narrow it locally.
 function readConnectionTemplate(component: {
   config?: Record<string, unknown>;
@@ -279,7 +279,7 @@ export function applyContainerOverrides(
 
 /**
  * Overlay the URLs components reported at runtime onto a template context
- * (#833), the same shape as `applyContainerOverrides`: `buildTemplateContext`
+ * (#1206), the same shape as `applyContainerOverrides`: `buildTemplateContext`
  * stays a pure function of static config, and live bench state is layered on at
  * the call site. Components that reported nothing are left out entirely, so
  * `{{urls.<name>}}` falls back to the port-derived form for them.
@@ -302,7 +302,7 @@ function coerceEnvValues(raw: unknown): void {
 
   // Component env vars used to live in inline `env` / `envVars` blocks that core
   // coerced YAML scalars on. Those fields are gone from the components schema
-  // (#609): a component's env now lives inside its opaque, plugin-validated
+  // (#652): a component's env now lives inside its opaque, plugin-validated
   // `config` block, so any scalar coercion there is the plugin's concern, not
   // core's. Only `inspection.env` remains a core-owned string map.
   if (config.inspection && typeof config.inspection === "object") {

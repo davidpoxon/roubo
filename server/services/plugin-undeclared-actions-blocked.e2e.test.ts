@@ -1,9 +1,9 @@
 /**
- * CP-TC-099 drift guard (issue #628): a plugin's undeclared actions are blocked
+ * CP-TC-099 drift guard (#681): a plugin's undeclared actions are blocked
  * and audited while the bench keeps running (enforced sandboxing, v2).
  *
  * This is the integration-level drift guard for the journey that spans slices
- * #599, #615, #618, #619, #620. It asserts the *integrated* journey against the
+ * #635, #656, #673, #672, #676. It asserts the *integrated* journey against the
  * authoritative e2e_flow case CP-TC-099 in
  * .specifications/component-plugins/test-cases.json, not whatever any single
  * slice implemented. It does NOT re-test slice internals nor write production
@@ -35,7 +35,7 @@
  *
  * FR-020 failure-output contract: every assertion runs through `expectStep`,
  * which on failure surfaces (1) the diverged e2e_flow step id, (2) the
- * expected-vs-actual at that step, and (3) the owning slice issue(s) from this
+ * expected-vs-actual at that step, and (3) the owning slice(s) from this
  * unit's blocked-by / covers set, so integration drift is localized to an
  * attributable slice.
  *
@@ -114,31 +114,37 @@ const PERMISSION_DENIED_CODE = -32001;
 
 // --- FR-020 failure-output helper ------------------------------------------
 //
-// The journey spans slices #599, #615, #618, #619, #620 (the issue's blocked-by
+// The journey spans slices #635, #656, #673, #672, #676 (the issue's blocked-by
 // set). On a step assertion failure we surface the diverged e2e_flow step id,
-// the expected-vs-actual, and the owning slice issue(s) so the drift is
+// the expected-vs-actual, and the owning slice(s) so the drift is
 // attributable to a slice rather than to "the e2e test".
-const BLOCKED_BY = ["#599", "#615", "#618", "#619", "#620"];
+const BLOCKED_BY = [
+  "plugin-isolation backend spike",
+  "permission consent dialog + consent gate",
+  "PermissionEnforcer",
+  "AuditLog of privileged broker calls",
+  "PluginIsolationSandbox",
+];
 
 const STEP_OWNERS: Record<string, string[]> = {
   // Bench start / both components spawning rides the component-kind + supervisor
   // slices.
-  S001: ["#615", "#619"],
+  S001: ["permission consent dialog + consent gate", "AuditLog of privileged broker calls"],
   // host.ports.get allowed at the broker + 'allowed' audit: the broker
-  // choke-point (#618) and the AuditLog (#619).
-  S002: ["#618", "#619"],
+  // choke-point (#673) and the AuditLog (#672).
+  S002: ["PermissionEnforcer", "AuditLog of privileged broker calls"],
   // host.docker.composeUp denied by the PermissionEnforcer + 'denied' audit:
-  // the broker choke-point (#618) and the AuditLog (#619).
-  S003: ["#618", "#619"],
+  // the broker choke-point (#673) and the AuditLog (#672).
+  S003: ["PermissionEnforcer", "AuditLog of privileged broker calls"],
   // Direct outbound TCP blocked at the OS layer: the PluginIsolationSandbox
-  // (#620), grounded by the isolation spike (#599).
-  S004: ["#599", "#620"],
+  // (#676), grounded by the isolation spike (#635).
+  S004: ["plugin-isolation backend spike", "PluginIsolationSandbox"],
   // Sibling 'api' stays running (graceful degradation): the component
-  // supervisor (#615) and the sandbox isolation that contains the offender
-  // (#620).
-  S005: ["#615", "#620"],
-  // Audit queryable per plugin and per bench: the AuditLog (#619).
-  S006: ["#619"],
+  // supervisor (#656) and the sandbox isolation that contains the offender
+  // (#676).
+  S005: ["permission consent dialog + consent gate", "PluginIsolationSandbox"],
+  // Audit queryable per plugin and per bench: the AuditLog (#672).
+  S006: ["AuditLog of privileged broker calls"],
 };
 
 function expectStep(
@@ -155,7 +161,7 @@ function expectStep(
       `CP-TC-099 drift at e2e_flow step ${stepId}: ${what}`,
       context && "expected" in context ? `  expected: ${JSON.stringify(context.expected)}` : null,
       context && "actual" in context ? `  actual:   ${JSON.stringify(context.actual)}` : null,
-      `  owning slice issue(s): ${owners.join(", ")}`,
+      `  owning slice(s): ${owners.join(", ")}`,
       `  underlying assertion: ${err instanceof Error ? err.message : String(err)}`,
     ].filter((l): l is string => l !== null);
     throw new Error(lines.join("\n"), { cause: err });
@@ -288,7 +294,7 @@ function makePortsOnlyBroker(): BrokerHarness {
   const call = async (method: string, params?: unknown) => {
     const handler = connection.handlers.get(method);
     if (!handler) throw new Error(`broker did not register ${method}`);
-    // Every broker call carries the benchId it acts for in its params (#685);
+    // Every broker call carries the benchId it acts for in its params (#687);
     // the production SDK stamps it from the in-flight lifecycle call. Stamp the
     // ctx's bench here for object params so these contract-level calls route.
     const withBenchId =
@@ -300,7 +306,7 @@ function makePortsOnlyBroker(): BrokerHarness {
   return { call, docker, audit, allocatedPort };
 }
 
-describe("CP-TC-099: a plugin's undeclared actions are blocked and audited while the bench keeps running (issue #628)", () => {
+describe("CP-TC-099: a plugin's undeclared actions are blocked and audited while the bench keeps running (#681)", () => {
   let sandbox: Sandbox | null = null;
 
   afterEach(async () => {

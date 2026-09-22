@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 //
-// #702 (VG-FR-008, AC2/AC3): the batch view fetches the plan filtered to the gate's
+// #726 (VG-FR-008, AC2/AC3): the batch view fetches the plan filtered to the gate's
 // gating subset, elides a phase with no gating cases with a clear label (not an
 // unlabelled empty card), and guards sign-off (the action is disabled whenever the
 // gate's evaluated status is not `passed`).
 //
-// #830 (VG-FR-007/VG-FR-008, AC5/AC6): sign-off is now a real, persisted server action.
+// #833 (VG-FR-007/VG-FR-008, AC5/AC6): sign-off is now a real, persisted server action.
 // The button's state is sourced from the SERVER (`gate.signedOff`), not local
 // React state, so a signed-off batch reads back as signed off (the button shows
 // "Reopen") after navigating away and back. A signed-off gate can be reopened.
@@ -36,7 +36,7 @@ function emptyPlan(filteredToGateIds: string[]) {
 
 function planWithCase(filteredToGateIds: string[]) {
   // The ?gateIds= subset uses the gate's RAW declared ids, so an all-L3/L4 gate
-  // still returns a case row here (the #436 batch-view half of the bug).
+  // still returns a case row here (the #912 batch-view half of the bug).
   return {
     plan: {
       $schema: "x",
@@ -64,7 +64,7 @@ function planWithCase(filteredToGateIds: string[]) {
   };
 }
 
-// A subset plan whose only case is retired (#769). The plan is NOT empty, but the
+// A subset plan whose only case is retired (#1161). The plan is NOT empty, but the
 // rollup excludes every non-live case, so the live case list would otherwise be an
 // unlabelled empty card.
 function planWithOnlyRetiredCase(filteredToGateIds: string[]) {
@@ -108,7 +108,7 @@ function gateState(overrides: Record<string, unknown>) {
 }
 
 // A subset plan with one gating case plus a recorded result at the given effective
-// status, so the batch view can render and select the case (#706, VG-US-006).
+// status, so the batch view can render and select the case (#735, VG-US-006).
 function planWithCaseStatus(derivedStatus: string) {
   return {
     plan: {
@@ -168,7 +168,7 @@ describe("BatchView", () => {
     await waitFor(() => expect(screen.getByText(/no gating cases/i)).toBeTruthy());
   });
 
-  it("elides on a no_gating_cases gate even when the subset plan still has case rows (#436)", async () => {
+  it("elides on a no_gating_cases gate even when the subset plan still has case rows (#912)", async () => {
     // The gate narrows to empty (all L3/L4), so the server reports no_gating_cases,
     // but the ?gateIds= subset still returns the raw L3 case row. The notice must
     // fire off the gate status, and the L3 case must NOT render as a case row.
@@ -183,7 +183,7 @@ describe("BatchView", () => {
     expect(screen.queryByText("An L3 case")).toBeNull();
   });
 
-  it("elides when the subset plan is non-empty but every case is non-live (#769)", async () => {
+  it("elides when the subset plan is non-empty but every case is non-live (#1161)", async () => {
     // The gate still reports `pending` (the server does not read lifecycle yet), and
     // the subset plan carries a case row, but the rollup excludes it as retired. The
     // notice must fire off the empty LIVE rollup, never an unlabelled empty card (AC2).

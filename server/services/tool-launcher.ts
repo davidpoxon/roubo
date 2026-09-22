@@ -16,7 +16,7 @@ import { loadSettings } from "./state.js";
 
 /**
  * Whether a tool's `requires` component has run far enough to enable the tool.
- * `running` is the steady-state answer, but `completed` counts too (#833): a
+ * `running` is the steady-state answer, but `completed` counts too (#1206): a
  * one-shot component exits as soon as its work is done, so a tool gated on one
  * (for instance a browser entry opening the URL that one-shot reported) would
  * otherwise be permanently disabled the moment the component it depends on
@@ -50,7 +50,7 @@ export function getResolvedTools(projectId: string, benchId: number): ResolvedTo
   // One settings read for the whole list, not one per agent tool. This route is
   // polled every few seconds per open bench and `loadSettings` is uncached, so
   // resolving each preset off its own read re-parsed the settings file once per
-  // agent tool per poll (issue #649). Projects with no agent tools keep costing
+  // agent tool per poll (#1062). Projects with no agent tools keep costing
   // zero reads.
   const defaults = tools.some((tool) => tool.type === "agent")
     ? { defaultAgentPluginId: loadSettings().jigs?.defaultAgentPluginId }
@@ -61,7 +61,7 @@ export function getResolvedTools(projectId: string, benchId: number): ResolvedTo
 
     // An agent tool is a launch preset, not a browser or shell action: it is
     // resolved against the agent registry here and launched through terminal
-    // session creation, never through `executeTool` (issue #516).
+    // session creation, never through `executeTool` (#1057).
     if (tool.type === "agent") {
       const preset = resolveAgentPreset(toolConfigToPreset(tool), "project", defaults);
       return {
@@ -159,7 +159,7 @@ export async function executeTool(
 
   // The persisted workspace path is interpolated into shell tool commands via
   // {{workspace}} and reaches exec, so validate it against the shell-safe
-  // allowlist first (CodeQL #32, js/command-line-injection).
+  // allowlist first (CodeQL #73, js/command-line-injection).
   let workspacePath: string;
   try {
     workspacePath = assertSafeWorkspacePath(bench.workspacePath);
@@ -217,12 +217,12 @@ function execAsync(command: string, cwd?: string): Promise<void> {
   // never externally-sourced strings. Two values are trusted by validation
   // rather than by provenance: the workspace path, derived from a user-chosen
   // name and checked by assertSafeWorkspacePath in executeTool before
-  // substitution (CodeQL #32); and a component's runtime-reported
+  // substitution (CodeQL #73); and a component's runtime-reported
   // `{{urls.<name>}}`, which is plugin-supplied and so is admitted only after
   // normalizeReportedUrl in bench-manager has rejected any whitespace or
   // shell-significant character. That runs on both routes into the field, the
   // reportStatus sink and rehydration from state.json, so neither a plugin nor
-  // a tampered state file can put an unvetted string here (#833).
+  // a tampered state file can put an unvetted string here (#1206).
   return new Promise((resolve, reject) => {
     exec(command, { cwd }, (err) => {
       if (err) reject(err);

@@ -8,7 +8,7 @@ vi.mock("../services/marketplace.js", () => {
   // The route narrows with `err instanceof marketplace.AmbiguousSourceError`, so
   // the mock must export a real class: an undefined right-hand side makes
   // `instanceof` throw a TypeError that the catch would report as a 500, masking
-  // every mapped status (issue #558).
+  // every mapped status (#966).
   class AmbiguousSourceError extends Error {
     readonly code = "ambiguous-source" as const;
     readonly pluginId: string;
@@ -95,7 +95,7 @@ const LISTING: MarketplaceListing = {
 
 const FETCHED_AT = "2026-06-28T00:00:00.000Z";
 
-// The always-present built-in source's status row (issue #557): the fan-out
+// The always-present built-in source's status row (#962): the fan-out
 // reports it first, and it is never unavailable (its chain has the seed floor).
 const FIRST_PARTY_STATUS: MarketplaceSourceStatus = {
   id: FIRST_PARTY_SOURCE_ID,
@@ -108,8 +108,8 @@ const FIRST_PARTY_STATUS: MarketplaceSourceStatus = {
 
 // The CatalogResult shape listCatalog now resolves to: the merged listings, the
 // first-party catalog's provenance (source / fetchedAt) for the offline /
-// staleness banner (issue #372), and the per-source status of every source in the
-// fan-out (issue #557). GET /plugins forwards all of it.
+// staleness banner (#851), and the per-source status of every source in the
+// fan-out (#962). GET /plugins forwards all of it.
 function catalogResult(
   listings: MarketplaceListing[],
   source: "network" | "cache" = "network",
@@ -149,7 +149,7 @@ describe("GET /api/marketplace/plugins", () => {
     });
   });
 
-  // CPHM-TC-043 (issue #372): when the marketplace is unreachable the catalog
+  // CPHM-TC-043 (#851): when the marketplace is unreachable the catalog
   // degrades to the last-known cache; the route forwards source "cache" + the
   // cached fetch timestamp so the client can render the offline banner.
   it("forwards the cache source and fetch timestamp when degraded to the cache", async () => {
@@ -161,7 +161,7 @@ describe("GET /api/marketplace/plugins", () => {
     expect(res.body.listings).toHaveLength(1);
   });
 
-  // CPHM-FR-009 (issue #372, #621): the empty-listing degrade (no bundled seed
+  // CPHM-FR-009 (#851, #993): the empty-listing degrade (no bundled seed
   // floor) reports source "cache" with a null fetchedAt (nothing was fetched).
   it("forwards the cache source and a null fetch timestamp on the empty degrade", async () => {
     listCatalog.mockResolvedValue(catalogResult([], "cache", null));
@@ -185,7 +185,7 @@ describe("GET /api/marketplace/plugins", () => {
   // SILENTLY (it becomes `undefined`, i.e. no filter, so the chip renders the
   // whole catalog rather than erroring). A kind added to the union and to the
   // client's filter tabs but missed in `parseKind` is invisible without this
-  // (AP-FR-022, issue #522).
+  // (AP-FR-022, #1112).
   it.each(["component", "integration", "agent"] as const)(
     "passes the %s kind through to the service",
     async (kind) => {
@@ -209,7 +209,7 @@ describe("GET /api/marketplace/plugins", () => {
     });
   });
 
-  // Issue #557: the source filter chip scopes the merged multi-source list to one
+  // #962: the source filter chip scopes the merged multi-source list to one
   // source, so the chosen id is threaded through to the service.
   it("passes through sourceId so the list can be scoped to one source", async () => {
     listCatalog.mockResolvedValue(catalogResult([]));
@@ -221,7 +221,7 @@ describe("GET /api/marketplace/plugins", () => {
     });
   });
 
-  // Issue #557: the per-source status rows ride back on the response so the client
+  // #962: the per-source status rows ride back on the response so the client
   // can render one filter chip per source and call out only the failed one.
   it("forwards the per-source status of every source in the fan-out", async () => {
     const acme: MarketplaceSourceStatus = {
@@ -257,7 +257,7 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
     expect(res.status).toBe(200);
     expect(res.body.stagingToken).toBe(PREVIEW.stagingToken);
     // No body, so no explicit source choice: the id must resolve from exactly one
-    // source (issue #558).
+    // source (#966).
     expect(install).toHaveBeenCalledWith("redis", undefined);
   });
 
@@ -297,7 +297,7 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
     expect(res.body.code).toBe("revoked");
   });
 
-  // Built-artifact install codes (issue #370): download-failed maps to 400,
+  // Built-artifact install codes (#849): download-failed maps to 400,
   // unpack-failed to 422.
   it("maps download-failed to 400", async () => {
     resolveEntry.mockReturnValue(ENTRY);
@@ -315,7 +315,7 @@ describe("POST /api/marketplace/plugins/:id/install", () => {
     expect(res.body.code).toBe("unpack-failed");
   });
 
-  // CPHMTP-TC-051 (issue #559): a third-party entry with no usable per-artifact
+  // CPHMTP-TC-051 (#961): a third-party entry with no usable per-artifact
   // digest is uninstallable, and the installer refuses it before fetching the
   // artifact. The route surfaces that refusal as 422 missing-integrity.
   it("maps missing-integrity to 422", async () => {
@@ -376,7 +376,7 @@ describe("POST /api/marketplace/plugins/:id/update", () => {
     expect(res.body.code).toBe("integrity-failed");
   });
 
-  // Issue #559: an unsigned entry with no usable digest is equally un-updatable.
+  // #961: an unsigned entry with no usable digest is equally un-updatable.
   it("maps missing-integrity to 422 on update", async () => {
     update.mockRejectedValue(
       new pluginInstaller.InstallError("missing-integrity", "no per-artifact digest"),
@@ -404,7 +404,7 @@ describe("POST /api/marketplace/plugins/:id/update", () => {
   });
 });
 
-// Third-party source registry endpoints (issue #553; CPHMTP-FR-001,
+// Third-party source registry endpoints (#955; CPHMTP-FR-001,
 // CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003). Persistence, id generation, and
 // credential handling are exercised in marketplace-sources-state.test.ts; here we
 // assert only the HTTP status/shape mapping the route owns.
@@ -465,7 +465,7 @@ describe("POST /api/marketplace/sources", () => {
 
   // A cached client captured the OLD credential at construction, and a rotation
   // changes neither the id nor the url, so the registry write is the only place
-  // that knows the client is stale (issue #557).
+  // that knows the client is stale (#962).
   it("drops the source's cached client when a rotation replaces its credential", async () => {
     addSource.mockResolvedValue({ outcome: "replaced", source: SUMMARY });
     await request(makeApp())
@@ -518,11 +518,11 @@ describe("DELETE /api/marketplace/sources/:id", () => {
   });
 });
 
-// Issue #558 (CPHMTP-FR-005): a cross-source id collision surfaces as a typed 409
+// #966 (CPHMTP-FR-005): a cross-source id collision surfaces as a typed 409
 // carrying the contributing source ids, at BOTH the install and update paths. It
 // is deliberately not an InstallError: that channel flattens to { error, code }
 // and would drop the sourceIds the client needs to offer the pick-a-source choices.
-describe("ambiguous-source refusal (issue #558)", () => {
+describe("ambiguous-source refusal (#966)", () => {
   const SOURCE_IDS = [FIRST_PARTY_SOURCE_ID, "marketplace-acme-example-1a2b3c4d"];
 
   function ambiguous(): Error {

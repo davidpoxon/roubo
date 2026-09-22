@@ -183,7 +183,7 @@ describe("POST /:id/restart", () => {
   });
 });
 
-describe("POST /:id/reinstall-shared (#756)", () => {
+describe("POST /:id/reinstall-shared (#758)", () => {
   beforeEach(() => {
     vi.mocked(pluginManager.reinstallIntoUserRoot).mockReset();
     vi.mocked(pluginManager.listInstalled).mockReturnValue([record()]);
@@ -424,7 +424,7 @@ describe("POST /install", () => {
     expect(res.body.code).toBe("duplicate-id");
   });
 
-  // Built-artifact install codes (issue #370): download-failed mirrors
+  // Built-artifact install codes (#849): download-failed mirrors
   // clone-failed (400), unpack-failed mirrors integrity-failed (422).
   it("maps download-failed to 400", async () => {
     vi.mocked(pluginInstaller.previewFromGitUrl).mockRejectedValue(
@@ -448,7 +448,7 @@ describe("POST /install", () => {
     expect(res.body.code).toBe("unpack-failed");
   });
 
-  // Issue #559: missing-integrity does not arise on this raw install path (it
+  // #961: missing-integrity does not arise on this raw install path (it
   // threads no catalog digest and no third-party context), but the switch must
   // stay exhaustive over InstallErrorCode and map it to the same 422 class.
   it("maps missing-integrity to 422", async () => {
@@ -485,7 +485,7 @@ describe("POST /install/:token/confirm", () => {
     expect(res.body.plugin.status).toBe("enabled");
   });
 
-  // Issue #617 (CPHMTP-FR-008, AC1): confirming an install IS the consent step (the
+  // #991 (CPHMTP-FR-008, AC1): confirming an install IS the consent step (the
   // install PermissionsScreen already displayed the declared categories and the
   // user acknowledged them by confirming). Persist a ConsentRecord acknowledging
   // the full declared set so the component-start consent gate passes for the
@@ -766,7 +766,7 @@ describe("PUT /:id/integration/config", () => {
     );
   });
 
-  it("strips stale advanced keys not in the manifest schema before saving (issue #125)", async () => {
+  it("strips stale advanced keys not in the manifest schema before saving (#231)", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const res = await request(app)
@@ -783,7 +783,7 @@ describe("PUT /:id/integration/config", () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("source=persist-global"));
   });
 
-  it("drops the advanced block entirely when every supplied key is stale (issue #125)", async () => {
+  it("drops the advanced block entirely when every supplied key is stale (#231)", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     // Pre-existing override carries an advanced block; the new save should
     // canonicalise the file by removing it.
@@ -890,7 +890,7 @@ describe("GET /:id/connection-status (WU-050)", () => {
   });
 });
 
-describe("GET /:id/consent (issue #615, CP-FR-011)", () => {
+describe("GET /:id/consent (#656, CP-FR-011)", () => {
   it("returns 400 for an invalid plugin id", async () => {
     vi.mocked(pluginManager.listInstalled).mockReturnValue([]);
     const res = await request(app).get("/INVALID/consent");
@@ -937,7 +937,7 @@ describe("GET /:id/consent (issue #615, CP-FR-011)", () => {
   });
 });
 
-describe("POST /:id/consent (issue #615, CP-FR-012, AC4)", () => {
+describe("POST /:id/consent (#656, CP-FR-012, AC4)", () => {
   function manifestWithDocker() {
     const m = stubManifest();
     return { ...m, permissions: { ...m.permissions, docker: {} } };

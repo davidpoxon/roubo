@@ -8,7 +8,7 @@
  * It lives in its own module to keep the writer (`plugin-activation.ts`, which
  * derives the effective instance before every source-bound RPC) and the readers
  * (`plugin-host-api.ts` / `plugin-http.ts`, which enforce the constraint at
- * fetch time) free of a circular import. See issue #338.
+ * fetch time) free of a circular import. See #340.
  */
 
 // pluginId -> lowercased instance host (incl. port) or null when no instance is

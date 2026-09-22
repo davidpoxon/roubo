@@ -2,7 +2,7 @@ import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.
 import type { ConfigFieldError, PluginManifest, RouboConfig } from "@roubo/shared";
 
 /**
- * Plugin-aware validation of the roubo.yaml components map (FR-003, #609).
+ * Plugin-aware validation of the roubo.yaml components map (FR-003, #652).
  *
  * The structural shape of each binding (`plugin` reference + opaque `config`
  * block + optional `dependsOn`) is already enforced by the zod
@@ -28,7 +28,7 @@ import type { ConfigFieldError, PluginManifest, RouboConfig } from "@roubo/share
  *
  * This is a standalone, side-effect-free function. Wiring it into bench-start /
  * a component-plugin registry is the consuming surface's responsibility (that
- * registry does not exist yet); see #612 (F1.11).
+ * registry does not exist yet); see #663 (F1.11).
  */
 export interface ValidateComponentBindingsOptions {
   /**
@@ -36,12 +36,12 @@ export interface ValidateComponentBindingsOptions {
    * is SKIPPED (no error) rather than reported as an unknown-plugin error, while
    * a loaded plugin's config block is still validated against its `configSchema`.
    *
-   * This is the config-load posture (issue #399). A roubo.yaml may legitimately
+   * This is the config-load posture (#884). A roubo.yaml may legitimately
    * reference a component plugin that is not installed in the current session (a
    * disabled plugin, one pending install, or one absent from this environment),
    * and that must not brick the whole project's config-load. The "plugin must be
    * present" enforcement belongs at bench-start, where the component actually has
-   * to run (#612). Defaults to false (strict: an unknown plugin is an error).
+   * to run (#663). Defaults to false (strict: an unknown plugin is an error).
    */
   ignoreUnknownPlugins?: boolean;
 }

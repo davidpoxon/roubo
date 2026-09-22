@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { enumOptionsFor } from "./agent-params";
 
 // Which control the two override surfaces render for Model, Effort and Mode
-// (AP-TC-025 S002-O01, AP-TC-029 S002, issue #690), tested apart from the JSX
+// (AP-TC-025 S002-O01, AP-TC-029 S002, #1104), tested apart from the JSX
 // because the answer is a property of the manifest's schema rather than of
 // either form.
 
@@ -31,7 +31,7 @@ const BARE_ENUM = {
 };
 
 describe("enumOptionsFor", () => {
-  // The bug #690 fixed: this helper read `enum` only, so every shipping agent
+  // The bug #1104 fixed: this helper read `enum` only, so every shipping agent
   // fell through to a free-text field while the AI Agents card rendered the
   // very same key as a select.
   it("reads the oneOf spelling, labelling each option with its title", () => {

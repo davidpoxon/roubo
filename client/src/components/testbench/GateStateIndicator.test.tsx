@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #702 (VG-NFR-004): every gate status renders a visible text label (never colour
+// #726 (VG-NFR-004): every gate status renders a visible text label (never colour
 // alone) plus a decorative dot, across the full GateStatus set.
 
 import { describe, it, expect } from "vitest";
@@ -26,7 +26,7 @@ describe("GateStateIndicator", () => {
     });
   }
 
-  // #436: no_gating_cases is not a pass, so it must use the neutral text-body
+  // #912: no_gating_cases is not a pass, so it must use the neutral text-body
   // role, never the passed success roles.
   it("renders no_gating_cases with a neutral (non-success) token", () => {
     const { container } = render(<GateStateIndicator status="no_gating_cases" />);

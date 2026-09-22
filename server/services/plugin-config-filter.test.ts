@@ -37,7 +37,7 @@ describe("filterAdvancedAgainstManifest", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("drops keys that shadow top-level IntegrationConfig fields, even if the manifest lists them (issue #125 `advanced.sources`)", () => {
+  it("drops keys that shadow top-level IntegrationConfig fields, even if the manifest lists them (#231 `advanced.sources`)", () => {
     // github-com's manifest declares `sources` in configSchema (because the
     // Configure dialog uses that to drive the per-source UI), but `sources`
     // belongs at the top level of the integration config, never under

@@ -1,4 +1,4 @@
-// Validated loader for the published `work-units.json` artifact (#701, VG-FR-003,
+// Validated loader for the published `work-units.json` artifact (#725, VG-FR-003,
 // VG-FR-008, VG-FR-012, architecture.md "WorkUnitLoader" row).
 //
 // Responsibility: locate every `.specifications/<slug>/work-units.json` under a
@@ -61,8 +61,8 @@ export interface LoadedVerifyUnit {
   // the real source gate(s) it was derived from, flattened to their filed leaves,
   // each carrying its own tracker manifestation. A merged/split synthetic gate has
   // no single filed issue of its own, so the sign-off / reopen / signed-off /
-  // fix-issue computations fan out over these sources (issue #435 for merges,
-  // issue #445 for splits). A merged gate's leaves are the union of every merged
+  // fix-issue computations fan out over these sources (#911 for merges,
+  // #919 for splits). A merged gate's leaves are the union of every merged
   // source; each split part carries the single source gate's filed leaves (so
   // signing off any part closes the source issue). Absent only on a normally-
   // loaded gate, which is its own single tracker-bearing target.
@@ -70,10 +70,10 @@ export interface LoadedVerifyUnit {
 }
 
 // A spec folder whose `work-units.json` EXISTS but failed JSON parse or contract
-// validation, so it was skipped by the all-specs load (#371). Carries the slug
+// validation, so it was skipped by the all-specs load (#874). Carries the slug
 // and the human-readable validation errors so the route layer can surface the
 // skip to the operator (a warning naming the spec + the failure) instead of the
-// error only reaching the server console. This is the reporting side of the #802
+// error only reaching the server console. This is the reporting side of the #803
 // per-spec resilience: one broken spec is still skipped, but no longer silently.
 export interface InvalidSpec {
   slug: string;
@@ -102,7 +102,7 @@ function loadVerifyUnitsForSlug(repoPath: string, slug: string): VerifyUnit[] {
   // resolveWithin is lexical; a valid-slug `.specifications/<slug>` symlink (or a
   // symlinked work-units.json leaf) escaping the repo passes it. The realpath
   // barrier rejects it before the read so the read never resolves outside repoPath
-  // (#427). Fail-closed here: the single-slug path throws; the all-specs loop
+  // (#903). Fail-closed here: the single-slug path throws; the all-specs loop
   // catches the UnsafePathError and skips the escaping entry.
   assertRealpathWithin(repoPath, target, "work-units path");
 
@@ -137,13 +137,13 @@ function loadVerifyUnitsForSlug(repoPath: string, slug: string): VerifyUnit[] {
 // and throws WorkUnitsValidationError when the file exists but is invalid (same
 // contract as loadVerifyUnitsForSlug). Used to build the WU- -> test_case_ids
 // map a split needs from the non-verify units, and by the gates route to derive
-// each gate's upstream `blockedBy` from the local depends_on + covers graph (#433).
+// each gate's upstream `blockedBy` from the local depends_on + covers graph (#914).
 export function loadAllUnitsForSlug(repoPath: string, slug: string): Unit[] {
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
   const target = resolveWithin(repoPath, ".specifications", slug, "work-units.json");
   // Symlink-following barrier before the read, matching loadVerifyUnitsForSlug
   // (fail-closed): a symlinked spec dir/leaf escaping the repo is rejected before
-  // readFileSync can resolve outside repoPath (#427).
+  // readFileSync can resolve outside repoPath (#903).
   assertRealpathWithin(repoPath, target, "work-units path");
 
   let raw: string;
@@ -170,7 +170,7 @@ export function loadAllUnitsForSlug(repoPath: string, slug: string): Unit[] {
 // Build the WU- id -> test_case_ids map for a single spec slug, drawn from the
 // spec's NON-verify units (a delivery slice's `implements.test_case_ids` is the
 // set of cases that slice delivers). A split assigns the source gate's `covers`
-// WU- ids to parts; this map resolves each part's gating set (#703, VG-TC-023).
+// WU- ids to parts; this map resolves each part's gating set (#728, VG-TC-023).
 //
 // Last-write-wins on a duplicate WU- id (the validator does not enforce id
 // uniqueness); a verify unit's own entry is excluded since its test_case_ids is
@@ -194,7 +194,7 @@ export function buildWorkUnitCaseMap(repoPath: string, slug: string): Map<string
 // Fail-open: an absent or unreadable `.specifications/` directory, and any spec
 // folder without a work-units.json, contribute no gates.
 //
-// Per-spec error handling diverges by path (#802):
+// Per-spec error handling diverges by path (#803):
 //   - single-slug path (`slug` given): a present-but-invalid work-units.json
 //     throws WorkUnitsValidationError, surfaced not dropped. This is the fail-
 //     closed per-spec contract (VG-NFR-007): asking for one spec's gates must never
@@ -205,7 +205,7 @@ export function buildWorkUnitCaseMap(repoPath: string, slug: string): Map<string
 //     skipped so the remaining valid specs still load. Other errors propagate.
 //
 // Returns both the loaded gates and the collected `invalidSpecs` so the route can
-// surface the skipped specs to the operator (#371) rather than the error only
+// surface the skipped specs to the operator (#874) rather than the error only
 // reaching the server console. The single-slug path leaves `invalidSpecs` empty
 // (it throws instead of collecting). `loaded` is sorted by (slug, unit id) and
 // `invalidSpecs` by slug, for deterministic ordering across calls.
@@ -235,7 +235,7 @@ export function loadVerifyUnitsWithDiagnostics(
     let entries: fs.Dirent[];
     try {
       // Reject a `.specifications` that is itself a symlink escaping the repo
-      // before the readdir enumerates outside repoPath (#427). Fail-open to empty
+      // before the readdir enumerates outside repoPath (#903). Fail-open to empty
       // here, consistent with an unreadable directory.
       assertRealpathWithin(repoPath, specsRoot, ".specifications dir");
       entries = fs.readdirSync(specsRoot, { withFileTypes: true });
@@ -255,9 +255,9 @@ export function loadVerifyUnitsWithDiagnostics(
       } catch {
         continue;
       }
-      // Per-spec resilience (#802): a single malformed work-units.json must not
+      // Per-spec resilience (#803): a single malformed work-units.json must not
       // abort the whole aggregate gates request. Catch this spec's validation
-      // error, warn once naming the slug, record it in `invalidSpecs` (#371), and
+      // error, warn once naming the slug, record it in `invalidSpecs` (#874), and
       // skip it so the valid specs load. Non-validation errors still propagate.
       try {
         collect(entry.name);
@@ -267,7 +267,7 @@ export function loadVerifyUnitsWithDiagnostics(
           invalidSpecs.push({ slug: err.slug, errors: err.errors });
           continue;
         }
-        // A symlinked spec dir/leaf that escapes the repo (#427): skip it so the
+        // A symlinked spec dir/leaf that escapes the repo (#903): skip it so the
         // read never resolves outside repoPath, consistent with the unsafe-slug
         // skip above. The single-slug path stays fail-closed (it throws).
         if (err instanceof UnsafePathError) {
@@ -286,7 +286,7 @@ export function loadVerifyUnitsWithDiagnostics(
 // Load the verify units (gates) for a project, discarding the per-spec
 // diagnostics. A thin delegate over loadVerifyUnitsWithDiagnostics so existing
 // callers that only want the gates are untouched; callers that need to surface
-// skipped-spec errors (the gates route, #371) use the diagnostics variant.
+// skipped-spec errors (the gates route, #874) use the diagnostics variant.
 export function loadVerifyUnits(repoPath: string, slug?: string): LoadedVerifyUnit[] {
   return loadVerifyUnitsWithDiagnostics(repoPath, slug).loaded;
 }

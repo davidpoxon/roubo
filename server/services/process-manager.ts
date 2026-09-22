@@ -80,7 +80,7 @@ export async function startProcess(
  * force-kills a hung run and resolves with a non-zero exit code rather than
  * rejecting, so a stuck deploy surfaces as a failed run, not an unhandled error.
  * `timedOut` is set true ONLY on the timer/force-kill path, so callers can name
- * the timeout at their surface (#411) rather than sniffing `exitCode === 124`
+ * the timeout at their surface (#894) rather than sniffing `exitCode === 124`
  * and mislabeling a process that genuinely exits 124. `exitCode` stays 124 on
  * the timeout path for back-compat. Output is captured into the managed log
  * buffer under `id` so `host.process.logs` can read it afterward.

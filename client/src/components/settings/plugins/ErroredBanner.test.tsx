@@ -7,7 +7,7 @@ import type { InstallPreview, PermissionCategory, PluginError } from "@roubo/sha
 import { FIRST_PARTY_LABEL, type PluginProvenance } from "../../marketplace/plugin-provenance";
 
 // The banner never derives trust: PluginCard hands it the record's provenance so
-// the reinstall consent modal states the real trust level (issue #563).
+// the reinstall consent modal states the real trust level (#977).
 const FIRST_PARTY_PROVENANCE: PluginProvenance = {
   sourceId: FIRST_PARTY_SOURCE_ID,
   sourceLabel: FIRST_PARTY_LABEL,
@@ -115,7 +115,7 @@ function setup(
   return { restartMutate, updateMutate, confirmMutate, cancelMutate, grantMutate, addToast };
 }
 
-describe("ErroredBanner (issue #302)", () => {
+describe("ErroredBanner (#872)", () => {
   beforeEach(() => {
     lastConsentProps = null;
     setup();
@@ -244,7 +244,7 @@ describe("ErroredBanner (issue #302)", () => {
   });
 });
 
-describe("ErroredBanner Reinstall affordance (issue #496)", () => {
+describe("ErroredBanner Reinstall affordance (#945)", () => {
   beforeEach(() => {
     lastConsentProps = null;
     setup();
@@ -294,7 +294,7 @@ describe("ErroredBanner Reinstall affordance (issue #496)", () => {
     await user.click(screen.getByTestId("plugin-reinstall-action"));
     expect(updateMutate).toHaveBeenCalledTimes(1);
     // Reinstall names no source: this banner acts on an installed id, and the
-    // Marketplace owns the pick-a-source flow (issue #558).
+    // Marketplace owns the pick-a-source flow (#966).
     expect(updateMutate.mock.calls[0][0]).toEqual({ id: "my-component" });
   });
 

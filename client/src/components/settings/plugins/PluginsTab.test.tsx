@@ -14,7 +14,7 @@ vi.mock("../../../hooks/useGlobalPluginIntegration", () => ({
     error: null,
   }),
 }));
-// ErroredBanner (rendered by a PluginCard on errored status, issue #496) calls
+// ErroredBanner (rendered by a PluginCard on errored status, #945) calls
 // these marketplace mutation hooks unconditionally to drive its Reinstall
 // affordance. Stub them so errored-plugin rows need no QueryClientProvider;
 // these tests do not exercise the reinstall flow (ErroredBanner.test.tsx does).
@@ -123,7 +123,7 @@ beforeEach(() => {
     isFetching: false,
   } as unknown as ReturnType<typeof _useConnectionStatus>);
   // Integration cards don't fetch consent; a no-data query keeps the consent
-  // affordance hidden (issue #490).
+  // affordance hidden (#938).
   mockedConsentStatus.mockReturnValue({
     data: undefined,
   } as unknown as ReturnType<typeof _useConsentStatus>);
@@ -229,7 +229,7 @@ describe("PluginsTab (IP-TC-001, IP-TC-018)", () => {
     } as unknown as ReturnType<typeof _usePlugins>);
 
     // The errored "broken" plugin renders an ErroredBanner, which reads the
-    // toast context (issue #496), so this row needs a ToastProvider ancestor.
+    // toast context (#945), so this row needs a ToastProvider ancestor.
     render(
       <ToastProvider>
         <PluginsTab />

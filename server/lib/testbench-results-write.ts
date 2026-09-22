@@ -8,9 +8,9 @@ import {
   UnsafePathError,
 } from "./safe-path.js";
 
-// Spike primitive (#406): proves a CodeQL-clean write of a spec-folder file,
+// Spike primitive (#428): proves a CodeQL-clean write of a spec-folder file,
 // using a same-directory temp-then-rename so a cross-device rename (EXDEV) can
-// never arise. As of #493 `rootPath` is the bench's own worktree root (the file
+// never arise. As of #494 `rootPath` is the bench's own worktree root (the file
 // lands as a sibling of test-cases.json under `.specifications/<slug>/`), not the
 // registered project repoPath; the sanitizer shape below is unchanged.
 //
@@ -25,7 +25,7 @@ import {
 //      see an on-disk symlink whose name is a valid slug. assertRealpathWithin
 //      is a SECOND barrier at the sink: after the directory exists it realpaths
 //      it and re-asserts containment against the realpath'd root, rejecting a
-//      symlinked `.specifications/<slug>` that escapes the repo (#416, TC-052).
+//      symlinked `.specifications/<slug>` that escapes the repo (#895, TC-052).
 //   4. The temp file lives INSIDE the same `.specifications/<slug>/` directory
 //      as the target (not os.tmpdir()), so fs.renameSync is always
 //      intra-directory and EXDEV cannot occur. (state.ts atomicWrite is
@@ -33,7 +33,7 @@ import {
 
 // The complete set of filenames a write ROUTED THROUGH THIS PRIMITIVE may place
 // inside a spec folder (SATCA-NFR-001, SATCA-TC-059). The lifecycle write path
-// (#772) generalised it from one hardcoded filename to a parameterised one, so
+// (#1167) generalised it from one hardcoded filename to a parameterised one, so
 // for its callers the "only these filenames are ever written" property is
 // enforced HERE rather than by every caller remembering to pass a safe value.
 // `test-results.json` is the results sidecar Roubo has always owned;
@@ -103,7 +103,7 @@ export function writeSpecFile(
   return target;
 }
 
-// The results sidecar write (#406), now a thin delegate over writeSpecFile.
+// The results sidecar write (#428), now a thin delegate over writeSpecFile.
 export function writeResults(rootPath: string, slug: string, data: string): string {
   return writeSpecFile(rootPath, slug, "test-results.json", data);
 }

@@ -7,7 +7,7 @@ import type { ComponentConfig } from "@roubo/shared";
 
 // The expanded panel derives its "Component plugin" selector from usePlugins.
 // Mock it so the component renders without a QueryClientProvider and so we can
-// assert that only component-kind plugins are offered (#390). Two component
+// assert that only component-kind plugins are offered (#882). Two component
 // plugins (with distinct config schemas) plus one integration plugin that must
 // be filtered out.
 vi.mock("../../hooks/usePlugins", () => ({
@@ -374,7 +374,7 @@ describe("ComponentRowEditor: expanded panel", () => {
   });
 });
 
-describe("ComponentRowEditor: component plugin selector (#390)", () => {
+describe("ComponentRowEditor: component plugin selector (#882)", () => {
   it("renders the Component plugin selector for a typeless component", () => {
     render(<ComponentRowEditor {...makeProps({ component: {}, isExpanded: true })} />);
     expect(screen.getByText("Component plugin")).toBeInTheDocument();

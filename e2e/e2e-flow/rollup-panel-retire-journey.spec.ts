@@ -16,11 +16,11 @@ import {
   satcaTc020OverallLabel,
 } from "./_support/testbench-plan.js";
 
-// E2E (#777): the integrated drift guard for the ROLLUP AND PANEL retirement
+// E2E (#1176): the integrated drift guard for the ROLLUP AND PANEL retirement
 // journey (SATCA-TC-020, SATCA-FR-005/FR-006/FR-007, SATCA-US-003/US-011). It runs
 // against the BUILT app and proves the thing no single slice can prove on its own:
-// the in-app retire write (#772), the rollup's live/non-live partition (#769) and
-// the shared live predicate (#766) compose, so retiring a case moves it out of the
+// the in-app retire write (#1167), the rollup's live/non-live partition (#1161) and
+// the shared live predicate (#1159) compose, so retiring a case moves it out of the
 // counts and into the archived section, and restoring it puts it back with the
 // results it had.
 //
@@ -33,7 +33,7 @@ import {
 //
 // The retirement is driven through the IN-APP control, not a hand edit of the case
 // file: S002's reason-required / empty-refused observation only exists on that
-// control, and the file-authored path is SATCA-TC-010's journey (#776), already
+// control, and the file-authored path is SATCA-TC-010's journey (#1170), already
 // guarded by case-lifecycle-format.spec.ts.
 //
 // Each assertion carries the owning slice from this unit's blocked-by set via
@@ -95,7 +95,7 @@ async function createSpecBoundBench(page: Page, projectId: string): Promise<numb
 }
 
 // Open the bench's TestBench tab on the Cases review. The view toggle opens on the
-// verify-gate "Batches" surface by default (#359), and this journey reads the
+// verify-gate "Batches" surface by default (#842), and this journey reads the
 // Overall rollup, the live case list and the archived section.
 async function openCasesReview(page: Page): Promise<void> {
   await page
@@ -139,7 +139,7 @@ test("SATCA-TC-020: retiring from the panel moves a case out of the rollup and i
       projectId: PROJECT_ID,
       // git init + commit so a real spec-bound worktree provisions on Create. The
       // in-app retire write lands in that worktree, which is where the live
-      // TestBench routes read the plan from (#493).
+      // TestBench routes read the plan from (#494).
       gitInit: true,
       seedSpecs: [{ slug: SATCA_TC020_SPEC_SLUG, testCases: SATCA_TC020_PLAN }],
     });

@@ -15,7 +15,7 @@ export const COMPONENT_TYPE_LABELS: Record<string, string> = {
 
 /**
  * Display label for a component's role. A legacy built-in component shows its
- * `type` ("Database" / "Process"); a plugin-bound component (issue #608) has no
+ * `type` ("Database" / "Process"); a plugin-bound component (#651) has no
  * `type` and is labelled by its bound plugin id instead.
  */
 export function componentTypeBadge(component: ComponentConfig): string {

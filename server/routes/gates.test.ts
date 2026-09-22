@@ -9,7 +9,7 @@ import path from "node:path";
 // (limit 20 / 60s, keyed by client IP), and every write request across this whole
 // file counts against that one window since the router is imported once. The
 // suite would otherwise sit at the cap, so adding any write-path test (here: the
-// #427 symlink-escape regressions) would flip a later test to 429. Wrap the real
+// #903 symlink-escape regressions) would flip a later test to 429. Wrap the real
 // limiter with a high cap so the draft-7 RateLimit headers are still attached
 // (the "rate limiting" describe asserts only that the limiter is mounted) while
 // removing the shared-budget fragility. No test asserts a 429.
@@ -34,7 +34,7 @@ vi.mock("../services/work-unit-loader.js", async () => {
   const loadVerifyUnits = vi.fn();
   // By default the diagnostics variant delegates to the mocked loadVerifyUnits and
   // reports no invalid specs, so every existing test that sets loadVerifyUnits
-  // drives effectiveGates unchanged. The #371 tests override this per call
+  // drives effectiveGates unchanged. The #874 tests override this per call
   // (mockReturnValueOnce) to inject invalidSpecs without leaking to later tests.
   const loadVerifyUnitsWithDiagnostics = vi.fn((repoPath: string, slug?: string) => ({
     loaded: loadVerifyUnits(repoPath, slug),
@@ -45,14 +45,14 @@ vi.mock("../services/work-unit-loader.js", async () => {
     loadVerifyUnits,
     loadVerifyUnitsWithDiagnostics,
     buildWorkUnitCaseMap: vi.fn(() => new Map()),
-    // The blockedBy derivation (#433) reads the full per-slug unit graph. Default
-    // to an empty graph so existing tests derive no blockers; the #433 tests set
+    // The blockedBy derivation (#914) reads the full per-slug unit graph. Default
+    // to an empty graph so existing tests derive no blockers; the #914 tests set
     // a fixture graph per call.
     loadAllUnitsForSlug: vi.fn(() => []),
   };
 });
 
-// The signed-off signal (#830) and the blockedBy clears-on-sign-off case (#433)
+// The signed-off signal (#833) and the blockedBy clears-on-sign-off case (#914)
 // flow through the active integration plugin. Mock both so a passed + tracked gate
 // can be made "signed off" deterministically; default resolveActivePlugin -> null
 // keeps every other test at signedOff=false without touching the real plugin path.
@@ -98,7 +98,7 @@ vi.mock("../services/fix-issue-filer.js", async () => {
   };
 });
 
-// #432: gate evaluation now resolves the results root from a live TestBench bench
+// #910: gate evaluation now resolves the results root from a live TestBench bench
 // focused on the gate's slug (reading the same worktree the TestBench surface
 // writes marks to), falling back to the project repoPath. Mock the bench-manager
 // and spec-discovery collaborators the resolver consults. Both default to the
@@ -197,7 +197,7 @@ beforeEach(() => {
   // Default: no operator overrides recorded. Individual tests override this.
   vi.mocked(gateOverrideStore.loadOverrides).mockReturnValue(emptyGateOverrides());
   vi.mocked(workUnitLoader.buildWorkUnitCaseMap).mockReturnValue(new Map());
-  // Default (#432): no TestBench benches, so gate evaluation falls back to the
+  // Default (#910): no TestBench benches, so gate evaluation falls back to the
   // project repoPath. vi.clearAllMocks() clears call history but not a leaked
   // mockReturnValue, so this must be re-asserted per test to keep a positive-case
   // test from bleeding a testbench bench into a later one.
@@ -228,7 +228,7 @@ describe("GET /:projectId/gates", () => {
       expect(r.body.gates).toHaveLength(2);
       expect(r.body.gates[0]).toMatchObject({ gateId: "WU-100", status: "passed" });
       expect(r.body.gates[1]).toMatchObject({ gateId: "WU-200", status: "passed" });
-      // All specs valid: no skipped-spec diagnostics (#371).
+      // All specs valid: no skipped-spec diagnostics (#874).
       expect(r.body.invalidSpecs).toEqual([]);
     });
   });
@@ -246,9 +246,9 @@ describe("GET /:projectId/gates", () => {
     expect(res.status).toBe(404);
   });
 
-  // #371: a present-but-invalid work-units.json on the all-specs path is no longer
+  // #874: a present-but-invalid work-units.json on the all-specs path is no longer
   // a 400. The load surfaces it as an `invalidSpecs` diagnostic (200) so the client
-  // can warn the operator, while the valid specs' gates still load (the #328/#802
+  // can warn the operator, while the valid specs' gates still load (the #803
   // resilience is preserved).
   it("surfaces invalidSpecs (200, not 400) for a broken spec while valid gates still load", async () => {
     vi.mocked(workUnitLoader.loadVerifyUnitsWithDiagnostics).mockReturnValueOnce({
@@ -270,10 +270,10 @@ describe("GET /:projectId/gates", () => {
     ]);
   });
 
-  // #549: the Batches overview must show only the bench's focused spec, the way the
+  // #952: the Batches overview must show only the bench's focused spec, the way the
   // Cases tab already does, instead of aggregating every spec's gates project-wide.
   // A `?slug=` query param scopes the load to that single spec.
-  it("scopes the list to the focused spec when ?slug is given (#549)", async () => {
+  it("scopes the list to the focused spec when ?slug is given (#952)", async () => {
     // The mocked loader keys off the slug the route threads: the focused spec sees
     // only its own gate, the all-specs path (no slug) sees both.
     vi.mocked(workUnitLoader.loadVerifyUnits).mockImplementation((_repoPath, slug) =>
@@ -301,7 +301,7 @@ describe("GET /:projectId/gates", () => {
     expect(workUnitLoader.loadVerifyUnitsWithDiagnostics).toHaveBeenCalledWith(REPO, "brigade");
   });
 
-  it("returns every spec's gates when no ?slug is given (backward compatible, #549)", async () => {
+  it("returns every spec's gates when no ?slug is given (backward compatible, #952)", async () => {
     vi.mocked(workUnitLoader.loadVerifyUnits).mockImplementation((_repoPath, slug) =>
       slug === undefined
         ? [
@@ -326,10 +326,10 @@ describe("GET /:projectId/gates", () => {
     expect(workUnitLoader.loadVerifyUnitsWithDiagnostics).toHaveBeenCalledWith(REPO, undefined);
   });
 
-  // #549 / VG-NFR-001: the single-slug loader path skips the per-entry
+  // #952 / VG-NFR-001: the single-slug loader path skips the per-entry
   // assertSafeIdentifier guard the all-specs enumeration applies, so an unsafe slug
   // must be rejected at the HTTP boundary before it reaches the loader.
-  it("400 for a path-traversal ?slug (#549, VG-NFR-001)", async () => {
+  it("400 for a path-traversal ?slug (#952, VG-NFR-001)", async () => {
     vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([]);
     const res = await request(app).get("/p1/gates?slug=..%2F..%2Fetc");
     expect(res.status).toBe(400);
@@ -337,7 +337,7 @@ describe("GET /:projectId/gates", () => {
     expect(workUnitLoader.loadVerifyUnitsWithDiagnostics).not.toHaveBeenCalled();
   });
 
-  it("400 for a repeated ?slug=a&slug=b (non-string) query (#549)", async () => {
+  it("400 for a repeated ?slug=a&slug=b (non-string) query (#952)", async () => {
     vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([]);
     const res = await request(app).get("/p1/gates?slug=alpha&slug=beta");
     expect(res.status).toBe(400);
@@ -770,7 +770,7 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     expect(fixIssueFiler.fileFixIssueAndBlock).not.toHaveBeenCalled();
   });
 
-  // #427 (mirrors VG-TC-052): a valid-slug `.specifications/<slug>` symlink that
+  // #903 (mirrors VG-TC-052): a valid-slug `.specifications/<slug>` symlink that
   // points outside the repo passes the lexical resolveWithin check but is caught
   // by the realpath barrier at the evidence sink, so nothing is written into the
   // outside dir and no issue is filed for the rejected write. The evidence value
@@ -778,7 +778,7 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
   // existing subdirectory under the symlinked slug, so the barrier must run BEFORE
   // mkdirSync or the recursive mkdir would follow the symlink and create a
   // directory (`outside/logs`) OUTSIDE repoPath before the check could fire.
-  it("rejects a symlinked spec dir escaping the repo and creates nothing outside (#427)", async () => {
+  it("rejects a symlinked spec dir escaping the repo and creates nothing outside (#903)", async () => {
     const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), "gates-evidence-repo-"));
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gates-evidence-outside-"));
     try {
@@ -814,11 +814,11 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
     }
   });
 
-  // #427 no-false-reject guard: when the repo root legitimately sits under a
+  // #903 no-false-reject guard: when the repo root legitimately sits under a
   // symlinked prefix (e.g. macOS /var/folders -> /private/var), the realpath-to-
   // realpath comparison keeps the evidence write inside the root, so it must still
   // succeed rather than being wrongly rejected.
-  it("writes evidence when the repo root sits under a symlinked prefix (no false reject, #427)", async () => {
+  it("writes evidence when the repo root sits under a symlinked prefix (no false reject, #903)", async () => {
     const base = fs.mkdtempSync(path.join(os.tmpdir(), "gates-evidence-symroot-"));
     try {
       const realParent = path.join(base, "real-parent");
@@ -907,13 +907,13 @@ describe("POST /:projectId/gates/:gateId/fix-issues", () => {
   });
 });
 
-// #432: a TestBench writes observation marks under its OWN worktree
-// (bench.workspacePath/.specifications/<slug>/test-results.json, #493), but a gate
+// #910: a TestBench writes observation marks under its OWN worktree
+// (bench.workspacePath/.specifications/<slug>/test-results.json, #494), but a gate
 // is project-level. Before the fix, gate evaluation always read the registered
 // project repoPath, so an in-UI mark never reached the gate and an all-passed
 // batch stayed pending forever. The fix resolves the results root from a live
 // TestBench focused on the gate's slug and reads from that worktree instead.
-describe("gate evaluation reads results from a focused TestBench worktree (#432)", () => {
+describe("gate evaluation reads results from a focused TestBench worktree (#910)", () => {
   const WORKTREE = "/workspaces/testbench-1";
 
   function testbench(slug: string): Bench {
@@ -1037,7 +1037,7 @@ describe("GET /:projectId/gates with overrides applied", () => {
 });
 
 // A gate carrying a milestone (phase), so the overview can title its card by
-// phase rather than by bare id (#433).
+// phase rather than by bare id (#914).
 function gateWithMilestone(
   id: string,
   milestone: string,
@@ -1047,7 +1047,7 @@ function gateWithMilestone(
   return { ...gate(id, testCaseIds, covers), milestone };
 }
 
-describe("GET /:projectId/gates milestone + gatingCaseIds projection (#433)", () => {
+describe("GET /:projectId/gates milestone + gatingCaseIds projection (#914)", () => {
   it("projects the gate's milestone and its full narrowed gatingCaseIds", async () => {
     vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([
       loaded("alpha", gateWithMilestone("WU-100", "Phase 1: Evaluator", ["TC-001", "TC-002"])),
@@ -1100,7 +1100,7 @@ describe("GET /:projectId/gates milestone + gatingCaseIds projection (#433)", ()
   });
 });
 
-describe("GET /:projectId/gates blockedBy derivation (#433, VG-FR-001)", () => {
+describe("GET /:projectId/gates blockedBy derivation (#914, VG-FR-001)", () => {
   // Two verify gates in one spec: the downstream gate's own depends_on names the
   // upstream gate, so the derivation resolves WU-GATE-1 as its upstream blocker.
   const upstream = gateWithTracker("WU-GATE-1", "o/r#10", ["TC-UP"]);
@@ -1196,7 +1196,7 @@ describe("GET /:projectId/gates blockedBy derivation (#433, VG-FR-001)", () => {
   });
 });
 
-describe("GET /:projectId/gates/:gateId blockedBy uses sibling sign-off state (#433)", () => {
+describe("GET /:projectId/gates/:gateId blockedBy uses sibling sign-off state (#914)", () => {
   it("carries the downstream gate's blockedBy from the sibling upstream gate", async () => {
     const upstream = gate("WU-GATE-1", ["TC-UP"]);
     const downstream: VerifyUnit = {
@@ -1222,10 +1222,10 @@ describe("GET /:projectId/gates/:gateId blockedBy uses sibling sign-off state (#
   });
 });
 
-// #768: the route is the caller that threads the lifecycle resolution into the
+// #1164: the route is the caller that threads the lifecycle resolution into the
 // pure evaluator (SATCA-FR-012). These cover the wiring, not the rules; the rules
 // themselves are locked in server/lib/gate-evaluator.test.ts.
-describe("GET /:projectId/gates lifecycle-aware evaluation (#768, SATCA-FR-008, SATCA-FR-011)", () => {
+describe("GET /:projectId/gates lifecycle-aware evaluation (#1164, SATCA-FR-008, SATCA-FR-011)", () => {
   // A plan fixture that carries the specSlug the resolver scopes bare pointers to
   // (planAndResults' minimal fixture omits it).
   function lifecyclePlanAndResults(
@@ -1334,7 +1334,7 @@ describe("GET /:projectId/gates lifecycle-aware evaluation (#768, SATCA-FR-008, 
   // drives: a bare same-spec pointer never reaches it, so these drive the route with
   // a slug-qualified pointer and a per-slug store mock. Every failure mode below must
   // degrade to unresolved, never to a pass (SATCA-FR-010, VG-NFR-007).
-  describe("cross-spec pointers (#768, SATCA-FR-009, SATCA-FR-012)", () => {
+  describe("cross-spec pointers (#1164, SATCA-FR-009, SATCA-FR-012)", () => {
     // The origin spec "alpha" declares one L1 case superseded into "beta".
     const originPlan = () =>
       lifecyclePlanAndResults("alpha", [supersededCase("TC-001", 1, "beta:TC-009")], {});

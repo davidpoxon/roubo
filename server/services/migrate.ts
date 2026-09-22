@@ -14,11 +14,11 @@ import { saveOverride } from "./integration-overrides.js";
 import * as credentialStore from "./credential-store.js";
 import { saveEnableState } from "./plugin-enable-state.js";
 
-// WU-024 / issue #42: pre-plugin → plugin migration. See:
+// WU-024 / #91: pre-plugin → plugin migration. See:
 //   .specifications/integration-plugins/prd.md (FR-027, FR-028, NFR-009)
 //   .specifications/integration-plugins/test-cases.json (TC-031, TC-049, TC-068, TC-069)
 //
-// WU-046 / issue #137 + WU-047 / issue #138: plugins-state.json seeding
+// WU-046 / #164 + WU-047 / #173: plugins-state.json seeding
 // rides the same atomic commit on greenfield only. See FR-059 and
 // architecture.md lines 1027-1097 and 1418-1422. Greenfield installs (no
 // schemaVersion, no auth.json, no registered projects) get all bundled

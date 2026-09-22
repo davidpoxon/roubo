@@ -23,7 +23,7 @@ import type { Case, TestCasesPlan } from "./testbench-contracts.js";
 
 // ── Fixture corpus ──
 //
-// The shared corpus spike #763 asks for: one fixture per reason in the closed
+// The shared corpus the pointer-rules spike asks for: one fixture per reason in the closed
 // six-value vocabulary, plus both depth boundary rows, the cycle-over-depth
 // precedence row, and the spec-state-before-case-state row.
 
@@ -240,7 +240,7 @@ describe("resolveCase: the six unresolved reasons", () => {
     expect(r.reason).toBe("target archived");
     expect(r.targetCaseState).toBe("live");
     expect(r.targetSpecState).toBe("archived");
-    // Remedy hint only: a slug names no case, so it is never walked (#763 AC2).
+    // Remedy hint only: a slug names no case, so it is never walked (pointer-rules spike AC2).
     expect(r.supersededBy).toBe("gamma");
   });
 
@@ -255,7 +255,7 @@ describe("resolveCase: the six unresolved reasons", () => {
     expect(r.targetSpecState).toBe("live");
   });
 
-  // Spec state before case state: no seventh reason (#763 AC3, situation 3).
+  // Spec state before case state: no seventh reason (pointer-rules spike AC3, situation 3).
   it("reports target archived, not target not live, for a retired case in an archived spec", () => {
     const origin = plan("archival", [superseded("SATCA-TC-001", "beta:BT-TC-001")]);
     const beta = plan("beta", [retired("BT-TC-001")]);
@@ -348,7 +348,7 @@ describe("resolveCase: the depth boundary", () => {
 
   it("gives cycle detected precedence over depth exceeded", () => {
     // A chain whose landing at the limit points back at the visited origin:
-    // both guards could fire, and the cycle wins (#763 AC1).
+    // both guards could fire, and the cycle wins (pointer-rules spike AC1).
     const cases: ResolverCase[] = [];
     for (let i = 0; i < MAX_SUPERSESSION_DEPTH; i += 1) {
       cases.push(superseded(nodeId(i), nodeId(i + 1)));

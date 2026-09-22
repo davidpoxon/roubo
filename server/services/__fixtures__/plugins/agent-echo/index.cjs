@@ -1,6 +1,6 @@
 "use strict";
 
-// Minimal agent-kind plugin fixture (issue #507). The host spawns and supervises
+// Minimal agent-kind plugin fixture (#1026). The host spawns and supervises
 // it over the same vscode-jsonrpc/stdio transport as an integration plugin, and
 // registers NO component broker handlers for it, so this fixture can only answer
 // the declarative `translateLaunch` contract method (AP-NFR-001).

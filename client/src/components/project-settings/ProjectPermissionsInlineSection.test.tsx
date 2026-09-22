@@ -185,7 +185,7 @@ describe("ProjectPermissionsInlineSection", () => {
     expect(screen.getByText(/1 ask/)).toBeInTheDocument();
   });
 
-  // #862: the overview summary is read-only, but it still must not present a
+  // #1345: the overview summary is read-only, but it still must not present a
   // rule the project's agent drops as though it applied.
   describe("rule tiers the agent does not carry", () => {
     const TWO_TIER = {

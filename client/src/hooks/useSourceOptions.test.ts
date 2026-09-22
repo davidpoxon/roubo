@@ -32,7 +32,7 @@ describe("useSourceOptions", () => {
     expect(result.current.durationMs).toBeNull();
   });
 
-  it("exposes the measured round-trip latency of the resolved page (#432)", async () => {
+  it("exposes the measured round-trip latency of the resolved page (#451)", async () => {
     // Drive a controlled clock that only advances while the fetch is in flight,
     // so the measured delta is deterministic regardless of other `now()` reads.
     let clock = 1000;

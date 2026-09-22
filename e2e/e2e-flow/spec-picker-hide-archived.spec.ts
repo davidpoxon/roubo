@@ -16,7 +16,7 @@ import {
   SATCA_SUPERSEDED_SPEC_SLUG,
 } from "./_support/testbench-plan.js";
 
-// E2E (#770): the integrated drift guard for the "spec picker hides archived
+// E2E (#1162): the integrated drift guard for the "spec picker hides archived
 // specs by default and reveals them on demand" journey
 // (SATCA-TC-035/036/037/038, SATCA-FR-015/FR-016/FR-018, SATCA-US-004/US-005/
 // US-011). It runs against the BUILT app with a fixture repo carrying three real

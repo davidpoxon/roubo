@@ -204,7 +204,7 @@ describe("PUT /", () => {
     expect(res.body.jigs.defaultJigId).toBeUndefined();
   });
 
-  // Untagged on purpose (#680): this is the persistence half of AP-TC-018, not
+  // Untagged on purpose (#1097): this is the persistence half of AP-TC-018, not
   // the whole case. The bare id lives on the one test that asserts every
   // observation, e2e/agent-plugins/default-agent-tiles.spec.ts.
   it("persists defaultAgentPluginId", async () => {
@@ -521,7 +521,7 @@ describe("PUT / github settings", () => {
   });
 });
 
-// App-level agent tool presets (AP-FR-008, issue #516).
+// App-level agent tool presets (AP-FR-008, #1057).
 describe("PUT / agentTools", () => {
   beforeEach(() => {
     vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark" });

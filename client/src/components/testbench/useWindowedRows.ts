@@ -1,6 +1,6 @@
 import { useState, useLayoutEffect, useMemo, useCallback, type RefObject } from "react";
 
-// Minimal fixed-row-height list virtualiser (#419, NFR-002). Only the rows
+// Minimal fixed-row-height list virtualiser (#466, NFR-002). Only the rows
 // intersecting the scroll viewport (plus a small overscan) are mounted, so a
 // 500-case plan renders a bounded, windowed DOM regardless of plan size.
 //

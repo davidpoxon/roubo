@@ -26,7 +26,7 @@ export interface UseSourceOptionsResult {
   fetchNextPage: () => void;
   error: Error | null;
   // Measured round-trip latency (ms) of the most recently fetched page, or
-  // null before any page has resolved. Backs the JSS-NFR-001 budget visibly (#432).
+  // null before any page has resolved. Backs the JSS-NFR-001 budget visibly (#451).
   durationMs: number | null;
 }
 

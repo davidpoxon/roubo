@@ -2,12 +2,12 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 import { formatDivergence, makeObserve, type JourneyStep } from "./_support/step-runner.js";
 import { loadAppShell, registerFixtureProject } from "../e2e-flow/_support/scenario.js";
 
-// CPHM-TC-081 / CPHM-TC-082 (#317) - E2E: configure a component via a plugin
+// CPHM-TC-081 / CPHM-TC-082 (#875) - E2E: configure a component via a plugin
 // binding, and an errored component plugin's banner guides recovery.
 //
 // This spec is the integration-level drift guard for the primary journey
-// spanning slices #301 (remove the vestigial Role toggle from the Components
-// editor) and #302 (ErroredBanner surfaces the plugin's real lastError). It
+// spanning slices #871 (remove the vestigial Role toggle from the Components
+// editor) and #872 (ErroredBanner surfaces the plugin's real lastError). It
 // walks the authoritative CPHM-TC-081 and CPHM-TC-082 e2e_flow steps as
 // ordered, attributable observations. On divergence each observation routes
 // through the FR-020 failure-output contract (see _support/step-runner.ts): the
@@ -19,24 +19,24 @@ import { loadAppShell, registerFixtureProject } from "../e2e-flow/_support/scena
 // persists as plugin:{ id } with NO component.type) and TC-082's errored-record
 // facts (a component plugin reaches `errored` with a real missing-entry
 // lastError, kind=component so the issue-snapshot line is suppressed). This
-// mirrors the sibling component-deploy-journey.spec.ts (#626), which is likewise
+// mirrors the sibling component-deploy-journey.spec.ts (#662), which is likewise
 // request-driven.
 //
 // Wiring status at authoring time (both slices are closed as landed on this
 // branch, but each shipped only part of its own test case's expected surface):
-//   - #301 removed the Role toggle and made a new component carry no
+//   - #871 removed the Role toggle and made a new component carry no
 //     component.type (ComponentsList.newComponentDefaults returns {}), but it
 //     did NOT add the "Component plugin" selector or schema-driven config fields
 //     to the editor: ComponentRowEditor still renders only name/port/env, and
 //     the plugin binding is "set elsewhere" (ComponentsList's own comment). So
 //     the persistence contract is asserted HARD here, while the editor UI
 //     journey (TC-081 S001/S002/S004/S005) is not drivable and is marked pending
-//     against #301.
-//   - #302 made the banner render the plugin's real lastError (code + message)
+//     against #871.
+//   - #872 made the banner render the plugin's real lastError (code + message)
 //     and suppress the issue-snapshot line for non-integration (component)
 //     plugins, dropping the hardcoded "3 restart attempts" copy. Those facts are
 //     asserted HARD.
-//   - #496 then shipped TC-082's marketplace-recovery affordances: the
+//   - #945 then shipped TC-082's marketplace-recovery affordances: the
 //     host-produced missing-entry message is kind-aware ("reinstall it from the
 //     marketplace" for a component plugin, not "check its build output exists"),
 //     and the banner exposes a Reinstall action that stages the marketplace
@@ -58,7 +58,7 @@ const observe082 = makeObserve("CPHM-TC-082");
 
 // The harness carries `clasp-deploy-stub` as its sole installed component-kind
 // plugin fixture (process/database are not carried in the e2e harness; see the
-// #626 precedent). The load-bearing persistence fact TC-081 checks is the
+// #662 precedent). The load-bearing persistence fact TC-081 checks is the
 // binding SHAPE (plugin:{ id }, no component.type), independent of which
 // component plugin id is bound, so the guard binds a component to this plugin.
 const COMPONENT_PLUGIN_ID = "clasp-deploy-stub";
@@ -69,28 +69,28 @@ const BOUND_COMPONENT = "deploy";
 
 // The errored component-plugin fixture (e2e/fixtures/errored-component-stub):
 // a valid manifest whose entry file is intentionally absent, so plugin-manager's
-// pre-spawn host check (#759) fails it closed into `errored` with a real
+// pre-spawn host check (#760) fails it closed into `errored` with a real
 // missing-entry lastError. Force-disabled at boot (FAILURE_FIXTURE_PLUGIN_IDS in
 // server/routes/test.ts), so the guard enables it on demand to reach that state.
 const ERRORED_PLUGIN_ID = "errored-component-stub";
-// The substring of the shipped #759 missing-entry message the banner renders.
+// The substring of the shipped #760 missing-entry message the banner renders.
 const ENTRY_PATH_FRAGMENT = "dist/index.js";
 // TC-082 S002-O01 expects the message to guide the user to reinstall from the
-// marketplace. #496 made the host-produced missing-entry copy kind-aware, so a
+// marketplace. #945 made the host-produced missing-entry copy kind-aware, so a
 // component plugin's message now carries this phrase (integration/other kinds
 // keep the build-output guidance). The browser journey below asserts the phrase
 // on the rendered banner; if the affordance is un-wired, the gated block reports
 // its live presence/absence in the divergence detail.
 const MARKETPLACE_RECOVERY_COPY = "reinstall it from the marketplace";
 
-// #390 shipped the editor's plugin-binding UI (the "Component plugin" selector
-// and schema-driven config fields) as a follow-on to #301's toggle removal, so
+// #882 shipped the editor's plugin-binding UI (the "Component plugin" selector
+// and schema-driven config fields) as a follow-on to #871's toggle removal, so
 // the editor journey below is now drivable end to end. The flag stays as the
 // drift-guard toggle: if the selector regresses, flip it back to false to
 // re-mark the journey pending rather than let it fail opaquely.
 const COMPONENTS_EDITOR_BINDING_UI_WIRED = true;
 
-// #496 shipped TC-082's marketplace-recovery affordances (S003/S004): the banner
+// #945 shipped TC-082's marketplace-recovery affordances (S003/S004): the banner
 // exposes a Reinstall action that stages the marketplace update/reinstall flow
 // (distinct from Restart, useRestartPlugin). The affordance is a client concern,
 // so it is driven at the browser level below (render the banner, assert the
@@ -173,7 +173,7 @@ async function listPlugins(request: APIRequestContext): Promise<PluginListEntry[
 }
 
 // Drive the errored fixture into its `errored` / missing-entry state via the
-// real production enable -> spawn -> #759 host-check path. Enabling a disabled
+// real production enable -> spawn -> #760 host-check path. Enabling a disabled
 // plugin whose entry file is missing fails the spawn, so the enable route
 // returns 409, but the in-memory record transitions to `errored` with the real
 // missing-entry lastError. We tolerate the 409 and assert on the record itself.
@@ -251,14 +251,14 @@ test("CPHM-TC-081: the Components editor add, bind, configure, save journey (S00
   request,
 }) => {
   // The persistence contract above is asserted HARD against a pre-bound fixture.
-  // This test drives the REAL editor journey #390 shipped (open editor -> Add
+  // This test drives the REAL editor journey #882 shipped (open editor -> Add
   // component -> pick a plugin from the 'Component plugin' selector -> the
   // schema-driven config fields render -> Save) and proves it persists the same
   // shape (plugin:{ id }, no component.type). If the selector regresses, flip
   // COMPONENTS_EDITOR_BINDING_UI_WIRED back to false to re-mark this pending.
   test.skip(
     !COMPONENTS_EDITOR_BINDING_UI_WIRED,
-    "Components editor plugin-binding UI not wired (see #390)",
+    "Components editor plugin-binding UI not wired (see #882)",
   );
 
   // A fresh fixture project: its only pre-existing component is the default
@@ -382,7 +382,7 @@ test("CPHM-TC-082: the errored banner guides marketplace recovery (S002 copy, S0
   page,
   request,
 }) => {
-  // #496 shipped the marketplace-recovery affordances, so this block drives the
+  // #945 shipped the marketplace-recovery affordances, so this block drives the
   // real browser journey. If the affordance regresses, flip
   // MARKETPLACE_REINSTALL_AFFORDANCE_WIRED back to false to re-mark this pending
   // via the deterministic gate below rather than let it fail opaquely.
@@ -404,7 +404,7 @@ test("CPHM-TC-082: the errored banner guides marketplace recovery (S002 copy, S0
   }
 
   // Drive the errored fixture into its `errored` / missing-entry state via the
-  // real enable -> spawn -> #759 host-check path, then render the app and open
+  // real enable -> spawn -> #760 host-check path, then render the app and open
   // the Plugins settings so PluginCard shows the ErroredBanner for it.
   await seedErroredComponentPlugin(request);
 

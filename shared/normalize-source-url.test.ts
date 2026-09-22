@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { normalizeSourceUrl } from "./normalize-source-url.js";
 
-// CPHMTP-FR-007 / CPHMTP-TC-080, issue #565: the one normalisation shared by the
+// CPHMTP-FR-007 / CPHMTP-TC-080, #982: the one normalisation shared by the
 // server's registration and the client's declared-source comparison. Casing and
 // trailing-slash spellings of the same endpoint must collapse to one href so a
 // declared URL matching a registered source shows no duplicate offer.

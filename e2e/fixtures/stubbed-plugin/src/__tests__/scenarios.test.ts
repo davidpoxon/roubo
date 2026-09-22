@@ -102,7 +102,7 @@ describe("IP-WU-068 scenario packs", () => {
   it("github-tab-consolidation loads with a connected baseline", () => {
     const scenario = loadScenario("github-tab-consolidation");
     expect(scenario.connectionStatus.state).toBe("connected");
-    // #279: derived-sources auto-derivation reads the `Repository` category, so
+    // #284: derived-sources auto-derivation reads the `Repository` category, so
     // the github-com scenarios carry the categorized shape.
     expect(scenario.sourceCandidates.shape).toBe("categorized-multi-list");
   });
@@ -147,11 +147,11 @@ describe("JSS-WU-007 scenario pack", () => {
   });
 });
 
-// #569 (TC-032): the cut-list-pagination pack seeds six open To Do cuts so the
+// #585 (TC-032): the cut-list-pagination pack seeds six open To Do cuts so the
 // cut list spans three Prev/Next pages at the fixture project's pageSize of 2.
 // Assert the pack loads with enough open cuts to force paging, and that none
 // land in the manifest's default Done exclusion, before Playwright spins up.
-describe("#569 scenario pack", () => {
+describe("#585 scenario pack", () => {
   it("cut-list-pagination seeds six open To Do cuts for multi-page paging", () => {
     const scenario = loadScenario("cut-list-pagination");
     expect(scenario.connectionStatus.state).toBe("connected");

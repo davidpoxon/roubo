@@ -1,5 +1,5 @@
 /**
- * TSPF-TC-009 / TSPF-NFR-002: the per-spec verification aggregation (#482) adds
+ * TSPF-TC-009 / TSPF-NFR-002: the per-spec verification aggregation (#936) adds
  * under 200ms at p95 to spec discovery at the NFR fixture size (25 specs x 500
  * cases, each with a hash-matching results sidecar).
  *
@@ -16,8 +16,8 @@
  * real discoverSpecs aggregates the fixture correctly (so the measured delta is
  * the real work, not a stub).
  *
- * SATCA-TC-043 / SATCA-NFR-002 (#771) rides the same fixture for the second
- * per-spec read discovery grew: the lifecycle manifest read added by #765. That
+ * SATCA-TC-043 / SATCA-NFR-002 (#1163) rides the same fixture for the second
+ * per-spec read discovery grew: the lifecycle manifest read added by #1157. That
  * budget is relative ("no more than 15% above the pre-change baseline"), and
  * there is no lifecycle-off toggle to time the pre-change code against, so the
  * baseline is DERIVED inside the run: withMs is a full discoverSpecs pass,
@@ -174,7 +174,7 @@ function writeManifest(slug: string, lifecycle: Record<string, unknown>): void {
   );
 }
 
-// One isolated pass of exactly the work #765 added to discovery: readSpecLifecycle
+// One isolated pass of exactly the work #1157 added to discovery: readSpecLifecycle
 // once per slug, over the same 25 slugs discoverSpecs walks. computeLifecycle is a
 // single call in discovery's existing per-spec loop, so this pass is the whole of
 // the delta. Returns a running sink so the engine cannot elide the work.
@@ -187,7 +187,7 @@ function runLifecyclePass(): number {
   return sink;
 }
 
-// The time-critical delta discovery added for #482, isolated to exactly the
+// The time-critical delta discovery added for #936, isolated to exactly the
 // per-spec aggregation work (loadResultsFile + computePlanHash + effective-status
 // tally over the current plan's cases). Mirrors computeVerification's measured
 // core.
@@ -297,7 +297,7 @@ describe("SATCA-TC-043: discovery reads each spec's lifecycle record once", () =
     expect(runLifecyclePass()).toBe(ARCHIVED_COUNT);
   });
 
-  // The Technical Note on #771: the manifest is one small file per spec, so a
+  // The Technical Note on #1163: the manifest is one small file per spec, so a
   // regression here means something is being read more than once. Pinned as an
   // assertion rather than left as prose, and non-gated so it guards every run.
   it("opens manifest.json exactly once per spec per discoverSpecs pass", () => {

@@ -15,7 +15,7 @@ import type { ReplacementCandidateCase } from "../../lib/api";
 import Select from "../Select";
 import Spinner from "../Spinner";
 
-// Two-stage replacement picker with a live resolution preview (#774,
+// Two-stage replacement picker with a live resolution preview (#1169,
 // SATCA-FR-028, SATCA-FR-029).
 //
 // Stage one is a specification selector defaulting to the case's own spec; stage

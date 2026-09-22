@@ -17,7 +17,7 @@ import {
   SATCA_TC045_SUBJECT_SLUG,
 } from "./_support/testbench-plan.js";
 
-// E2E (#778): the authoritative `e2e_flow` drift guard for SATCA-TC-045, the
+// E2E (#1177): the authoritative `e2e_flow` drift guard for SATCA-TC-045, the
 // spec archival JOURNEY (SATCA-FR-013/FR-015/FR-016, SATCA-US-004/US-005/US-011).
 // It runs against the BUILT app and walks the case's S001-S005 in ONE continuous
 // session: list the live specs, archive one with a reason, reveal it, load it
@@ -26,23 +26,23 @@ import {
 // Deliberately a journey, not a slice re-test. Each transition is driven through
 // the REAL UI (row kebab -> menu item -> confirm dialog), never through the API,
 // because the point of the unit is that the slices compose: discovery's
-// lifecycle read (#765), the picker's hide / reveal / label / select surface
-// (#770) and the lifecycle write path all have to agree inside one session for
+// lifecycle read (#1157), the picker's hide / reveal / label / select surface
+// (#1162) and the lifecycle write path all have to agree inside one session for
 // the journey to hold. Its precondition ("several live specs and none archived")
-// is why it seeds its own fixture: #770's guard starts from a spec already
-// archived on disk, and #773's from varied starting manifests, so neither
+// is why it seeds its own fixture: #1162's guard starts from a spec already
+// archived on disk, and #1166's from varied starting manifests, so neither
 // fixture can express "none archived".
 //
 // Drift guard: this spec walks .specifications/spec-and-test-case-archival case
 // SATCA-TC-045 step for step (S001-S005). If that case changes, this changes.
 //
-// Failure-output contract (#778 AC7): every assertion below names the diverging
+// Failure-output contract (#1177 AC7): every assertion below names the diverging
 // step id, the expected-vs-actual at that step, and the owning slice, so a red
 // run localises integration drift to one attributable slice. The owning-slice
 // map (SATCA_TC045_OWNING_SLICES) documents the one reconciliation against this
 // unit's declared blocked-by set: the archive / restore WRITES that S002 and
-// S005 drive are owned by #773, which is not in that set, so those two steps
-// name #773 alongside the in-set slice whose surface the failure appears on.
+// S005 drive are owned by #1166, which is not in that set, so those two steps
+// name #1166 alongside the in-set slice whose surface the failure appears on.
 //
 // Two reconciliations against the literal TC-045 script, both deliberate:
 //   - S004 does not say whether the bench is newly created or re-pointed. This
@@ -54,7 +54,7 @@ import {
 //     archived indicator, because the archive write of S002 is left UNCOMMITTED
 //     by design (Roubo never invokes git), so the bench worktree, provisioned
 //     from the fixture repo's HEAD, carries the spec without the record. The
-//     panel's archived indicator is #770's own guard
+//     panel's archived indicator is #1162's own guard
 //     (spec-picker-hide-archived.spec.ts), driven from a committed fixture.
 
 const SCENARIO = "default";
@@ -206,7 +206,7 @@ test("SATCA-TC-045: archiving a spec removes it from the picker and the control 
     // Wait for the confirm step to close and the picker body to come back BEFORE
     // asserting on the list, and assert the subject's absence LAST. The confirm
     // step replaces the picker body inside the same dialog rather than stacking a
-    // second one (#773), so while it is up the dialog's accessible name is
+    // second one (#1166), so while it is up the dialog's accessible name is
     // "Archive this specification" and `createDialog` matches nothing at all:
     // asserting `defaultRow(createDialog, ...).toBeHidden()` here would pass
     // vacuously on a zero-match locator, before the archive had even round-tripped.

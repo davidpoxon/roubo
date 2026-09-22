@@ -2,7 +2,7 @@
 # catalog, NOT under e2e/fixtures so the plugin-grid discovery does not pick it
 # up). It exists purely to give marketplace.test.ts a real on-disk component
 # manifest that declares `lifecycle: one-shot`, so the annotate() derivation can
-# be exercised against a real file (issue #401 / CP-TC-097) rather than a literal
+# be exercised against a real file (#883 / CP-TC-097) rather than a literal
 # mock. It is intentionally manifest-only: readEntryManifest reads roubo-plugin.yaml
 # and nothing loads the entry, so there is no dist/ or entry file.
 id: component-oneshot
@@ -15,7 +15,7 @@ entry: ./index.js
 contractVersion: 1
 descriptorSchemaVersion: 1
 # The field under test: `one-shot` is what annotate() derives server-side so the
-# marketplace detail drawer's Lifecycle row reads "one-shot" pre-install (#401).
+# marketplace detail drawer's Lifecycle row reads "one-shot" pre-install (#883).
 lifecycle: one-shot
 componentMode: imperative
 configSchema:

@@ -267,7 +267,7 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
     expect(result.cacheStatus).toBe("miss");
     expect(result.items.map((i) => i.externalId)).toEqual(["1"]);
     // The cursor handed back to the client is the host's own offset token, not
-    // the plugin's (#844), and it round-trips to the next page.
+    // the plugin's (#1224), and it round-trips to the next page.
     expect(result.nextCursor).not.toBe("next");
     expect(decodeCutListCursor(result.nextCursor)).toBe(1);
   });
@@ -389,11 +389,11 @@ describe("queryFirstOrPage delegation + disk miss/hit", () => {
   });
 });
 
-// #653: an explicit refresh is a request for current data, so on a first-page
+// #654: an explicit refresh is a request for current data, so on a first-page
 // request it must bypass the warm disk-serve, run the live RPC synchronously,
 // persist the fresh result (keeping the cache warm with current data), and
 // report `miss`. Normal loads keep stale-while-revalidate.
-describe("queryFirstOrPage force-refresh (#653)", () => {
+describe("queryFirstOrPage force-refresh (#654)", () => {
   it("on a warm snapshot, refresh=true skips the warm-serve, fetches live, and reports miss", async () => {
     const input = { cursor: null, pageSize: 50, filters: {} };
     // First call populates the disk snapshot with the stale item.
@@ -457,7 +457,7 @@ describe("queryFirstOrPage force-refresh (#653)", () => {
   });
 });
 
-// #568: the runtime bypass toggle the ROUBO_E2E-gated
+// #590: the runtime bypass toggle the ROUBO_E2E-gated
 // `/test/__set-cut-list-disk-cache` route drives so the warm-snapshot journey
 // (CLI-TC-017) can reach the disk path the harness bypasses by default, and the
 // `restoreBypassDefault` the route's `/test/__reset` calls so a toggled spec
@@ -949,11 +949,11 @@ describe("integration reconfiguration self-invalidates via the cache key", () =>
   });
 });
 
-// #844: unblocked-first ordering must hold across the whole paged sequence, not
+// #1224: unblocked-first ordering must hold across the whole paged sequence, not
 // just within whatever page happened to be fetched. The host materialises the
 // plugin's whole cursor chain, orders it once, and serves host-owned pages as
 // slices of that ordered set.
-describe("cross-page unblocked-first ordering (#844)", () => {
+describe("cross-page unblocked-first ordering (#1224)", () => {
   /** Two plugin pages that each mix blocked and unblocked items. */
   function mixedTwoPageSource(): void {
     vi.mocked(pluginManager.invoke)
@@ -974,7 +974,7 @@ describe("cross-page unblocked-first ordering (#844)", () => {
       pageSize: 2,
       filters: {},
     });
-    // Before #844 this page was `u1, b1`: the fetched page was partitioned on its
+    // Before #1224 this page was `u1, b1`: the fetched page was partitioned on its
     // own, so a blocked item shipped on page 1 while `u2` sat on page 2.
     expect(page1.items.map((i) => i.externalId)).toEqual(["u1", "u2"]);
     expect(page1.items.every((i) => i.blockedBy.length === 0)).toBe(true);

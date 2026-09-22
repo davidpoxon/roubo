@@ -118,7 +118,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   // Whether this request is asking for an AGENT session rather than a plain
   // shell. `command` is the retired built-in carrier kept only so a request
   // still naming one gets the actionable failure below instead of silently
-  // opening a shell (AP-FR-019, #521); a jig is only ever injected into an
+  // opening a shell (AP-FR-019, #1114); a jig is only ever injected into an
   // agent, so it asks for one too.
   const agentLaunchRequested = command !== undefined || jigId !== undefined;
 
@@ -134,7 +134,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   let launchJigAgentPluginId: string | undefined;
 
   // A jig only ever drives an agent launch, so its resolution is gated on
-  // nothing but the presence of a jig id (AP-FR-007, issue #517). Since #521
+  // nothing but the presence of a jig id (AP-FR-007, #1063). Since #1114
   // there is no command-name carrier left to test against.
   if (jigId && project?.config) {
     const jig = jigManager.getJig(projectId, jigId);
@@ -201,7 +201,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     }
   }
 
-  // AP-FR-006 (issue #515): an explicit `agentPluginId` on the request wins,
+  // AP-FR-006 (#1051): an explicit `agentPluginId` on the request wins,
   // because the caller named the agent. Otherwise a jig-driven launch resolves
   // the jig's own binding first and the app-level default agent second, so a
   // jig with no binding follows whatever default is current and a bound jig
@@ -221,7 +221,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
 
   // Agent-plugin launch (AP-FR-011): the plugin supplies a declarative
   // descriptor and core assembles argv, executes the workspace writes, and
-  // spawns. Since #521 this is the ONLY way an agent starts; the branch below
+  // spawns. Since #1114 this is the ONLY way an agent starts; the branch below
   // opens a plain login shell and nothing else.
   if (launchAgentPluginId !== undefined) {
     let launch;
@@ -233,7 +233,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         projectName,
         agentPluginId: launchAgentPluginId,
         ...(initialInput !== undefined && { initialInput }),
-        // #646: without this the agent branch registers no exit callback, so a
+        // #1053: without this the agent branch registers no exit callback, so a
         // jig-driven launch that resolves an agent stops producing the bench
         // exit notification the built-in path emits. The descriptor schema has
         // no `exited` hook event, so PTY exit is the only real mechanism for it
@@ -241,7 +241,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         onAgentExit: (sessionId: string) => {
           notificationService.createNotification(bench, "agent-exited", sessionId);
         },
-        // AP-FR-016 (issue #514): the project's permissions model reaches the
+        // AP-FR-016 (#1058): the project's permissions model reaches the
         // plugin so its descriptor carries the posture and, where the plugin
         // declares the rules capability, writes the allow/ask/deny rules into
         // the bench workspace before the agent is spawned (AP-TC-078).
@@ -316,7 +316,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   }
 
   // An agent was asked for and none resolved. There is no built-in path left to
-  // fall through to (#521), so this is a launch failure with a route out, never
+  // fall through to (#1114), so this is a launch failure with a route out, never
   // a silently-downgraded shell: 409, because the request is fine and it is the
   // host's current state that cannot serve it (AP-FR-019, AP-TC-103).
   if (agentLaunchRequested) {

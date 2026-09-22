@@ -45,7 +45,7 @@ vi.mock("../lib/testbench-spec-discovery.js", () => ({
   computeLifecycle: vi.fn(),
 }));
 
-// #773: the manifest write is mocked at the module boundary so the route tests
+// #1166: the manifest write is mocked at the module boundary so the route tests
 // stay filesystem-free; the writer's own suite covers the merge-write itself.
 // The two error classes are kept real, because handleError maps them by
 // instanceof.
@@ -97,12 +97,12 @@ app.use(express.json());
 app.use("/", router);
 
 const REPO = "/repo";
-// The bench's own worktree root: the store IO roots here as of #493, so every
+// The bench's own worktree root: the store IO roots here as of #494, so every
 // store call passes WORKTREE (not REPO) as the root. The slug is still resolved
 // against REPO, where the focused spec was picked.
 const WORKTREE = "/worktree/bench-1";
 const FOCUSED = "/repo/.specifications/testbench/test-cases.json";
-// #770 (SATCA-FR-018): the fail-open lifecycle shape the plan route attaches.
+// #1162 (SATCA-FR-018): the fail-open lifecycle shape the plan route attaches.
 // Absence of a record is the live state, so this is what an unarchived spec reads.
 const LIVE_LIFECYCLE = {
   archived: false,
@@ -127,7 +127,7 @@ beforeEach(() => {
     slug: "testbench",
     resolvedPath: FOCUSED,
   });
-  // #770: the plan route attaches the focused spec's lifecycle; default to live.
+  // #1162: the plan route attaches the focused spec's lifecycle; default to live.
   vi.mocked(discovery.computeLifecycle).mockReturnValue(LIVE_LIFECYCLE);
 });
 
@@ -213,7 +213,7 @@ describe("POST /:projectId/testbench/specs/validate", () => {
   });
 });
 
-// #773, SATCA-FR-020/FR-021/FR-028.
+// #1166, SATCA-FR-020/FR-021/FR-028.
 describe("PUT /:projectId/testbench/specs/:slug/lifecycle", () => {
   // A discovery result naming two sibling specs, so a supersession pointer has
   // somewhere real to point.
@@ -400,10 +400,10 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
     expect(testbenchStore.readPlanAndResults).toHaveBeenCalledWith(WORKTREE, "testbench");
   });
 
-  // #770 (SATCA-FR-018): the response carries the focused spec's read-only
+  // #1162 (SATCA-FR-018): the response carries the focused spec's read-only
   // lifecycle state, read from the BENCH's own workspace (not the project repo
   // discovery walks), so an open panel can say the spec it shows is archived.
-  describe("focused-spec lifecycle (#770)", () => {
+  describe("focused-spec lifecycle (#1162)", () => {
     beforeEach(() => {
       vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
         plan: { cases: [] } as never,
@@ -484,7 +484,7 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
     expect(res.status).toBe(400);
   });
 
-  // #493: an error-state bench with a blank workspacePath must fail cleanly (400),
+  // #494: an error-state bench with a blank workspacePath must fail cleanly (400),
   // never write to / read from a bogus root.
   it("returns 400 when the bench has no workspace path", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({
@@ -602,7 +602,7 @@ describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {
     expect(res.status).toBe(400);
   });
 
-  // #434: a synthetic operator-merged gate id (MERGED:...) matches no raw
+  // #913: a synthetic operator-merged gate id (MERGED:...) matches no raw
   // work-unit id, so the subset filter must resolve the EFFECTIVE (override-
   // applied) gates. With a recorded merge of WU-100 + WU-200, the merged batch
   // resolves to the deduped union of both source gates' cases, not zero.
@@ -630,7 +630,7 @@ describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {
     expect(res.body.filteredToGateIds).toEqual([mergedId]);
   });
 
-  // #434: resolving effective gates loads the project's overrides document, which
+  // #913: resolving effective gates loads the project's overrides document, which
   // throws GateOverrideStoreError on a corrupt / invalid persisted doc. That is a
   // bad-request-shaped misconfiguration (400), not a 500, mirroring gates.ts.
   it("400 for a corrupt/invalid persisted gate-overrides document in the filter path", async () => {
@@ -670,7 +670,7 @@ describe("PUT mark observation", () => {
     expect(testbenchStore.markObservation).not.toHaveBeenCalled();
   });
 
-  // #508: result: null clears (un-sets) the mark and passes null to the store.
+  // #510: result: null clears (un-sets) the mark and passes null to the store.
   it("clears a mark when result is null", async () => {
     vi.mocked(testbenchStore.markObservation).mockResolvedValue({
       derivedStatus: "not_started",
@@ -723,7 +723,7 @@ describe("PUT set status override", () => {
   });
 });
 
-// #772 (SATCA-FR-019/FR-021): the case lifecycle write path. The store seam is
+// #1167 (SATCA-FR-019/FR-021): the case lifecycle write path. The store seam is
 // mocked here; the writer's own filesystem, path-safety, and conflict behaviour
 // is covered in server/lib/testbench-lifecycle-write.test.ts.
 describe("PUT set case lifecycle", () => {
@@ -960,7 +960,7 @@ describe("PUT re-point focus", () => {
   });
 });
 
-// #774 (SATCA-FR-028/FR-029): the replacement picker's read-only candidate
+// #1169 (SATCA-FR-028/FR-029): the replacement picker's read-only candidate
 // endpoint. It returns the requested spec's cases plus the TRANSITIVE CLOSURE of
 // their pointer graph, so the client can preview a candidate pointer with the
 // same shared resolver the gate uses. Rooted at the BENCH's own workspace, like

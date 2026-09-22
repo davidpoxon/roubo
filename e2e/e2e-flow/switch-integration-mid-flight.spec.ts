@@ -12,7 +12,7 @@ import { registerFixtureProject, resetWithScenario } from "./_support/scenario.j
 // `registerFixtureProject`'s `seedBenches` option (added for IP-TC-161). Driving
 // the real bench-provisioning flow twice through the UI is too expensive for
 // IP-NFR-018 (10 consecutive zero-retry runs); the seed shortcut matches the
-// trade-off already made for project registration (`#232`).
+// trade-off already made for project registration (`#249`).
 //
 // Post-switch Jira configuration (instance + sources) is written via
 // `PUT /api/projects/:id/integration/config` because the Switch dialog only

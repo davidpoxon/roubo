@@ -29,7 +29,7 @@ export interface UseIssuesResult {
   stalled: boolean;
   /**
    * The `cause` of the host's walk-truncation warning when the whole-set
-   * materialisation hit a cap (#844), else null. Past the cap the cut list
+   * materialisation hit a cap (#1224), else null. Past the cap the cut list
    * holds only the walked prefix and the pager ends there, so items beyond it
    * are unreachable and the unblocked-first guarantee covers the prefix only.
    * That is data the user cannot otherwise see is missing, so the cut list
@@ -71,7 +71,7 @@ export interface UseIssuesResult {
    */
   cacheStatus: "hit" | "miss" | "revalidating" | null;
   /**
-   * Force a fresh, cache-bypassing refetch of the current page (#653). Unlike a
+   * Force a fresh, cache-bypassing refetch of the current page (#654). Unlike a
    * plain refetch (which the server can answer from its warm disk snapshot),
    * this sets a one-shot flag so the next fetch passes `refresh=true`, making
    * the server skip the warm-serve and pull current data: closed items drop and
@@ -99,7 +99,7 @@ export function useIssues(
 ): UseIssuesResult {
   const sortBy = sort.sortBy;
   const sortDir = sort.sortDir;
-  // One-shot force-refresh flag (#653). The `refresh()` callback sets it true,
+  // One-shot force-refresh flag (#654). The `refresh()` callback sets it true,
   // then triggers a refetch; `queryFn` reads-and-clears it so exactly the next
   // fetch carries `refresh=true` and subsequent (e.g. background revalidation)
   // fetches stay on the normal stale-while-revalidate path.
@@ -154,7 +154,7 @@ export function useIssues(
   const walkTruncated =
     page?.warnings?.find((w) => w.category === WALK_TRUNCATED_CATEGORY)?.cause ?? null;
 
-  // Force-refresh callback (#653). Set the one-shot flag, then refetch: the
+  // Force-refresh callback (#654). Set the one-shot flag, then refetch: the
   // next fetch carries `refresh=true` so the server bypasses its warm snapshot.
   // Stable across renders (refetch is stable from React Query).
   const { refetch } = query;

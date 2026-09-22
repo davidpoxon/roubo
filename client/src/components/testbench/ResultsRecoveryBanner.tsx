@@ -6,7 +6,7 @@ import type { ResultsRecoveryReason } from "../../lib/api";
 
 // The DESIGN.md "Attention banner" (accent-muted background, accent-border
 // border, accent-text message), surfaced when the bench's stored results could not be read
-// and were failed open server-side (#417, NFR-003). The server discriminates WHY
+// and were failed open server-side (#897, NFR-003). The server discriminates WHY
 // the read recovered (the `ResultsRecoveryReason` added in #896); this banner
 // renders only for a reason the user should acknowledge: a corrupt / schema
 // invalid file (could not be read), a file from a NEWER Roubo (future-version),

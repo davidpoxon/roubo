@@ -52,7 +52,7 @@ describe("resolveTemplate", () => {
     expect(resolveTemplate("{{unknown}}", ctx)).toBe("{{unknown}}");
   });
 
-  // Runtime-reported component URLs (#833). The value only exists once the
+  // Runtime-reported component URLs (#1206). The value only exists once the
   // component has run, so it is overlaid onto the context rather than built
   // from config, and it takes precedence over the port-derived form.
   it("substitutes a runtime-reported url in preference to the port-derived one", () => {
@@ -185,8 +185,8 @@ describe("buildTemplateContext", () => {
           config: {},
           command: "dotnet run --project src/Api/Api.csproj",
         },
-        // `connection` is read off the binding via the #609 transition shim
-        // (#612 / F1.11 moves connection templating onto the plugin contract).
+        // `connection` is read off the binding via the #652 transition shim
+        // (#663 / F1.11 moves connection templating onto the plugin contract).
         db: {
           plugin: { id: "database" },
           config: {},
@@ -202,10 +202,10 @@ describe("buildTemplateContext", () => {
     expect(ctx.components.backend).toEqual({});
   });
 
-  it("resolves connection from migrated config.connection.template (#666)", () => {
+  it("resolves connection from migrated config.connection.template (#667)", () => {
     // A plugin-bound database component whose connection template lives under
     // the migrated `config` block (validated by the database plugin's
-    // configSchema, #614), referenced by a sibling's env via
+    // configSchema, #664), referenced by a sibling's env via
     // {{components.sql.connection}}.
     const config = makeConfig({
       ports: { host: { base: 5000 } },
@@ -466,7 +466,7 @@ describe("parseConfig", () => {
   });
 
   it("parses a component binding and leaves its opaque config block untouched", () => {
-    // The components map is now a plugin binding (#609). The `config` block is
+    // The components map is now a plugin binding (#652). The `config` block is
     // opaque to roubo-core: roubo does not coerce or reshape its values (YAML
     // scalar handling inside it is the plugin's concern), it round-trips as-is.
     const yamlContent = [
@@ -662,7 +662,7 @@ describe("parseConfig", () => {
   });
 });
 
-describe("marketplaces (CPHMTP-FR-007, issue #556)", () => {
+describe("marketplaces (CPHMTP-FR-007, #954)", () => {
   it("surfaces a declared marketplaces block on the parsed config", () => {
     const config = makeConfig({
       marketplaces: [{ url: "https://market.example.com" }, { url: "https://second.example.com" }],

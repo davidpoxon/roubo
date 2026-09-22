@@ -5,7 +5,7 @@ import {
 } from "../hooks/useDeclinedSourceOffers";
 
 // In-memory, per-session memory of declined project-declared source registration
-// offers (CPHMTP-FR-007, issue #565). A decline is keyed `projectId + '\0' +
+// offers (CPHMTP-FR-007, #982). A decline is keyed `projectId + '\0' +
 // normalizedUrl` and held in a plain in-process Set: it survives navigating away
 // from a project and back within the same app run (CPHMTP-TC-078), yet resets on
 // a fresh launch so the offer re-appears in a later session (CPHMTP-TC-087).

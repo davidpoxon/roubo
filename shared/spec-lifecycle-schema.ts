@@ -1,5 +1,5 @@
 // Spec lifecycle record: the compile-time source of truth for the ONE subtree of
-// a spec's `.specifications/<slug>/manifest.json` that Roubo understands (#765,
+// a spec's `.specifications/<slug>/manifest.json` that Roubo understands (#1157,
 // SATCA-FR-013). Mirrors the shape of gate-overrides-contract.ts: a zod source
 // schema, the inferred type, a runtime validator returning field-named errors,
 // and a versioned `$id` constant.
@@ -46,7 +46,7 @@ const SPEC_LIFECYCLE_SLUG_RE = new RegExp(SPEC_LIFECYCLE_SLUG_PATTERN);
 //
 // `supersededBy` is validated for SHAPE only. Whether the named spec exists, is
 // itself archived, or closes a supersession cycle is the LifecycleResolver's
-// question (#763), not this schema's and not the reader's.
+// question, not this schema's and not the reader's.
 export const SpecLifecycleRecordSchema = z
   .object({
     // Literal true: absence, not `false`, is how a live spec is recorded.

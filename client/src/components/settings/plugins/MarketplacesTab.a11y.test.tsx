@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// CPHMTP-NFR-008 (WCAG 2.1 AA), verified by CPHMTP-TC-023 (issue #561): the
+// CPHMTP-NFR-008 (WCAG 2.1 AA), verified by CPHMTP-TC-023 (#976): the
 // Marketplaces settings section must pass an axe-core scan, be keyboard
 // operable in a logical focus order, and announce each source row with its
 // name, URL, and provenance status.

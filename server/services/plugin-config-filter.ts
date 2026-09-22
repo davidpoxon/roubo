@@ -8,7 +8,7 @@ export type AdvancedFilterSource = "activation" | "persist-global" | "persist-pr
 // level of the integration config and not under `advanced`. So even if a key
 // is in the manifest schema, it is treated as stale if it shadows a top-
 // level field. This is what catches the documented `advanced.sources: ""`
-// leftover from issue #125.
+// leftover from #231.
 const TOP_LEVEL_INTEGRATION_KEYS: ReadonlySet<string> = new Set([
   "plugin",
   "instance",
@@ -48,7 +48,7 @@ function legalAdvancedKeysFromManifest(manifest: PluginManifest | null): Set<str
  *
  * This is the read-boundary companion to `filterAdvancedAgainstManifest`,
  * which only runs on write/activation paths: a stale `advanced.sources: ""`
- * (the issue #125 leftover) would otherwise ride through the effective-config
+ * (the #231 leftover) would otherwise ride through the effective-config
  * merge and break Verify before any write path could canonicalise it.
  */
 export function stripTopLevelKeyShadows(
@@ -75,7 +75,7 @@ export function stripTopLevelKeyShadows(
  * `~/.roubo/integrations/_global/{pluginId}.yaml` files written before commit
  * `23ea55b` ("Pass sources per-call to eliminate per-project plugin state")
  * can still contain leftovers like `advanced.sources: ""` that no current
- * plugin schema recognises. See issue #125.
+ * plugin schema recognises. See #231.
  *
  * When stale keys are dropped, a single `console.warn` is emitted carrying the
  * plugin id, the calling `source` tag, and the comma-separated key list, so

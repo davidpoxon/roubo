@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// PR guard against AI coding agent co-authorship (issue #391). Roubo commits and
+// PR guard against AI coding agent co-authorship (#392). Roubo commits and
 // PRs carry the human author's identity only. This script fails a PR when any of
 // its commit messages or its PR body credits an AI coding agent (Claude / Claude
 // Code, Anthropic, GitHub Copilot, Cursor, Codex, OpenAI, ChatGPT, Gemini,

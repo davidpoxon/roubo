@@ -1,4 +1,4 @@
-// The pure, deterministic verify-gate evaluator (#698, VG-FR-004, VG-FR-005, VG-NFR-007).
+// The pure, deterministic verify-gate evaluator (#720, VG-FR-004, VG-FR-005, VG-NFR-007).
 //
 // `evaluateGate` computes a gate's passed / failed / pending / stale /
 // no_gating_cases state from a worktree's recorded results over the gate's gating
@@ -13,7 +13,7 @@
 //     `derivedStatus`, an optional `statusOverride`, and an optional `orphaned`
 //     marker (testbench-contracts.ts).
 //
-// As of #768 the narrowing step also honours the case lifecycle block
+// As of #1164 the narrowing step also honours the case lifecycle block
 // (SATCA-FR-008..SATCA-FR-012): a retired case leaves the effective gating set, a
 // superseded case's status is read from the case its replacement chain resolved
 // to, an unresolvable pointer keeps the case in the set as unresolved, and an
@@ -33,7 +33,7 @@
 // The evaluation rule is encoded as an explicit, auditable precedence ladder
 // (the truth table fixed in .specifications/verify-gate/verify-gate.md, the
 // "results-to-passed rule" section, and VG-FR-004 / VG-FR-005). The module is kept pure
-// so it can move to `shared/` for client reuse if needed (issue #698 technical
+// so it can move to `shared/` for client reuse if needed (#720 technical
 // note).
 
 import type {
@@ -55,14 +55,14 @@ export type VerifyUnit = Unit & { kind: "verify" };
 // `no_gating_cases` is the structural state for a gate whose (possibly narrowed)
 // gating set is empty: it is not a pass (nothing was verified), and its guard
 // precedes every results-driven rung so an all-L3/L4 gate never vacuously passes
-// (issue #436, VG-NFR-007 fail-closed).
+// (#912, VG-NFR-007 fail-closed).
 export type GateStatus = "passed" | "failed" | "pending" | "stale" | "no_gating_cases";
 
-// WHY a gate's gating set ended up empty (SATCA-FR-011, #768). Reported on the
+// WHY a gate's gating set ended up empty (SATCA-FR-011, #1164). Reported on the
 // `no_gating_cases` rung only, and null on every other rung.
 //
 //   "policy"    every declared case was excluded by the default level/type policy
-//               (all L3/L4, none e2e_flow), the pre-existing #436 shape.
+//               (all L3/L4, none e2e_flow), the pre-existing #912 shape.
 //   "lifecycle" every declared case left the set because its own lifecycle block
 //               retired it (SATCA-FR-008).
 //   "mixed"     both rules fired over different declared cases.
@@ -75,7 +75,7 @@ export type GateEmptyReason = "policy" | "lifecycle" | "mixed";
 
 // The computed projection returned by `evaluateGate`. Never persisted.
 //
-// Kept to the issue #698 technical note shape `{ status, unresolvedCaseIds,
+// Kept to the #720 technical note shape `{ status, unresolvedCaseIds,
 // coveringUnitIds }`. The architecture.md Data model row additionally lists
 // `gateId` and `evaluatedAt`, but `evaluatedAt` is deliberately omitted here: a
 // clock read would break determinism and purity (VG-NFR-007), the property the issue
@@ -88,7 +88,7 @@ export interface GateState {
   unresolvedCaseIds: string[];
   // The full narrowed gating set: every case this gate evaluates over, after the
   // default-policy narrowing (L1/L2 + e2e_flow). Its length is the gate's total
-  // gating-case count, surfaced on the Batches overview (issue #433). Unlike
+  // gating-case count, surfaced on the Batches overview (#914). Unlike
   // `unresolvedCaseIds` this is populated in every rung including `passed`, so the
   // count always traces to the same set the evaluator gates on.
   gatingCaseIds: string[];
@@ -118,7 +118,7 @@ export interface GateState {
 // pre-computed `stale` flag. Passing `null` models "no results recorded yet".
 export type GateResults = (BenchResults & { planHash: string }) | null;
 
-// The caller-threaded lifecycle view (#768, SATCA-FR-008..SATCA-FR-012).
+// The caller-threaded lifecycle view (#1164, SATCA-FR-008..SATCA-FR-012).
 //
 // `resolutions` is what `resolvePlan` (shared/lifecycle-resolver.ts) returned for
 // the gate's OWN plan: one Resolution per plan case, keyed here by
@@ -185,7 +185,7 @@ function effectiveStatus(result: CaseResult): CaseStatus {
 //                   resolved to (SATCA-FR-009), and an unresolvable pointer keeps
 //                   the case in the set as unresolved so the gate cannot pass
 //                   (SATCA-FR-010). Omitted, the gate ignores lifecycle exactly as
-//                   it did before #768.
+//                   it did before #1164.
 export function evaluateGate(
   gate: VerifyUnit,
   results: GateResults,
@@ -218,7 +218,7 @@ export function evaluateGate(
   const gatingCaseIds: string[] = [];
   // The ids lifecycle removed, kept as a list rather than only as the boolean the
   // `emptyReason` attribution needs, so a gate that merely NARROWED can still name
-  // which declared cases lifecycle excluded (#777, SATCA-TC-033 S003-O02).
+  // which declared cases lifecycle excluded (#1176, SATCA-TC-033 S003-O02).
   const lifecycleExcludedCaseIds: string[] = [];
   let droppedByPolicy = false;
   for (const id of declaredIds) {
@@ -252,7 +252,7 @@ export function evaluateGate(
   // "must be re-verified", it is "there is nothing to gate on". Crucially it must
   // never fall through to the PASSED rung, where an empty unresolved set would
   // read as a vacuous pass (an all-L3/L4 gate narrows to `[]`), violating
-  // VG-NFR-007's fail-closed intent (issue #436). Sign-off stays gated on `passed`,
+  // VG-NFR-007's fail-closed intent (#912). Sign-off stays gated on `passed`,
   // so a no-gating-cases phase is correctly non-signable.
   if (gatingCaseIds.length === 0) {
     return {

@@ -40,7 +40,7 @@ import * as benchManager from "./bench-manager.js";
 import { getResolvedTools, executeTool } from "./tool-launcher.js";
 
 // A component that runs to completion and reports the URL it minted: the
-// gsheets-style case #833 was filed for. It has no `ports` entry at all, so the
+// gsheets-style case #1206 was filed for. It has no `ports` entry at all, so the
 // port-derived `{{urls.deploy}}` form cannot produce anything for it.
 const REPORTED_URL = "https://docs.google.com/spreadsheets/d/abc123/edit";
 

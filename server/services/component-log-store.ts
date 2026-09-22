@@ -117,7 +117,7 @@ export function clearComponentLogs(
 }
 
 /**
- * Drop every component's log history for a bench (#397). Called on bench teardown
+ * Drop every component's log history for a bench (#886). Called on bench teardown
  * alongside the other per-bench in-memory clears (clearLedgerForBench /
  * clearAuditLog / unregisterBrokerContextsForBench / clearComponentStatusForBench),
  * so a bench id that is later reused does not inherit the prior generation's

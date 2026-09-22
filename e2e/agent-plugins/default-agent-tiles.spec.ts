@@ -16,11 +16,11 @@ import {
 // "AP-TC-018".
 const observe = makeObserve("AP-TC-018");
 
-// AP-TC-018 (#681, AP-WU-036) - E2E: selecting a default-agent tile under
+// AP-TC-018 (#1101, AP-WU-036) - E2E: selecting a default-agent tile under
 // Settings, Jigs selects it, deselects the other, and confirms with a toast.
 //
 // ONE test carries the bare id and it asserts EVERY observation of the case
-// (#680): the suite mapper corroborates a case only when exactly one test claims
+// (#1097): the suite mapper corroborates a case only when exactly one test claims
 // it, and a claimant that covers a third of the case is worse than none. The two
 // unit tests that used to split this case between them
 // (ProjectSettings.test.tsx, settings.test.ts) keep their coverage and have had
@@ -36,11 +36,11 @@ const observe = makeObserve("AP-TC-018");
 // CLI are both installed and configured", and with a single available agent the
 // picker force-selects it (AP-TC-041), so there would be nothing to observe. The
 // second agent is the `codex-cli` bundled overlay at
-// e2e/fixtures/bundled-overlays/codex-cli/, which AP-TC-113 (#683) already added
+// e2e/fixtures/bundled-overlays/codex-cli/, which AP-TC-113 (#1095) already added
 // for its compatibility line. This spec reuses it as-is and needs nothing from
 // it beyond its id and name: it never launches through it, and it writes its own
-// argv log rather than the claude one (#532), so enabling it disturbs no other
-// guard's evidence. It does carry a configSchema since #532, which is why every
+// argv log rather than the claude one (#1128), so enabling it disturbs no other
+// guard's evidence. It does carry a configSchema since #1128, which is why every
 // `config-field-*` read in this directory is scoped to its own agent card.
 //
 // The overlay is force-DISABLED by every /test/__reset (see

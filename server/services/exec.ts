@@ -38,7 +38,7 @@ export function parseCommand(command: string): string[] {
 const SAFE_SHELL_RE = /^(?:\/[\w./-]+|[\w.-]+)$/;
 
 /**
- * Resolves how a configured command line is spawned (#836).
+ * Resolves how a configured command line is spawned (#1218).
  *
  * Commands in `roubo.yaml` are ARGV BY DEFAULT: `parseCommand` tokenizes the
  * string and the first token is the executable, so `&&`, `;`, globs and `$VAR`
@@ -84,12 +84,12 @@ export function resolveSpawn(
 }
 
 /** Shell-significant characters that are inert in argv mode. Used to explain a
- *  failed argv-mode spawn in terms of the missing shell (#836). */
+ *  failed argv-mode spawn in terms of the missing shell (#1218). */
 const SHELL_METACHARACTER_RE = /[&|;<>$`*?(){}[\]~\n]|^cd\s/;
 
 /**
  * Explains an argv-mode spawn failure when the command carries shell syntax
- * that argv mode cannot honour (#836, AC7). Returns undefined when the command
+ * that argv mode cannot honour (#1218, AC7). Returns undefined when the command
  * holds no shell metacharacter, so an ordinary typo keeps its ordinary error.
  */
 export function shellHintForCommand(command: string): string | undefined {

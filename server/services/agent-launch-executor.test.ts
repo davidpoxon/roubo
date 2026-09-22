@@ -58,7 +58,7 @@ describe("validateDescriptor", () => {
     expect(() => validateDescriptor("claude --print")).toThrow(AgentDescriptorError);
   });
 
-  // Issue #661: a `v`-prefixed floor used to validate here and then classify every
+  // #1076: a `v`-prefixed floor used to validate here and then classify every
   // detected version as `below-floor`, hard blocking the agent with a misleading
   // message. It is an authoring mistake, so it is named as one at validation.
   it("rejects a version-probe bound that is not exact semver, naming the field", () => {
@@ -82,7 +82,7 @@ describe("collectWorkspaceWrites", () => {
 
   // Both notification arms that register their hook in a workspace file put the
   // carrier write through this one collection, so it reaches the same
-  // path-validated executeWorkspaceWrites route (issue #854).
+  // path-validated executeWorkspaceWrites route (#1264).
   const CARRIER_WRITE = {
     relPath: "c.json",
     format: "json",
@@ -367,14 +367,14 @@ describe("executeWorkspaceWrites", () => {
 });
 
 /**
- * The Cursor hook registration (issue #890, APCC-TC-048). `.cursor/hooks.json`
+ * The Cursor hook registration (#1344, APCC-TC-048). `.cursor/hooks.json`
  * holds arrays of `{ command }` objects, so `unionArray` cannot merge them and
  * `set` replaced the whole array, taking a `stop` hook of the user's with it.
  *
  * The registered command carries a per-launch session id, so the match needles
  * on the part that does not change between launches: the notifier path.
  */
-describe("upsertArray (issue #890)", () => {
+describe("upsertArray (#1344)", () => {
   const NOTIFIER = "/home/u/.roubo/bin/roubo-notify";
 
   function hooksWrite(sessionId: string): WorkspaceWriteSpec {
@@ -693,7 +693,7 @@ describe("the plugin itself still cannot write the workspace (AP-TC-014 S003-O02
   });
 });
 
-describe("joinShellCommand (issue #854)", () => {
+describe("joinShellCommand (#1264)", () => {
   it("leaves plain words bare and joins them with single spaces", () => {
     expect(joinShellCommand(["/home/u/.roubo/bin/roubo-notify", "abc-123", "--x=1"])).toBe(
       "/home/u/.roubo/bin/roubo-notify abc-123 --x=1",

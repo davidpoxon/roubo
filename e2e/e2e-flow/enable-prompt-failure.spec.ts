@@ -5,7 +5,7 @@ import {
   resetWithScenario,
 } from "./_support/scenario.js";
 
-// IP-TC-154 (#222, IP-US-017, IP-FR-061, IP-NFR-024): the project-load Enable prompt's
+// IP-TC-154 (#261, IP-US-017, IP-FR-061, IP-NFR-024): the project-load Enable prompt's
 // failure recovery path. When the plugin a project needs is disabled and its
 // process refuses to start, clicking Enable must surface the failure inline,
 // leave plugins-state.json in its previous disabled state, keep the project

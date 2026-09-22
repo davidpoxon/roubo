@@ -21,7 +21,7 @@ export default function EmptyBenchCard({
   onCreateBlank: () => void;
   onPickIssue: (position: number) => void;
   // When true (and a handler is supplied), the menu offers a "Create a TestBench"
-  // option (#418). Kept presentational: the parent reads the feature flag and owns
+  // option (#467). Kept presentational: the parent reads the feature flag and owns
   // the spec-picker modal.
   testBenchEnabled?: boolean;
   onCreateTestBench?: (position: number) => void;

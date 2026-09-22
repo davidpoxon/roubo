@@ -25,7 +25,7 @@ import {
 import { getEffectiveAgentConfig } from "./agent-overrides.js";
 import { mergeAgentConfig } from "./agent-project-overrides.js";
 
-// Agent tool presets (AP-FR-008, AP-FR-009, issue #516).
+// Agent tool presets (AP-FR-008, AP-FR-009, #1057).
 //
 // The producer for the `preset` layer that `agent-launch-pipeline` already
 // accepts. A preset is a named launch configuration: an agent binding, a bag of
@@ -50,7 +50,7 @@ import { mergeAgentConfig } from "./agent-project-overrides.js";
 //    being created for one. The bad-param half of that applies to `app` and
 //    `project` presets only: a built-in can be neither edited nor deleted, so it
 //    degrades instead of dying, dropping the rejected keys and launching with
-//    what is left (issue #654, `withValidatedParams` below).
+//    what is left (#1070, `withValidatedParams` below).
 
 const DEFAULT_AGENT_TOOL_ICON = "bot";
 
@@ -71,7 +71,7 @@ export function resolveAgentPreset(
   // Omitting `defaults` means "read the stored default here". A caller
   // resolving a batch passes the object instead, having read the default once
   // itself, so the batch costs one settings read rather than one per preset
-  // (issue #649). The object wrapper is what makes that work: `loadSettings` is
+  // (#1062). The object wrapper is what makes that work: `loadSettings` is
   // uncached, and a bare optional parameter could not tell "no default is set"
   // (an explicit `undefined`) apart from "not supplied", so every no-default
   // preset would re-read the file.
@@ -148,7 +148,7 @@ function unavailable(
  *    exactly as a project-level override is (`routes/project-agents.ts`).
  *    Checking the bare bag would let a `configSchema` that marks any field
  *    required reject every preset that overrides only some other field, which
- *    would take `Agent (Plan)` and `Agent (Auto)` down with it (issue #516).
+ *    would take `Agent (Plan)` and `Agent (Auto)` down with it (#1057).
  *    That case is an error on a key the preset does NOT set, which is why the
  *    filter below drops it.
  * 2. The built-ins hardcode `mode`, which is a per-plugin `configSchema` key
@@ -158,12 +158,12 @@ function unavailable(
  *    edited nor deleted, so a hard rejection would leave two of the three
  *    built-ins permanently unlaunchable. Built-ins therefore degrade: the
  *    rejected keys are dropped from the resolved params (`Agent (Plan)` becomes
- *    plain `Agent`) and the reduced overlay is revalidated (issue #654). `app`
+ *    plain `Agent`) and the reduced overlay is revalidated (#1070). `app`
  *    and `project` presets keep the hard rejection, because a user can actually
  *    edit those.
  *
  * 3. A key the agent's schema never DECLARES is a third case, and it is routed
- *    by binding rather than by source (issue #743). Such a key raises no Ajv
+ *    by binding rather than by source (#1149). Such a key raises no Ajv
  *    error at all on the shipped manifests, which set no `additionalProperties`,
  *    so it used to survive validation and reach an agent that drops it on the
  *    floor, unreported. It is now reported like any other rejected key, but a
@@ -187,7 +187,7 @@ function unavailable(
  *    stricter bar than `Agent` against the very same agent would resurrect the
  *    dead built-in this carve-out exists to prevent.
  *
- *    The drop is reported rather than silent (issue #665): a built-in that
+ *    The drop is reported rather than silent (#1080): a built-in that
  *    degrades carries `degraded`, naming the dropped keys, so a launch surface
  *    can say that `Agent (Plan)` will behave as plain `Agent` here. It is
  *    advisory and sits beside `unresolved`, never inside it, because the preset
@@ -249,7 +249,7 @@ function withValidatedParams(
       ...resolved,
       params: overlay,
       // Attached on the clean return only, so `degraded` always means
-      // "launchable, but not what its name says", never "broken" (issue #665).
+      // "launchable, but not what its name says", never "broken" (#1080).
       ...(droppedParams.length > 0 && {
         degraded: {
           droppedParams,
@@ -274,8 +274,8 @@ function withValidatedParams(
  *
  * A built-in only ever carries the params it hardcodes, so dropping them leaves
  * nothing behind and "launches as a plain agent" says exactly what happened
- * (issue #665). A user-authored preset that degrades on an undeclared key can
- * keep other params the agent does accept (issue #743), and calling that a plain
+ * (#1080). A user-authored preset that degrades on an undeclared key can
+ * keep other params the agent does accept (#1149), and calling that a plain
  * agent would understate what still applies, so it reports the drop alone.
  */
 function degradedMessage(
@@ -299,7 +299,7 @@ function degradedMessage(
  * Ajv answers only for the keys a `configSchema` explicitly refuses, and the
  * bundled agent plugins leave `additionalProperties` unset, so a key their
  * schema merely omits used to validate clean and be passed through to an agent
- * that ignores it (issue #743). `unknownConfigKeys` supplies that second,
+ * that ignores it (#1149). `unknownConfigKeys` supplies that second,
  * conservative signal, folded in here as the same `ConfigFieldError` shape so
  * the routing above treats both the same way. Deduped by path, because a schema
  * that does close `additionalProperties` must still report each key once.

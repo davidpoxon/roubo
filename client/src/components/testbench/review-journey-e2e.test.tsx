@@ -3,13 +3,13 @@
 // Integration-level E2E test for the review-UI journey: open a plan, mark
 // observations, verify derived/override status, append a note, verify the
 // progress rollup. It asserts the authoritative e2e_flow case TC-020 end to end
-// (#439).
+// (#483).
 //
 // This is the journey's drift guard. It exercises the already-pure, importable
 // seams of the slices it spans (the FR-009 derived-status machine, the FR-011
 // append-only Note contract, the FR-012/FR-013 rollup), rather than
 // re-implementing or DOM-driving any of them. The slices owned by this work unit
-// are #409, #412, #415, #416, #419, #420 and #421; a failing step is localised
+// are #427, #446, #457, #459, #466, #471, #464; a failing step is localised
 // back to the owning slice(s) via OWNING_SLICES below (FR-020).
 //
 // jsdom is required because the note step optionally renders NotesRail to assert
@@ -44,9 +44,10 @@ beforeEach(() => {
   } as unknown as ReturnType<typeof useAppendNote>);
 });
 
-// The slices this journey integrates, from #439's blocked_by / covers set.
+// The slices this journey integrates, from the work unit's blocked_by / covers set.
 // Reported when a step diverges so a failure is attributable (FR-020).
-const OWNING_SLICES = "#409, #412, #415, #416, #419, #420, #421";
+const OWNING_SLICES =
+  "git-identity helper spike, testbench-domain derived-status state machine + canonicalize hash, testbench-store validated sidecar read/write, testbench REST routes, review tab shell: grouped case list + progress rollup, case detail + observation mark control + derived/override status, append-only notes rail + author stamping";
 
 // Canonical TC-020 step labels, declared once as the single source of truth.
 // They are both the labels the journey runs under and the expected sequence the
@@ -178,7 +179,7 @@ function buildNote(caseResult: CaseResult, id: string, text: string, timestamp: 
 // ── FR-020 failure-output wrapper ──
 //
 // Each TC-020 step runs inside step(): on divergence it reports the diverging
-// e2e_flow step label, the expected-vs-actual, and the owning slice issue(s), so
+// e2e_flow step label, the expected-vs-actual, and the owning slice(s), so
 // a failure is attributable to a slice rather than the whole journey.
 function step<T>(label: string, expectation: string, body: () => T): T {
   try {

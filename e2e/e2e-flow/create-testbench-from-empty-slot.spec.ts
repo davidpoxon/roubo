@@ -7,7 +7,7 @@ import {
 } from "./_support/scenario.js";
 import { OWNING_SLICES, TC_001_PLAN, TESTBENCH_SPEC_SLUG } from "./_support/testbench-plan.js";
 
-// E2E (#438): the authoritative `e2e_flow` drift guard for the
+// E2E (#478): the authoritative `e2e_flow` drift guard for the
 // "create a TestBench from an empty bench slot using a discovered spec" journey
 // (TC-001, US-001/US-002, FR-001/FR-002/FR-004/FR-005). It walks the integrated
 // system end to end against the BUILT app: enable the feature, register a fixture
@@ -15,7 +15,7 @@ import { OWNING_SLICES, TC_001_PLAN, TESTBENCH_SPEC_SLUG } from "./_support/test
 // the empty-slot menu -> spec-picker -> select -> Create -> bench detail ->
 // TestBench-first tab -> TestBench panel, and assert each leg matches TC-001.
 //
-// Unlike the per-slice unit tests (#414/#416/#418/#419 own those), this asserts
+// Unlike the per-slice unit tests (#456/#459/#467/#466 own those), this asserts
 // the journey, not any single slice's implementation. Each step is wrapped in a
 // labelled `test.step` so a failure localises the diverging step, reports the
 // expected-vs-actual at that step, and names the owning slice (FR-020 / AC7).
@@ -66,7 +66,7 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
 }) => {
   // ── Preconditions: feature enabled, project with a discoverable spec, on the
   // bench list view ──────────────────────────────────────────────────────────
-  await test.step("Precondition: enable the TestBench feature (#414)", async () => {
+  await test.step("Precondition: enable the TestBench feature (#456)", async () => {
     await enableTestBench(request);
   });
 
@@ -90,8 +90,8 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
     await expect(page.getByText("Available").first()).toBeVisible();
   });
 
-  // ── Step 1: open the empty-slot option menu (AC1, #418) ─────────────────────
-  await test.step("Step 1: open the option menu on an empty bench slot (#418)", async () => {
+  // ── Step 1: open the empty-slot option menu (AC1, #467) ─────────────────────
+  await test.step("Step 1: open the option menu on an empty bench slot (#467)", async () => {
     await page.getByText("Bench 1").locator("xpath=ancestor::button[1]").click();
     // Expected: the menu lists the standard options plus 'Create a TestBench'.
     await expect(
@@ -109,7 +109,7 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
   // popover (DialogTrigger) also carries role="dialog", so a bare
   // getByRole("dialog") is ambiguous.
   const dialog = page.getByRole("dialog", { name: "Create a TestBench" });
-  await test.step("Step 2: click 'Create a TestBench' -> spec-picker modal opens (AC1, #418)", async () => {
+  await test.step("Step 2: click 'Create a TestBench' -> spec-picker modal opens (AC1, #467)", async () => {
     await page.getByRole("button", { name: "Create a TestBench" }).click();
     await expect(dialog, `${OWNING_SLICES.specPicker}: spec-picker modal opens`).toBeVisible();
     await expect(
@@ -124,7 +124,7 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
   // ToggleButtonGroup, so it exposes role="radio"; its accessible name is the
   // concatenation of slug + path + case count, which starts with the slug.
   const specRow = dialog.getByRole("radio", { name: new RegExp(`^${TESTBENCH_SPEC_SLUG}`) });
-  await test.step("Step 3: the discovered row shows slug, path, and case count matching the seeded spec (AC2, #418)", async () => {
+  await test.step("Step 3: the discovered row shows slug, path, and case count matching the seeded spec (AC2, #467)", async () => {
     await expect(
       specRow,
       `${OWNING_SLICES.discoveredRow}: a discovered row matches the seeded spec slug "${TESTBENCH_SPEC_SLUG}"`,
@@ -146,7 +146,7 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
 
   // ── Step 4: select the row -> highlighted + Create enabled (AC3 precondition) ─
   const createButton = dialog.getByRole("button", { name: "Create TestBench" });
-  await test.step("Step 4: select the spec row -> row highlighted, Create enabled (#418)", async () => {
+  await test.step("Step 4: select the spec row -> row highlighted, Create enabled (#467)", async () => {
     // Before selection the Create button is disabled.
     await expect(createButton, OWNING_SLICES.specPicker).toBeDisabled();
     await specRow.click();
@@ -161,7 +161,7 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
   });
 
   // ── Step 5: Create -> modal closes, bench created spec-bound, detail opens (AC3) ─
-  await test.step("Step 5: click Create -> modal closes, spec-bound bench created, detail opens (AC3, #416)", async () => {
+  await test.step("Step 5: click Create -> modal closes, spec-bound bench created, detail opens (AC3, #459)", async () => {
     await createButton.click();
     await expect(dialog, `${OWNING_SLICES.specPicker}: modal closes on Create`).toBeHidden();
     // Bench detail view opens at /projects/:id/benches/:benchId (first bench => 1).
@@ -191,7 +191,7 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
 
   // ── Step 6: tabs -> TestBench first (amber), standard tabs retained in order (AC4) ─
   const tablist = page.getByRole("tablist");
-  await test.step("Step 6: TestBench is the first tab (amber) with standard tabs retained in order (AC4, #416)", async () => {
+  await test.step("Step 6: TestBench is the first tab (amber) with standard tabs retained in order (AC4, #459)", async () => {
     await expect(tablist).toBeVisible();
     const tabs = tablist.getByRole("tab");
     // Inspection is only present when configured; the fixture has no inspection
@@ -218,13 +218,13 @@ test("TC-001: create a TestBench from an empty bench slot using a discovered spe
   });
 
   // ── Step 7: TestBench tab content -> focused slug/path + results panel (AC5) ─
-  await test.step("Step 7: TestBench tab content loads focused slug/path + results panel (AC5, #419)", async () => {
+  await test.step("Step 7: TestBench tab content loads focused slug/path + results panel (AC5, #466)", async () => {
     // The create flow opens the bench on the TestBench tab already; click it
     // explicitly to mirror TC-001's "Click the TestBench tab" step.
     await tablist.getByRole("tab", { name: /^TestBench/ }).click();
     const testBenchPanel = page.getByRole("tabpanel");
     await expect(testBenchPanel).toBeVisible();
-    // The view toggle now opens on the "Batches" surface by default (#359);
+    // The view toggle now opens on the "Batches" surface by default (#842);
     // switch to the Cases review this step asserts on (overall rollup + cases).
     await showTestBenchCasesView(page);
     // Focused spec identity: slug + the full path to its test-cases.json.

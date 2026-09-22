@@ -34,7 +34,7 @@ vi.mock("../hooks/useAgentPlugins", () => ({
 }));
 
 // The Agent tools section reads the app-scoped resolved presets over the wire
-// (issue #672). `renderWithProviders` supplies the query client, so this is not
+// (#1084). `renderWithProviders` supplies the query client, so this is not
 // load-bearing for rendering; it keeps these cases off a real fetch. Partial
 // mock: `useAgentTools` itself stays real, projected over the mocked settings.
 vi.mock("../hooks/useAgentTools", async (importOriginal) => {
@@ -195,7 +195,7 @@ describe("ProjectSettings", () => {
       expect(screen.getByRole("tab", { name: "Marketplaces" })).toBeInTheDocument();
     });
 
-    it("renders inactive tabs in the text-secondary token for both themes (#885)", () => {
+    it("renders inactive tabs in the text-secondary token for both themes (#1275)", () => {
       render();
       const inactive = screen.getByRole("tab", { name: "Appearance" });
       expect(inactive).toHaveAttribute("aria-selected", "false");
@@ -210,7 +210,7 @@ describe("ProjectSettings", () => {
       expect(screen.queryByRole("tab", { name: "Integrations" })).toBeNull();
     });
 
-    it("no longer renders the retired built-in agent tab (#521)", () => {
+    it("no longer renders the retired built-in agent tab (#1114)", () => {
       render();
       expect(screen.queryByRole("tab", { name: "Claude Code" })).toBeNull();
     });
@@ -232,7 +232,7 @@ describe("ProjectSettings", () => {
       expect(screen.getByRole("tab", { name: "Plugins" })).toHaveAttribute("aria-selected", "true");
     });
 
-    it("pre-selects the Marketplaces tab when the URL hash is #marketplaces (issue #561)", () => {
+    it("pre-selects the Marketplaces tab when the URL hash is #marketplaces (#976)", () => {
       mockedUseLocation.mockReturnValue({ hash: "#marketplaces" } as ReturnType<
         typeof useLocation
       >);
@@ -1100,7 +1100,7 @@ describe("ProjectSettings", () => {
       expect(within(group).getByText("opus · high · plan")).toBeInTheDocument();
     });
 
-    // Untagged on purpose (#680): AP-TC-018 has three observations and this test
+    // Untagged on purpose (#1097): AP-TC-018 has three observations and this test
     // asserts one of them, so leaving the bare id here would make the suite
     // mapper choose between two partial candidates and corroborate neither. The
     // whole case is carried by e2e/agent-plugins/default-agent-tiles.spec.ts.
@@ -1184,7 +1184,7 @@ describe("ProjectSettings", () => {
 
     it("shows neither the empty state nor a picker while the agents query is in flight", async () => {
       // `undefined` data is "not known yet", not "zero agents": claiming nothing
-      // is configured before the fetch lands is simply wrong (#647).
+      // is configured before the fetch lands is simply wrong (#1052).
       setAgentsPending();
       await openJigsTab();
 
@@ -1243,7 +1243,7 @@ describe("ProjectSettings", () => {
     it("does not call a bound jig's agent unavailable while the agents query is in flight", async () => {
       // The binding is fine; the client just has not heard back yet. Warning
       // here contradicts the server, whose `resolveLaunchAgentId` will happily
-      // use the bound agent (#647).
+      // use the bound agent (#1052).
       setAgentsPending();
       mockedUseGlobalJigs.mockReturnValue({
         data: [{ ...jigs[0], agentPluginId: "codex-cli" }],

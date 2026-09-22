@@ -9,7 +9,7 @@ import type { ResolvedTemplateContext } from "./config-parser.js";
 
 // Bench setup is the only runCommand call routed through a login shell, so the
 // shell flag is what identifies it in the mock call list. Resolve it the same
-// way production does rather than hardcoding, since it varies by $SHELL (#628).
+// way production does rather than hardcoding, since it varies by $SHELL (#996).
 const [LOGIN_SHELL_FLAGS] = loginShellScriptArgs("");
 
 vi.mock("./project-registry.js", () => ({
@@ -157,7 +157,7 @@ vi.mock("./git-helpers.js", () => ({
   DEFAULT_BRANCH_RESOLUTION_ERROR: "Could not determine the default branch",
 }));
 
-// #612: bench-manager delegates each component to its bound plugin. The
+// #663: bench-manager delegates each component to its bound plugin. The
 // registry resolves the binding (plugin id + a stub live connection) and
 // plugin-manager.invoke("translate", ...) synthesizes the ProvisionDescriptor
 // from the component's legacy shim fields (type/docker/command/...), so the REAL
@@ -183,7 +183,7 @@ vi.mock("./plugin-manager.js", () => ({
   unregisterBrokerContext: vi.fn(),
 }));
 
-// The missing-plugin enrichment (issue #566) resolves which marketplace sources
+// The missing-plugin enrichment (#978) resolves which marketplace sources
 // serve an uninstalled bound plugin. Mocked to serve nothing by default: the real
 // resolver fans out across every registered source over the network, and only the
 // not-installed tests below care about the answer.
@@ -221,7 +221,7 @@ beforeEach(async () => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "debug").mockImplementation(() => {});
-  // pre-restart cleanup now logs a normal-level composeDown success (#411).
+  // pre-restart cleanup now logs a normal-level composeDown success (#894).
   vi.spyOn(console, "info").mockImplementation(() => {});
 
   benchManager = await import("./bench-manager.js");
@@ -294,7 +294,7 @@ beforeEach(async () => {
 });
 
 // Build a ProvisionDescriptor from a component's legacy inline fields (the test
-// fixtures still carry them as the #609 transition shim). Mirrors what the
+// fixtures still carry them as the #652 transition shim). Mirrors what the
 // bundled process / database plugin `translate` functions produce, so the real
 // LifecycleEngine exercises the mocked host services identically to the old
 // built-in dispatch.
@@ -434,8 +434,8 @@ function setupExistingBench(overrides?: {
 }) {
   // bench-manager still dispatches component start/stop off the legacy inline
   // fields (`type` / `command` / `docker`); moving that onto the plugin contract
-  // is #612 (F1.11). Until then these behavioural tests need a backend that
-  // carries those fields, so the default carries them via the #609
+  // is #663 (F1.11). Until then these behavioural tests need a backend that
+  // carries those fields, so the default carries them via the #652
   // `ComponentBinding` transition shim alongside the canonical plugin binding.
   const config =
     overrides?.config ??
@@ -669,7 +669,7 @@ describe("initialize", () => {
     expect(bench.components.backend.setupComplete).toBe(false);
   });
 
-  it("rehydrates a runtime-reported url from persisted componentUrls (#833)", () => {
+  it("rehydrates a runtime-reported url from persisted componentUrls (#1206)", () => {
     const config = makeConfig({
       components: {
         backend: { type: "process", command: "npm start" },
@@ -707,7 +707,7 @@ describe("initialize", () => {
     ["a command separator", "https://example.test/x;id"],
     ["a newline", "https://example.test/x\ntouch /tmp/pwned"],
     ["a malformed url", "not a url"],
-  ])("drops a persisted componentUrls entry carrying %s (#833)", (_label, url) => {
+  ])("drops a persisted componentUrls entry carrying %s (#1206)", (_label, url) => {
     const config = makeConfig({
       components: {
         backend: { type: "process", command: "npm start" },
@@ -835,12 +835,12 @@ describe("createBench", () => {
     expect(bench.ports).toEqual({ backend: 5001 });
     expect(bench.components.backend).toBeDefined();
     // Worktree-only create: provisioningSteps contains only the workspace step.
-    // Component steps are populated when Start runs (issue #3).
+    // Component steps are populated when Start runs.
     expect(bench.provisioningSteps).toHaveLength(1);
     expect(bench.provisioningSteps[0].id).toBe("workspace");
   });
 
-  it("seeds benchSetupComplete false even when the project has no benches.setup (#630)", () => {
+  it("seeds benchSetupComplete false even when the project has no benches.setup (#997)", () => {
     // Recording `true` here would be indistinguishable from a genuine
     // completion once the bench is hydrated (initialize coerces an absent flag
     // to `true`), so a `benches.setup` added to roubo.yaml later would never
@@ -1106,7 +1106,7 @@ describe("background provisioning", () => {
     expect(bench.provisioningSteps[0].status).toBe("done");
   });
 
-  it("does not create a record for a bench cleared mid-provisioning (#829)", async () => {
+  it("does not create a record for a bench cleared mid-provisioning (#1191)", async () => {
     // Clearing during provisioning is supported, and `worktree add` is slow
     // enough to be interrupted. Teardown removes nothing (no record exists yet)
     // and drops the bench from the map, so an unguarded create would write a
@@ -1142,7 +1142,7 @@ describe("background provisioning", () => {
     expect(stateService.addBench).not.toHaveBeenCalled();
   });
 
-  it("carries fields set while provisioning was still running onto the created record (#829)", async () => {
+  it("carries fields set while provisioning was still running onto the created record (#1191)", async () => {
     // The record is only created once the workspace exists, so anything a
     // caller persisted before that point found no record to update and no-opped
     // (`updateBench` is deliberately no-op-when-absent). Issue assignment sets
@@ -1246,7 +1246,7 @@ describe("background provisioning", () => {
     expect(bench.components.backend.setupComplete).toBe(false); // component setup hasn't run yet
     expect(processManager.startProcess).not.toHaveBeenCalled();
     expect(dockerService.composeUp).not.toHaveBeenCalled();
-    // The bench-level setup ("npm ci") runs once at init (#627), but the
+    // The bench-level setup ("npm ci") runs once at init (#995), but the
     // component setup ("dotnet restore") stays deferred to the Start path.
     const runCommandCalls = vi.mocked(execModule.runCommand).mock.calls;
     expect(runCommandCalls.some((c) => c[0] === "dotnet")).toBe(false);
@@ -1776,7 +1776,7 @@ describe("background provisioning", () => {
     it("runs bench setup at init but not component setup or launch when setting is off (default)", async () => {
       // The bench-level setup command (`benches.setup`, e.g. `npm ci`) must run
       // once when a bench is first initialised even when components do not
-      // auto-start (#627); component setup and launch stay deferred to Start.
+      // auto-start (#995); component setup and launch stay deferred to Start.
       withAutoStart(false);
       setupCreateBenchMocks({
         project: makeProject({
@@ -1856,7 +1856,7 @@ describe("background provisioning", () => {
 
     it("marks the bench in error and notifies when bench setup fails at init", async () => {
       // A failing `benches.setup` command at init (components not auto-starting)
-      // must surface as a bench error with the bench-error notification (#627).
+      // must surface as a bench error with the bench-error notification (#995).
       withAutoStart(false);
       setupCreateBenchMocks({
         project: makeProject({
@@ -1916,7 +1916,7 @@ describe("background provisioning", () => {
       // boundaries had settled: waiting on the runCommand mock directly is a
       // stronger sync point than just bench.status.
       // bench-setup ("npm ci") still runs via runCommand; component-setup
-      // ("npm install") now runs through the engine's process-manager (#612).
+      // ("npm install") now runs through the engine's process-manager (#663).
       await vi.waitFor(() => {
         const bench = benchManager.getBench("test-project", 1);
         expect(bench?.status).toBe("active");
@@ -2817,7 +2817,7 @@ describe("teardownBench", () => {
     expect(bench.teardownSteps.every((s) => s.status === "pending")).toBe(true);
   });
 
-  it("removes the persisted record and flips isBenchLive false (#829)", async () => {
+  it("removes the persisted record and flips isBenchLive false (#1191)", async () => {
     // The durable half of a clear. Background writers (notification persists,
     // component-setup tails) gate on isBenchLive, and state.updateBench refuses
     // to recreate an absent record, so both representations have to end empty
@@ -3040,7 +3040,7 @@ describe("teardownBench", () => {
     setupDockerServiceMocks();
 
     // Start so the engine caches the docker descriptor that teardown reads for
-    // its docker-down step (#612: step derivation is no longer config-driven).
+    // its docker-down step (#663: step derivation is no longer config-driven).
     await benchManager.startComponent("test-project", 1, "db");
 
     const bench = benchManager.teardownBench("test-project", 1, true);
@@ -3130,13 +3130,13 @@ describe("teardownBench", () => {
     expect(errorSpy.mock.calls[0][0]).toContain("bench 1");
     expect(errorSpy.mock.calls[0][0]).toContain("/home/.roubo/workspaces/test-project/bench-1");
     expect(errorSpy.mock.calls[0][0]).toContain("worktree remove");
-    // Both representations survive together (#831, AC1): the persisted record is
+    // Both representations survive together (#1205, AC1): the persisted record is
     // never dropped while the in-memory bench is kept, which is the divergence
-    // #829 fixed from the other direction.
+    // #1191 fixed from the other direction.
     expect(stateService.removeBench).not.toHaveBeenCalled();
     expect(benchManager.getBench("test-project", 1)).toBeDefined();
     expect(benchManager.isBenchLive("test-project", 1)).toBe(true);
-    // The leftovers are named rather than silently orphaned (#831, AC2), and the
+    // The leftovers are named rather than silently orphaned (#1205, AC2), and the
     // error says the bench can be cleared again.
     expect(bench.error).toContain("/home/.roubo/workspaces/test-project/bench-1");
     expect(bench.error).toMatch(/branch bench-1/);
@@ -3192,7 +3192,7 @@ describe("teardownBench", () => {
     expect(benchManager.getBench("test-project", 1)).toBeDefined();
     expect(benchManager.isBenchLive("test-project", 1)).toBe(true);
     // The workspace WAS removed before the branch delete threw, so only the
-    // branch is reported as left behind (#831, AC2).
+    // branch is reported as left behind (#1205, AC2).
     expect(bench.error).toMatch(/branch bench-1/);
     expect(bench.error).not.toContain("workspace directory");
     expect(bench.error).toMatch(/clear it again/i);
@@ -3209,7 +3209,7 @@ describe("teardownBench", () => {
     errorSpy.mockRestore();
   });
 
-  it("reports no leftovers when the failure happens before workspace removal (#831)", async () => {
+  it("reports no leftovers when the failure happens before workspace removal (#1205)", async () => {
     setupExistingBench();
     setupProcessMocks();
     // The terminals step runs before remove-workspace, so a throw there means
@@ -3229,7 +3229,7 @@ describe("teardownBench", () => {
     expect(benchManager.getBench("test-project", 1)).toBeDefined();
   });
 
-  it("re-persists and re-broadcasts on a repeated teardown failure (#831)", async () => {
+  it("re-persists and re-broadcasts on a repeated teardown failure (#1205)", async () => {
     setupExistingBench();
     setupProcessMocks();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -3379,12 +3379,12 @@ describe("teardownBench", () => {
     warnSpy.mockRestore();
   });
 
-  it("keeps the bench and names the directory when rmSync cannot remove the orphan (#831)", async () => {
+  it("keeps the bench and names the directory when rmSync cannot remove the orphan (#1205)", async () => {
     setupExistingBench();
     setupProcessMocks();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     // Directory exists on disk but is no longer tracked as a worktree, and the
-    // rmSync that would clear it fails. Before #831 this warn was swallowed and
+    // rmSync that would clear it fails. Before #1205 this warn was swallowed and
     // teardown carried on to drop the bench from state and memory, orphaning the
     // directory with nothing left to report it against.
     vi.mocked(fs.default.existsSync).mockReturnValue(true);
@@ -3406,10 +3406,10 @@ describe("teardownBench", () => {
     await flushBackground();
 
     expect(bench.status).toBe("error");
-    // Both representations still agree (#831, AC1)
+    // Both representations still agree (#1205, AC1)
     expect(stateService.removeBench).not.toHaveBeenCalled();
     expect(benchManager.getBench("test-project", 1)).toBeDefined();
-    // The surviving directory is named, not silently orphaned (#831, AC2)
+    // The surviving directory is named, not silently orphaned (#1205, AC2)
     expect(bench.error).toContain("/home/.roubo/workspaces/test-project/bench-1");
     expect(bench.error).toContain("EACCES: permission denied");
     expect(bench.error).toMatch(/clear it again/i);
@@ -3737,7 +3737,7 @@ describe("startComponent", () => {
     expect(bench.components.backend.status).toBe("running");
   });
 
-  it("delegates to the bound plugin's translate then the LifecycleEngine (#612)", async () => {
+  it("delegates to the bound plugin's translate then the LifecycleEngine (#663)", async () => {
     setupExistingBench();
     setupProcessMocks();
 
@@ -3754,10 +3754,10 @@ describe("startComponent", () => {
     );
   });
 
-  it("surfaces a clear error when a component has no plugin binding (#612)", async () => {
+  it("surfaces a clear error when a component has no plugin binding (#663)", async () => {
     setupExistingBench();
     setupProcessMocks();
-    // A component that resolves to not-bound (config migration #614 is out of
+    // A component that resolves to not-bound (config migration #664 is out of
     // scope) is reported as an actionable error, not silently skipped.
     vi.mocked(componentRegistry.resolveBinding).mockReturnValue({ reason: "not-bound" });
 
@@ -3766,11 +3766,11 @@ describe("startComponent", () => {
     });
   });
 
-  // Issue #566 (CPHMTP-FR-008 / CPHMTP-US-002): a bound-but-uninstalled plugin id
+  // #978 (CPHMTP-FR-008 / CPHMTP-US-002): a bound-but-uninstalled plugin id
   // is resolved against the merged catalog so the missing-plugin error can be
   // actionable. The three states are the three honest outcomes of the FR-005
   // no-precedence rule, and each fixes what the error may offer.
-  describe("missing-plugin install-from-source resolution (issue #566)", () => {
+  describe("missing-plugin install-from-source resolution (#978)", () => {
     const ACME_ID = "marketplace-acme-example-1a2b3c4d";
 
     function source(id: string, label: string) {
@@ -3908,7 +3908,7 @@ describe("startComponent", () => {
     // Only not-installed is enrichable: a consent or compatibility blocker is not
     // something a marketplace install fixes, so those carry no install affordance.
     // The consent blocker still carries its own `consent.pluginId` payload so the
-    // bench page can open an actionable consent prompt (issue #617, AC3).
+    // bench page can open an actionable consent prompt (#991, AC3).
     it("does not resolve sources for a reason an install cannot fix", async () => {
       setupExistingBench();
       setupProcessMocks();
@@ -3926,13 +3926,13 @@ describe("startComponent", () => {
       expect(marketplace.resolveServingSources).not.toHaveBeenCalled();
     });
 
-    // Issue #617 (AC4): a per-component Start rejected at the consent gate must not
+    // #991 (AC4): a per-component Start rejected at the consent gate must not
     // strand the bench in the busy `preparing` state with the component's
     // provisioning step stuck `running` (which disables the bench page Start
     // controls). The step is marked `error`, the bench settles back to a non-busy
     // state, and the component stays in its non-busy `stopped` state so Start stays
     // usable after the 400.
-    it("leaves the bench non-busy and the step not running after a consent-gate rejection (issue #617, AC4)", async () => {
+    it("leaves the bench non-busy and the step not running after a consent-gate rejection (#991, AC4)", async () => {
       setupExistingBench();
       setupProcessMocks();
       vi.mocked(componentRegistry.resolveBinding).mockReturnValue({
@@ -3986,8 +3986,8 @@ describe("startComponent", () => {
     );
   });
 
-  it("injects env into the spawned process (plugin env model, #612)", async () => {
-    // #612: env reaches the process via direct injection (the engine's process
+  it("injects env into the spawned process (plugin env model, #663)", async () => {
+    // #663: env reaches the process via direct injection (the engine's process
     // descriptor env), not by core writing a .env file. The user-visible parity
     // is the variable landing in the spawned process environment.
     const config = makeConfig({
@@ -4360,7 +4360,7 @@ describe("startComponent", () => {
     ]);
   });
 
-  it("surfaces compose and init output on a plugin-backed docker component's logs (AC1, #397)", async () => {
+  it("surfaces compose and init output on a plugin-backed docker component's logs (AC1, #886)", async () => {
     const config = makeConfig({
       components: {
         db: {
@@ -4619,13 +4619,13 @@ describe("startComponent", () => {
 
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
-    // The LifecycleEngine drives phases now (#612); a docker failure surfaces as
+    // The LifecycleEngine drives phases now (#663); a docker failure surfaces as
     // an error status with the failing-phase message, the user-visible contract.
     expect(bench.components.db.status).toBe("error");
     expect(bench.components.db.error).toContain("healthy");
   });
 
-  it("creates a single process phase for a non-docker component (#612)", async () => {
+  it("creates a single process phase for a non-docker component (#663)", async () => {
     setupExistingBench();
     setupProcessMocks();
 
@@ -4688,7 +4688,7 @@ describe("startComponent", () => {
     expect(notificationService.createNotification).not.toHaveBeenCalled();
   });
 
-  // Guard against CodeQL js/prototype-polluting-assignment (alert #27): the
+  // Guard against CodeQL js/prototype-polluting-assignment (alert #66): the
   // component name is user-controlled and indexes plain bench objects.
   describe("prototype-polluting component names", () => {
     afterEach(() => {
@@ -4823,7 +4823,7 @@ describe("stopComponent", () => {
     expect(bench.components.backend.startedAt).toBeUndefined();
   });
 
-  it("broadcasts the stopping and stopped component-status-change events (#397, CP-TC-074)", async () => {
+  it("broadcasts the stopping and stopped component-status-change events (#886, CP-TC-074)", async () => {
     setupExistingBench();
     setupProcessMocks();
 
@@ -4854,7 +4854,7 @@ describe("stopComponent", () => {
     }
   });
 
-  // Guard against CodeQL js/prototype-polluting-assignment (alert #27): the
+  // Guard against CodeQL js/prototype-polluting-assignment (alert #66): the
   // component name is user-controlled and indexes plain bench objects.
   describe("prototype-polluting component names", () => {
     afterEach(() => {
@@ -5186,7 +5186,7 @@ describe("startAllComponents / stopAllComponents", () => {
     expect(processManager.stopProcess).toHaveBeenCalledTimes(6);
   });
 
-  // Issue #400 finding #1 (CP-TC-050): a dependsOn cycle has no valid start
+  // #888 finding #1 (CP-TC-050): a dependsOn cycle has no valid start
   // order, so the bench must be rejected at start (nothing partially started)
   // rather than warned-and-broken. Stop must still tear a cyclic config down.
   const cyclicConfig = () =>
@@ -5224,7 +5224,7 @@ describe("startAllComponents / stopAllComponents", () => {
     expect(bench.components.b.status).toBe("stopped");
   });
 
-  // Issue #400 finding #2 (CP-TC-002 S002-O01): a second start for the same bench
+  // #888 finding #2 (CP-TC-002 S002-O01): a second start for the same bench
   // reuses the descriptor cached from the first start rather than re-invoking the
   // plugin's translate.
   it("reuses the cached descriptor on a second start and does not re-translate (CP-TC-002)", async () => {
@@ -5262,7 +5262,7 @@ describe("startAllComponents / stopAllComponents", () => {
     expect(translateCalls).toHaveLength(2);
   });
 
-  // Issue #400 finding #3 (CP-TC-033 S008-O03, CP-TC-056 S002): a normal stop
+  // #888 finding #3 (CP-TC-033 S008-O03, CP-TC-056 S002): a normal stop
   // clears the component's own resource-ownership rows, and a full bench stop
   // leaves no residual ledger entry for the bench.
   it("clears the stopped component's own ledger rows on a normal stop (CP-TC-056)", async () => {
@@ -5302,7 +5302,7 @@ describe("startAllComponents / stopAllComponents", () => {
     expect(ledgerService.clearEntry).toHaveBeenCalledWith("database", 1);
   });
 
-  // Issue #400 review follow-ups: finding #2's switch to trusting the descriptor
+  // #888 review follow-ups: finding #2's switch to trusting the descriptor
   // cache on start surfaced two cache-staleness paths. Teardown must drop the cache
   // (bench ids are reused), and the shared reconcile/stop resolver must merge an
   // assigned container so it cannot re-cache an assignment-omitting descriptor that
@@ -5499,7 +5499,7 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
     expect(sseService.broadcastBenchStatus).toHaveBeenCalledTimes(2);
   });
 
-  it("also emits the per-component status-change event with the merged status (#397)", () => {
+  it("also emits the per-component status-change event with the merged status (#886)", () => {
     seedBench();
     vi.mocked(sseService.broadcastComponentStatusChange).mockClear();
     const report = benchManager.buildReportStatus("test-project", 1);
@@ -5523,7 +5523,7 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
     );
   });
 
-  // Runtime-reported URLs (#833).
+  // Runtime-reported URLs (#1206).
   it("keeps a reported http(s) url and persists it so it survives a restart", () => {
     seedBench();
     vi.mocked(stateService.updateBench).mockClear();
@@ -5667,7 +5667,7 @@ describe("buildReportStatus / buildReportLog (plugin-backed parity sinks)", () =
     ]);
   });
 
-  it("routes each component's logs to its own store when two components share a bench (#685)", () => {
+  it("routes each component's logs to its own store when two components share a bench (#687)", () => {
     seedBench();
     // One sink for the whole bench (as registerBrokerContextForBench builds it),
     // driven by two components that share the bench's plugin connection.
@@ -6460,8 +6460,8 @@ describe("assignContainer", () => {
     ).rejects.toMatchObject({ code: "COMPONENT_NOT_FOUND" });
   });
 
-  it("no longer rejects a non-database component with a core type guard (#612)", async () => {
-    // #612 removed the `type === "database"` guard: assignment is gated by the
+  it("no longer rejects a non-database component with a core type guard (#663)", async () => {
+    // #663 removed the `type === "database"` guard: assignment is gated by the
     // plugin (via the docker permission), not a core component-type literal. A
     // non-database component is no longer rejected with INVALID_COMPONENT_TYPE;
     // it falls through to generic container validation instead.
@@ -6526,7 +6526,7 @@ describe("assignContainer", () => {
     expect(stateService.updateBench).toHaveBeenCalled();
   });
 
-  it("routes an assigned container through the plugin path on start (#612)", async () => {
+  it("routes an assigned container through the plugin path on start (#663)", async () => {
     setupExistingBench({
       config: dbConfig,
       ports: { backend: 5001, db: 5432 },
@@ -6604,7 +6604,7 @@ describe("assignContainer", () => {
     );
   });
 
-  // Guard against CodeQL js/prototype-polluting-assignment (alert #27): the
+  // Guard against CodeQL js/prototype-polluting-assignment (alert #66): the
   // component name is user-controlled and indexes plain bench objects.
   describe("prototype-polluting component names", () => {
     afterEach(() => {
@@ -6727,7 +6727,7 @@ describe("unassignContainer", () => {
     );
   });
 
-  // Guard against CodeQL js/prototype-polluting-assignment (alert #27): the
+  // Guard against CodeQL js/prototype-polluting-assignment (alert #66): the
   // component name is user-controlled and indexes plain bench objects.
   describe("prototype-polluting component names", () => {
     afterEach(() => {
@@ -6792,7 +6792,7 @@ describe("baseBranch/baseCommit hydration", () => {
 /**
  * Set up an existing bench whose persisted componentSetupState we control.
  *
- * `benchSetupComplete` controls the persisted bench-level setup flag (#630).
+ * `benchSetupComplete` controls the persisted bench-level setup flag (#997).
  * It defaults to `false`, the state of a bench whose `benches.setup` has not
  * yet run to completion, so a bench-level Start still seeds and runs it.
  */
@@ -6841,7 +6841,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
       expect(bench?.status).toBe("active");
     });
 
-    // Setup is now run by the LifecycleEngine through process-manager (#612),
+    // Setup is now run by the LifecycleEngine through process-manager (#663),
     // under the engine's per-component setup id, not core's runCommand.
     expect(processManager.runProcess).toHaveBeenCalledWith(
       "process:1:backend:setup",
@@ -6910,7 +6910,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     );
     setupProcessMocks();
     // The engine runs setup via process-manager; a non-zero setup exit drives
-    // the component to error before the process is started (#612).
+    // the component to error before the process is started (#663).
     vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1, timedOut: false });
 
     benchManager.startAllComponents("test-project", 1);
@@ -6954,15 +6954,15 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     );
     const finalBench = benchManager.getBench("test-project", 1);
     expect(finalBench?.provisioningSteps.find((s) => s.id === "bench-setup")?.status).toBe("done");
-    // Success is recorded and persisted so a later Start can skip it (#630).
+    // Success is recorded and persisted so a later Start can skip it (#997).
     expect(finalBench?.benchSetupComplete).toBe(true);
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1, benchSetupComplete: true }),
     );
   });
 
-  it("runs bench setup through benches.shell when the project overrides it (#836)", async () => {
-    // `benches.setup` already runs through the user's login shell (#628). The
+  it("runs bench setup through benches.shell when the project overrides it (#1218)", async () => {
+    // `benches.setup` already runs through the user's login shell (#996). The
     // override exists for a project the login shell does not suit, and it goes
     // through the same resolveSpawn helper the component command lines use.
     const config = makeConfig({
@@ -6990,7 +6990,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     );
   });
 
-  it("does not re-seed or re-run bench setup on a second Start (#630)", async () => {
+  it("does not re-seed or re-run bench setup on a second Start (#997)", async () => {
     // `benches.setup` is documented as running once per bench, after worktree
     // creation. Re-running it on every Start re-executes commands such as
     // `npm ci`, which deletes and reinstalls node_modules from scratch, and
@@ -7023,7 +7023,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     expect(execModule.runCommand).toHaveBeenCalledTimes(1);
   });
 
-  it("retries bench setup on the next Start when it failed (#630)", async () => {
+  it("retries bench setup on the next Start when it failed (#997)", async () => {
     const config = makeConfig({
       benches: { max: 5, setup: "npm ci" },
       components: {
@@ -7060,7 +7060,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     expect(benchManager.getBench("test-project", 1)?.benchSetupComplete).toBe(true);
   });
 
-  it("skips bench setup for a bench persisted before benchSetupComplete existed (#630)", async () => {
+  it("skips bench setup for a bench persisted before benchSetupComplete existed (#997)", async () => {
     // Legacy records carry no flag. They were provisioned under the old flow,
     // which always ran `benches.setup`, so they migrate to complete rather than
     // re-running it on their next Start.
@@ -7102,7 +7102,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     expect(execModule.runCommand).not.toHaveBeenCalled();
   });
 
-  it("runs a benches.setup added to roubo.yaml after the bench was created (#630)", async () => {
+  it("runs a benches.setup added to roubo.yaml after the bench was created (#997)", async () => {
     // The bench predates the setup command, so it carries benchSetupComplete
     // false and the newly configured command is seeded and run once. Seeding
     // `true` for no-setup projects at create would have made this impossible:
@@ -7129,7 +7129,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
     expect(benchManager.getBench("test-project", 1)?.benchSetupComplete).toBe(true);
   });
 
-  it("does not persist bench setup completion when the bench was cleared mid-run (#630)", async () => {
+  it("does not persist bench setup completion when the bench was cleared mid-run (#997)", async () => {
     // `benches.setup` can run for up to ten minutes, so Clear can land while it
     // is still going. Persisting unguarded would re-add the removed record, and
     // because updateBench filters then pushes on (projectId, id) it could also
@@ -7175,7 +7175,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
   });
 
   it("passes a multi-part bench setup command to the login shell as a single script", async () => {
-    // Regression guard for #628. `benches.setup` is a shell command line, not a
+    // Regression guard for #996. `benches.setup` is a shell command line, not a
     // bare binary invocation, so a value chaining with `&&` and calling an
     // rc-defined shell function must reach runCommand whole, as the single
     // script argument. Splitting it into argv turned this into
@@ -7224,7 +7224,7 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
   // catch the call site inlining a literal "-lc" instead of delegating to the
   // helper: on CI, where $SHELL is unset or bash, both sides resolve to "-lc".
   // These two cases pin $SHELL so each branch is asserted literally and CI and
-  // local runs check the same thing (#628).
+  // local runs check the same thing (#996).
   describe("login shell flag selection", () => {
     const originalShell = process.env.SHELL;
 
@@ -7356,7 +7356,7 @@ describe("startComponent (per-component Start setup gating)", () => {
     });
     setupBenchWithSetupState(config, { backend: false });
     setupProcessMocks();
-    // Setup runs through the engine's process-manager now (#612); a non-zero
+    // Setup runs through the engine's process-manager now (#663); a non-zero
     // setup exit drives the component to error before the process starts.
     vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1, timedOut: false });
 
@@ -7735,8 +7735,8 @@ describe("createBench global cap", () => {
 // leads during the reservation window and forever for a failed provisioning. These
 // two exports are the seam server/index.ts injects into project-registry so the
 // guard sees exactly what the Benches view renders, and so unregistering hands the
-// project's map entries back to the global cap (issue #830).
-describe("getLiveBenchIds / dropProjectBenches (issue #830)", () => {
+// project's map entries back to the global cap (#1204).
+describe("getLiveBenchIds / dropProjectBenches (#1204)", () => {
   function setCap(maxGlobal?: number) {
     vi.mocked(stateService.loadSettings).mockReturnValue({
       theme: "dark",
@@ -7847,7 +7847,7 @@ describe("getLiveBenchIds / dropProjectBenches (issue #830)", () => {
   });
 });
 
-// Crash cleanup, graceful degradation, auto-recovery, startup sweep (issue #613,
+// Crash cleanup, graceful degradation, auto-recovery, startup sweep (#657,
 // FR-015 / FR-016 / NFR-003). These exercise the ledger-driven hooks the
 // supervisor fires when a component plugin crashes, the ledger clearing on
 // teardown, and the boot-time orphan sweep.
@@ -7871,7 +7871,7 @@ describe("handleComponentPluginPreRestart", () => {
     expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
   });
 
-  it("logs a normal-level composeDown success naming the project (CP-TC-073, #411)", async () => {
+  it("logs a normal-level composeDown success naming the project (CP-TC-073, #894)", async () => {
     vi.mocked(ledgerService.getAllEntries).mockReturnValue([
       {
         pluginId: "process",
@@ -7892,7 +7892,7 @@ describe("handleComponentPluginPreRestart", () => {
     );
   });
 
-  it("still warns (and does not log success) when composeDown fails (CP-TC-073, #411)", async () => {
+  it("still warns (and does not log success) when composeDown fails (CP-TC-073, #894)", async () => {
     vi.mocked(ledgerService.getAllEntries).mockReturnValue([
       {
         pluginId: "process",
@@ -7960,7 +7960,7 @@ describe("handleComponentPluginPreRestart", () => {
     expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
   });
 
-  it("pushes the crashing component to error and broadcasts it (AC2, #397)", async () => {
+  it("pushes the crashing component to error and broadcasts it (AC2, #886)", async () => {
     setupExistingBench();
     setupProcessMocks();
     vi.mocked(ledgerService.getAllEntries).mockReturnValue([]);
@@ -7981,7 +7981,7 @@ describe("handleComponentPluginPreRestart", () => {
     );
   });
 
-  it("captures the crashed component so recovery still re-provisions it despite the error push (AC2, #397)", async () => {
+  it("captures the crashed component so recovery still re-provisions it despite the error push (AC2, #886)", async () => {
     setupExistingBench();
     setupProcessMocks();
     vi.mocked(ledgerService.getAllEntries).mockReturnValue([]);
@@ -8020,7 +8020,7 @@ describe("handleComponentPluginPreRestart", () => {
   });
 });
 
-describe("handleComponentPluginBudgetExhausted (#397)", () => {
+describe("handleComponentPluginBudgetExhausted (#886)", () => {
   it("marks a live bound component error with a budget statusDetail, notifies, and broadcasts (AC4)", async () => {
     setupExistingBench();
     setupProcessMocks();
@@ -8226,7 +8226,7 @@ describe("sweepOrphanedComposeProjects", () => {
   });
 });
 
-describe("teardown clears the ledger (issue #613)", () => {
+describe("teardown clears the ledger (#657)", () => {
   const flushBackground = () => new Promise((r) => setTimeout(r, 0));
 
   it("clears every ledger entry for the torn-down bench after resources stop (AC1)", async () => {
@@ -8247,7 +8247,7 @@ describe("teardown clears the ledger (issue #613)", () => {
   });
 });
 
-describe("per-bench audit log registry (#671)", () => {
+describe("per-bench audit log registry (#680)", () => {
   const entry = (overrides: Partial<import("@roubo/shared").AuditEntry> = {}) => ({
     ts: "2026-06-21T00:00:00.000Z",
     pluginId: "github-com",
@@ -8301,7 +8301,7 @@ describe("per-bench audit log registry (#671)", () => {
   });
 });
 
-describe("per-bench BrokerContext wiring on provision/teardown (#677)", () => {
+describe("per-bench BrokerContext wiring on provision/teardown (#686)", () => {
   const flushBackground = () => new Promise((r) => setTimeout(r, 0));
 
   beforeEach(() => {
@@ -8383,8 +8383,8 @@ describe("per-bench BrokerContext wiring on provision/teardown (#677)", () => {
 });
 
 // The host must dispatch a translate-less (imperative) component plugin's
-// start/stop/health/cleanup hooks, not just translate (#396).
-describe("imperative component dispatch (#396)", () => {
+// start/stop/health/cleanup hooks, not just translate (#887).
+describe("imperative component dispatch (#887)", () => {
   // A record whose manifest declares componentMode: imperative (plus a schema-
   // shaped permissions block so the BrokerContext's hasPermission derives cleanly).
   const imperativeRecord = (id = "process") =>
@@ -8458,7 +8458,7 @@ describe("imperative component dispatch (#396)", () => {
     expect(notificationService.createNotification).toHaveBeenCalled();
   });
 
-  it("preserves an imperative plugin's error statusDetail rather than clearing it (issue #420, CP-TC-068 S004-O01)", async () => {
+  it("preserves an imperative plugin's error statusDetail rather than clearing it (#898, CP-TC-068 S004-O01)", async () => {
     setupExistingBench();
     setupProcessMocks();
     vi.mocked(pluginManager.getRecord).mockReturnValue(imperativeRecord());
@@ -8539,7 +8539,7 @@ describe("imperative component dispatch (#396)", () => {
   it("bench-level Start launches a sibling when another component's plugin is unavailable", async () => {
     // Mirror the CP-TC-028 fixture shape: `app` bound to an unavailable plugin,
     // `deploy` bound to an available imperative plugin. Bench Start must launch
-    // `deploy` even though `app` cannot be dispatched (graceful degradation, #396).
+    // `deploy` even though `app` cannot be dispatched (graceful degradation, #887).
     const config = makeConfig({
       components: {
         app: { plugin: { id: "process" }, config: {} },
@@ -8588,7 +8588,7 @@ describe("imperative component dispatch (#396)", () => {
   // The ResourceOwnershipLedger keys entries on (pluginId, benchId) with no
   // per-component attribution, so a per-component stop must NOT clear the shared
   // entry while a sibling bound to the same imperative plugin is still live, or
-  // the sibling's tracked processes would be orphaned from crash cleanup (#396,
+  // the sibling's tracked processes would be orphaned from crash cleanup (#887,
   // AC4).
   const twoProcessComponents = () =>
     makeConfig({

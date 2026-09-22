@@ -134,7 +134,7 @@ describe("TrackerActionGateway: consented + declared success (VG-TC-047)", () =>
     expect(audit.query()[0]).toMatchObject({ action: "closeGate", outcome: "skipped" });
   });
 
-  it("reopenGate delegates to onGateReopened and records an 'applied' audit entry (#830)", async () => {
+  it("reopenGate delegates to onGateReopened and records an 'applied' audit entry (#833)", async () => {
     const { deps, audit, onGateReopened } = makeDeps();
     const gate = makeGate("o/r#451");
 
@@ -150,7 +150,7 @@ describe("TrackerActionGateway: consented + declared success (VG-TC-047)", () =>
     });
   });
 
-  it("reopenGate skips and records 'skipped' for an unfiled gate (#830)", async () => {
+  it("reopenGate skips and records 'skipped' for an unfiled gate (#833)", async () => {
     const { deps, audit, onGateReopened } = makeDeps();
 
     await reopenGate(PROJECT, makeGate(null), deps);
@@ -190,7 +190,7 @@ describe("TrackerActionGateway: unconsented call is blocked (VG-TC-048)", () => 
     expect(onGatePassed).not.toHaveBeenCalled();
   });
 
-  it("refuses reopenGate when the plugin is not consented, without reopening (#830)", async () => {
+  it("refuses reopenGate when the plugin is not consented, without reopening (#833)", async () => {
     const { deps, onGateReopened } = makeDeps({ hasConsent: () => false });
 
     await expect(reopenGate(PROJECT, makeGate(), deps)).rejects.toMatchObject({
@@ -238,7 +238,7 @@ describe("TrackerActionGateway: missing capability degrades, never a silent no-o
     expect(onGatePassed).toHaveBeenCalled();
   });
 
-  it("reopenGate does not require a capability flag (reuses applyTransition) (#830)", async () => {
+  it("reopenGate does not require a capability flag (reuses applyTransition) (#833)", async () => {
     const { deps, onGateReopened } = makeDeps({ getCapabilities: () => ({}) });
 
     await reopenGate(PROJECT, makeGate(), deps);

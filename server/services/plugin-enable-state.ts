@@ -8,7 +8,7 @@ import {
 } from "@roubo/shared";
 import { atomicWrite, ensureDirs, getRouboDir } from "./state.js";
 
-// IP-WU-046 / issue #137: persistent per-plugin enable state. See:
+// IP-WU-046 / #164: persistent per-plugin enable state. See:
 //   .specifications/integration-plugins/prd.md (IP-FR-059, IP-FR-060, IP-NFR-019)
 //   .specifications/integration-plugins/architecture.md (lines 1027, 1064-1097, 1218)
 //

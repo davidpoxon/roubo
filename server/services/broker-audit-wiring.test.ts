@@ -9,7 +9,7 @@ import type { JsonRpcConnection } from "./plugin-rpc.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as benchManager from "./bench-manager.js";
 
-// End-to-end wiring for issue #677: a privileged broker call made over a
+// End-to-end wiring for #686: a privileged broker call made over a
 // component plugin's live connection must accumulate an AuditEntry into the
 // per-bench AuditLog so GET .../audit-log (queryAuditLog) returns it, including
 // permission-denied calls. This exercises the real chain the production wiring
@@ -39,7 +39,7 @@ const PROJECT = "wiring-project";
 const PLUGIN = "component-db";
 
 // Fake host delegates so a successful privileged call does not try to spawn a
-// real process or talk to Docker; the audit recording (the #677 concern) happens
+// real process or talk to Docker; the audit recording (the #686 concern) happens
 // in the broker before any delegation.
 function fakeProcessManager(): ProcessManagerLike {
   return {
@@ -88,7 +88,7 @@ function buildBenchContext(benchId: number, allowed: Set<BrokerPermissionCategor
   };
 }
 
-describe("HostComponentBroker live wiring accumulates audit entries (#677)", () => {
+describe("HostComponentBroker live wiring accumulates audit entries (#686)", () => {
   beforeEach(() => {
     pluginManager.__test.reset();
     benchManager._resetAuditLogsForTest();
@@ -144,7 +144,7 @@ describe("HostComponentBroker live wiring accumulates audit entries (#677)", () 
     expect(log[0]).toMatchObject({ method: "host.docker.composeDown", outcome: "denied" });
   });
 
-  it("routes each bench's calls to its own audit log by the param benchId over the shared connection (#685)", async () => {
+  it("routes each bench's calls to its own audit log by the param benchId over the shared connection (#687)", async () => {
     const connection = makeConnection();
     register(connection);
     // Both benches bind to the same plugin connection concurrently.

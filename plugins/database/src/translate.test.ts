@@ -142,8 +142,8 @@ describe("database plugin translate (CP-FR-004, CP-FR-007)", () => {
   });
 });
 
-// #836: migration.shell is copied through untouched; the host owns the branch.
-describe("database plugin translate: migration.shell (#836)", () => {
+// #1218: migration.shell is copied through untouched; the host owns the branch.
+describe("database plugin translate: migration.shell (#1218)", () => {
   it("omits shell when the migration config omits it", () => {
     const descriptor = translate({
       config: {

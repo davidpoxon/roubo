@@ -5,8 +5,8 @@ import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import LaunchOverridesDialog from "./LaunchOverridesDialog";
 import { resolveLaunchTarget, type LaunchTarget } from "./settings/agents/agent-launchability";
 
-// The per-launch override dialog (AP-TC-029, AP-TC-034, AP-TC-046, issue #518),
-// including its preset picker (issue #668).
+// The per-launch override dialog (AP-TC-029, AP-TC-034, AP-TC-046, #1072),
+// including its preset picker (#1085).
 //
 // The preset targets are resolved through the real `resolveLaunchTarget`, the
 // same function the launch menu is handed, so a case here cannot pass against a
@@ -174,7 +174,7 @@ describe("LaunchOverridesDialog", () => {
   // entry that covers both of its observations. The narrower tests below walk
   // the same ground a step at a time and are deliberately not tagged with this
   // case's id: a case carrying more than one id-tagged test can never be
-  // corroborated from a JUnit report (#680).
+  // corroborated from a JUnit report (#1097).
   it("re-reads the selected agent's parameters, then traces this-launch edits over the layers beneath (AP-TC-029)", () => {
     open();
 
@@ -210,7 +210,7 @@ describe("LaunchOverridesDialog", () => {
     expect(screen.getByTestId("resolution-project-model").dataset.superseded).toBe("true");
   });
 
-  // AP-TC-029 S001-O01 broken out step-by-step; deliberately not id-tagged (#680).
+  // AP-TC-029 S001-O01 broken out step-by-step; deliberately not id-tagged (#1097).
   it("re-reads the newly selected agent's parameters", () => {
     open();
 
@@ -290,7 +290,7 @@ describe("LaunchOverridesDialog", () => {
     });
   });
 
-  // AP-TC-029 S002 broken out step-by-step; deliberately not id-tagged (#680).
+  // AP-TC-029 S002 broken out step-by-step; deliberately not id-tagged (#1097).
   it("updates the trace live as fields change, emphasising this-launch values (AP-TC-046)", () => {
     open();
 
@@ -352,7 +352,7 @@ describe("LaunchOverridesDialog", () => {
     });
   });
 
-  // Issue #668: the dialog picks which preset feeds layer three, rather than
+  // #1085: the dialog picks which preset feeds layer three, rather than
   // being pinned to the one preset the caller happened to pass.
   it("opens on the preset it was given and names it on the preset line", () => {
     open({ presets: [MAX_EFFORT_PRESET, CODEX_PRESET], initialPresetId: MAX_EFFORT_PRESET.id });

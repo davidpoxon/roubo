@@ -210,7 +210,7 @@ describe("AsyncSourceSearch", () => {
     expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2 results");
   });
 
-  it("shows the per-query latency next to the count without altering the count text (#432)", async () => {
+  it("shows the per-query latency next to the count without altering the count text (#451)", async () => {
     const user = userEvent.setup();
     mockHook({ items: BOARDS, durationMs: 142 });
     render(
@@ -231,7 +231,7 @@ describe("AsyncSourceSearch", () => {
     expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2 results");
   });
 
-  it("omits the latency readout until a duration is measured (#432)", async () => {
+  it("omits the latency readout until a duration is measured (#451)", async () => {
     const user = userEvent.setup();
     mockHook({ items: BOARDS, durationMs: null });
     render(
@@ -250,7 +250,7 @@ describe("AsyncSourceSearch", () => {
     expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2 results");
   });
 
-  it("keeps the readout live region present before results arrive so updates announce (#432)", async () => {
+  it("keeps the readout live region present before results arrive so updates announce (#451)", async () => {
     const user = userEvent.setup();
     // No results yet: the region exists (empty) so its first populated update is
     // announced, rather than the region being inserted fresh on arrival.

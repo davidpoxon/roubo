@@ -108,7 +108,7 @@ router.put("/", (req, res) => {
       return;
     }
   }
-  // App-level agent tool presets (AP-FR-008, issue #516). Validated here rather
+  // App-level agent tool presets (AP-FR-008, #1057). Validated here rather
   // than at resolution time so a malformed preset never lands in settings.json
   // in the first place; resolution's own gates cover what only the live
   // registry can decide (an uninstalled agent, params a schema rejects).

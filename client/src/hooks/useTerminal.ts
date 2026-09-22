@@ -25,13 +25,13 @@ export function useCreateTerminal() {
       benchId: number;
       command?: string;
       jigId?: string;
-      // The agent launch path (AP-FR-007, issue #517): naming an agent plugin,
+      // The agent launch path (AP-FR-007, #1063): naming an agent plugin,
       // and optionally the preset's parameter overrides, routes creation
       // through the agent pipeline instead of the built-in command path. It is
       // also what the launch-failure Retry action relaunches through.
       agentPluginId?: string;
       presetOverrides?: Record<string, unknown>;
-      // The transient fourth layer above the preset (AP-FR-011, issue #518),
+      // The transient fourth layer above the preset (AP-FR-011, #1072),
       // produced by the per-launch override dialog. It applies to this one
       // session and is never written to app or project configuration.
       perLaunchOverrides?: Record<string, unknown>;

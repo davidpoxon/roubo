@@ -5,9 +5,9 @@ import {
   type GateResults,
   type GateLifecycle,
 } from "./gate-evaluator.js";
-// The real resolver the evaluator's lifecycle input is produced by (#766), driven
+// The real resolver the evaluator's lifecycle input is produced by (#1159), driven
 // here rather than stubbed so the gate and the authoring-time picker are shown to
-// resolve a pointer through the same code (#768).
+// resolve a pointer through the same code (#1164).
 import { collectReferencedSlugs, resolvePlan } from "@roubo/shared/lifecycle-resolver";
 import type { ResolverPlan, ResolverSpecLifecycle } from "@roubo/shared/lifecycle-resolver";
 import type {
@@ -21,7 +21,7 @@ import type {
 import { TEST_CASES_SCHEMA_ID, TEST_CASES_SCHEMA_VERSION } from "@roubo/shared/testbench-contracts";
 // The real hash the store records and the gate compares against, so the
 // lifecycle carve-out is exercised end to end rather than through a stand-in
-// string (#767).
+// string (#1160).
 import { computePlanHash } from "./testbench-store.js";
 
 // ── Builders (keep the table rows terse and intention-revealing) ──
@@ -223,12 +223,12 @@ describe("evaluateGate: never false-pass (VG-TC-015..VG-TC-017, VG-NFR-007)", ()
   });
 });
 
-// #767 (SATCA-FR-022, SATCA-TC-055): the gate's staleness rung is exactly
+// #1160 (SATCA-FR-022, SATCA-TC-055): the gate's staleness rung is exactly
 // `results.planHash !== currentPlanHash`, and the plan hash excludes the v1.2.0
-// lifecycle block (#764), so a lifecycle-only edit cannot move a gate to stale.
+// lifecycle block (#1158), so a lifecycle-only edit cannot move a gate to stale.
 // The negative control keeps VG-NFR-007 fail-closed honest: a genuine content
 // edit still reads as stale, never as passed.
-describe("evaluateGate: a lifecycle-only plan edit never moves a gate to stale (#767)", () => {
+describe("evaluateGate: a lifecycle-only plan edit never moves a gate to stale (#1160)", () => {
   function gatingCase(id: string, expected: string): Case {
     return {
       ...planCase(id, 1, "e2e_flow"),
@@ -325,7 +325,7 @@ describe("evaluateGate: default gating policy L1/L2 + e2e_flow (VG-TC-018, VG-FR
   });
 });
 
-describe("evaluateGate: empty narrowed gating set reads as no_gating_cases (VG-TC-026, #436, VG-NFR-007)", () => {
+describe("evaluateGate: empty narrowed gating set reads as no_gating_cases (VG-TC-026, #912, VG-NFR-007)", () => {
   it("an all-L3/L4 gate with a plan narrows to no_gating_cases, never passed", () => {
     const gate = makeGate(["TC-L3", "TC-L4"], ["WU-10"]);
     const p = plan([planCase("TC-L3", 3, "functional"), planCase("TC-L4", 4, "functional")]);
@@ -334,7 +334,7 @@ describe("evaluateGate: empty narrowed gating set reads as no_gating_cases (VG-T
       results({
         // Even though every declared case is passed, they all narrow out of the
         // default policy, so the gate has nothing to gate on: it must NOT read as
-        // a vacuous pass (the #436 bug).
+        // a vacuous pass (the #912 bug).
         "TC-L3": caseResult("passed"),
         "TC-L4": caseResult("passed"),
       }),
@@ -388,7 +388,7 @@ describe("evaluateGate: coveringUnitIds derivation (VG-NFR-004)", () => {
   });
 });
 
-describe("evaluateGate: gatingCaseIds is the full narrowed gating set (issue #433)", () => {
+describe("evaluateGate: gatingCaseIds is the full narrowed gating set (#914)", () => {
   // Unlike unresolvedCaseIds, gatingCaseIds is populated in EVERY rung (including
   // passed) so the overview's "N gating cases" count traces to the same set the
   // evaluator gates on.
@@ -480,7 +480,7 @@ describe("evaluateGate: purity and idempotence (VG-TC-018, VG-NFR-007)", () => {
   });
 });
 
-// ── #768 lifecycle builders (SATCA-FR-008..SATCA-FR-012) ──
+// ── #1164 lifecycle builders (SATCA-FR-008..SATCA-FR-012) ──
 //
 // The evaluator consumes a resolution, never a raw lifecycle block, so these
 // builders drive the REAL `resolvePlan` from @roubo/shared/lifecycle-resolver
@@ -851,7 +851,7 @@ describe("evaluateGate: the lifecycle input stays pure (SATCA-FR-012, VG-NFR-007
   });
 });
 
-describe("evaluateGate: a narrowed set names the cases lifecycle excluded (SATCA-TC-033, #777)", () => {
+describe("evaluateGate: a narrowed set names the cases lifecycle excluded (SATCA-TC-033, #1176)", () => {
   const gate = makeGate(["TC-1", "TC-2"], ["WU-10"]);
 
   it("names the retired case on a PASSED gate, which is where the release is read", () => {

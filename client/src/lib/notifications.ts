@@ -24,7 +24,7 @@ export function collectActionNeeded(benches: Bench[]): BenchNotification[] {
 
 // Every entry names no specific product (see docs/brand.md): any agent plugin's
 // session raises these, and core has known nothing about a particular agent
-// since #521.
+// since #1114.
 const notificationMessages: Record<NotificationType, { title: string; body: string }> = {
   "agent-waiting": {
     title: "Agent needs input",

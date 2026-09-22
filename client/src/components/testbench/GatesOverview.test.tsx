@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #702 (VG-FR-001/VG-FR-012, AC1, VG-TC-020/VG-TC-026): the overview lists one card per gate
+// #726 (VG-FR-001/VG-FR-012, AC1, VG-TC-020/VG-TC-026): the overview lists one card per gate
 // with its status; a blocked (non-passed) card names its blocking unit and that
 // line is absent once the gate passes (the evaluator clears coveringUnitIds on
 // pass). Opening a card invokes onOpenGate. axe-clean.
@@ -21,7 +21,7 @@ beforeEach(() => {
 });
 
 // fetchGates now resolves the GatesResponse shape ({ gates, invalidSpecs }) rather
-// than a bare gate array (#371). Wrap the gate arrays these cases assert on; the
+// than a bare gate array (#874). Wrap the gate arrays these cases assert on; the
 // invalid-spec cases pass their own `invalidSpecs`.
 function gatesData(gates: unknown[], invalidSpecs: unknown[] = []) {
   return { gates, invalidSpecs };
@@ -42,7 +42,7 @@ const passedGate = {
 };
 
 // A gate carrying a phase (milestone) and a full gating set, so the card can title
-// by phase and show the gating-case count (#433).
+// by phase and show the gating-case count (#914).
 const phasedGate = {
   gateId: "WU-300",
   status: "pending" as const,
@@ -54,7 +54,7 @@ const phasedGate = {
   signedOff: false,
 };
 
-// A downstream phase blocked by an upstream verify gate (#433, VG-FR-001).
+// A downstream phase blocked by an upstream verify gate (#914, VG-FR-001).
 const upstreamBlockedGate = {
   gateId: "WU-400",
   status: "pending" as const,
@@ -87,17 +87,17 @@ describe("GatesOverview", () => {
     expect(screen.getByText("Pending")).toBeTruthy();
   });
 
-  it("lists the gate's covering units under a Covers label, not a mislabeled Blocked by (#433)", async () => {
+  it("lists the gate's covering units under a Covers label, not a mislabeled Blocked by (#914)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
     renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText(/Covers/)).toBeTruthy());
     expect(screen.getByText("WU-010")).toBeTruthy();
     // The covers line is no longer mislabeled as an upstream blocker; a gate with
-    // no upstream blockedBy shows no "Blocked by" line (#433).
+    // no upstream blockedBy shows no "Blocked by" line (#914).
     expect(screen.queryByText(/Blocked by/)).toBeNull();
   });
 
-  it("titles the card by phase (milestone) with the gate id as a sub-label (#433)", async () => {
+  it("titles the card by phase (milestone) with the gate id as a sub-label (#914)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([phasedGate]) as never);
     renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("Phase 2: Routes")).toBeTruthy());
@@ -105,20 +105,20 @@ describe("GatesOverview", () => {
     expect(screen.getByText("WU-300")).toBeTruthy();
   });
 
-  it("falls back to the gate id as the title when the gate has no milestone (#433)", async () => {
+  it("falls back to the gate id as the title when the gate has no milestone (#914)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
     renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByTestId("gate-title").textContent).toBe("WU-099"));
   });
 
-  it("shows the gating-case count from gatingCaseIds (#433)", async () => {
+  it("shows the gating-case count from gatingCaseIds (#914)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([phasedGate]) as never);
     renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByTestId("gate-gating-count")).toBeTruthy());
     expect(screen.getByTestId("gate-gating-count").textContent).toBe("3 gating cases");
   });
 
-  it("shows an upstream Blocked by line naming the blocking gate (#433, VG-FR-001)", async () => {
+  it("shows an upstream Blocked by line naming the blocking gate (#914, VG-FR-001)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([upstreamBlockedGate]) as never);
     renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByTestId("gate-blocked-by")).toBeTruthy());
@@ -128,7 +128,7 @@ describe("GatesOverview", () => {
     expect(screen.getByTestId("gate-card").dataset.blocked).toBe("true");
   });
 
-  it("removes the upstream Blocked by line once the upstream gate clears (#433, AC2)", async () => {
+  it("removes the upstream Blocked by line once the upstream gate clears (#914, AC2)", async () => {
     // Same phase, now with an empty blockedBy (its upstream gate was signed off).
     const cleared = { ...upstreamBlockedGate, blockedBy: [] };
     mockedApi.fetchGates.mockResolvedValue(gatesData([cleared]) as never);
@@ -150,7 +150,7 @@ describe("GatesOverview", () => {
     const onOpen = vi.fn();
     renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={onOpen} />);
     await waitFor(() => expect(screen.getByTestId("gate-card")).toBeTruthy());
-    // The whole-card open trigger is the absolute overlay Button (#804); it
+    // The whole-card open trigger is the absolute overlay Button (#807); it
     // covers the card body and the decorative chevron alike.
     fireEvent.click(screen.getByTestId("gate-open"));
     expect(onOpen).toHaveBeenCalledWith("WU-099");
@@ -166,7 +166,7 @@ describe("GatesOverview", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the split dialog's modality explicit to AT.
   it("stamps aria-modal on the split dialog", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([bigPhase]) as never);
@@ -209,28 +209,28 @@ describe("GatesOverview", () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([]) as never);
     renderWithProviders(<GatesOverview projectId="p1" specSlug="alpha" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText(/no verify gates yet/)).toBeTruthy());
-    // A genuinely-empty project shows no invalid-specs warning (#371).
+    // A genuinely-empty project shows no invalid-specs warning (#874).
     expect(screen.queryByTestId("invalid-specs-warning")).toBeNull();
   });
 
-  // #549: the list is scoped to the bench's focused spec. The slug is threaded to
+  // #952: the list is scoped to the bench's focused spec. The slug is threaded to
   // fetchGates so the server returns only that spec's gates (not every spec's).
-  it("fetches gates scoped to the focused spec slug (#549)", async () => {
+  it("fetches gates scoped to the focused spec slug (#952)", async () => {
     mockedApi.fetchGates.mockResolvedValue(gatesData([blockedGate]) as never);
     renderWithProviders(<GatesOverview projectId="p1" specSlug="brigade" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText("WU-099")).toBeTruthy());
     expect(mockedApi.fetchGates).toHaveBeenCalledWith("p1", "brigade");
   });
 
-  // #549: with no focused spec there is nothing to scope to, so the overview shows a
+  // #952: with no focused spec there is nothing to scope to, so the overview shows a
   // "focus a spec" empty state and never fetches the project-wide gates (the leak).
-  it("shows a focus-a-spec empty state and does not fetch when no spec is focused (#549)", async () => {
+  it("shows a focus-a-spec empty state and does not fetch when no spec is focused (#952)", async () => {
     renderWithProviders(<GatesOverview projectId="p1" onOpenGate={() => {}} />);
     await waitFor(() => expect(screen.getByText(/Focus a spec to see its batches/)).toBeTruthy());
     expect(mockedApi.fetchGates).not.toHaveBeenCalled();
   });
 
-  // #371 (AC1): a present-but-invalid spec must surface a warning naming the slug +
+  // #874 (AC1): a present-but-invalid spec must surface a warning naming the slug +
   // its validation failure, not the bare "no verify gates yet" empty state, even
   // when every gate was dropped because the only spec failed validation.
   it("warns about an invalid spec instead of the empty state when all gates were dropped", async () => {
@@ -249,7 +249,7 @@ describe("GatesOverview", () => {
     expect(screen.queryByText(/no verify gates yet/)).toBeNull();
   });
 
-  // #371 (AC1 + #328 resilience): valid gates still render AND the broken spec is
+  // #874 (AC1 + #803 resilience): valid gates still render AND the broken spec is
   // surfaced as a warning alongside them.
   it("renders valid gates and still warns about an invalid spec", async () => {
     mockedApi.fetchGates.mockResolvedValue(

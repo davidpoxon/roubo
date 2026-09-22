@@ -18,11 +18,11 @@ import {
 // "AP-TC-022".
 const observe = makeObserve("AP-TC-022");
 
-// AP-TC-022 (#527, AP-WU-026) - E2E: launch any configured agent from the
+// AP-TC-022 (#1120, AP-WU-026) - E2E: launch any configured agent from the
 // Terminal tab's "All agents" menu section.
 //
 // The integration-level drift guard for the AP-US-004 journey (AP-FR-007,
-// AP-FR-011), spanning the slices this unit covers (#502, #510, #517, #524). It
+// AP-FR-011), spanning the slices this unit covers (delivered in #1048, #1063, #1110). It
 // walks the authoritative AP-TC-022 e2e_flow steps S001-S003 as ordered,
 // attributable observations against the REAL built app. On divergence each
 // observation routes through the FR-020 failure-output contract (see
@@ -51,7 +51,7 @@ const observe = makeObserve("AP-TC-022");
 // terminals route. That is weaker, and it stays that way because this case is
 // about the MENU rather than the argv: the AP-TC-056 / AP-TC-105 journeys own
 // the Codex argv, reading it from CODEX_ARGV_LOG_PATH, the codex stub's own
-// separate capture file (#532).
+// separate capture file (#1128).
 
 const PROJECT_ID = "ap-tc-022-all-agents";
 // "Bench 2 Terminal tab is open" (precondition). `/test/__register-fixture-project`
@@ -211,7 +211,7 @@ function allAgentsRow(page: Page, agentName: string): Locator {
  * present (or after 15s). The tab bar renders each session as a plain div with
  * no ARIA tab role, so an agent tab is identified by the `session-agent-icon`
  * only agent sessions render, and its label is read from the enclosing div.
- * #524 audited these surfaces and left the tab bar without tab semantics, so
+ * #1110 audited these surfaces and left the tab bar without tab semantics, so
  * this structural read is current intended state, not a regression.
  */
 async function readAgentTabLabels(page: Page, count: number): Promise<string[]> {

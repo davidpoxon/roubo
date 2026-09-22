@@ -467,7 +467,7 @@ describe("classifyError", () => {
     expect(classifyError("something else")).toBe("other");
   });
 
-  it("classifies the flattened undici cause message as tls, not other (issue #442)", () => {
+  it("classifies the flattened undici cause message as tls, not other (#916)", () => {
     // The message wrapInternal now produces for a self-signed-cert transport
     // failure: the bare "fetch failed" prefix plus the surfaced err.cause code
     // and message. Before the fix this was a bare "fetch failed" and fell to

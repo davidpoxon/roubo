@@ -78,7 +78,7 @@ export default function IssueQueuePanel({
   // Guard the refresh control while a refetch is already in flight: disabling
   // the Button is what prevents a second concurrent refresh (FR-005 / AC5),
   // not React Query's request dedupe alone. `refreshItems` is the force-refresh
-  // path (#653): it bypasses the server's warm snapshot so closed/now-unblocked
+  // path (#654): it bypasses the server's warm snapshot so closed/now-unblocked
   // items update on the first click instead of re-serving stale data.
   const handleRefresh = useCallback(() => {
     if (isRefetching) return;
@@ -229,7 +229,7 @@ export default function IssueQueuePanel({
 
   const filteredItems = useMemo(() => applyFilters(baseItems, filters), [baseItems, filters]);
 
-  // Unblocked-first ordering (#653, #844). The server owns the authoritative
+  // Unblocked-first ordering (#654, #1224). The server owns the authoritative
   // ordering: it materialises the whole result set and partitions it once, so
   // every page of the paged sequence already arrives unblocked-first. This
   // re-application covers the client-side passes the server cannot see: it
@@ -295,7 +295,7 @@ export default function IssueQueuePanel({
   }, [isRefetching, stale, snapshotCapturedAt, dataUpdatedAt]);
 
   // Track whether a warm disk snapshot has ever backed the current query shape
-  // (#653). A force-refresh re-persists the snapshot so the cache stays warm, but
+  // (#654). A force-refresh re-persists the snapshot so the cache stays warm, but
   // the server reports that bypassing fetch as `cacheStatus: "miss"` (it skipped
   // the disk read). Without remembering the prior warm serve, a settled
   // force-refresh would drop the badge to null, contradicting CLI-TC-001/TC-017

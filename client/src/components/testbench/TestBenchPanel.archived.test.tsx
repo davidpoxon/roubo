@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #770 (SATCA-FR-018, SATCA-TC-038/TC-042): a bench whose focused spec is
+// #1162 (SATCA-FR-018, SATCA-TC-038/TC-042): a bench whose focused spec is
 // archived still works, and says so. The plan response carries the spec's
 // lifecycle state read from THIS bench's own workspace, so the panel labels the
 // focused spec archived (or superseded, naming its replacement) while every other
@@ -8,11 +8,11 @@
 // an observation still dispatches its mutation.
 //
 // The lifecycle field is optional on the response, so a server that predates
-// #770 (or a bench with no manifest at all) reads live and shows no label.
+// #1162 (or a bench with no manifest at all) reads live and shows no label.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
-// The spec picker this panel opens uses a react-query mutation (#773), so the
+// The spec picker this panel opens uses a react-query mutation (#1166), so the
 // panel must render inside a QueryClientProvider.
 import { renderWithProviders as render } from "../../test/renderWithProviders";
 import userEvent from "@testing-library/user-event";
@@ -21,7 +21,7 @@ import type { SpecLifecycleState, TestbenchPlanResponse } from "../../lib/api";
 
 const mockUseTestbenchPlan = vi.hoisted(() => vi.fn());
 const mockMarkObservation = vi.hoisted(() => vi.fn());
-// #775: the AC4 join needs a lifecycle mutation that can actually succeed, so
+// #1173: the AC4 join needs a lifecycle mutation that can actually succeed, so
 // the stub is controllable rather than inert. Defaulted to a no-op mutate in
 // beforeEach, which is what every pre-#775 case in this suite assumes.
 const mockSetCaseLifecycle = vi.hoisted(() => vi.fn());
@@ -29,7 +29,7 @@ const mockSetCaseLifecycle = vi.hoisted(() => vi.fn());
 vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: () => mockUseTestbenchPlan(),
   useSetTestbenchFocus: () => ({ mutate: vi.fn(), isPending: false }),
-  // #772: the panel's archived entries and the case detail pane both reach for
+  // #1167: the panel's archived entries and the case detail pane both reach for
   // the lifecycle mutation.
   useSetCaseLifecycle: () => mockSetCaseLifecycle(),
   caseLifecycleErrorMessage: () => null,
@@ -106,7 +106,7 @@ function setPlan(data: Partial<TestbenchPlanResponse> = {}): void {
 beforeEach(() => {
   vi.clearAllMocks();
   mockSetCaseLifecycle.mockReturnValue({ mutate: vi.fn(), isPending: false, error: null });
-  // This suite exercises the Cases view; the panel defaults to Batches (#359).
+  // This suite exercises the Cases view; the panel defaults to Batches (#842).
   localStorage.clear();
   localStorage.setItem(
     "roubo-bench-view-state",
@@ -114,7 +114,7 @@ beforeEach(() => {
   );
 });
 
-describe("TestBenchPanel archived focused spec (#770)", () => {
+describe("TestBenchPanel archived focused spec (#1162)", () => {
   it("shows no archived label for a live spec", () => {
     setPlan({ lifecycle: lifecycle() });
     render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
@@ -167,13 +167,13 @@ describe("TestBenchPanel archived focused spec (#770)", () => {
   });
 });
 
-// #775 AC4 (SATCA-TC-057 S002): retiring a case from the detail pane removes it
+// #1173 AC4 (SATCA-TC-057 S002): retiring a case from the detail pane removes it
 // from the live list, which unmounts the control that applied the action. The
 // panel is the only place the two halves meet: CaseDetail reports the archived
 // id upward, and the panel both announces the outcome and hands the id to the
 // Archived section so the entry takes focus. Each half is covered against its own
 // component; this exercises the join, which is what a reviewer actually relies on.
-describe("TestBenchPanel focus and announcement after a case is archived (#775)", () => {
+describe("TestBenchPanel focus and announcement after a case is archived (#1173)", () => {
   function retiredCase(id: string): Case {
     return { ...makeCase(id), lifecycle: { state: "retired", reason: "covered by TC-B" } };
   }
@@ -250,7 +250,7 @@ describe("TestBenchPanel focus and announcement after a case is archived (#775)"
   });
 });
 
-// #832: a tall Archived section used to collapse the live case list to zero
+// #1200: a tall Archived section used to collapse the live case list to zero
 // height. Both live in one flex column (TestBenchPanel's `frame`), the list's
 // height floor is 0 (`flex-1 min-h-0`), and the section had no cap and no
 // overflow, so a retirement reason running to a few paragraphs took the column
@@ -264,7 +264,7 @@ describe("TestBenchPanel focus and announcement after a case is archived (#775)"
 // bug is live, which is why this suite did not catch it. The pixel-level symptom
 // is a browser question; the sibling precedent for that is
 // e2e/e2e-flow/archival-contrast.spec.ts.
-describe("TestBenchPanel archived section does not starve the live case list (#832)", () => {
+describe("TestBenchPanel archived section does not starve the live case list (#1200)", () => {
   const LONG_REASON = [
     "Retired because the surface it exercised was folded into the batch view.",
     "The three retained observation marks are kept so the earlier review is not lost.",

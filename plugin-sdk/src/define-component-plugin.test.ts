@@ -291,7 +291,7 @@ describe("defineComponentPlugin", () => {
     await hostConnection.sendRequest("start", benchContext);
 
     // The SDK stamps the in-flight lifecycle call's benchId onto every host.*
-    // request, so the host can route it to the right bench (#685). benchContext
+    // request, so the host can route it to the right bench (#687). benchContext
     // here carries benchId: 2.
     expect(captured.start).toEqual({
       benchId: 2,
@@ -470,7 +470,7 @@ describe("defineComponentPlugin", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     // The SDK stamps the in-flight lifecycle call's routing onto both
-    // notifications (#685): benchId on each, and componentName on reportLog so a
+    // notifications (#687): benchId on each, and componentName on reportLog so a
     // bench with two components routes each component's logs to its own sink.
     // benchContext here carries benchId: 2 and componentName: "db".
     expect(events).toEqual([
@@ -496,7 +496,7 @@ describe("defineComponentPlugin", () => {
     );
   });
 
-  it("throws when a bench-routed host.* call is made outside a lifecycle handler (no routing context, #685)", async () => {
+  it("throws when a bench-routed host.* call is made outside a lifecycle handler (no routing context, #687)", async () => {
     const { pluginStreams, hostConnection, dispose } = pairedConnection();
     disposes.push(dispose);
 

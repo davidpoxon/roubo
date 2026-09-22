@@ -5,7 +5,7 @@ import type { MarketplaceSourceSummary } from "@roubo/shared";
 import { sourceDisplayName } from "./marketplace-source-name";
 
 // One row of the Marketplaces settings list (CPHMTP-FR-001 / CPHMTP-US-001,
-// issue #561). The built-in first-party row is recognised by its reserved id,
+// #976). The built-in first-party row is recognised by its reserved id,
 // never by URL-matching, and is non-removable by construction: it renders no
 // Remove control at all rather than a disabled one, so there is no removal
 // affordance to reach by keyboard or screen reader.
@@ -46,8 +46,8 @@ function ProvenancePill({ verified }: { verified: boolean }) {
 interface Props {
   source: MarketplaceSourceSummary;
   /**
-   * Opens the removal consequences dialog (issue #564). Wired as a seam here:
-   * that dialog is a separate slice and explicitly out of scope for issue #561.
+   * Opens the removal consequences dialog (#980). Wired as a seam here:
+   * that dialog is a separate slice and explicitly out of scope for #976.
    */
   onRemove: (source: MarketplaceSourceSummary) => void;
 }

@@ -30,7 +30,7 @@ export function onProjectConfigLoaded(cb: ConfigLoadedListener): void {
  * implementation right after `initialize()`, well before the HTTP listener binds,
  * so no unregister request can arrive unwired. With nothing registered the registry
  * behaves exactly as it did before (persisted records only), which is what keeps the
- * many partial `vi.mock("./project-registry.js")` suites working. See issue #830.
+ * many partial `vi.mock("./project-registry.js")` suites working. See #1204.
  */
 export interface LiveBenchSource {
   listBenchIds(projectId: string): number[];
@@ -55,7 +55,7 @@ function emitConfigLoaded(project: RegisteredProject): void {
 }
 
 /**
- * Plugin-aware second pass over a structurally-valid project config (issue #399,
+ * Plugin-aware second pass over a structurally-valid project config (#884,
  * CP-TC-005): validate every component binding whose plugin is loaded against
  * that plugin's `configSchema` and, if any config block is invalid, fold the
  * path-keyed `ConfigFieldError`s into the project's config-invalid state so
@@ -67,7 +67,7 @@ function emitConfigLoaded(project: RegisteredProject): void {
  * a component plugin that is disabled, pending install, or absent from this
  * environment, and that must not brick the whole project (block GET /config,
  * bench creation, etc.). The "plugin must be present" enforcement belongs at
- * bench-start, where the component actually has to run (#612). Only a genuine
+ * bench-start, where the component actually has to run (#663). Only a genuine
  * `configSchema` violation on a LOADED plugin invalidates the config here.
  *
  * This needs the plugin manager initialized to see the installed component
@@ -96,7 +96,7 @@ function applyComponentBindingValidation(project: RegisteredProject): void {
  * loaded, so component bindings cannot be validated there. This closes that gap
  * by validating them once the component manifests exist, before the HTTP
  * listener binds, so a project that binds a loaded component plugin with an
- * invalid config block surfaces that error at boot (issue #399, CP-TC-005). A
+ * invalid config block surfaces that error at boot (#884, CP-TC-005). A
  * binding to a not-loaded plugin is left valid here (see
  * applyComponentBindingValidation): its presence is enforced at bench-start.
  */
@@ -154,7 +154,7 @@ export function initialize() {
     // NOTE: the component-binding second pass is deliberately NOT run here. At
     // boot the registry loads before the plugin manager, so no component
     // manifests are available yet; server/index.ts calls
-    // revalidateComponentBindings() once plugins are up (issue #399).
+    // revalidateComponentBindings() once plugins are up (#884).
     projects.set(entry.id, project);
     emitConfigLoaded(project);
   }
@@ -212,7 +212,7 @@ export function registerProject(repoPath: string): RegisteredProject {
   };
 
   // Plugin-aware second pass: an invalid component binding downgrades the
-  // project to config-invalid (issue #399). The plugin manager is up by the
+  // project to config-invalid (#884). The plugin manager is up by the
   // time a project is registered post-boot, so the component manifests are
   // available here (unlike at initialize()).
   applyComponentBindingValidation(project);
@@ -231,7 +231,7 @@ export function unregisterProject(projectId: string, opts: { force?: boolean } =
   }
 
   // Count the union of both bench representations, deduped by id, so the guard can
-  // never report fewer benches than the Benches view renders (issue #830). Persisted
+  // never report fewer benches than the Benches view renders (#1204). Persisted
   // records lag the in-memory map during the reservation window and never appear at
   // all for a bench whose provisioning failed, so persisted state alone under-counts.
   const benches = state.getPersistedBenches(projectId);
@@ -254,7 +254,7 @@ export function unregisterProject(projectId: string, opts: { force?: boolean } =
       state.removeBench(projectId, bench.id);
     }
     // Drop the matching in-memory entries too, otherwise they keep counting toward
-    // the global bench cap (`benches.size`) until the app restarts (issue #830).
+    // the global bench cap (`benches.size`) until the app restarts (#1204).
     liveBenchSource?.dropBenches(projectId);
   }
 
@@ -288,7 +288,7 @@ export function reloadConfig(projectId: string): RegisteredProject {
     project.fieldErrors = undefined;
     // Re-run the component-binding second pass on the freshly parsed config so a
     // now-invalid binding (e.g. a plugin uninstalled since the last load)
-    // surfaces on reload (issue #399).
+    // surfaces on reload (#884).
     applyComponentBindingValidation(project);
   } else {
     project.configValid = false;
@@ -366,7 +366,7 @@ export class ProjectRegistryError extends Error {
      * Code-specific context the route merges into the error body. `HAS_BENCHES`
      * carries `{ benchCount, benchIds }` so the client can name exactly what a
      * forced unregister would drop, including persisted records the Benches view
-     * never rendered (#829). Absent for every other code.
+     * never rendered (#1191). Absent for every other code.
      */
     public details?: Record<string, unknown>,
   ) {

@@ -60,7 +60,7 @@ router.get("/:projectId/issues", async (req, res) => {
   const sortDir: "asc" | "desc" | undefined =
     req.query.sortDir === "desc" ? "desc" : req.query.sortDir === "asc" ? "asc" : undefined;
 
-  // One-shot force-refresh flag from the cut-list refresh control (#653). When
+  // One-shot force-refresh flag from the cut-list refresh control (#654). When
   // true on a first-page request the query service bypasses the warm disk
   // snapshot, fetches live, and persists the fresh result. The in-memory
   // snapshot recording and errored/disabled fallback paths below are unchanged.
@@ -123,7 +123,7 @@ router.get("/:projectId/issues", async (req, res) => {
     // IP-FR-014: when the active plugin is `errored` or `disabled` and we have a
     // first-page snapshot from a previous successful call, serve it so the
     // cut-list keeps rendering instead of going blank. `stale: true` lets the
-    // client surface the matching banner (#263 tracks the UI work). We only
+    // client surface the matching banner (#274 tracks the UI work). We only
     // bridge first-page requests because the snapshot captures only the first
     // page; falling through on cursor > 0 keeps the client from looking up an
     // arbitrarily-stale tail page that no longer matches the first page. This
@@ -307,7 +307,7 @@ router.post("/:projectId/benches/:id/assign-issue", async (req, res) => {
   try {
     // Bound the single getIssue read to the gate budget when enforcement is ON so
     // a hung plugin fails closed in ~3s instead of stalling for the 30s RPC default
-    // (#438, VG-NFR-002). fetchIssueForStart returns the full issue, reused as
+    // (#917, VG-NFR-002). fetchIssueForStart returns the full issue, reused as
     // prefetchedIssue below so the request still issues one RPC.
     issue = await fetchIssueForStart(req.params.projectId, externalId, active.pluginId);
   } catch (err) {
@@ -325,7 +325,7 @@ router.post("/:projectId/benches/:id/assign-issue", async (req, res) => {
   const comments = await fetchPluginComments(active.pluginId, externalId);
 
   try {
-    // Hard start-gate (#699): same enforcement as create-and-assign. When
+    // Hard start-gate (#722): same enforcement as create-and-assign. When
     // enforceIssueDependencies is ON, refuse to assign a unit whose upstream
     // verify gate has not passed, reusing the freshly fetched issue so no second
     // getIssue RPC is needed (VG-NFR-002). A blocked or indeterminate gate throws a

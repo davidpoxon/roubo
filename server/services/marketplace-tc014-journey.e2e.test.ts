@@ -63,7 +63,7 @@
 // Failure-output contract (AC: "On failure the test reports which e2e step diverged,
 // expected vs actual, and the owning slice issue(s)"): every assertion attaches an
 // expected-vs-actual message naming the diverging step and the owning slice from
-// #311's blocked-by set (#304, #305), so a red run localizes the integration drift
+// the work unit's blocked-by set, so a red run localizes the integration drift
 // to one attributable slice.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -80,11 +80,11 @@ import {
   verifyPackageIntegrity,
 } from "./marketplace-integrity.js";
 
-// ── Owning slices (this e2e unit's blocked-by set, from #311) ──
+// ── Owning slices (this e2e unit's blocked-by set) ──
 // Each step localizes a divergence to the slice(s) that own its behaviour, so a red
 // run points at one attributable issue rather than the whole journey.
-const SLICE_CI_PUBLISH = "#304 (CI build/sign/publish pipeline with reproducible digest)";
-const SLICE_CATALOG_REVOKE = "#305 (signed catalog on Pages + signed key-ring + revocation)";
+const SLICE_CI_PUBLISH = "CI build/sign/publish pipeline with reproducible digest";
+const SLICE_CATALOG_REVOKE = "signed catalog on Pages + signed key-ring + revocation";
 
 // ── Fixture identifiers (CPHM-TC-014 preconditions) ──
 // The marketplace repo CI is configured with the signing key as a CI secret, a client
@@ -327,7 +327,7 @@ class InProcessInstallError extends Error {
  * the verified set (revoked included), reject an unknown id (`invalid-input`) and a
  * revoked entry (`revoked`) fail-closed.
  *
- * Scope note (issue #558): the real assertInstallable now resolves over the MERGED
+ * Scope note (#966): the real assertInstallable now resolves over the MERGED
  * multi-source fan-out and adds the cross-source ambiguity gate
  * (`AmbiguousSourceError`). This mirror deliberately models only the FIRST-PARTY,
  * single-source slice that TC-014's journey exercises, where the two gates below

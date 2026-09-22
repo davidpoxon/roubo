@@ -45,7 +45,7 @@ function makePlan(): TestCasesPlan {
 
 // A minimal conforming test-results.json fixture (the sidecar). References the
 // case above by its stable id only; the plan is not embedded or edited. As of
-// v2.0.0 (#493) case results sit at the top level (one file per worktree); there
+// v2.0.0 (#494) case results sit at the top level (one file per worktree); there
 // is no per-bench `benches` map.
 function makeResults(): TestResultsFile {
   return {
@@ -166,7 +166,7 @@ describe("validateTestCases", () => {
     expect(validateTestCases(plan).ok).toBe(true);
   });
 
-  // ── The optional case lifecycle block (v1.2.0, #764) ──
+  // ── The optional case lifecycle block (v1.2.0, #1158) ──
 
   it("accepts a retired case carrying a reason (SATCA-TC-001)", () => {
     const plan = makePlan();
@@ -420,7 +420,7 @@ describe("validateTestResults", () => {
     expect(validateTestResults(results).ok).toBe(true);
   });
 
-  it("accepts an optional per-case caseCanon snapshot (#447)", () => {
+  it("accepts an optional per-case caseCanon snapshot (#489)", () => {
     const results = makeResults();
     results.caseResults["TC-001"].caseCanon = "canon-snapshot";
     expect(validateTestResults(results).ok).toBe(true);
@@ -489,7 +489,7 @@ describe("schema metadata", () => {
     expect(TEST_RESULTS_SCHEMA_ID).toContain(TEST_RESULTS_SCHEMA_VERSION);
   });
 
-  it("publishes the case schema at v1.2.0 (the additive lifecycle bump, #764)", () => {
+  it("publishes the case schema at v1.2.0 (the additive lifecycle bump, #1158)", () => {
     expect(TEST_CASES_SCHEMA_VERSION).toBe("1.2.0");
     expect(TEST_CASES_SCHEMA_ID).toBe("https://roubo.dev/schema/testbench/test-cases/v1.2.0.json");
   });

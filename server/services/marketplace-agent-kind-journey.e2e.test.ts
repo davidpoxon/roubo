@@ -1,4 +1,4 @@
-// AP-TC-117 / AP-TC-120 / AP-TC-122 (issue #522): marketplace distribution for the
+// AP-TC-117 / AP-TC-120 / AP-TC-122 (#1112): marketplace distribution for the
 // AGENT kind. An agent-kind listing installs in one click through consent and
 // integrity-digest verification and moves to Installed (AP-TC-117); a tampered
 // agent package fails digest verification, aborts, and writes nothing (AP-TC-120);
@@ -82,7 +82,7 @@ vi.mock("./plugin-manager.js", () => ({
 
 vi.mock("undici", () => ({
   fetch: vi.fn(),
-  // guarded-fetch builds a connect-pinning Agent (issue #590); the mocked fetch
+  // guarded-fetch builds a connect-pinning Agent (#960); the mocked fetch
   // ignores the dispatcher, so a constructable stub is all this mock needs.
   Agent: vi.fn(),
 }));
@@ -133,7 +133,7 @@ const ASSET_URL = "https://releases.example.invalid/gemini-cli-0.4.0.tgz";
 const AGENT_CLI_COMMAND = "roubo-nonexistent-agent-cli-ap-tc-122";
 
 // A complete, valid AGENT manifest. `processes: false` is not decoration: the real
-// PluginManifestSchema REFUSES a `processes` permission for kind agent (issue #632),
+// PluginManifestSchema REFUSES a `processes` permission for kind agent (#1030),
 // so this fixture only parses because it is a genuine agent plugin.
 const MANIFEST = `id: ${PLUGIN_ID}
 name: Gemini CLI
@@ -391,7 +391,7 @@ describe("AP-TC-117: one-click install moves a marketplace agent plugin into the
     // renders the "Installed" badge and NO install affordance for `installed: true`,
     // which is what "appears under Installed, no longer offered in Marketplace"
     // means on the shipped surface (the UX is one list with a state-aware card, not
-    // two lists; see the note on the navigation mismatch in issue #522).
+    // two lists; see the note on the navigation mismatch in #1112).
     expect(agent?.installed).toBe(true);
     expect(agent?.installedVersion).toBe("0.4.0");
     expect(agent?.updateAvailable).toBe(false);
