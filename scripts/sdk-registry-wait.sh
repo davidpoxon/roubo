@@ -35,22 +35,27 @@ POLL_S="${SDK_SMOKE_REGISTRY_POLL_S:-10}"
 POLL_MAX_S="${SDK_SMOKE_REGISTRY_POLL_MAX_S:-60}"
 
 SECONDS=0
+ERR_FILE="$(mktemp)"
+trap 'rm -f "${ERR_FILE}"' EXIT
 
 for pkg in "$@"; do
   spec="${pkg}@${VERSION}"
   interval="${POLL_S}"
   while true; do
+    # Only stdout is compared: npm can print warnings on stderr (for example
+    # about the runner's .npmrc) even when the lookup succeeds.
     answer=""
-    if answer="$(npm view "${spec}" version --prefer-online 2>&1)" && [[ "${answer}" == "${VERSION}" ]]; then
+    if answer="$(npm view "${spec}" version --prefer-online 2>"${ERR_FILE}")" && [[ "${answer}" == "${VERSION}" ]]; then
       echo "${spec} resolvable after ${SECONDS}s"
       break
     fi
 
     remaining=$(( TIMEOUT_S - SECONDS ))
     if (( remaining <= 0 )); then
-      if [[ -n "${answer}" ]]; then
+      if [[ -n "${answer}" || -s "${ERR_FILE}" ]]; then
         echo "Last npm view answer for ${spec}:"
-        echo "${answer}"
+        [[ -z "${answer}" ]] || echo "${answer}"
+        cat "${ERR_FILE}"
       fi
       echo "::error::${spec} did not become resolvable from the registry after waiting ${SECONDS}s (limit ${TIMEOUT_S}s); registry propagation lag or a publish that never landed"
       exit 1

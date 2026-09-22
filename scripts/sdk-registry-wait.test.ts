@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -17,7 +17,11 @@ let binDir: string;
  * picks how a miss looks: `e404` mirrors npm 11 (exit 1 with an E404 on
  * stderr), `empty` mirrors older npm (exit 0 with empty stdout).
  */
-function stubNpm(misses: Record<string, number>, mode: "e404" | "empty" = "e404"): void {
+function stubNpm(
+  misses: Record<string, number>,
+  mode: "e404" | "empty" = "e404",
+  warnOnHit = false,
+): void {
   const cases = Object.entries(misses)
     .map(([pkg, n]) => {
       const limit = Number.isFinite(n) ? String(n) : "999999";
@@ -39,6 +43,7 @@ counter="${binDir}/count-$(echo "$spec" | tr '/@' '__')"
 n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 ))
 echo "$n" > "$counter"
 if (( n <= limit )); then ${miss}; fi
+${warnOnHit ? 'echo "npm warn config some-key is deprecated" >&2' : ""}
 echo "\${spec##*@}"
 `;
   const npm = join(binDir, "npm");
@@ -96,6 +101,13 @@ describe("sdk-registry-wait.sh", () => {
     expect(run.stdout).toContain("not yet on the registry");
   });
 
+  it("ignores npm warnings on stderr when the version resolves", () => {
+    stubNpm({}, "e404", true);
+    const run = runWait({ SDK_SMOKE_REGISTRY_TIMEOUT_S: "2" }, "@roubo/plugin-sdk");
+    expect(run.status, run.output).toBe(0);
+    expect(run.stdout).toContain(`@roubo/plugin-sdk@${VERSION} resolvable after 0s`);
+  });
+
   it("fails within the ceiling, naming the package and how long it waited", () => {
     stubNpm({ "@roubo/plugin-sdk": Infinity });
     const run = runWait(
@@ -128,5 +140,15 @@ describe("sdk-registry-wait.sh", () => {
     const run = runWait({});
     expect(run.status).not.toBe(0);
     expect(run.output).toContain("usage:");
+  });
+
+  it("runs before the smoke install, for both published packages", () => {
+    const smoke = readFileSync(join(import.meta.dirname, "sdk-smoke.sh"), "utf8");
+    const wait = smoke.indexOf(
+      '"${REPO_ROOT}/scripts/sdk-registry-wait.sh" "${VERSION}" @roubo/plugin-sdk @roubo/shared',
+    );
+    const install = smoke.search(/^install_with_retry$/m);
+    expect(wait).toBeGreaterThan(-1);
+    expect(install).toBeGreaterThan(wait);
   });
 });
