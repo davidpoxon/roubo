@@ -128,7 +128,7 @@ The two compose: a hook-driven agent still arms the quiescence timer, because a 
 
 The session id is minted by Roubo before the agent is asked for anything, so the id in the agent's argv, the id written into its hook configuration, and the id on the session record are all the same value. A hook POST is honoured only when that id names a session that is **still live** and whose agent **declared hook wiring**. Both halves matter: for a plugin agent, eligibility is a property of the launch descriptor rather than of the command name, so no plugin is privileged by what its binary is called, and the live check is what expires a correlation token. An exited session, or one restored from disk after a restart, keeps its record so its scrollback survives, but a POST quoting it is rejected and logged rather than raising a notification.
 
-There is no exception. Roubo removed its own built-in agent launch path in #521, so a launch descriptor is the only thing that can confer hook eligibility and a command name confers nothing.
+There is no exception. Roubo removed its own built-in agent launch path in #1114, so a launch descriptor is the only thing that can confer hook eligibility and a command name confers nothing.
 
 ### Dismissal
 

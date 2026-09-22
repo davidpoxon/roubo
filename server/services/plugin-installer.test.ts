@@ -22,12 +22,12 @@ vi.mock("./plugin-manager.js", () => ({
 
 vi.mock("undici", () => ({
   fetch: vi.fn(),
-  // guarded-fetch builds a connect-pinning Agent (issue #590); the mocked fetch
+  // guarded-fetch builds a connect-pinning Agent (#960); the mocked fetch
   // ignores the dispatcher, so a constructable stub is all this mock needs.
   Agent: vi.fn(),
 }));
 
-// Issue #558: the ledger is real-filesystem state under ~/.roubo. Mock it so the
+// #966: the ledger is real-filesystem state under ~/.roubo. Mock it so the
 // commit paths can be asserted without writing the developer's own state dir.
 vi.mock("./plugin-provenance-state.js", () => ({
   recordProvenance: vi.fn(),
@@ -222,7 +222,7 @@ describe("previewFromGitUrl", () => {
   });
 });
 
-describe("an unknown manifest key is reported against the declared roubo range (issue #719)", () => {
+describe("an unknown manifest key is reported against the declared roubo range (#1118)", () => {
   const UNKNOWN_KEY = "somethingThisHostDoesNotKnow";
 
   function manifestWithUnknownKey(roubo: string): string {
@@ -281,7 +281,7 @@ permissions:
   });
 });
 
-describe("previewFromGitUrl with a source subdirectory (issue #750)", () => {
+describe("previewFromGitUrl with a source subdirectory (#751)", () => {
   // Pretend `git clone <url> <cloneDest>` succeeded by writing the manifest into
   // `<cloneDest>/<directory>`, the monorepo-subdir layout the installer extracts.
   function fakeCloneSubdir(manifest: string, directory: string) {
@@ -337,7 +337,7 @@ describe("previewFromGitUrl with a source subdirectory (issue #750)", () => {
   });
 });
 
-describe("previewFromGitUrl integrity verification (issue #622)", () => {
+describe("previewFromGitUrl integrity verification (#690)", () => {
   it("rejects a package whose digest does not match the expected catalog digest (CP-TC-107/108)", async () => {
     fakeClone(ECHO_MANIFEST);
     await expect(
@@ -372,7 +372,7 @@ describe("previewFromGitUrl integrity verification (issue #622)", () => {
   });
 });
 
-describe("previewUpdateFromGitUrl integrity verification (issue #622)", () => {
+describe("previewUpdateFromGitUrl integrity verification (#690)", () => {
   it("rejects a tampered update package and leaves the existing version intact (CP-TC-112)", async () => {
     // The installed copy stays on disk: the update is rejected at the preview
     // stage, before commit ever runs, so the existing version is never touched.
@@ -488,12 +488,12 @@ describe("commit", () => {
   });
 });
 
-// Issue #558 AC4 / CPHMTP-TC-042: an explicit pick-a-source install records the
+// #966 AC4 / CPHMTP-TC-042: an explicit pick-a-source install records the
 // chosen source. A PluginRecord is rebuilt from disk on every load, so the ledger
 // is the only thing carrying the choice forward: these assert the wiring from the
 // commit paths into it, which the service-level tests (which mock this module
 // wholesale) cannot see.
-describe("commit records the marketplace provenance (issue #558, AC4)", () => {
+describe("commit records the marketplace provenance (#966, AC4)", () => {
   const PROVENANCE = {
     sourceId: "marketplace-acme-example-1a2b3c4d",
     sourceUrl: "https://marketplace.acme.example/catalog.json",
@@ -541,7 +541,7 @@ describe("commit records the marketplace provenance (issue #558, AC4)", () => {
     ).toBeLessThan(vi.mocked(pluginManager.registerInstalled).mock.invocationCallOrder[0]);
   });
 
-  it("stamps a fail-closed row keyed on the git URL for the raw git path (#607)", async () => {
+  it("stamps a fail-closed row keyed on the git URL for the raw git path (#981)", async () => {
     fakeClone(ECHO_MANIFEST);
     const gitUrl = "https://github.com/example/echo.git";
     const preview = await pluginInstaller.previewFromGitUrl(gitUrl);
@@ -564,7 +564,7 @@ describe("commit records the marketplace provenance (issue #558, AC4)", () => {
     expect(pluginProvenanceState.removeProvenance).not.toHaveBeenCalled();
   });
 
-  it("stamps a fail-closed row keyed on the local path for the local install path (#607)", async () => {
+  it("stamps a fail-closed row keyed on the local path for the local install path (#981)", async () => {
     const sourceDir = await trackTmp("roubo-installer-localprov-");
     await writeFile(path.join(sourceDir, "roubo-plugin.yaml"), ECHO_MANIFEST, "utf8");
     const preview = await pluginInstaller.previewFromLocalPath(sourceDir);
@@ -648,7 +648,7 @@ describe("commit records the marketplace provenance (issue #558, AC4)", () => {
   });
 });
 
-describe("previewUpdateFromGitUrl (issue #621)", () => {
+describe("previewUpdateFromGitUrl (#688)", () => {
   it("clones and stages an update for an installed plugin without a duplicate error", async () => {
     fakeClone(ECHO_MANIFEST);
     vi.mocked(pluginManager.listInstalled).mockReturnValue([
@@ -770,7 +770,7 @@ describe("cancel", () => {
   });
 });
 
-// --- Built-artifact (Release asset) install path (issue #370) ----------------
+// --- Built-artifact (Release asset) install path (#849) ----------------
 
 const ASSET_URL = "https://example.com/echo.tgz";
 
@@ -892,7 +892,7 @@ function fakeDownloadStatus(status: number) {
   } as unknown as FetchResult);
 }
 
-describe("previewFromRelease (issue #370)", () => {
+describe("previewFromRelease (#849)", () => {
   it("downloads, unpacks, and stages a built artifact with a runnable dist/index.js (no build step)", async () => {
     fakeDownload(
       await makeTarball([
@@ -1053,7 +1053,7 @@ describe("previewFromRelease (issue #370)", () => {
   it("sends Accept: application/octet-stream on the release-asset download", async () => {
     // A GitHub/GHE Release-asset API endpoint negotiates content by Accept: the
     // default `*/*` returns the asset's JSON metadata, not its bytes, so the
-    // download must request the binary explicitly (issue #370 follow-up).
+    // download must request the binary explicitly (#849 follow-up).
     fakeDownload(await makeTarball([{ path: "roubo-plugin.yaml", content: ECHO_MANIFEST }]));
     await pluginInstaller.previewFromRelease(ASSET_URL);
     const init = vi.mocked(fetch).mock.calls[0]?.[1] as
@@ -1080,7 +1080,7 @@ describe("previewFromRelease (issue #370)", () => {
   });
 });
 
-describe("previewUpdateFromRelease (issue #370)", () => {
+describe("previewUpdateFromRelease (#849)", () => {
   it("downloads, unpacks, and stages an update for an installed plugin without a duplicate error", async () => {
     fakeDownload(
       await makeTarball([
@@ -1181,7 +1181,7 @@ describe("previewUpdateFromRelease (issue #370)", () => {
 });
 
 // --- Mandatory digest + guarded artifact download for third-party (unsigned)
-// --- installs (CPHMTP-NFR-004 / CPHMTP-US-005, issue #559) -------------------
+// --- installs (CPHMTP-NFR-004 / CPHMTP-US-005, #961) -------------------
 
 const TP_ORIGIN = "https://example.com";
 const THIRD_PARTY: pluginInstaller.ThirdPartyInstallContext = { sourceOrigin: TP_ORIGIN };
@@ -1232,7 +1232,7 @@ function firstFetchInit(): { headers?: Record<string, string> } {
   return (call?.[1] ?? {}) as { headers?: Record<string, string> };
 }
 
-describe("third-party install requires a per-artifact digest (issue #559)", () => {
+describe("third-party install requires a per-artifact digest (#961)", () => {
   it.each(UNUSABLE_DIGESTS)(
     "previewFromRelease rejects $label as missing-integrity before any artifact is fetched",
     async ({ value }) => {
@@ -1306,7 +1306,7 @@ describe("third-party install requires a per-artifact digest (issue #559)", () =
   });
 });
 
-describe("third-party install recomputes the digest over the fetched artifact (issue #559)", () => {
+describe("third-party install recomputes the digest over the fetched artifact (#961)", () => {
   it("rejects a mismatch fail-closed: no plugin record, no files written", async () => {
     fakeDownload(await echoTarball());
     await expect(
@@ -1351,7 +1351,7 @@ describe("third-party install recomputes the digest over the fetched artifact (i
   });
 });
 
-describe("third-party artifact download is guarded and origin-scoped (issue #559)", () => {
+describe("third-party artifact download is guarded and origin-scoped (#961)", () => {
   it("attaches the registered source's credential on the source origin", async () => {
     const tgz = await echoTarball();
     const digest = await digestOf(tgz);
@@ -1416,7 +1416,7 @@ describe("third-party artifact download is guarded and origin-scoped (issue #559
   });
 });
 
-describe("first-party install behaviour is unchanged (CPHMTP-NFR-001, issue #559)", () => {
+describe("first-party install behaviour is unchanged (CPHMTP-NFR-001, #961)", () => {
   it("still installs with NO digest when no third-party context is passed", async () => {
     fakeDownload(await echoTarball());
     const preview = await pluginInstaller.previewFromRelease(ASSET_URL);

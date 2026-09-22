@@ -13,7 +13,7 @@ import ConsentReviewDialog from "./ConsentReviewDialog";
 const mockedGrantConsent = vi.mocked(_useGrantConsent);
 
 // The two trust levels this dialog can be handed. It never derives them itself:
-// PluginCard normalises the installed record via `recordProvenance` (issue #563).
+// PluginCard normalises the installed record via `recordProvenance` (#977).
 function firstParty(): PluginProvenance {
   return {
     sourceId: FIRST_PARTY_SOURCE_ID,
@@ -61,8 +61,8 @@ beforeEach(() => {
   mockedGrantConsent.mockReturnValue(grantState());
 });
 
-describe("ConsentReviewDialog: declared permissions (issue #490)", () => {
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+describe("ConsentReviewDialog: declared permissions (#938)", () => {
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the modality explicit to AT.
   it("stamps aria-modal on the dialog", () => {
     render(
@@ -111,7 +111,7 @@ describe("ConsentReviewDialog: declared permissions (issue #490)", () => {
   });
 });
 
-describe("ConsentReviewDialog: acknowledge gate (issue #490)", () => {
+describe("ConsentReviewDialog: acknowledge gate (#938)", () => {
   it("does not grant consent while the acknowledge checkbox is unchecked", async () => {
     const user = userEvent.setup();
     const mutate = vi.fn();
@@ -178,7 +178,7 @@ describe("ConsentReviewDialog: acknowledge gate (issue #490)", () => {
   });
 });
 
-describe("ConsentReviewDialog: outcome (issue #490)", () => {
+describe("ConsentReviewDialog: outcome (#938)", () => {
   it("closes on a successful grant", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -235,12 +235,12 @@ describe("ConsentReviewDialog: outcome (issue #490)", () => {
   });
 });
 
-// Issue #563 (CPHMTP-FR-006 / CPHMTP-NFR-001): the review dialog is one of the
+// #977 (CPHMTP-FR-006 / CPHMTP-NFR-001): the review dialog is one of the
 // enumerated plugin surfaces, so it must wear the plugin's real trust level.
 // Before this, its banner led "Verified, first-party." for every plugin, which
 // would have told the consumer that an unsigned third-party component was
 // first-party verified at the exact moment they were asked to trust it.
-describe("ConsentReviewDialog: trust provenance (issue #563)", () => {
+describe("ConsentReviewDialog: trust provenance (#977)", () => {
   function renderWith(provenance: PluginProvenance) {
     render(
       <ConsentReviewDialog

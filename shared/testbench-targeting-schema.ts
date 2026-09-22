@@ -1,4 +1,4 @@
-// Spike #408: representative zod source for the FR-019 guided-execution
+// Spike #431: representative zod source for the FR-019 guided-execution
 // targeting-field unions, used to prove z.toJSONSchema() output quality and to
 // drive the generate:schema script + CI drift guard.
 //
@@ -127,6 +127,6 @@ export const TestbenchTargetingSpikeSchema = z
     $id: TESTBENCH_TARGETING_SCHEMA_ID,
     title: "TestBench Targeting (spike)",
     description:
-      "Spike #408 fixture proving z.toJSONSchema() output quality for the FR-019 optional per-step `target` and per-observation `observe` targeting unions. Not the authored TestBench contract (#6).",
+      "Spike #431 fixture proving z.toJSONSchema() output quality for the FR-019 optional per-step `target` and per-observation `observe` targeting unions. Not the authored TestBench contract (#445).",
   });
 export type TestbenchTargetingSpike = z.infer<typeof TestbenchTargetingSpikeSchema>;

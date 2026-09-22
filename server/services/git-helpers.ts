@@ -40,7 +40,7 @@ export const SENTINEL_AUTHOR_EMAIL = "unknown@roubo.local";
  * UI-warning contract (AC3): when the returned identity has `isSentinel === true`,
  * the caller MUST surface a UI warning that the git identity could not be
  * resolved and a sentinel author was used to stamp the note/mark. Wiring this
- * into the store (#11) and rendering the notes UI (#17) are out of scope here;
+ * into the store (#11) and rendering the notes UI (#56) are out of scope here;
  * this function only resolves the identity and defines the contract.
  */
 export async function resolveGitIdentity(repoPath: string): Promise<GitIdentity> {

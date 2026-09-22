@@ -38,7 +38,7 @@ export type ProjectOutletContext = {
   isLoading: boolean;
   openCreateBench: () => void;
   pickIssueForBench: (position: number) => void;
-  // TestBench create flow (#418). Only offered when the feature is enabled; the
+  // TestBench create flow (#467). Only offered when the feature is enabled; the
   // handler opens the spec-picker modal for the empty slot.
   testBenchEnabled: boolean;
   onCreateTestBench: (position: number) => void;
@@ -306,7 +306,7 @@ export default function BenchDashboard() {
     setShowSpecPicker(true);
   }, []);
 
-  // Create a TestBench bound to the focused spec (#418). On success the bench is
+  // Create a TestBench bound to the focused spec (#467). On success the bench is
   // marked to open on its "testbench" tab, then we navigate into the bench detail.
   const handleSpecPickerCreate = useCallback(
     (focusedSpecPath: string) => {

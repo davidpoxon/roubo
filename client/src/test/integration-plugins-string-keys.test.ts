@@ -1,5 +1,5 @@
 /// <reference types="node" />
-// #279: the client tsconfig pins `types: ["vite/client"]`, so @types/node is
+// #284: the client tsconfig pins `types: ["vite/client"]`, so @types/node is
 // not globally available. This node-run test reads source files via node:fs, so
 // it references the node types explicitly rather than relying on an incidental
 // transitive include from another client module.

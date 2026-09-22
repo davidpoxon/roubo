@@ -129,7 +129,7 @@ describe("applyGateOverrides - merge (AC1, VG-TC-022)", () => {
     expect(result.dropped[0].reason).toContain("across specs");
   });
 
-  it("carries the source units as mergedFrom so sign-off can fan out over them (issue #435)", () => {
+  it("carries the source units as mergedFrom so sign-off can fan out over them (#911)", () => {
     const loaded = [gate("G1", ["TC-001"]), gate("G2", ["TC-002"])];
     const result = applyGateOverrides(
       loaded,
@@ -142,7 +142,7 @@ describe("applyGateOverrides - merge (AC1, VG-TC-022)", () => {
     expect(result.gates[0].mergedFrom?.map((u) => u.id)).toEqual(["G1", "G2"]);
   });
 
-  it("flattens a nested merge's mergedFrom to the filed leaf sources (issue #435)", () => {
+  it("flattens a nested merge's mergedFrom to the filed leaf sources (#911)", () => {
     // Merge G1+G2, then merge that synthetic gate with G3: the twice-merged gate's
     // mergedFrom must be the three real leaves, never the tracker-less intermediate.
     const loaded = [gate("G1", ["TC-001"]), gate("G2", ["TC-002"]), gate("G3", ["TC-003"])];
@@ -210,7 +210,7 @@ describe("applyGateOverrides - split (AC2, VG-TC-023)", () => {
     expect(result.gates.map((g) => g.unit.id)).not.toContain("PHASE-2");
   });
 
-  it("carries the source gate as mergedFrom on every split part so sign-off can fan out (issue #445)", () => {
+  it("carries the source gate as mergedFrom on every split part so sign-off can fan out (#919)", () => {
     const loaded = [
       gate(
         "PHASE-2",
@@ -242,7 +242,7 @@ describe("applyGateOverrides - split (AC2, VG-TC-023)", () => {
     }
   });
 
-  it("flattens a split-of-a-merge's mergedFrom to the filed leaf sources (issue #445)", () => {
+  it("flattens a split-of-a-merge's mergedFrom to the filed leaf sources (#919)", () => {
     // Merge G1+G2, then split the synthetic merged gate: each part's mergedFrom
     // must be the two real leaves, never the tracker-less merged intermediate.
     const leafMap: WorkUnitCaseMap = new Map([

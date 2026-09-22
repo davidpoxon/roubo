@@ -1,9 +1,9 @@
-// Unblocked-first cut-list ordering (#653, #844).
+// Unblocked-first cut-list ordering (#654, #1224).
 //
 // Platform-agnostic and pure: no fs, no node builtins, no React. Safe in both
 // the Vite client build and the Express server. It lives in `shared/` because
 // two layers apply it: the server materialises the whole result set and orders
-// it once before slicing host-owned pages (#844), and the client re-applies it
+// it once before slicing host-owned pages (#1224), and the client re-applies it
 // after its own filtering and grouping so the order survives those passes.
 
 import type { NormalizedIssue } from "./types";
@@ -25,7 +25,7 @@ import type { NormalizedIssue } from "./types";
  *
  * The authoritative application is server-side, over the whole materialised
  * result set rather than a single page, so the ordering holds across every page
- * of the paged sequence (#844).
+ * of the paged sequence (#1224).
  */
 export function partitionUnblockedFirst(issues: NormalizedIssue[]): NormalizedIssue[] {
   const unblocked: NormalizedIssue[] = [];

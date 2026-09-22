@@ -126,7 +126,7 @@ export function defineComponentPlugin(
     connection.onRequest(method, (params: unknown) => {
       // Bind the in-flight lifecycle call's routing context for the duration of
       // the handler, so any host.* broker call it makes is stamped with this
-      // bench/component (#685). `translate` receives `{ config, context }`; the
+      // bench/component (#687). `translate` receives `{ config, context }`; the
       // imperative hooks receive the BenchContext directly. Both carry benchId
       // and componentName. When the params do not carry a usable context (an
       // unexpected shape), dispatch the handler without a routing context: a

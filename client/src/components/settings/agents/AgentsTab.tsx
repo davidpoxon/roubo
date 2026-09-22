@@ -19,7 +19,7 @@ const STRINGS = {
 };
 
 /**
- * Settings > AI Agents (AP-FR-002, AP-FR-003, issue #508).
+ * Settings > AI Agents (AP-FR-002, AP-FR-003, #1032).
  *
  * Lists every installed `agent`-kind plugin, each with its own schema-driven
  * config form. With no agent plugins installed the screen renders a usable

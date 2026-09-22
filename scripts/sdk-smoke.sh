@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Standalone SDK compatibility smoke for ONE bundled plugin (issue #507, AP-NFR-004).
+# Standalone SDK compatibility smoke for ONE bundled plugin (#1026, AP-NFR-004).
 #
 # Usage: scripts/sdk-smoke.sh <plugin> <version>
 #

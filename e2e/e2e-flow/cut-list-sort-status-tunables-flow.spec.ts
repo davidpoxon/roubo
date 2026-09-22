@@ -3,16 +3,16 @@ import { registerTestProject } from "../project-settings/_support/test-project.j
 import { openConfigureDialog, save } from "./_support/picker.js";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
-// #573: the integration-level drift guard for the US-007 journey "per-project
+// #643: the integration-level drift guard for the US-007 journey "per-project
 // sort and status tunables persist and are plugin-scoped". This unit spans the
-// slices #558 (status-category exclusion + only-to-do) and #566 (per-project
+// slices #582 (status-category exclusion + only-to-do) and #637 (per-project
 // sort + status persistence, validated against the active plugin) and asserts
 // the integrated journey against the authoritative e2e_flow case CLI-TC-062,
 // not whatever any single slice implemented.
 //
 // Traceability: implements CLI-FR-013 (status-category exclusion) and
 // CLI-FR-017 (per-project persistence); verifies CLI-US-007 via CLI-TC-062.
-// Blocked by #558 / #566 (both shipped; server-side persistence + validation
+// Blocked by #582 / #637 (both shipped; server-side persistence + validation
 // landed in #637).
 //
 // TC-062 reconciled to the SHIPPED contract. Several of TC-062's prose
@@ -30,7 +30,7 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 //
 //   - S002 "Status filter saved" announcement. No such announcement string
 //     exists. Status-category exclusion is configured through the Configure
-//     dialog (PluginConfigureDialog status-exclusion section, #558/#435), and
+//     dialog (PluginConfigureDialog status-exclusion section, #582/#454), and
 //     the observable signal that the filter applied is the cut list dropping
 //     the excluded issue plus the "N filtered out by status" preview note
 //     (testid `excluded-count-note`). We assert those instead of a phantom
@@ -40,7 +40,7 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 //     read "Backlog rank descending" after navigating away and back. The
 //     shipped picker holds its selection in ephemeral component state (its
 //     initial selection is always null) and does not hydrate from the persisted
-//     per-project sort. The persistence that actually shipped (#566/#637) lives
+//     per-project sort. The persistence that actually shipped (#637) lives
 //     at the integration boundary: the plugin-validated persisted sort drives
 //     GET /issues when no live sort is passed, and the persisted status
 //     exclusion survives a fresh navigation. We assert persistence there (GET
@@ -60,8 +60,8 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 //
 // FR-020 failure-output contract (every observation below): each assertion
 // carries a message naming the diverging TC-062 step (S001-S004), the
-// expected-vs-actual, and the owning slice issue(s) (#558 status exclusion,
-// #566 persistence), so a regression points straight at the step and slice.
+// expected-vs-actual, and the owning slice(s) (#582 status exclusion,
+// #637 persistence), so a regression points straight at the step and slice.
 
 const SCENARIO = "cut-list-sort-status-tunables";
 const NOW = "2026-06-20T13:00:00.000Z";
@@ -70,8 +70,8 @@ const PROJECT_A = "tc-062-project-a";
 const PROJECT_B = "tc-062-project-b";
 
 // Slice ownership per TC-062 step, surfaced in every FR-020 failure message.
-const SORT_SLICE = "#566"; // per-project sort persistence + validation
-const STATUS_SLICE = "#558"; // status-category exclusion
+const SORT_SLICE = "per-project persistence of sort + status tunables"; // per-project sort persistence + validation
+const STATUS_SLICE = "only-To-Do default + configurable status exclusion"; // status-category exclusion
 
 const INSTANCE = "https://jira.stub.example";
 
@@ -238,7 +238,7 @@ test("TC-062: per-project sort and status tunables persist and are plugin-scoped
   // The persisted sort drives the cut-list query when the request carries no
   // live sortBy: GET /issues returns backlog-rank descending (newest first),
   // with In Progress and Done excluded. Cross-checked directly at the boundary,
-  // the genuine #566/#637 drift guard.
+  // the genuine #637 drift guard.
   const issuesRes = await request.get(`/api/projects/${PROJECT_A}/issues?page=1&pageSize=10`);
   expect(
     issuesRes.status(),

@@ -2,15 +2,15 @@ import net from "node:net";
 import { lookup as dnsLookup } from "node:dns/promises";
 import { Agent, type Dispatcher, fetch as undiciFetch } from "undici";
 
-// Shared guarded-fetch transport (CPHMTP-NFR-002 / NFR-005, issue #554). One
+// Shared guarded-fetch transport (CPHMTP-NFR-002 / NFR-005, #956). One
 // helper both the catalog fetch (catalog-client.fetchEnvelope) and the artifact
 // download (plugin-installer.downloadAssetToFile) route through, so the SSRF /
 // redirect guard, the hybrid Authorization rule, and origin-scoped credential
 // attach live in exactly one place.
 //
-// It ports the resolved spike #551 guard shape (canonicalise-then-two-tier
+// It ports the resolved spike #956 guard shape (canonicalise-then-two-tier
 // HARD/SOFT range table, per-hop manual redirect re-validation) and the resolved
-// spike #552 credential decision (attach only on exact origin equality, place
+// spike #953 credential decision (attach only on exact origin equality, place
 // the credential in the Authorization header only). Because the guard follows
 // redirects MANUALLY (redirect: "manual", never "follow") so it can re-validate
 // each hop before connecting, undici's automatic cross-origin Authorization
@@ -81,7 +81,7 @@ export interface GuardedFetchOptions {
   /**
    * Transport injection (tests / e2e / the undici download path). Defaults to
    * undici's fetch, which is the SAME undici the pinned-connect dispatcher (issue
-   * #590) is built from. Node's built-in global fetch bundles a different undici
+   * #960) is built from. Node's built-in global fetch bundles a different undici
    * major whose dispatch-handler protocol is incompatible with that dispatcher,
    * so the guarded transport standardises on npm undici to keep the pin working.
    */
@@ -104,7 +104,7 @@ export interface GuardedFetchOptions {
 /** Thrown when the guard blocks a hop (or the chain exceeds the hop cap). */
 export class GuardedFetchError extends Error {
   readonly code = "guarded-fetch-blocked" as const;
-  /** The machine-readable guard reason (mirrors the spike #551 rule table). */
+  /** The machine-readable guard reason (mirrors the spike #956 rule table). */
   readonly reason: string;
   /** The offending URL, when the block is tied to a specific hop. */
   readonly url?: string;
@@ -227,7 +227,7 @@ export function classifyHost(url: URL): HostClassification {
 }
 
 /**
- * Validate a single URL against the scheme + range policy (spike #551 shape).
+ * Validate a single URL against the scheme + range policy (spike #956 shape).
  *
  * hop 0 is the initial fetch (a public / DNS origin must be consented); hop > 0 is
  * a redirect target (a public / DNS target is allowed, e.g. the GHE -> CDN hop).
@@ -302,7 +302,7 @@ const defaultLookup: LookupFn = (hostname) =>
   dnsLookup(hostname, { all: true }) as Promise<ResolvedAddress[]>;
 
 /**
- * DNS resolve-and-recheck (the named #554 decision point). For a DNS-name host,
+ * DNS resolve-and-recheck (the named #956 decision point). For a DNS-name host,
  * resolve every A/AAAA record and re-run the range table on each before the
  * connect, so a name that resolves into a blocked range is rejected up front and
  * a DNS-rebinding redirect target cannot pivot to a private / metadata address.
@@ -313,7 +313,7 @@ const defaultLookup: LookupFn = (hostname) =>
  * ever ADDS a block, never a new failure.
  *
  * Returns the validated resolved addresses so the caller can PIN them to the
- * socket connect (issue #590): guardedFetch builds a per-hop undici dispatcher
+ * socket connect (#960): guardedFetch builds a per-hop undici dispatcher
  * whose connect.lookup answers only with these addresses, so the transport
  * connects to exactly the address that passed the range check and cannot
  * re-resolve to a different (private / metadata) address between this check and
@@ -354,13 +354,13 @@ async function recheckResolvedAddresses(
       );
     }
   }
-  return addresses; // Validated: the caller pins exactly these to the connect (issue #590).
+  return addresses; // Validated: the caller pins exactly these to the connect (#960).
 }
 
 /**
  * A node net-style connect lookup that answers ONLY with the pre-validated
  * pinned address(es), so the socket connect never performs a second DNS
- * resolution (issue #590). Node's connect path calls a lookup in one of two
+ * resolution (#960). Node's connect path calls a lookup in one of two
  * forms depending on its autoSelectFamily setting: the `all: true` form expects
  * an array of { address, family }, the single form expects (err, address,
  * family). Both are answered here from the same pinned set. Pure and
@@ -384,7 +384,7 @@ export function buildPinnedLookup(addresses: ResolvedAddress[]): net.LookupFunct
 
 /**
  * Build a per-hop undici dispatcher that pins the connect to `addresses` (issue
- * #590). The dispatcher is a fresh Agent whose connector lookup is
+ * #960). The dispatcher is a fresh Agent whose connector lookup is
  * buildPinnedLookup(addresses). Only npm undici's fetch honours an
  * init.dispatcher, so it is the guarded transport's default and what both the
  * catalog and installer paths inject; Node's built-in global fetch bundles a
@@ -399,7 +399,7 @@ export function buildPinnedDispatcher(addresses: ResolvedAddress[]): Dispatcher 
   return new Agent({ connect: { lookup: buildPinnedLookup(addresses) } });
 }
 
-/** RequestInit plus undici's non-standard `dispatcher`, used to pin the connect (issue #590). */
+/** RequestInit plus undici's non-standard `dispatcher`, used to pin the connect (#960). */
 interface DispatcherInit extends RequestInit {
   dispatcher?: Dispatcher;
 }
@@ -483,7 +483,7 @@ export async function guardedFetch(url: string, options: GuardedFetchOptions): P
     if (typeof timeoutMs === "number" && timeoutMs > 0) {
       init.signal = AbortSignal.timeout(timeoutMs);
     }
-    // Pin the exact validated IP(s) to the socket connect (issue #590): for a
+    // Pin the exact validated IP(s) to the socket connect (#960): for a
     // DNS-name hop whose resolution passed the range table, force the transport to
     // connect to precisely those addresses so it cannot re-resolve the name to a
     // different (private / metadata) address between the check and the connect.

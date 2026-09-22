@@ -7,7 +7,7 @@ import {
 } from "./plugin-provenance";
 
 // The ONE trust treatment in the app (CPHMTP-FR-006 / CPHMTP-NFR-001, issue
-// #563). Every plugin surface (marketplace card, detail drawer, installed-plugins
+// #977). Every plugin surface (marketplace card, detail drawer, installed-plugins
 // settings tab, install consent modal, permission review dialog) renders this
 // component, and nothing else renders a Verified / Unverified marker of its own.
 //
@@ -89,7 +89,7 @@ function OrphanedPill() {
  * hostname out of context (CPHMTP-NFR-008). It is deliberately subtree text and
  * not an `aria-label`: the chip is a role-less span (ARIA role `generic`), which
  * prohibits `aria-label`, and a generic container is not a navigation stop, so
- * assistive tech reads the subtree rather than the name (issue #596).
+ * assistive tech reads the subtree rather than the name (#965).
  */
 function SourceChip({ provenance }: { provenance: PluginProvenance }) {
   const isFirstParty = isFirstPartySource(provenance);

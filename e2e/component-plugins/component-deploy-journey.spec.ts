@@ -5,12 +5,12 @@ import { makeObserve, type JourneyStep } from "./_support/step-runner.js";
 // "CP-TC-028"; the per-observation observe() call sites below are unchanged.
 const observe = makeObserve("CP-TC-028");
 
-// CP-TC-028 (#626) - E2E: author publishes a component plugin; the imperative
+// CP-TC-028 (#662) - E2E: author publishes a component plugin; the imperative
 // "deploy" escape-hatch lifecycle runs end to end against the integrated,
 // real, built server.
 //
 // This spec is the integration-level drift guard for the journey spanning
-// slices #598, #600, #602, #603, #604, #605, #607, #613. It drives the
+// slices #634, #633, #646, #645, #649, #648, #647, #657. It drives the
 // authoritative CP-TC-028 e2e_flow steps S001-S006 as ordered, attributable
 // observations. On divergence each observation routes through the FR-020
 // failure-output contract (see _support/step-runner.ts): the failure reports
@@ -18,16 +18,16 @@ const observe = makeObserve("CP-TC-028");
 //
 // Wiring status at authoring time: the bench-manager -> LifecycleEngine
 // dispatch of an imperative component plugin (component.start(BenchContext) and
-// the broker/reportStatus attachment) is OWNED BY #612 (F1.11, "Remove all
+// the broker/reportStatus attachment) is OWNED BY #663 (F1.11, "Remove all
 // component-type dispatch from bench-manager; delegate to engine/registry"),
 // which is OPEN and explicitly out of scope of every closed slice above
-// (see the #608 / cb2e621 commit body and the bench-manager launchComponent
-// type-dispatch). Until #612 lands, S003-S006 cannot be observed against the
+// (see the #651 / cb2e621 commit body and the bench-manager launchComponent
+// type-dispatch). Until #663 lands, S003-S006 cannot be observed against the
 // integrated server: launchComponent has no plugin-backed branch, so a
 // plugin-bound component is never handed to the plugin's start hook, and
 // buildReportStatus (the SSE sink) is never attached. S001 (discovery) and
 // S002 (consent) ARE wired today and are asserted hard. The journey block
-// S003-S006 is gated on #612 via the DISPATCH_WIRED probe below: it runs the
+// S003-S006 is gated on #663 via the DISPATCH_WIRED probe below: it runs the
 // full ordered observation set the moment the dispatch is wired, and reports
 // the attributed divergence (never a vacuous green) before then.
 
@@ -102,7 +102,7 @@ async function listPlugins(request: APIRequestContext): Promise<PluginListEntry[
 /**
  * Probe whether the integrated server wires the imperative component-plugin
  * dispatch yet. Starting a bench whose `deploy` component is plugin-bound and
- * inspecting the component's status tells us: once #612 wires launchComponent
+ * inspecting the component's status tells us: once #663 wires launchComponent
  * to the plugin start hook, the deploy component reaches a terminal lifecycle
  * status ("completed"); until then it never leaves the host's pre-dispatch
  * state. We treat any terminal/imperative-driven status as "wired".
@@ -199,7 +199,7 @@ test("CP-TC-028: imperative deploy lifecycle runs end to end (S003-S006)", async
   );
 
   // Poll for the imperative dispatch to drive the deploy component to a terminal
-  // status. Until #612 wires bench-manager -> engine, the component never leaves
+  // status. Until #663 wires bench-manager -> engine, the component never leaves
   // the host's pre-dispatch state and this never flips true.
   let wired = false;
   for (let i = 0; i < 20 && !wired; i += 1) {
@@ -210,8 +210,8 @@ test("CP-TC-028: imperative deploy lifecycle runs end to end (S003-S006)", async
   if (!wired) {
     // The integrated imperative dispatch is not wired yet. Emit the FR-020
     // attribution so the drift is localised, then mark the journey block
-    // pending against its owning slice (#612). This keeps the suite green
-    // while the drift guard stays meaningful: the moment #612 lands, `wired`
+    // pending against its owning slice (#663). This keeps the suite green
+    // while the drift guard stays meaningful: the moment #663 lands, `wired`
     // flips true and the hard S004-S006 assertions below run.
     const detail = [
       "CP-TC-028 S003-S006 not yet observable: the bench-manager -> LifecycleEngine",

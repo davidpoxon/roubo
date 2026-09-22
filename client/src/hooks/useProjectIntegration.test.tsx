@@ -21,7 +21,7 @@ beforeEach(() => {
 });
 
 describe("useSaveIntegrationConfig", () => {
-  it("invalidates the cut-list and integration queries after a successful save (issue #435)", async () => {
+  it("invalidates the cut-list and integration queries after a successful save (#454)", async () => {
     mockedApi.saveIntegrationConfig.mockResolvedValue({} as never);
     const queryClient = makeQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");

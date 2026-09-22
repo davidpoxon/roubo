@@ -14,13 +14,13 @@ import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useT
 
 // The case-detail pane must be at least this wide (px) before the notes show as
 // an inline side rail; below it the notes collapse into the bottom drawer. This
-// is measured on the pane's own container (#524), not the viewport, so the rail
+// is measured on the pane's own container (#525), not the viewport, so the rail
 // only appears when the detail pane genuinely has room for a comfortable split.
 // Collapsing the case list or the projects sidebar widens this container, which
 // crosses the threshold and brings the inline rail back. Tunable single knob.
 const NOTES_RAIL_MIN_WIDTH = 680;
 
-// Case detail pane (#420, FR-007/FR-008/FR-009/FR-010, US-003/US-004/US-005).
+// Case detail pane (#471, FR-007/FR-008/FR-009/FR-010, US-003/US-004/US-005).
 //
 // Renders one case in full: title, id/level/priority, preconditions, ordered
 // steps, and each expected observation with a segmented pass/fail mark control.
@@ -29,12 +29,12 @@ const NOTES_RAIL_MIN_WIDTH = 680;
 // shown distinctly and taking precedence over later marks.
 //
 // The server is the source of truth: mark/override mutations PUT to the already-
-// shipped #416 routes and return the authoritative CaseResult; the displayed
+// shipped #459 routes and return the authoritative CaseResult; the displayed
 // status is statusOverride ?? derivedStatus. Optimistic cache updates in the
 // mutation hooks keep the round-trip under 150ms (NFR-004) without a blocking
 // refetch.
 //
-// Layout (#508, #522, #524): the case body and the notes sit in an internal
+// Layout (#510, #523, #525): the case body and the notes sit in an internal
 // split. When the detail pane's own container is wide enough (measured at
 // runtime, not via a viewport breakpoint) the notes are a fixed right-hand side
 // rail. When the container is narrower than NOTES_RAIL_MIN_WIDTH the rail is
@@ -59,14 +59,14 @@ interface CaseDetailProps {
   // Invoked when the reviewer dismisses the detail (closes the pane).
   onBack?: () => void;
   // Invoked to advance to the next case; only offered when the case is passed
-  // and a next case exists (#508).
+  // and a next case exists (#510).
   onNext?: () => void;
-  // Invoked after a mark or status-override write settles (#702, AC2). The batch
+  // Invoked after a mark or status-override write settles (#726, AC2). The batch
   // view uses this to invalidate the open gate's state so the gate-state panel
   // live-updates (pending / failed / passed / stale) as cases are marked. The
   // plain TestBench panel omits it, so existing behaviour is unchanged.
   onMarked?: () => void;
-  // Invoked once a retire or supersede write succeeds (#775, AC4). The case has
+  // Invoked once a retire or supersede write succeeds (#1173, AC4). The case has
   // just left the live list, which unmounts the control that applied the action,
   // so the panel uses this to move focus onto the archived entry the case landed
   // in and to announce the outcome. Omitted in a read-only render.
@@ -110,13 +110,13 @@ export default function CaseDetail({
 
   // The left column scrolls independently. React reuses this DOM node across
   // case changes, so without resetting it the panel keeps the prior case's
-  // scroll offset; reset to the top whenever the displayed case changes (#522).
+  // scroll offset; reset to the top whenever the displayed case changes (#523).
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [testCase.id]);
 
-  // Decide the notes layout from the space available to this pane (#524). The
+  // Decide the notes layout from the space available to this pane (#525). The
   // measured width gates inline-rail vs bottom-drawer: collapsing the case list
   // or the projects sidebar widens this container and flips it back to the rail.
   const rootRef = useRef<HTMLDivElement>(null);
@@ -161,7 +161,7 @@ export default function CaseDetail({
       {/* Two-column split when the pane is wide enough: the case body scrolls on
           the left, notes sit in a right-hand side rail. When the pane is narrow
           the rail is replaced by a bottom drawer (rendered after this row) so the
-          steps get the full width (#508, #522, #524). */}
+          steps get the full width (#510, #523, #525). */}
       <div
         className={`flex min-h-0 flex-1 mt-2 ${
           showInlineRail ? "flex-row gap-6" : "flex-col gap-4"
@@ -214,7 +214,7 @@ export default function CaseDetail({
             </div>
           </div>
 
-          {/* Per-case observation progress (#508), distinct from the overall and
+          {/* Per-case observation progress (#510), distinct from the overall and
               per-level case rollups. role=status: aria-label is ARIA-prohibited
               on a role-less div (#967), and the chip is a
               status readout that updates as observations are marked. */}
@@ -319,7 +319,7 @@ export default function CaseDetail({
             </>
           )}
 
-          {/* Lifecycle actions (#772): the write path into the spec's own case
+          {/* Lifecycle actions (#1167): the write path into the spec's own case
               file, kept at the foot of the case body so the review surface
               (steps, marks, notes) stays first. */}
           <LifecycleControls
@@ -330,14 +330,14 @@ export default function CaseDetail({
           />
         </div>
 
-        {/* Inline side rail, only when the pane is wide enough (#524). When
+        {/* Inline side rail, only when the pane is wide enough (#525). When
             narrow this is omitted entirely and the bottom drawer below takes
             over, so exactly one notes surface renders at a time. */}
         {showInlineRail && (
           <div className="flex flex-col min-h-0 basis-2/5 border-l border-border pl-6">
             {/* The label is a pinned header; NotesRail fills the remaining height
                 and scrolls its notes list internally so the "Add a note" form
-                stays reachable on a short pane (#806). */}
+                stays reachable on a short pane (#808). */}
             <div className={`${SECTION_LABEL} mt-0 shrink-0`}>Notes</div>
             <NotesRail projectId={projectId} benchId={benchId} caseId={testCase.id} notes={notes} />
           </div>
@@ -345,9 +345,9 @@ export default function CaseDetail({
       </div>
 
       {/* Bottom notes drawer, only when the pane is too narrow for the inline
-          rail (#524). Keyed by the case id so it remounts (and so resets to
+          rail (#525). Keyed by the case id so it remounts (and so resets to
           closed) whenever a different case is selected, keeping the steps
-          full-width on arrival without a setState-in-effect (#522). */}
+          full-width on arrival without a setState-in-effect (#523). */}
       {!showInlineRail && (
         <NotesDrawer
           key={testCase.id}
@@ -367,11 +367,11 @@ const FIELD_LABEL_CLASS = "text-11 font-medium text-text-secondary";
 const ACTION_CLASS =
   "inline-flex items-center gap-1.5 rounded-control px-2.5 py-1 text-12 font-medium text-text-body bg-bg-hover hover:bg-bg-pressed hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring";
 
-// Lifecycle controls for one live case (#772, SATCA-FR-019, SATCA-US-006).
+// Lifecycle controls for one live case (#1167, SATCA-FR-019, SATCA-US-006).
 //
 // Retire takes a required reason; supersede takes a required replacement pointer
 // plus an optional reason. The pointer is never typed: it is chosen in the
-// two-stage ReplacementPicker (#774, SATCA-FR-028/FR-029), which lists the cases
+// two-stage ReplacementPicker (#1169, SATCA-FR-028/FR-029), which lists the cases
 // that actually exist and refuses to hand back a pointer the shared resolver
 // reports as unresolvable. What lands here is therefore always a slug-qualified
 // (or deliberately bare, same-spec) pointer that resolved at authoring time.
@@ -386,7 +386,7 @@ const ACTION_CLASS =
 //
 // Each action's form is a disclosure, not a dialog: it is an inline panel, so it
 // declares itself with aria-expanded and aria-controls on the toggle that opens
-// it rather than borrowing modal semantics it does not have (#775, AC1/AC3).
+// it rather than borrowing modal semantics it does not have (#1173, AC1/AC3).
 function LifecycleControls({
   projectId,
   benchId,
@@ -591,9 +591,9 @@ interface NotesDrawerProps {
   notes: CaseResult["notes"];
 }
 
-// Bottom notes drawer for a narrow detail pane (#524). A lightweight CSS panel
+// Bottom notes drawer for a narrow detail pane (#525). A lightweight CSS panel
 // anchored to the bottom of the detail pane, opened by a "Notes (n)" toggle:
-// no scrim, no modal overlay (#522). The toggle sits in the normal flow at the
+// no scrim, no modal overlay (#523). The toggle sits in the normal flow at the
 // foot of the pane; the panel is absolutely positioned above it so the steps
 // keep the full width while the drawer is closed. State lives here (not in the
 // parent) so a parent `key={caseId}` remount resets it to closed on case change.

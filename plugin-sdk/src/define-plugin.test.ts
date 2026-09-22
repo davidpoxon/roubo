@@ -442,7 +442,7 @@ describe("definePlugin (TC-035)", () => {
     ).rejects.toMatchObject({ code: -32601 });
   });
 
-  // #356: getSourceOptions backs the searchable project-first source picker.
+  // #426: getSourceOptions backs the searchable project-first source picker.
   // It was added to PluginContract and invoked by the host's source-options
   // route, but was missing from the dispatch list here, so every plugin's
   // searchable search failed with "Unhandled method getSourceOptions". This

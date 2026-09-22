@@ -50,9 +50,9 @@ export interface ConfigSchemaFormProps {
   errors?: Record<string, string>;
   /**
    * Optional choice-probe state per probed field, as the agent settings response
-   * serves it (#852). A field whose probe is `loading` or `failed` renders an
+   * serves it (#1268). A field whose probe is `loading` or `failed` renders an
    * empty choice control with a status line instead of a free-text input: an
-   * unset field already means the account default (#853). A `resolved` field
+   * unset field already means the account default (#1274). A `resolved` field
    * needs nothing here, because its choices are already in `schema`.
    */
   probes?: Record<string, AgentChoiceProbeState>;

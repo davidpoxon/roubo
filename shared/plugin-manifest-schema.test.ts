@@ -113,7 +113,7 @@ describe("PluginManifestSchema: TC-006 happy paths", () => {
     expect(PluginManifestSchema.safeParse(manifest).success).toBe(true);
   });
 
-  it("accepts the tracker-action capability flags (#705)", () => {
+  it("accepts the tracker-action capability flags (#734)", () => {
     const manifest = makeManifest({
       capabilities: { supportsCreateIssue: true, supportsBlockingLinks: false },
     });
@@ -334,7 +334,7 @@ describe("PluginManifestSchema: component kind (FR-001)", () => {
     }
   });
 
-  it("accepts componentMode: imperative (the escape-hatch dispatch signal, #396)", () => {
+  it("accepts componentMode: imperative (the escape-hatch dispatch signal, #887)", () => {
     const result = PluginManifestSchema.safeParse(
       makeManifest({ kind: "component", contractVersion: 1, componentMode: "imperative" }),
     );
@@ -427,11 +427,11 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
     }
   });
 
-  // Issue #669: a prerelease or build-metadata bound is valid semver but
+  // #1082: a prerelease or build-metadata bound is valid semver but
   // uncomparable, because `compareVersions` splits on "." and `Number("111-beta")`
   // is NaN, so it used to validate here and then classify every detected version
   // `below-floor`. Both bounds now refuse the shape at authoring time, matching
-  // VersionProbeSpecSchema on the descriptor side (#661).
+  // VersionProbeSpecSchema on the descriptor side (#1076).
   const UNCOMPARABLE_BOUNDS = ["2.1.111-beta.1", "2.1.111+build.5"];
 
   it.each(UNCOMPARABLE_BOUNDS)("rejects an uncomparable minVersion (%s)", (minVersion) => {
@@ -478,10 +478,10 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
     expect(result.success).toBe(false);
   });
 
-  // #712: per-agent well-known install locations live on the manifest, so an
+  // #1115: per-agent well-known install locations live on the manifest, so an
   // agent CLI other than `claude` resolves through the host's fallback without
   // core growing another per-agent branch.
-  describe("agentInstallLocations (#712)", () => {
+  describe("agentInstallLocations (#1115)", () => {
     it("accepts absolute and ~/-prefixed locations on a kind: agent manifest", () => {
       const result = PluginManifestSchema.safeParse(
         makeManifest({
@@ -570,7 +570,7 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
     });
   });
 
-  describe("agentPermissionRuleTiers (#862)", () => {
+  describe("agentPermissionRuleTiers (#1345)", () => {
     it("accepts a subset of the tiers on a kind: agent manifest", () => {
       const result = PluginManifestSchema.safeParse(
         makeManifest({ kind: "agent", agentPermissionRuleTiers: ["allow", "deny"] }),
@@ -679,7 +679,7 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
   });
 });
 
-describe("PluginManifestSchema: agent kind may not declare processes (#632, AP-NFR-001)", () => {
+describe("PluginManifestSchema: agent kind may not declare processes (#1030, AP-NFR-001)", () => {
   it("accepts an agent manifest declaring processes: false", () => {
     const result = PluginManifestSchema.safeParse(
       makeManifest({
@@ -711,7 +711,7 @@ describe("PluginManifestSchema: agent kind may not declare processes (#632, AP-N
   });
 
   // AP-NFR-004 regression guard: the gate is kind-scoped, so the kinds that
-  // legitimately spawn today keep validating unchanged (issue #633 covers
+  // legitimately spawn today keep validating unchanged (#1034 covers
   // confining those children).
   for (const kind of ["integration", "component"] as const) {
     it(`still accepts a ${kind} manifest declaring spawnable executables`, () => {
@@ -752,10 +752,10 @@ describe("PluginManifestSchema: agent kind may not declare processes (#632, AP-N
   });
 });
 
-// #850, APCC-TC-001: a configuration field may bind a host-executed choice
+// #1263, APCC-TC-001: a configuration field may bind a host-executed choice
 // probe. The directive mirrors agentCompatibility.probe field for field, with a
 // closed set of shape-named parse modes in place of `semver`.
-describe("PluginManifestSchema: choiceProbes (#850, APCC-TC-001)", () => {
+describe("PluginManifestSchema: choiceProbes (#1263, APCC-TC-001)", () => {
   const directive = {
     command: "example-cli",
     args: ["models", "--list"],
@@ -869,7 +869,7 @@ describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-01
   }
 });
 
-// Issue #856 (APCC-NFR-004, APCC-TC-007 S001): the two contract additions
+// #1269 (APCC-NFR-004, APCC-TC-007 S001): the two contract additions
 // (`choiceProbes` on the manifest, the `file-notifier` wiring on the launch
 // descriptor) break nothing already shipped. Every manifest in this repo that a
 // host loads, the first-party plugins and the agent overlays the e2e suite
@@ -877,7 +877,7 @@ describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-01
 // rather than listed, so a plugin added later is covered without editing this
 // test. Each one must validate byte-for-byte unchanged and must not need the new
 // key to do so.
-describe("PluginManifestSchema: every shipped manifest validates unchanged (issue #856, APCC-TC-007)", () => {
+describe("PluginManifestSchema: every shipped manifest validates unchanged (#1269, APCC-TC-007)", () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const MANIFEST_ROOTS = ["plugins", "e2e/fixtures/bundled-overlays"];
 
@@ -1045,7 +1045,7 @@ describe("PluginManifestSchema: contractVersion / descriptorSchemaVersion", () =
   });
 });
 
-describe("PluginManifestSchema: lifecycle (issue #401)", () => {
+describe("PluginManifestSchema: lifecycle (#883)", () => {
   it("accepts a long-running or one-shot lifecycle", () => {
     for (const lifecycle of ["long-running", "one-shot"] as const) {
       const result = PluginManifestSchema.safeParse(makeManifest({ kind: "component", lifecycle }));
@@ -1240,8 +1240,8 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
 
   // This artifact is hand-authored and exempt from the schema-drift gate, so
   // this suite is the only thing keeping the agent processes gate in lockstep
-  // with the superRefine on PluginManifestSchema (#632).
-  it("declares the agent processes gate (lockstep with zod, #632)", () => {
+  // with the superRefine on PluginManifestSchema (#1030).
+  it("declares the agent processes gate (lockstep with zod, #1030)", () => {
     const allOf = jsonSchema.allOf as Array<Record<string, Record<string, unknown>>>;
     expect(Array.isArray(allOf)).toBe(true);
     const gate = allOf.find(
@@ -1286,7 +1286,7 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     expect(probeProps.parse.const).toBe("semver");
   });
 
-  it("declares an optional choiceProbes map of strict directives (lockstep with zod, #850)", () => {
+  it("declares an optional choiceProbes map of strict directives (lockstep with zod, #1263)", () => {
     const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
     const choiceProbes = properties.choiceProbes;
     expect(choiceProbes.type).toBe("object");
@@ -1303,11 +1303,11 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
   });
 
   // Same reason as the processes gate above: this artifact is hand-authored and
-  // exempt from schema-drift, so this suite is the only thing keeping the #712
+  // exempt from schema-drift, so this suite is the only thing keeping the #1115
   // field and its kind gate in lockstep with the zod schema.
   // Same reason again: hand-authored and exempt from schema-drift, so this is
-  // the only thing keeping the #862 field and its kind gate in lockstep.
-  it("declares an optional agentPermissionRuleTiers array gated to kind: agent (lockstep with zod, #862)", () => {
+  // the only thing keeping the #1345 field and its kind gate in lockstep.
+  it("declares an optional agentPermissionRuleTiers array gated to kind: agent (lockstep with zod, #1345)", () => {
     const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
     const tiers = properties.agentPermissionRuleTiers;
     expect(tiers.type).toBe("array");
@@ -1324,7 +1324,7 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     expect((gate?.then.properties as Record<string, { const?: string }>).kind.const).toBe("agent");
   });
 
-  it("declares an optional agentInstallLocations array gated to kind: agent (lockstep with zod, #712)", () => {
+  it("declares an optional agentInstallLocations array gated to kind: agent (lockstep with zod, #1115)", () => {
     const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
     const locations = properties.agentInstallLocations;
     expect(locations.type).toBe("array");
@@ -1379,7 +1379,7 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     expect(required).not.toContain("descriptorSchemaVersion");
   });
 
-  it("declares an optional lifecycle enum (lockstep with zod, issue #401)", () => {
+  it("declares an optional lifecycle enum (lockstep with zod, #883)", () => {
     const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
     expect(properties.lifecycle).toMatchObject({
       type: "string",

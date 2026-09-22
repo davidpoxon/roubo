@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// AP-TC-118 S005/S006 (issue #533, AP-WU-032), the RENDERED half: a user who has
+// AP-TC-118 S005/S006 (#1126, AP-WU-032), the RENDERED half: a user who has
 // never seen a newly published third-party agent plugin opens the Marketplace,
 // finds it as an agent-kind listing carrying its compatibility metadata, and
 // installs it through the Install button.
@@ -41,7 +41,7 @@
 //
 // Failure-output contract (AP-FR-020): every assertion carries an
 // expected-vs-actual message naming the diverged step (and its observation id)
-// plus the owning slice issue from this unit's blocked_by/covers set.
+// plus the owning slice from this unit's blocked_by/covers set.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor, within } from "@testing-library/react";
@@ -93,9 +93,9 @@ const mockedGrantConsent = vi.mocked(grantPluginConsent);
 // ── Owning slices (AP-FR-020) ──
 //
 // From this unit's blocked_by/covers set in .specifications/agent-plugins/
-// issues.json: [#519, #521, #522, #523, #537].
-const SLICE_MARKETPLACE = "#522 (marketplace distribution for agent-kind plugins)";
-const SLICE_COMPAT = "#519 (version gating, compatibility metadata, and launch-failure surfacing)";
+// issues.json, delivered in #1064, #1114, #1112, #1109.
+const SLICE_MARKETPLACE = "marketplace distribution for agent-kind plugins";
+const SLICE_COMPAT = "version gating, compatibility metadata, and launch-failure surfacing";
 
 const PLUGIN_ID = "acme-agent";
 const PLUGIN_NAME = "ACME Agent";
@@ -292,7 +292,7 @@ describe("AP-TC-118 S005/S006: the published agent plugin's marketplace listing 
 
   it("S005-O02: a listing whose projected window is null renders the undeclared fallback", async () => {
     // The card half, and only that: what the card does with a null projection,
-    // which is the "compatibility not declared" fallback (AP-TC-121). Since #722
+    // which is the "compatibility not declared" fallback (AP-TC-121). Since #1133
     // that fallback is reserved for a window NEITHER the manifest nor the catalog
     // entry declares. The fixture hardcodes the null, so this test does not observe
     // the projection at all; the server half pins that, over the real

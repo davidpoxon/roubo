@@ -52,9 +52,9 @@ The model contract is fixed by `.specifications/work-unit-adoption-and-verify-ga
 (`work-unit-model.md` R1-R6, `architecture.md`). This module targets the
 **internal** envelope shape that contract describes: a `units` array of
 snake-case WorkUnit fields. This shape now MATCHES the pinned external
-`schema/work-units.schema.json` (the canonical Roubo #697 bytes: `units`,
+`schema/work-units.schema.json` (the canonical Roubo #718 bytes: `units`,
 snake-case), which superseded the earlier provisional `workUnits`/camelCase
-skeleton (#756). This module performs a lighter structural SUBSET check; full
+skeleton. This module performs a lighter structural SUBSET check; full
 JSON-Schema (Draft 2020-12) validation against the pinned schema runs in CI
 (the `work-units-schema` job in `.github/workflows/verify.yml`), not here.
 
@@ -273,7 +273,7 @@ def validate_structural(envelope):
 
     This is a lighter structural SUBSET check of the internal shape (`units`,
     snake-case) per work-unit-model.md, which now aligns with the pinned external
-    `schema/work-units.schema.json` (the canonical Roubo #697 bytes; #756). Full
+    `schema/work-units.schema.json` (the canonical Roubo #718 bytes). Full
     JSON-Schema validation against the pinned schema runs in CI (the
     `work-units-schema` job), not here.
     """

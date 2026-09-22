@@ -1,4 +1,4 @@
-// REST surface for verify gates (#701, #703, VG-FR-008, VG-FR-012, VG-FR-002, VG-NFR-004;
+// REST surface for verify gates (#725, #728, VG-FR-008, VG-FR-012, VG-FR-002, VG-NFR-004;
 // architecture.md "Gate API routes" row). Thin handlers in the testbench.ts mold:
 // resolve the project repoPath, load the validated verify units (gates) via the
 // work-unit-loader, apply the operator's recorded merge / split overrides as a
@@ -21,9 +21,9 @@
 // pure transform at read time, so the effective (regrouped) gates are what the
 // GET handlers return and evaluate.
 //
-// Results sourcing (architecture open question "Root-path resolution", #432): a
+// Results sourcing (architecture open question "Root-path resolution", #910): a
 // gate is PROJECT-level, but the TestBench surface writes its observation marks
-// under the focused bench's OWN worktree (bench.workspacePath, #493), not the
+// under the focused bench's OWN worktree (bench.workspacePath, #494), not the
 // project repoPath. So the plan + results are read from the worktree of a live
 // TestBench focused on the gate's slug when one exists (resolveResultsRoot), and
 // otherwise from the registered project's repoPath. Either way, when no
@@ -103,7 +103,7 @@ const gateWriteRateLimiter = rateLimit({
 //
 // It also stamps the gate's `milestone` (phase) from the loaded unit, so the
 // Batches overview can title each card by phase rather than by bare gate id
-// (issue #433). Null when the unit carries no milestone (e.g. a synthetic
+// (#914). Null when the unit carries no milestone (e.g. a synthetic
 // merged/split gate); the client then falls back to the gate id.
 interface GateStateResponse extends GateState {
   gateId: string;
@@ -164,13 +164,13 @@ function handleError(res: Response, err: unknown): void {
   res.status(500).json({ error: (err as Error).message });
 }
 
-// Resolve WHERE to read a gate's plan + results from for a given spec slug (#432).
+// Resolve WHERE to read a gate's plan + results from for a given spec slug (#910).
 //
 // A gate is project-level, but the TestBench surface writes observation marks
-// under the focused bench's own worktree (bench.workspacePath, #493), not the
+// under the focused bench's own worktree (bench.workspacePath, #494), not the
 // project repoPath. If a gate always read the project repo it would never see the
 // operator's in-UI marks, and an all-passed batch would stay pending forever
-// (issue #432). So when a live TestBench is focused on this gate's slug, read from
+// (#910). So when a live TestBench is focused on this gate's slug, read from
 // that bench's worktree; otherwise fall back to the project repoPath.
 //
 // The fallback is fail-closed (VG-NFR-007): a project with no focused TestBench (or a
@@ -218,13 +218,13 @@ function readSpecLifecycleSafely(root: string, slug: string): ResolverSpecLifecy
   }
 }
 
-// Build the lifecycle view the evaluator consumes for one gate's spec (#768,
+// Build the lifecycle view the evaluator consumes for one gate's spec (#1164,
 // SATCA-FR-012). The route does the I/O; the evaluator does not.
 //
 // The resolver's own `collectReferencedSlugs` decides what to pre-load, so the
 // gate, the rollup, and the authoring-time picker all discover the same set by the
 // same rule and cannot diverge on what "supplied" means. Each referenced spec is
-// read from ITS own resolved results root (#432), and a slug that cannot be read
+// read from ITS own resolved results root (#910), and a slug that cannot be read
 // is simply left out of the map, which the resolver reports as `target spec not
 // supplied` rather than as a resolution.
 //
@@ -277,7 +277,7 @@ function buildGateLifecycle(
 //
 // The plan + results are read from the root resolved by `resolveResultsRoot`: the
 // worktree of a TestBench focused on the gate's slug when one exists, else the
-// project repoPath (#432). When the spec has no plan (or it is unreadable/invalid),
+// project repoPath (#910). When the spec has no plan (or it is unreadable/invalid),
 // `readPlanAndResults` throws MissingPlanError; per VG-NFR-007 the gate is then read
 // as `stale` with the gate's declared gating set unresolved, NEVER passed. When the
 // plan exists, the pure `evaluateGate` decides: the plan is threaded in so the
@@ -305,7 +305,7 @@ function evaluateLoadedGate(
     const gateResults =
       results === null ? null : { ...results, planHash: stale ? `${planHash}::stale` : planHash };
     // Lifecycle is threaded in the same way the plan is: loaded here, never by
-    // the pure evaluator (#768, SATCA-FR-012).
+    // the pure evaluator (#1164, SATCA-FR-012).
     const lifecycle = buildGateLifecycle(projectId, repoPath, slug, plan);
     state = evaluateGate(unit, gateResults, planHash, plan, lifecycle);
   } catch (err) {
@@ -330,12 +330,12 @@ function evaluateLoadedGate(
   return { gateId: unit.id, milestone: unit.milestone ?? null, ...state };
 }
 
-// A gate response with the derived `signedOff` signal attached (issue #830).
+// A gate response with the derived `signedOff` signal attached (#833).
 // Source of truth is the gate's tracker-issue state, NOT a Roubo-owned marker.
 type SignedOffGateStateResponse = GateStateResponse & { signedOff: boolean };
 
 // The real filed gates whose tracker issues a sign-off / reopen / signed-off
-// computation acts on (issue #435). A normally-loaded gate is its own single
+// computation acts on (#911). A normally-loaded gate is its own single
 // target (it carries its own tracker). An operator-merged gate has no filed issue
 // of its own, so its targets are the source gates it was merged from, each with
 // its real tracker ref: signing off the merged gate = closing every source issue,
@@ -345,13 +345,13 @@ function signOffTargets(loaded: LoadedVerifyUnit): readonly VerifyUnit[] {
 }
 
 // Derive the `signedOff` signal for a gate from its tracker-issue state and
-// attach it to the projected response (issue #830, VG-FR-007 AC). To bound plugin
+// attach it to the projected response (#833, VG-FR-007 AC). To bound plugin
 // RPCs, only a `passed` gate is ever checked: a non-passed gate is signed-off =
 // false by definition, and a gate with any target lacking a filed tracker issue
 // (or no active integration) is likewise false. For a passed, fully-filed gate
 // every target's tracker issue is fetched and `signedOff` is whether ALL of them
 // are done (a merged gate is signed off only when every source issue is: issue
-// #435). The `getIssue` RPC is fail-closed: a tracker hiccup yields
+// #911). The `getIssue` RPC is fail-closed: a tracker hiccup yields
 // `signedOff = false` rather than 500-ing a read (VG-NFR-005, fail-closed: never
 // report a gate as signed off on uncertain state).
 async function withSignedOff(
@@ -387,12 +387,12 @@ async function withSignedOff(
 }
 
 // The fully projected gate response the overview consumes: the signed-off gate
-// state plus its derived upstream `blockedBy` list (issue #433, VG-FR-001).
+// state plus its derived upstream `blockedBy` list (#914, VG-FR-001).
 type ProjectedGateStateResponse = SignedOffGateStateResponse & { blockedBy: string[] };
 
 // Derive each effective gate's upstream blockers: the ids of verify gates in the
 // same spec that this gate's phase depends on and that are NOT yet signed off
-// (issue #433, VG-FR-001). Offline and deterministic: the dependency source is the
+// (#914, VG-FR-001). Offline and deterministic: the dependency source is the
 // LOCAL work-unit graph, computed from the gate's own `depends_on` plus the
 // `depends_on` of each work unit the gate `covers` (no extra tracker RPCs). A
 // candidate counts as an upstream blocker only when it is itself an effective
@@ -466,7 +466,7 @@ function deriveBlockedBy(
 
 // Project a set of effective gates into the overview response shape: evaluate
 // each, attach its `signedOff` signal, then derive each gate's upstream
-// `blockedBy` from the whole set's sign-off state (issue #433). Shared by the two
+// `blockedBy` from the whole set's sign-off state (#914). Shared by the two
 // GET handlers and the merge / split re-projection so every gate response carries
 // the same fields (milestone + gatingCaseIds + blockedBy). The single-gate GET
 // still projects the whole set so the requested gate's upstream sign-off state is
@@ -512,13 +512,13 @@ function buildCaseMap(repoPath: string, loaded: readonly LoadedVerifyUnit[]): Wo
 
 // Load the project's gates, apply the operator's recorded overrides, and return
 // the effective (regrouped) loaded gates plus the specs whose work-units.json was
-// present-but-invalid (skipped, not aborting the load: #371, #802). Centralised so
+// present-but-invalid (skipped, not aborting the load: #874, #803). Centralised so
 // the GET handlers and the write handlers' guard share the exact same effective
 // view. Operator overrides regroup only the valid gates; they never touch
 // `invalidSpecs` (a skipped spec has no gates to merge or split).
 //
 // When `slug` is given the load is scoped to that single spec's work-units.json
-// (issue #549: the Batches overview must show only the bench's focused spec, the
+// (#952: the Batches overview must show only the bench's focused spec, the
 // way the Cases tab already does, instead of aggregating every spec project-wide);
 // when omitted the load enumerates every spec (the backward-compatible all-specs
 // behaviour). Operator overrides are project-keyed and stay so: `applyGateOverrides`
@@ -536,7 +536,7 @@ function effectiveGates(
 }
 
 // Parse the optional `?slug=` query param that scopes the gates list to a single
-// focused spec (issue #549). Absent -> undefined (the all-specs behaviour). When
+// focused spec (#952). Absent -> undefined (the all-specs behaviour). When
 // present it MUST be a single string that passes the spec-slug allowlist: the
 // single-slug loader path (loadVerifyUnitsForSlug) skips the per-entry
 // assertSafeIdentifier guard the all-specs enumeration applies, so a traversal /
@@ -555,12 +555,12 @@ function parseSlugQuery(raw: unknown): string | undefined {
 
 // GET /:projectId/gates -> 200 { gates: GateState[]; invalidSpecs: InvalidSpec[] }.
 // An optional `?slug=` query param scopes the response to a single focused spec's
-// gates (issue #549), so a TestBench Batches tab shows only its bench's focused
+// gates (#952), so a TestBench Batches tab shows only its bench's focused
 // spec (matching the Cases tab) instead of every spec's gates project-wide. Absent
 // -> the backward-compatible all-specs behaviour. `gates` has one entry per
 // effective gate in scope (an empty array is a valid, normal response: no gates
 // yet). `invalidSpecs` names any spec whose work-units.json was present-but-invalid
-// and skipped (#371), so the client can surface a warning instead of an
+// and skipped (#874), so the client can surface a warning instead of an
 // indistinguishable empty state. A genuinely empty project returns both empty.
 router.get(
   "/:projectId/gates",
@@ -592,7 +592,7 @@ router.get(
       const repoPath = resolveRepoPath(req.params.projectId);
       const { gates } = effectiveGates(repoPath, req.params.projectId);
       // Project the whole effective set (not just the requested gate) so this
-      // gate's upstream `blockedBy` reflects its siblings' sign-off state (#433).
+      // gate's upstream `blockedBy` reflects its siblings' sign-off state (#914).
       const states = await projectGates(req.params.projectId, repoPath, gates);
       const state = states.find((g) => g.gateId === req.params.gateId);
       if (state === undefined) {
@@ -607,7 +607,7 @@ router.get(
 
 // Guard (AC3): merge / split is prevented when any gate it involves currently
 // evaluates to `passed` (a passed gate is sign-off-eligible; its tracker issue
-// may already be closed via the sign-off route, issue #830). Throws a 409
+// may already be closed via the sign-off route, #833). Throws a 409
 // RouteError with a clear message; the operator must reopen it first.
 function assertNoneSignedOff(
   projectId: string,
@@ -736,7 +736,7 @@ function repoFullNameFromRef(ref: string): string | null {
 //
 // resolveWithin is lexical, so it cannot see an on-disk symlink whose name is a
 // valid slug. assertRealpathWithin is the SECOND barrier at the sink (mirrors
-// writeResults, #416/#427): it realpaths the deepest existing ancestor of the
+// writeResults, #895/#903): it realpaths the deepest existing ancestor of the
 // evidence dir and re-asserts containment against the realpath'd repoPath,
 // rejecting a symlinked `.specifications/<slug>` that escapes the repo. Unlike
 // writeResults (whose dir is the fixed, already-existing slug folder), `evidence`
@@ -756,7 +756,7 @@ function writeEvidence(repoPath: string, slug: string, evidence: string, notes: 
 }
 
 // POST /:projectId/gates/:gateId/fix-issues -> file a fix issue for a failed
-// gating case and wire it to block the gate (VG-FR-009, VG-FR-010, VG-NFR-003; #706).
+// gating case and wire it to block the gate (VG-FR-009, VG-FR-010, VG-NFR-003; #735).
 //
 // Body: { failedCaseId, notes, evidence?, existingFixRef? }. Empty notes -> 422.
 // An evidence path that escapes the workspace -> 400 (UnsafePathError). On
@@ -795,7 +795,7 @@ router.post(
       // The gate's block targets must EACH carry a tracker ref to be blockable: a
       // normally-loaded gate blocks its own issue; a merged/split synthetic gate
       // has no filed issue of its own, so it blocks its source gate(s)' issues
-      // (issue #435 for merges, issue #445 for splits). One fix issue blocks every
+      // (#911 for merges, #919 for splits). One fix issue blocks every
       // target (mirroring "sign-off closes every source"). A target with no filed
       // tracker issue has no block target, so degrade loudly (VG-FR-011) rather than a
       // silent no-op; guard before filing so a partly-tracked merge never files an
@@ -870,7 +870,7 @@ router.post(
 );
 
 // POST /:projectId/gates/:gateId/sign-off -> sign off a passed batch by closing
-// the gate's tracker issue through the active integration plugin (issue #830,
+// the gate's tracker issue through the active integration plugin (#833,
 // VG-FR-007/VG-FR-008, VG-US-005, VG-NFR-001). Returns the updated GateState with
 // `signedOff: true`.
 //
@@ -905,7 +905,7 @@ router.post(
 
       // Sign-off closes each target's tracker issue. A normal gate has one target
       // (itself); a merged gate fans out over its source gates, each carrying its
-      // own filed issue (issue #435). A target with no filed tracker issue has no
+      // own filed issue (#911). A target with no filed tracker issue has no
       // close target, so degrade loudly (VG-FR-011) rather than a silent no-op that
       // would appear to succeed. Guarding before any close keeps a partly-filed
       // merge from closing some source issues before hitting the missing one.
@@ -929,7 +929,7 @@ router.post(
         await closeGate(req.params.projectId, target);
       }
       // Re-project the whole effective set so the response carries the updated
-      // signedOff plus milestone / gatingCaseIds / blockedBy (issue #433).
+      // signedOff plus milestone / gatingCaseIds / blockedBy (#914).
       const states = await projectGates(req.params.projectId, repoPath, gates);
       res.json(states.find((g) => g.gateId === req.params.gateId));
     } catch (err) {
@@ -939,7 +939,7 @@ router.post(
 );
 
 // DELETE /:projectId/gates/:gateId/sign-off -> reopen a signed-off gate by
-// reopening its tracker issue through the active integration plugin (issue #830,
+// reopening its tracker issue through the active integration plugin (#833,
 // VG-US-005). Returns the updated GateState with `signedOff: false`. Reopen does
 // NOT require status === passed (a signed-off gate whose plan later changed may
 // no longer evaluate passed yet must still be reopenable). When the gate has no
@@ -957,7 +957,7 @@ router.delete(
       }
 
       // Reopen mirrors sign-off: a normal gate reopens its own issue; a merged gate
-      // fans out over its source gates' issues (issue #435). A target with no filed
+      // fans out over its source gates' issues (#911). A target with no filed
       // tracker issue degrades loudly rather than silently no-op'ing.
       const targets = signOffTargets(loaded);
       const untracked = targets.filter((t) => !t.tracker?.ref);
@@ -976,7 +976,7 @@ router.delete(
         await reopenGate(req.params.projectId, target);
       }
       // Re-project the whole effective set so the response carries the updated
-      // signedOff plus milestone / gatingCaseIds / blockedBy (issue #433).
+      // signedOff plus milestone / gatingCaseIds / blockedBy (#914).
       const states = await projectGates(req.params.projectId, repoPath, gates);
       res.json(states.find((g) => g.gateId === req.params.gateId));
     } catch (err) {

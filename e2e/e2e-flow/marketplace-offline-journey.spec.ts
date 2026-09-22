@@ -33,18 +33,18 @@ import {
 // case CPHM-TC-051 step for step (S001-S006). If that case changes, update this
 // spec to match.
 //
-// Failure-output contract (issue #314 acceptance criterion 3): every assertion
+// Failure-output contract (#850 acceptance criterion 3): every assertion
 // below names the diverging step id, the expected-vs-actual, and the owning
 // slice issue from this unit's blocked-by set, so a red run localizes the drift
 // to one attributable slice. The sole declared blocked_by is the catalog-client
-// slice #306 (Milestone "Hosted marketplace: M3 App client"), which owns both
+// slice #845 (Milestone "Hosted marketplace: M3 App client"), which owns both
 // the degrade chain (offline list non-empty) and the marketplace-unreachable
 // install gate, so it is the localization target for every step here.
 //
 // Two reconciliations against the literal CPHM-TC-051 script, both deliberate:
 //   - S003 names an "offline warning banner" surface. That banner is now built
 //     (client/src/components/marketplace/MarketplaceOfflineBanner.tsx, issue
-//     #372): GET /api/marketplace/plugins surfaces the served catalog's `source`
+//     #851): GET /api/marketplace/plugins surfaces the served catalog's `source`
 //     and `fetchedAt`, and the Plugins view renders the banner when
 //     `source !== "network"`. Its rendered copy (unreachable, last-verified shown,
 //     fetched-Nh-ago, installs paused) is asserted by the React unit + a11y tests
@@ -89,7 +89,7 @@ interface CatalogResponse {
   curated?: boolean;
   listings?: MarketplaceListing[];
   // The served catalog's provenance, surfaced for the offline / staleness banner
-  // (issue #372): `source` degrades off "network" and `fetchedAt` is the cached
+  // (#851): `source` degrades off "network" and `fetchedAt` is the cached
   // fetch timestamp (or null for an empty listing).
   source?: MarketplaceCatalogSource;
   fetchedAt?: string | null;
@@ -105,7 +105,7 @@ test("CPHM-TC-051: offline marketplace journey: bundled plugins keep running, a 
 }) => {
   // ---- S000 (setup): warm the on-disk catalog cache with a reachable fetch, so
   // the subsequent offline degrade shows the LAST-VERIFIED CACHE. The first-party
-  // SEED floor was retired (#621), so without a warmed cache the offline listing
+  // SEED floor was retired (#993), so without a warmed cache the offline listing
   // would bottom out empty and the marketplace-unreachable install gate (which
   // needs a resolvable entry) would have nothing to pause.
   const warmSource = await setMarketplaceReachable(request, true);
@@ -146,7 +146,7 @@ test("CPHM-TC-051: offline marketplace journey: bundled plugins keep running, a 
 
   // ---- S003: the offline indicator. The literal CPHM-TC-051 step reads an
   // "offline warning banner (marketplace unreachable, last verified catalog
-  // shown, new installs paused)". That banner is now built (issue #372): the
+  // shown, new installs paused)". That banner is now built (#851): the
   // GET /api/marketplace/plugins response surfaces the `source` / `fetchedAt`
   // the Plugins view renders the banner from. The rendered copy is asserted by
   // the React unit + a11y tests; here we verify the API data contract that feeds
@@ -212,7 +212,7 @@ test("CPHM-TC-051: offline marketplace journey: bundled plugins keep running, a 
   // "network"), which is precisely the condition that un-pauses installs
   // (assertInstallable only blocks while source !== "network"). The actual
   // clone/commit of the install is the installer slice's own concern (covered by
-  // its unit tests, out of scope for this drift guard, issue #314 "Out of
+  // its unit tests, out of scope for this drift guard, #850 "Out of
   // Scope"); the un-pausing of the gate is the boundary verified here.
   const onlineSource = await setMarketplaceReachable(request, true);
   expect(
@@ -239,7 +239,7 @@ test("CPHM-TC-051: offline marketplace journey: bundled plugins keep running, a 
 /**
  * Assert a bundled plugin is running: present, source "bundled", status
  * "enabled". The message names the diverging step + expected/actual + owning
- * slice (issue #314 acceptance criterion 3).
+ * slice (#850 acceptance criterion 3).
  */
 function expectSeededRunning(record: PluginRecord | undefined, stepId: string): void {
   expect(

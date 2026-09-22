@@ -24,9 +24,9 @@ import {
   SATCA_SUPERSEDED_SPEC_SLUG,
 } from "./_support/testbench-plan.js";
 
-// E2E (#775, SATCA-NFR-005, SATCA-TC-019 S002-O02): the real-rendering WCAG AA
+// E2E (#1173, SATCA-NFR-005, SATCA-TC-019 S002-O02): the real-rendering WCAG AA
 // color-contrast guard for the ARCHIVAL surfaces, the counterpart of the
-// partitioned-picker guard in spec-picker-contrast.spec.ts (#493). jsdom has no
+// partitioned-picker guard in spec-picker-contrast.spec.ts (#943). jsdom has no
 // layout/paint engine, so the vitest-axe suites beside these components report
 // zero color-contrast violations even when text fails AA in a browser; the only
 // way to decide the rule is to run it in Chromium against the BUILT app.
@@ -34,7 +34,7 @@ import {
 // spec-picker-contrast.spec.ts scans the live partitions (needs-attention plus
 // the all-passed disclosure) and never reveals the archived group, so before
 // this spec no archived state was contrast-checked anywhere. The surfaces here
-// are exactly the ones #769/#770/#772/#774 added:
+// are exactly the ones #1161/#1162/#1167/#1169 added:
 //
 //   1. the spec picker with the archived group revealed (archived and superseded
 //      row labels, the recorded reason, the superseding slug),
@@ -43,7 +43,7 @@ import {
 //   3. the case detail pane's retire and supersede lifecycle disclosures, and
 //      the replacement picker dialog they open.
 //
-// #797 closed the one gap #775 left: the pass/fail mark colours ObservationMarks
+// #1175 closed the one gap #1173 left: the pass/fail mark colours ObservationMarks
 // renders on an archived entry (text-green-700 / text-red-700 in light,
 // green-400 / red-400 in dark). No fixture seam can reach them, because the
 // seeded-results synthesizer writes an empty `observationMarks` map and
@@ -51,7 +51,7 @@ import {
 // real journey instead: it marks two observations on a dedicated live case (one
 // pass, one fail), retires that case from the detail pane, and scans the
 // Archived section again with the retained marks on screen. The same step
-// asserts #775's AC4 focus landing in a real browser, which the jsdom suite can
+// asserts #1173's AC4 focus landing in a real browser, which the jsdom suite can
 // only observe through a callback.
 //
 // Each is scanned in BOTH themes. The injection, theme-flip and scan helpers are
@@ -108,7 +108,7 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("#775: the spec picker's revealed archived group meets WCAG AA color-contrast in both themes", async ({
+test("#1173: the spec picker's revealed archived group meets WCAG AA color-contrast in both themes", async ({
   page,
   request,
 }) => {
@@ -169,7 +169,7 @@ test("#775: the spec picker's revealed archived group meets WCAG AA color-contra
 test.describe(() => {
   test.use({ viewport: { width: 1440, height: 1200 } });
 
-  test("#775: the panel's Archived cases section and the case-detail lifecycle disclosures meet WCAG AA in both themes", async ({
+  test("#1173: the panel's Archived cases section and the case-detail lifecycle disclosures meet WCAG AA in both themes", async ({
     page,
     request,
   }) => {
@@ -232,7 +232,7 @@ test.describe(() => {
       await scanBothThemes(page, archivedSection, "panel/archived-section");
     });
 
-    await test.step("#797: mark two observations pass and fail on a live case", async () => {
+    await test.step("#1175: mark two observations pass and fail on a live case", async () => {
       // The mark colours can only be reached through the real journey: the
       // seeded-results seam synthesizes an empty observationMarks map, and
       // ObservationMarks renders nothing for one.
@@ -243,19 +243,19 @@ test.describe(() => {
 
     const markedEntry = archivedSection.getByTestId(`archived-case-${SATCA_A11Y_MARKED_CASE_ID}`);
 
-    await test.step("#797: retiring the marked case moves it, with its marks, into the Archived section", async () => {
+    await test.step("#1175: retiring the marked case moves it, with its marks, into the Archived section", async () => {
       await panel.getByTestId("case-retire-open").click();
       await panel.getByTestId("case-retire-reason").fill(SATCA_A11Y_MARKED_REASON);
       await panel.getByTestId("case-retire-submit").click();
       await expect(markedEntry).toBeVisible();
-      // #775 AC4: the applying control unmounts with the case, so focus is moved
+      // #1173 AC4: the applying control unmounts with the case, so focus is moved
       // to the archived entry the case arrived on. jsdom can only observe this
       // through the callback; here it is the real document.activeElement.
-      await expect(markedEntry, "#775 AC4: focus lands on the archived entry").toBeFocused();
+      await expect(markedEntry, "#1173 AC4: focus lands on the archived entry").toBeFocused();
       await expect(markedEntry).toContainText(SATCA_A11Y_MARKED_REASON);
     });
 
-    await test.step("#797: the retained pass/fail mark colours meet AA in both themes", async () => {
+    await test.step("#1175: the retained pass/fail mark colours meet AA in both themes", async () => {
       // The positive control for the scan below: the green and the red token are
       // both on screen, so a passing scan measured them rather than nothing. The
       // mark text is lowercase, which keeps it distinct from the "Passed"/

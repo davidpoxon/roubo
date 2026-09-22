@@ -1,7 +1,7 @@
 import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { MarketplaceSourceSummary } from "@roubo/shared";
 
-// The display name for a marketplace source row (issue #561). Lives beside
+// The display name for a marketplace source row (#976). Lives beside
 // MarketplaceSourceRow rather than inside it so the component file exports only
 // its component (react-refresh/only-export-components).
 

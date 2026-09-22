@@ -201,7 +201,7 @@ function ComponentsTab({
   const [openLogs, setOpenLogs] = useState<Set<string>>(new Set());
   const [assignModal, setAssignModal] = useState<string | null>(null);
   // The component whose start failed on an uninstalled-but-installable bound
-  // plugin, plus where it can be installed from (CPHMTP-FR-008, issue #566). Only
+  // plugin, plus where it can be installed from (CPHMTP-FR-008, #978). Only
   // an ACTIONABLE resolution lands here (isMissingPluginError narrows to
   // single-source / ambiguous), so an id no source serves never opens the dialog
   // and keeps the plain component-status error it already had (CPHMTP-TC-082).
@@ -211,7 +211,7 @@ function ComponentsTab({
   } | null>(null);
   // The component whose resumed start still dead-ended at the consent gate: the
   // bound plugin is installed but its permissions were never acknowledged (issue
-  // #617, AC3). Defensive fallback so the bench page surfaces an actionable consent
+  // #991, AC3). Defensive fallback so the bench page surfaces an actionable consent
   // prompt instead of a silent stop with the dialog closed. The plugin record (for
   // the declared permissions + provenance the prompt needs) is read from the shared
   // plugins query below.
@@ -359,7 +359,7 @@ function ComponentsTab({
       )}
 
       {/*
-        Defensive consent fallback (issue #617, AC3): the resumed start still hit the
+        Defensive consent fallback (#991, AC3): the resumed start still hit the
         consent gate, so surface the same PermissionsScreen-style acknowledgement the
         install flow uses (declared permissions + provenance off the installed
         record). On grant, resume the SAME component start: the ConsentRecord now
@@ -563,8 +563,8 @@ export default function BenchDetail() {
     projectId,
     benchId,
   );
-  // A TestBench (#418) surfaces a dedicated "testbench" tab as the first tab so a
-  // freshly created TestBench opens on it. The review surface itself ships in #419
+  // A TestBench (#467) surfaces a dedicated "testbench" tab as the first tab so a
+  // freshly created TestBench opens on it. The review surface itself ships in #466
   // via TestBenchPanel.
   const availableTabIds: BenchTabId[] = [
     ...(isTestbench ? (["testbench"] as BenchTabId[]) : []),
@@ -761,9 +761,9 @@ export default function BenchDetail() {
       {/* Collapsing the header hides only the detail metadata above the tabs (gated
           on `!headerCollapsed` further up); the Tabs always stay visible so the
           collapse reclaims just the header's vertical space, not the whole bench
-          (#811). Keeping the Tabs mounted also preserves the Terminal panel's live
+          (#812). Keeping the Tabs mounted also preserves the Terminal panel's live
           WebSocket session, which uses shouldForceMount to survive tab switches and a
-          collapse/expand cycle without a reconnect (#805). */}
+          collapse/expand cycle without a reconnect (#809). */}
       <div className="flex flex-col flex-1 min-h-0">
         <Tabs
           className="flex flex-col flex-1 min-h-0"

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #702 (VG-FR-012, VG-TC-027): the gate-state panel renders the gate's status with a
+// #726 (VG-FR-012, VG-TC-027): the gate-state panel renders the gate's status with a
 // visible text label (never colour alone), and for a non-passed gate lists the
 // unresolved gating cases and the covering slice units. A passed gate shows
 // neither set. axe-clean.
@@ -55,7 +55,7 @@ describe("GateStatePanel", () => {
     expect(screen.getByText(/Nothing outstanding/)).toBeTruthy();
   });
 
-  it("renders a distinct 'no gating cases in scope' message, not the passed message (#436)", () => {
+  it("renders a distinct 'no gating cases in scope' message, not the passed message (#912)", () => {
     render(
       <GateStatePanel
         gate={{
@@ -76,10 +76,10 @@ describe("GateStatePanel", () => {
     expect(screen.queryByText("Unresolved cases")).toBeNull();
   });
 
-  // #777 (SATCA-TC-033 S003-O02): retiring the case that held a gate pending
+  // #1176 (SATCA-TC-033 S003-O02): retiring the case that held a gate pending
   // releases it, and the released gate would otherwise be indistinguishable from
   // one whose cases were all verified. The exclusion line is what tells them apart.
-  describe("lifecycle exclusion (#777)", () => {
+  describe("lifecycle exclusion (#1176)", () => {
     const released: GateState = {
       gateId: "WU-099",
       status: "passed",

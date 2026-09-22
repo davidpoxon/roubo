@@ -7,7 +7,7 @@ import type { MarketplaceSource } from "@roubo/shared";
 
 // Regression test for the root cause of "a third-party marketplace source never loads":
 // guardedFetch attaches a DNS-pinned-connect dispatcher built from npm undici (issue
-// #590) as `init.dispatcher`. Only npm undici's fetch honours a foreign dispatcher;
+// #960) as `init.dispatcher`. Only npm undici's fetch honours a foreign dispatcher;
 // Node's built-in global fetch bundles a DIFFERENT undici major that rejects it with
 // `UND_ERR_INVALID_ARG`. createThirdPartyCatalogClient's default transport must
 // therefore be npm undici's fetch (mirroring createCatalogClient's first-party

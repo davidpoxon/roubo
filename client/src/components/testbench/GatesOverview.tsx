@@ -8,13 +8,13 @@ import { useGates, useMergeGates, useSplitGate } from "../../hooks/useGates";
 import GateStateIndicator from "./GateStateIndicator";
 import Spinner from "../Spinner";
 
-// Gates overview (#702/#703, VG-FR-001/VG-FR-002/VG-FR-012, AC1). One card per effective
+// Gates overview (#726/#728, VG-FR-001/VG-FR-002/VG-FR-012, AC1). One card per effective
 // gate (one gate per phase by default, derived server-side; an operator merge /
 // split replaces the affected cards). Each card shows the gate's id, its
 // evaluated status, and the covering slice unit ids the unresolved gating cases
 // trace to (the gate's `covers`, per VG-FR-012).
 //
-// Operator override (#703, VG-FR-002, VG-US-007): the toolbar exposes a merge mode
+// Operator override (#728, VG-FR-002, VG-US-007): the toolbar exposes a merge mode
 // (select two or more gates, then combine them into one) and each non-passed
 // gate exposes a split control (assign its covering WU- ids to two parts). Both
 // write through the gate-override store server-side, leaving the externally
@@ -27,11 +27,11 @@ import Spinner from "../Spinner";
 
 const STRINGS = {
   // The gate's covering work units (what its unresolved cases trace to). This is
-  // NOT the upstream blocker line: it lists the gate's OWN covers (issue #433
+  // NOT the upstream blocker line: it lists the gate's OWN covers (#914
   // relabel, previously mislabeled "Blocked by").
   covers: "Covers",
   // The genuine upstream dependency line: verify gates this phase is blocked by
-  // until they are signed off (issue #433, VG-FR-001).
+  // until they are signed off (#914, VG-FR-001).
   blockedByUpstream: "Blocked by",
   gatingCount: (n: number) => `${n} gating ${n === 1 ? "case" : "cases"}`,
   mergeMode: "Merge",
@@ -56,8 +56,8 @@ const STRINGS = {
       : `${n} specs have an invalid work-units.json and were skipped`,
 };
 
-// Warning banner for present-but-invalid specs (#371). A spec whose work-units.json
-// exists but fails contract validation is skipped by the aggregate load (the #802
+// Warning banner for present-but-invalid specs (#874). A spec whose work-units.json
+// exists but fails contract validation is skipped by the aggregate load (the #803
 // per-spec resilience), which previously left the operator with only the bare "no
 // verify gates yet" empty state. This surfaces each skipped spec by slug plus its
 // validation messages so the misconfiguration is actionable, not silent. It is a
@@ -112,19 +112,19 @@ function GateCard({
   // Title by phase (milestone), falling back to the gate id when the unit carries
   // no milestone (e.g. a synthetic merged/split gate). When a milestone is present
   // the gate id becomes a mono sub-label; otherwise the id IS the (mono) title, so
-  // it is never rendered twice (issue #433).
+  // it is never rendered twice (#914).
   const title = gate.milestone ?? gate.gateId;
   const showGateIdSubLabel = title !== gate.gateId;
-  // The full gating-set count for this phase (issue #433). Optional-chained so a
+  // The full gating-set count for this phase (#914). Optional-chained so a
   // partial fixture without the field renders no count line rather than crashing.
   const gatingCount = gate.gatingCaseIds?.length ?? 0;
   // Genuine upstream blockers: verify gates this phase depends on that are not yet
-  // signed off (issue #433, VG-FR-001). Distinct from `coveringUnits` (the gate's own
+  // signed off (#914, VG-FR-001). Distinct from `coveringUnits` (the gate's own
   // covers), which the relabeled line below lists.
   const blockedBy = gate.blockedBy ?? [];
   const hasUpstreamBlockers = blockedBy.length > 0;
 
-  // Whole-card open (#804): the card body and the (decorative) chevron must open
+  // Whole-card open (#807): the card body and the (decorative) chevron must open
   // the gate, not just the gate-id text. We use the React Aria clickable-card
   // overlay pattern: an absolutely-positioned Button fills the card and is the
   // open trigger, layered BENEATH the nested controls. The nested controls
@@ -355,7 +355,7 @@ export default function GatesOverview({
   specSlug?: string;
   onOpenGate: (gateId: string) => void;
 }) {
-  // Scope the gate list to the bench's focused spec (issue #549): the Batches tab
+  // Scope the gate list to the bench's focused spec (#952): the Batches tab
   // must show only the focused spec's batches, matching how the Cases tab scopes
   // to `focusedSpecPath`, instead of aggregating every spec's gates project-wide.
   // With no focused spec there is nothing to scope to, so the query is disabled and
@@ -408,7 +408,7 @@ export default function GatesOverview({
     }
   }
 
-  // No focused spec (issue #549): there is nothing to scope the batches to, so the
+  // No focused spec (#952): there is nothing to scope the batches to, so the
   // query is disabled. Show a "focus a spec" empty state rather than the all-project
   // gates (the leak this fixes) or a misleading error from the disabled query.
   if (specSlug === undefined) {
@@ -442,7 +442,7 @@ export default function GatesOverview({
   const invalidSpecs = data.invalidSpecs;
 
   // Empty state (AC3) fires ONLY when there are genuinely no gates AND no skipped
-  // invalid specs. If a spec's work-units.json was present-but-invalid (#371),
+  // invalid specs. If a spec's work-units.json was present-but-invalid (#874),
   // fall through to the warning banner below rather than the misleading "no verify
   // gates yet", so a misconfiguration is never indistinguishable from an empty
   // project.

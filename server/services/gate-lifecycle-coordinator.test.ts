@@ -133,7 +133,7 @@ describe("onGatePassed: closes a passed gate via the plugin transition (VG-FR-00
 // Mirrors the bundled GitHub plugin's TRANSITION_TO_STATE guard
 // (plugins/github-com/src/methods/apply-transition.ts). The plugin reads
 // `params.transition` and throws this exact message when the lookup misses, which
-// is what a host passing the param under any other name produces (issue #642).
+// is what a host passing the param under any other name produces (#1047).
 const PLUGIN_TRANSITION_TO_STATE: Record<string, "closed" | "open"> = {
   close: "closed",
   reopen: "open",
@@ -153,7 +153,7 @@ describe("onGatePassed / onGateReopened: qualify a bare tracker.ref (issue #1006
   // A deps.invoke that faithfully rejects a bare (unqualified) externalId the way
   // the bundled GitHub plugin's parseGithubExternalId does, so a verbatim bare ref
   // would reproduce the issue's `missing "#"` crash here. It is equally faithful
-  // about the transition param (issue #642): the plugin reads `params.transition`,
+  // about the transition param (#1047): the plugin reads `params.transition`,
   // so a host sending any other key makes the lookup miss and throws the plugin's
   // exact error here, exactly as it does in production.
   function makePluginFaithfulDeps() {
@@ -311,9 +311,9 @@ describe("onGatePassed: a gate with no filed tracker is a no-op (VG-FR-007)", ()
   });
 });
 
-// ── onGateReopened: reopen a signed-off gate's tracker issue (issue #830) ──
+// ── onGateReopened: reopen a signed-off gate's tracker issue (#833) ──
 
-describe("onGateReopened: reopens a signed-off gate via the plugin transition (#830)", () => {
+describe("onGateReopened: reopens a signed-off gate via the plugin transition (#833)", () => {
   it("applies a reopen-bound transition through the plugin and audit-logs the reopen", async () => {
     const closedIssue = makeIssue({ currentState: "closed", allowedTransitions: ["reopen"] });
     const { deps, audit, applyTransitionCalls, invoke } = makeDeps({ issue: closedIssue });
@@ -382,7 +382,7 @@ describe("onGateReopened: reopens a signed-off gate via the plugin transition (#
   });
 });
 
-// ── pickReopenTransition (issue #830) ──
+// ── pickReopenTransition (#833) ──
 
 describe("pickReopenTransition", () => {
   it("picks the GitHub reopen transition", () => {
@@ -402,7 +402,7 @@ describe("pickReopenTransition", () => {
   });
 });
 
-// ── isDone (issue #830) ──
+// ── isDone (#833) ──
 
 describe("isDone", () => {
   it("treats every DONE_STATUSES value (case-insensitively) as done, others as not", () => {

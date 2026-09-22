@@ -9,7 +9,7 @@ import {
   TSPF_TC_010_OWNING_SLICES,
 } from "./_support/testbench-plan.js";
 
-// E2E (#486): the authoritative `e2e_flow` drift guard for the "create a TestBench
+// E2E (#940): the authoritative `e2e_flow` drift guard for the "create a TestBench
 // from the PARTITIONED spec picker, selecting an all-passed spec from the
 // disclosure" journey (TSPF-TC-010, TSPF-US-001/US-002,
 // TSPF-FR-002/FR-003/FR-004/FR-006). It walks the integrated system end to end
@@ -21,7 +21,7 @@ import {
 // assert a spec-bound testbench bench is created, matching TSPF-TC-010 step for
 // step (S001-S005).
 //
-// Unlike the per-slice unit tests (#482/#483/#484 own those), this asserts the
+// Unlike the per-slice unit tests (#936/#937/#939 own those), this asserts the
 // integrated journey, not any single slice's implementation. Each step is wrapped
 // in a labelled `test.step` so a failure localises the diverging step, reports the
 // expected-vs-actual at that step, and names the owning slice from this unit's

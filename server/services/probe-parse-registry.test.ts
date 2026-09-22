@@ -8,7 +8,7 @@ import {
   readProbeOutput,
 } from "./probe-parse-registry.js";
 
-// Captured from `--list-models` during spike #848 and copied from
+// Captured from `--list-models` during the model-probe spike and copied from
 // .specifications/agent-plugins-cursor-cli/spikes/spike-848/ in the meta-repo.
 const FIXTURE = readFileSync(
   path.join(
@@ -56,7 +56,7 @@ describe("semver reader", () => {
   });
 });
 
-describe("dash-line-pairs reader (spike #848)", () => {
+describe("dash-line-pairs reader (model-probe spike)", () => {
   it("reads 223 pairs from the captured listing", () => {
     const reading = readProbeOutput("dash-line-pairs", ok(FIXTURE));
     expect(reading.ok).toBe(true);

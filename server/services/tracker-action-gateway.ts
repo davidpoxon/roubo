@@ -1,8 +1,8 @@
-// Tracker-action gateway (#705, VG-FR-011, VG-NFR-001, VG-NFR-005; spike #704).
+// Tracker-action gateway (#734, VG-FR-011, VG-NFR-001, VG-NFR-005; spike #732).
 //
 // The single wrapper around `pluginManager.invoke` for the privileged tracker
 // ops: create an issue, register an "is blocked by" link, close a gate's tracker
-// issue, and reopen a signed-off gate's tracker issue (issue #830). Centralizing
+// issue, and reopen a signed-off gate's tracker issue (#833). Centralizing
 // them here (architecture.md:66) means the
 // capability gating, consent gating, and audit logging live in exactly one
 // place, ships GitHub-first, and is testable in isolation.
@@ -14,7 +14,7 @@
 //      `TrackerActionError` with a legible message and audit-logs the refused
 //      attempt (VG-NFR-005: a clear degrade, never a silent no-op). close-gate is
 //      not a new flag; it reuses the existing `applyTransition` capability
-//      (spike #704), so its gate is consent only.
+//      (spike #732), so its gate is consent only.
 //   2. Consent. The plugin must hold a consent record (VG-NFR-001). An unconsented
 //      call is refused and audit-logged, mirroring the undeclared-actions guard.
 //   3. Audit. Every privileged op (applied, skipped, or refused) is recorded in
@@ -204,7 +204,7 @@ function enforceGuards(
 
   // Capability gate (VG-NFR-005): create / link require the declared manifest
   // capability. close-gate reuses the existing transition capability and so has
-  // no flag of its own (spike #704).
+  // no flag of its own (spike #732).
   if (action === "createIssue" || action === "addBlockedBy") {
     const flag = REQUIRED_CAPABILITY[action];
     const capabilities = deps.getCapabilities(pluginId);
@@ -340,7 +340,7 @@ export async function closeGate(
 }
 
 /**
- * Reopen a signed-off gate's tracker issue (issue #830). The mirror of
+ * Reopen a signed-off gate's tracker issue (#833). The mirror of
  * `closeGate`: gated on consent (reopen reuses the existing `applyTransition`
  * capability, so there is no create/link flag); audit-logged through the
  * tracker-action log around the `onGateReopened` coordinator path. The

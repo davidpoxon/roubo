@@ -132,8 +132,8 @@ interface InternalSession {
   // `waitingDetection` is the agent's declared detection spec, absent when
   // the agent declares none.
   hookNotification: boolean;
-  // The resolved correlation token for a `spawned-notifier` (issue #698) or
-  // `file-notifier` (issue #854) agent, absent for every other session. Unlike the http-hook path, whose
+  // The resolved correlation token for a `spawned-notifier` (#1113) or
+  // `file-notifier` (#1264) agent, absent for every other session. Unlike the http-hook path, whose
   // `correlation.source: "agent-native"` makes the session id itself the token,
   // this token is whatever the plugin's `correlation.template` resolved to, so
   // it is registered in `notifierTokens` and traded back for this session when
@@ -399,7 +399,7 @@ function clearTimers(internal: InternalSession): void {
  * Open a plain login-shell session in a bench workspace.
  *
  * This is the shell path and nothing else. Every agent launch goes through
- * `createAgentSession`, which reads a plugin's launch descriptor: since #521
+ * `createAgentSession`, which reads a plugin's launch descriptor: since #1114
  * core assembles no agent argv, resolves no agent binary, and writes no
  * agent-specific settings file of its own.
  */
@@ -418,7 +418,7 @@ export function createSession(
   let ptyProcess;
   try {
     // `-l` makes this a real login shell, so zsh reads /etc/zprofile (and with
-    // it path_helper), ~/.zprofile and ~/.zlogin, matching Terminal.app (#762).
+    // it path_helper), ~/.zprofile and ~/.zlogin, matching Terminal.app (#1154).
     ptyProcess = pty.spawn(shell, ["-l"], {
       name: "xterm-256color",
       cols: 80,
@@ -432,7 +432,7 @@ export function createSession(
     });
   } catch (err) {
     // A spawn throw is usually node-pty's own helper rather than the shell, so
-    // carry the diagnosis when there is one (#685).
+    // carry the diagnosis when there is one (#1103).
     throw new Error(
       withSpawnHelperDiagnosis(
         `Failed to spawn terminal (shell: ${shell}, cwd: ${workspacePath}): ${(err as Error).message}`,
@@ -466,7 +466,7 @@ interface RegisterSessionOptions {
   hookNotification?: boolean;
   /**
    * The resolved correlation token a `spawned-notifier` or `file-notifier`
-   * agent's notifier program will quote back (issues #698, #854). Registered here so the token, minted at launch
+   * agent's notifier program will quote back (#1113, #1264). Registered here so the token, minted at launch
    * from the same template context as the carrier argv, is the one core looks up.
    */
   notifierCorrelation?: string;
@@ -496,7 +496,7 @@ function registerSession(
   // Refuse a token another live session already owns: two sessions sharing one
   // token would let either agent's notifier raise notifications against the
   // other. The launch itself is unaffected; that session simply falls back on
-  // quiescence, which is the pre-#698 behaviour.
+  // quiescence, which is the pre-#1113 behaviour.
   //
   // Liveness, not mere presence: a session record outlives its PTY so the
   // scrollback stays readable, and its token is spent the moment the PTY exits
@@ -679,7 +679,7 @@ export async function createAgentSession(
   // A spawned-notifier or file-notifier agent spawns a program core has to
   // supply, so the program is installed BEFORE templates resolve: `{{notifier}}`
   // is an absolute path and there is nothing to point at until it exists (issues
-  // #698, #854). The endpoint it POSTs to is baked in at that write, for the
+  // #1113, #1264). The endpoint it POSTs to is baked in at that write, for the
   // same reason the hook URL is baked into the Claude settings write: ROUBO_PORT
   // never reaches a child.
   const notifierPath =
@@ -712,7 +712,7 @@ export async function createAgentSession(
     args.push(resolveTemplate(arg, ctx));
   }
   // The spawned-notifier carrier rides argv, so its contribution is appended here
-  // and, like the posture args, ahead of the positional prompt (issue #698). The
+  // and, like the posture args, ahead of the positional prompt (#1113). The
   // http-hook carrier rides a workspace write instead and contributes nothing to
   // argv, which is why this is the only notification arm with an argv branch.
   //
@@ -725,7 +725,7 @@ export async function createAgentSession(
     }
     notifierCorrelation = resolveTemplate(notification.correlation.template, ctx);
   }
-  // The file-notifier carrier contributes nothing to argv (issue #854). Its
+  // The file-notifier carrier contributes nothing to argv (#1264). Its
   // registration rides a workspace write, and the agent runs the hook command
   // it finds there through a shell, so the carrier args are resolved from the
   // same ctx, shell-quoted, and joined into the one string `{{notifierCommand}}`
@@ -785,7 +785,7 @@ export async function createAgentSession(
   }
   // Prepended AFTER the descriptor's env layering so a descriptor cannot displace
   // it: a carrier naming the notifier by bare name has to resolve to the program
-  // core just installed and to nothing else (issue #698). The directory holds
+  // core just installed and to nothing else (#1113). The directory holds
   // that one fixed-name program, so leading the PATH costs nothing else.
   if (notifierPath !== undefined) {
     const notifierDir = path.dirname(notifierPath);
@@ -794,12 +794,12 @@ export async function createAgentSession(
 
   // A descriptor's command is a bare name far more often than a path, so it is
   // resolved through the well-known-install-location fallback before it reaches
-  // the PTY (#645). This runs OUTSIDE the try below
+  // the PTY (#1056). This runs OUTSIDE the try below
   // so an unresolvable command surfaces its own error, which names every location
   // tried, instead of being rewrapped as an opaque spawn failure. The child's own
   // PATH is used for the probe, since descriptor env may have changed it, and the
   // manifest's own `agentInstallLocations` supply the fallback candidates for
-  // this agent's CLI when it declared any (#712).
+  // this agent's CLI when it declared any (#1115).
   const launchContext: AgentLaunchContextInfo = {
     agentPluginId: opts.agentPluginId,
     agentName: prepared.manifest.name,
@@ -832,10 +832,10 @@ export async function createAgentSession(
       env,
     });
   } catch (err) {
-    // Spike #504: a spawn throw means node-pty's own spawn helper is unusable,
+    // The launch-failure spike: a spawn throw means node-pty's own spawn helper is unusable,
     // in which case EVERY spawn fails including known-good binaries. That is a
     // Roubo install problem, so it is attributed to the host rather than blamed
-    // on the agent plugin. When the helper's executable bit is the cause (#685)
+    // on the agent plugin. When the helper's executable bit is the cause (#1103)
     // the guidance names the one-line `chmod` fix instead of stopping at the
     // generic "reinstall Roubo".
     throw new AgentLaunchFailureError(
@@ -863,7 +863,7 @@ export async function createAgentSession(
   // file-notifier one is reachable only through the correlation token resolved
   // above, and
   // whichever waiting detection it declared drives the quiescence debounce
-  // (AP-FR-013, issue #698).
+  // (AP-FR-013, #1113).
   const capabilities = descriptor.capabilities;
   // Above the tested ceiling, and a probe that could not decide, both launch:
   // agents ship weekly, so neither may block. They are surfaced as an in-terminal
@@ -890,13 +890,13 @@ export async function createAgentSession(
 }
 
 /**
- * Install the notifier program, or give up on the wiring (issue #698).
+ * Install the notifier program, or give up on the wiring (#1113).
  *
  * Best-effort for the same reason the built-in hook settings write is: a
  * notification carrier is a convenience, not the launch. A disk that refuses the
  * write costs the turn-complete signal and nothing else, and the caller drops
  * the whole wiring rather than pointing the agent at a program that is not
- * there, leaving the session on quiescence exactly as it was before #698.
+ * there, leaving the session on quiescence exactly as it was before #1113.
  */
 function installNotifier(port: string): string | undefined {
   try {
@@ -953,7 +953,7 @@ export function isHookNotificationEligible(sessionId: string): boolean {
 }
 
 /**
- * The session a spawned notifier's correlation token belongs to (issue #698).
+ * The session a spawned notifier's correlation token belongs to (#1113).
  *
  * The `spawned-notifier` counterpart to addressing a session by its own id. That
  * shortcut is what `correlation.source: "agent-native"` buys the http-hook path:
@@ -970,7 +970,7 @@ export function resolveNotifierSession(token: string): TerminalSession | undefin
 
 /**
  * Whether a notifier POST quoting this correlation token may raise a
- * notification (issue #698).
+ * notification (#1113).
  *
  * The same three-part rule `isHookNotificationEligible` applies, read through
  * the token: the token must be registered, the session it names must still be

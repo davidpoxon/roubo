@@ -34,7 +34,7 @@ describe("ResultsRecoveryBanner", () => {
     render(<ResultsRecoveryBanner recoveryReason="version-migration-required" />);
     expect(screen.getByTestId("results-recovery-banner")).toBeTruthy();
     expect(screen.getByText(/earlier version of Roubo/i)).toBeTruthy();
-    // Issue #469 (AC1/AC3): the migration copy names the documented migration
+    // #928 (AC1/AC3): the migration copy names the documented migration
     // path so a user can find the migration steps from the banner itself.
     expect(screen.getByText(/docs\/testbench-schema-migrations\.md/i)).toBeTruthy();
   });

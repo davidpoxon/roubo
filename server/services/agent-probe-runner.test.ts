@@ -224,7 +224,7 @@ describe("caching (APCC-TC-024)", () => {
     expect(spawnProbe).toHaveBeenCalledTimes(1);
   });
 
-  it("scopes a bare name's cache key to the search path it resolved against (#660)", async () => {
+  it("scopes a bare name's cache key to the search path it resolved against (#1075)", async () => {
     spawnReturns("a - Alpha");
     const request = {
       command: "probe-cli",
@@ -240,7 +240,7 @@ describe("caching (APCC-TC-024)", () => {
     });
   });
 
-  it("resolves through the declared install locations (#712)", async () => {
+  it("resolves through the declared install locations (#1115)", async () => {
     spawnReturns("a - Alpha");
     const located = path.join(binDir("probe-cli"), "probe-cli");
     const { result } = await runProbe({

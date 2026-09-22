@@ -93,7 +93,7 @@ jobs:
   # source. Regenerate every generated schema and fail if any committed output
   # differs. This now guards the real authored TestBench contracts
   # (schema/test-cases.schema.json, schema/test-results.schema.json) as well as
-  # the retained #408 spike artifact. The roubo-config/roubo-plugin schemas are
+  # the retained #431 spike artifact. The roubo-config/roubo-plugin schemas are
   # hand-authored, not generated, so this guard does NOT gate on
   # schema/roubo-*.json (the diff would always fire on them).
   schema-drift:
@@ -167,7 +167,7 @@ jobs:
       # Build before coverage so the test job exercises the same built tree
       # (dist/ + tsconfig.tsbuildinfo residue) developers have after the
       # documented e2e flow, matching local `npm run build && npm test` (#878).
-      # The #818 drift guard digests a source-only view, so build residue does
+      # The #822 drift guard digests a source-only view, so build residue does
       # not make it flaky.
       - run: npm run build
       - run: npm run coverage

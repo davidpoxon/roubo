@@ -1,4 +1,4 @@
-// Deterministic colour per agent plugin (AP-TC-044, issue #516).
+// Deterministic colour per agent plugin (AP-TC-044, #1057).
 //
 // `AgentPluginState` carries no colour of its own, and widening the wire type
 // so a plugin could pick one would let two plugins claim the same swatch. A
@@ -12,7 +12,7 @@
 // Each swatch is a background/foreground PAIR of literal Tailwind class names.
 // Both are written out in full because Tailwind scans source text for whole
 // class names, so a `bg-` string rewritten into a `text-` one at runtime would
-// never be generated (issue #517, where the Terminal tab needs the foreground
+// never be generated (#1063, where the Terminal tab needs the foreground
 // form for a session's agent glyph).
 
 interface Swatch {

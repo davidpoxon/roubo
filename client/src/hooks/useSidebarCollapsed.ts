@@ -19,7 +19,7 @@ function write(collapsed: boolean): void {
   }
 }
 
-// App-global projects-sidebar collapse (#524). The sidebar is not scoped to a
+// App-global projects-sidebar collapse (#525). The sidebar is not scoped to a
 // bench, so its collapse preference lives in its own top-level key rather than
 // the per-bench view-state store. Reads straight from localStorage each render
 // and bumps a version counter on write so the value is correct immediately.

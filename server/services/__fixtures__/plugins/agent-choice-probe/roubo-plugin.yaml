@@ -1,4 +1,4 @@
-# An agent plugin shaped like the third agent plugin (#856, APCC-TC-009): it
+# An agent plugin shaped like the third agent plugin (#1269, APCC-TC-009): it
 # declares the 1.6.0 `choiceProbes` key and pins `roubo: ^1.6.0` as the SDK
 # contract documentation tells it to. The manifest fixture test drives it
 # through a simulated pre-1.6.0 host to prove the refusal names the version it

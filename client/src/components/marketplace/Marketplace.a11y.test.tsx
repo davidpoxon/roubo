@@ -17,7 +17,7 @@ vi.mock("../../hooks/useMarketplace");
 vi.mock("../../hooks/useToast", () => ({
   useToast: () => ({ addToast: vi.fn() }),
 }));
-// Issue #399: Marketplace now calls useGrantConsent. Mock it so this scan needs
+// #884: Marketplace now calls useGrantConsent. Mock it so this scan needs
 // no QueryClientProvider.
 vi.mock("../../hooks/usePlugins", () => ({
   useGrantConsent: () => ({ mutate: vi.fn(), isPending: false }),
@@ -112,7 +112,7 @@ const ACME_STATUS = {
 };
 
 // The consent modal is handed the entry's provenance by its container (issue
-// #563). These scans cover the first-party install; the unverified badge's own
+// #977). These scans cover the first-party install; the unverified badge's own
 // a11y is covered by the multi-source scans below, which list a third-party entry.
 const A11Y_PROVENANCE: PluginProvenance = {
   sourceId: FIRST_PARTY_SOURCE_ID,
@@ -159,7 +159,7 @@ beforeEach(() => {
   mockedCancel.mockReturnValue(mutationStub());
 });
 
-// CPHMTP-NFR-008 (issue #557): the new multi-source surfaces (per-entry
+// CPHMTP-NFR-008 (#962): the new multi-source surfaces (per-entry
 // provenance chips, the source filter chip row, the per-source unavailable
 // notice) meet the same bar as the rest of this view.
 describe("Marketplace multi-source surfaces: axe-core (CPHMTP-NFR-008)", () => {
@@ -206,7 +206,7 @@ describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
     expectNoAxeFindings(results);
   });
 
-  // CPHM-NFR-007 + issue #372: the offline / staleness banner (shown when the
+  // CPHM-NFR-007 + #851: the offline / staleness banner (shown when the
   // catalog degraded off the network) must also be accessible.
   it("has no axe violations with the offline / staleness banner shown", async () => {
     setCatalogData("cache", new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
@@ -248,7 +248,7 @@ describe("Marketplace: axe-core (WCAG 2.1 AA, CP-NFR-007)", () => {
     const dialog = getByRole("dialog");
     expect(dialog).toBeInTheDocument();
     // React Aria omits aria-modal deliberately and strips the prop, so the shared
-    // stampAriaModal helper (issue #424) is what makes the modality explicit here.
+    // stampAriaModal helper (#902) is what makes the modality explicit here.
     expect(dialog).toHaveAttribute("aria-modal", "true");
 
     // The confirm control is aria-disabled while gated but remains focusable.

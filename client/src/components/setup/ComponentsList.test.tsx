@@ -11,7 +11,7 @@ vi.mock("../../hooks/useBenches", () => ({
 }));
 
 // The nested ComponentRowEditor reads usePlugins for its "Component plugin"
-// selector (#390). Mock it with a single installed component-kind plugin.
+// selector (#882). Mock it with a single installed component-kind plugin.
 vi.mock("../../hooks/usePlugins", () => ({
   usePlugins: () => ({
     data: {
@@ -101,7 +101,7 @@ describe("ComponentsList", () => {
     expect(addCall?.payload.component.type).toBeUndefined();
   });
 
-  it("binds a component to a component plugin via the expanded row selector (#390)", async () => {
+  it("binds a component to a component plugin via the expanded row selector (#882)", async () => {
     const dispatch = vi.fn();
     render(
       <ComponentsList

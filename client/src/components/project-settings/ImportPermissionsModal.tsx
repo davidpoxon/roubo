@@ -18,7 +18,7 @@ interface ImportPermissionsModalProps {
   currentPermissions: ProjectPermissions;
   onImport: (rules: PermissionRule[]) => void;
   /**
-   * The rule tiers THIS project's agent carries (#862). The source project may
+   * The rule tiers THIS project's agent carries (#1345). The source project may
    * have been on another agent, so its rules can include a tier this one drops;
    * both tables mark those rather than offering them as though they applied.
    */

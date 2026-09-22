@@ -1,7 +1,7 @@
 import type { CaseRowModel } from "./rollup";
 import StatusIndicator from "./StatusIndicator";
 
-// One case row in the virtualised list (#419). Renders only the human-readable
+// One case row in the virtualised list (#466). Renders only the human-readable
 // case fields (id + title) plus the StatusIndicator: the raw JSON plan/result is
 // never serialised into the DOM (acceptance criterion). The case detail + marks
 // surface is a separate slice (#16) and out of scope here.

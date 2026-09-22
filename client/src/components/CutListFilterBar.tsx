@@ -24,7 +24,7 @@ import Spinner from "./Spinner";
 
 export type { FilterState };
 
-// CLI-FR-014 / FR-015 (issue #423): facets whose closed/archived values are
+// CLI-FR-014 / FR-015 (#900): facets whose closed/archived values are
 // dropped at the source (milestones and epics) carry a footer note in the
 // filter popover explaining why those values never appear as options. The text
 // is fixed per facet id and identical across plugins (github-com/ghe emit the
@@ -201,7 +201,7 @@ function FacetSection({
 
   const showEmpty = options.length === 0 && !asyncQuery.isLoading;
 
-  // CLI-FR-014 / FR-015 (issue #423): show the source-exclusion note for facets
+  // CLI-FR-014 / FR-015 (#900): show the source-exclusion note for facets
   // whose closed/archived values are dropped at the source, once the section has
   // settled (not while loading or after a load error).
   const sourceExclusionNote = SOURCE_EXCLUSION_NOTES[facet.id];

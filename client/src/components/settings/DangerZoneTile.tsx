@@ -32,7 +32,7 @@ export default function DangerZoneTile({ projectId }: Props) {
   const [typedName, setTypedName] = useState("");
   // Set when the server refuses with HAS_BENCHES: the count of persisted bench
   // records it is objecting to. Non-null switches the dialog into its force
-  // recovery state (#829).
+  // recovery state (#1191).
   const [persistedBenchCount, setPersistedBenchCount] = useState<number | null>(null);
 
   const project = projects?.find((p) => p.id === projectId);

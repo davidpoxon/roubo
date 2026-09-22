@@ -15,7 +15,7 @@ import { resolveWithin } from "../lib/safe-path.js";
 import * as credentialStore from "./credential-store.js";
 import * as pluginProvenanceState from "./plugin-provenance-state.js";
 
-// Issue #553 / CPHMTP-FR-001, CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003:
+// #955 / CPHMTP-FR-001, CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003:
 // persistent registry of third-party marketplace sources. See:
 //   .specifications/component-plugins-hosted-marketplace-third-party/prd.md
 //   .specifications/component-plugins-hosted-marketplace-third-party/architecture.md
@@ -167,7 +167,7 @@ function slugFromUrl(normalizedHref: string, host: string): string {
  * is set (Spike 551). Returns `null` when the URL is rejected.
  *
  * The parse-and-canonicalise half (WHATWG `URL.href`, https/http gate) is the
- * shared `normalizeSourceUrl` from @roubo/shared (issue #565), so this
+ * shared `normalizeSourceUrl` from @roubo/shared (#982), so this
  * registration path and the client's project-open declared-source comparison
  * normalise identically. The `allowHttp` gate and the slug id stay here: they are
  * registration-policy concerns the client comparison has no need for.
@@ -207,7 +207,7 @@ async function storeCredential(id: string, credential: string): Promise<void> {
  * a credential is unlistable without it (the fetch would 401), so the multi-source
  * listing fan-out reads it here and passes it to `createThirdPartyCatalogClient`,
  * which hands it to guardedFetch to attach as an `Authorization` header on the
- * source origin only (CPHMTP-NFR-002, issue #557). The value is returned to the
+ * source origin only (CPHMTP-NFR-002, #962). The value is returned to the
  * caller and never persisted outside the keyring, and never leaves the server: the
  * sources API projects only `hasCredential`.
  */
@@ -325,7 +325,7 @@ export type RemoveSourceResult = "removed" | "not-found" | "first-party";
 /**
  * Removes a registered source: deletes the row, its per-source cache directory,
  * and its keyring credential, and stamps `orphaned: true` on the provenance ledger
- * rows of every plugin installed from it (issue #560 / CPHMTP-FR-009). The built-in
+ * rows of every plugin installed from it (#968 / CPHMTP-FR-009). The built-in
  * first-party source is NON-REMOVABLE.
  */
 export async function removeSource(id: string): Promise<RemoveSourceResult> {
@@ -348,7 +348,7 @@ export async function removeSource(id: string): Promise<RemoveSourceResult> {
   // a cleanup failure must not turn an already-completed removal into an error, so
   // every step here is individually guarded and logged rather than propagated.
   //
-  // Orphan-stamping the provenance ledger (issue #560) runs FIRST, before the
+  // Orphan-stamping the provenance ledger (#968) runs FIRST, before the
   // filesystem and keyring steps: it is the only one carrying state the consumer
   // still needs (the plugins stay on disk and keep working, marked orphaned), and
   // it is unrecoverable if skipped. The row is already gone, so a retry returns

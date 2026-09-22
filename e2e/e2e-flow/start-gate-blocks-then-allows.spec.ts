@@ -24,7 +24,7 @@ import { registerFixtureProject, resetWithScenario } from "./_support/scenario.j
 // names the diverging step id, the expected-vs-actual, and the owning slice
 // issue from this unit's blocked-by set, so a red run localizes the integration
 // drift to one attributable slice:
-//   - S001 (409 GATE_BLOCKED) is owned by the hard start-gate slice, #699/#722.
+//   - S001 (409 GATE_BLOCKED) is owned by the hard start-gate slice, #722.
 //   - S002 (gate transitions to passed / tracker closes) is owned by the gate
 //     lifecycle slice, #721.
 //   - S003 (201, bench created and running) composes both slices.
@@ -39,10 +39,10 @@ const WU_051 = "acme/widgets#51";
 const WU_040_ENCODED = encodeURIComponent(WU_040);
 const WU_051_ENCODED = encodeURIComponent(WU_051);
 
-// Owning slice issues from this unit's blocked-by set, surfaced in failure
+// Owning slices from this unit's blocked-by set, surfaced in failure
 // messages so a red step points at one slice (VG-TC-032 acceptance criterion 3).
-const START_GATE_SLICE = "#699/#722 (hard start-gate)";
-const GATE_LIFECYCLE_SLICE = "#721 (gate lifecycle: close-on-pass)";
+const START_GATE_SLICE = "hard start-gate";
+const GATE_LIFECYCLE_SLICE = "gate lifecycle: close-on-pass";
 
 test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);

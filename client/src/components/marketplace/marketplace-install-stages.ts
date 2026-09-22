@@ -1,7 +1,7 @@
 import type { InstallErrorCode, InstallSource } from "@roubo/shared";
 
 // Client-derived 4-step install progress for the marketplace install/update UX
-// (issue #374). The four stages already run server-side across the two existing
+// (#855). The four stages already run server-side across the two existing
 // calls: the preview mutation (POST /marketplace/plugins/:id/install) downloads
 // the built artifact into staging, verifies the catalog ed25519 signature, and
 // verifies the staged artifact's sha256 digest; the confirm mutation
@@ -32,7 +32,7 @@ export const INSTALL_STAGE_INDEX = {
 //   unpack-failed, anything else (confirm/commit phase) -> stage 4 (Unpack & install)
 // Codes that can only surface during (or are not specific to a stage before) the
 // confirm/commit phase fall through to the final "Unpack & install" stage.
-// missing-integrity (an unsigned entry with no usable digest, #559) is rejected
+// missing-integrity (an unsigned entry with no usable digest, #961) is rejected
 // BEFORE the download, so it precedes every stage. It is mapped to the digest
 // stage regardless, because that is the stage whose promise it fails: mapping it
 // to "Unpack & install" would misreport a pre-fetch refusal as an unpack failure.
@@ -71,7 +71,7 @@ export function stageFailMessage(stageIndex: number, code?: InstallErrorCode): s
         : "Catalog signature unverified: install refused, nothing written.";
     case INSTALL_STAGE_INDEX.artifactDigest:
       // Not a mismatch: there was no digest to check against, so the artifact was
-      // never fetched. Say that plainly rather than implying tampering (#559).
+      // never fetched. Say that plainly rather than implying tampering (#961).
       if (code === "missing-integrity") {
         return "Uninstallable without a per-artifact digest: nothing fetched, nothing written.";
       }
@@ -115,7 +115,7 @@ export function deriveStageStatuses(input: StageStatusInput): StageStatus[] {
         : stageIndexForErrorCode(input.errorCode);
     // unpack-failed's UI stage (Unpack & install, index 3) sits after the
     // artifact-digest stage (index 2) in the labelled list, but the real
-    // pipeline unpacks BEFORE verifying the digest (issue #370): an unpack
+    // pipeline unpacks BEFORE verifying the digest (#849): an unpack
     // failure means the digest check never ran. Don't mark that earlier-indexed
     // stage "done" just because its UI position precedes the one that failed.
     const digestNeverReached =

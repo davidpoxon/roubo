@@ -9,7 +9,7 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe("useBenchViewState headerCollapsed (#805)", () => {
+describe("useBenchViewState headerCollapsed (#809)", () => {
   it("defaults headerCollapsed to false", () => {
     const { result } = renderHook(() => useBenchViewState("proj-1", 1));
     expect(result.current.headerCollapsed).toBe(false);
@@ -45,7 +45,7 @@ describe("useBenchViewState headerCollapsed (#805)", () => {
   });
 });
 
-describe("useBenchViewState testbenchViewMode (#359)", () => {
+describe("useBenchViewState testbenchViewMode (#842)", () => {
   it("leaves testbenchViewMode undefined until a view is picked (first-visit signal)", () => {
     const { result } = renderHook(() => useBenchViewState("proj-1", 1));
     expect(result.current.testbenchViewMode).toBeUndefined();

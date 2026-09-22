@@ -24,8 +24,8 @@ import * as state from "./state.js";
 import * as pipeline from "./agent-launch-pipeline.js";
 import * as claudeSettingsLocal from "./claude-settings-local.js";
 
-// The dispatch seam (issue #514, AP-FR-016, AP-FR-018): one stored model, mapped
-// by whichever agent plugin the project resolves to. Since #521 there is no
+// The dispatch seam (#1058, AP-FR-016, AP-FR-018): one stored model, mapped
+// by whichever agent plugin the project resolves to. Since #1114 there is no
 // second carrier: with no agent plugin, nothing carries the rules.
 
 const SETTINGS_WRITE = {
@@ -132,7 +132,7 @@ describe("toLaunchPermissions", () => {
 });
 
 describe("applyProjectPermissions", () => {
-  it("writes nothing at all when no agent plugin resolves (#521)", async () => {
+  it("writes nothing at all when no agent plugin resolves (#1114)", async () => {
     vi.mocked(pipeline.resolveLaunchAgentId).mockReturnValue(undefined);
 
     const result = await applyProjectPermissions({
@@ -238,7 +238,7 @@ describe("applyProjectPermissions", () => {
 });
 
 describe("describeAgentPermissions", () => {
-  it("reports no carrier, and no resync, when no agent plugin resolves (#521)", async () => {
+  it("reports no carrier, and no resync, when no agent plugin resolves (#1114)", async () => {
     vi.mocked(pipeline.resolveLaunchAgentId).mockReturnValue(undefined);
 
     expect(await describeAgentPermissions("p1", workspace)).toEqual({
@@ -247,7 +247,7 @@ describe("describeAgentPermissions", () => {
       postures: [],
       // The model is core's own and stays editable, ready for whichever agent
       // plugin gets installed; there is nothing to re-inject through yet. Every
-      // tier stays on offer for the same reason (#862).
+      // tier stays on offer for the same reason (#1345).
       rules: true,
       ruleTiers: ["allow", "ask", "deny"],
       resync: false,
@@ -268,7 +268,7 @@ describe("describeAgentPermissions", () => {
     });
   });
 
-  // #862: which tiers an agent CLI's rules format carries is manifest metadata,
+  // #1345: which tiers an agent CLI's rules format carries is manifest metadata,
   // not a per-launch decision, so it is read off the manifest rather than the
   // descriptor. An agent that declares nothing keeps every tier, which is what
   // makes the key additive for plugins written before it existed.

@@ -9,7 +9,7 @@ import {
 } from "@roubo/shared";
 import { atomicWrite, getRouboDir } from "./state.js";
 
-// App-level agent configuration (AP-FR-002, issue #508).
+// App-level agent configuration (AP-FR-002, #1032).
 //
 // Every installed `agent`-kind plugin gets its own independent application-level
 // config file at `~/.roubo/agents/_global/<pluginId>.yaml`. Mirrors the global

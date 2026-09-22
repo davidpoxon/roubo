@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Issue #603 / T1.2: the typed ProvisionDescriptor discriminated union that a
+// #645 / T1.2: the typed ProvisionDescriptor discriminated union that a
 // component plugin emits and the host LifecycleEngine executes. See:
 //   .specifications/component-plugins/prd.md (FR-002, FR-022, US-005, US-012)
 //   .specifications/component-plugins/architecture.md ('Data model', line 54)
@@ -13,7 +13,7 @@ import { z } from "zod";
 
 export const SUPPORTED_PROVISION_SCHEMA_VERSION = 1 as const;
 
-// ── shell (#836) ──
+// ── shell (#1218) ──
 // Opt-in shell interpretation for a descriptor's command line. Commands are
 // ARGV BY DEFAULT: the host tokenizes the string and spawns the first token
 // directly, so `&&`, `;`, globs and `$VAR` are literal arguments and a shell
@@ -55,10 +55,10 @@ const DockerConnectionSchema = z
   })
   .strict();
 
-// ── url (#834) ──
+// ── url (#1207) ──
 // The declarative route to ComponentStatus.url, so a `translate`-only plugin
 // can resolve `{{urls.<componentName>}}` the way an imperative plugin already
-// does by pushing through host.component.reportStatus (#833). A declarative
+// does by pushing through host.component.reportStatus (#1206). A declarative
 // plugin never holds that sink (translate runs once, BEFORE the descriptor
 // executes), so the descriptor declares the URL and the LifecycleEngine carries
 // it into its own terminal reportStatus call.

@@ -68,7 +68,7 @@ test("the Source section title reads the github-com manifest name", async ({ pag
   await expect(page.getByRole("button", { name: "Choose sources" })).toHaveCount(0);
 });
 
-// #279: PR #278 dropped the standalone "GitHub project" picker field from
+// #284: PR #278 dropped the standalone "GitHub project" picker field from
 // integration-fields (sources are derived from the repo + submodules now) and
 // replaced it with the read-only derived-sources preview. This test asserts the
 // surviving Repository field plus that preview, and no longer expects a

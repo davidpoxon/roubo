@@ -19,13 +19,13 @@ import {
   waitForAvailableAgents,
 } from "./_support/agent-env.js";
 
-// AP-TC-056 + AP-TC-105 (#532, AP-WU-031) - E2E: a Codex session launches with
+// AP-TC-056 + AP-TC-105 (#1128, AP-WU-031) - E2E: a Codex session launches with
 // the configured settings, injects the jig through the plugin's declared
 // mechanism, and raises waiting then exited through the quiescence heuristic.
 //
 // The integration-level drift guard for the AP-US-009 journey (AP-FR-012,
-// AP-FR-013, AP-FR-020), spanning the slices this unit is blocked by (#505,
-// #512, #513, #520, #537). It walks both authoritative e2e_flow cases step for step
+// AP-FR-013, AP-FR-020), spanning the slices this unit is blocked by (delivered in
+// #1054, #1055). It walks both authoritative e2e_flow cases step for step
 // against the REAL built app. On divergence each observation routes through the
 // FR-020 failure-output contract (see
 // ../component-plugins/_support/step-runner.ts): the failure reports which step
@@ -34,7 +34,7 @@ import {
 // rather than a shared label.
 //
 // ONE test carries each bare case id and it asserts EVERY observation of that
-// case (#680): the suite mapper corroborates a case only when exactly one test
+// case (#1097): the suite mapper corroborates a case only when exactly one test
 // claims it, and neither id sits on a `describe`, because the mapper matches
 // `classname` + `name` and every test in the file would inherit it.
 //
@@ -42,7 +42,7 @@ import {
 // sibling `roubo-plugins` repo and builds against the published SDK, so roubo's
 // e2e suite cannot depend on it. Instead the agent-kind bundled overlay at
 // e2e/fixtures/bundled-overlays/codex-cli/ takes the `codex-cli` id, exactly as
-// the `claude-code` overlay takes its own. Since #532 its `configSchema` is
+// the `claude-code` overlay takes its own. Since #1128 its `configSchema` is
 // copied from the real manifest, so the AI Agents card renders the real Model /
 // Reasoning effort / Approval policy / Sandbox selects, and its `translateLaunch`
 // mirrors the real `buildArgs` ordering and the real `waitingDetection` window.
@@ -86,7 +86,7 @@ import {
 //
 // A STALE PRECONDITION, implemented as its intent. AP-TC-056 names "detected
 // codex CLI version 0.48.2", but the shipped plugin's window, the overlay's, and
-// the stub's reported version are all in the 0.144.x line (spike #502 surveyed
+// the stub's reported version are all in the 0.144.x line (agent-contract spike surveyed
 // @openai/codex 0.144.1, the only version any Roubo work has validated). The
 // literal number is stale and below the 0.144.0 floor, so pinning the stub to it
 // would block the launch the case is about. The precondition is therefore

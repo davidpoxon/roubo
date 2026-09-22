@@ -12,7 +12,7 @@ import { assertRealpathWithin, resolveWithin, UnsafePathError } from "../lib/saf
 import { atomicWrite } from "./state.js";
 import { resolveTemplate, type ResolvedTemplateContext } from "./config-parser.js";
 
-// AgentLaunchExecutor (issue #507, AP-FR-001, AP-NFR-001).
+// AgentLaunchExecutor (#1026, AP-FR-001, AP-NFR-001).
 //
 // The core-side half of the agent contract. An agent plugin returns a
 // declarative AgentLaunchDescriptor from `translateLaunch`; this module
@@ -99,7 +99,7 @@ export function collectWorkspaceWrites(
 
 /**
  * Join a `file-notifier` carrier's resolved args into the one command string its
- * registration write embeds as `{{notifierCommand}}` (issue #854). The agent
+ * registration write embeds as `{{notifierCommand}}` (#1264). The agent
  * runs that string through a shell, so every element is POSIX-quoted: an element
  * made only of characters no shell treats specially passes through bare, and
  * anything else (whitespace, quotes, `$`, `;`, an empty string) is wrapped in
@@ -313,7 +313,7 @@ function unquoteShellEscapes(value: string): string {
  *
  * The value is tested a second time with shell single-quote escaping undone,
  * because a carrier that joins a value into a command string puts it through
- * `quoteShellWord` (issue #890). Quoting only wraps, so for almost every value
+ * `quoteShellWord` (#1344). Quoting only wraps, so for almost every value
  * the needle is still a substring of the raw command and the second test
  * changes nothing. The exception is a value containing a single quote, which
  * quoting rewrites as `'\''`: the needle is then nowhere in the command as
@@ -362,7 +362,7 @@ function applyJsonWrite(filePath: string, ops: WriteOp[]): void {
 
     if (op.op === "upsertArray") {
       // The array-of-objects counterpart to unionArray, for a file whose entries
-      // are objects rather than strings (issue #890). Everything the match does
+      // are objects rather than strings (#1344). Everything the match does
       // not select is kept, in order, and the new entry goes last, so a user's
       // own entries survive and the one this host wrote on an earlier launch is
       // replaced rather than joined by a second copy.

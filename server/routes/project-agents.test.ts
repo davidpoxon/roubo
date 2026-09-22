@@ -312,7 +312,7 @@ describe("PUT /api/projects/:projectId/agents/:pluginId/config", () => {
   });
 });
 
-describe("GET /api/projects/:projectId/agents probed choices (#884)", () => {
+describe("GET /api/projects/:projectId/agents probed choices (#1273)", () => {
   const CHOICE_PROBES = {
     model: { command: "agent", args: ["models"], parse: "dash-line-pairs" as const },
   };

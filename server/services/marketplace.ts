@@ -23,9 +23,9 @@ import * as catalogClient from "./catalog-client.js";
 import type { ThirdPartyCatalogClient } from "./catalog-client.js";
 import * as sourcesState from "./marketplace-sources-state.js";
 
-// Marketplace catalog service (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621;
-// CP-FR-021 / CP-US-011, issue #622; hosted-marketplace catalog-client,
-// CPHM-FR-001 / FR-009, issue #306).
+// Marketplace catalog service (CP-FR-020 / CP-NFR-007 / CP-US-010, #688;
+// CP-FR-021 / CP-US-011, #690; hosted-marketplace catalog-client,
+// CPHM-FR-001 / FR-009, #845).
 //
 // The catalog is no longer an embedded module-load constant: entries come from
 // the `catalog-client`, which fetches the signed catalog + key-ring over HTTPS,
@@ -43,7 +43,7 @@ import * as sourcesState from "./marketplace-sources-state.js";
 // `marketplace-unreachable` error (CPHM-TC-045/050/051); already-installed
 // plugins are unaffected.
 
-// Multi-source listing (CPHMTP-FR-004 / NFR-006 / NFR-007, issue #557): listCatalog
+// Multi-source listing (CPHMTP-FR-004 / NFR-006 / NFR-007, #962): listCatalog
 // no longer reads the first-party client alone. It fans out over the first-party
 // catalog AND every registered source concurrently (Promise.all), merging the
 // results into one list where every entry is stamped with the `sourceId` it came
@@ -53,7 +53,7 @@ import * as sourcesState from "./marketplace-sources-state.js";
 // first-party section. Per-source health rides back on `sources` rather than one
 // catalog-wide scalar, so only the failed source shows as unavailable.
 //
-// Cross-source id collisions (CPHMTP-FR-005, issue #558): a plugin id served by
+// Cross-source id collisions (CPHMTP-FR-005, #966): a plugin id served by
 // MORE THAN ONE source is ambiguous, and this module refuses to resolve that
 // ambiguity for the caller. There is deliberately no precedence order and no
 // shadowing: picking a winner would silently decide whose code runs. The rule is
@@ -77,7 +77,7 @@ export interface ListCatalogParams {
 
 /**
  * A plugin id is served by more than one source and the caller named none, so
- * install/update is refused (CPHMTP-FR-005, issue #558). The route maps this to
+ * install/update is refused (CPHMTP-FR-005, #966). The route maps this to
  * `409 { code: "ambiguous-source", sourceIds }`.
  *
  * Deliberately NOT an `InstallError`: that class carries only a code plus a
@@ -110,7 +110,7 @@ export class AmbiguousSourceError extends Error {
  * `source` and `fetchedAt` are the FIRST-PARTY catalog's provenance, straight from
  * the first-party catalog-client's degrade chain, so the route can forward them to
  * the client, which renders the offline / staleness banner when
- * `source !== "network"` (CPHM-FR-009 / CPHM-NFR-003, issue #372). `fetchedAt` is
+ * `source !== "network"` (CPHM-FR-009 / CPHM-NFR-003, #851). `fetchedAt` is
  * the ISO fetch timestamp (network / cache), or `null` for an empty listing. They
  * stay first-party-scoped: a third-party source going dark must not flip the
  * first-party banner.
@@ -160,12 +160,12 @@ export function isNewerVersion(catalogVersion: string, installedVersion: string)
 
 // Repo root relative to this service file (server/services/ -> repo root), used
 // to locate a bundled plugin's `plugins/<id>` source manifest for PRE-INSTALL
-// enrichment (issue #401).
+// enrichment (#883).
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /**
  * Read the declared manifest for a catalog entry so the drawer can render its
- * permissions + lifecycle PRE-INSTALL (issue #401), without baking those fields
+ * permissions + lifecycle PRE-INSTALL (#883), without baking those fields
  * into the signed catalog payload (which would need the out-of-band signing key
  * and would trip the marketplace drift guard). Prefer the installed record's
  * manifest (authoritative for what is on the machine, always present in
@@ -192,12 +192,12 @@ function readEntryManifest(
 
 /**
  * The agent-CLI compatibility window a listing renders PRE-INSTALL (AP-FR-022,
- * issue #522), read off the entry's declared manifest through the same
+ * #1112), read off the entry's declared manifest through the same
  * `readEntryManifest()` seam `declaredPermissions` / `lifecycle` already use.
  *
  * Returns null both when the manifest is unavailable and when it declares no
  * bounds at all. `annotate()` deliberately does NOT rely on those two collapsing
- * (issue #722): it calls this helper only once a manifest is READABLE, so a null
+ * (#1133): it calls this helper only once a manifest is READABLE, so a null
  * from here means a readable manifest declaring nothing, which is the state the
  * card has its fallback for (AP-TC-121). An unreachable manifest is answered by
  * `entryAgentWindow()` below instead. The manifest's `probe` directive is
@@ -208,7 +208,7 @@ function readEntryManifest(
  * carrying a local `directory`, which a genuinely published third-party plugin
  * (`source.type: "release"`, not yet installed) is neither. `entryAgentWindow()`
  * below is the second source `annotate()` falls back to for exactly that case
- * (issue #722).
+ * (#1133).
  */
 function declaredAgentWindow(
   manifest: PluginManifest | null,
@@ -223,7 +223,7 @@ function declaredAgentWindow(
 }
 
 /**
- * The same window as the CATALOG ENTRY declares it (issue #722), normalised with
+ * The same window as the CATALOG ENTRY declares it (#1133), normalised with
  * the identical drop-empty-to-null semantics as `declaredAgentWindow()` above so
  * an entry carrying an empty block cannot render a bare row where an undeclared
  * one renders the AP-TC-121 fallback.
@@ -247,7 +247,7 @@ function entryAgentWindow(entry: MarketplaceCatalogEntry): MarketplaceAgentCompa
 }
 
 /**
- * The HOST-range verdict for a catalog entry (issue #720): non-null when the
+ * The HOST-range verdict for a catalog entry (#1134): non-null when the
  * range the plugin declared EXCLUDES this host, null in every other case.
  *
  * One derivation feeds both enforcement points, the pre-install mark on the card
@@ -255,11 +255,11 @@ function entryAgentWindow(entry: MarketplaceCatalogEntry): MarketplaceAgentCompa
  * API gate cannot disagree about whether a listing is installable.
  *
  * Three inputs all collapse to null and behave exactly as before the field
- * existed: an entry declaring no range (every catalog published before #720), a
+ * existed: an entry declaring no range (every catalog published before #1134), a
  * range this host satisfies, and a range node-semver cannot parse. A malformed
  * declaration is deliberately NOT a hard error here: refusing an install over a
  * value nobody can evaluate would delist a plugin on a typo, so it degrades to
- * the post-download `incompatible-host` check (#719), which still sees the real
+ * the post-download `incompatible-host` check (#1118), which still sees the real
  * manifest and still refuses.
  */
 function hostIncompatibility(
@@ -278,7 +278,7 @@ function annotate(
   /**
    * Every source serving this entry's id, from the collision index built over the
    * UNFILTERED merge. One element (this source alone) is the common case and is
-   * not a collision; two or more stamps `collision` (CPHMTP-FR-005, issue #558).
+   * not a collision; two or more stamps `collision` (CPHMTP-FR-005, #966).
    */
   servingSourceIds: string[] = [sourceId],
 ): MarketplaceListing {
@@ -289,14 +289,14 @@ function annotate(
   // cannot be updated in place. The catalog source for such an entry is the same
   // bundled directory, so a stale catalog `version` field could otherwise read as
   // a newer release and offer an Update action that always fails at
-  // previewUpdateFromGitUrl (issue #752). Suppress updateAvailable for bundled
+  // previewUpdateFromGitUrl (#753). Suppress updateAvailable for bundled
   // records here, where it is computed, so the card shows them as Installed.
   const updateAvailable =
     installed &&
     record?.source !== "bundled" &&
     installedVersion !== null &&
     isNewerVersion(entry.version, installedVersion);
-  // PRE-INSTALL provenance the detail drawer renders (issue #401). Lifecycle is a
+  // PRE-INSTALL provenance the detail drawer renders (#883). Lifecycle is a
   // component-plugin concept: integration plugins have no start/stop lifecycle,
   // so their drawer omits the row (lifecycle stays null). An absent manifest
   // `lifecycle` defaults to long-running, the shape every existing component has.
@@ -310,7 +310,7 @@ function annotate(
   // happened to declare the block (in its manifest OR on the entry) would still
   // list nothing.
   //
-  // Two sources, manifest first (issue #722): the manifest is authoritative for
+  // Two sources, manifest first (#1133): the manifest is authoritative for
   // what is actually on the machine, so an installed plugin's real window can
   // never be overridden by a stale or dishonest catalog declaration. The entry's
   // own declaration is the fallback that makes a not-yet-installed,
@@ -339,13 +339,13 @@ function annotate(
     declaredPermissions,
     lifecycle,
     agentCompatibility,
-    // The pre-download host-range verdict (issue #720). Derived from the entry's
+    // The pre-download host-range verdict (#1134). Derived from the entry's
     // own declaration rather than a manifest, deliberately: the whole point is to
     // mark a listing before anything is fetched, and `readEntryManifest()` reaches
     // nothing for the published, release-sourced, not-yet-installed entry this
     // exists for.
     hostCompatibility: hostIncompatibility(entry),
-    // Per-entry provenance (CPHMTP-FR-004, issue #557): stamped from the client
+    // Per-entry provenance (CPHMTP-FR-004, #962): stamped from the client
     // that returned the entry, never read off the entry itself.
     sourceId,
     // `verified` is the display-only first-party curation flag, and it is a field
@@ -353,10 +353,10 @@ function annotate(
     // could serve `verified: true` and borrow the green first-party treatment.
     // Only the first-party signed chain can assert it: force it false for every
     // third-party entry here, where provenance is known. The persistent unverified
-    // badge proper (CPHMTP-NFR-001) is issue #563.
+    // badge proper (CPHMTP-NFR-001) is #977.
     verified: sourceId === FIRST_PARTY_SOURCE_ID ? entry.verified : false,
     // Mark the cross-source collision rather than resolving it (CPHMTP-FR-005,
-    // issue #558). Spread last and only when it applies, so a single-source
+    // #966). Spread last and only when it applies, so a single-source
     // listing carries no `collision` key at all.
     ...(servingSourceIds.length > 1 ? { collision: { sourceIds: servingSourceIds } } : {}),
   };
@@ -391,7 +391,7 @@ interface SourceResult {
 // again.
 //
 // The cached value is the in-flight BUILD PROMISE, not the resolved client, and
-// the entry is `set` SYNCHRONOUSLY, before the build's first await (issue #595).
+// the entry is `set` SYNCHRONOUSLY, before the build's first await (#964).
 // That invariant is what makes invalidation correct. The build reads the keyring,
 // an OS process spawn that Express handlers interleave at, so caching only the
 // resolved client left a window in which a concurrent invalidateSourceClient found
@@ -440,7 +440,7 @@ async function buildThirdPartyClient(row: MarketplaceSource): Promise<ThirdParty
  * The cached build promise for a source, starting one on a miss. Deliberately NOT
  * async: the cache entry has to be `set` before the build's first await, so a
  * concurrent invalidateSourceClient can never land inside the keyring-read window
- * and be lost (issue #595). Callers still await the returned promise.
+ * and be lost (#964). Callers still await the returned promise.
  */
 function getThirdPartyClient(row: MarketplaceSource): Promise<ThirdPartyCatalogClient> {
   const cached = thirdPartyClients.get(row.id);
@@ -482,7 +482,7 @@ async function fetchSource(row: MarketplaceSource): Promise<SourceResult> {
     // shape guard validates only entries and null-coalesces a non-string
     // fetchedAt, so a cache the app did not write can yield entries with no
     // timestamp. Unavailability therefore keys off the source actually serving
-    // nothing, not off the timestamp alone (#594).
+    // nothing, not off the timestamp alone (#963).
     return {
       entries: result.entries,
       row,
@@ -519,7 +519,7 @@ async function fetchAllSources(): Promise<SourceResult[]> {
 
 /**
  * Index plugin id -> every source id serving it, over the merged fan-out
- * (CPHMTP-FR-005, issue #558). An id mapping to two or more source ids is a
+ * (CPHMTP-FR-005, #966). An id mapping to two or more source ids is a
  * cross-source collision.
  *
  * Revoked entries are excluded: a revoked entry is not served to anyone (the
@@ -547,7 +547,7 @@ function buildCollisionIndex(results: SourceResult[]): Map<string, string[]> {
 }
 
 /** Fetch the first-party signed catalog. Never throws: the degrade chain bottoms
- * out at an empty listing (the first-party SEED channel was retired, #621). */
+ * out at an empty listing (the first-party SEED channel was retired, #688). */
 async function fetchFirstParty(): Promise<SourceResult> {
   const { entries, source, fetchedAt } = await catalogClient.getVerifiedCatalog();
   return {
@@ -570,7 +570,7 @@ async function fetchFirstParty(): Promise<SourceResult> {
 /**
  * Return the merged multi-source catalog: the first-party curated entries plus
  * every registered source's entries, each annotated with install/update state and
- * stamped with its originating `sourceId` (CPHMTP-FR-004, issue #557). Filtered by
+ * stamped with its originating `sourceId` (CPHMTP-FR-004, #962). Filtered by
  * an optional free-text query (name / id / summary, case-insensitive), an optional
  * kind, and an optional sourceId (the source filter chips). Revoked entries are
  * filtered out (CP-TC-109).
@@ -586,7 +586,7 @@ async function fetchFirstParty(): Promise<SourceResult> {
  * network at most once per its short memo TTL: fetch-on-marketplace-open,
  * CPHM-NFR-004), degrading through its own chain: both the first-party and the
  * third-party chains degrade to cache then an empty listing (the first-party SEED
- * channel was retired, #621, so there is no bundled floor). Filtering runs in
+ * channel was retired, #688, so there is no bundled floor). Filtering runs in
  * memory over the merged list, so search-as-you-type does not force a fetch +
  * signature verify per keystroke. Never throws.
  */
@@ -621,7 +621,7 @@ export async function listCatalog(params: ListCatalogParams = {}): Promise<Catal
   const firstParty = results[0].status;
   return {
     listings,
-    // First-party-scoped provenance for the existing offline banner (issue #372).
+    // First-party-scoped provenance for the existing offline banner (#851).
     source: firstParty.source,
     fetchedAt: firstParty.fetchedAt,
     sources: results.map((r) => r.status),
@@ -635,7 +635,7 @@ export async function listCatalog(params: ListCatalogParams = {}): Promise<Catal
  * entries are still returned here so install/update can emit a specific `revoked`
  * error rather than a generic unknown-id error.
  *
- * Multi-source since issue #558: this is the route's unknown-id (404) pre-check,
+ * Multi-source since #966: this is the route's unknown-id (404) pre-check,
  * and reading the first-party catalog alone made it lie about every third-party
  * id. A third-party-only id 404'd before install could run, and a colliding id
  * resolved to the first-party entry and sailed past the ambiguity check that is
@@ -658,7 +658,7 @@ export async function resolveEntry(id: string): Promise<MarketplaceCatalogEntry 
 /**
  * Every source that SERVES `id`, in fan-out order (first-party first, then
  * registered sources in registration order), or an empty array when no source
- * does (CPHMTP-FR-008, issue #566).
+ * does (CPHMTP-FR-008, #978).
  *
  * This is the resolver the missing-plugin surface needs and the one thing
  * `resolveEntry` may not be used for: that function returns the first match as an
@@ -695,7 +695,7 @@ interface InstallCandidate {
 
 /**
  * Resolve which source's entry an install/update should use, enforcing the
- * no-precedence rule (CPHMTP-FR-005, issue #558).
+ * no-precedence rule (CPHMTP-FR-005, #966).
  *
  * `sourceId` names the source explicitly (the pick-a-source choice); omitted, the
  * id must resolve from exactly one source or the call is refused with
@@ -770,10 +770,10 @@ function assertServable(candidate: InstallCandidate, id: string): InstallCandida
       `Can't install "${id}" while the marketplace is unreachable. Already-installed plugins remain available; new installs resume when the marketplace is reachable again.`,
     );
   }
-  // The entry declares a host range this Roubo is outside (issue #720). Refuse
+  // The entry declares a host range this Roubo is outside (#1134). Refuse
   // here, before any artifact is fetched or staged, so a plugin the card already
   // marks incompatible cannot be installed by calling the API directly. The
-  // message is the same wording the post-download check (#719) produces, so the
+  // message is the same wording the post-download check (#1118) produces, so the
   // two paths read identically; that check stays in place and remains the
   // authority for an entry the catalog did not pre-mark (a stale catalog, or an
   // entry that simply never declared a range).
@@ -806,8 +806,8 @@ function provenanceOf(status: MarketplaceSourceStatus): pluginInstaller.InstallP
  * Build the installer's ThirdPartyInstallContext for a chosen source, or
  * `undefined` for the first-party one.
  *
- * This is the seam issue #559 built and left dormant ("there is no production
- * third-party install caller yet"): #558 is that caller, since naming a source
+ * This is the seam #961 built and left dormant ("there is no production
+ * third-party install caller yet"): #966 is that caller, since naming a source
  * explicitly is what first makes a third-party entry installable. Passing the
  * context is what engages the unsigned-source trust treatment (CPHMTP-FR-005 AC4):
  * it makes the per-artifact digest MANDATORY (CPHMTP-NFR-004, an unsigned source
@@ -839,14 +839,14 @@ async function thirdPartyContextFor(
  * Stage an install of a catalog entry, delegating to the plugin-installer preview
  * matching the entry's source: a `git` source clones (`previewFromGitUrl`), a
  * `release` source downloads + unpacks the built artifact (`previewFromRelease`,
- * issue #370). Returns an InstallPreview (staging token + manifest) the client
+ * #849). Returns an InstallPreview (staging token + manifest) the client
  * drives through the existing consent + confirm endpoints. Throws when the id is
  * served by no source (`invalid-input`), has been revoked (`revoked`), or the
  * chosen source is unreachable (`marketplace-unreachable`). The entry's expected
  * integrity digest is threaded to the installer so a tampered package is rejected
  * before commit (CP-TC-107/108).
  *
- * `sourceId` names which source to install from (CPHMTP-FR-005, issue #558).
+ * `sourceId` names which source to install from (CPHMTP-FR-005, #966).
  * Omitted, the id must be served by exactly one source: when several serve it this
  * throws `AmbiguousSourceError` (409) rather than picking one, and nothing is
  * fetched. The chosen source's provenance rides to the installer so the commit can
@@ -879,7 +879,7 @@ export async function install(id: string, sourceId?: string): Promise<InstallPre
  * Stage an update of an already-installed catalog entry, delegating to the
  * plugin-installer update preview matching the entry's source: a `git` source
  * re-clones (`previewUpdateFromGitUrl`), a `release` source downloads + unpacks
- * the new built artifact (`previewUpdateFromRelease`, issue #370). Either replaces
+ * the new built artifact (`previewUpdateFromRelease`, #849). Either replaces
  * the installed copy at commit time. Returns an InstallPreview. Throws when the id
  * is served by no source (`invalid-input`), has been revoked (`revoked`), or the
  * chosen source is unreachable (`marketplace-unreachable`). The expected integrity
@@ -887,7 +887,7 @@ export async function install(id: string, sourceId?: string): Promise<InstallPre
  * existing version intact (CP-TC-112).
  *
  * Ambiguity is enforced HERE too, not only at the listing (CPHMTP-FR-005 AC3,
- * issue #558): a plugin installed from one source whose id a newly registered
+ * #966): a plugin installed from one source whose id a newly registered
  * source starts serving becomes ambiguous to update, and updating it by precedence
  * could silently swap in a different publisher's code. Without an explicit
  * `sourceId` such an update throws `AmbiguousSourceError` (409) and the installed

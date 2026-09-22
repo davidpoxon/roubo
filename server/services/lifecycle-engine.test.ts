@@ -238,11 +238,11 @@ describe("lifecycle-engine runDescriptor", () => {
       expect(h.statuses.at(-1)?.error).toMatch(/init boom/);
     });
 
-    // #397 AC1: the engine forwards the compose / init / migration output it
+    // #886 AC1: the engine forwards the compose / init / migration output it
     // drives into the component log store (via ctx.reportLog), so a plugin-backed
     // docker component surfaces logs even though the declarative plugin never
     // calls host.component.reportLog itself.
-    it("forwards composeUp, init and migration output through reportLog (AC1, #397)", async () => {
+    it("forwards composeUp, init and migration output through reportLog (AC1, #886)", async () => {
       const reportLog = vi.fn();
       const h = setup({ reportLog });
       (h.docker.composeUp as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -283,7 +283,7 @@ describe("lifecycle-engine runDescriptor", () => {
       expect(h.pm.getProcessLogLines).toHaveBeenCalledWith("db-plugin:3:db:migration");
     });
 
-    it("forwards failing-compose output before erroring, so diagnostics surface (AC1, #397)", async () => {
+    it("forwards failing-compose output before erroring, so diagnostics surface (AC1, #886)", async () => {
       const reportLog = vi.fn();
       const h = setup({ reportLog });
       (h.docker.composeUp as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -589,7 +589,7 @@ describe("lifecycle-engine runDescriptor", () => {
       expect(result.status).toBe("error");
       const final = h.statuses.at(-1);
       expect(final?.status).toBe("error");
-      // Both surfaces name the timeout and the configured budget (#411).
+      // Both surfaces name the timeout and the configured budget (#894).
       expect(final?.error).toMatch(/timed out after 5000ms/);
       expect(final?.statusDetail).toBe("Timed out after 5000ms");
     });
@@ -808,10 +808,10 @@ describe("lifecycle-engine runDescriptor", () => {
       );
     });
   });
-  // #834: the declarative route to ComponentStatus.url. A `translate`-only
+  // #1207: the declarative route to ComponentStatus.url. A `translate`-only
   // plugin never holds the reportStatus sink, so the descriptor declares the
   // URL and the engine carries it into its own terminal push.
-  describe("descriptor-declared url (#834)", () => {
+  describe("descriptor-declared url (#1207)", () => {
     it("resolves a docker url.template against the allocated port on the running push", async () => {
       const h = setup();
       const descriptor = {
@@ -1036,9 +1036,9 @@ describe("lifecycle-engine runDescriptor", () => {
   });
 });
 
-// #836: `shell` is honoured at every descriptor spawn site, and omitting it
+// #1218: `shell` is honoured at every descriptor spawn site, and omitting it
 // leaves the argv behaviour above byte-identical.
-describe("lifecycle-engine shell option (#836)", () => {
+describe("lifecycle-engine shell option (#1218)", () => {
   it("spawns a process command as argv when shell is omitted", async () => {
     const h = setup({ componentName: "web", ports: { web: 3000 } });
 

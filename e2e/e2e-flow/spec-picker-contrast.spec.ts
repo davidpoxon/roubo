@@ -8,7 +8,7 @@ import {
   TSPF_TC_010_NEEDS_ATTENTION_SLUG,
 } from "./_support/testbench-plan.js";
 
-// E2E (#493): the real-rendering WCAG AA color-contrast guard for the partitioned
+// E2E (#943): the real-rendering WCAG AA color-contrast guard for the partitioned
 // spec picker (SpecPickerModal), closing the coverage gap left by the jsdom
 // vitest-axe suite. jsdom has no layout/paint engine, so axe silently reports zero
 // color-contrast violations there even when text fails AA. This spec injects the
@@ -18,11 +18,11 @@ import {
 // modes (create + re-point), and BOTH partition states (a mixed
 // needs-attention/all-passed list, collapsed and with the de-emphasized all-passed
 // disclosure expanded, plus the all-passed-only empty state). It reproduces
-// TSPF-TC-015's S003 observations: before the #493 fix, dark-theme de-emphasized
+// TSPF-TC-015's S003 observations: before the #943 fix, dark-theme de-emphasized
 // rows measured as low as 2.28:1; every scan below must now report zero violations.
 //
 // The injection, theme-flip and scan helpers live in _support/axe-contrast.ts,
-// shared with the agent-surface contrast guard (#703).
+// shared with the agent-surface contrast guard (#1111).
 
 const SCENARIO = "default";
 const NOW = "2026-07-10T09:00:00.000Z";
@@ -49,7 +49,7 @@ test.beforeEach(async ({ request }) => {
   await resetWithScenario(request, SCENARIO, NOW);
 });
 
-test("#493: create-mode picker meets WCAG AA color-contrast in both themes across the mixed partition", async ({
+test("#943: create-mode picker meets WCAG AA color-contrast in both themes across the mixed partition", async ({
   page,
   request,
 }) => {
@@ -102,7 +102,7 @@ test("#493: create-mode picker meets WCAG AA color-contrast in both themes acros
   });
 });
 
-test("#493: create-mode picker meets WCAG AA color-contrast in the all-passed-only empty state", async ({
+test("#943: create-mode picker meets WCAG AA color-contrast in the all-passed-only empty state", async ({
   page,
   request,
 }) => {
@@ -146,7 +146,7 @@ test("#493: create-mode picker meets WCAG AA color-contrast in the all-passed-on
   });
 });
 
-test("#493: re-point-mode picker meets WCAG AA color-contrast in both themes across the mixed partition", async ({
+test("#943: re-point-mode picker meets WCAG AA color-contrast in both themes across the mixed partition", async ({
   page,
   request,
 }) => {

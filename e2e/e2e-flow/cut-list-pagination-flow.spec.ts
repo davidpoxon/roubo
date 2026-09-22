@@ -3,13 +3,13 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
-// #569: the integration-level drift guard for the US-003/US-004 journey "page
+// #585: the integration-level drift guard for the US-003/US-004 journey "page
 // through the cut list and reset to page 1 on sort change". It spans the
-// pagination slice #556 and the sort-picker slice #584 and asserts the
+// pagination slice #580 and the sort-picker slice #632 and asserts the
 // integrated journey against the authoritative e2e_flow case CLI-TC-032, not
 // whatever any single slice implemented.
 //
-// TC-032 (reconciled to the shipped contract by #584):
+// TC-032 (reconciled to the shipped contract by #632):
 //
 //   1. S001-O01 "Page 1 of N". The shipped pager
 //      (client/src/components/IssueQueuePanel.tsx, testid
@@ -19,7 +19,7 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 //      is unknowable. We assert the shipped "Page 1" / "Page 2" / "Page 3"
 //      tracking, not "of N" (test-cases.json S001-O01 was updated to match).
 //
-//   2. S004 sort picker. #584 shipped the host-rendered sort picker
+//   2. S004 sort picker. #632 shipped the host-rendered sort picker
 //      (CutListSortControl, populated from the plugin's `getSortFields`) and the
 //      source-side sort RPC. We drive the FR-008 reset-to-page-1 invariant via
 //      the real picker (the scenario's stub declares a `Title` sort field that
@@ -30,7 +30,7 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 //
 // FR-020 failure-output contract: every assertion below carries a descriptive
 // message naming the diverging e2e_flow step, the expected-vs-actual, and the
-// owning slice issue (#556 for paging, #584 for sort), so a regression points
+// owning slice (#580 for paging, #632 for sort), so a regression points
 // straight at the step and the slice that broke it.
 //
 // The fixture project (e2e/fixtures/cut-list-pagination-project) pins
@@ -41,7 +41,7 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
 const SCENARIO = "cut-list-pagination";
 const NOW = "2026-05-21T13:00:00.000Z";
-const OWNING_SLICE = "#556";
+const OWNING_SLICE = "Prev/Next pagination";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_PATH = path.resolve(__dirname, "..", "fixtures", "cut-list-pagination-project");
@@ -62,7 +62,7 @@ async function registerProject(request: APIRequestContext): Promise<void> {
   expect(body.id).toBe(PROJECT_ID);
 }
 
-// Title-descending page-1 cuts (#584). The scenario's six cuts sort by title:
+// Title-descending page-1 cuts (#632). The scenario's six cuts sort by title:
 // Alpha (#201/#202), Bravo (#203/#204), Charlie (#206 "fit" < #205 "wax").
 // Descending reverses that, so page 1 at pageSize 2 is #205 then #206.
 const SORT_DESC_PAGE_1_REFS = ["#205", "#206"] as const;
@@ -106,7 +106,7 @@ test("TC-032: page through the cut list and reset to page 1 on a sort change", a
   // S001: a cached list of at least three pages. Page 1 shows the first page of
   // cuts, the page indicator tracks "Page 1", Prev is disabled and Next enabled.
   // (The shipped pager has no total N, so we assert the shipped "Page 1"
-  // tracking; test-cases.json S001-O01 was reconciled to match by #584.)
+  // tracking; test-cases.json S001-O01 was reconciled to match by #632.)
   await expectRefsVisible(page, PAGE_1_REFS, "S001 page 1 content");
   await expectRefsAbsent(page, PAGE_2_REFS, "S001 page 1 excludes page 2");
   await expect(
@@ -159,14 +159,14 @@ test("TC-032: page through the cut list and reset to page 1 on a sort change", a
   await expectRefsVisible(page, PAGE_2_REFS, "S003 Prev replays the retained page-2 cursor");
   await expectRefsAbsent(page, PAGE_3_REFS, "S003 page 2 differs from page 3 after Prev");
 
-  // S004 (#584): change the sort field via the real sort picker. Advance to
+  // S004 (#632): change the sort field via the real sort picker. Advance to
   // page 3 first so the reset is observable as a jump back, then open the
   // picker and select the stub's `Title` field (it defaults to descending).
   // TC-032 S004 asserts BOTH faithful behaviours: paging resets to page 1 with
   // Prev disabled (CLI-FR-008), AND the items reorder by the new field
   // (CLI-FR-010): page 1 now shows the title-descending cuts (#205/#206), not
   // the natural-order page-1 cuts (#201/#202).
-  const SORT_SLICE = "#584";
+  const SORT_SLICE = "cut-list sort picker";
   await nextButton(page).click();
   await expect(
     indicator(page),

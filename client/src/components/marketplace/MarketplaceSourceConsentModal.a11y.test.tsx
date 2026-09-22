@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// CPHMTP-NFR-008 (WCAG 2.1 AA) / CPHMTP-TC-024, issue #562: the registration
+// CPHMTP-NFR-008 (WCAG 2.1 AA) / CPHMTP-TC-024, #975: the registration
 // consent dialog is the only path to trusting a third-party marketplace, so it
 // must be a properly announced modal that a keyboard-only consumer can read,
 // gate, and decline. We scan the portalled dialog (render's `baseElement`, since
@@ -55,7 +55,7 @@ describe("MarketplaceSourceConsentModal: modal semantics (CPHMTP-TC-024 S001)", 
     const dialog = getByRole("dialog");
     // React Aria omits aria-modal deliberately and strips the prop, so this only
     // holds because the component stamps it through a ref via the shared
-    // stampAriaModal helper (issue #424).
+    // stampAriaModal helper (#902).
     expect(dialog).toHaveAttribute("aria-modal", "true");
 
     const labelledBy = dialog.getAttribute("aria-labelledby");

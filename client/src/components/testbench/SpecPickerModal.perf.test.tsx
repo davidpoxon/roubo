@@ -25,9 +25,9 @@
  * partitioned view actually paints from the payload (so the measured render is the
  * real work, not a stub).
  *
- * SATCA-TC-043 / SATCA-NFR-002 (#771) measures the same open against a SECOND
+ * SATCA-TC-043 / SATCA-NFR-002 (#1163) measures the same open against a SECOND
  * fixture, one that carries archived specs, so the archived partition added by
- * #770 is inside the budget too: p95 under 150ms. It gets its own fixture rather
+ * #1162 is inside the budget too: p95 under 150ms. It gets its own fixture rather
  * than archiving rows in the one above, whose whole point is that every spec is
  * live (see the comment on lifecycle() below); mixing archived rows into it would
  * shrink the list the 100ms budget measures and quietly weaken that budget.
@@ -89,7 +89,7 @@ function verification(
   };
 }
 
-// Every spec in the TSPF-TC-016 fixture below is live: the archived group (#770)
+// Every spec in the TSPF-TC-016 fixture below is live: the archived group (#1162)
 // is a separate, hidden-by-default partition, and mixing archived specs in here
 // would shrink the rendered list that budget measures. The archived partition
 // gets its own fixture (ARCHIVED_SPECS) and its own budget instead.
@@ -97,7 +97,7 @@ function lifecycle(): SpecLifecycleState {
   return { archived: false, reason: null, supersededBy: null, recordError: null };
 }
 
-// An archived record as discovery reports it (#765): `archived: true` plus either
+// An archived record as discovery reports it (#1157): `archived: true` plus either
 // a reason or a supersededBy pointer, never both in this fixture.
 function archivedLifecycle(supersededBy: string | null): SpecLifecycleState {
   return {
@@ -179,7 +179,7 @@ const SPECS: DiscoveredSpec[] = Array.from({ length: SPEC_COUNT }, (_, i) => {
   }
 });
 
-// The SATCA-TC-043 fixture (#771): the same 25-spec payload size, partitioned 15
+// The SATCA-TC-043 fixture (#1163): the same 25-spec payload size, partitioned 15
 // needs-attention / 4 all-passed / 6 archived. The archived six carry both record
 // shapes (three plain, three superseded) and a mix of verification
 // classifications, because archived wins over the classification by construction:

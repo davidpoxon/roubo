@@ -95,7 +95,7 @@ describe("stable external-id across repeated mapping (AC#7)", () => {
   });
 });
 
-describe("normalizeAlertState (#289)", () => {
+describe("normalizeAlertState (#299)", () => {
   it("passes open and fixed through unchanged", () => {
     expect(normalizeAlertState("open")).toBe("open");
     expect(normalizeAlertState("fixed")).toBe("fixed");
@@ -115,7 +115,7 @@ describe("normalizeAlertState (#289)", () => {
   });
 });
 
-describe("currentState reflects the alert lifecycle (#289)", () => {
+describe("currentState reflects the alert lifecycle (#299)", () => {
   it("code-scanning: maps raw fixed/dismissed/open into currentState", () => {
     const base: RawCodeScanningAlert = {
       number: 1,

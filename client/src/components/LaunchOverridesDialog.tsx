@@ -8,7 +8,7 @@ import { PARAM_FIELDS, INHERIT, enumOptionsFor } from "./settings/agents/agent-p
 import { agentLaunchBlocker, type LaunchTarget } from "./settings/agents/agent-launchability";
 import { buildResolutionTrace, type ResolutionLayer } from "./launch-overrides-trace";
 
-// The per-launch override dialog (AP-FR-010, AP-FR-011, issue #518).
+// The per-launch override dialog (AP-FR-010, AP-FR-011, #1072).
 //
 // One session only. The draft is the transient fourth resolution layer and is
 // sent with the launch request, never written to app or project configuration
@@ -30,7 +30,7 @@ interface Props {
   /** The agents a launch may actually start, unfiltered; blocked ones are dropped here. */
   agents: ProjectAgentState[];
   /**
-   * Every preset this launch could start from (issue #668). The selected one's
+   * Every preset this launch could start from (#1085). The selected one's
    * params form the third layer, but only while the selected agent is the one
    * that preset resolves to: a preset's params are validated against that
    * agent's schema, so pointing them at another agent would ship keys its schema
@@ -45,7 +45,7 @@ interface Props {
    * about which agent a preset starts, or about whether it may (AP-TC-038).
    *
    * For THIS dialog that jig is the bench's own baseline, not the selected
-   * preset's, because an ad-hoc launch never adopts a preset's jig (issue #676).
+   * preset's, because an ad-hoc launch never adopts a preset's jig (#1086).
    * So the resolver passed here is deliberately not the one the launch menu
    * gets, and the two may legitimately name different agents for one preset.
    */
@@ -176,7 +176,7 @@ export default function LaunchOverridesDialog({
   };
 
   /**
-   * Switching preset switches the agent with it (issue #668). A preset resolves
+   * Switching preset switches the agent with it (#1085). A preset resolves
    * to one specific agent, and that agent's schema is what validates the fields,
    * so the draft is re-based exactly as an agent switch re-bases it. The agent
    * followed is the RESOLVED target rather than the preset's own binding, so a
@@ -257,7 +257,7 @@ export default function LaunchOverridesDialog({
                 value={presetId}
                 onChange={(e) => handlePresetChange(e.target.value)}
               >
-                {/* Layer three stays optional, so the pre-#668 behaviour of
+                {/* Layer three stays optional, so the pre-#1085 behaviour of
                     overriding nothing but the agent is still reachable. */}
                 <option value={NO_PRESET}>No preset</option>
                 {choices.map(({ preset, target, selectable }) => (
@@ -351,7 +351,7 @@ export default function LaunchOverridesDialog({
               <div className="text-11 font-mono leading-relaxed">
                 {trace.layers.map((layer) => (
                   // The preset line names the preset that is contributing (issue
-                  // #668), so a user who switched presets can read which one the
+                  // #1085), so a user who switched presets can read which one the
                   // third layer came from. Only the label changes: the layer id
                   // is the resolution order, not a display concern.
                   <LayerLine

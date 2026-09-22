@@ -21,11 +21,11 @@ import {
 // "AP-TC-024".
 const observe = makeObserve("AP-TC-024");
 
-// AP-TC-024 (#528, AP-WU-027) - E2E: create an app-level agent tool preset in
+// AP-TC-024 (#1122, AP-WU-027) - E2E: create an app-level agent tool preset in
 // Settings, then launch it from a bench Terminal tab.
 //
 // ONE test carries the bare id and it asserts EVERY observation of the case
-// (#680). Before this spec no test carried AP-TC-024 at all.
+// (#1097). Before this spec no test carried AP-TC-024 at all.
 //
 // WHY A BROWSER, not jsdom. The case is a single ordered journey across two
 // surfaces that no unit test can join up: what Settings WRITES has to be what

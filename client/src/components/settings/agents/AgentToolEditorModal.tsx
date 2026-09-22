@@ -9,7 +9,7 @@ import {
 } from "@roubo/shared";
 import type { AgentPluginState, AgentToolPreset, JigMeta } from "@roubo/shared";
 // The three exposed params, the inherit sentinel, and the enum lookup are shared
-// with the per-launch override dialog (#518), so both surfaces offer the same
+// with the per-launch override dialog (#1072), so both surfaces offer the same
 // fields with the same inherit semantics.
 import { PARAM_FIELDS, INHERIT, enumOptionsFor } from "./agent-params";
 
@@ -39,7 +39,7 @@ function initialParams(preset: AgentToolPreset | null): Record<string, string> {
 }
 
 /**
- * The agent tool editor (AP-FR-008, issue #516).
+ * The agent tool editor (AP-FR-008, #1057).
  *
  * Save writes the preset back to app settings; Cancel closes with nothing
  * written and no toast, so a half-filled draft leaves no list entry behind
@@ -69,7 +69,7 @@ export default function AgentToolEditorModal({
   // A binding whose plugin is no longer installed keeps an option of its own so
   // the select stays on it and names it, rather than falling back to the first
   // option and silently rewriting the pinned binding to "Default agent" on save
-  // (AP-TC-032, issue #650).
+  // (AP-TC-032, #1059).
   const boundAgentMissing = agent !== AGENT_TOOL_DEFAULT_AGENT && boundAgent === undefined;
 
   const handleSave = () => {

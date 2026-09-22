@@ -4,7 +4,7 @@ import type { CaseLifecycle } from "@roubo/shared/testbench-contracts";
 import * as api from "../lib/api";
 
 // The cached shape under the testbench-plan query key. Aliased so mutation hooks
-// (#420) and the case detail pane can type their optimistic cache updates.
+// (#471) and the case detail pane can type their optimistic cache updates.
 export type TestbenchPlanData = api.TestbenchPlanResponse;
 
 // Load the TestBench source plan + this bench's recorded results, plus the
@@ -14,7 +14,7 @@ export function testbenchPlanQueryKey(projectId: string, benchId: number) {
   return ["testbenchPlan", projectId, benchId] as const;
 }
 
-// `enabled` gates the fetch on bench readiness (#500). On first load `createBench`
+// `enabled` gates the fetch on bench readiness (#503). On first load `createBench`
 // returns `status: "preparing"` and provisions the worktree (and its
 // `.specifications/<slug>/test-cases.json`) asynchronously, so firing the plan
 // query before the worktree exists 404s with MissingPlanError. The caller passes
@@ -40,7 +40,7 @@ interface SetFocusVars {
   focusedSpecPath: string;
 }
 
-// Re-point an active TestBench to a different focused spec (#423, FR-024). The
+// Re-point an active TestBench to a different focused spec (#472, FR-024). The
 // re-point is explicit (driven by the header action + spec-picker confirm, never
 // silent). On success we invalidate the plan query so the panel reloads the newly
 // focused plan, its independently preserved results, and the server-computed
@@ -81,7 +81,7 @@ export function caseLifecycleErrorMessage(error: unknown): string | null {
   return error instanceof Error ? error.message : String(error);
 }
 
-// Retire, supersede, or restore one case (#772, SATCA-FR-019/FR-021). Follows
+// Retire, supersede, or restore one case (#1167, SATCA-FR-019/FR-021). Follows
 // the useSetTestbenchFocus pattern: the server owns the write, and the plan query
 // is invalidated on success so the panel re-reads the case file rather than the
 // client guessing what the rollup now looks like. There is deliberately NO

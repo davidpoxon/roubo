@@ -28,7 +28,7 @@ const STAGING_TOKEN_RE = UUID_RE;
 
 const GIT_CLONE_TIMEOUT_MS = 5 * 60 * 1000;
 
-// Built-artifact install limits (issue #370). A Release asset tarball is
+// Built-artifact install limits (#849). A Release asset tarball is
 // untrusted input, so the download and unpack steps are bounded to fail closed
 // on a runaway asset or a tar bomb. NFR-002 (p95 < 10s @ 10 Mbps) implies real
 // artifacts are a few MB; these caps are conservative headroom, not tight
@@ -53,7 +53,7 @@ const ALLOWED_TAR_TYPES = new Set(["File", "OldFile", "ContiguousFile", "Directo
 /**
  * The marketplace source an install was resolved from, carried from the preview
  * through to the commit so the install record can remember the consumer's explicit
- * pick-a-source choice (CPHMTP-FR-005 AC4 / CPHMTP-FR-006, issue #558).
+ * pick-a-source choice (CPHMTP-FR-005 AC4 / CPHMTP-FR-006, #966).
  *
  * Recorded only at COMMIT: a staged install the consumer never confirmed must
  * leave no provenance behind, exactly as it leaves no plugin behind. Optional on
@@ -95,8 +95,8 @@ interface StagedInstall {
   // copy before moving the staged copy into place.
   replaceId?: string;
   // The source this install was resolved from, recorded to the provenance ledger
-  // at commit (issue #558). A marketplace install carries the chosen source; a raw
-  // git / local install carries its own fail-closed row (#607). Absent only for a
+  // at commit (#966). A marketplace install carries the chosen source; a raw
+  // git / local install carries its own fail-closed row (#981). Absent only for a
   // staged install whose entry point synthesised none.
   provenance?: InstallProvenance;
 }
@@ -136,7 +136,7 @@ async function rmStaging(stagingDir: string): Promise<void> {
 
 /**
  * The actionable host-incompatibility message for a declared `roubo` range, or
- * null when there is no incompatibility to report (issue #719).
+ * null when there is no incompatibility to report (#1118).
  *
  * Mirrors the discovery-path helper of the same name in plugin-manager. It lives
  * here rather than being imported from there because the host version it reads
@@ -162,7 +162,7 @@ async function readStagingManifest(stagingDir: string): Promise<PluginManifest> 
       const text = await readFile(candidate, "utf8");
       const parsed = parseManifest(text, candidate);
       if (!parsed.ok) {
-        // Issue #719: the manifest schema is `.strict()`, so a host that predates
+        // #1118: the manifest schema is `.strict()`, so a host that predates
         // a manifest field fails here on the unrecognized key and never reaches
         // `assertCompatible`. When the declared `roubo` range excludes this host,
         // that exclusion is the real reason the parse failed, so it is reported
@@ -199,15 +199,15 @@ function assertCompatible(manifest: PluginManifest): void {
 
 /**
  * Identifies an install as coming from a REGISTERED THIRD-PARTY (unsigned)
- * marketplace source (CPHMTP-NFR-004, issue #559). Its presence is what makes the
+ * marketplace source (CPHMTP-NFR-004, #961). Its presence is what makes the
  * per-artifact digest mandatory and scopes the artifact download to the source's
  * consented origin. It is deliberately optional on every preview entry point: the
  * first-party catalog and the raw git / local-directory paths pass no context and
  * are behaviourally unchanged.
  *
  * There is no production third-party install caller yet: the merged multi-source
- * listing that routes a third-party entry into install is issue #557. This is the
- * enforcement seam #557 adopts, kept minimal and additive so it needs no rework.
+ * listing that routes a third-party entry into install is #962. This is the
+ * enforcement seam #962 adopts, kept minimal and additive so it needs no rework.
  */
 export interface ThirdPartyInstallContext {
   /**
@@ -240,7 +240,7 @@ function hasUsableDigest(expected: string | null | undefined): boolean {
 
 /**
  * Fail closed when a third-party (unsigned) install carries no usable digest
- * (CPHMTP-NFR-004, issue #559). An unsigned source has no signature chain, so the
+ * (CPHMTP-NFR-004, #961). An unsigned source has no signature chain, so the
  * per-artifact digest is the only integrity anchor; without one the entry is
  * simply uninstallable. Called BEFORE the artifact is fetched (and re-asserted at
  * verification time), so a missing, empty, or malformed digest is rejected with
@@ -261,7 +261,7 @@ function assertThirdPartyDigestPresent(
 
 /**
  * Verify the staged package's content digest against the expected digest from
- * the catalog entry (CP-FR-021, issue #622). Called after the manifest is read
+ * the catalog entry (CP-FR-021, #690). Called after the manifest is read
  * and compatibility is asserted, but before the staging entry is recorded, so a
  * mismatch throws `integrity-failed` and the caller's catch removes the staging
  * directory (no partial files, no plugin record; the existing version, if any, is
@@ -271,7 +271,7 @@ function assertThirdPartyDigestPresent(
  * paths (raw git URL, local directory), which carry no catalog digest. On a
  * third-party install the skip is unreachable: the mandatory-digest rule is
  * re-asserted here rather than trusted from the distant pre-fetch guard, so the
- * recompute cannot be bypassed no matter how this is called (issue #559).
+ * recompute cannot be bypassed no matter how this is called (#961).
  */
 async function assertPackageIntegrity(
   stagingDir: string,
@@ -400,7 +400,7 @@ function validateLocalPath(absPath: string): string {
 
 // A catalog entry's optional `directory` points at the subdirectory of the
 // cloned repository that holds the plugin package (the monorepo-subdir source
-// model, issue #750). It must be a relative path with no traversal; the final
+// model, #751). It must be a relative path with no traversal; the final
 // containment is enforced by resolveWithin when it is joined onto the clone dir.
 function validateSubdir(directory: string): string {
   const trimmed = directory.trim();
@@ -452,7 +452,7 @@ async function runGitClone(safeUrl: string, destDir: string): Promise<void> {
 // Clone `safeUrl` and leave the plugin package at `stagingDir`. With no
 // `directory` the clone root IS the package (cloned straight into stagingDir,
 // the original whole-repo behaviour). With a `directory` (the catalog
-// monorepo-subdir model, #750) the repo is cloned into a sibling temp dir and
+// monorepo-subdir model, #751) the repo is cloned into a sibling temp dir and
 // only that subdirectory is copied into stagingDir, so the staged package, its
 // integrity digest, and the installed plugin are the component, not the whole
 // monorepo. The temp clone dir is always removed.
@@ -509,7 +509,7 @@ async function readLeadingBytes(file: string, length: number): Promise<Buffer> {
 }
 
 // Rejects a downloaded release asset that is not actually a tar/gzip archive
-// (issue #370 follow-up): a misconfigured or unreachable release-download hop
+// (#849 follow-up): a misconfigured or unreachable release-download hop
 // can return a 200 whose body is an HTML sign-in page, a JSON error, or some
 // other non-archive content. Left unchecked, that body reaches `unpackTarball`
 // and fails with an opaque "could not read the tarball" unpack-failed, which
@@ -535,7 +535,7 @@ async function assertLooksLikeArchive(file: string): Promise<void> {
 // Stream a Release asset to `destFile`, failing closed on a non-200 response, a
 // network error, or a body that exceeds the download cap. The size guard runs
 // both up front (declared content-length) and as bytes flow (a server may lie
-// about or omit content-length), so the cap holds either way (issue #370).
+// about or omit content-length), so the cap holds either way (#849).
 async function downloadAssetToFile(
   assetUrl: string,
   destFile: string,
@@ -543,7 +543,7 @@ async function downloadAssetToFile(
 ): Promise<void> {
   let res: Response;
   try {
-    // Route through the shared guarded transport (issue #554): SSRF / redirect
+    // Route through the shared guarded transport (#956): SSRF / redirect
     // guarding, per-hop range re-validation, and the origin-scoped credential
     // rule live in guardedFetch. The undici fetch stays the injected transport so
     // the test seam is unchanged, timeoutMs null keeps the download bounded by its
@@ -553,7 +553,7 @@ async function downloadAssetToFile(
     // error.
     //
     // On a third-party install the scope comes from the REGISTERED SOURCE (issue
-    // #559): its consented origin is the only hop-0 origin, its credential rides
+    // #961): its consented origin is the only hop-0 origin, its credential rides
     // only on that origin, and plain http needs its registration opt-in. Deriving
     // the origin from the asset URL instead (the first-party fallback below) is
     // self-consistent by construction and so scopes nothing; it is retained only
@@ -627,7 +627,7 @@ async function downloadAssetToFile(
 }
 
 // Unpack a downloaded tarball into `destDir` under untrusted-input mitigations
-// (issue #370): a first list pass validates every entry header before a single
+// (#849): a first list pass validates every entry header before a single
 // byte is written, so a malicious or oversized archive is rejected fail-closed
 // with nothing left outside staging. The tar header carries each entry's
 // declared (uncompressed) size, so a tar bomb is caught here, before extraction.
@@ -639,7 +639,7 @@ async function unpackTarball(tarballPath: string, destDir: string): Promise<void
   let violation: string | null = null;
   // Stream the tarball through a list pass that validates every entry header
   // before a single byte is written, and abort the parse the moment a cap or a
-  // path/type rule is violated (issue #370). Aborting early matters: only the
+  // path/type rule is violated (#849). Aborting early matters: only the
   // on-the-wire download is capped, so without a mid-stream abort a tar/gzip
   // bomb within that cap could fully decompress before any limit is enforced.
   // `parser.abort` sets the parser's aborted flag (it stops consuming further
@@ -730,7 +730,7 @@ async function unpackTarball(tarballPath: string, destDir: string): Promise<void
 }
 
 // Download and unpack a Release asset tarball into a fresh staging directory: the
-// shared front half of the built-artifact install and update flows (issue #370).
+// shared front half of the built-artifact install and update flows (#849).
 // `assetUrl` is validated, streamed into a staging temp file under the download
 // cap, unpacked with zip-slip containment plus size/entry-count limits, and the
 // temp archive removed. On any failure the partial staging directory and the temp
@@ -766,7 +766,7 @@ async function stageReleaseAsset(
 }
 
 /**
- * Stage a built-artifact install from a Release asset tarball (issue #370): the
+ * Stage a built-artifact install from a Release asset tarball (#849): the
  * download/unpack/verify front half of the install pipeline, joining the shared
  * staging tail (manifest read, host-compat, integrity, duplicate check) that the
  * git and local paths already use. `assetUrl` is streamed into a staging temp
@@ -777,7 +777,7 @@ async function stageReleaseAsset(
  * commit (stage -> rename) is `commit()`, unchanged.
  *
  * Passing `thirdParty` marks this an install from a registered unsigned source
- * (issue #559): `expectedIntegrity` becomes mandatory and is checked before the
+ * (#961): `expectedIntegrity` becomes mandatory and is checked before the
  * download, and the fetch is scoped to that source's origin and credential.
  */
 export async function previewFromRelease(
@@ -807,7 +807,7 @@ export async function previewFromRelease(
 
 /**
  * Stage an update for an already-installed plugin from a Release asset tarball
- * (the marketplace built-artifact update flow, issue #370). Mirrors
+ * (the marketplace built-artifact update flow, #849). Mirrors
  * `previewUpdateFromGitUrl` (the update-target-missing guard, the bundled-rejected
  * guard, the manifest id must equal `expectedId`, integrity verified before the
  * staging entry is recorded, and NO duplicate-id rejection: the staged copy
@@ -825,7 +825,7 @@ export async function previewUpdateFromRelease(
   thirdParty?: ThirdPartyInstallContext,
   provenance?: InstallProvenance,
 ): Promise<InstallPreview> {
-  // Pre-fetch (issue #559): refuse an unsigned entry with no usable digest before
+  // Pre-fetch (#961): refuse an unsigned entry with no usable digest before
   // any download. Ordered after the installed-plugin guard below only in that both
   // precede the fetch; neither reaches the network.
   assertThirdPartyDigestPresent(expectedIntegrity, thirdParty);
@@ -878,7 +878,7 @@ export async function previewFromGitUrl(
   thirdParty?: ThirdPartyInstallContext,
   provenance?: InstallProvenance,
 ): Promise<InstallPreview> {
-  // Pre-clone (issue #559): an unsigned entry with no usable digest is refused
+  // Pre-clone (#961): an unsigned entry with no usable digest is refused
   // before the repository is fetched.
   assertThirdPartyDigestPresent(expectedIntegrity, thirdParty);
   const safeUrl = validateGitUrl(url);
@@ -907,7 +907,7 @@ export async function previewFromGitUrl(
     };
     // A marketplace install passes its chosen source; a raw git install (no
     // `provenance` arg) synthesises a fail-closed row keyed on the git URL, so the
-    // ledger is stamped either way and absence can fail closed in the client (#607).
+    // ledger is stamped either way and absence can fail closed in the client (#981).
     staged.set(token, {
       stagingDir,
       source,
@@ -924,7 +924,7 @@ export async function previewFromGitUrl(
 
 /**
  * Stage an update for an already-installed plugin from a Git URL (the
- * marketplace update flow, issue #621). Identical to `previewFromGitUrl`
+ * marketplace update flow, #688). Identical to `previewFromGitUrl`
  * except it expects the cloned plugin's id to match an installed plugin and
  * skips the duplicate-id rejection: the staged copy will replace the existing
  * one at `commit` time. Throws `update-target-missing` if no plugin with
@@ -939,7 +939,7 @@ export async function previewUpdateFromGitUrl(
   thirdParty?: ThirdPartyInstallContext,
   provenance?: InstallProvenance,
 ): Promise<InstallPreview> {
-  // Pre-clone (issue #559): an unsigned entry with no usable digest is refused
+  // Pre-clone (#961): an unsigned entry with no usable digest is refused
   // before the repository is fetched.
   assertThirdPartyDigestPresent(expectedIntegrity, thirdParty);
   const existing = pluginManager.listInstalled().find((r) => r.id === expectedId);
@@ -1059,7 +1059,7 @@ export async function previewFromLocalPath(absPath: string): Promise<InstallPrev
     const source: InstallSource = { type: "local", path: safePath };
     // A local-directory install has no marketplace source, so it stamps its own
     // fail-closed row keyed on the local path: the ledger is stamped on every
-    // install path so absence can fail closed in the client (#607).
+    // install path so absence can fail closed in the client (#981).
     staged.set(token, {
       stagingDir,
       source,
@@ -1080,7 +1080,7 @@ export async function commit(stagingToken: string): Promise<PluginRecord> {
     throw new InstallError("unknown-token", `Unknown staging token: ${stagingToken}`);
   }
 
-  // Update flow (issue #621) is handled separately: it must preserve the
+  // Update flow (#688) is handled separately: it must preserve the
   // existing copy until the new one is in place (no data loss) and must not go
   // through the active-integration guard `uninstall` enforces. The install path
   // below is unchanged.
@@ -1123,7 +1123,7 @@ export async function commit(stagingToken: string): Promise<PluginRecord> {
   }
 
   // Record the chosen marketplace source BEFORE registering, so the record the
-  // registry builds already carries its provenance (issue #558, AC4).
+  // registry builds already carries its provenance (#966, AC4).
   // registerInstalled reads the ledger while building the record from disk, so
   // writing after it would leave this install's record unstamped until the next
   // reload.
@@ -1149,10 +1149,10 @@ export async function commit(stagingToken: string): Promise<PluginRecord> {
 }
 
 /**
- * Persist the source an install was resolved from (issue #558, AC4). Every
+ * Persist the source an install was resolved from (#966, AC4). Every
  * reachable install path now stamps a row: a marketplace install records its
  * chosen source, and the raw git / local-directory paths record their own
- * fail-closed row keyed on the git URL or local path (#607), so the client can
+ * fail-closed row keyed on the git URL or local path (#981), so the client can
  * grade trust by the ledger and fail closed on absence. The guard stays defensive:
  * a staged install that somehow carries no provenance leaves the ledger untouched.
  */
@@ -1166,7 +1166,7 @@ function recordInstallProvenance(entry: StagedInstall): void {
 
 /**
  * Best-effort restore of the pre-update plugin after a failed update (issue
- * #621), so the consumer is never left with a working plugin destroyed. Clears
+ * #688), so the consumer is never left with a working plugin destroyed. Clears
  * any partial new copy at `target`, moves the backup back into place, and
  * re-registers it. Errors here are swallowed: we are already on a failure path,
  * the directory is what matters for recovery, and the original InstallError must
@@ -1194,7 +1194,7 @@ async function restoreUpdateBackup(backupDir: string, target: string): Promise<v
 }
 
 /**
- * Commit an UPDATE of an already-installed plugin (issue #621). Unlike the
+ * Commit an UPDATE of an already-installed plugin (#688). Unlike the
  * install path, this must not lose the existing plugin: it moves the current
  * directory aside as a backup, tears down the old runtime WITHOUT the
  * active-integration guard (`uninstallForUpdate`), swaps the staged copy into
@@ -1290,7 +1290,7 @@ async function commitUpdate(
 }
 
 /**
- * Put the pre-update provenance back after a rolled-back update (issue #558), so
+ * Put the pre-update provenance back after a rolled-back update (#966), so
  * the ledger keeps describing the copy that is actually on disk. A no-op when this
  * update carried no provenance of its own (nothing was overwritten). When there
  * was no previous row, the stamp this update wrote is removed rather than left

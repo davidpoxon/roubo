@@ -10,15 +10,15 @@ import { trustTreatmentOf, type PluginProvenance } from "./plugin-provenance";
 import { stampAriaModal } from "../../lib/aria-modal";
 
 // Install/update consent for a marketplace catalog entry (CP-FR-020, issue
-// #621). It shows every permission category the STAGED manifest declares (the
+// #688). It shows every permission category the STAGED manifest declares (the
 // staged preview is authoritative, not the catalog summary) and gates the
 // confirm control behind an acknowledgement. The confirm control uses
 // aria-disabled (not native disabled) plus a guarded no-op onPress so it stays
 // keyboard-operable while gated (NFR-007). On confirm it hands the acknowledged
 // categories to the container, which mints/refreshes the plugin's ConsentRecord
-// after the commit succeeds (issue #399).
+// after the commit succeeds (#884).
 //
-// The trust banner is provenance-driven (CPHMTP-FR-006, issue #563): the consent
+// The trust banner is provenance-driven (CPHMTP-FR-006, #977): the consent
 // step is the last moment before third-party code is committed to the machine, so
 // it is the one surface where claiming "Verified, first-party" over an unsigned
 // plugin would do the most damage. Both the lead copy and the badge come from the
@@ -60,7 +60,7 @@ interface Props {
   onCancel: () => void;
   // Receives the categories the consumer acknowledged (every declared category),
   // so the container can mint/refresh the plugin's ConsentRecord after the
-  // install/update commits (issue #399, CP-TC-090 / CP-TC-096).
+  // install/update commits (#884, CP-TC-090 / CP-TC-096).
   onConfirm: (acknowledgedCategories: PermissionCategory[]) => void;
 }
 
@@ -83,7 +83,7 @@ export default function MarketplaceConsentModal({
 
   // While the confirm mutation is pending, the button reflects the in-flight
   // commit (the 4-step widget shows stage 4 active), replacing the bare
-  // "Working…" label (issue #374).
+  // "Working…" label (#855).
   function resolveConfirmLabel(): string {
     if (isPending) return mode === "update" ? STRINGS.updating : STRINGS.installing;
     return mode === "update" ? STRINGS.confirmUpdate : STRINGS.confirmInstall;
@@ -94,7 +94,7 @@ export default function MarketplaceConsentModal({
   // stage 4 (committed on confirm), so stages 1-3 are always done here: stage 4
   // advances to active while the confirm mutation is pending and lands on failed
   // (fail-closed) if the confirm errors. The success end state is the toast, by
-  // which point this modal has already closed (issue #374).
+  // which point this modal has already closed (#855).
   const stageStatuses = deriveStageStatuses({
     stagingPending: false,
     stagingSettled: true,
@@ -111,7 +111,7 @@ export default function MarketplaceConsentModal({
   function handleConfirm() {
     if (!canConfirm) return;
     // Hand the container the acknowledged categories (all declared ones) so it
-    // can POST /consent after the commit succeeds (issue #399).
+    // can POST /consent after the commit succeeds (#884).
     onConfirm(categories);
   }
 

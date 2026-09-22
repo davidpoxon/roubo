@@ -1,4 +1,4 @@
-// The thin server file-IO service for the test-results.json sidecar (#415).
+// The thin server file-IO service for the test-results.json sidecar (#457).
 //
 // This module composes already-landed building blocks rather than reimplementing
 // them:
@@ -8,8 +8,8 @@
 //   - staleness hash: canonicalize (testbench-canonicalize) + node:crypto sha256
 //   - state + reconcile: deriveStatus/reconcile/purgeOrphans (testbench-domain)
 //   - authors: resolveGitIdentity (git-helpers, #427)
-//   - atomic write: writeResults same-directory temp+rename (#406)
-//   - case lifecycle write: setCaseLifecycle (testbench-lifecycle-write, #772)
+//   - atomic write: writeResults same-directory temp+rename (#428)
+//   - case lifecycle write: setCaseLifecycle (testbench-lifecycle-write, #1167)
 //
 // Contracts honoured here:
 //   - NFR-001: every fs path flows through assertSafeIdentifier(slug) then
@@ -21,9 +21,9 @@
 //   - FR-016: the server hashes canonicalize(plan) with sha256 and compares it to
 //     the stored planHash to flag staleness. The hash covers the TESTABLE plan,
 //     not the whole file: canonicalize excludes the v1.2.0 lifecycle block, so
-//     retiring or superseding a case never marks recorded results stale (#767).
+//     retiring or superseding a case never marks recorded results stale (#1160).
 //     See computePlanHash below for the semantics and their consequence.
-//   - AC4 (amended by #772): no RESULTS write ever touches test-cases.json, so
+//   - AC4 (amended by #1167): no RESULTS write ever touches test-cases.json, so
 //     marking, overriding, noting, and reconciling still leave the source plan
 //     byte-identical. The absolute form of that invariant ("the source
 //     test-cases.json is never written here") no longer holds: setCaseLifecycle
@@ -38,7 +38,7 @@
 // The store exposes plain functions keyed by (rootPath, slug) primitives, the
 // lib-level convention testbench-results-write.ts established, so the routes
 // (#12) can wrap them. `rootPath` is the worktree root that contains
-// `.specifications/`: as of #493 both the plan and the results sidecar are read
+// `.specifications/`: as of #494 both the plan and the results sidecar are read
 // and written under the bench's own worktree (sibling files), and the file no
 // longer nests results under a per-bench `benches` map. Routes and UI stay out
 // of scope here.
@@ -102,11 +102,11 @@ export class MissingPlanError extends Error {
 // Both helpers run assertSafeIdentifier(slug) FIRST so a traversal/separator slug
 // is rejected before any path is built, then resolveWithin joins under the fixed
 // root and asserts containment (the CodeQL-recognised sanitizer shape). `rootPath`
-// is the worktree root that contains `.specifications/` (#493).
+// is the worktree root that contains `.specifications/` (#494).
 //
 // resolveWithin is lexical, so it cannot see an on-disk symlink whose name is a
 // valid slug. assertRealpathWithin is a SECOND barrier (mirrors writeResults,
-// #416/#427): it realpaths the deepest existing ancestor of the target and
+// #895/#427): it realpaths the deepest existing ancestor of the target and
 // re-asserts containment against the realpath'd root, so a symlinked
 // `.specifications/<slug>` that escapes the repo is rejected before the read sinks
 // (readFileSync in readPlanAndResults/mutateCaseResult/reconcile/loadFile) can
@@ -132,8 +132,8 @@ function resultsPath(rootPath: string, slug: string): string {
 // the plan (FR-016). canonicalize drops $schema/schemaVersion/specSlug and every
 // targeting field, so the hash tracks the testable case body only.
 //
-// This is a hash of the TESTABLE plan, NOT of test-cases.json. As of #767 what it
-// leaves out explicitly covers the v1.2.0 lifecycle bookkeeping (#764): canonicalize
+// This is a hash of the TESTABLE plan, NOT of test-cases.json. As of #1160 what it
+// leaves out explicitly covers the v1.2.0 lifecycle bookkeeping (#1158): canonicalize
 // is an allowlist projection and never sees `lifecycle`, so retiring or superseding
 // a case leaves this hash byte-identical. A lifecycle-only edit therefore changes
 // no `stale` flag, prompts no stale-results warning, and moves no verify gate to
@@ -142,7 +142,7 @@ function resultsPath(rootPath: string, slug: string): string {
 // observations) still change the hash, so real staleness is still detected.
 //
 // The consequence to keep in mind: because retiring a case is invisible here, and
-// because evaluateGate honours the lifecycle block as of #768, a retired case stops
+// because evaluateGate honours the lifecycle block as of #1164, a retired case stops
 // being unresolved and a verify gate can move from pending to passed with no
 // staleness prompt at all. The gate surface is what must show lifecycle exclusions
 // explicitly; the hash will not flag them.
@@ -248,7 +248,7 @@ function loadFile(
   return { file: validation.data, recovered: false, reason: null };
 }
 
-// ── Read-only results loader for discovery (#482) ──
+// ── Read-only results loader for discovery (#936) ──
 //
 // The purpose-named, read-only face of the private fail-open loadFile above, so
 // spec discovery can read a spec's results sidecar without reaching into the
@@ -270,9 +270,9 @@ export function loadResultsFile(
 }
 
 // Persist a results file atomically (same-directory temp+rename, EXDEV-safe) via
-// the #406 write primitive. The slug is re-validated inside writeResults, so this
+// the #428 write primitive. The slug is re-validated inside writeResults, so this
 // path is safe even though the file object itself carries no slug. The published
-// CaseResultSchema now declares the per-case `caseCanon` snapshot (#447), so the
+// CaseResultSchema now declares the per-case `caseCanon` snapshot (#489), so the
 // reconcile-stamped field is serialized verbatim and re-validates on the next
 // strict read (no fail-open data loss, and the changed/unchanged signal survives
 // the round-trip to disk).
@@ -282,7 +282,7 @@ function persist(rootPath: string, slug: string, file: TestResultsFile): void {
 
 // Build an empty results file. planHash is filled by the caller after the plan is
 // hashed (an init always happens in a context where the plan is in hand). As of
-// the v2.0.0 flatten (#493), case results sit at the top level of the file (one
+// the v2.0.0 flatten (#494), case results sit at the top level of the file (one
 // file per worktree), so there is no per-bench `benches` map to seed.
 function emptyFile(planHash: string): TestResultsFile {
   return {
@@ -344,8 +344,8 @@ export interface PlanAndResults {
   stale: boolean;
   // The freshly computed sha256 of canonicalize(plan).
   planHash: string;
-  // sha256 over the RAW test-cases.json bytes this read saw (#772). Distinct
-  // from planHash, which excludes the lifecycle block by construction (#767) and
+  // sha256 over the RAW test-cases.json bytes this read saw (#1167). Distinct
+  // from planHash, which excludes the lifecycle block by construction (#1160) and
   // therefore cannot detect a concurrent lifecycle edit. A lifecycle write echoes
   // this value back as its precondition, so an edit made outside the app between
   // load and write is reported as a conflict rather than silently overwritten
@@ -404,7 +404,7 @@ export function readPlanAndResults(rootPath: string, slug: string): PlanAndResul
   const plan = planValidation.data;
   const planHash = computePlanHash(plan);
   // Taken from the same bytes this read parsed, so the fingerprint a caller
-  // echoes back names exactly the file state it was shown (#772).
+  // echoes back names exactly the file state it was shown (#1167).
   const caseFileFingerprint = computeCaseFileFingerprint(planRaw);
 
   const { file, recovered, reason } = loadFile(rootPath, slug);
@@ -498,7 +498,7 @@ async function mutateCaseResult(
 
   // Stamp the per-case canonical snapshot so the next reconcile can classify
   // this case as unchanged rather than conservatively flagging it changed
-  // (issue #504). Reuse canonicalizeCase (the exact projection reconcile() uses)
+  // (#505). Reuse canonicalizeCase (the exact projection reconcile() uses)
   // so there is no divergent serialization on the write path. If the case id is
   // not in the plan, leave caseCanon unset: such a mark stays conservatively
   // classified changed.
@@ -519,7 +519,7 @@ async function mutateCaseResult(
 
 // Upsert or clear an observation mark, recompute the case's derivedStatus,
 // persist atomically (FR-012). A null result un-sets the mark entirely (removes
-// it from observationMarks) rather than recording a value (#508). Returns the
+// it from observationMarks) rather than recording a value (#510). Returns the
 // updated CaseResult.
 export async function markObservation(
   rootPath: string,
@@ -531,7 +531,7 @@ export async function markObservation(
   return mutateCaseResult(rootPath, slug, caseId, (caseResult, author, plan) => {
     if (result === null) {
       // Rebuild the marks map without this observation rather than dynamically
-      // deleting a computed key (#508).
+      // deleting a computed key (#510).
       caseResult.observationMarks = Object.fromEntries(
         Object.entries(caseResult.observationMarks).filter(([id]) => id !== observationId),
       );
@@ -603,7 +603,7 @@ export async function setStatusOverride(
   });
 }
 
-// ── Case lifecycle (SATCA-FR-019/FR-021, #772) ──
+// ── Case lifecycle (SATCA-FR-019/FR-021, #1167) ──
 //
 // The ONE write in this module that touches the source case file. It is a
 // deliberate, user-initiated edit to a single case's `lifecycle` block, guarded
@@ -702,6 +702,6 @@ export async function reconcile(
 // Re-export the path-safety error so callers (routes #12) can distinguish a
 // rejected slug from other failures without importing safe-path directly. The
 // lifecycle-write errors ride along for the same reason: the route layer maps
-// them to 404 / 404 / 409 without reaching past the store seam (#772).
+// them to 404 / 404 / 409 without reaching past the store seam (#1167).
 export { UnsafePathError, MissingCaseFileError, CaseNotFoundError, CaseLifecycleConflictError };
 export type { SetCaseLifecycleResult };

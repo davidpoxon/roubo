@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Stub agent CLI for the `gemini-cli` e2e overlay (issue #534).
+// Stub agent CLI for the `gemini-cli` e2e overlay (#1127).
 //
 // The overlay (../bundled-overlays/gemini-cli/) points its manifest-declared
 // version probe and its launch descriptor at this binary. It exists so the

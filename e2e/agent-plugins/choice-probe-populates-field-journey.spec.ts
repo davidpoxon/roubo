@@ -13,7 +13,7 @@ import { clearProbeMode, setProbeMode } from "./_support/probe-mode.js";
 // "APCC-TC-002".
 const observe = makeObserve("APCC-TC-002");
 
-// APCC-TC-002 (#871): a declared choice probe populates a configuration field
+// APCC-TC-002 (#1317): a declared choice probe populates a configuration field
 // end to end.
 //
 // The integration-level drift guard for the APCC-FR-001 / APCC-FR-002 /

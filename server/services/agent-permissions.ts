@@ -19,7 +19,7 @@ import { filterSafeRules } from "./permission-rule-guard.js";
 import { loadSettings } from "./state.js";
 import type { ResolvedTemplateContext } from "./config-parser.js";
 
-// Agent permissions dispatch (issue #514, AP-FR-016, AP-FR-018).
+// Agent permissions dispatch (#1058, AP-FR-016, AP-FR-018).
 //
 // The seam that turns ONE per-project permissions model into whatever the
 // project's agent actually understands. Core holds the model; the agent plugin
@@ -34,14 +34,14 @@ import type { ResolvedTemplateContext } from "./config-parser.js";
 // rules, executed core-side under the same path-confinement barriers every
 // other descriptor write uses. The `built-in` carrier that wrote an
 // agent-specific settings file straight from core went with the rest of the
-// built-in path in #521; with no agent plugin installed there is nothing to
+// built-in path in #1114; with no agent plugin installed there is nothing to
 // write rules for, so nothing is written.
 
 const DEFAULT_ROUBO_PORT = "3335";
 
 /**
  * What an agent that declares no `agentPermissionRuleTiers` reports, and the
- * answer for a project with no agent plugin at all (#862). Every tier stays on
+ * answer for a project with no agent plugin at all (#1345). Every tier stays on
  * offer, which is the same fail-open choice `rules: true` makes below: the model
  * is core's own, and hiding a tier a project already uses because a manifest is
  * silent would lose the user work that agent may well honour.
@@ -101,12 +101,12 @@ export function resolveProjectAgentPluginId(): string | undefined {
  * no rules capability). Probing means asking the plugin for a descriptor, which
  * is the only place the capability is declared; nothing is written.
  *
- * A project with no agent plugin has no carrier at all (#521). Rules still
+ * A project with no agent plugin has no carrier at all (#1114). Rules still
  * report as available, because the model is core's and stays editable so it is
  * ready for whichever agent plugin gets installed; resync does not, because
  * there is nothing to re-inject through until one is.
  *
- * The rule TIERS come from the manifest rather than the descriptor (#862): which
+ * The rule TIERS come from the manifest rather than the descriptor (#1345): which
  * tiers an agent CLI's rules format carries is fixed by the CLI, not by a
  * launch's configuration. A manifest that declares none reports all three, so an
  * agent plugin written before the key existed is unchanged.
@@ -172,7 +172,7 @@ export async function applyProjectPermissions(opts: {
 
   if (pluginId === undefined) {
     // No agent plugin, so no carrier. Core writes no agent-specific file of its
-    // own any more (#521): the bench is reported as skipped, exactly as it is
+    // own any more (#1114): the bench is reported as skipped, exactly as it is
     // for a plugin that opts out of resync.
     return { carrier: "none", written: [] };
   }

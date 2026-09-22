@@ -214,7 +214,7 @@ describe("AgentConfigForm", () => {
     expect(form.getByRole("alert")).toHaveTextContent("Must be one of: sonnet, opus");
   });
 
-  it("surfaces a field error naming a property the form renders no control for (#634)", async () => {
+  it("surfaces a field error naming a property the form renders no control for (#1033)", async () => {
     const user = userEvent.setup();
     mockedSave.mockImplementation(
       () =>

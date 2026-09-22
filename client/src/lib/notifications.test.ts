@@ -128,7 +128,7 @@ describe("formatNotification", () => {
 
   it("names no specific AI coding tool in agent-session copy", () => {
     // Any agent plugin's session raises these, so their copy must stay
-    // product-neutral (docs/brand.md). Since #521 there is no built-in path
+    // product-neutral (docs/brand.md). Since #1114 there is no built-in path
     // left to raise a product-specific one.
     for (const type of ["agent-waiting", "agent-exited"] as NotificationType[]) {
       const { title, body } = formatNotification(makeNotification("action-needed", type));

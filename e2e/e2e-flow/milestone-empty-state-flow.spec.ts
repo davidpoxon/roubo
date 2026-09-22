@@ -5,7 +5,7 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
 // The integration-level drift guard for CLI-TC-065, the
 // exhausted-milestone empty state. It closes the S001-O03 fixture gap the
-// cut-list-improvements verification run (test-results.json, PR #421) recorded
+// cut-list-improvements verification run (test-results.json, PR #464) recorded
 // as a fail: no stub scenario offered a still-live milestone whose To Do issues
 // were all exhausted server-wide, so the "pager hidden" expectation could not be
 // driven and the run approximated it with a zero-match search where hasNext
@@ -20,7 +20,7 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 // cut-list-milestone-project (pageSize 2, five To Do issues) cannot exercise the
 // hide. This spec runs against a SEPARATE single-page fixture instead.
 //
-// TC-065 reconciliations (mirroring how #572 reconciled CLI-TC-059 and #584
+// TC-065 reconciliations (mirroring how #640 reconciled CLI-TC-059 and #632
 // reconciled CLI-TC-032 to the shipped signals). Two literal step texts in
 // test-cases.json describe behaviour the shipped UI does not emit; this spec
 // asserts the shipped observable signals instead, and test-cases.json was

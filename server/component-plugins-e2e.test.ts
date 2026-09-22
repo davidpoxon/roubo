@@ -2,19 +2,19 @@
 // plugin author scaffolds my-redis-plugin, a consumer installs it, binds a
 // component to it in roubo.yaml, consents to its declared permissions, and runs
 // it end to end, asserting the authoritative e2e_flow case CP-TC-027 step by
-// step (issue #623).
+// step (#661).
 //
 // This is the journey's drift guard, mirroring shared/testbench-e2e.test.ts (the
-// TC-056 / #442 drift guard): it exercises the integrated journey through the
+// TC-056 / #455 drift guard): it exercises the integrated journey through the
 // already-pure, importable seams of the slices it spans, rather than re-testing
-// any single slice. The slices owned by this work unit are #602 (the `component`
-// plugin kind + `ports`/`docker` permission categories), #603 (the typed
-// ProvisionDescriptor union), #604 (the component host broker), #605 (the SDK
-// defineComponentPlugin + component host client), #606 (the LifecycleEngine),
-// #607 (the ResourceOwnershipLedger), #608 (the ComponentPluginRegistry binding
-// resolver), #609 (the roubo.yaml component-to-plugin binding config), #613
-// (crash cleanup / orphan teardown), #615 (the permission consent gate), and
-// #616 (the plugin-backed component status/logs parity surface). A failing step
+// any single slice. The slices owned by this work unit are #646 (the `component`
+// plugin kind + `ports`/`docker` permission categories), #645 (the typed
+// ProvisionDescriptor union), #649 (the component host broker), #648 (the SDK
+// defineComponentPlugin + component host client), #650 (the LifecycleEngine),
+// #647 (the ResourceOwnershipLedger), #651 (the ComponentPluginRegistry binding
+// resolver), #652 (the roubo.yaml component-to-plugin binding config), #657
+// (crash cleanup / orphan teardown), #656 (the permission consent gate), and
+// #658 (the plugin-backed component status/logs parity surface). A failing step
 // is localised back to the owning slice(s) via OWNING_SLICES below (FR-020).
 //
 // Hermetic by construction (matching the lifecycle-engine.test.ts and
@@ -74,9 +74,10 @@ import * as componentRegistry from "./services/component-plugin-registry.js";
 import * as dockerService from "./services/docker.js";
 import * as benchManager from "./services/bench-manager.js";
 
-// The slices this journey integrates, from #623's blocked_by / covers set.
+// The slices this journey integrates, from the work unit's blocked_by / covers set.
 // Reported when a step diverges so a failure is attributable (FR-020).
-const OWNING_SLICES = "#602, #603, #604, #605, #606, #607, #608, #609, #613, #615, #616";
+const OWNING_SLICES =
+  "component manifest kind + permissions, ProvisionDescriptor shared union, ComponentContract + defineComponentPlugin SDK, HostComponentBroker RPC surface, LifecycleEngine, ResourceOwnershipLedger, plugin-manager component kind + binding resolution, roubo.yaml components map as plugin bindings, crash cleanup + teardown, permission consent dialog + consent gate, plugin-backed component status/logs parity";
 
 const PLUGIN_ID = "my-redis-plugin";
 const PROJECT_ID = "sample-app";
@@ -196,7 +197,7 @@ const TC027_SEQUENCE = [
 // ── FR-020 failure-output wrapper ──
 //
 // Each CP-TC-027 step runs inside step(): on divergence it reports the diverging
-// step label, the expected-vs-actual, and the owning slice issue(s), so a
+// step label, the expected-vs-actual, and the owning slice(s), so a
 // failure is attributable to a slice rather than the whole journey.
 async function step<T>(label: string, expectation: string, body: () => T | Promise<T>): Promise<T> {
   try {
@@ -319,7 +320,7 @@ function rouboYaml(): string {
 // A fake DockerLike: composeUp/waitForHealthy succeed, getComposeProjectName
 // follows the roubo-<projectId>-bench-<N> convention. No Docker daemon runs.
 // Tracks brought-up compose projects so the teardown step can assert none
-// survive (the zero-orphan invariant, NFR-003 / #613).
+// survive (the zero-orphan invariant, NFR-003 / #657).
 function makeFakeDocker(liveComposeProjects: Set<string>): DockerLike {
   return {
     composeUp: vi.fn(async ({ projectName }: { projectName: string }) => {
@@ -378,7 +379,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
     const pluginAuthoringDir = join(sampleProjectDir, "author", PLUGIN_ID);
 
     // S001: author scaffolds the manifest. Assert it is on disk with the
-    // component kind, contractVersion, and the three declared permissions (#602).
+    // component kind, contractVersion, and the three declared permissions (#646).
     await track(
       TC027_STEPS.authorManifest,
       "roubo-plugin.yaml exists with kind: component, contractVersion 1, and network/docker/ports permissions",
@@ -396,7 +397,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
     );
 
     // S002: author writes index.js with defineComponentPlugin + translate(). The
-    // descriptor translate() emits validates against the typed union (#603, #605).
+    // descriptor translate() emits validates against the typed union (#645, #648).
     await track(
       TC027_STEPS.authorIndex,
       "index.js uses defineComponentPlugin and its translate() emits a valid docker ProvisionDescriptor",
@@ -430,7 +431,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
       },
     );
 
-    // S004: consumer binds components.cache to the plugin in roubo.yaml (#609).
+    // S004: consumer binds components.cache to the plugin in roubo.yaml (#652).
     await track(
       TC027_STEPS.consumerBind,
       "roubo.yaml binds components.cache to my-redis-plugin with config.maxMemory",
@@ -446,7 +447,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
 
     // S005: "restart the server" -> plugin-manager discovery. Seed the plugin as
     // disabled so discovery records it WITHOUT spawning a real child process,
-    // then assert it appears with kind component and no manifest error (#602).
+    // then assert it appears with kind component and no manifest error (#646).
     await track(
       TC027_STEPS.serverDiscovers,
       "my-redis-plugin appears in the installed list with kind component and no manifest validation error",
@@ -481,7 +482,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
     app.use(express.json());
     app.use("/api/plugins", consentRouter);
 
-    // S006: GET /consent lists the declared categories and firstParty false (#615).
+    // S006: GET /consent lists the declared categories and firstParty false (#656).
     await track(
       TC027_STEPS.consentGet,
       "the consent endpoint lists network, docker, ports and reports firstParty false",
@@ -499,7 +500,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
       },
     );
 
-    // S007: POST /consent persists a ConsentRecord (200) (#615).
+    // S007: POST /consent persists a ConsentRecord (200) (#656).
     await track(
       TC027_STEPS.consentPost,
       "POST /consent returns 200 and persists a ConsentRecord acknowledging all declared categories",
@@ -523,7 +524,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
 
     // S008: "start a bench" -> the registry resolves the cache binding to the
     // plugin (consent gate now satisfied), and translate() yields a docker
-    // descriptor the engine can run (#608, #605, #603).
+    // descriptor the engine can run (#651, #648, #645).
     const liveComposeProjects = new Set<string>();
     const descriptor = await track(
       TC027_STEPS.registryResolves,
@@ -557,7 +558,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
 
     // S009: drive the descriptor through the LifecycleEngine with a fake docker.
     // The component reaches running (push-based status, never polled) and the
-    // ledger records the compose project (#606, #607).
+    // ledger records the compose project (#650, #647).
     const statuses: ComponentStatus[] = [];
     await track(
       TC027_STEPS.componentRuns,
@@ -590,7 +591,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
     );
 
     // S010: logs pushed via host.component.reportLog are returned by the logs
-    // surface (the component-log-store parity buffer) (#604, #616).
+    // surface (the component-log-store parity buffer) (#649, #658).
     await track(
       TC027_STEPS.logsReturned,
       "GET .../components/cache/logs returns the Redis startup lines pushed via host.component.reportLog",
@@ -616,13 +617,13 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
     );
 
     // S011: teardown. Drive the REAL orphan-reap seam rather than asserting
-    // hand-set values: sweepOrphanedComposeProjects() (#613) replays the ledger,
+    // hand-set values: sweepOrphanedComposeProjects() (#657) replays the ledger,
     // downs every roubo-* compose project it still records, and clears the
     // entry. Spying composeDownByProject lets the real down path run (and remove
     // the project from our live set) without a Docker daemon, so "no roubo-*
     // remains" (S011-O02) and "the ledger entry is cleared" (S011-O03) are
-    // proved by production code, not by the test setting them itself (#613, #607).
-    // The stopping -> stopped ComponentStatus transition (S011-O01) is the #616
+    // proved by production code, not by the test setting them itself (#657, #647).
+    // The stopping -> stopped ComponentStatus transition (S011-O01) is the #658
     // status-surface slice's own contract and is asserted in its unit tests; the
     // plugin lifecycle exposes no hermetic stop seam here, so this integration
     // guard does not re-fabricate that transition (a hand-pushed status would be

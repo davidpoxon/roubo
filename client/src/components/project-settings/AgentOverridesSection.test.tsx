@@ -37,7 +37,7 @@ const CLAUDE: ProjectAgentState = {
 };
 
 /**
- * #637: an integer-typed field, the shape whose input emits `undefined` when
+ * #1045: an integer-typed field, the shape whose input emits `undefined` when
  * cleared. Kept separate from CLAUDE so the effective-preview assertions above
  * keep reading exactly `model=..., effort=..., mode=...`.
  */
@@ -257,7 +257,7 @@ describe("AgentOverridesSection", () => {
     );
   });
 
-  it("keeps a cleared numeric override defined and escapable (#637)", async () => {
+  it("keeps a cleared numeric override defined and escapable (#1045)", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([GEMINI]));
     render(<AgentOverridesSection projectId="demo" />);
@@ -282,7 +282,7 @@ describe("AgentOverridesSection", () => {
     expect(screen.getByRole("spinbutton", { name: "Max turns" })).toHaveValue(null);
   });
 
-  it("replaces, rather than appends to, a cleared numeric override (#637)", async () => {
+  it("replaces, rather than appends to, a cleared numeric override (#1045)", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([GEMINI]));
     render(<AgentOverridesSection projectId="demo" />);
@@ -302,7 +302,7 @@ describe("AgentOverridesSection", () => {
     expect(mutate.mock.calls[0][0]).toEqual({ maxTurns: 5 });
   });
 
-  it("saves the seeded fallback when a cleared numeric override is left empty (#637)", async () => {
+  it("saves the seeded fallback when a cleared numeric override is left empty (#1045)", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(listResult([GEMINI]));
     render(<AgentOverridesSection projectId="demo" />);
@@ -317,7 +317,7 @@ describe("AgentOverridesSection", () => {
     expect(mutate.mock.calls[0][0]).toEqual({ maxTurns: 12 });
   });
 
-  it("leaves Reset live to repopulate an emptied box on a clean draft (#637)", async () => {
+  it("leaves Reset live to repopulate an emptied box on a clean draft (#1045)", async () => {
     const user = userEvent.setup();
     // The saved override already equals the app default, so emptying the box
     // changes nothing in the draft and `dirty` stays false.

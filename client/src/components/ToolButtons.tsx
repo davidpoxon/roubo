@@ -63,7 +63,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
 
   // Agent tools are launch presets, not quick-open actions: they launch through
   // the bench Terminal tab, never through this bar's fire-and-forget execute
-  // path (issue #516). Positions are carried alongside because the execute
+  // path (#1057). Positions are carried alongside because the execute
   // endpoint addresses a tool by its index in the project's full tool list.
   const launchable = tools
     .map((tool, index) => ({ tool, index }))

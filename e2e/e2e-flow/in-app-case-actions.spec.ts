@@ -18,14 +18,14 @@ import {
   SATCA_TC058_UNTOUCHED_CASE_IDS,
 } from "./_support/testbench-plan.js";
 
-// E2E (#779): the integrated drift guard for the IN-APP ACTIONS journey
+// E2E (#1178): the integrated drift guard for the IN-APP ACTIONS journey
 // (SATCA-TC-058, SATCA-FR-019/FR-021, SATCA-NFR-001, SATCA-US-006/US-007). It
 // runs against the BUILT app and proves the one thing no single slice can prove
 // on its own: retiring a case through the panel writes a change that a reviewer
 // can read as an ordinary uncommitted git diff, and that restoring reverses it
 // exactly.
 //
-// It is the mirror image of SATCA-TC-010's journey (#776,
+// It is the mirror image of SATCA-TC-010's journey (#1170,
 // case-lifecycle-format.spec.ts), which drives the READ direction: a retirement
 // authored by hand in the case file, read end to end by the app. This one drives
 // the WRITE direction and then inspects the result from OUTSIDE the app, which is
@@ -34,20 +34,20 @@ import {
 // The git assertions are the reason this spec exists, and they need a seam the
 // harness did not have. The existing disk taps read file CONTENT, which can say
 // what a file now holds but not "exactly one file is modified" or "nothing has
-// been committed". `GET /test/__inspect-bench-git` (#779) supplies those, rooted
-// at the bench's own worktree (#493), which is exactly where the live lifecycle
+// been committed". `GET /test/__inspect-bench-git` (#1178) supplies those, rooted
+// at the bench's own worktree (#494), which is exactly where the live lifecycle
 // write lands. The fixture is registered with `gitInit: true`, so the seeded plan
 // rides into an initial commit and the worktree starts genuinely clean.
 //
 // Steps mirror SATCA-TC-058 one for one: S001 retires a case from the panel with
 // a reason, S002 inspects the working tree from outside, S003 reverses the
 // retirement. Each assertion carries the owning slice from this unit's blocked-by
-// set (#767, #772, #773, #774, #775, #781) so an integrated failure is
+// set (#1160, #1167, #1166, #1169, #1173) so an integrated failure is
 // attributable to a slice rather than to "the journey".
 //
 // Out of scope, deliberately: any single slice's internals. The file-authored
-// READ path is #776's journey, the SPEC-level lifecycle write is #773's, and the
-// replacement picker is #774's.
+// READ path is #1170's journey, the SPEC-level lifecycle write is #1166's, and the
+// replacement picker is #1169's.
 
 const SCENARIO = "default";
 const NOW = "2026-07-10T09:00:00.000Z";
@@ -101,7 +101,7 @@ async function createSpecBoundBench(page: Page, projectId: string): Promise<numb
 }
 
 // Open the bench's TestBench tab on the Cases review. The view toggle opens on
-// the verify-gate "Batches" surface by default (#359), and this journey acts on
+// the verify-gate "Batches" surface by default (#842), and this journey acts on
 // the live case list, the case detail pane, and the archived section.
 async function openCasesReview(page: Page): Promise<void> {
   await page
@@ -146,7 +146,7 @@ test("SATCA-TC-058: retiring a case in the application produces a reviewable, un
       projectId: PROJECT_ID,
       // git init + commit so a real spec-bound worktree provisions on Create AND
       // the seeded plan is already committed. Both matter here: the worktree is
-      // where the in-app write lands (#493), and the commit is what makes "the
+      // where the in-app write lands (#943), and the commit is what makes "the
       // working tree is clean" a real starting point rather than an artefact of
       // an unversioned fixture.
       gitInit: true,
@@ -327,7 +327,7 @@ test("SATCA-TC-058: retiring a case in the application produces a reviewable, un
     // A real assertion, not a formality. It holds only if the restore reproduces
     // the committed file BYTE FOR BYTE: clearing the record is not enough if the
     // rewrite reflows the document or leaves the schemaVersion raised. A failure
-    // here is a defect in the write path (#772), never something to loosen.
+    // here is a defect in the write path (#1167), never something to loosen.
     const git = await inspectBenchGit(request, { projectId: PROJECT_ID, benchId });
     expect(
       git.modified,

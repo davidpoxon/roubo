@@ -1,4 +1,4 @@
-// REST surface for the TestBench (#416). Shaped like inspection.ts: thin handlers
+// REST surface for the TestBench (#459). Shaped like inspection.ts: thin handlers
 // that resolve the project repoPath + bench, validate request bodies with the
 // testbench-contracts zod schemas, derive the spec slug from the bench's
 // focusedSpecPath, then delegate every filesystem write to testbench-store (which
@@ -77,12 +77,12 @@ const planReadRateLimiter = rateLimit({
 // Request-body schemas (testbench-contracts-aligned). Each is strict so an
 // unexpected key is a 400 rather than silently ignored.
 const ValidatePathBodySchema = z.object({ path: z.string() }).strict();
-// result is pass | fail to set a mark, or null to clear (un-set) it (#508).
+// result is pass | fail to set a mark, or null to clear (un-set) it (#510).
 const MarkObservationBodySchema = z
   .object({ result: z.enum(["pass", "fail"]).nullable() })
   .strict();
 const SetStatusBodySchema = z.object({ override: CaseStatusSchema.nullable() }).strict();
-// The lifecycle record to write, or null to restore (#772). The record is
+// The lifecycle record to write, or null to restore (#1167). The record is
 // wrapped in a `{ lifecycle }` envelope rather than sent bare: express.json runs
 // in body-parser's default strict mode, which accepts only objects and arrays, so
 // a literal `null` body (the shape architecture.md sketches) never reaches a
@@ -98,7 +98,7 @@ const ReconcileBodySchema = z
   .object({ confirm: z.boolean().optional(), purgeOrphans: z.boolean().optional() })
   .strict();
 const FocusBodySchema = z.object({ focusedSpecPath: z.string() }).strict();
-// Spec lifecycle write (#773, SATCA-FR-020/FR-021). The record is the published
+// Spec lifecycle write (#1166, SATCA-FR-020/FR-021). The record is the published
 // SpecLifecycleRecordSchema verbatim, so the route can never accept a shape the
 // reader would later reject. It is NESTED under a `lifecycle` key rather than
 // sent as the bare body because `null` (the reversal) is the payload for
@@ -119,7 +119,7 @@ function resolveRepoPath(projectId: string): string {
 }
 
 // Resolve a TestBench and derive the (rootPath, slug) tuple the store needs.
-// `rootPath` is the bench's own worktree (#493): the plan and the results sidecar
+// `rootPath` is the bench's own worktree (#494): the plan and the results sidecar
 // are both read and written under `bench.workspacePath/.specifications/<slug>/`,
 // not the registered project repoPath. The slug is still resolved against the
 // project repoPath, where the focused spec path was picked and validated.
@@ -172,7 +172,7 @@ function handleError(res: import("express").Response, err: unknown): void {
     res.status(404).json({ error: err.message });
     return;
   }
-  // Lifecycle writes (#772): an absent/invalid case file or an unknown case id is
+  // Lifecycle writes (#1167): an absent/invalid case file or an unknown case id is
   // a 404, and a case file that changed under the request is a 409 carrying the
   // fingerprint the file actually holds now, so the client can say "reload".
   if (err instanceof MissingCaseFileError || err instanceof CaseNotFoundError) {
@@ -191,7 +191,7 @@ function handleError(res: import("express").Response, err: unknown): void {
     res.status(400).json({ error: err.message });
     return;
   }
-  // Lifecycle-write failures (#773). A spec folder that is not there is a 404,
+  // Lifecycle-write failures (#1166). A spec folder that is not there is a 404,
   // exactly like a missing plan. A manifest the writer refused to clobber is a
   // 409: the request was well-formed and it is the on-disk state that blocks it,
   // so the reviewer needs to go fix the file rather than resend.
@@ -252,7 +252,7 @@ router.post("/:projectId/testbench/specs/validate", (req, res) => {
   }
 });
 
-// 3. Archive / supersede a spec, or reverse either (#773, SATCA-FR-020/FR-021).
+// 3. Archive / supersede a spec, or reverse either (#1166, SATCA-FR-020/FR-021).
 //
 // Resolved against the PROJECT repoPath, not a bench worktree: the picker is
 // project-scoped, and GET /testbench/specs (the list this write mutates) reads
@@ -346,10 +346,10 @@ function parseGateIdsParam(raw: unknown): string[] | undefined {
 // existing no-param caller gets the unchanged full-plan shape. The named ids are
 // resolved against the EFFECTIVE (operator override-applied) gates, so a synthetic
 // merged gate id (MERGED:...) resolves to the union of its source gates' cases
-// (#434), not zero. An unknown gate id in the filter contributes nothing (no
+// (#913), not zero. An unknown gate id in the filter contributes nothing (no
 // error): the union of known gates wins.
 //
-// The response also carries the focused spec's read-only `lifecycle` state (#770,
+// The response also carries the focused spec's read-only `lifecycle` state (#1162,
 // SATCA-FR-018), so an open panel can say that the spec it is showing has been
 // archived. It is read from `rootPath`, the BENCH's own workspace, not from the
 // project repo discovery walks: archived-ness is a property of what this bench's
@@ -378,7 +378,7 @@ router.get(
       // operator-merged gate id (MERGED:...) matches no raw work-unit id, so the
       // raw units must first have the project's recorded merge / split overrides
       // applied (mirroring gates.ts effectiveGates), or a merged batch resolves to
-      // zero cases (#434). Gates live alongside the plan under the bench's own
+      // zero cases (#913). Gates live alongside the plan under the bench's own
       // worktree, so load the units and case map from the same rootPath + slug the
       // plan was read from; the overrides document is keyed by projectId.
       const loaded = workUnitLoader.loadVerifyUnits(rootPath, slug);
@@ -426,7 +426,7 @@ function toCandidateCase(testCase: Case): CandidateCase {
   };
 }
 
-// 4b. Replacement candidates for the two-stage picker (#774, SATCA-FR-028/FR-029).
+// 4b. Replacement candidates for the two-stage picker (#1169, SATCA-FR-028/FR-029).
 //
 // Read-only. Returns everything the client needs to render the picker AND to
 // resolve a candidate pointer with the shared LifecycleResolver itself: the
@@ -584,7 +584,7 @@ router.put("/:projectId/benches/:id/testbench/cases/:caseId/status", async (req,
 });
 
 // 6b. Set or clear a case's lifecycle record (PUT) -> 200 with the updated case
-// (#772, SATCA-FR-019/FR-021). The body is
+// (#1167, SATCA-FR-019/FR-021). The body is
 // { lifecycle: { state: "retired", reason } } or
 // { lifecycle: { state: "superseded", replacement, reason? } }, or
 // { lifecycle: null } to restore, which removes the record and is what makes
@@ -593,7 +593,7 @@ router.put("/:projectId/benches/:id/testbench/cases/:caseId/status", async (req,
 // `If-Match` carries the caller's view of the case file: the
 // `caseFileFingerprint` the plan read returned, a sha256 over the RAW file bytes.
 // It is REQUIRED, not optional. The plan hash cannot stand in for it, because
-// canonicalization excludes the lifecycle block (#767) and so is byte-identical
+// canonicalization excludes the lifecycle block (#1160) and so is byte-identical
 // across a lifecycle edit; without the fingerprint a write from a stale view
 // would silently overwrite an edit made outside the app (SATCA-TC-056). A
 // mismatch is a 409 via handleError.

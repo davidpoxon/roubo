@@ -4,7 +4,7 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 import { openConfigureDialog, save } from "./_support/picker.js";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
-// JSS-WU-009 (#358): the cut-list-area end-to-end journeys for category-first status
+// JSS-WU-009 (#436): the cut-list-area end-to-end journeys for category-first status
 // exclusion. This mirrors the two `e2e_flow` cases in the `cut-list` area of
 // `.specifications/jira-sources-scale/test-cases.json`:
 //

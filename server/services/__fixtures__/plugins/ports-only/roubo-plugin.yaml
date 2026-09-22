@@ -3,7 +3,7 @@ name: Ports-Only Component Fixture
 version: 0.0.0
 description: >-
   Component-kind fixture with a ports-only consent for the CP-TC-099 enforced
-  sandboxing e2e drift guard (issue #628). Its declared consent is ports only:
+  sandboxing e2e drift guard (#681). Its declared consent is ports only:
   everything else (docker, processes, network, credentials, filesystem) is
   false/empty. Its instrumented start hook (a) calls the declared host.ports.get,
   (b) attempts the undeclared host.docker.composeUp via the broker, and (c)

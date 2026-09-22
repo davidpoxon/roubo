@@ -33,7 +33,7 @@ function makeConnection(): JsonRpcConnection & {
         // A single function argument is the star/fallback registration
         // (vscode-jsonrpc's connection.onRequest(handler) form): capture it
         // separately so it never lands in the per-method handlers map and the
-        // "15 frozen methods" count stays exact (#409).
+        // "15 frozen methods" count stays exact (#893).
         if (typeof methodOrHandler === "function") {
           conn.starHandler = methodOrHandler;
           return;
@@ -150,7 +150,7 @@ function setup(
   // Wrap in an async function so a handler's synchronous throw (validation
   // errors on the sync handlers) surfaces as a rejected promise, exactly as
   // vscode-jsonrpc converts a thrown ResponseError into a JSON-RPC error reply.
-  // Every broker call carries the benchId it acts for in its params (#685); the
+  // Every broker call carries the benchId it acts for in its params (#687); the
   // production SDK stamps it from the in-flight lifecycle call, so the harness
   // stamps the ctx's benchId here for object params unless the test already set
   // one (so a test can pass an explicit/invalid benchId to exercise routing).
@@ -161,7 +161,7 @@ function setup(
   const call = async (method: string, params?: unknown) =>
     need(connection.handlers.get(method), method)(stampBenchId(params));
   // Dispatch a JSON-RPC NOTIFICATION (no reply), the form the SDK uses for
-  // host.component.reportStatus / reportLog (#396).
+  // host.component.reportStatus / reportLog (#887).
   const notify = (method: string, params?: unknown) => {
     need(connection.notifyHandlers.get(method), `${method} (notification)`)(stampBenchId(params));
   };
@@ -237,7 +237,7 @@ describe("host.process.* delegation (CP-TC-038)", () => {
     const h = setup();
     // process-manager force-kills a hung run and reports timedOut; the broker must
     // reject (not silently return exit code 124) with a descriptive, typed error
-    // that names the configured budget (#411).
+    // that names the configured budget (#894).
     vi.mocked(h.pm.runProcess).mockResolvedValueOnce({ exitCode: 124, timedOut: true });
     let rejected: unknown;
     try {
@@ -490,7 +490,7 @@ describe("host.component.report* push (no polling)", () => {
     };
     const result = await h.call("host.component.reportStatus", status);
     // The handler forwards the raw params, which now also carry the routing
-    // benchId the SDK stamps (#685); the status fields are preserved.
+    // benchId the SDK stamps (#687); the status fields are preserved.
     expect(h.reportStatus).toHaveBeenCalledWith(expect.objectContaining(status));
     expect(result).toBeNull();
   });
@@ -502,7 +502,7 @@ describe("host.component.report* push (no polling)", () => {
     });
   });
 
-  it("reportLog routes a {source,text,ts} line to the named component's sink (#685)", async () => {
+  it("reportLog routes a {source,text,ts} line to the named component's sink (#687)", async () => {
     const h = setup();
     const line = { source: "stdout" as const, text: "hello", ts: "2026-06-21T00:00:00Z" };
     const result = await h.call("host.component.reportLog", { ...line, componentName: "web" });
@@ -539,8 +539,8 @@ describe("host.component.report* push (no polling)", () => {
 // The SDK sends host.component.reportStatus as a JSON-RPC NOTIFICATION carrying
 // no `name` (only benchId). An imperative component plugin's status pushes must
 // be receivable this way and routed to the component the context is driving
-// (#396, AC2).
-describe("host.component.reportStatus notification (imperative push, #396)", () => {
+// (#887, AC2).
+describe("host.component.reportStatus notification (imperative push, #887)", () => {
   it("routes a nameless status push to the context's componentName", () => {
     const h = setup({ componentName: "deploy" });
     h.notify("host.component.reportStatus", { status: "completed" });
@@ -585,8 +585,8 @@ describe("host.component.reportStatus notification (imperative push, #396)", () 
 });
 
 // Broker-spawned processes must be ledger-tracked so pre-restart crash cleanup
-// and the startup orphan sweep can reap them (#396, AC4).
-describe("ledger tracking of broker-spawned processes (#396)", () => {
+// and the startup orphan sweep can reap them (#887, AC4).
+describe("ledger tracking of broker-spawned processes (#887)", () => {
   it("records a host.process.start process after a successful spawn", async () => {
     const h = setup({ withLedger: true });
     await h.call("host.process.start", {
@@ -912,7 +912,7 @@ describe("audit recording of privileged calls (CP-TC-070/093)", () => {
   });
 });
 
-describe("per-call BrokerContext resolver (#677; precise routing #685, multiplexed connection)", () => {
+describe("per-call BrokerContext resolver (#686; precise routing #687, multiplexed connection)", () => {
   // Build a BrokerContext that records its own audit entries, so we can assert a
   // privileged call routed to the context the resolver returned for the call's
   // benchId. reportLog records (componentName, line) pairs so we can assert
@@ -937,12 +937,12 @@ describe("per-call BrokerContext resolver (#677; precise routing #685, multiplex
 
   // A registry keyed by benchId, exactly mirroring plugin-manager's exact-key
   // resolver: the broker call carries its benchId in params and routes to that
-  // bench's context, with no most-recent-wins fallback (#685).
+  // bench's context, with no most-recent-wins fallback (#687).
   function makeRegistryResolver(contexts: Map<number, BrokerContext>) {
     return (benchId: number) => contexts.get(benchId) ?? null;
   }
 
-  it("routes each call to its own bench by the param benchId, so audit attributes to the originating bench (#685 defect 1)", async () => {
+  it("routes each call to its own bench by the param benchId, so audit attributes to the originating bench (#687 defect 1)", async () => {
     const connection = makeConnection();
     const ctxA = makeCtx(1);
     const ctxB = makeCtx(2);
@@ -997,7 +997,7 @@ describe("per-call BrokerContext resolver (#677; precise routing #685, multiplex
     expect(port).toBe(3005);
   });
 
-  it("routes reportLog within one bench to the named component (#685 defect 2)", async () => {
+  it("routes reportLog within one bench to the named component (#687 defect 2)", async () => {
     const connection = makeConnection();
     const ctx = makeCtx(1);
     const contexts = new Map<number, BrokerContext>([[1, ctx]]);

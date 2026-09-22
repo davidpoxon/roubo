@@ -89,12 +89,12 @@ function readGlobalBenchCap(): number | null {
  * plugin-config block (where the bundled process plugin carries it) rather than
  * a legacy top-level field. This is the only field core consults to seed the
  * initial `setupComplete` flag; it is not a component-type literal or a
- * docker-field branch (#612, NFR-006). The engine owns actually running setup.
+ * docker-field branch (#663, NFR-006). The engine owns actually running setup.
  */
 function componentHasSetup(componentConfig: ComponentConfig | undefined): boolean {
   // Prefer the opaque plugin config (the post-migration home of `setup`); fall
   // back to the legacy top-level field still present on pre-migration configs
-  // (#609 transition shim, migrated by #614). Either being a non-empty string
+  // (#652 transition shim, migrated by #664). Either being a non-empty string
   // means the component declares a one-time setup the engine will run once.
   const setup = componentConfig?.config?.setup ?? componentConfig?.setup;
   return typeof setup === "string" && setup.trim().length > 0;
@@ -158,7 +158,7 @@ export function initialize() {
     // workspacePath is read back from ~/.roubo/state.json (untrusted on disk) and
     // later flows into the executable position of spawn() via {{workspace}} command
     // substitution, so it must clear the allowlist barrier before it enters the live
-    // bench model (CodeQL #31, js/command-line-injection). A value that fails the
+    // bench model (CodeQL #68, js/command-line-injection). A value that fails the
     // allowlist is tampered, corrupt, or rooted at a home directory containing a
     // character outside the allowlist. We cannot safely manage such a bench, but
     // silently dropping it would orphan its worktree with no trace in the UI. Instead
@@ -181,7 +181,7 @@ export function initialize() {
     const components: Record<string, ComponentStatus> = {};
 
     if (project?.config) {
-      // Legacy benches (pre-#538) have no componentSetupState at all: those
+      // Legacy benches (from before this field) have no componentSetupState at all: those
       // were created under the old full-provisioning flow, so setup ran.
       // Coerce every component to setupComplete: true for that whole bench.
       // When componentSetupState is present but lacks an entry for a specific
@@ -194,7 +194,7 @@ export function initialize() {
           ? true
           : (persistedFlag ?? (componentHasSetup(componentConfig) ? false : true));
         // A runtime-reported URL is durable, so it comes back with the bench
-        // (#833): the one-shot step that minted it usually will not run again.
+        // (#1206): the one-shot step that minted it usually will not run again.
         // Re-vet it on the way in, exactly as the workspace path above is: this
         // is the second admission route for a value that reaches `open` and
         // /bin/sh, and state.json is untrusted on disk, so a persisted URL gets
@@ -229,7 +229,7 @@ export function initialize() {
       injectedJigSource: ps.injectedJigSource,
       variant: ps.variant,
       focusedSpecPath: ps.focusedSpecPath,
-      // Benches persisted before this field existed (pre-#630) were provisioned
+      // Benches persisted before this field existed (pre-#997) were provisioned
       // under the old flow, which always ran `benches.setup`, so treat a missing
       // flag as complete rather than re-running setup on their next Start.
       benchSetupComplete: ps.benchSetupComplete ?? true,
@@ -401,7 +401,7 @@ function makeComponentOnlyProvisioningSteps(componentOrder: string[]): Provision
  * yet run to completion. `benches.setup` is documented as running once, after
  * worktree creation, so re-seeding it on every Start would re-run a command such
  * as `npm ci` (which blows away node_modules) on each press of Start, and would
- * re-apply anything non-idempotent in it (#630).
+ * re-apply anything non-idempotent in it (#997).
  */
 function makeStartProvisioningSteps(
   config: RouboConfig,
@@ -509,7 +509,7 @@ function makeTeardownSteps(
   const steps: ProvisioningStep[] = [
     { id: "terminals", label: "Closing terminals", status: "pending" },
   ];
-  // Core no longer knows which components are docker-backed (#612), so the
+  // Core no longer knows which components are docker-backed (#663), so the
   // process-stop step is shown whenever the bench has any components: stopping a
   // component's engine-spawned process is a no-op when none exists, and a
   // docker-backed component is additionally torn down by the docker-down step.
@@ -559,7 +559,7 @@ export function isBenchLive(projectId: string, benchId: number): boolean {
  * guard reads persisted state, which lags memory during the reservation window
  * (a bench is in the map from `createBench` but has no record until the workspace
  * exists) and forever for a bench whose provisioning failed. Exposing the live ids
- * lets the guard union the two so the two surfaces cannot disagree (issue #830).
+ * lets the guard union the two so the two surfaces cannot disagree (#1204).
  */
 export function getLiveBenchIds(projectId: string): number[] {
   const ids: number[] = [];
@@ -573,7 +573,7 @@ export function getLiveBenchIds(projectId: string): number[] {
  * Drop every in-memory bench entry for a project and return how many were removed.
  * Called on `unregisterProject`'s force path: the map is what `readGlobalBenchCap`
  * measures (`benches.size`), so entries left behind keep consuming global-cap slots
- * until the app restarts (issue #830). Map-entry removal only, matching the force
+ * until the app restarts (#1204). Map-entry removal only, matching the force
  * path's existing no-filesystem-cleanup contract; it does not tear down components.
  */
 export function dropProjectBenches(projectId: string): number {
@@ -686,7 +686,7 @@ export function createBench(
     focusedSpecPath: resolvedFocusedSpecPath,
     // Seeded false even when the project defines no `benches.setup`, so that a
     // setup command added to roubo.yaml later still runs once on this bench
-    // (#630). Recording `true` here would be indistinguishable from a genuine
+    // (#997). Recording `true` here would be indistinguishable from a genuine
     // completion after hydration, and the command would never run. The flag is
     // inert without a setup command: both the step seeding and the run block
     // gate on `config.benches.setup` as well.
@@ -716,7 +716,7 @@ async function runComponentsInOrder(
   // be dispatched (e.g. its plugin is not installed/running, so provisionComponent
   // throws COMPONENT_NOT_BOUND) does not abort the whole bench: its error is
   // recorded and the remaining components still launch (graceful degradation,
-  // #396). Per-component Start leaves it false so the throw still propagates to
+  // #887). Per-component Start leaves it false so the throw still propagates to
   // the route as an actionable error. A genuine start failure (the component was
   // dispatched but its lifecycle reported `error`) still halts, resilient or not.
   resilient = false,
@@ -729,7 +729,7 @@ async function runComponentsInOrder(
     if (!isBenchLive(bench.projectId, bench.id)) return;
     updateStep(bench.provisioningSteps, "bench-setup", "running");
     // Run through the user's login shell instead of spawning parsed argv
-    // directly (#628). `benches.setup` is a shell command line, not a bare
+    // directly (#996). `benches.setup` is a shell command line, not a bare
     // binary invocation: `&&` chaining, redirection, and shell functions such
     // as `nvm` only work when a shell interprets the string. Splitting it into
     // argv instead made a value like `cd roubo && nvm use && npm i` fail
@@ -746,7 +746,7 @@ async function runComponentsInOrder(
     // from the project's own checked-in roubo.yaml.
     //
     // `benches.shell` overrides that default for a project the login shell does
-    // not suit (#836), resolved through the same helper the component command
+    // not suit (#1218), resolved through the same helper the component command
     // lines use, which validates a string shell down to an absolute path or a
     // bare command name of safe characters.
     const setupShell = config.benches.shell;
@@ -768,7 +768,7 @@ async function runComponentsInOrder(
       return;
     }
     updateStep(bench.provisioningSteps, "bench-setup", "done");
-    // Setup succeeded: record it so a later Start skips it (#630). A failure
+    // Setup succeeded: record it so a later Start skips it (#997). A failure
     // returns above without setting the flag, so the next Start retries.
     //
     // Re-check liveness first: the setup command above can run for up to ten
@@ -798,7 +798,7 @@ async function runComponentsInOrder(
     updateStep(bench.provisioningSteps, `${COMPONENT_STEP_PREFIX}${name}`, "running");
 
     // The plugin's LifecycleEngine owns one-time setup and phase reporting now
-    // (#612); core no longer reads legacy setup/docker fields here. The engine
+    // (#663); core no longer reads legacy setup/docker fields here. The engine
     // pushes phases through reportStatus into componentStatus.
     componentStatus.phases = [];
 
@@ -808,14 +808,14 @@ async function runComponentsInOrder(
       // provisionComponent throws when the component's plugin cannot be
       // dispatched (unbound / unconsented / plugin not running) or a launch fails.
       // Record the failure on the provisioning step in every case so the stuck
-      // `running` step never survives (issue #617, AC4).
+      // `running` step never survives (#991, AC4).
       const message = (err as Error).message;
       const cs = bench.components[name];
       updateStep(bench.provisioningSteps, `${COMPONENT_STEP_PREFIX}${name}`, "error", message);
       if (!resilient) {
         // Per-component Start rethrows so the route surfaces the 400. Before that,
         // drop the bench out of the busy `preparing` state startComponent set
-        // (issue #617, AC4): `preparing` disables the bench page's Start controls
+        // (#991, AC4): `preparing` disables the bench page's Start controls
         // and updateBenchStatus early-returns while `preparing`, so it must be
         // cleared explicitly. The binding/consent gate rejects before the component
         // goes `starting`, so it stays in its non-busy `stopped` state and the
@@ -833,7 +833,7 @@ async function runComponentsInOrder(
         throw err;
       }
       // Bench-level Start records the error and continues so a sibling whose plugin
-      // IS available (e.g. a translate-less deploy component) still launches (#396).
+      // IS available (e.g. a translate-less deploy component) still launches (#887).
       if (cs) {
         cs.status = "error";
         cs.error = message;
@@ -1113,7 +1113,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
 
     // Persist bench to disk now that workspace exists. This is the record's
     // CREATE: `addBench` upserts, every later write is an `updateBench` that
-    // no-ops if the record is gone (#829).
+    // no-ops if the record is gone (#1191).
     //
     // Serialise the whole live bench rather than a hand-picked subset. Creation
     // is deliberately deferred until the workspace exists, so a caller that
@@ -1126,7 +1126,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     //
     // `benchSetupComplete` rides along even while false, so a crash between here
     // and a successful `benches.setup` run does not look like a legacy record on
-    // reload, which would migrate to `true` and skip setup forever (#630).
+    // reload, which would migrate to `true` and skip setup forever (#997).
     //
     // Guarded like every other persist: clearing a bench mid-provisioning is a
     // supported flow, and the preceding pull-latest and `worktree add` steps are
@@ -1134,7 +1134,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     // yet) and drops the bench from the map, so an unguarded create here would
     // write a record with no bench behind it: invisible in the Benches view,
     // counted by the unregister guard, and hydrated back on the next launch.
-    // That is the #829 phantom, arriving through creation instead of update.
+    // That is the #1191 phantom, arriving through creation instead of update.
     if (!isBenchLive(bench.projectId, bench.id)) return;
     stateService.addBench(stateService.toPersistedBench(bench));
 
@@ -1153,7 +1153,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
 
     // Worktree provisioning is done: transition out of "preparing" and let the
     // bench sit idle. runCreateBenchBackground resumes from here to run the
-    // bench-level setup command (`benches.setup`) at init (#627), and, when
+    // bench-level setup command (`benches.setup`) at init (#995), and, when
     // components auto-start, their setup and launch too. Component setup and
     // launch for a non-auto-start bench still run later via the Start path.
     bench.status = "idle";
@@ -1192,7 +1192,7 @@ async function runStartAllBackground(
   await Promise.resolve();
   try {
     // Bench-level Start is resilient: a component whose plugin cannot be
-    // dispatched does not abort the launch of the rest (#396).
+    // dispatched does not abort the launch of the rest (#887).
     await runComponentsInOrder(bench, componentOrder, config, true);
   } catch (err) {
     markBackgroundError(bench, err as Error);
@@ -1218,7 +1218,7 @@ async function runCreateBenchBackground(bench: Bench, project: RegisteredProject
 
   // Bench-level setup (`benches.setup`, e.g. `npm ci` at the workspace root)
   // must run once when the bench is first initialised, regardless of whether
-  // components auto-start (#627). Component ordering is only needed when they
+  // components auto-start (#995). Component ordering is only needed when they
   // do: a setup-only init leaves `ordered` empty, so runComponentsInOrder runs
   // just the setup block and then settles the bench to idle.
   let ordered: string[] = [];
@@ -1247,7 +1247,7 @@ async function runCreateBenchBackground(bench: Bench, project: RegisteredProject
   updateBenchStatus(bench);
 
   try {
-    // Auto-start after create is bench-level, so it is resilient too (#396).
+    // Auto-start after create is bench-level, so it is resilient too (#887).
     await runComponentsInOrder(bench, ordered, config, true);
   } catch (err) {
     markBackgroundError(bench, err as Error);
@@ -1276,7 +1276,7 @@ export function teardownBench(projectId: string, benchId: number, removeWorkspac
   const components = project?.config?.components ?? {};
   // Whether any component the engine provisioned this bench is docker-backed,
   // read from the cached descriptors (the plugin's output) rather than a config
-  // docker-field (#612, NFR-006). A never-started bench has no descriptors, so
+  // docker-field (#663, NFR-006). A never-started bench has no descriptors, so
   // its teardown shows no docker-down step, matching prior behaviour for benches
   // that never brought a container up.
   const hasDockerComponents = Object.keys(components).some(
@@ -1310,7 +1310,7 @@ async function runTeardownBackground(
   const key = benchKey(projectId, benchId);
 
   // What Clear would have removed but may still be on disk if a later step
-  // throws (#831). Set when the remove-workspace step starts and cleared as each
+  // throws (#1205). Set when the remove-workspace step starts and cleared as each
   // target is confirmed gone, so the catch names only what genuinely remains
   // instead of leaving it orphaned without a word to the user.
   let leftoverWorkspacePath: string | undefined;
@@ -1324,7 +1324,7 @@ async function runTeardownBackground(
     updateStep(bench.teardownSteps, "terminals", "done");
 
     // Step 2: Stop component processes. Core branches on the descriptor KIND the
-    // plugin emitted (its output), not a config docker-field (#612): a
+    // plugin emitted (its output), not a config docker-field (#663): a
     // docker-backed component is left for the docker-down step, every other
     // component's engine-spawned process is stopped.
     if (bench.teardownSteps.some((s) => s.id === "stop-components")) {
@@ -1366,28 +1366,28 @@ async function runTeardownBackground(
     }
 
     // After the bench's processes and compose projects are stopped, drop its
-    // ledger entries (issue #613): the resources are gone, so the startup orphan
+    // ledger entries (#657): the resources are gone, so the startup orphan
     // sweep must not later try to reap them. Scoped to this bench's id across
     // every owning plugin.
     clearLedgerForBench(benchId);
 
-    // Drop this bench's in-memory audit log (#671) so a cleared bench's recorded
+    // Drop this bench's in-memory audit log (#680) so a cleared bench's recorded
     // broker calls do not leak into a later bench that reuses the same id, and
     // drop the per-bench BrokerContext(s) the plugin connection resolved against
-    // (#677) for the same reason.
+    // (#686) for the same reason.
     clearAuditLog(projectId, benchId);
     unregisterBrokerContextsForBench(projectId, benchId);
-    // Drop this bench's per-component SSE status records (#397) for the same
+    // Drop this bench's per-component SSE status records (#886) for the same
     // reason: bench ids are reused, and a stale last-status entry would make the
     // reused bench's first component-status-change look like a consecutive
     // duplicate and be suppressed.
     sseService.clearComponentStatusForBench(projectId, benchId);
-    // Drop this bench's forwarded component logs (#397): this change populates the
+    // Drop this bench's forwarded component logs (#886): this change populates the
     // component log store on every plugin-backed provision, so on bench-id reuse a
     // stale compose/init/migration tail would otherwise surface for the new bench.
     componentLogStore.clearComponentLogsForBench(projectId, benchId);
 
-    // Drop this bench's cached ProvisionDescriptors (issue #400, CP-TC-002). Now
+    // Drop this bench's cached ProvisionDescriptors (#888, CP-TC-002). Now
     // that provisionComponent trusts the descriptor cache on start rather than
     // re-translating, a leftover entry keyed on this (projectId, benchId, component)
     // would be served to a DIFFERENT bench that reuses this id (findNextBenchNumber
@@ -1474,7 +1474,7 @@ async function runTeardownBackground(
       // An orphaned directory rmSync could not remove is the one leftover the
       // code already knows about, and swallowing it here would carry on to
       // step 6 and drop the bench from both representations, orphaning the
-      // directory with nothing left to report it against (#831, AC2). Fail the
+      // directory with nothing left to report it against (#1205, AC2). Fail the
       // step instead, so the catch names it and the bench stays retryable.
       if (leftoverWorkspacePath) {
         throw new Error(
@@ -1499,11 +1499,11 @@ async function runTeardownBackground(
       failedStep.status = "error";
       failedStep.error = (err as Error).message;
     }
-    // Deliberately no `stateService.removeBench` / `benches.delete` here (#831):
+    // Deliberately no `stateService.removeBench` / `benches.delete` here (#1205):
     // the persisted record and the in-memory bench have to end up agreeing, and
     // dropping both while a workspace directory or branch may still be on disk
     // would orphan them with no bench left to report them against (every
-    // notification and SSE channel is bench-scoped). #829 was the mirror image of
+    // notification and SSE channel is bench-scoped). #1191 was the mirror image of
     // that divergence; do not reintroduce it from this side. The bench instead
     // stays as a clearable card so Clear can simply be run again.
     const leftovers: string[] = [];
@@ -1532,7 +1532,7 @@ async function runTeardownBackground(
 
 /**
  * Clears every resource-ownership ledger entry for `benchId`, across all owning
- * plugins (issue #613). The ledger keys on (pluginId, benchId), so a single
+ * plugins (#657). The ledger keys on (pluginId, benchId), so a single
  * bench may have entries under several plugins; teardown removes them all once
  * the bench's resources are stopped, so the startup sweep never re-reaps them.
  */
@@ -1545,7 +1545,7 @@ function clearLedgerForBench(benchId: number): void {
 }
 
 /**
- * Pre-restart crash cleanup for a component plugin (issue #613, FR-015).
+ * Pre-restart crash cleanup for a component plugin (#657, FR-015).
  *
  * Registered with plugin-manager via `registerComponentPluginHooks` and fired
  * the instant the supervisor sees a `component` plugin exit unexpectedly,
@@ -1560,7 +1560,7 @@ function clearLedgerForBench(benchId: number): void {
  */
 /**
  * Components that were running/starting when their plugin crashed, captured by
- * the pre-restart hook (#397). Keyed by pluginId; each value is a set of
+ * the pre-restart hook (#886). Keyed by pluginId; each value is a set of
  * `benchId:componentName` handles.
  *
  * The pre-restart hook pushes the crashing component to `error` so the crash is
@@ -1578,7 +1578,7 @@ function recoveryHandle(benchId: number, componentName: string): string {
 }
 
 export async function handleComponentPluginPreRestart(pluginId: string): Promise<void> {
-  // AC2 (#397): push the observable crash transition before the ledger-driven
+  // AC2 (#886): push the observable crash transition before the ledger-driven
   // resource cleanup. Mark every component this plugin had running/starting as
   // `error` and broadcast it, so a client sees the crash instead of it being
   // hidden by the restart+re-provision beating the 5s status poll. Capture the
@@ -1620,7 +1620,7 @@ export async function handleComponentPluginPreRestart(pluginId: string): Promise
       await dockerService
         .composeDownByProject(composeProject)
         .then(() => {
-          // Log the successful teardown at a normal level (#411): a silent
+          // Log the successful teardown at a normal level (#894): a silent
           // success left the pre-restart cleanup's composeDown unobservable. The
           // existing warn-on-failure below is kept.
           console.info(
@@ -1640,7 +1640,7 @@ export async function handleComponentPluginPreRestart(pluginId: string): Promise
 }
 
 /**
- * Post-restart re-provision for a component plugin (issue #613, FR-016).
+ * Post-restart re-provision for a component plugin (#657, FR-016).
  *
  * Registered with plugin-manager and fired once the crashed `component` plugin
  * has been respawned. Re-provisions every bench whose components the plugin was
@@ -1687,7 +1687,7 @@ export async function handleComponentPluginRestarted(pluginId: string): Promise<
 }
 
 /**
- * Restart-budget-exhaustion handler for a component plugin (AC4, #397).
+ * Restart-budget-exhaustion handler for a component plugin (AC4, #886).
  *
  * Registered with plugin-manager via `registerComponentPluginHooks` and fired
  * when the supervisor gives up restarting a crashed `component` plugin (it has
@@ -1739,7 +1739,7 @@ export async function handleComponentPluginBudgetExhausted(pluginId: string): Pr
 }
 
 /**
- * Startup orphan sweep (issue #613, FR-015 / NFR-003).
+ * Startup orphan sweep (#657, FR-015 / NFR-003).
  *
  * Run once at boot, before reconcile. Replays the ledger and tears down every
  * compose project it still records: after a hard host kill the host's treeKill
@@ -1799,7 +1799,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
   terminalService.destroyBenchSessions(projectId, benchId);
 
   // Stop every component's engine-spawned process (a no-op for docker-backed
-  // components); no component-type / docker-field branch in core (#612).
+  // components); no component-type / docker-field branch in core (#663).
   for (const name of Object.keys(bench.components)) {
     const binding = resolveBinding(projectId, name);
     if (!isNotBound(binding)) {
@@ -1876,7 +1876,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     project.settings.worktreeSource.branchFromDefault,
   );
   // The workspace is re-created from scratch, so bench-level setup has to run
-  // again against the new worktree (#630). Reset to false unconditionally, for
+  // again against the new worktree (#997). Reset to false unconditionally, for
   // the same reason createBench does: a setup command added to roubo.yaml after
   // this point must still run.
   bench.benchSetupComplete = false;
@@ -2008,7 +2008,7 @@ async function getOrResolveDescriptor(
  * Human-readable reason a component could not be resolved to a running plugin.
  * A built-in component whose roubo.yaml entry carries no `plugin:` binding
  * resolves to `not-bound`: binding the bundled process/database plugins to the
- * live configs is the config migration of #614 (F1.13), out of scope here, so
+ * live configs is the config migration of #664 (F1.13), out of scope here, so
  * core surfaces a clear, actionable error rather than silently doing nothing.
  */
 function notBoundMessage(componentName: string, nb: NotBound): string {
@@ -2051,7 +2051,7 @@ function describeOffer(offer: MissingPluginSourceOffer): string {
 
 /**
  * Resolve which marketplace sources serve a bound-but-uninstalled plugin id
- * (CPHMTP-FR-008, issue #566). Enrichment lives HERE, in the async provision path,
+ * (CPHMTP-FR-008, #978). Enrichment lives HERE, in the async provision path,
  * rather than in `resolveBinding`: that resolver is synchronous and this is a
  * network fan-out across every registered source.
  *
@@ -2119,7 +2119,7 @@ async function notBoundError(componentName: string, nb: NotBound): Promise<Bench
   }
   // The bound plugin is installed but has no ConsentRecord: carry the plugin id so
   // the bench page can open an actionable consent prompt instead of stopping
-  // silently (issue #617, AC3). Every other reason keeps its plain message and
+  // silently (#991, AC3). Every other reason keeps its plain message and
   // carries no affordance.
   if (nb.reason === "not-consented") {
     return new BenchError(fallback, "COMPONENT_NOT_BOUND", undefined, { pluginId: nb.pluginId });
@@ -2132,7 +2132,7 @@ async function notBoundError(componentName: string, nb: NotBound): Promise<Bench
  * implements the start/stop/health/cleanup hooks and the host invokes them
  * directly; a `declarative` plugin implements `translate` and the host runs the
  * emitted ProvisionDescriptor through the LifecycleEngine. The manifest's
- * `componentMode` is the explicit host-read signal (#396); an absent value (the
+ * `componentMode` is the explicit host-read signal (#887); an absent value (the
  * common case) defaults to declarative.
  */
 function getComponentMode(pluginId: string): "imperative" | "declarative" {
@@ -2166,13 +2166,13 @@ function buildBenchContext(
  * Resolve the component's bound plugin, ask it to `translate` its opaque config
  * into a ProvisionDescriptor, and run that descriptor through the host
  * LifecycleEngine. This is the single delegation seam that replaces the four
- * built-in dispatch sites (#612, FR-006 / FR-009): core carries no component
+ * built-in dispatch sites (#663, FR-006 / FR-009): core carries no component
  * type or docker-field knowledge; the plugin describes and the host owns the
  * lifecycle. Status is pushed through the engine's `reportStatus` sink into
  * `bench.components` (NFR-002, no polling).
  *
  * A translate-less (imperative) plugin takes the escape-hatch branch instead:
- * the host invokes its start hook directly (#396, AC1), the plugin driving the
+ * the host invokes its start hook directly (#887, AC1), the plugin driving the
  * broker for the whole lifecycle.
  */
 async function provisionComponent(
@@ -2213,7 +2213,7 @@ async function provisionComponent(
   );
 
   // Register the per-bench BrokerContext BEFORE the translate/imperative split so
-  // the broker is live for the WHOLE lifecycle (#396, AC3): an imperative plugin's
+  // the broker is live for the WHOLE lifecycle (#887, AC3): an imperative plugin's
   // start hook drives host.process.* / host.docker.* and pushes
   // host.component.reportStatus from the first instant, and a declarative
   // plugin's translate may reach the broker too. The context carries this
@@ -2223,7 +2223,7 @@ async function provisionComponent(
 
   // Imperative (escape-hatch) plugins implement start/stop/health/cleanup; the
   // host invokes the start hook directly rather than translating a
-  // ProvisionDescriptor (#396, AC1). The manifest's componentMode is the signal.
+  // ProvisionDescriptor (#887, AC1). The manifest's componentMode is the signal.
   if (getComponentMode(binding.pluginId) === "imperative") {
     await provisionImperativeComponent(
       projectId,
@@ -2302,7 +2302,7 @@ async function provisionComponent(
   }
 
   // The per-bench BrokerContext was registered before the translate/imperative
-  // split above (#396), so the broker is already live for this launch: a
+  // split above (#887), so the broker is already live for this launch: a
   // privileged call this component's plugin makes accumulates an AuditEntry into
   // THIS bench's AuditLog. Dropped on bench teardown alongside clearAuditLog.
   const lifecycleCtx: LifecycleContext = {
@@ -2317,7 +2317,7 @@ async function provisionComponent(
     // component log store so a plugin-backed docker component surfaces logs at
     // GET .../components/:name/logs; a declarative database plugin never calls
     // reportLog itself because the host, not the plugin, runs that execution
-    // (AC1, #397).
+    // (AC1, #886).
     reportLog: buildReportLog(projectId, benchId),
     setupComplete: componentStatus.setupComplete,
   };
@@ -2347,7 +2347,7 @@ async function provisionComponent(
   // reconcile resumes managing this component's live state. `url` is NOT an
   // in-flight marker: a URL the component reported is durable and must survive
   // here, or the Tools entry that opens it breaks the moment the launch settles
-  // (#833).
+  // (#1206).
   liveStatus.statusDetail = undefined;
   liveStatus.statusDetailStartedAt = undefined;
   liveStatus.startedAt = undefined;
@@ -2356,7 +2356,7 @@ async function provisionComponent(
 }
 
 /**
- * Drive a translate-less (imperative) component plugin's `start` hook (#396,
+ * Drive a translate-less (imperative) component plugin's `start` hook (#887,
  * AC1). Unlike the declarative path there is no ProvisionDescriptor and no
  * LifecycleEngine: the plugin owns the lifecycle and drives the host broker
  * (host.process.* / host.docker.* / host.ports.*) from inside `start`, pushing
@@ -2406,7 +2406,7 @@ async function provisionImperativeComponent(
   // why it failed (e.g. a host.process.run timeout, CP-TC-068 S004-O01), so that
   // detail must survive to the component surface rather than being wiped as a
   // transient progress marker. `url` is durable on every path and is never
-  // cleared here (#833).
+  // cleared here (#1206).
   if (liveStatus.status !== "error") {
     liveStatus.statusDetail = undefined;
     liveStatus.statusDetailStartedAt = undefined;
@@ -2528,13 +2528,13 @@ export async function stopComponent(
   const binding = resolveBinding(projectId, componentName);
 
   // Imperative (escape-hatch) plugins own their processes/containers, so teardown
-  // means driving their stop then cleanup hooks (#396, AC1) rather than the
+  // means driving their stop then cleanup hooks (#887, AC1) rather than the
   // descriptor path (which never ran: there is no translate). The plugin reaps
   // its own resources; the host then clears the ledger for (pluginId, benchId)
   // so the orphan sweep does not later try to reap released resources.
   if (!isNotBound(binding) && getComponentMode(binding.pluginId) === "imperative") {
     await stopImperativeComponent(projectId, benchId, componentName, binding.pluginId, bench);
-    // `url` is deliberately left alone: a reported URL outlives a stop (#833),
+    // `url` is deliberately left alone: a reported URL outlives a stop (#1206),
     // so restarting a bench does not lose the access point it minted.
     componentStatus.status = "stopped";
     componentStatus.pid = undefined;
@@ -2572,7 +2572,7 @@ export async function stopComponent(
   // Also stop the legacy host-id process (idempotent) so a process started
   // before this refactor's id scheme is cleaned up.
   await processManager.stopProcess(processId(projectId, benchId, componentName));
-  // As above, a reported `url` survives the stop (#833).
+  // As above, a reported `url` survives the stop (#1206).
   componentStatus.status = "stopped";
   componentStatus.pid = undefined;
   componentStatus.containerId = undefined;
@@ -2608,7 +2608,7 @@ export async function stopComponent(
   }
 
   updateBenchStatus(bench);
-  // Fire the per-component status-change event on the stop transition (#397):
+  // Fire the per-component status-change event on the stop transition (#886):
   // the built-in Stop path mutates the status directly rather than pushing
   // through buildReportStatus, so broadcast it explicitly here (CP-TC-074).
   sseService.broadcastComponentStatusChange(projectId, benchId, componentName, "stopped");
@@ -2616,7 +2616,7 @@ export async function stopComponent(
 
 /**
  * Tear down a translate-less (imperative) component by driving its `stop` then
- * `cleanup` hooks (#396, AC1). The BrokerContext is re-registered first so a
+ * `cleanup` hooks (#887, AC1). The BrokerContext is re-registered first so a
  * broker call the hooks make (and their reportStatus pushes) still routes to
  * this bench/component even after a host restart dropped the live context. Each
  * hook is best-effort: a failing hook is logged and teardown still completes, so
@@ -2624,7 +2624,7 @@ export async function stopComponent(
  * host clears the ledger for (pluginId, benchId), but only when no sibling
  * component of this bench still shares the plugin: the ledger has no
  * per-component attribution, so an eager clear would drop a still-live sibling's
- * tracked processes (#396, AC4).
+ * tracked processes (#887, AC4).
  */
 async function stopImperativeComponent(
   projectId: string,
@@ -2681,7 +2681,7 @@ async function stopImperativeComponent(
   // registerBrokerContextForBench). Only clear the shared entry when no other
   // component of this bench is still bound to pluginId and not yet stopped; while
   // a sibling is live its processes must stay tracked so pre-restart crash
-  // cleanup can still reap them (#396, AC4). Full-bench teardown
+  // cleanup can still reap them (#887, AC4). Full-bench teardown
   // (clearLedgerForBench) clears the entry once every component is down.
   const siblingStillLive = Object.keys(bench.components).some((name) => {
     if (name === componentName) return false;
@@ -2806,7 +2806,7 @@ export function getComponentLogs(
   return processManager.getProcessLogLines(pid, tail);
 }
 
-// Per-bench AuditLog registry (FR-019, #671). One in-memory AuditLog accumulates
+// Per-bench AuditLog registry (FR-019, #680). One in-memory AuditLog accumulates
 // the privileged HostComponentBroker calls for a single (projectId, benchId), keyed
 // the same way as the component-log store. The log is created lazily on first record
 // and dropped when the bench is torn down. This is an in-process store only: nothing
@@ -2835,7 +2835,7 @@ export function recordAuditEntry(projectId: string, benchId: number, entry: Audi
 
 /**
  * Query a bench's recorded privileged broker calls in chronological order, optionally
- * filtered by pluginId, for the GET .../audit-log surface (#671). A bench with no
+ * filtered by pluginId, for the GET .../audit-log surface (#680). A bench with no
  * recorded calls (or one that has been torn down) yields an empty array.
  */
 export function queryAuditLog(projectId: string, benchId: number, pluginId?: string): AuditEntry[] {
@@ -2870,7 +2870,7 @@ const SHELL_UNSAFE_URL_CHARS = /[\s;&|`$(){}<>\\'"]/;
 
 /**
  * Normalise a plugin-reported URL, or return undefined when it is not one the
- * host is willing to pass on (#833). Two gates, because the value reaches two
+ * host is willing to pass on (#1206). Two gates, because the value reaches two
  * very different sinks. The port-derived form it replaces could only ever be
  * `http(s)://localhost:<port>`, whereas a plugin-supplied string is arbitrary:
  *
@@ -2935,7 +2935,7 @@ export function buildReportStatus(
     // A reported URL is acted on by the host on the user's behalf: the Tools
     // browser path hands it to `open`, and a shell tool or jig can splice it
     // into a command line. So it is normalised and vetted here rather than
-    // trusted, and a rejected push leaves the previous value in place (#833). A
+    // trusted, and a rejected push leaves the previous value in place (#1206). A
     // push that omits `url` keeps whatever was reported before, since the value
     // is durable, not an in-flight marker.
     if (status.url !== undefined) {
@@ -2950,13 +2950,13 @@ export function buildReportStatus(
     bench.components[status.name] = merged;
     // Persist a newly reported URL immediately. A runtime URL is typically
     // minted once per bench by a guarded first-run step, so losing it to a host
-    // restart would leave no way to mint it again (#833).
+    // restart would leave no way to mint it again (#1206).
     if (merged.url !== existing?.url) {
       stateService.updateBench(stateService.toPersistedBench(bench));
     }
     updateBenchStatus(bench);
     sseService.broadcastBenchStatus(bench);
-    // Also emit the per-component status-change event (#397). Consecutive
+    // Also emit the per-component status-change event (#886). Consecutive
     // duplicates are suppressed and ts is clamped monotonic per component inside
     // sseService, so re-broadcasting the same status across phases is a no-op on
     // this stream (CP-TC-074).
@@ -2970,7 +2970,7 @@ export function buildReportStatus(
  * componentName), the read side of getComponentLogs. The `componentName` is the
  * one the broker call named in its params, so two components sharing one bench
  * (and one plugin) each route to their own log instead of overwriting whichever
- * provisioned last (#685).
+ * provisioned last (#687).
  */
 export function buildReportLog(
   projectId: string,
@@ -2992,7 +2992,7 @@ const BROKER_TO_CONSENT_CATEGORY: Record<BrokerPermissionCategory, PermissionCat
 
 /**
  * Build and register the per-bench BrokerContext a component plugin's broker
- * handlers service for this bench (#677). The context carries this bench's ports,
+ * handlers service for this bench (#686). The context carries this bench's ports,
  * the recordAudit sink wired to recordAuditEntry(projectId, benchId, entry), the
  * push sinks for host.component.report*, and a hasPermission check derived from
  * the plugin manifest's declared broker categories. Registered through
@@ -3021,7 +3021,7 @@ function registerBrokerContextForBench(
     benchId,
     // The component this context is being registered for. An imperative plugin's
     // reportStatus notification carries no `name`, so the broker routes that push
-    // to this component (#396).
+    // to this component (#887).
     componentName,
     ports,
     reportStatus: buildReportStatus(projectId, benchId),
@@ -3029,7 +3029,7 @@ function registerBrokerContextForBench(
     // components in one bench share a plugin the later provision overwrites this
     // ctx. That is fine: both reportStatus and reportLog route by the component
     // the call names in its params (reportStatus via params.name, reportLog via
-    // the componentName arg the broker passes through, #685), so neither
+    // the componentName arg the broker passes through, #687), so neither
     // component's output is lost regardless of which provision installed the ctx.
     reportLog: buildReportLog(projectId, benchId),
     hasPermission: (category: BrokerPermissionCategory) =>
@@ -3037,13 +3037,13 @@ function registerBrokerContextForBench(
     recordAudit: (entry: AuditEntry) => recordAuditEntry(projectId, benchId, entry),
     // assignContainer (the ResourceOwnershipLedger sink) stays out of this v1
     // wiring: the broker handler guards it with `?.`, and container-assignment
-    // routing is not in scope for the audit wiring (#677).
+    // routing is not in scope for the audit wiring (#686).
   };
   pluginManager.registerBrokerContext(pluginId, benchId, ctx);
 }
 
 /**
- * Drop every per-bench BrokerContext this bench registered (#677), one per
+ * Drop every per-bench BrokerContext this bench registered (#686), one per
  * distinct plugin backing one of the bench's components. Called on bench teardown
  * alongside clearAuditLog so a torn-down bench's broker context does not leak into
  * a later bench that reuses the same id.
@@ -3064,7 +3064,7 @@ function unregisterBrokerContextsForBench(projectId: string, benchId: number): v
 export async function refreshComponentStatuses() {
   // Collect all docker queries to batch into a single listContainers call. The
   // descriptor the engine pushed (the plugin's output) tells core which host
-  // resource backs each component; core reads no config docker-field (#612,
+  // resource backs each component; core reads no config docker-field (#663,
   // NFR-006) and never polls the plugin over IPC (NFR-002).
   const dockerQueries: Array<{ projectName: string; service: string }> = [];
   for (const bench of benches.values()) {
@@ -3073,7 +3073,7 @@ export async function refreshComponentStatuses() {
     for (const name of Object.keys(project.config.components)) {
       // An imperative plugin has no ProvisionDescriptor to resolve (there is no
       // translate), so skip the resolve entirely rather than round-trip a
-      // translate that would only fail with MethodNotFound (#396).
+      // translate that would only fail with MethodNotFound (#887).
       const binding = resolveBinding(bench.projectId, name);
       if (!isNotBound(binding) && getComponentMode(binding.pluginId) === "imperative") continue;
       const descriptor = await getOrResolveDescriptor(bench.projectId, bench.id, name);
@@ -3135,7 +3135,7 @@ export async function refreshComponentStatuses() {
       } else if (pluginId && getComponentMode(pluginId) === "imperative") {
         // An imperative plugin owns its process/container handles, so the host
         // has no host-id process or descriptor to read: pull its status via the
-        // plugin's health hook instead (#396, AC1).
+        // plugin's health hook instead (#887, AC1).
         await refreshImperativeComponentStatus(
           bench,
           name,
@@ -3180,7 +3180,7 @@ function isComponentStatusValue(value: unknown): value is ComponentStatusValue {
 }
 
 /**
- * Pull an imperative component's status through its plugin `health` hook (#396,
+ * Pull an imperative component's status through its plugin `health` hook (#887,
  * AC1). The host cannot read process/docker state for an imperative plugin (the
  * plugin owns the handles), so `health` is the sanctioned status query. The
  * broker is kept live first so a health hook that makes broker calls can route.
@@ -3261,7 +3261,7 @@ export async function assignContainer(
   if (!componentConfig)
     throw new BenchError(`Component '${componentName}' not defined`, "COMPONENT_NOT_FOUND");
 
-  // No core `type === 'database'` guard (#612): the assigned container is
+  // No core `type === 'database'` guard (#663): the assigned container is
   // validated generically (it exists, it publishes a port) and the bound plugin
   // owns the type-specific adoption. At provision time provisionComponent injects
   // `assignedContainerId` into the plugin's translate config, so the database
@@ -3385,14 +3385,14 @@ export class BenchError extends Error {
     /**
      * Set only on a `COMPONENT_NOT_BOUND` error whose bound plugin is not
      * installed: where that plugin id can be installed from (CPHMTP-FR-008, issue
-     * #566). The route serialises it so the missing-plugin surface can offer
+     * #978). The route serialises it so the missing-plugin surface can offer
      * install-from-<source> (or pick-a-source) instead of a dead end. Absent for
      * every other error, which carries no install affordance.
      */
     public resolution?: MissingPluginResolution,
     /**
      * Set only on a `COMPONENT_NOT_BOUND` error whose bound plugin is installed but
-     * not consented (issue #617): the plugin id whose permissions still need
+     * not consented (#991): the plugin id whose permissions still need
      * acknowledging. The route serialises it so the bench page can open an
      * actionable consent prompt rather than stopping silently. Absent for every
      * other error, mirroring `resolution`.

@@ -218,7 +218,7 @@ describe("GET /:projectId/integration", () => {
     expect(res.body.override).toEqual({ plugin: "jira-self-hosted" });
   });
 
-  it("exposes the plugin's defaultIntegrationConfig in the manifest snapshot (issue #435)", async () => {
+  it("exposes the plugin's defaultIntegrationConfig in the manifest snapshot (#454)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject());
     vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
       schemaVersion: 1,
@@ -990,7 +990,7 @@ describe("PUT /:projectId/integration/config", () => {
     });
   });
 
-  it("strips stale advanced keys not in the active plugin's manifest schema before saving (issue #125)", async () => {
+  it("strips stale advanced keys not in the active plugin's manifest schema before saving (#231)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "ghe" }));
     vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
       schemaVersion: 1,
@@ -1014,7 +1014,7 @@ describe("PUT /:projectId/integration/config", () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("source=persist-project"));
   });
 
-  it("drops the advanced block entirely when every supplied key is stale (issue #125)", async () => {
+  it("drops the advanced block entirely when every supplied key is stale (#231)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(makeProject({ plugin: "github-com" }));
     vi.mocked(integrationOverrides.loadOverride).mockReturnValue({
       schemaVersion: 1,
@@ -1052,7 +1052,7 @@ describe("PUT /:projectId/integration/config", () => {
     expect(saved.integration.sources).toEqual({ repos: ["org/c"] });
   });
 
-  it("persists excludedStatusCategories into the per-project override (JSS-FR-010, issue #435)", async () => {
+  it("persists excludedStatusCategories into the per-project override (JSS-FR-010, #454)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       makeProject({ plugin: "jira-self-hosted" }),
     );
@@ -1706,7 +1706,7 @@ describe("GET /:projectId/integration/sources (searchable-categorized shape)", (
   });
 });
 
-describe("GET /:projectId/integration/status-categories (issue #453)", () => {
+describe("GET /:projectId/integration/status-categories (#461)", () => {
   it("returns 404 when the project is unknown", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
 

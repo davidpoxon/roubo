@@ -1,7 +1,7 @@
 // Pure derived-status state machine (FR-009).
 //
 // Platform-agnostic: no fs, no node:crypto, no React. Safe in the Vite client
-// build. Canonical contract types land with testbench-contracts (#6); until
+// build. Canonical contract types land with testbench-contracts (#445); until
 // then this consumes the local types in testbench-domain-types.ts.
 
 import type {
@@ -20,7 +20,7 @@ import { canonicalizeCase } from "./testbench-canonicalize";
 // is passed alongside the marks.
 //
 // Truth table (a single fail short-circuits to "failed", even when other
-// observations are still unmarked, per issue #508):
+// observations are still unmarked, per #510):
 //   - any observation marked fail                     => "failed"
 //   - no observations marked (and no fail)            => "not_started"
 //   - some but not all observations marked (no fail)  => "in_progress"
@@ -59,7 +59,7 @@ export function deriveStatus(
   }
 
   // A single failed observation moves the case to "failed" immediately, even
-  // when other observations are still unmarked (issue #508).
+  // when other observations are still unmarked (#510).
   if (anyFail) {
     return "failed";
   }
@@ -144,7 +144,7 @@ export function reconcile(plan: TestCasesPlan, results: BenchResults): Reconcile
     }
     // A result exists; did the case body change? A result with no stored
     // snapshot is conservatively classified changed (prompts re-review, loses
-    // nothing). The stored snapshot vs published-contract gap is tracked in #447.
+    // nothing). The stored snapshot vs published-contract gap is tracked in #489.
     const stored = results.caseResults[caseId].caseCanon;
     if (stored !== undefined && stored === planCanonById.get(caseId)) {
       classification.unchanged.push(caseId);

@@ -79,8 +79,8 @@ jobs:
   # @roubo/shared from the LIVE npm registry at their just-published versions,
   # with no surviving file:/workspace ref.
   #
-  # Started life as the single-plugin AC2 gate for #766, replacing a manual
-  # maintainer check. #507 generalized it into a matrix (AP-NFR-004, AP-TC-123):
+  # Started life as the single-plugin AC2 gate for #791, replacing a manual
+  # maintainer check. #1026 generalized it into a matrix (AP-NFR-004, AP-TC-123):
   # one leg per published plugin, each built and tested unchanged against the new
   # SDK. `fail-fast: false` runs every leg so the run names ALL the plugins a
   # breaking SDK change broke, not just the first (AP-TC-124 S002-O02).

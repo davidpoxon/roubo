@@ -5,7 +5,7 @@ import type { AgentToolPreset } from "@roubo/shared";
 import { useSettings } from "./useSettings";
 
 /**
- * The app-level agent tool presets (AP-FR-008, issue #516).
+ * The app-level agent tool presets (AP-FR-008, #1057).
  *
  * They live inside the settings blob rather than behind their own endpoint, so
  * this is a thin projection over `useSettings` plus three list operations
@@ -64,7 +64,7 @@ export function useAgentPresets(projectId: string | undefined) {
 
 /**
  * The app-scoped half of the same list, resolved server-side: built-ins plus
- * app-level presets, with no project layer (issue #672). A separate hook rather
+ * app-level presets, with no project layer (#1084). A separate hook rather
  * than a `projectId`-less mode of `useAgentPresets`, so app settings can read
  * the server's resolution without changing what a project surface fetches.
  *

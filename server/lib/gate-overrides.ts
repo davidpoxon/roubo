@@ -1,4 +1,4 @@
-// The pure, deterministic gate-override transform (#703, VG-FR-002, VG-US-007).
+// The pure, deterministic gate-override transform (#728, VG-FR-002, VG-US-007).
 //
 // `applyGateOverrides` rewrites the loaded verify units (gates) according to the
 // operator's recorded merge / split operations, producing the EFFECTIVE gate
@@ -105,7 +105,7 @@ function buildMergedUnit(id: string, sources: readonly VerifyUnit[]): VerifyUnit
 // has no filed issue of its own): the split branch attaches the source gate's
 // filed leaves on the part's LoadedVerifyUnit.mergedFrom so the route layer can
 // fan sign-off / reopen / signed-off / fix-issue out over the real tracker issue
-// (issue #445, mirroring #435 for merges).
+// (#919, mirroring #911 for merges).
 function buildSplitUnit(
   id: string,
   label: string,
@@ -181,7 +181,7 @@ export function applyGateOverrides(
         present.map((s) => s.unit),
       );
       // Carry the real source gates so the route layer can fan sign-off / reopen /
-      // signed-off out over each source's own tracker issue (issue #435): the
+      // signed-off out over each source's own tracker issue (#911): the
       // synthetic merged unit is deliberately tracker-less (it has no filed issue of
       // its own). A source that is itself a merged gate contributes ITS filed leaves,
       // flattening a nested merge so `mergedFrom` never holds a tracker-less synthetic.
@@ -236,8 +236,8 @@ export function applyGateOverrides(
     // Carry the source gate's filed leaves onto EVERY split part so the route
     // layer can fan sign-off / reopen / signed-off / fix-issue out over the real
     // tracker issue(s): the synthetic split unit is deliberately tracker-less (it
-    // has no filed issue of its own), exactly like a merged gate (issue #445,
-    // mirroring #435). When the source is itself a merged gate its filed leaves
+    // has no filed issue of its own), exactly like a merged gate (#919,
+    // mirroring #911). When the source is itself a merged gate its filed leaves
     // flow through, so `mergedFrom` never holds a tracker-less synthetic. All
     // parts share the same targets: the split partitions the covers, not the
     // source's tracker issue, so signing off any part closes the source issue(s).

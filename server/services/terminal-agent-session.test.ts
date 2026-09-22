@@ -1,6 +1,6 @@
 /**
  * `terminal.createAgentSession`: the PTY half of the agent launch pipeline
- * (issue #510, AP-FR-011, AP-NFR-001).
+ * (#1048, AP-FR-011, AP-NFR-001).
  *
  * Deliberately separate from `terminal.test.ts`, which module-mocks `node:fs`.
  * The whole point of AP-TC-082 is that a workspace write is path-validated
@@ -32,7 +32,7 @@ vi.mock("./notification.js", () => ({
 }));
 vi.mock("./bench-manager.js", () => ({ getBench: vi.fn() }));
 // Binary resolution itself is env.ts's job and is pinned in env.test.ts; here the
-// resolver is a recorder so the wiring (#645) can be asserted: what the descriptor
+// resolver is a recorder so the wiring (#1056) can be asserted: what the descriptor
 // asked for goes in, what comes out is what reaches the PTY.
 const envMocks = vi.hoisted(() => ({
   resolveAgentCommand: vi.fn((command: string) => command),
@@ -57,7 +57,7 @@ vi.mock("./env.js", () => ({
 const spawnMock = vi.hoisted(() => vi.fn());
 vi.mock("node-pty", () => ({ spawn: spawnMock }));
 
-// The spawn-helper diagnosis (#685) reads the real node_modules, so it is
+// The spawn-helper diagnosis (#1103) reads the real node_modules, so it is
 // stubbed here to keep these assertions about the wiring rather than about the
 // machine the suite happens to run on. pty-preflight.test.ts owns the diagnosis
 // itself.
@@ -672,7 +672,7 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     expect(persisted.session.label).toBe("Acme Agent 1 - My Project #2");
   });
 
-  it("attributes a spawn throw to a broken host install, with the command and cwd (#519)", async () => {
+  it("attributes a spawn throw to a broken host install, with the command and cwd (#1064)", async () => {
     prepare({ command: "missing-agent" });
     spawnMock.mockImplementation(() => {
       throw new Error("posix_spawnp failed.");
@@ -680,13 +680,13 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
 
     const err = (await launch().catch((e: unknown) => e)) as AgentLaunchFailureError;
     expect(err).toBeInstanceOf(AgentLaunchFailureError);
-    // Spike #504: a spawn throw means node-pty's own helper is unusable, so
+    // The launch-failure spike: a spawn throw means node-pty's own helper is unusable, so
     // every spawn fails. That is Roubo's problem, not the agent plugin's.
     expect(err.failure.class).toBe("host-install-broken");
     expect(err.failure.guidance).toMatch(/Failed to spawn agent session \(command: missing-agent/);
   });
 
-  it("carries the spawn-helper diagnosis into the guidance when there is one (#685)", async () => {
+  it("carries the spawn-helper diagnosis into the guidance when there is one (#1103)", async () => {
     prepare({ command: "acme" });
     spawnMock.mockImplementation(() => {
       throw new Error("posix_spawnp failed.");
@@ -697,13 +697,13 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
 
     const err = (await launch().catch((e: unknown) => e)) as AgentLaunchFailureError;
 
-    // "Reinstall Roubo" alone sent a user down the wrong path in #685; the real
+    // "Reinstall Roubo" alone sent a user down the wrong path in #1103; the real
     // fix is one chmod, so the guidance has to name it.
     expect(err.failure.class).toBe("host-install-broken");
     expect(err.failure.guidance).toContain("chmod +x /pkg/node-pty/prebuilds/x/spawn-helper");
   });
 
-  it("spawns what the shared resolver returns, not the descriptor's bare command (#645)", async () => {
+  it("spawns what the shared resolver returns, not the descriptor's bare command (#1056)", async () => {
     prepare({ command: "claude", env: { PATH: "/child/bin" } });
     envMocks.resolveAgentCommand.mockReturnValue("/home/dev/.claude/local/claude");
 
@@ -716,7 +716,7 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     expect(spawnCall().command).toBe("/home/dev/.claude/local/claude");
   });
 
-  it("resolves a non-claude CLI from the manifest's declared install locations (#712)", async () => {
+  it("resolves a non-claude CLI from the manifest's declared install locations (#1115)", async () => {
     const declared = ["~/.local/bin/codex", "/opt/homebrew/bin/codex"];
     pipelineMocks.prepareAgentLaunch.mockResolvedValue({
       pluginId: "codex",
@@ -746,7 +746,7 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     expect(spawnCall().command).toBe("/opt/homebrew/bin/codex");
   });
 
-  it("turns an unresolvable command into an actionable missing-binary failure (#645, AP-TC-058)", async () => {
+  it("turns an unresolvable command into an actionable missing-binary failure (#1056, AP-TC-058)", async () => {
     prepare({ command: "claude" });
     envMocks.resolveAgentCommand.mockImplementation(() => {
       throw new AgentCommandNotFoundError("claude", ["/usr/bin/claude"]);
@@ -824,7 +824,7 @@ describe("hook notification eligibility (AP-TC-069, AP-TC-084)", () => {
     const session = await launch();
 
     // Ineligible HERE, but wired: the two endpoints are separate paths, and the
-    // positive case is the notifier one (issue #698).
+    // positive case is the notifier one (#1113).
     expect(isHookNotificationEligible(session.id)).toBe(false);
     expect(isNotifierNotificationEligible(session.id)).toBe(true);
   });
@@ -848,7 +848,7 @@ describe("hook notification eligibility (AP-TC-069, AP-TC-084)", () => {
   });
 });
 
-// ── The spawned-notifier wiring, end to end (issue #698) ──
+// ── The spawned-notifier wiring, end to end (#1113) ──
 
 /**
  * The other arm of the notification union: the agent has no way to POST to core
@@ -866,7 +866,7 @@ function spawnedNotifier(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe("spawned-notifier launch wiring (issue #698)", () => {
+describe("spawned-notifier launch wiring (#1113)", () => {
   it("appends the declared carrier args, after the posture args and before the prompt", async () => {
     prepare(
       {
@@ -1032,7 +1032,7 @@ describe("spawned-notifier launch wiring (issue #698)", () => {
   });
 });
 
-// ── The file-notifier wiring (issue #854) ──
+// ── The file-notifier wiring (#1264) ──
 
 /**
  * The third arm: the hook is registered by a workspace file, as the http-hook
@@ -1068,7 +1068,7 @@ function registeredHookCommand(): string {
   return doc.hooks.stop[0].command;
 }
 
-describe("file-notifier launch wiring (issue #854)", () => {
+describe("file-notifier launch wiring (#1264)", () => {
   it("writes the resolved, joined notifier command into the registration file", async () => {
     prepare({ capabilities: { notification: fileNotifier() } });
 
@@ -1272,7 +1272,7 @@ describe("agent exit notification (AP-TC-066)", () => {
   });
 });
 
-// -- Launch-failure detection after spawn (AP-FR-015, issue #519) --
+// -- Launch-failure detection after spawn (AP-FR-015, #1064) --
 
 /** A minimal WebSocket stand-in that records every frame the server sends. */
 function fakeSocket() {
@@ -1443,7 +1443,7 @@ describe("compatibility notice in the session scrollback (AP-FR-014)", () => {
     );
     const session = await launch();
 
-    // Zero bytes from the child: spike #504's direct-spawn exec-failure arm. The
+    // Zero bytes from the child: the launch-failure spike's direct-spawn exec-failure arm. The
     // notice must not satisfy the classifier's nonempty-output signal and turn
     // this into a launch-failure attributed to the agent's arguments.
     lastPty()._emit("exit", { exitCode: 1 });

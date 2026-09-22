@@ -1,4 +1,4 @@
-// Claude Code parity conformance suite (spike #503, AP-FR-018, AP-WU-002).
+// Claude Code parity conformance suite (spike #946, AP-FR-018, AP-WU-002).
 //
 // Pins every behavior of the built-in Claude Code integration enumerated in the
 // parity matrix at .specifications/agent-plugins/spikes/spike-503-claude-code-
@@ -179,7 +179,7 @@ vi.mock("./services/bench-manager.js", () => ({
       (b) => !projectId || (b as { projectId: string }).projectId === projectId,
     ),
   // The notification service gates its persist on this, so a fixtured bench has
-  // to answer it or every hook-driven notification 500s (#829).
+  // to answer it or every hook-driven notification 500s (#1191).
   isBenchLive: (projectId: string, benchId: number) =>
     benchFixtures.benches.has(`${projectId}:${benchId}`),
 }));
@@ -225,7 +225,7 @@ vi.mock("./services/issue-formatting.js", () => ({
 // is what lets the plugin rows assert the same observable seams as the built-in
 // ones. The CC-NOTIFY-PARITY rows ride the same fixture, declaring notification
 // and waiting-detection capabilities on the descriptor instead of an
-// `initialPrompt`. `installed` defaults to false, which since #521 means a
+// `initialPrompt`. `installed` defaults to false, which since #1114 means a
 // launch resolves no agent at all and fails rather than falling back.
 const agentFixture = vi.hoisted(() => ({
   pluginId: "acme-agent",
@@ -488,7 +488,7 @@ afterAll(() => {
 
 // ── Area 1: jig injection ──
 //
-// #521 removed the built-in launch path, so every CC-JIG row is now proved on
+// #1114 removed the built-in launch path, so every CC-JIG row is now proved on
 // the agent-plugin path in Area 1b. What stays here are the rows that are about
 // the ROUTE rather than the agent: a bad jig id, and a launch that resolves no
 // agent at all.
@@ -516,7 +516,7 @@ describe("jig injection route contract (CC-JIG)", () => {
     expect(res.status).toBe(201);
     const spawn = lastSpawn();
     expect(spawn.file).toBe("/bin/zsh");
-    // `-l` only: the login-shell flag, never an agent argv (#762).
+    // `-l` only: the login-shell flag, never an agent argv (#1154).
     expect(spawn.args).toEqual(["-l"]);
     // Core writes no agent-specific settings file of its own (AP-TC-104).
     expect(existsSync(workspaceSettingsPath(workspacePath))).toBe(false);
@@ -721,7 +721,7 @@ describe("jig injection through the agent plugin (AP-TC-096)", () => {
 
 // ── Area 2: the agent workspace settings file ──
 //
-// The built-in writer this area used to pin was removed in #521: core writes no
+// The built-in writer this area used to pin was removed in #1114: core writes no
 // agent-specific settings file on a launch at all. The whole area now lives in
 // CC-PERM-08 below, which pins the descriptor's workspace writes (the hook
 // wiring, the rule arrays, the preserve-unknown-keys merge) as the one
@@ -928,8 +928,8 @@ describe("quiescence and lifecycle notifications (CC-QUI)", () => {
     expect(notificationsOfType(bench, "agent-waiting")).toHaveLength(0);
   });
 
-  // Since #521 there is one exited notification and it is product-neutral:
-  // `agent-exited`, raised by the plugin launch path (#646). This row pins that
+  // Since #1114 there is one exited notification and it is product-neutral:
+  // `agent-exited`, raised by the plugin launch path (#1053). This row pins that
   // a hook-wired agent session raises it at all, which it did not before
   // AP-FR-013 wired `onAgentExit`.
   it("CC-QUI-05: an agent session's exit records agent-exited", async () => {
@@ -1044,7 +1044,7 @@ describe("descriptor-driven notification parity (CC-NOTIFY-PARITY)", () => {
 // ── Area 5: version gate ──
 //
 // The built-in `claude --version` probe and its POST /api/settings/claude-code/
-// recheck route went with the rest of the built-in path in #521. The version
+// recheck route went with the rest of the built-in path in #1114. The version
 // gate is now the descriptor's own declared probe, resolved by
 // agent-version-probe.ts and pinned in agent-version-probe.test.ts and the
 // AP-FR-014 rows of terminal-agent-session.test.ts. There is nothing
@@ -1122,7 +1122,7 @@ describe("permissions CRUD and resync (CC-PERM)", () => {
   });
 
   it("CC-PERM-06: resync additively unions the project rules into every operable bench workspace and reports resynced/skipped/errors", async () => {
-    // Since #521 the agent plugin is the ONLY carrier, so resync needs one
+    // Since #1114 the agent plugin is the ONLY carrier, so resync needs one
     // installed to have anywhere to write (AP-TC-101).
     agentFixture.installed = true;
     agentFixture.descriptor = claudeCodePluginDescriptor({
@@ -1187,7 +1187,7 @@ describe("permissions CRUD and resync (CC-PERM)", () => {
   });
 });
 
-// ── Binary discovery (#645) ──
+// ── Binary discovery (#1056) ──
 //
 // Not a parity-matrix row: this pins the one parity gap the matrix left open,
 // namely that the matrix's argv and correlation rows say nothing about how the
@@ -1198,7 +1198,7 @@ describe("permissions CRUD and resync (CC-PERM)", () => {
 // every other row wants) so this is pinned against the shipping resolver, not a
 // stub.
 
-describe("agent CLI discovery (#645)", () => {
+describe("agent CLI discovery (#1056)", () => {
   it("a descriptor command resolves through the shared well-known install list", async () => {
     const env = await vi.importActual<typeof import("./services/env.js")>("./services/env.js");
     const candidates = env.wellKnownPathsFor("claude");
@@ -1209,7 +1209,7 @@ describe("agent CLI discovery (#645)", () => {
 
     mkdirSync(join(isolation.tmpHome, ".claude", "local"), { recursive: true });
     // 0o755 is load-bearing: resolution gates on an executable regular file
-    // (#651), so a default-0644 shim would be skipped like a broken install.
+    // (#1060), so a default-0644 shim would be skipped like a broken install.
     writeFileSync(shim, "#!/bin/sh\nexec true\n", { mode: 0o755 });
 
     const original = { PATH: process.env.PATH, SHELL: process.env.SHELL };
@@ -1233,7 +1233,7 @@ describe("agent CLI discovery (#645)", () => {
   });
 
   // The same install shape, for a CLI the host's own table has never heard of
-  // (#712). This is what the manifest field buys: a base name other than
+  // (#1115). This is what the manifest field buys: a base name other than
   // `claude` resolving on an install whose PATH the server never inherits,
   // against the shipping resolver and real files on disk.
   it("a non-claude CLI resolves from its plugin manifest's declared locations", async () => {
@@ -1246,7 +1246,7 @@ describe("agent CLI discovery (#645)", () => {
     mkdirSync(installDir, { recursive: true });
     // 0o644 on the first candidate, 0o755 on the second: the executability gate
     // still applies to a declared location, so the broken one must not shadow
-    // the working one (#651).
+    // the working one (#1060).
     const broken = join(isolation.tmpHome, "acme-broken");
     writeFileSync(broken, "#!/bin/sh\nexec true\n", { mode: 0o644 });
     writeFileSync(installed, "#!/bin/sh\nexec true\n", { mode: 0o755 });
@@ -1378,7 +1378,7 @@ describe("plugin-descriptor parity for the settings write (CC-PERM-08)", () => {
     runPluginWrites(plugin, rules);
 
     // The exact bytes the removed built-in writer produced for these inputs,
-    // frozen here as literal expected output. #521 deleted that writer, so the
+    // frozen here as literal expected output. #1114 deleted that writer, so the
     // parity claim can no longer be proved by running both; it is proved by
     // pinning the target instead, which is what a parity baseline is for.
     const expected = JSON.stringify(

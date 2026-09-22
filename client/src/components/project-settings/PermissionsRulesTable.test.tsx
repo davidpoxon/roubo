@@ -354,10 +354,10 @@ describe("PermissionsRulesTable", () => {
     });
   });
 
-  // #862: a rule whose tier the project's agent cannot carry is still listed,
+  // #1345: a rule whose tier the project's agent cannot carry is still listed,
   // because this table is the only place to see and delete it, but it is marked
   // and no picker offers that tier to anything else.
-  describe("rule tiers the agent does not carry (#862)", () => {
+  describe("rule tiers the agent does not carry (#1345)", () => {
     const rules: PermissionRule[] = [
       { type: "allow", pattern: "Read(src/**)" },
       { type: "ask", pattern: "Bash(git push:*)" },

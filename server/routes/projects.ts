@@ -61,7 +61,7 @@ function describeInvalidConfig(parseResult: ReturnType<typeof validateConfigObje
 // the filesystem. Applied per-route (not router-wide) because projects.ts shares
 // the /api/projects mount with the bench, terminal, inspection and other routers.
 // Mirrors the pattern in plugins-github-oauth.ts and satisfies CodeQL
-// js/missing-rate-limiting (#40, #39).
+// js/missing-rate-limiting (#87, #84).
 const scanRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 30,
@@ -266,7 +266,7 @@ router.get("/:projectId/issue-types", async (req, res) => {
     // ProjectIssueTypesV2Response shape (and the IssueTypeMappingsSection
     // component that renders it) both use string names, so flatten on the way
     // out. Without this map the client renders `{id, name}` objects directly
-    // as React children and crashes with React error #31.
+    // as React children and crashes with React error #68.
     await awaitPendingIntegrationSetup(req.params.projectId);
     const rawTypes = await pluginManager.invoke<Array<{ id: string; name: string }>>(
       active.pluginId,
@@ -298,7 +298,7 @@ router.get("/:projectId/issue-types", async (req, res) => {
 // minute per IP to prevent a runaway caller from saturating disk I/O. Applied
 // per-route (not router-wide) because projects.ts shares the /api/projects mount
 // with the bench, terminal, inspection and other routers. Mirrors the pattern in
-// plugins-github-oauth.ts and satisfies CodeQL js/missing-rate-limiting (#41).
+// plugins-github-oauth.ts and satisfies CodeQL js/missing-rate-limiting (#89).
 const saveConfigRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 30,
@@ -364,7 +364,7 @@ router.delete("/:projectId", (req, res) => {
     if (err instanceof ProjectRegistryError) {
       const status = err.code === "NOT_FOUND" ? 404 : err.code === "HAS_BENCHES" ? 409 : 400;
       // Spread the code-specific details (HAS_BENCHES carries benchCount /
-      // benchIds) so the client can explain what forcing would drop (#829).
+      // benchIds) so the client can explain what forcing would drop (#1191).
       res.status(status).json({ error: err.message, code: err.code, ...(err.details ?? {}) });
     } else {
       res.status(500).json({ error: (err as Error).message });
@@ -380,7 +380,7 @@ router.get("/:projectId/config", (req, res) => {
   }
   if (!project.configValid) {
     // Surface the path-keyed field errors alongside the joined message so an
-    // invalid component binding renders per-path at config-load (issue #399).
+    // invalid component binding renders per-path at config-load (#884).
     res.status(400).json({
       error: project.configError,
       configValid: false,
@@ -398,7 +398,7 @@ router.get("/:projectId/config", (req, res) => {
 // from saturating disk I/O. Applied per-route (not router-wide) because
 // projects.ts shares the /api/projects mount with the bench, terminal,
 // inspection and other routers. Mirrors the pattern in plugins-github-oauth.ts
-// and satisfies CodeQL js/missing-rate-limiting (GET #42, PUT #43).
+// and satisfies CodeQL js/missing-rate-limiting (GET #91, PUT #93).
 const configRawRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 30,

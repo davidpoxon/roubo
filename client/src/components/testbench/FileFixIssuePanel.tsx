@@ -5,7 +5,7 @@ import type { FixIssueRecord } from "@roubo/shared";
 import { useFileFixIssue } from "../../hooks/useGates";
 import { ApiError } from "../../lib/api";
 
-// Fix-issue filing panel (#706, VG-FR-009/VG-FR-010, VG-US-006; verify-gate VG-TC-045 /
+// Fix-issue filing panel (#735, VG-FR-009/VG-FR-010, VG-US-006; verify-gate VG-TC-045 /
 // VG-TC-052 / VG-TC-053). Hosted in the batch surface, it opens when the selected
 // gating case is failed: the operator captures failure notes and files a tracker
 // issue wired to block the gate, so the gate stays not-passable until the fix

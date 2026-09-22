@@ -251,7 +251,7 @@ describe("GET /:projectId/issues", () => {
     );
   });
 
-  it("parses refresh=true and folds it into the query input (#653)", async () => {
+  it("parses refresh=true and folds it into the query input (#654)", async () => {
     vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
       items: [],
       nextCursor: null,
@@ -266,7 +266,7 @@ describe("GET /:projectId/issues", () => {
     );
   });
 
-  it("treats any non-'true' refresh value as false (#653)", async () => {
+  it("treats any non-'true' refresh value as false (#654)", async () => {
     vi.mocked(cutListQueryService.queryFirstOrPage).mockResolvedValue({
       items: [],
       nextCursor: null,
@@ -688,7 +688,7 @@ describe("POST /:projectId/issues/:externalId/transitions", () => {
       currentState: "In Review",
       allowedTransitions: ["Done"],
     });
-    // Faithful to the plugin's declared contract (issue #642): applyTransition
+    // Faithful to the plugin's declared contract (#1047): applyTransition
     // reads `params.transition`, so a host that puts the value on any other key
     // is rejected here instead of being waved through by a permissive mock.
     vi.mocked(pluginManager.invoke).mockImplementation(async (_pluginId, method, params) => {
@@ -938,10 +938,10 @@ describe("POST /:projectId/benches/:id/assign-issue", () => {
     expect(res.status).toBe(404);
   });
 
-  // Hard start-gate (#699): the same enforcement as create-and-assign applies on
+  // Hard start-gate (#722): the same enforcement as create-and-assign applies on
   // the direct assign path (AC6). The gate runs after getIssue, reusing the
   // fetched issue, and before issueAssignment.assignIssue.
-  describe("hard start-gate (#699)", () => {
+  describe("hard start-gate (#722)", () => {
     beforeEach(() => {
       vi.mocked(pluginManager.invoke).mockImplementation(((_id: string, method: string) =>
         method === "getComments"
@@ -1030,7 +1030,7 @@ describe("POST /:projectId/benches/:id/assign-issue", () => {
       expect(issueAssignment.assignIssue).not.toHaveBeenCalled();
     });
 
-    it("ON + prefetch fails: the bounded read fails closed with 409 GATE_INDETERMINATE before the gate runs (#438)", async () => {
+    it("ON + prefetch fails: the bounded read fails closed with 409 GATE_INDETERMINATE before the gate runs (#917)", async () => {
       // Enforcement ON: fetchIssueForStart bounds the getIssue prefetch and, on a
       // hung or failing read, throws GATE_INDETERMINATE. That must surface as a
       // clean 409, not be remapped as a 502/504 plugin RPC error, and the gate

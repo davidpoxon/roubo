@@ -8,7 +8,7 @@
 // component-plugins-e2e.test.ts (CP-TC-027) precedent: it exercises the
 // integrated journey through the REAL production seams of the slices it spans,
 // rather than re-testing any single slice. The journey owned by this work unit
-// spans #598, #605, #606, #607, #613, #616, #619; a failing step is localised
+// spans #634, #648, #650, #647, #657, #658, #672; a failing step is localised
 // back to the owning slice(s) via OWNING_SLICES below (FR-020).
 //
 // Hermetic by construction (matching lifecycle-engine.test.ts and the TC-027
@@ -17,14 +17,14 @@
 // through their pure seams:
 //   - the crash signal               -> the REAL bench-manager crash hook
 //     handleComponentPluginPreRestart(dbPluginId) (the sink plugin-manager fires
-//     the instant a supervised `component` plugin exits, #613).
+//     the instant a supervised `component` plugin exits, #657).
 //   - the post-restart re-provision  -> the REAL bench-manager hook
 //     handleComponentPluginRestarted(dbPluginId), driven by direct invocation
 //     (NOT a wall-clock wait), which re-runs the REAL LifecycleEngine with an
-//     injected fake DockerLike, so no Docker daemon runs (#606, #616).
+//     injected fake DockerLike, so no Docker daemon runs (#650, #658).
 //   - the ResourceOwnershipLedger    -> the REAL ledger persisting into the
 //     isolated ~/.roubo/state.json (recordComposeProject / getEntry / clearEntry,
-//     #607).
+//     #647).
 //   - the orphan-teardown invariant  -> the REAL pre-restart cleanup calling the
 //     fake dockerService.composeDownByProject, which removes the brought-up
 //     compose project from a live set (the zero-orphan invariant, NFR-003).
@@ -34,7 +34,7 @@
 //     is a drift guard against the REAL system, so S007 asserts whatever the
 //     integrated system actually emits, FR-014 / NFR-004).
 //   - logs                           -> the REAL component-log-store, the read
-//     side of GET .../components/db/logs (#616).
+//     side of GET .../components/db/logs (#658).
 //
 // State isolation: ROUBO_PRODUCTION + a mocked os.homedir pin the ~/.roubo state
 // dir (state.json) into a throwaway dir before any state-touching module resolves
@@ -50,9 +50,10 @@ import { describe, it, expect, beforeEach, afterAll, afterEach, vi } from "vites
 import type { Response } from "express";
 import type { RegisteredProject, RouboConfig, PersistedState } from "@roubo/shared";
 
-// The slices this journey integrates, from #627's blocked-by / covers set.
+// The slices this journey integrates, from #682's blocked-by / covers set.
 // Reported when a step diverges so a failure is attributable (FR-020).
-const OWNING_SLICES = "#598, #605, #606, #607, #613, #616, #619";
+const OWNING_SLICES =
+  "host-owns vs plugin-owns component lifecycle spike, HostComponentBroker RPC surface, LifecycleEngine, ResourceOwnershipLedger, crash cleanup + teardown, plugin-backed component status/logs parity, AuditLog of privileged broker calls";
 
 const PROJECT_ID = "test-project";
 const DB_PLUGIN_ID = "database";
@@ -360,7 +361,7 @@ const TC061_SEQUENCE = [
 // ── FR-020 failure-output wrapper ──
 //
 // Each CP-TC-061 step runs inside step(): on divergence it reports the diverging
-// step label, the expected-vs-actual, and the owning slice issue(s), so a failure
+// step label, the expected-vs-actual, and the owning slice(s), so a failure
 // is attributable to a slice rather than the whole journey.
 async function step<T>(label: string, expectation: string, body: () => T | Promise<T>): Promise<T> {
   try {

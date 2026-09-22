@@ -15,12 +15,12 @@ import { AGENT_ARGV_LOG_PATH, clearCapturedArgv, readCapturedArgv } from "./_sup
 // "AP-TC-002".
 const observe = makeObserve("AP-TC-002");
 
-// AP-TC-002 (#525, AP-WU-024) - E2E: install an agent plugin, configure app
+// AP-TC-002 (#1123, AP-WU-024) - E2E: install an agent plugin, configure app
 // defaults, override in a project, and verify effective config.
 //
 // The integration-level drift guard for the AP-US-001 / AP-US-002 journey,
-// spanning the slices this unit is blocked by (#506, #507, #508, #509, #510,
-// #513, #514, #522, #537). It walks the authoritative AP-TC-002 e2e_flow steps
+// spanning the slices this unit is blocked by (delivered in #950, #1026, #1032, #1044, #1048,
+// #1055, #1058, #1112). It walks the authoritative AP-TC-002 e2e_flow steps
 // S001-S008 as ordered, attributable observations against the REAL built app. On
 // divergence each observation routes through the FR-020 failure-output contract
 // (see ../component-plugins/_support/step-runner.ts): the failure reports which

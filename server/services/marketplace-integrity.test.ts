@@ -14,10 +14,10 @@ import {
 } from "./marketplace-integrity.js";
 
 // Unit tests for the marketplace channel-integrity primitives (CP-FR-021,
-// issue #622): deterministic canonicalization, ed25519 catalog-signature
+// #690): deterministic canonicalization, ed25519 catalog-signature
 // verification (fail-closed), and the deterministic built-artifact digest +
 // integrity check. The digest now targets the unpacked built artifact (issue
-// #765, FR-003/NFR-006), not the cloned source subdir.
+// #792, FR-003/NFR-006), not the cloned source subdir.
 
 // Assemble an unpacked built-artifact fixture: the ReleaseAsset file set the
 // marketplace digests (dist/index.js + roubo-plugin.yaml + package.json +
@@ -35,7 +35,7 @@ async function writeBuiltArtifact(dir: string): Promise<void> {
 }
 
 // Assemble a cloned-source-subdir fixture: src/ + build config, no dist/. This
-// is the OLD digest target (issue #689 / #750); the digest must now distinguish
+// is the OLD digest target (#696 / #751); the digest must now distinguish
 // it from the built artifact above.
 async function writeSourceSubdir(dir: string): Promise<void> {
   await mkdir(path.join(dir, "src"), { recursive: true });
@@ -62,7 +62,7 @@ describe("canonicalize", () => {
   });
 });
 
-// Key-ring trust chain (CPHM-FR-007 / NFR-001, issue #306): the client mirrors
+// Key-ring trust chain (CPHM-FR-007 / NFR-001, #845): the client mirrors
 // the producer publish gate (roubo-plugins scripts/release/verify-keyring.mjs).
 // Verification is exercised against an independent generated root + operational
 // keypair, never the embedded bootstrap root (whose private half is held out of
@@ -322,16 +322,16 @@ describe("computePackageDigest / verifyPackageIntegrity (over the built artifact
   });
 });
 
-describe("catalog integrity digests bind to the built artifact (reconciles #689 / #750 onto #765)", () => {
-  // The #689 / #750 guard verified that the committed catalog's `integrity`
+describe("catalog integrity digests bind to the built artifact (reconciles #696 / #751 onto #792)", () => {
+  // The #696 / #751 guard verified that the committed catalog's `integrity`
   // digests were real content digests of each `plugins/<id>` SOURCE subdir.
-  // Issue #765 retargets the digest to the unpacked BUILT artifact, so that
+  // #792 retargets the digest to the unpacked BUILT artifact, so that
   // source-subdir assertion no longer holds: the committed catalog's digests are
   // over source and signed with an out-of-band key, so they cannot be recomputed
   // and re-signed against built artifacts here, and catalog (re)generation moves
   // to the external roubo-plugins CI under the de-bundling (catalog hosting #5,
   // download/unpack install #7 are both out of scope for this slice). What stays
-  // load-bearing and in-scope is the property #689 / #750 protected: a catalog
+  // load-bearing and in-scope is the property #696 / #751 protected: a catalog
   // `integrity` digest must be a real content digest of the artifact the
   // installer verifies, and any drift or placeholder fails closed. We assert that
   // property over a synthetic catalog entry whose digest is computed over an
@@ -367,7 +367,7 @@ describe("catalog integrity digests bind to the built artifact (reconciles #689 
 
   it("rejects a wrong/placeholder catalog digest against a real built artifact (fail closed)", async () => {
     // A placeholder or otherwise incorrect catalog digest must fail closed, which
-    // is exactly the drift regression the #689 / #750 guard existed to catch.
+    // is exactly the drift regression the #696 / #751 guard existed to catch.
     await writeBuiltArtifact(dir);
     expect(await verifyPackageIntegrity(dir, "sha256-demo-0.1.0-PLACEHOLDER")).toBe(false);
     expect(await verifyPackageIntegrity(dir, `sha256-${"0".repeat(64)}`)).toBe(false);

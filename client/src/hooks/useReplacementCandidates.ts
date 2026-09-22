@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import * as api from "../lib/api";
 
-// Load the replacement picker's candidate closure (#774, SATCA-FR-028/FR-029):
+// Load the replacement picker's candidate closure (#1169, SATCA-FR-028/FR-029):
 // the chosen specification's cases plus every spec its pointers transitively
 // reach, so the picker can preview a candidate pointer with the SAME shared
 // resolver the gate uses rather than a second implementation of the rules.

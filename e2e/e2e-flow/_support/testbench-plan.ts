@@ -10,7 +10,7 @@ import {
   type WorkUnitsFile,
 } from "@roubo/shared/work-units-contract";
 
-// TC-001 (#438): the authoritative `e2e_flow` case the create-a-TestBench journey
+// TC-001 (#478): the authoritative `e2e_flow` case the create-a-TestBench journey
 // drift-guards against. This is the schema-valid (TestCasesPlanSchema) projection
 // of `.specifications/testbench/test-cases.json` TC-001: the same id, title,
 // preconditions, and step-by-step expectations, expressed as the TestBench plan
@@ -118,7 +118,7 @@ export const TC_001_PLAN: TestCasesPlan = {
   ],
 };
 
-// TC-006 (#443): the authoritative `e2e_flow` case the
+// TC-006 (#484): the authoritative `e2e_flow` case the
 // "create-a-TestBench from a valid manual file path" journey drift-guards
 // against. This is the schema-valid (TestCasesPlanSchema) projection of
 // `.specifications/testbench/test-cases.json` TC-006: the same id, title, and
@@ -199,26 +199,26 @@ export const TC_006_PLAN: TestCasesPlan = {
 
 // The slices that own each leg of this journey, surfaced in a failing run so the
 // divergence localises to an attributable slice (FR-020 / AC7). The mapping is
-// the create-a-TestBench work units' `blocked_by` / `covers` set (issues #438
-// for TC-001, #443 for TC-006):
-//   #414 settings toggle (TestBench enablement),
-//   #416 bench-variant create (worktree binding + variant tab surface),
-//   #418 create-a-TestBench flow (empty-slot option + spec-picker + manual-path
+// the create-a-TestBench work units' `blocked_by` / `covers` set (delivered in #478
+// for TC-001, #484 for TC-006):
+//   #456 settings toggle (TestBench enablement),
+//   #459 bench-variant create (worktree binding + variant tab surface),
+//   #467 create-a-TestBench flow (empty-slot option + spec-picker + manual-path
 //        escape hatch + live validation, FR-003),
-//   #419 TestBench review tab (focused slug/path + results panel).
+//   #466 TestBench review tab (focused slug/path + results panel).
 export const OWNING_SLICES: Record<string, string> = {
-  enable: "#414 (TestBench settings toggle)",
-  emptySlotMenu: "#418 (create-a-TestBench flow: empty-slot option)",
-  specPicker: "#418 (create-a-TestBench flow: spec-picker modal)",
-  discoveredRow: "#418 (create-a-TestBench flow: spec discovery)",
-  manualPathInput: "#418 (create-a-TestBench flow: manual-path escape hatch)",
-  manualPathValidation: "#418 (create-a-TestBench flow: live manual-path validation, FR-003)",
-  createBinding: "#416 (bench-variant create: spec-bound worktree)",
-  variantTabs: "#416 (bench-variant create: TestBench-first tab surface)",
-  reviewPanel: "#419 (TestBench review tab: focused slug/path + results panel)",
+  enable: "TestBench settings toggle",
+  emptySlotMenu: "create-a-TestBench flow: empty-slot option",
+  specPicker: "create-a-TestBench flow: spec-picker modal",
+  discoveredRow: "create-a-TestBench flow: spec discovery",
+  manualPathInput: "create-a-TestBench flow: manual-path escape hatch",
+  manualPathValidation: "create-a-TestBench flow: live manual-path validation, FR-003",
+  createBinding: "bench-variant create: spec-bound worktree",
+  variantTabs: "bench-variant create: TestBench-first tab surface",
+  reviewPanel: "TestBench review tab: focused slug/path + results panel",
 };
 
-// TC-069 (#441): the authoritative `e2e_flow` case the toggle-off-and-on journey
+// TC-069 (#485): the authoritative `e2e_flow` case the toggle-off-and-on journey
 // drift-guards against, restated verbatim from `.specifications/testbench/test-cases.json`
 // TC-069 (id, title, preconditions, and per-step expected observations). The e2e
 // spec walks each leg against this object so a journey change moves the case and
@@ -269,20 +269,20 @@ export const TC_069 = {
 
 // The slices that own each leg of the TC-069 journey, surfaced in a failing run so
 // the divergence localises to an attributable slice (FR-020 / AC6). The mapping is
-// this work unit's `blocked_by` / `covers` set from issue #441:
-//   #414 the app-settings TestBench tab + enable toggle,
-//   #416 the bench-variant wiring that derives the gated surface from the toggle,
-//   #417 the UserPreferences testBench.enabled persistence the toggle round-trips,
-//   #418 the create-a-TestBench entry point gated on the toggle.
+// this work unit's `blocked_by` / `covers` set from #485:
+//   #456 the app-settings TestBench tab + enable toggle,
+//   #459 the bench-variant wiring that derives the gated surface from the toggle,
+//   #462 the UserPreferences testBench.enabled persistence the toggle round-trips,
+//   #467 the create-a-TestBench entry point gated on the toggle.
 export const TC_069_OWNING_SLICES = {
-  toggle: "#414 (app-settings TestBench tab + enable toggle)",
-  helperText: "#414 (app-settings TestBench tab: disabled helper text)",
-  persistence: "#417 (UserPreferences testBench.enabled persistence)",
-  gatedSurface: "#418 (create-a-TestBench entry point gated on the toggle)",
-  surfaceWiring: "#416 (bench-variant wiring: testBenchEnabled derived from settings)",
+  toggle: "app-settings TestBench tab + enable toggle",
+  helperText: "app-settings TestBench tab: disabled helper text",
+  persistence: "UserPreferences testBench.enabled persistence",
+  gatedSurface: "create-a-TestBench entry point gated on the toggle",
+  surfaceWiring: "bench-variant wiring: testBenchEnabled derived from settings",
 } as const;
 
-// TC-007 (#444): the authoritative `e2e_flow` case the re-point journey
+// TC-007 (#486): the authoritative `e2e_flow` case the re-point journey
 // drift-guards against. The journey re-points a TestBench from spec-A to spec-B
 // and back, asserting per-spec result isolation. Two distinct plans are seeded
 // into the one fixture repo so isolation is observable: spec-A (TC_007_PLAN_A)
@@ -351,31 +351,31 @@ export const TC_007_PLAN_B: TestCasesPlan = {
 
 // The slices that own each leg of the re-point journey, surfaced in a failing
 // run so the divergence localises to an attributable slice (FR-020 / AC5). The
-// mapping is this work unit's `blocked_by` set from issue #444:
-//   #414 settings toggle (TestBench enablement),
-//   #416 bench-variant create (spec-bound worktree + variant tab surface),
-//   #423 re-point (header "Change focused spec" action + spec-picker repoint
+// mapping is this work unit's `blocked_by` set from #486:
+//   #456 settings toggle (TestBench enablement),
+//   #459 bench-variant create (spec-bound worktree + variant tab surface),
+//   #472 re-point (header "Change focused spec" action + spec-picker repoint
 //        mode + per-spec results reload).
 export const OWNING_SLICES_TC007: Record<string, string> = {
-  enable: "#414 (TestBench settings toggle)",
-  createBinding: "#416 (bench-variant create: spec-bound worktree)",
-  reviewPanel: "#416 (bench-variant create: TestBench tab surface + results panel)",
-  repointAction: "#423 (re-point: 'Change focused spec' header action)",
-  specPicker: "#423 (re-point: spec-picker in repoint mode with active-spec marker)",
-  resultsIsolation: "#423 (re-point: per-spec results reload + isolation)",
+  enable: "TestBench settings toggle",
+  createBinding: "bench-variant create: spec-bound worktree",
+  reviewPanel: "bench-variant create: TestBench tab surface + results panel",
+  repointAction: "re-point: 'Change focused spec' header action",
+  specPicker: "re-point: spec-picker in repoint mode with active-spec marker",
+  resultsIsolation: "re-point: per-spec results reload + isolation",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TC-043 (#440): the authoritative `e2e_flow` case the persist -> staleness ->
+// TC-043 (#487): the authoritative `e2e_flow` case the persist -> staleness ->
 // reconcile journey drift-guards against. The journey spans:
-//   #406 atomic/EXDEV-safe sidecar write,
-//   #407 canonical staleness hash + orphan-not-delete reconcile spike,
-//   #412 mark observations / derived status,
-//   #413 reconcile algorithm (added/changed/orphan classification),
-//   #415 sidecar store (fail-open read, persist, planHash),
-//   #416 TestBench REST routes,
-//   #422 staleness banner + reconcile dialog UI.
-// This work unit (#440) is the integration-level drift guard: it asserts the
+//   #428 atomic/EXDEV-safe sidecar write,
+//   #429 canonical staleness hash + orphan-not-delete reconcile spike,
+//   #446 mark observations / derived status,
+//   #450 reconcile algorithm (added/changed/orphan classification),
+//   #457 sidecar store (fail-open read, persist, planHash),
+//   #459 TestBench REST routes,
+//   #465 staleness banner + reconcile dialog UI.
+// This work unit (#487) is the integration-level drift guard: it asserts the
 // integrated journey end to end, not any single slice's implementation. The
 // highest-risk invariant is NFR-003: no authored mark or note is ever lost.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -483,32 +483,32 @@ export const TC_043_PLAN_AFTER_EDIT: TestCasesPlan = {
 // The slices that own each leg of the persist -> staleness -> reconcile journey,
 // surfaced in a failing run so the divergence localises to an attributable slice
 // (FR-020 / AC7). The mapping is this work unit's `blocked_by` / `covers` set
-// from issue #440.
+// from #487.
 export const TC_043_OWNING_SLICES: Record<string, string> = {
-  enable: "#414 (TestBench settings toggle)",
-  create: "#416/#418 (create-a-TestBench flow + spec-bound worktree)",
-  reviewPanel: "#419 (TestBench review tab: focused slug/path + results panel)",
-  marks: "#412/#415 (mark observations + sidecar persist)",
-  notes: "#415 (notes persisted in the sidecar)",
-  persist: "#406/#415 (atomic sidecar write + fail-open re-read)",
-  staleness: "#407/#415/#422 (canonical staleness hash + amber banner)",
-  reconcile: "#413/#422 (reconcile classification + dialog)",
-  apply: "#413/#422 (apply reconcile: orphan-not-delete)",
-  integrity: "#406/#413 (NFR-003: archived results retained, source plan unchanged)",
+  enable: "TestBench settings toggle",
+  create: "create-a-TestBench flow + spec-bound worktree",
+  reviewPanel: "TestBench review tab: focused slug/path + results panel",
+  marks: "mark observations + sidecar persist",
+  notes: "notes persisted in the sidecar",
+  persist: "atomic sidecar write + fail-open re-read",
+  staleness: "canonical staleness hash + amber banner",
+  reconcile: "reconcile classification + dialog",
+  apply: "apply reconcile: orphan-not-delete",
+  integrity: "NFR-003: archived results retained, source plan unchanged",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TSPF-TC-010 (#486): the authoritative `e2e_flow` case the "create a TestBench
+// TSPF-TC-010 (#940): the authoritative `e2e_flow` case the "create a TestBench
 // from the PARTITIONED picker, selecting an all-passed spec from the disclosure"
 // journey drift-guards against. Restated from
 // `.specifications/testbench-spec-picker-filter/test-cases.json` TSPF-TC-010: the
 // same id, preconditions, and per-step expected observations (S001-S005). The
 // journey spans this work unit's blocked-by set:
-//   #482 discovery aggregation (per-spec verification + classification),
-//   #483 partitioned spec picker (needs-attention main space + collapsed
+//   #936 discovery aggregation (per-spec verification + classification),
+//   #937 partitioned spec picker (needs-attention main space + collapsed
 //        all-passed disclosure + per-row pass-state summaries + cross-group
 //        single selection),
-//   #484 empty-state / a11y slice (the main space when every spec is all-passed;
+//   #939 empty-state / a11y slice (the main space when every spec is all-passed;
 //        a conservative superset member, its empty state must NOT fire here).
 //
 // The one genuinely new fixture mechanism the journey needs: the picker can only
@@ -649,18 +649,18 @@ export const TSPF_TC_010_ALL_PASSED_CASE_COUNT = TSPF_TC_010_ALL_PASSED_PLAN.cas
 // failing run so a divergence localises to an attributable slice from THIS unit's
 // blocked-by set (FR-020 / the issue's AC7 failure-output contract).
 export const TSPF_TC_010_OWNING_SLICES: Record<string, string> = {
-  picker: "#483 (partitioned spec picker: modal opens from the empty-slot flow)",
-  discovery: "#482 (discovery aggregation: per-spec verification + classification)",
-  mainSpace: "#483/#484 (partitioned picker: needs-attention main space, no all-passed leak)",
-  summary: "#482/#483 (discovery pass-state aggregate + per-row summary)",
-  disclosure: "#483 (partitioned picker: collapsed all-passed disclosure)",
-  expandedRows: "#483 (partitioned picker: expanded, de-emphasized all-passed rows)",
-  selection: "#483 (partitioned picker: cross-group single selection)",
-  createBinding: "#482/#483 (discovery classification + picker create binding)",
+  picker: "partitioned spec picker: modal opens from the empty-slot flow",
+  discovery: "discovery aggregation: per-spec verification + classification",
+  mainSpace: "partitioned picker: needs-attention main space, no all-passed leak",
+  summary: "discovery pass-state aggregate + per-row summary",
+  disclosure: "partitioned picker: collapsed all-passed disclosure",
+  expandedRows: "partitioned picker: expanded, de-emphasized all-passed rows",
+  selection: "partitioned picker: cross-group single selection",
+  createBinding: "discovery classification + picker create binding",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TSPF-TC-011 (#487): the authoritative `e2e_flow` case the "change an active
+// TSPF-TC-011 (#942): the authoritative `e2e_flow` case the "change an active
 // TestBench's focused spec through the identical partitioned picker" journey
 // drift-guards against. This is the schema-valid projection of TSPF-TC-011 in
 // `.specifications/testbench-spec-picker-filter/test-cases.json`: opening the
@@ -834,29 +834,28 @@ export const TSPF_PASSED_PLAN: TestCasesPlan = {
 
 // The slices that own each leg of the TSPF-TC-011 journey, surfaced in a failing
 // run so a divergence localises to an attributable slice (AC5, the failure-output
-// contract). This work unit's `blocked_by` set is exactly {#483}: the partitioned
+// contract). This work unit's `blocked_by` set is exactly {#937}: the partitioned
 // spec-picker slice that both the create and re-point pickers render off. The
 // journey-proper steps (opening the shared picker, the partition + its identity
-// across both flows, the results-preserving re-point) therefore all name #483; the
+// across both flows, the results-preserving re-point) therefore all name #937; the
 // enable / create / review scaffolding steps name their own setup slices, which
 // are preconditions rather than part of the drift-guarded partition journey.
 export const OWNING_SLICES_TSPF_TC011: Record<string, string> = {
   // Preconditions (shared scaffolding, not the TSPF-TC-011 journey proper).
-  enable: "#414 (TestBench settings toggle)",
-  createBinding: "#416/#418 (create-a-TestBench flow: spec-bound worktree)",
-  reviewPanel: "#416 (bench-variant create: TestBench tab surface + results panel)",
-  // The TSPF-TC-011 journey proper (blocked by #483, the sole blocked-by).
-  repointAction: "#483 (partitioned spec picker: 'Change focused spec' opens the shared picker)",
+  enable: "TestBench settings toggle",
+  createBinding: "create-a-TestBench flow: spec-bound worktree",
+  reviewPanel: "bench-variant create: TestBench tab surface + results panel",
+  // The TSPF-TC-011 journey proper (blocked by #937, the sole blocked-by).
+  repointAction: "partitioned spec picker: 'Change focused spec' opens the shared picker",
   partition:
-    "#483 (partitioned spec picker: needs-attention main space + all-passed disclosure + per-row summaries)",
-  identicalPartition:
-    "#483 (partitioned spec picker: create and re-point render the identical partition)",
+    "partitioned spec picker: needs-attention main space + all-passed disclosure + per-row summaries",
+  identicalPartition: "partitioned spec picker: create and re-point render the identical partition",
   repointConfirm:
-    "#483 (partitioned spec picker: re-point confirm re-points and preserves the previous spec's results)",
+    "partitioned spec picker: re-point confirm re-points and preserves the previous spec's results",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SATCA-TC-035/036/037/038 (#770): the fixture set for the "hide archived specs
+// SATCA-TC-035/036/037/038 (#1162): the fixture set for the "hide archived specs
 // by default, reveal them on demand" picker journey. Three specs are seeded into
 // one fixture repo so the default list, the reveal control, and both archived
 // labels are all exercised:
@@ -918,7 +917,7 @@ export const SATCA_SUPERSEDED_PLAN: TestCasesPlan = archivalPlan(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// #773 (SATCA-TC-047/048/049/050): the spec lifecycle WRITE journey. Three live
+// #1166 (SATCA-TC-047/048/049/050): the spec lifecycle WRITE journey. Three live
 // specs, differing only in what manifest they start with, so one journey covers
 // every write shape:
 //   - SATCA_LIVE_SPEC_SLUG (reused above): no manifest at all, so archiving it
@@ -964,28 +963,28 @@ export const SATCA_WRITE_REASON = "Shipped in #212, all issues closed";
 
 // The slices that own each leg of the archival WRITE journey.
 export const SATCA_WRITE_OWNING_SLICES: Record<string, string> = {
-  archive: "#773 (spec lifecycle write: archive from the picker)",
-  minimal: "#773 (spec lifecycle write: minimal manifest creation)",
-  preserve: "#773 (spec lifecycle write: merge-write key preservation)",
-  supersede: "#773 (spec lifecycle write: supersede from the project's other specs)",
-  reverse: "#773 (spec lifecycle write: reversal from the same surface)",
+  archive: "spec lifecycle write: archive from the picker",
+  minimal: "spec lifecycle write: minimal manifest creation",
+  preserve: "spec lifecycle write: merge-write key preservation",
+  supersede: "spec lifecycle write: supersede from the project's other specs",
+  reverse: "spec lifecycle write: reversal from the same surface",
 };
 
 // The slices that own each leg of the archival-picker journey, surfaced in a
 // failing run so a divergence localises to an attributable slice.
 export const SATCA_PICKER_OWNING_SLICES: Record<string, string> = {
-  discovery: "#765 (spec lifecycle reader + per-spec lifecycle on discovery)",
-  hidden: "#770 (spec picker: archived specs hidden from the default list)",
-  reveal: "#770 (spec picker: the show-archived reveal control)",
-  labels: "#770 (spec picker: archived vs superseded row labels)",
-  selectable: "#770 (spec picker: a revealed archived spec stays selectable)",
-  panel: "#770 (TestBench panel: archived indicator for the focused spec)",
+  discovery: "spec lifecycle reader + per-spec lifecycle on discovery",
+  hidden: "spec picker: archived specs hidden from the default list",
+  reveal: "spec picker: the show-archived reveal control",
+  labels: "spec picker: archived vs superseded row labels",
+  selectable: "spec picker: a revealed archived spec stays selectable",
+  panel: "TestBench panel: archived indicator for the focused spec",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SATCA-TC-045 (#778): the spec archival JOURNEY. Its precondition is "a project
-// with several live specs and none archived", which is neither #770's fixture
-// (one spec pre-archived on disk) nor #773's (varied starting manifests), so the
+// SATCA-TC-045 (#1177): the spec archival JOURNEY. Its precondition is "a project
+// with several live specs and none archived", which is neither #1162's fixture
+// (one spec pre-archived on disk) nor #1166's (varied starting manifests), so the
 // journey seeds its own three specs. All three start LIVE (no manifest at all,
 // so the fail-open reader sees no record), and the journey archives, reveals,
 // loads and restores ONE of them through the real UI, end to end, in a single
@@ -1019,26 +1018,26 @@ export const SATCA_TC045_SIBLING_TWO_PLAN: TestCasesPlan = archivalPlan(
 export const SATCA_TC045_ARCHIVE_REASON = "Folded into the Phase 3 rework";
 
 // The slice that owns each step of the journey, surfaced in every failure
-// message so a red step localises to one attributable slice (#778, AC7).
+// message so a red step localises to one attributable slice (#1177, AC7).
 //
-// Reconciliation against the declared blocked-by set (#765, #769, #770, #771,
-// #774, #775, #781): the archive and restore WRITES that S002 and S005 drive are
-// owned by #773 (spec lifecycle write path), which is not in that set. Naming
+// Reconciliation against the declared blocked-by set (delivered in #1157, #1161, #1162, #1163,
+// #1169, #1173): the archive and restore WRITES that S002 and S005 drive are
+// owned by #1166 (spec lifecycle write path), which is not in that set. Naming
 // only an in-set slice there would point a red run at the wrong owner, so those
-// two steps name #773 as the true owner alongside the in-set slice whose surface
+// two steps name #1166 as the true owner alongside the in-set slice whose surface
 // the failure would appear on.
 export const SATCA_TC045_OWNING_SLICES: Record<string, string> = {
   precondition:
-    "#765 (spec lifecycle record: the fail-open reader, so a spec with no manifest reads live)",
-  s001: "#770 (spec picker: archived hidden by default, and no reveal control when nothing is archived)",
-  s002: "#773 (spec lifecycle write: archive from the picker), surfaced on #770's default list and recorded in #765's lifecycle record",
-  s003: "#770 (spec picker: the show-archived reveal control and the archived row label + reason)",
-  s004: "#770 (spec picker: a revealed archived spec stays selectable and loads into a bench)",
-  s005: "#773 (spec lifecycle write: restore from the same surface), surfaced on #770's default list",
+    "spec lifecycle record: the fail-open reader, so a spec with no manifest reads live",
+  s001: "spec picker: archived hidden by default, and no reveal control when nothing is archived",
+  s002: "spec lifecycle write: archive from the picker, surfaced on the spec picker's default list and recorded in the spec lifecycle record",
+  s003: "spec picker: the show-archived reveal control and the archived row label + reason",
+  s004: "spec picker: a revealed archived spec stays selectable and loads into a bench",
+  s005: "spec lifecycle write: restore from the same surface, surfaced on the spec picker's default list",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SATCA-TC-010 (#776): the CASE lifecycle FORMAT journey. The precondition the
+// SATCA-TC-010 (#1170): the CASE lifecycle FORMAT journey. The precondition the
 // case states is "a spec whose cases are all live", so the fixture plan seeds
 // three live cases and the journey applies the lifecycle blocks itself, by hand,
 // into the bench's own worktree. That ordering is the point: it proves the
@@ -1129,32 +1128,31 @@ export const SATCA_TC010_EDITED_PLAN: TestCasesPlan = {
 
 // The slices that own each leg of the case lifecycle format journey, surfaced in
 // every assertion message so a failing integrated run attributes the divergence
-// to a slice rather than to "the journey". Drawn from #776's blocked-by set,
-// minus the legs SATCA-TC-010 has no step for (#774's replacement picker and
-// #768/#781's verify gate are proven by their own journeys), plus the two
+// to a slice rather than to "the journey". Drawn from the work unit's blocked-by set,
+// minus the legs SATCA-TC-010 has no step for (#1169's replacement picker and
+// #1164's verify gate are proven by their own journeys), plus the two
 // preconditions the journey needs before any lifecycle block exists.
 export const SATCA_TC010_OWNING_SLICES: Record<string, string> = {
-  enable: "#416 (TestBench feature flag: the panel is reachable at all)",
-  create: "#438 (create a TestBench from an empty slot: spec-bound worktree)",
-  live: "#769 (rollup and panel: a case with no lifecycle block is live)",
-  contract: "#764 (case lifecycle block in the case contract, at schema v1.2.0)",
-  excluded: "#769 (rollup and panel: exclude non-live cases from the live list)",
-  archived: "#769 (rollup and panel: show non-live cases as archived, labelled)",
-  reason: "#769 (rollup and panel: the recorded reason is shown verbatim)",
-  replacement:
-    "#766/#763 (LifecycleResolver + pointer resolution rules: same-spec pointer, live predicate)",
+  enable: "TestBench feature flag: the panel is reachable at all",
+  create: "create a TestBench from an empty slot: spec-bound worktree",
+  live: "rollup and panel: a case with no lifecycle block is live",
+  contract: "case lifecycle block in the case contract, at schema v1.2.0",
+  excluded: "rollup and panel: exclude non-live cases from the live list",
+  archived: "rollup and panel: show non-live cases as archived, labelled",
+  reason: "rollup and panel: the recorded reason is shown verbatim",
+  replacement: "LifecycleResolver + pointer resolution rules: same-spec pointer, live predicate",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// #775 (SATCA-TC-019/044/057/078, SATCA-NFR-005): the archival accessibility
+// #1173 (SATCA-TC-019/044/057/078, SATCA-NFR-005): the archival accessibility
 // pass needs a spec whose PLAN already carries case-level lifecycle records, so
 // the panel's Archived section renders with both of its lifecycle shapes without
 // any in-app write first. One live case keeps the live list (and the case detail
 // pane, and its lifecycle disclosures) reachable; the retired case exercises the
 // reason text; the superseded case points at the live one, which is what makes
-// its "Replaced by" reveal an activatable control rather than inert text (#789).
+// its "Replaced by" reveal an activatable control rather than inert text (#1165).
 //
-// #797 adds a FOURTH case, live and unmarked in the plan, that the contrast spec
+// #1175 adds a FOURTH case, live and unmarked in the plan, that the contrast spec
 // marks and then retires in-app. The pass/fail mark colours in the Archived
 // section's ObservationMarks are unreachable from the fixture seam (the seeded
 // results synthesizer writes an empty `observationMarks` map for every case, and
@@ -1236,7 +1234,7 @@ export const SATCA_A11Y_PLAN: TestCasesPlan = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SATCA-TC-020 (#777): the rollup-and-panel RETIREMENT journey. The precondition
+// SATCA-TC-020 (#1176): the rollup-and-panel RETIREMENT journey. The precondition
 // the case states is "a spec open in a bench with at least three live cases", so
 // the fixture seeds exactly three, and the journey records a result against each
 // one before it retires anything. That ordering is what makes S003-O02 provable:
@@ -1252,7 +1250,7 @@ export const SATCA_A11Y_PLAN: TestCasesPlan = {
 //     be mistaken for "everything passed" arithmetic: the failed count has to
 //     stay at one across the retire and the restore.
 //
-// Unlike SATCA-TC-010 (#776), which authors the lifecycle block BY HAND in the
+// Unlike SATCA-TC-010 (#1170), which authors the lifecycle block BY HAND in the
 // case file, this journey drives the IN-APP retire control (S002 says "start the
 // retire action", and the reason-required / empty-refused observation exists only
 // on that control), then reverses it from the archived entry.
@@ -1318,32 +1316,32 @@ export function satcaTc020OverallLabel(counts: {
 
 // The slices that own each leg of the rollup-and-panel retirement journey,
 // surfaced in every assertion message so a failing integrated run attributes the
-// divergence to a slice rather than to "the journey". Drawn from #777's
-// blocked-by set (#766, #768, #769, #770, #774, #775, #781), minus the legs
-// SATCA-TC-020 has no step for (#768/#781's verify gate is SATCA-TC-033's half of
-// this unit, and #774's replacement picker belongs to supersede, not retire),
+// divergence to a slice rather than to "the journey". Drawn from the work unit's
+// blocked-by set (delivered in #1159, #1164, #1161, #1162, #1169, #1173), minus the legs
+// SATCA-TC-020 has no step for (#1164's verify gate is SATCA-TC-033's half of
+// this unit, and #1169's replacement picker belongs to supersede, not retire),
 // plus the scaffolding preconditions the journey needs before any case is live on
-// screen and the write slice the in-app retire action itself lives in (#772,
+// screen and the write slice the in-app retire action itself lives in (#1167,
 // which S002's "start the retire action" reaches and which no blocked-by entry
 // covers).
 export const SATCA_TC020_OWNING_SLICES: Record<string, string> = {
-  enable: "#416 (TestBench feature flag: the panel is reachable at all)",
-  create: "#438 (create a TestBench from an empty slot: spec-bound worktree)",
-  live: "#769 (rollup and panel: a case with no lifecycle block is live)",
-  marks: "#412/#415 (mark observations + sidecar persist)",
-  rollup: "#769 (rollup and panel: the Overall rollup counts live cases only)",
-  retireControl: "#772 (case lifecycle write path: the in-app retire action)",
-  reasonRequired: "#772 (case lifecycle write path: retire refuses an empty reason)",
-  excluded: "#769 (rollup and panel: exclude non-live cases from the live list)",
-  archived: "#769 (rollup and panel: show non-live cases as archived, labelled)",
-  reason: "#769 (rollup and panel: the recorded reason is shown verbatim)",
-  restore: "#772 (case lifecycle write path: restore clears the lifecycle record)",
-  resolver: "#766 (LifecycleResolver: the live predicate the rollup partitions on)",
-  panel: "#775 (accessibility pass: focus lands on the archived entry after the write)",
+  enable: "TestBench feature flag: the panel is reachable at all",
+  create: "create a TestBench from an empty slot: spec-bound worktree",
+  live: "rollup and panel: a case with no lifecycle block is live",
+  marks: "mark observations + sidecar persist",
+  rollup: "rollup and panel: the Overall rollup counts live cases only",
+  retireControl: "case lifecycle write path: the in-app retire action",
+  reasonRequired: "case lifecycle write path: retire refuses an empty reason",
+  excluded: "rollup and panel: exclude non-live cases from the live list",
+  archived: "rollup and panel: show non-live cases as archived, labelled",
+  reason: "rollup and panel: the recorded reason is shown verbatim",
+  restore: "case lifecycle write path: restore clears the lifecycle record",
+  resolver: "LifecycleResolver: the live predicate the rollup partitions on",
+  panel: "accessibility pass: focus lands on the archived entry after the write",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SATCA-TC-033 (#777): the verify-gate RELEASE journey. The precondition is "a
+// SATCA-TC-033 (#1176): the verify-gate RELEASE journey. The precondition is "a
 // gate reporting pending, held only by one case that has never been started", so
 // the fixture declares a gate over exactly two L1 cases:
 //
@@ -1354,7 +1352,7 @@ export const SATCA_TC020_OWNING_SLICES: Record<string, string> = {
 //
 // The gate must declare a second, already-passed case rather than only the case
 // being retired. Retiring the only declared case would empty the gating set, and
-// an empty set is deliberately NOT a pass (`no_gating_cases`, #436, VG-NFR-007);
+// an empty set is deliberately NOT a pass (`no_gating_cases`, #912, VG-NFR-007);
 // the case says the gate "reports passed", so the fixture is shaped to reach the
 // passed rung rather than the structural-empty one.
 //
@@ -1369,7 +1367,7 @@ export const SATCA_TC033_PASSED_CASE_ID = "SATCA-GRJ-01";
 export const SATCA_TC033_BLOCKING_CASE_ID = "SATCA-GRJ-02";
 
 // The verify unit's id IS the gate id, and its milestone is what titles the card
-// on the Batches overview (issue #433).
+// on the Batches overview (#914).
 export const SATCA_TC033_GATE_ID = "GRJ-WU-002";
 export const SATCA_TC033_GATE_MILESTONE = "Archival gate release";
 export const SATCA_TC033_COVERED_UNIT_ID = "GRJ-WU-001";
@@ -1450,28 +1448,28 @@ export const SATCA_TC033_WORK_UNITS: WorkUnitsFile = {
   ],
 };
 
-// The slices that own each leg of the gate-release journey, drawn from #777's
-// blocked-by set. #768 owns the evaluator's lifecycle narrowing and #781 the
-// Phase 2 gate surfaces the journey reads it through; #772 owns the in-app retire
+// The slices that own each leg of the gate-release journey, drawn from the work unit's
+// blocked-by set. #1164 owns the evaluator's lifecycle narrowing and the
+// Phase 2 gate surfaces the journey reads it through; #1167 owns the in-app retire
 // write S002 drives, which no blocked-by entry covers; the enable / create legs
 // are scaffolding preconditions rather than part of the drift-guarded journey.
 export const SATCA_TC033_OWNING_SLICES: Record<string, string> = {
-  enable: "#416 (TestBench feature flag: the panel is reachable at all)",
-  create: "#438 (create a TestBench from an empty slot: spec-bound worktree)",
-  marks: "#412/#415 (mark observations + sidecar persist)",
-  batches: "#781 (verify gate Phase 2 surfaces: the Batches overview lists the gate)",
-  gateView: "#781 (verify gate Phase 2 surfaces: the gate view and its state panel)",
-  pending: "#768 (verify gate: an unstarted gating case holds the gate pending)",
-  namesCase: "#781 (verify gate Phase 2 surfaces: the gate names its unresolved cases)",
-  retireControl: "#772 (case lifecycle write path: the in-app retire action)",
-  released: "#768 (verify gate: a retired case leaves the effective gating set)",
-  excludedStated: "#768/#781 (verify gate: the gate view states the lifecycle exclusion)",
-  resolver: "#766 (LifecycleResolver: the live predicate the gate narrows on)",
-  workUnitsUntouched: "#768 (verify gate: narrowing is computed at read time, never written back)",
+  enable: "TestBench feature flag: the panel is reachable at all",
+  create: "create a TestBench from an empty slot: spec-bound worktree",
+  marks: "mark observations + sidecar persist",
+  batches: "verify gate Phase 2 surfaces: the Batches overview lists the gate",
+  gateView: "verify gate Phase 2 surfaces: the gate view and its state panel",
+  pending: "verify gate: an unstarted gating case holds the gate pending",
+  namesCase: "verify gate Phase 2 surfaces: the gate names its unresolved cases",
+  retireControl: "case lifecycle write path: the in-app retire action",
+  released: "verify gate: a retired case leaves the effective gating set",
+  excludedStated: "verify gate: the gate view states the lifecycle exclusion",
+  resolver: "LifecycleResolver: the live predicate the gate narrows on",
+  workUnitsUntouched: "verify gate: narrowing is computed at read time, never written back",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SATCA-TC-058 (#779): the IN-APP ACTIONS journey. Where SATCA-TC-010 (#776)
+// SATCA-TC-058 (#1178): the IN-APP ACTIONS journey. Where SATCA-TC-010 (#1170)
 // proves a HAND-AUTHORED retirement is read by the app, this one proves the
 // reverse direction: an in-app retirement is WRITTEN, is reviewable as an
 // ordinary uncommitted git change, and reverses cleanly.
@@ -1564,20 +1562,20 @@ export const SATCA_TC058_EXPECTED_REMOVED_LINES = ["      ]"];
 
 // The slices that own each leg of the in-app actions journey, surfaced in every
 // assertion message so a failing integrated run attributes the divergence to a
-// slice rather than to "the journey". Drawn from #779's blocked-by set (#767,
-// #772, #773, #774, #775, #781), minus the legs SATCA-TC-058 has no step for
-// (#773's spec-level write and #774's replacement picker are proven by their own
+// slice rather than to "the journey". Drawn from the work unit's blocked-by set (delivered in #1160,
+// #1167, #1166, #1169, #1173), minus the legs SATCA-TC-058 has no step for
+// (#1166's spec-level write and #1169's replacement picker are proven by their own
 // journeys), plus the two preconditions the journey needs before it can act.
 export const SATCA_TC058_OWNING_SLICES: Record<string, string> = {
-  enable: "#416 (TestBench feature flag: the panel is reachable at all)",
-  create: "#438 (create a TestBench from an empty slot: spec-bound worktree)",
-  clean: "#438 (create a TestBench from an empty slot: the worktree starts clean)",
-  live: "#769 (rollup and panel: a case with no lifecycle block is live)",
-  controls: "#775 (archival accessibility: the retire disclosure and its controls)",
-  write: "#772 (case lifecycle write: retire from the panel, with a reason)",
-  panel: "#769 (rollup and panel: the panel updates immediately after the write)",
-  scope: "#772 (case lifecycle write: one file, no sibling key rewritten)",
-  diff: "#767 (canonicalization excludes the lifecycle block, so the diff is lifecycle-only)",
-  uncommitted: "#772 (case lifecycle write: nothing is staged and nothing is committed)",
-  restore: "#772 (case lifecycle write: restore clears the record, returning the tree to clean)",
+  enable: "TestBench feature flag: the panel is reachable at all",
+  create: "create a TestBench from an empty slot: spec-bound worktree",
+  clean: "create a TestBench from an empty slot: the worktree starts clean",
+  live: "rollup and panel: a case with no lifecycle block is live",
+  controls: "archival accessibility: the retire disclosure and its controls",
+  write: "case lifecycle write: retire from the panel, with a reason",
+  panel: "rollup and panel: the panel updates immediately after the write",
+  scope: "case lifecycle write: one file, no sibling key rewritten",
+  diff: "canonicalization excludes the lifecycle block, so the diff is lifecycle-only",
+  uncommitted: "case lifecycle write: nothing is staged and nothing is committed",
+  restore: "case lifecycle write: restore clears the record, returning the tree to clean",
 };

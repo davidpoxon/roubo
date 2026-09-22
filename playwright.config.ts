@@ -19,15 +19,15 @@ const E2E_USER_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures");
 // `plugin.id === ...` UI branches (PluginConfigureDialog: integration-fields
 // section, OAuth section, instance handling) activate as they would in prod.
 const E2E_BUNDLED_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures", "bundled-overlays");
-// AP-TC-087 (#531): the `claude-code` bundled overlay's launch descriptor and
+// AP-TC-087 (#1083): the `claude-code` bundled overlay's launch descriptor and
 // version probe both name `roubo-e2e-claude-stub`, which lives here. Prepending
 // this directory to the server's PATH is what makes the stub resolvable to
 // `resolveAgentCommand` (and to the probe) without installing anything. The stub
 // is deliberately NOT named `claude`, so prepending cannot shadow a real CLI.
-// AP-TC-113 (#683) adds a second pair on the same wiring: the `codex-cli`
-// overlay and `roubo-e2e-codex-stub`, and AP-TC-115 (#534) a third, `gemini-cli`
+// AP-TC-113 (#1095) adds a second pair on the same wiring: the `codex-cli`
+// overlay and `roubo-e2e-codex-stub`, and AP-TC-115 (#1127) a third, `gemini-cli`
 // and `roubo-e2e-gemini-stub`, APCC-TC-022 (#1306) a fourth,
-// `agent-choice-probe` and `roubo-e2e-probe-stub`, and APCC-TC-038 (#870) a
+// `agent-choice-probe` and `roubo-e2e-probe-stub`, and APCC-TC-038 (#1349) a
 // fifth, `cursor-cli` and `roubo-e2e-cursor-stub`. Both hooks are directory
 // walks, so a new overlay directory and a new stub file are picked up with no
 // config change.
@@ -54,20 +54,20 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     pins the stubbed plugin to a dedicated scenario + frozen-now.
 //   - e2e-alerts: same built-app surface, holds the per-category
 //     test-connection spec (IP-TC-167 alerts scope-missing result strip).
-//   - component-plugins: same built-app surface, holds the CP-TC-028 (#626)
+//   - component-plugins: same built-app surface, holds the CP-TC-028 (#662)
 //     component-plugin deploy-journey drift guard. Relies on the
 //     `clasp-deploy-stub` imperative component plugin fixture being present
 //     and built under e2e/fixtures/ so plugin-manager discovers it via
 //     ROUBO_USER_PLUGINS_DIR, and on `/test/__register-fixture-project`'s
 //     `componentPlugin` option to bind a `deploy` component to it.
-//   - agent-plugins: same built-app surface, holds the AP-TC-087 (#531)
+//   - agent-plugins: same built-app surface, holds the AP-TC-087 (#1083)
 //     configure-Claude-then-launch drift guard. Relies on the `claude-code`
 //     bundled overlay under ROUBO_BUNDLED_PLUGINS_DIR (an agent-kind stub whose
 //     configSchema mirrors the real plugin) plus the `roubo-e2e-claude-stub`
 //     binary on the server's PATH, which captures the spawned child's own argv
 //     to AGENT_ARGV_LOG_PATH whenever ROUBO_E2E_AGENT_ARGV_LOG is set.
 //     A second agent-kind overlay, `codex-cli` with `roubo-e2e-codex-stub`
-//     (#683, #532), sits alongside it and carries the AP-TC-056 / AP-TC-105
+//     (#1095, #1128), sits alongside it and carries the AP-TC-056 / AP-TC-105
 //     configure-Codex-then-launch drift guard. It mirrors the shipped Codex
 //     plugin's configSchema, argv mapping and quiescence window, and its stub
 //     captures argv to its OWN CODEX_ARGV_LOG_PATH under the same
@@ -76,7 +76,7 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     `/test/__reset` unless a spec opts in, which keeps
 //     `resolveLaunchAgentId`'s lone-available-agent fallback on Claude Code.
 //     A third agent-kind overlay, `gemini-cli` with `roubo-e2e-gemini-stub`
-//     (#534), sits alongside both for the AP-TC-115 marketplace-install-to-
+//     (#1127), sits alongside both for the AP-TC-115 marketplace-install-to-
 //     launch guard. It is the only one of the three declaring a configSchema
 //     (S005 asks for a schema-rendered form), and its property keys deliberately
 //     avoid the claude-code overlay's model / effort / mode / extraArgs so the
@@ -92,7 +92,7 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     ROUBO_* variable and an env value must not steer a filesystem path, so no
 //     config change is needed here. /test/__reset empties the probe cache so
 //     each test's mode is read afresh, and force-disables the overlay.
-//     A fifth, `cursor-cli` with `roubo-e2e-cursor-stub` (#870), backs the
+//     A fifth, `cursor-cli` with `roubo-e2e-cursor-stub` (#1349), backs the
 //     APCC-TC-038 set-a-posture-and-rules-then-launch guard. It mirrors the
 //     shipped Cursor plugin's posture table, its two rule tiers and its
 //     `.cursor/cli.json` rules write, and its stub captures argv to its OWN
@@ -213,7 +213,7 @@ export default defineConfig({
         ROUBO_E2E: "1",
         ROUBO_USER_PLUGINS_DIR: E2E_USER_PLUGINS_DIR,
         ROUBO_BUNDLED_PLUGINS_DIR: E2E_BUNDLED_PLUGINS_DIR,
-        // AP-TC-087 (#531): make `roubo-e2e-claude-stub` resolvable, and switch on
+        // AP-TC-087 (#1083): make `roubo-e2e-claude-stub` resolvable, and switch on
         // its argv capture. `importLoginShellEnv()` merges the login shell's PATH by
         // prepending only entries this value does not already carry, so the fixture
         // dir survives that merge.

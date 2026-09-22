@@ -12,7 +12,7 @@ const router = Router();
 const BENCH_OVERRIDE_KEYS = ["enforceIssueDependencies"] as const;
 
 // The PUT handler reads and writes roubo.yaml on disk, so it is rate-limited to
-// mitigate denial-of-service (CodeQL js/missing-rate-limiting #35).
+// mitigate denial-of-service (CodeQL js/missing-rate-limiting #86).
 const overridesWriteRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 30,

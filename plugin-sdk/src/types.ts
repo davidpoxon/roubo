@@ -343,7 +343,7 @@ export interface IssueTypeOption {
 }
 
 /**
- * Result of the privileged `createIssue` op (verify-gate FR-011, spike #704).
+ * Result of the privileged `createIssue` op (verify-gate FR-011, spike #732).
  * `ref` is the created issue's external id in the plugin's own form
  * (`owner/repo#number` for GitHub) so the host can immediately use it (e.g. as
  * `blockerRef` in `addBlockedBy`). `nodeId` is the provider's GraphQL node id
@@ -437,7 +437,7 @@ export interface PluginContract {
   }) => Promise<SetActiveConfigResult> | SetActiveConfigResult;
   applyTransition?: (params: { externalId: string; transition: string }) => Promise<void> | void;
   /**
-   * Create a tracker issue (verify-gate FR-011, spike #704). Privileged write
+   * Create a tracker issue (verify-gate FR-011, spike #732). Privileged write
    * routed only through the host's TrackerActionGateway, which gates it on the
    * `supportsCreateIssue` manifest capability and the plugin's consent. Returns
    * the created issue's external ref (the same `owner/repo#number` form the
@@ -453,7 +453,7 @@ export interface PluginContract {
   }) => Promise<CreateIssueResult> | CreateIssueResult;
   /**
    * Register an "is blocked by" relationship: `blockedRef` is blocked by
-   * `blockerRef` (verify-gate FR-010/FR-011, spike #704). Privileged write
+   * `blockerRef` (verify-gate FR-010/FR-011, spike #732). Privileged write
    * routed only through the host's TrackerActionGateway, which gates it on the
    * `supportsBlockingLinks` manifest capability and the plugin's consent. Both
    * refs are external ids in the plugin's own form (`owner/repo#number` for
@@ -471,7 +471,7 @@ export interface PluginContract {
   getAvailableTransitions?: (params: { externalId: string }) => Promise<string[]> | string[];
   listIssueTypes?: (params: ListIssueTypesParams) => Promise<IssueTypeOption[]> | IssueTypeOption[];
   /**
-   * Enumerate the connected instance's available status categories (issue #453).
+   * Enumerate the connected instance's available status categories (#461).
    * The host exposes these as the option list for the Configure dialog's
    * status-category exclusion toggle, falling back to a canonical set when a
    * plugin does not implement this method (`MethodNotFound`) or discovery fails.
@@ -599,7 +599,7 @@ export interface PluginHandle {
 export const SUPPORTED_CONTRACT_VERSION = 1 as const;
 
 /**
- * Opt-in shell interpretation for a descriptor's command line (#836).
+ * Opt-in shell interpretation for a descriptor's command line (#1218).
  *
  * Commands are ARGV BY DEFAULT: the host tokenizes the string and spawns the
  * first token directly, so `&&`, `;`, globs and `$VAR` are literal arguments
@@ -619,7 +619,7 @@ export const SUPPORTED_CONTRACT_VERSION = 1 as const;
 export type DescriptorShell = boolean | string;
 
 /**
- * The declarative route to a runtime URL (#834). A `translate`-only plugin
+ * The declarative route to a runtime URL (#1207). A `translate`-only plugin
  * never holds the reportStatus sink (translate runs once, before the descriptor
  * executes), so the descriptor declares the URL and the host's LifecycleEngine
  * reports it on the component's terminal status. What it sets is
@@ -686,7 +686,7 @@ export interface ProcessProvisionDescriptor {
    * `template` only: a long-running process is spawned and left running, so it
    * has produced no completed output for a `fromOutput` pattern to match by the
    * time the host reports `running`. Declaring `fromOutput` on a `process`
-   * descriptor is rejected at the host's validation gate (#834).
+   * descriptor is rejected at the host's validation gate (#1207).
    */
   url?: { template: string };
   /** Applies to both `command` and `setup`. See {@link DescriptorShell}. */
@@ -752,7 +752,7 @@ export interface ComponentStatus {
   statusDetail?: string;
   startedAt?: string;
   /**
-   * An access URL the component only discovers while running (#833), for
+   * An access URL the component only discovers while running (#1206), for
    * example one minted by a first-run provisioning step. Push it here and the
    * host exposes it to the project's Tools entries as
    * `{{urls.<componentName>}}`, including for a component that has no allocated
@@ -766,7 +766,7 @@ export interface ComponentStatus {
    * plugin never holds the reportStatus sink, so it declares the URL on its
    * `ProvisionDescriptor` instead (`url.template` or `url.fromOutput`, see
    * {@link DescriptorUrl}) and the host reports it on the component's terminal
-   * status (#834).
+   * status (#1207).
    */
   url?: string;
 }
@@ -1046,7 +1046,7 @@ export type WaitingDetectionSpec =
 export type AgentPosture = "read-only" | "guarded" | "auto-edit" | "full-auto";
 
 /**
- * The user-facing permissions model (AP-FR-016, as narrowed by spike #502): the
+ * The user-facing permissions model (AP-FR-016, as narrowed by the agent-contract spike): the
  * fine-grained rules the host always sends, plus an optional universal posture,
  * absent whenever the project has never chosen one. Rule strings are opaque to
  * the host; only the declaring plugin interprets them.

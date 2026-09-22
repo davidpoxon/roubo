@@ -46,14 +46,14 @@ import { cutListQueryService } from "./cut-list-query-service.js";
 import type { PluginEnableState } from "@roubo/shared";
 import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
-// 1.3.0 (issue #602): the `component` plugin kind lands, alongside the `ports`
+// 1.3.0 (#646): the `component` plugin kind lands, alongside the `ports`
 // and `docker` permission categories and the `contractVersion` /
 // `descriptorSchemaVersion` manifest fields. The bump is backward-compatible:
 // the new kind, categories, and fields are all additive (the manifest schema's
 // `permissions` is `.passthrough()` and the version fields are optional), so an
 // existing integration plugin built against 1.0.0 through 1.2.0 keeps working
 // unchanged. No existing contract method changed shape.
-// 1.4.0 (issue #507): the `agent` plugin kind lands, alongside the
+// 1.4.0 (#1026): the `agent` plugin kind lands, alongside the
 // `translateLaunch` contract and the AgentLaunchDescriptor's declared
 // capabilities. The bump is the same additive class as the component bump: the
 // new kind and the new contract method are additive (an agent plugin answers
@@ -61,7 +61,7 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // component plugin built against 1.0.0 through 1.3.0 keeps working unchanged.
 // No existing contract method changed shape and no new privilege was added to
 // the runtime sandbox (AP-NFR-001).
-// 1.5.0 (issue #712): `agentInstallLocations` lands on the `kind: agent`
+// 1.5.0 (#1115): `agentInstallLocations` lands on the `kind: agent`
 // manifest, and with it a host that probes an agent plugin's own declared
 // install locations when its CLI is not on the PATH the server inherits. Same
 // additive class again: the field is optional, so an existing integration,
@@ -72,34 +72,34 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // `PluginManifestSchema` is `.strict()`: a manifest carrying an unknown key
 // fails validation outright rather than having it ignored, so a published
 // manifest declaring the field would hard-fail plugin load on every host
-// predating #712. Note what the range can and cannot do about that. It cannot
+// predating #1115. Note what the range can and cannot do about that. It cannot
 // fence off a host that does not know the key at all: `parseManifest` runs
 // before `manifest.roubo` is ever compared against this constant (in
 // `buildEntryFromDir` below, and again in `plugin-installer.ts`), so such a
 // host reports `invalid-manifest` and never reads the range. What it does buy
 // is a clean, version-named refusal from a host that knows the field but sits
 // below the floor, which is only expressible once the host API is bumped. The
-// other half of the gate is the release: #712 and this bump ship together, so
+// other half of the gate is the release: #1115 and this bump ship together, so
 // no released host predates the key. That is what this version is for (issue
-// #715), and it is why the first-party agent manifests declaring the field pin
+// #1115), and it is why the first-party agent manifests declaring the field pin
 // `roubo: ^1.5.0`. Teaching the host to answer with the version it needs
 // instead of an unknown-key error, so the gate stops resting on release order,
-// is #719.
-// 1.6.0 (issue #850): the optional `choiceProbes` manifest key lands, binding a
+// is #1118.
+// 1.6.0 (#1263): the optional `choiceProbes` manifest key lands, binding a
 // configuration field to a host-executed probe with a named parse mode. Same
 // additive class and the same reason for its own version as 1.5.0: the key is
 // optional, so every plugin built against 1.0.0 through 1.5.0 keeps working
 // unchanged, but the strict manifest schema means a manifest declaring it must
 // pin `roubo: ^1.6.0` for a clean, version-named refusal from an older host.
-// The `file-notifier` notification variant (#854) and the notifier's stdin
-// payload mode (#855) ride the same 1.6.0: both are additive members of the
+// The `file-notifier` notification variant (#1264) and the notifier's stdin
+// payload mode (#1265) ride the same 1.6.0: both are additive members of the
 // launch descriptor rather than manifest keys, so no existing plugin sees them,
 // and a plugin that emits one declares `roubo: ^1.6.0` alongside `choiceProbes`.
-// #856 turns the version-named refusal into a gate: a manifest fixture test
+// #1269 turns the version-named refusal into a gate: a manifest fixture test
 // drives a Cursor-shaped manifest through a simulated pre-1.6.0 host (both one
 // whose schema lacks the key and one that knows it but sits below the floor)
 // and asserts the refusal names `^1.6.0` rather than an unrecognised key.
-// 1.7.0 (issue #890): the `upsertArray` write op lands, merging one object into
+// 1.7.0 (#1344): the `upsertArray` write op lands, merging one object into
 // an array in a workspace file and replacing only the entry the host wrote
 // before. Same additive class as the 1.6.0 descriptor members: it is a new
 // member of a union no existing plugin names, so nothing built against 1.0.0
@@ -108,7 +108,7 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // descriptor carrying the op, and that refusal arrives at launch rather than at
 // install. Pinning `roubo: ^1.7.0` moves it forward to the version-named
 // refusal a user can act on, which is why the Cursor manifest declares it.
-// 1.8.0 (issue #862): the optional `agentPermissionRuleTiers` manifest key
+// 1.8.0 (#1345): the optional `agentPermissionRuleTiers` manifest key
 // lands, naming which tiers of the fine-grained permission rules an agent CLI's
 // own rules format carries, so the permissions screen can stop offering a tier
 // the write would drop. Same additive class and the same reason for its own
@@ -148,7 +148,7 @@ interface PluginEntry {
   intentionalStop: boolean;
   restartTimer: NodeJS.Timeout | null;
   // In-flight pre-restart cleanup promise for a crashed component plugin (issue
-  // #398). The supervisor fires `onComponentPluginPreRestart` at the moment of an
+  // #885). The supervisor fires `onComponentPluginPreRestart` at the moment of an
   // unexpected exit and captures its promise here (not fire-and-forget) so the
   // post-restart re-provision can await it before bringing a new container up.
   // Without this, the slow teardown's `docker compose down -v` lands after
@@ -158,12 +158,12 @@ interface PluginEntry {
   // overlapping crashes leave several teardowns (each a `docker compose down -v` on
   // the same deterministic compose project) running at once, and the post-restart
   // re-provision must await every one of them before bringing a new container up
-  // (issue #403), or a late `down -v` destroys the freshly recovered container.
+  // (#890), or a late `down -v` destroys the freshly recovered container.
   // Each teardown adds itself here when it starts and removes itself when it
   // settles. Empty when no cleanup is in flight.
   preRestartCleanups: Set<Promise<void>>;
   // Monotonic counter bumped every time a pre-restart cleanup is fired in
-  // `handleChildExit` (issue #403). Overlapping crashes within the restart budget
+  // `handleChildExit` (#890). Overlapping crashes within the restart budget
   // each spawn a restart-timer callback; the callback captures this at its start
   // and re-provisions only when it is still the latest after every teardown has
   // settled, so exactly one cycle (the last crash) re-provisions and never
@@ -174,7 +174,7 @@ interface PluginEntry {
 const plugins = new Map<string, PluginEntry>();
 let initialized = false;
 
-// Crash-cleanup / auto-recovery hooks (issue #613, FR-015 / FR-016).
+// Crash-cleanup / auto-recovery hooks (#657, FR-015 / FR-016).
 //
 // When a `component`-kind plugin crashes, the host must reap the processes and
 // compose projects it owned before respawning (no orphans, no duplicate
@@ -200,7 +200,7 @@ export interface ComponentPluginHooks {
   onComponentPluginRestarted?: (pluginId: string) => void | Promise<void>;
   /**
    * Fired when a crashed component plugin exhausts its restart budget within the
-   * window, so no further auto-restart is attempted (#397). The host surfaces
+   * window, so no further auto-restart is attempted (#886). The host surfaces
    * the terminal failure at the component level: it marks the plugin's bound
    * components `error` with a status detail and notifies, instead of leaving the
    * failure visible only as plugin-level state.
@@ -226,7 +226,7 @@ function isAgentPlugin(entry: PluginEntry): boolean {
   return entry.record.manifest?.kind === "agent";
 }
 
-// HostComponentBroker runtime wiring (F2.1, #677; precise routing #685).
+// HostComponentBroker runtime wiring (F2.1, #686; precise routing #687).
 //
 // A component plugin is spawned ONCE per plugin and multiplexes benches over the
 // single shared connection (architecture.md 'Components'), but a BrokerContext is
@@ -237,7 +237,7 @@ function isAgentPlugin(entry: PluginEntry): boolean {
 // that reads this registry; bench-manager registers a per-bench BrokerContext
 // when a bench provisions a plugin-bound component and drops it on teardown.
 //
-// Every broker call carries the `benchId` it acts for in its params (#685): the
+// Every broker call carries the `benchId` it acts for in its params (#687): the
 // SDK stamps it from the in-flight lifecycle call, so the resolver looks the
 // context up by the exact (pluginId, benchId) key. A call from any bench
 // resolves to that bench's own context (correct ports, correct audit
@@ -256,7 +256,7 @@ function brokerContextKey(pluginId: string, benchId: number): string {
  * plugin-bound component. The broker handlers themselves are registered once on
  * the plugin's connection at spawn; this only supplies the context they resolve
  * against, so privileged broker calls accumulate AuditEntry rows into the right
- * per-bench AuditLog (#677).
+ * per-bench AuditLog (#686).
  */
 export function registerBrokerContext(pluginId: string, benchId: number, ctx: BrokerContext): void {
   brokerContexts.set(brokerContextKey(pluginId, benchId), ctx);
@@ -281,7 +281,7 @@ function resolveBrokerContext(pluginId: string, benchId: number): BrokerContext 
   return brokerContexts.get(brokerContextKey(pluginId, benchId)) ?? null;
 }
 
-// AC5 (#620): record an OS-attributed blocked attempt where the backend can
+// AC5 (#676): record an OS-attributed blocked attempt where the backend can
 // attribute the syscall to the plugin. The PluginIsolationSandbox keeps its own
 // minimal, in-process AuditLog and records sandbox-sourced denials into it
 // (source:"sandbox"), queryable via __test. This is distinct from the per-bench
@@ -289,7 +289,7 @@ function resolveBrokerContext(pluginId: string, benchId: number): BrokerContext 
 // broker, where there is no bench context to route the entry through.
 const sandboxAuditLog = new AuditLog();
 
-// #743: dedup set for docker-mount-unshared isolation notices. Keyed by the
+// #746: dedup set for docker-mount-unshared isolation notices. Keyed by the
 // resolved plugin dir so a respawn loop for the same plugin dir emits the
 // notice at most once per host process lifetime.
 const mountUnsharedNoticed = new Set<string>();
@@ -342,7 +342,7 @@ function recordIsolationNotice(entry: PluginEntry, resolvedPluginDir: string): v
   entry.record.isolationNotices.push(notice);
 }
 
-// Predicate override for the isKnownUnsharedDockerPath pre-check (#748). In
+// Predicate override for the isKnownUnsharedDockerPath pre-check (#749). In
 // production this is null and the real isKnownUnsharedDockerPath function runs.
 // Tests set it via __test.setKnownUnsharedDockerPathFn to exercise the tier
 // downgrade path without needing a real /Applications dir on the test runner.
@@ -529,7 +529,7 @@ function makeRecord(
 
 /**
  * The marketplace provenance fields for a record being rebuilt from disk (issue
- * #558). A PluginRecord is re-derived from the plugin directory on every load, so
+ * #966). A PluginRecord is re-derived from the plugin directory on every load, so
  * the source the consumer chose at install cannot survive on the record itself: it
  * is read back here from the ledger the install commit wrote.
  *
@@ -547,7 +547,7 @@ function marketplaceProvenanceFields(
     sourceUrl: provenance.sourceUrl,
     unverified: provenance.unverified,
   };
-  // Only surfaced once the source was removed (issue #560): an un-orphaned row
+  // Only surfaced once the source was removed (#968): an un-orphaned row
   // leaves the key genuinely absent rather than present-and-false.
   if (provenance.orphaned !== undefined) fields.orphaned = provenance.orphaned;
   return fields;
@@ -590,14 +590,14 @@ function makeEmptyEntry(record: PluginRecord): PluginEntry {
   };
 }
 
-// Test-only stand-in for an older host (#856): the version the range gate below
+// Test-only stand-in for an older host (#1269): the version the range gate below
 // compares against when a test simulates a host below a manifest's floor. Null
 // in production, so the gate always reads HOST_API_VERSION there.
 let hostApiVersionOverride: string | null = null;
 
 /**
  * The actionable host-incompatibility message for a declared `roubo` range, or
- * null when there is no incompatibility to report (issue #719).
+ * null when there is no incompatibility to report (#1118).
  *
  * Returns null when the range is absent, is not a range node-semver can parse,
  * or is one this host satisfies. That "null means carry on" shape is what lets
@@ -607,7 +607,7 @@ let hostApiVersionOverride: string | null = null;
  *
  * This runs after the plugin is already on disk. Marking an incompatible
  * marketplace listing BEFORE it is downloaded needs the range on the catalog
- * entry, which is #720.
+ * entry, which is #1134.
  */
 function incompatibleRangeMessage(
   declared: string | undefined,
@@ -641,7 +641,7 @@ async function buildEntryFromDir(
 
   const parsed = parseManifest(manifestFile.text, manifestFile.path);
   if (!parsed.ok) {
-    // Issue #719: the manifest schema is `.strict()`, so a host that predates a
+    // #1118: the manifest schema is `.strict()`, so a host that predates a
     // manifest field fails here on the unrecognized key and never reaches the
     // range check below. The declared `roubo` range exists to describe exactly
     // that host, so when it excludes this one, the exclusion is the real reason
@@ -961,10 +961,10 @@ function attachStdioLogging(entry: PluginEntry, proc: ChildProcess): void {
   proc.stderr?.on("data", handleStderr);
 }
 
-// #496: the missing-entry / not-built failure has a kind-aware recovery hint.
+// #945: the missing-entry / not-built failure has a kind-aware recovery hint.
 // A component plugin is installed from the marketplace, so its actionable
 // recovery is to reinstall it from there (there is no local build to fix); an
-// agent plugin is distributed the same way (#507), so it shares that guidance.
+// agent plugin is distributed the same way (#1026), so it shares that guidance.
 // Every other kind (integration, and any future kind) keeps the build-output
 // guidance. The banner renders this message verbatim (ErroredBanner), so the
 // marketplace-recovery guidance IP-TC-082 requires has to live in the host-produced
@@ -999,7 +999,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     return;
   }
 
-  // #759: confirm the entry file actually exists on the host before spawning.
+  // #760: confirm the entry file actually exists on the host before spawning.
   // The container path is DOCKER_CONTAINER_DIR/<entryRel> (the host plugin dir
   // is bind-mounted at /roubo-plugin), so a missing or unbuilt host entry
   // (e.g. dist/index.js absent because the plugin was never built) makes Node
@@ -1007,7 +1007,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // exit charges the restart budget three times and then disables the
   // component, never surfacing the real cause. Fail fast here with an
   // actionable, plugin-scoped error instead, so the doomed restart loop never
-  // starts (mirrors the invalid-entry branch above and the #748 "skip the
+  // starts (mirrors the invalid-entry branch above and the #749 "skip the
   // doomed spawn" philosophy).
   if (!existsSync(resolvedEntry) || !statSync(resolvedEntry).isFile()) {
     entry.record.status = "errored";
@@ -1018,7 +1018,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     return;
   }
 
-  // #761: existsSync/statSync above both follow symlinks, so an entry symlinked
+  // #763: existsSync/statSync above both follow symlinks, so an entry symlinked
   // to a real file OUTSIDE the plugin dir passes the host check yet is
   // unresolvable inside the container. The docker isolation tier bind-mounts
   // only the plugin dir read-only at /roubo-plugin (buildSandboxedSpawn), so a
@@ -1029,7 +1029,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // enforces: a real target that stays inside the plugin dir is mounted too and
   // is fine to spawn; one that escapes (or dangles, ENOENT from realpathSync)
   // fails fast with the same actionable missing-entry error so the doomed
-  // restart loop never starts (mirrors the #748 skip-the-doomed-spawn
+  // restart loop never starts (mirrors the #749 skip-the-doomed-spawn
   // philosophy). Containment is checked against the plugin dir's REAL path: a
   // symlinked plugin dir is legitimate (docker follows it when mounting), so
   // resolving the dir too keeps the check from false-positiving on it and only
@@ -1073,7 +1073,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     ROUBO_HOST_API_VERSION: HOST_API_VERSION,
   };
 
-  // PluginIsolationSandbox tier selection (F2.3, #620). Select the highest
+  // PluginIsolationSandbox tier selection (F2.3, #676). Select the highest
   // OS-isolation rung the host supports; degrade to the broker-only floor when
   // none is present. The floor path below is byte-for-byte the direct spawn
   // Roubo has always used; a non-floor tier wraps that node invocation in the
@@ -1083,19 +1083,19 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // out-of-band attempt never crashes the host or its siblings (AC3).
   const tier = await resolveIsolationTier();
 
-  // #748: effectiveTier starts as the resolved tier and may be downgraded to
+  // #749: effectiveTier starts as the resolved tier and may be downgraded to
   // broker-only by the pre-check below or by a failed image provisioning step.
   // It must be declared before the pre-check so the pre-check can set it.
   let effectiveTier = tier;
 
-  // #743: proactive pre-check. On macOS, paths under /Applications/ are not in
+  // #746: proactive pre-check. On macOS, paths under /Applications/ are not in
   // Docker Desktop's default file-sharing allow-list, so a docker-tier spawn
   // against a plugin installed there will certainly fail with exit 125 (mounts
-  // denied). The docker process gets a pid and exits normally, so the #740
+  // denied). The docker process gets a pid and exits normally, so the #742
   // spawn-level fallback never fires and the plugin crash-loops instead.
   // Record the isolation notice (as before) AND downgrade effectiveTier to
   // broker-only so the doomed docker spawn and image-provisioning step are
-  // skipped entirely (#748).
+  // skipped entirely (#749).
   const checkUnsharedPath = knownUnsharedDockerPathFn ?? isKnownUnsharedDockerPath;
   if (tier === "docker" && checkUnsharedPath(process.platform, resolvedDir)) {
     recordIsolationNotice(entry, resolvedDir);
@@ -1146,12 +1146,12 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   const finalArgs = sandboxed ? [...sandboxed.args, ...spawnArgs.slice(1)] : spawnArgs;
 
   // Track whether we are attempting a sandboxed spawn so we can detect a
-  // sandbox failure and fall back to the floor exactly once (#740).
+  // sandbox failure and fall back to the floor exactly once (#742).
   const attemptedSandbox = sandboxed !== null;
 
   // Perform the primary spawn attempt. On a sandboxed failure (throw or no pid),
   // fall back ONCE to the broker-only floor and record a "sandbox-fallback"
-  // restart event so the fallback is observable (#740).
+  // restart event so the fallback is observable (#742).
   let proc: ChildProcess | null = null;
 
   // Primary attempt: sandboxed (docker) or floor.
@@ -1177,14 +1177,14 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   if (primaryFailed && attemptedSandbox) {
     // Sandboxed spawn threw or returned no pid (e.g. docker CLI absent,
     // bind-mount not shared on macOS Docker Desktop). Retry ONCE on the
-    // broker-only floor before charging the restart budget (#740).
+    // broker-only floor before charging the restart budget (#742).
     await writeLog(
       entry,
       "host",
       `sandboxed spawn failed (${primaryFailReason}); retrying on broker-only floor`,
       "warn",
     );
-    // #743: if the failure is specifically a bind-mount-unavailable condition,
+    // #746: if the failure is specifically a bind-mount-unavailable condition,
     // surface a structured, actionable notice on the record so the UI can
     // present remediation guidance rather than only having a log line.
     if (classifyMountUnshared(primaryFailReason)) {
@@ -1261,7 +1261,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     await registerHostHandlers(entry.connection, entry.record, (level, text) => {
       writeLog(entry, "host", text, level).catch(() => {});
     });
-    // HostComponentBroker wiring (F2.1, #677). Register the broker's privileged
+    // HostComponentBroker wiring (F2.1, #686). Register the broker's privileged
     // host.process.* / host.docker.* / host.ports.* / host.component.* handlers
     // ONCE on a component plugin's connection. They resolve their per-bench
     // BrokerContext through the registry above, which bench-manager populates as
@@ -1276,7 +1276,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
         {
           // Wire the real ResourceOwnershipLedger so a process the broker spawns
           // on this plugin's behalf is tracked and reaped by crash cleanup / the
-          // startup sweep (#396, AC4).
+          // startup sweep (#887, AC4).
           ledger,
           log: (level, text) => {
             writeLog(entry, "host", text, level).catch(() => {});
@@ -1284,7 +1284,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
         },
       );
     }
-    // Agent plugins (#507) deliberately register NOTHING here. An agent plugin
+    // Agent plugins (#1026) deliberately register NOTHING here. An agent plugin
     // is spawned-and-RPC like an integration plugin: it answers
     // `translateLaunch` and returns a declarative AgentLaunchDescriptor the host
     // validates and executes. The absence of any agent-specific broker handler
@@ -1343,24 +1343,24 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
   }
 
   // Unexpected exit of a component plugin. Reap the resources it owned before we
-  // do anything else (issue #613): this runs whether we go on to restart or to
+  // do anything else (#657): this runs whether we go on to restart or to
   // error out on an exhausted budget, so a crash never leaves orphaned processes
   // or compose projects, and a restart never duplicates containers. The cleanup
   // is scoped to this plugin's ledger entries, so sibling components survive
   // (graceful degradation). It does not block the supervisor's budget/backoff
   // bookkeeping below (still fired now, not awaited here), but its promise is
   // captured on the entry so the post-restart re-provision can await it (issue
-  // #398): re-provision must not bring a new container up while the teardown's
+  // #885): re-provision must not bring a new container up while the teardown's
   // slow `docker compose down -v` is still in flight, or the late `down`
   // destroys the freshly recovered container.
   if (isComponentPlugin(entry) && componentPluginHooks.onComponentPluginPreRestart) {
     // Bump the epoch on each crash so an overlapping crash's restart callback can
-    // tell it has been superseded (issue #403).
+    // tell it has been superseded (#890).
     entry.preRestartEpoch += 1;
     // Track this teardown alongside any still in flight from an overlapping crash,
     // and remove it once it settles. The restart-timer callback awaits the whole
     // set (not just the latest) before re-provisioning, so a late `down -v` can
-    // never land on a freshly recovered container (issue #403).
+    // never land on a freshly recovered container (#890).
     const cleanup = invokeComponentHook(
       entry,
       "pre-restart cleanup",
@@ -1393,7 +1393,7 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
       message: `Plugin exited ${recent.length} times within ${RESTART_WINDOW_MS / 1000}s; auto-restart disabled. Click Restart to retry.`,
     };
     writeLog(entry, "host", entry.record.lastError.message, "error").catch(() => {});
-    // Surface the terminal failure at the component level (#397): drive the
+    // Surface the terminal failure at the component level (#886): drive the
     // plugin's bound components to `error` + statusDetail and notify. Fired
     // fire-and-forget so a slow handler never blocks the supervisor.
     if (isComponentPlugin(entry) && componentPluginHooks.onComponentPluginBudgetExhausted) {
@@ -1418,7 +1418,7 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
     entry.restartTimer = null;
     if (entry.intentionalStop || !initialized) return;
     // Capture this crash cycle's pre-restart epoch before respawning (issue
-    // #403). The timer fires before this cycle's respawn, and a later crash can
+    // #890). The timer fires before this cycle's respawn, and a later crash can
     // only happen once that respawn has produced a running child, so no later
     // crash can have bumped the epoch by this point. Capturing here (not after
     // the async respawn resolves) closes the window where a crash during
@@ -1435,13 +1435,13 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
         entry.record.status === "enabled" &&
         componentPluginHooks.onComponentPluginRestarted
       ) {
-        // Sequence re-provision after the pre-restart teardown (issue #398). The
+        // Sequence re-provision after the pre-restart teardown (#885). The
         // cleanup clears its ledger entries and completes its `docker compose
         // down -v` before we bring any new container up, so the late `down` can
         // no longer target the freshly recovered container.
         //
         // Within the restart budget, overlapping crashes leave SEVERAL teardowns
-        // in flight at once (issue #403), each running the same `docker compose
+        // in flight at once (#890), each running the same `docker compose
         // down -v` on the same deterministic compose project. They can settle in
         // any order, so awaiting only the latest is not enough: an earlier crash's
         // `down -v` could still be running when a later one has settled, and
@@ -1463,7 +1463,7 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
         while (entry.preRestartCleanups.size > 0) {
           await Promise.allSettled([...entry.preRestartCleanups]);
         }
-        // Only the latest crash cycle re-provisions (issue #403). An overlapping
+        // Only the latest crash cycle re-provisions (#890). An overlapping
         // earlier cycle, whose teardown was superseded within the budget, bumped
         // the epoch when its successor crashed, so it stops here. The last cycle
         // (its epoch still current after every teardown has settled) re-provisions
@@ -1471,7 +1471,7 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
         // both the overlap and a double re-provision across the overlapping
         // callbacks.
         if (entry.preRestartEpoch !== epochAtStart) return;
-        // Re-check the guard after the teardown await (issue #398): the ~10-15s
+        // Re-check the guard after the teardown await (#885): the ~10-15s
         // wait is a TOCTOU window in which the plugin may have exhausted its
         // restart budget (status flips to `errored`) or been intentionally
         // stopped by the user. Re-provisioning then would bring components up for
@@ -1556,7 +1556,7 @@ export async function initialize(): Promise<void> {
   }
   initialized = true;
 
-  // PluginIsolationSandbox runtime detection (F2.3, #620 / #675). Install the
+  // PluginIsolationSandbox runtime detection (F2.3, #676 / #684). Install the
   // real host-capability probes so the OS-isolation tier actually engages at
   // runtime: a host with a reachable Docker daemon selects the docker rung and a
   // plugin declaring no network hosts is spawned under `docker run --network
@@ -1591,7 +1591,7 @@ export async function initialize(): Promise<void> {
   // (the app no longer ships or discovers a bundled plugin source dir), so this
   // is a no-op unless a test / diagnostic ROUBO_BUNDLED_PLUGINS_DIR override is
   // set. First-party plugins install from the NETWORK marketplace catalog on
-  // demand (the first-run SEED channel was retired, #621).
+  // demand (the first-run SEED channel was retired, #688).
   const bundledRoot = bundledPluginsRoot();
   if (bundledRoot !== null) {
     try {
@@ -1659,7 +1659,7 @@ export function listInstalled(): PluginRecord[] {
 /**
  * The parsed manifests of every installed `component`-kind plugin. The project
  * registry reads this to validate a project's component bindings against the
- * bound plugin's `configSchema` at config-load (issue #399, CP-TC-005): a
+ * bound plugin's `configSchema` at config-load (#884, CP-TC-005): a
  * binding to an id absent from this list is an unknown-plugin error, and a
  * binding whose `config` violates the plugin's `configSchema` is a path-keyed
  * config error. Entries without a parsed manifest (a malformed install) are
@@ -1676,7 +1676,7 @@ export function getComponentManifests(): PluginManifest[] {
 }
 
 /**
- * The parsed manifests of every installed `agent`-kind plugin (issue #507,
+ * The parsed manifests of every installed `agent`-kind plugin (#1026,
  * AP-FR-001). This is the agent registry's inventory: the settings UI and the
  * launch path read it to enumerate the agents a user can pick, and
  * `agent-plugin-registry.resolveAgent` gates any actual use of one behind the
@@ -1716,7 +1716,7 @@ export function getRecord(pluginId: string): PluginRecord | undefined {
  * is unknown or not currently running (disabled, invalid, incompatible, errored,
  * or mid-restart). Component plugins are spawned once per plugin and multiplex
  * benches via `BenchContext.benchId`, so the ComponentPluginRegistry hands this
- * single shared connection to every bench that binds to the plugin (issue #608,
+ * single shared connection to every bench that binds to the plugin (#651,
  * architecture.md 'Components'). The supervision (discovery, semver validation,
  * spawn, the restart budget, enable-state) is the same kind-agnostic path
  * integration plugins use; nothing here is component-specific.
@@ -1831,7 +1831,7 @@ export async function disable(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
   enableStateCache = pluginEnableState.setPluginEnabled(pluginId, false);
-  // FR-004 / NFR-001 (per Spike 553, #553): disable EVICTS the persistent disk
+  // FR-004 / NFR-001 (per Spike 553, #576): disable EVICTS the persistent disk
   // snapshots. This is deliberately distinct from the in-memory
   // issue-snapshot-cache, which is kept warm on disable so the route's
   // errored/disabled stale fallback (IP-FR-014) still has something to serve. The
@@ -1904,13 +1904,13 @@ export async function uninstall(pluginId: string): Promise<void> {
   // IP-WU-046: keep plugins-state.json in sync so a re-installed plugin id
   // doesn't carry the prior install's enable bit by accident.
   pluginEnableState.removePlugin(pluginId);
-  // Issue #399 (CP-TC-096): drop the plugin's ConsentRecord so a stale consent
+  // #884 (CP-TC-096): drop the plugin's ConsentRecord so a stale consent
   // does not survive an uninstall. A re-installed id must re-acknowledge its
   // declared permissions before the component-plugin registry consent gate
   // admits it. Deliberately NOT done in uninstallForUpdate: an in-place update
   // keeps the same id and preserves consent.
   pluginConsentState.removeConsent(pluginId);
-  // Issue #558: drop the marketplace provenance row for the same reason. A
+  // #966: drop the marketplace provenance row for the same reason. A
   // re-installed id is a fresh install-from choice, so a stale row must not make
   // it look like it still came from the previously chosen source. Also NOT done in
   // uninstallForUpdate: an in-place update re-stamps the row itself.
@@ -1929,7 +1929,7 @@ export async function uninstall(pluginId: string): Promise<void> {
 
 /**
  * Tear down the running plugin's in-memory state for an in-place UPDATE of the
- * same id (the marketplace update flow, issue #621), without deleting the
+ * same id (the marketplace update flow, #688), without deleting the
  * plugin directory and without the active-integration guard `uninstall`
  * enforces.
  *
@@ -2003,7 +2003,7 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
 /**
  * One-click remediation for a bundled plugin that cannot engage OS-level docker
  * isolation because the read-only app bundle (e.g. `/Applications/Roubo.app/.../plugins/<id>`)
- * is not a Docker Desktop shared path (issue #756). Copies the bundled plugin
+ * is not a Docker Desktop shared path (#758). Copies the bundled plugin
  * directory into the user plugins root (`~/.roubo/plugins/<id>/`, which is
  * already a shared path), supersedes the in-memory bundled entry, then registers
  * and starts the user copy from the shared location so the docker tier can
@@ -2066,7 +2066,7 @@ export async function reinstallIntoUserRoot(pluginId: string): Promise<PluginRec
 }
 
 /**
- * Record an OS-attributed blocked attempt against a plugin (AC5, #620), e.g. an
+ * Record an OS-attributed blocked attempt against a plugin (AC5, #676), e.g. an
  * undeclared outbound connection blocked at the sandbox boundary. Lands in the
  * sandbox audit log with outcome "denied" and source "sandbox". Exposed so the
  * sandbox-attribution path (and tests) can record a denial; where the OS layer
@@ -2092,7 +2092,7 @@ export function recordSandboxDenial(args: {
 }
 
 /**
- * Query the sandbox audit log (F2.3, #620), optionally filtered by plugin
+ * Query the sandbox audit log (F2.3, #676), optionally filtered by plugin
  * and/or bench. Returns OS-attributed denials in chronological order so a
  * blocked out-of-band attempt is auditable even though the v2 broker AuditLog is
  * not yet runtime-wired into spawnPlugin.
@@ -2472,7 +2472,7 @@ export const __test = {
     mountUnsharedNoticed.clear();
     hostApiVersionOverride = null;
   },
-  // #856: simulate a host below a manifest's declared `roubo` floor, so the
+  // #1269: simulate a host below a manifest's declared `roubo` floor, so the
   // version-named refusal is asserted by a fixture test rather than resting on
   // release order. Only the discovery-time range gate reads it. Null restores
   // HOST_API_VERSION; `reset()` also clears it.
@@ -2482,7 +2482,7 @@ export const __test = {
   incompatibleRangeMessage(declared: string | undefined, hostVersion?: string): string | null {
     return incompatibleRangeMessage(declared, hostVersion);
   },
-  // #677 / #685: the per-call resolver the broker handlers read, exposed so tests
+  // #686 / #687: the per-call resolver the broker handlers read, exposed so tests
   // can assert which bench context a multiplexed connection resolves the named
   // benchId to.
   resolveBrokerContext(pluginId: string, benchId: number): BrokerContext | null {
@@ -2491,7 +2491,7 @@ export const __test = {
   setIsolationProbes(probes: IsolationProbes | null): void {
     setIsolationProbes(probes);
   },
-  // #748: override the isKnownUnsharedDockerPath predicate so tests can exercise
+  // #749: override the isKnownUnsharedDockerPath predicate so tests can exercise
   // the pre-check + tier-downgrade path without needing a real /Applications dir.
   // Pass null to restore the production predicate.
   setKnownUnsharedDockerPathFn(
@@ -2502,7 +2502,7 @@ export const __test = {
   resolveIsolationTier(): Promise<IsolationTier> {
     return resolveIsolationTier();
   },
-  // #743: the pure predicate behind the proactive docker-mount-unshared
+  // #746: the pure predicate behind the proactive docker-mount-unshared
   // pre-check, exposed so tests can exercise the known-unshared-path logic
   // without a real `/Applications` plugin dir or a live Docker daemon.
   isKnownUnsharedDockerPath(platform: NodeJS.Platform, resolvedDir: string): boolean {
@@ -2515,7 +2515,7 @@ export const __test = {
   getE2EConfig(): { scenario: string | null; now: string | null } {
     return { scenario: e2eScenario, now: e2eNow };
   },
-  // Issue #571 (CPHMTP-TC-011): re-derive every live record's marketplace
+  // #990 (CPHMTP-TC-011): re-derive every live record's marketplace
   // provenance (sourceId / sourceUrl / unverified / orphaned) from the on-disk
   // ledger, WITHOUT respawning the plugin processes. A PluginRecord's provenance
   // is baked on at build time (makeRecord -> marketplaceProvenanceFields), so a
@@ -2568,7 +2568,7 @@ export const __test = {
   getEntry(pluginId: string): PluginEntry | undefined {
     return plugins.get(pluginId);
   },
-  // IP-TC-163 (#240): SIGKILL the live child of `pluginId` so the supervisor sees
+  // IP-TC-163 (#272): SIGKILL the live child of `pluginId` so the supervisor sees
   // a genuine `unexpected-exit` and runs the full restart-budget path in
   // `handleChildExit`. Gated by ROUBO_E2E so production builds can't trigger
   // it. We intentionally do not flip `intentionalStop`: the goal is to

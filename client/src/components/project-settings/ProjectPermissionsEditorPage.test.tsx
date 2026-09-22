@@ -56,7 +56,7 @@ const FULL_CAPABILITIES = {
   resync: true,
 };
 
-/** An agent whose own rules format carries no `ask` tier (#862, APCC-TC-043). */
+/** An agent whose own rules format carries no `ask` tier (#1345, APCC-TC-043). */
 const TWO_TIER_CAPABILITIES = {
   ...FULL_CAPABILITIES,
   agentPluginId: "two-tier",
@@ -420,7 +420,7 @@ describe("agent-generic permissions surface (AP-FR-016, AP-TC-081, AP-TC-101)", 
   // whose own rules format has only two drops the third on the way to the bench.
   // The screen offers no way to create one, and says what happens to any already
   // saved, rather than letting the user believe it was written.
-  describe("rule tiers the agent does not carry (#862, APCC-TC-043)", () => {
+  describe("rule tiers the agent does not carry (#1345, APCC-TC-043)", () => {
     const openAddRuleTypePicker = async (user: ReturnType<typeof userEvent.setup>) =>
       user.click(screen.getByRole("button", { name: /Rule type/i }));
 

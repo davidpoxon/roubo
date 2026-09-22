@@ -4,8 +4,8 @@ import type { MarketplaceKind } from "../lib/api";
 import { marketplaceSourcesQueryKey } from "./useMarketplaceSources";
 
 // React Query hooks for the marketplace catalog (CP-FR-020 / CP-US-010, issue
-// #621). The catalog query is keyed on the q/kind/sourceId params (sourceId is the
-// multi-source filter chip, issue #557). Install and update stage a preview
+// #688). The catalog query is keyed on the q/kind/sourceId params (sourceId is the
+// multi-source filter chip, #962). Install and update stage a preview
 // (returning a staging token); the confirm/cancel mutations reuse the existing
 // plugin install endpoints and invalidate BOTH the marketplace catalog and the
 // installed plugin list so the cards re-annotate their installed/update state.
@@ -42,7 +42,7 @@ export function useMarketplaceCatalog(params: {
 
 // Install / update take an optional `sourceId`: the consumer's explicit
 // pick-a-source choice for an id served by several sources (CPHMTP-FR-005, issue
-// #558). A plain browse-and-install passes none, and the server refuses an
+// #966). A plain browse-and-install passes none, and the server refuses an
 // ambiguous id with a 409 rather than choosing one.
 export interface MarketplacePreviewVars {
   id: string;
@@ -80,7 +80,7 @@ export function useMarketplaceInstallCancel() {
   });
 }
 
-// Registering a third-party marketplace source (CPHMTP-FR-002, issue #562). The
+// Registering a third-party marketplace source (CPHMTP-FR-002, #975). The
 // consent dialog's container calls this on confirm and nowhere else: the POST is
 // the write that records consent (url + unsigned + registeredAt), so it must not
 // run while the dialog is merely open (CPHMTP-NFR-003).
@@ -100,7 +100,7 @@ export function useRegisterMarketplaceSource() {
       // A new source changes the merged catalog and its `sources` array, so the
       // whole marketplace key tree is invalidated.
       void queryClient.invalidateQueries({ queryKey: [MARKETPLACE_KEY] });
-      // The Marketplaces settings list (issue #561) is keyed ["marketplace-sources"],
+      // The Marketplaces settings list (#976) is keyed ["marketplace-sources"],
       // a sibling of this prefix rather than a child, so it is NOT covered by the
       // invalidation above and must be named explicitly. Without this, registering
       // a source leaves the settings list showing the pre-registration rows.

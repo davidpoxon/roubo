@@ -5,11 +5,11 @@
 // not a mock: this test reads fixture files from disk, JSON.parses them, and runs
 // the actual validateWorkUnits, walking TC-002's S001 -> S003 step for step.
 //
-// Drift guard (issue #713 acceptance criteria): each it() is named after its
+// Drift guard (#719 acceptance criteria): each it() is named after its
 // TC-002 step id, and every assertion attaches an expected-vs-actual message that
-// names the owning slice issue #697 (this unit's blocked_by / covers set, from
+// names the owning slice by title (this unit's blocked_by / covers set, from
 // .specifications/verify-gate/issues.json). A red run therefore localizes the
-// integration drift to slice #697, the work-units contract + validator.
+// integration drift to slice #718, the work-units contract + validator.
 //
 // The fixtures live under shared/__fixtures__/ (where the contract test already
 // reads fixtures) rather than in a real .specifications/testbench/ spec folder, so
@@ -27,8 +27,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const validFixturePath = resolve(here, "__fixtures__", "work-units.testbench.json");
 const invalidFixturePath = resolve(here, "__fixtures__", "work-units.testbench.invalid.json");
 
-// The owning slice issue from this e2e unit's blocked-by set (#713 -> #697).
-const OWNING_SLICE = "#697 (work-units contract + validator)";
+// The owning slice from this e2e unit's blocked-by set (delivered in #718).
+const OWNING_SLICE = "work-units contract + validator";
 
 describe("TC-002: validate a spec's work-units.json on load", () => {
   it("S001/S002: accepts the valid testbench work-units.json", () => {

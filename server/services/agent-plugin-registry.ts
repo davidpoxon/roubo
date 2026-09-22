@@ -10,7 +10,7 @@ import {
 } from "./plugin-manager.js";
 import { hasConsent } from "./plugin-consent-state.js";
 
-// AgentPluginRegistry (issue #507, AP-FR-001, AP-US-001).
+// AgentPluginRegistry (#1026, AP-FR-001, AP-US-001).
 //
 // The inventory of installed `agent`-kind plugins, plus the gate that resolves
 // one to the live per-plugin JSON-RPC connection plugin-manager already owns.

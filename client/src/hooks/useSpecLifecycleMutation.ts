@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "../lib/api";
 import type { SpecLifecycleRecordInput, SpecLifecycleState } from "../lib/api";
 
-// Spec-level lifecycle mutation for the picker (#773, SATCA-FR-020/FR-021).
+// Spec-level lifecycle mutation for the picker (#1166, SATCA-FR-020/FR-021).
 // Archives or supersedes a spec, and reverses either by passing `lifecycle:
 // null`, which is why one hook covers all three actions: reversal is a key
 // deletion, not a separate endpoint.

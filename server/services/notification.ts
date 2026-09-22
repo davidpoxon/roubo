@@ -35,7 +35,7 @@ function persistBench(bench: Bench): void {
   // Notifications fire from live PTY streams and component lifecycle tails, so
   // this runs long after the caller captured its `bench` reference. Skip the
   // write once teardown has dropped the bench from the in-memory map, matching
-  // the guard issue-assignment applies to its own background writes (#829).
+  // the guard issue-assignment applies to its own background writes (#1191).
   // `updateBench` is a no-op for an absent record anyway; this just avoids the
   // pointless load/save.
   if (!benchManager.isBenchLive(bench.projectId, bench.id)) return;
@@ -54,7 +54,7 @@ function persistBench(bench: Bench): void {
     injectedJigId: bench.injectedJigId,
     injectedJigSource: bench.injectedJigSource,
     // updateBench replaces the whole record, so an omitted flag is erased from
-    // state.json and hydrates back as `true` (#630). A bench-error notification
+    // state.json and hydrates back as `true` (#997). A bench-error notification
     // fires on exactly the failed-setup path that has to stay retryable, so
     // dropping it here would make a failed `benches.setup` look complete.
     benchSetupComplete: bench.benchSetupComplete,

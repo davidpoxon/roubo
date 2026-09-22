@@ -206,7 +206,7 @@ describe("WriteOp", () => {
 
   // The match reads `match.key` off each entry, so an op that could never be
   // matched is an authoring error rather than something to discover on disk
-  // as a second entry after the next launch (issue #890).
+  // as a second entry after the next launch (#1344).
   it("rejects an upsertArray op with no match", () => {
     expect(
       WriteOpSchema.safeParse({ op: "upsertArray", path: "a", value: { command: "x" } }).success,
@@ -273,7 +273,7 @@ describe("NotificationWiring", () => {
   });
 });
 
-// Issue #854 (APCC-FR-004, APCC-TC-004): the file-registered, stdin-payload
+// #1264 (APCC-FR-004, APCC-TC-004): the file-registered, stdin-payload
 // variant. The registration rides a workspace write, as the http-hook one does,
 // and the notifier is spawned with the event on stdin.
 describe("NotificationWiring: file-notifier (APCC-TC-004)", () => {
@@ -368,7 +368,7 @@ describe("VersionProbeSpec", () => {
     );
   });
 
-  // Issue #661: a bound the semver comparison cannot parse used to be accepted
+  // #1076: a bound the semver comparison cannot parse used to be accepted
   // here and then classified `below-floor` for every detected version, hard
   // blocking the agent with a misleading message. Both bounds now refine against
   // what `compareVersions` can actually turn into three numbers.
@@ -376,7 +376,7 @@ describe("VersionProbeSpec", () => {
   // The prerelease and build-metadata cases matter for the same reason:
   // `"2.1.111-beta.1".split(".")` yields a `"111-beta"` segment that `Number`
   // reads as NaN, so such a bound is just as uncomparable as `v2.1.111` even
-  // though it is valid semver. The manifest side rejects them too since #669, so
+  // though it is valid semver. The manifest side rejects them too since #1082, so
   // both schemas now share the one `isExactSemverVersion` predicate.
   const UNCOMPARABLE_BOUNDS = [
     "v2.1.111",

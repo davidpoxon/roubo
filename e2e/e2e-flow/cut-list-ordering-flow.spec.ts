@@ -3,14 +3,14 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
-// #570: the integration-level drift guard for the US-004 journey "deterministic
+// #641: the integration-level drift guard for the US-004 journey "deterministic
 // ordering via the sort picker, stable across pages". It spans the sort slices
-// #554, #556, #562, #563, #564 and asserts the integrated journey against the
+// #578, #580, #632 and asserts the integrated journey against the
 // authoritative e2e_flow case CLI-TC-035, not whatever any single slice
 // implemented.
 //
 // TC-035 is reconciled to the SHIPPED contract here (following the precedent
-// #584 set for TC-032 in .specifications/cut-list-improvements/test-cases.json).
+// #632 set for TC-032 in .specifications/cut-list-improvements/test-cases.json).
 // Three+ TC-035 observations diverge from the shipped UI:
 //
 //   1. There is NO separate "direction toggle". The shipped picker
@@ -40,8 +40,8 @@ import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 //
 // FR-020 failure-output contract: every assertion below carries a descriptive
 // message naming the diverging e2e_flow step (S001..S004), the expected-vs-actual,
-// and the owning slice issue(s) from this unit's blocked_by/covers set
-// (#554/#556/#562/#563/#564), so a regression points straight at the step and
+// and the owning slice(s) from this unit's blocked_by/covers set
+// (#578/#580/#632), so a regression points straight at the step and
 // the slice that broke it.
 //
 // The fixture project (e2e/fixtures/cut-list-ordering-project) pins
@@ -54,8 +54,8 @@ const SCENARIO = "cut-list-ordering";
 const NOW = "2026-05-21T13:00:00.000Z";
 
 // The slices this journey spans (issue blocked_by / covers set).
-const SORT_SLICE = "#554/#562/#563/#564"; // sort RPC contract + picker UI + per-plugin sort impls
-const PAGE_SLICE = "#556"; // pagination / cross-page boundary
+const SORT_SLICE = "sort RPC contract + sort picker UI + per-plugin sort implementations";
+const PAGE_SLICE = "Prev/Next pagination"; // pagination / cross-page boundary
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_PATH = path.resolve(__dirname, "..", "fixtures", "cut-list-ordering-project");
@@ -244,7 +244,7 @@ test("TC-035: deterministic ordering via the sort picker, stable across pages", 
 
   // S004: click Next. Page 2 continues the updated-DESCENDING order (#304 then
   // #302), and NO page-1 cut reappears (ordering stable + dedupe holds across
-  // the page boundary, the #556 cross-page invariant).
+  // the page boundary, the #580 cross-page invariant).
   await nextButton(page).click();
   await expect(
     indicator(page),

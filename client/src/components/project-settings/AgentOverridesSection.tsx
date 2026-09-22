@@ -88,7 +88,7 @@ interface PartitionedErrors {
  * an `additionalProperties` violation naming a stale app-default key). Routing
  * those to the banner rather than dropping them is what keeps every rejection
  * visible, mirroring `partitionFieldErrors` in the app-level
- * `settings/agents/AgentConfigForm.tsx` (#634).
+ * `settings/agents/AgentConfigForm.tsx` (#1033).
  */
 function partitionFieldErrors(
   err: unknown,
@@ -132,7 +132,7 @@ function ProjectAgentOverrideCard({
   // Keys whose input the user has emptied but whose override is still on. The
   // draft keeps a real value for them (see `setFieldValue`); this only records
   // that the BOX should render empty, so clearing and retyping a number stays
-  // an ordinary edit instead of typing on top of a re-injected value (#637).
+  // an ordinary edit instead of typing on top of a re-injected value (#1045).
   const [clearedInputs, setClearedInputs] = useState<Record<string, true>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -145,7 +145,7 @@ function ProjectAgentOverrideCard({
   // An emptied box is not a draft change (the draft still holds the fallback),
   // so Reset needs its own reason to stay live: without it, clearing a field
   // whose saved value already equals the fallback would leave the box empty
-  // with no way to put the number back (#637).
+  // with no way to put the number back (#1045).
   const hasClearedInput = Object.keys(clearedInputs).length > 0;
   const anyOverridden = Object.keys(draft).length > 0;
 
@@ -181,7 +181,7 @@ function ProjectAgentOverrideCard({
     // while the preview said "not set", the wire payload dropped the key, and
     // the draft compared equal to the saved state, disabling both Save and
     // Reset. So a cleared input falls back to the value a newly-toggled row is
-    // seeded with, and the way to stop overriding is to untoggle the row (#637).
+    // seeded with, and the way to stop overriding is to untoggle the row (#1045).
     //
     // The emptied BOX is tracked separately rather than mirrored into the
     // draft. Feeding the fallback straight back into a controlled input would
@@ -309,7 +309,7 @@ function ProjectAgentOverrideCard({
                   <ConfigSchemaForm
                     schema={{ type: "object", properties: { [key]: def } }}
                     // An emptied box renders empty even though the draft holds
-                    // the fallback the row would save (#637). `hasOwnProperty`
+                    // the fallback the row would save (#1045). `hasOwnProperty`
                     // for the same reason as the toggle above.
                     values={{
                       [key]: Object.prototype.hasOwnProperty.call(clearedInputs, key)
@@ -387,7 +387,7 @@ function ProjectAgentOverrideCard({
 }
 
 /**
- * Project settings > Agent overrides (AP-FR-004, AP-US-002, issue #509).
+ * Project settings > Agent overrides (AP-FR-004, AP-US-002, #1044).
  *
  * One card per installed agent plugin, one row per schema-declared field, each
  * row carrying its own inherit/override toggle and the app default it inherits.

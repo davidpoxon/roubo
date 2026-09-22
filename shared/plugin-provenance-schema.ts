@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Issue #558 / CPHMTP-FR-005, CPHMTP-FR-006. Per-plugin marketplace install
+// #966 / CPHMTP-FR-005, CPHMTP-FR-006. Per-plugin marketplace install
 // provenance. See:
 //   .specifications/component-plugins-hosted-marketplace-third-party/prd.md
 //   .specifications/component-plugins-hosted-marketplace-third-party/architecture.md
@@ -38,7 +38,7 @@ export const PluginProvenanceRecordSchema = z
     unverified: z.boolean(),
     /**
      * True once the source this plugin came from has been removed from the
-     * registry (issue #560 / CPHMTP-FR-009). Stamped at removal time and
+     * registry (#968 / CPHMTP-FR-009). Stamped at removal time and
      * persisted, never recomputed at read time by joining against the source
      * registry. Optional so rows written before this field stay valid under the
      * strict schema: absent means "not orphaned", so no migration is required.

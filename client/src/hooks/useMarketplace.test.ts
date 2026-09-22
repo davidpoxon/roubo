@@ -18,7 +18,7 @@ const registerMarketplaceSource = vi.mocked(api.registerMarketplaceSource);
 const fetchMarketplaceSources = vi.mocked(api.fetchMarketplaceSources);
 
 // The marketplace catalog query is cached per filter combination, so the key has
-// to carry every param that changes the server's answer. Issue #557 added the
+// to carry every param that changes the server's answer. #962 added the
 // source filter (sourceId): without it in the key, scoping the merged list to one
 // source would read back another source's cached listings.
 
@@ -48,7 +48,7 @@ describe("marketplaceQueryKey", () => {
 // itself, and sourceId is part of the query key, so a chip click starts a fresh
 // query. Without previous data held across that key change the response would go
 // undefined mid-flight and the chip row would unmount under the user, taking
-// keyboard focus and the "All sources" way back with it (issue #557).
+// keyboard focus and the "All sources" way back with it (#962).
 describe("useMarketplaceCatalog", () => {
   function response(over: Partial<MarketplaceCatalogResponse> = {}): MarketplaceCatalogResponse {
     return {
@@ -104,7 +104,7 @@ describe("useMarketplaceCatalog", () => {
   });
 });
 
-// Registering a third-party marketplace source (CPHMTP-FR-002, issue #562). The
+// Registering a third-party marketplace source (CPHMTP-FR-002, #975). The
 // mutation is the consent write: it must run only when the dialog's container
 // fires it, and a new source changes the merged catalog and its `sources` array,
 // so the marketplace key tree has to be re-read afterwards.
@@ -154,7 +154,7 @@ describe("useRegisterMarketplaceSource", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
   });
 
-  it("refetches the Marketplaces settings list once a source is registered (issue #561)", async () => {
+  it("refetches the Marketplaces settings list once a source is registered (#976)", async () => {
     // The settings list is keyed ["marketplace-sources"], a sibling of the
     // ["marketplace"] prefix rather than a child, so the key-tree invalidation
     // above does NOT reach it. Assert the real refetch: a spy on invalidateQueries

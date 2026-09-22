@@ -104,11 +104,11 @@ describe("discoverSpecs", () => {
     );
   });
 
-  // #427 (mirrors TC-052): when `.specifications` itself is a symlink escaping the
+  // #903 (mirrors TC-052): when `.specifications` itself is a symlink escaping the
   // repo, the lexical resolveWithin still yields an in-repo-looking path, but the
   // realpath barrier before readdir rejects it, so the enumeration never resolves
   // outside repoPath (a spec dir sitting outside the repo is not surfaced).
-  it("does not enumerate a symlinked .specifications root that escapes the repo (#427)", () => {
+  it("does not enumerate a symlinked .specifications root that escapes the repo (#903)", () => {
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-discovery-outside-"));
     try {
       // A valid, contract-passing spec sits OUTSIDE the repo, reachable only by
@@ -129,10 +129,10 @@ describe("discoverSpecs", () => {
     }
   });
 
-  // #427: a real in-repo slug dir whose `test-cases.json` is a symlink escaping the
+  // #903: a real in-repo slug dir whose `test-cases.json` is a symlink escaping the
   // repo is skipped by the per-slug realpath barrier before the read, so the leaf
   // read never resolves outside repoPath.
-  it("skips a spec whose test-cases.json is a symlink escaping the repo (#427)", () => {
+  it("skips a spec whose test-cases.json is a symlink escaping the repo (#903)", () => {
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-discovery-leaf-"));
     try {
       fs.writeFileSync(
@@ -191,10 +191,10 @@ describe("validateManualPath", () => {
     expect(result.ok).toBe(false);
   });
 
-  // #427: a valid-slug spec dir that is a symlink escaping the repo is rejected by
+  // #903: a valid-slug spec dir that is a symlink escaping the repo is rejected by
   // the realpath barrier before the file is read, so a plan outside the repo is
   // never validated as an in-repo manual path.
-  it("rejects a symlinked spec path that escapes the repo (#427)", () => {
+  it("rejects a symlinked spec path that escapes the repo (#903)", () => {
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-manualpath-outside-"));
     try {
       fs.writeFileSync(
@@ -232,10 +232,10 @@ describe("resolveFocusedSpec", () => {
     expect(() => resolveFocusedSpec(repo, "")).toThrow(UnsafePathError);
   });
 
-  // #427: a valid-slug spec dir that is a symlink escaping the repo is rejected by
+  // #903: a valid-slug spec dir that is a symlink escaping the repo is rejected by
   // the realpath barrier, so a focused path that resolves outside repoPath through
   // a symlink is refused fail-closed rather than accepted.
-  it("throws for a symlinked spec path that escapes the repo (#427)", () => {
+  it("throws for a symlinked spec path that escapes the repo (#903)", () => {
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-focused-outside-"));
     try {
       fs.writeFileSync(
@@ -254,7 +254,7 @@ describe("resolveFocusedSpec", () => {
   });
 });
 
-// ── Per-spec verification aggregation (#482, TSPF-FR-001/FR-002) ──
+// ── Per-spec verification aggregation (#936, TSPF-FR-001/FR-002) ──
 
 const TEST_AUTHOR = { name: "Tester", email: "tester@example.com" };
 const FIXED_TS = "2026-01-01T00:00:00.000Z";
@@ -301,7 +301,7 @@ function writeResults(
   return target;
 }
 
-describe("discoverSpecs verification aggregation (#482)", () => {
+describe("discoverSpecs verification aggregation (#936)", () => {
   it("carries a verification object on every spec; statusCounts sums to caseCount", () => {
     const plan = planFor("feat", ["TC-001", "TC-002"]);
     writeSpec("feat", plan);
@@ -426,7 +426,7 @@ describe("discoverSpecs verification aggregation (#482)", () => {
     expect(v.statusCounts.not_started).toBe(2);
   });
 
-  // #835: a plan with no LIVE cases is never vacuously all-passed, even under a
+  // #1217: a plan with no LIVE cases is never vacuously all-passed, even under a
   // clean hash-matching sidecar. There is no evidence of anything passing, so it
   // stays needs-attention, matching evaluateGate's fail-closed treatment of an
   // emptied gating set (verify-gate NFR-007).
@@ -463,7 +463,7 @@ describe("discoverSpecs verification aggregation (#482)", () => {
   // repo makes the store's path-safety assertion throw; the per-spec catch degrades
   // ONLY that spec (aggregationError true, needs-attention) while the endpoint still
   // lists every spec.
-  it("degrades only the spec whose results sidecar symlinks outside the repo (#482)", () => {
+  it("degrades only the spec whose results sidecar symlinks outside the repo (#936)", () => {
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "tb-verify-escape-"));
     try {
       const evilPlan = planFor("evil", ["TC-001"]);
@@ -538,7 +538,7 @@ describe("discoverSpecs verification aggregation (#482)", () => {
   });
 });
 
-// ── Live-case filtering in discovery (#835, SATCA-FR-005) ──
+// ── Live-case filtering in discovery (#1217, SATCA-FR-005) ──
 
 // Attach a lifecycle block to one case of an already-built plan, returning a new
 // plan. Mirrors the schema's discriminated union: `retired` carries a reason,
@@ -560,7 +560,7 @@ const RETIRED: CaseLifecycle = {
 };
 const SUPERSEDED: CaseLifecycle = { state: "superseded", replacement: "TC-001" };
 
-describe("discoverSpecs live-case filtering (#835)", () => {
+describe("discoverSpecs live-case filtering (#1217)", () => {
   it("classifies all-passed when the only non-passed case is retired", () => {
     // The reported repro in miniature: every live case passed, and the one
     // recorded failure belongs to a case whose obligation has ended.
@@ -688,7 +688,7 @@ function writeManifest(slug: string, manifest: unknown): string {
   return target;
 }
 
-describe("discoverSpecs lifecycle aggregation (#765)", () => {
+describe("discoverSpecs lifecycle aggregation (#1157)", () => {
   it("carries a live lifecycle object on every spec with no manifest (SATCA-TC-039)", () => {
     writeSpec("feat", planFor("feat", ["TC-001"]));
 

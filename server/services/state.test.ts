@@ -207,7 +207,7 @@ describe("loadSettings", () => {
     );
   });
 
-  // AP-FR-008 (#681): app-level agent tool presets are rendered from this read,
+  // AP-FR-008 (#1101): app-level agent tool presets are rendered from this read,
   // and the settings PUT falls back to it when a request omits `agentTools`, so
   // dropping the key here both hid every saved preset and erased the file's copy
   // on the next unrelated settings write.
@@ -445,7 +445,7 @@ describe("saveSettings", () => {
   });
 });
 
-describe("hasLegacyAgentSettings (AP-FR-021, #521)", () => {
+describe("hasLegacyAgentSettings (AP-FR-021, #1114)", () => {
   it("reports false on a fresh install with no settings file at all (AP-TC-110)", () => {
     existsSync.mockReturnValue(false);
     expect(stateModule.hasLegacyAgentSettings()).toBe(false);
@@ -493,7 +493,7 @@ describe("hasLegacyAgentSettings (AP-FR-021, #521)", () => {
   });
 });
 
-describe("writeLegacyAgentSettings (AP-FR-021, #530)", () => {
+describe("writeLegacyAgentSettings (AP-FR-021, #1125)", () => {
   it("plants the block beside the existing settings, so the upgrade signal reads true", () => {
     existsSync.mockReturnValue(true);
     readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", jigs: { autoInject: true } }));
@@ -841,7 +841,7 @@ describe("updateBench", () => {
     expect(written.benches[1].branch).toBe("sibling");
   });
 
-  it("writes nothing when no record with that (projectId, id) exists (#829)", () => {
+  it("writes nothing when no record with that (projectId, id) exists (#1191)", () => {
     // The resurrection bug: a background writer holding a stale Bench reference
     // persists after teardown removed the record. An upserting update re-adds it
     // to state.json, so the unregister guard keeps counting a bench the Benches
@@ -902,7 +902,7 @@ describe("updateBench", () => {
   });
 });
 
-describe("bench lifecycle durability (#829)", () => {
+describe("bench lifecycle durability (#1191)", () => {
   // Backs the mocked fs with a single mutable state.json so a whole
   // create -> clear -> late-write -> relaunch sequence runs against the real
   // load/save code rather than one hand-fed snapshot.
@@ -1372,7 +1372,7 @@ describe("toPersistedBench", () => {
     expect(persisted.componentSetupState).toEqual({ db: true, web: false });
   });
 
-  it("derives componentUrls from the components that reported one (#833)", () => {
+  it("derives componentUrls from the components that reported one (#1206)", () => {
     const persisted = stateModule.toPersistedBench({
       id: 1,
       projectId: "p",
@@ -1412,7 +1412,7 @@ describe("toPersistedBench", () => {
     expect(written.benches[0].componentSetupState).toEqual({ backend: false, db: true });
   });
 
-  it("carries benchSetupComplete onto the persisted bench (#630)", () => {
+  it("carries benchSetupComplete onto the persisted bench (#997)", () => {
     const makeBench = (benchSetupComplete?: boolean) => ({
       id: 8,
       projectId: "p",

@@ -1,4 +1,4 @@
-// Sign-off / reopen route tests for the verify gate (issue #830, VG-FR-007/VG-FR-008,
+// Sign-off / reopen route tests for the verify gate (#833, VG-FR-007/VG-FR-008,
 // VG-US-005, VG-NFR-001, VG-NFR-005). Kept in a separate file from gates.test.ts so this
 // router instance (and its module-level rate limiters) is fresh under Vitest's
 // per-file isolation: the sign-off / reopen write requests here have their own
@@ -39,7 +39,7 @@ vi.mock("../services/work-unit-loader.js", async () => {
     "../services/work-unit-loader.js",
   );
   const loadVerifyUnits = vi.fn();
-  // effectiveGates now loads via loadVerifyUnitsWithDiagnostics (#371); delegate to
+  // effectiveGates now loads via loadVerifyUnitsWithDiagnostics (#874); delegate to
   // the mocked loadVerifyUnits with no invalid specs so the existing tests that set
   // loadVerifyUnits drive the sign-off / reopen / GET handlers unchanged.
   const loadVerifyUnitsWithDiagnostics = vi.fn((repoPath: string, slug?: string) => ({
@@ -51,7 +51,7 @@ vi.mock("../services/work-unit-loader.js", async () => {
     loadVerifyUnits,
     loadVerifyUnitsWithDiagnostics,
     buildWorkUnitCaseMap: vi.fn(() => new Map()),
-    // The blockedBy derivation (#433) reads the full per-slug unit graph; default
+    // The blockedBy derivation (#914) reads the full per-slug unit graph; default
     // to an empty graph so these sign-off / reopen / GET tests derive no blockers.
     loadAllUnitsForSlug: vi.fn(() => []),
   };
@@ -186,7 +186,7 @@ function passedTrackedGate() {
   );
 }
 
-// The operator-merged gate spanning WU-040 + WU-060 (issue #435). Its synthetic id
+// The operator-merged gate spanning WU-040 + WU-060 (#911). Its synthetic id
 // has no tracker of its own; each SOURCE gate carries a real filed tracker ref, so
 // sign-off / reopen / signed-off fan out over the two sources.
 const MERGED_ID = mintMergeGateId(["WU-040", "WU-060"]); // MERGED:WU-040+WU-060
@@ -214,7 +214,7 @@ function passedMergedGate(sources?: VerifyUnit[]) {
 }
 
 // The operator-split source gate WU-040 (covers WU-101 + WU-102) split into two
-// parts A/B (issue #445). The synthetic split parts have no tracker of their own;
+// parts A/B (#919). The synthetic split parts have no tracker of their own;
 // the SOURCE gate carries the real filed tracker ref, so sign-off / reopen /
 // signed-off / fix-issue fan out over that single source for every part. All
 // parts share the one source: signing off any part closes the source issue.
@@ -280,7 +280,7 @@ beforeEach(() => {
   vi.mocked(reopenGate).mockResolvedValue(undefined);
 });
 
-describe("POST /:projectId/gates/:gateId/sign-off (#830)", () => {
+describe("POST /:projectId/gates/:gateId/sign-off (#833)", () => {
   beforeEach(passedTrackedGate);
 
   it("closes the gate's tracker issue and returns signedOff:true on success (AC, VG-NFR-001)", async () => {
@@ -355,7 +355,7 @@ describe("POST /:projectId/gates/:gateId/sign-off (#830)", () => {
   });
 });
 
-describe("DELETE /:projectId/gates/:gateId/sign-off reopen (#830)", () => {
+describe("DELETE /:projectId/gates/:gateId/sign-off reopen (#833)", () => {
   beforeEach(passedTrackedGate);
 
   it("reopens the gate's tracker issue and returns signedOff:false", async () => {
@@ -409,7 +409,7 @@ describe("DELETE /:projectId/gates/:gateId/sign-off reopen (#830)", () => {
   });
 });
 
-describe("GET /:projectId/gates/:gateId derives signedOff from the tracker issue (#830)", () => {
+describe("GET /:projectId/gates/:gateId derives signedOff from the tracker issue (#833)", () => {
   beforeEach(() => {
     passedTrackedGate();
     vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
@@ -509,7 +509,7 @@ describe("GET signedOff qualifies a contract-conformant bare tracker.ref (issue 
   });
 });
 
-describe("merged gate sign-off / reopen / signedOff (issue #435)", () => {
+describe("merged gate sign-off / reopen / signedOff (#911)", () => {
   it("signs off a passed merged gate by closing EVERY source gate's tracker issue", async () => {
     passedMergedGate();
     vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
@@ -617,7 +617,7 @@ describe("merged gate sign-off / reopen / signedOff (issue #435)", () => {
   });
 });
 
-describe("split gate sign-off / reopen / signedOff (issue #445)", () => {
+describe("split gate sign-off / reopen / signedOff (#919)", () => {
   it("signs off a passed split gate by closing the SOURCE gate's tracker issue", async () => {
     passedSplitGate();
     vi.mocked(resolveActivePlugin).mockReturnValue(ACTIVE);
@@ -699,7 +699,7 @@ describe("split gate sign-off / reopen / signedOff (issue #445)", () => {
   });
 });
 
-describe("fix-issue filing fans out over source gates (issue #435/#445)", () => {
+describe("fix-issue filing fans out over source gates (#911/#919)", () => {
   it("files a fix issue against the split gate's SOURCE tracker ref rather than 409ing", async () => {
     passedSplitGate();
     // A failed gating case on part A so a fix issue is warranted.

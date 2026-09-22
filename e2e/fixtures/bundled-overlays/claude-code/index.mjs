@@ -1,4 +1,4 @@
-// E2E overlay runtime for the `claude-code` agent plugin slot (issue #531).
+// E2E overlay runtime for the `claude-code` agent plugin slot (#1083).
 //
 // SOURCE OF TRUTH: roubo-plugins/plugins/claude-code/src/translate-launch.ts and
 // roubo-plugins/plugins/claude-code/src/tokenize.ts. The flag ordering, the

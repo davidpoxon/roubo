@@ -17,7 +17,7 @@ const CTX: AgentLaunchContextInfo = {
   command: "claude",
 };
 
-describe("classifyPtyExit (spike #504 AC2)", () => {
+describe("classifyPtyExit (launch-failure spike AC2)", () => {
   it("classifies the codex unknown-flag exit as a launch failure (S5)", () => {
     expect(classifyPtyExit({ exitCode: 2, timeToExitMs: 52, outputBytes: 278 })).toBe(
       "launch-failure",

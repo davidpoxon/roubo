@@ -15,10 +15,10 @@ export function makeConfig(overrides?: Partial<RouboConfig>): RouboConfig {
     },
     layout: { type: "single-repo" },
     components: {
-      // The canonical components-map entry is now a plugin binding (#609). The
+      // The canonical components-map entry is now a plugin binding (#652). The
       // legacy inline fields (`type` / `command` / `docker` / ...) are still
       // carried on many bench-manager fixtures because that behavioural dispatch
-      // has not moved onto the plugin contract yet (#612, F1.11); they ride the
+      // has not moved onto the plugin contract yet (#663, F1.11); they ride the
       // `ComponentBinding` transition shim. This default stays binding-only so it
       // round-trips through the strict zod schema in config-parser tests.
       backend: {

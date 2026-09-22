@@ -7,7 +7,7 @@ import StatusIndicator from "./StatusIndicator";
 import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useTestbenchPlan";
 
 // Archived cases section for the TestBench review tab (FR-013, FR-017, NFR-003,
-// and SATCA-FR-006/FR-007 via #769). Two different things end up archived, and
+// and SATCA-FR-006/FR-007 via #1161). Two different things end up archived, and
 // this one section shows both rather than inventing a second surface:
 //
 //   1. Lifecycle-archived cases. A case retired or superseded in the source plan.
@@ -28,9 +28,9 @@ import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useT
 // that case in the live list. A cross-spec replacement is named but not
 // activatable, because the panel holds only this spec's plan, and so is a
 // same-spec pointer whose target is absent from the plan or not itself live
-// (#789), which would otherwise be a control that does nothing when activated.
+// (#1165), which would otherwise be a control that does nothing when activated.
 //
-// Focus lands here after a case is archived from the case detail pane (#775,
+// Focus lands here after a case is archived from the case detail pane (#1173,
 // SATCA-NFR-005). Retiring or superseding removes the case from the live list,
 // which unmounts the control that applied the action and would otherwise drop
 // focus to the document body. The panel hands this section the id of the case
@@ -49,7 +49,7 @@ import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useT
 // marks two observations and retires the case in-app, then scans the entry the
 // case lands on.
 //
-// Restore lives on the lifecycle entry (#772, SATCA-FR-021). It is here rather
+// Restore lives on the lifecycle entry (#1167, SATCA-FR-021). It is here rather
 // than in the case detail pane because retiring a case removes it from the live
 // list, so the surface that applied the action cannot be the one that reverses
 // it: this entry is where the archived case is still visible. Restore removes the
@@ -60,7 +60,7 @@ import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useT
 //
 // The section renders when at least one entry of either kind exists.
 //
-// It is height-capped with its own internal scroll (#832). The section sits in
+// It is height-capped with its own internal scroll (#1200). The section sits in
 // the panel's single flex column as a sibling of the live case list, and the
 // list's own height floor is 0, so an uncapped section (one retirement reason
 // running to a few paragraphs is enough) took the whole column and left the list
@@ -157,7 +157,7 @@ function LifecycleEntry({
   projectId?: string;
   benchId?: number;
   // True for the entry the case just moved into, so focus lands here rather than
-  // on the body when the applying control unmounts (#775, AC4).
+  // on the body when the applying control unmounts (#1173, AC4).
   shouldFocus?: boolean;
 }) {
   const caseId = entry.case.id;
@@ -173,7 +173,7 @@ function LifecycleEntry({
   // Only a replacement the rollup found to be present and live in this spec's
   // plan can be revealed: the panel holds this spec's plan alone, so a
   // slug-qualified pointer, or a same-spec one whose target is missing or itself
-  // non-live, is named as text and left inert (#789).
+  // non-live, is named as text and left inert (#1165).
   const revealId =
     entry.isRevealable && entry.replacementRef !== null && onSelectCase !== undefined
       ? entry.replacementRef.caseId
@@ -263,10 +263,10 @@ export default function ArchivedCases({
   archived?: ArchivedCaseModel[];
   onSelectCase?: (caseId: string) => void;
   // Supplied by the panel so a lifecycle-archived entry can offer Restore
-  // (#772). Optional, so a read-only render of the section still works.
+  // (#1167). Optional, so a read-only render of the section still works.
   projectId?: string;
   benchId?: number;
-  // The case that just arrived here, so its entry can take focus (#775, AC4).
+  // The case that just arrived here, so its entry can take focus (#1173, AC4).
   // Undefined on an ordinary render, which leaves focus exactly where it was.
   focusCaseId?: string;
 }) {

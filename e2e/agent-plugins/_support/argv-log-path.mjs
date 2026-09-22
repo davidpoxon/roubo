@@ -1,4 +1,4 @@
-// The single definition of the argv-capture channels (issues #531, #532), and
+// The single definition of the argv-capture channels (#1083, #1128), and
 // of the Cursor stub's working-directory channel beside them.
 //
 // Three processes have to agree on these paths: the Playwright process (via

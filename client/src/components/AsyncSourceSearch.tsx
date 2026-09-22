@@ -39,7 +39,7 @@ function entryToItem(entry: SourceSelectionEntry, id: string): SourceCandidateIt
 }
 
 /**
- * Debounced async type-ahead for a single source category (JSS-WU-003, #352). The
+ * Debounced async type-ahead for a single source category (JSS-WU-003, #398). The
  * results render inside a React Aria `Popover`, which portals to the document
  * body and so is never clipped by the configure modal (JSS-FR-013). Selecting a
  * result toggles its membership; results show the full untruncated name plus a

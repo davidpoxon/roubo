@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #524: the test-case list can be collapsed once a case is selected, handing its
+// #525: the test-case list can be collapsed once a case is selected, handing its
 // width to the case-detail pane while the selected case stays shown. The collapse
 // is persisted per bench via useBenchViewState (localStorage).
 
@@ -16,7 +16,7 @@ vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: (projectId: string, benchId: number) =>
     mockUseTestbenchPlan(projectId, benchId),
   useSetTestbenchFocus: () => ({ mutate: vi.fn(), isPending: false }),
-  // #772: the panel's archived entries and the case detail pane both reach for
+  // #1167: the panel's archived entries and the case detail pane both reach for
   // the lifecycle mutation; neither is under test here, so stub it inert.
   useSetCaseLifecycle: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   caseLifecycleErrorMessage: () => null,
@@ -69,7 +69,7 @@ function setPlan(data: Partial<TestbenchPlanResponse> & { plan: TestCasesPlan })
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  // The panel now defaults to the Batches view on first visit (#359); this suite
+  // The panel now defaults to the Batches view on first visit (#842); this suite
   // exercises the Cases view, so seed the persisted per-bench view to "cases".
   localStorage.setItem(
     "roubo-bench-view-state",
@@ -78,7 +78,7 @@ beforeEach(() => {
   setPlan({ plan: plan([makeCase("c1"), makeCase("c2")]) });
 });
 
-describe("TestBenchPanel case-list collapse (#524)", () => {
+describe("TestBenchPanel case-list collapse (#525)", () => {
   it("offers no collapse control until a case is selected", () => {
     render(<TestBenchPanel projectId="p1" benchId={1} />);
     expect(

@@ -1,6 +1,6 @@
 /**
  * AP-TC-076: all three launch-failure classes are detected and surfaced, at
- * 100%, with zero silent dead terminals (AP-NFR-003, issue #519).
+ * 100%, with zero silent dead terminals (AP-NFR-003, #1064).
  *
  * Deliberately end to end through the real machinery rather than per-unit: the
  * version probe, the gate in `prepareAgentLaunch`, the binary resolution and
@@ -59,7 +59,7 @@ vi.mock("./bench-manager.js", () => ({ getBench: vi.fn(() => undefined) }));
 const execMocks = vi.hoisted(() => ({ runCommand: vi.fn() }));
 vi.mock("./exec.js", () => execMocks);
 
-/** The agent CLI's own `--version` output, simulated at the probe runner's spawn (#851). */
+/** The agent CLI's own `--version` output, simulated at the probe runner's spawn (#1266). */
 const probeSpawnMocks = vi.hoisted(() => ({ spawnProbe: vi.fn() }));
 vi.mock("./probe-spawn.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./probe-spawn.js")>()),

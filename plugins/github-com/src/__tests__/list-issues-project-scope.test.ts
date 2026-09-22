@@ -159,7 +159,7 @@ describe("listIssues project-board scoping", () => {
     expect(page2.nextCursor).toBeNull();
   });
 
-  // Issue #399: server-side status exclusion for the github family. The board
+  // #404: server-side status exclusion for the github family. The board
   // item's Projects v2 "Status" column is matched (case-insensitively) against
   // the host-resolved excludedStatuses list inside the plugin.
   it("excludes board items whose Status column is in excludedStatuses, matching case-insensitively", async () => {

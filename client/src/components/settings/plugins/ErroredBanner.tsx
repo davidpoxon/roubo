@@ -26,7 +26,7 @@ const STRINGS = {
   genericError: "Plugin failed to start.",
   restart: "Restart",
   restarting: "Restarting...",
-  // #496: component plugins are installed from the marketplace, so an errored
+  // #945: component plugins are installed from the marketplace, so an errored
   // component offers a Reinstall recovery affordance distinct from Restart.
   reinstall: "Reinstall",
   reinstalling: "Reinstalling...",
@@ -48,7 +48,7 @@ interface Props {
   /**
    * The errored plugin's install provenance, handed to the reinstall consent modal
    * so that dialog states the trust level of the plugin actually being reinstalled
-   * rather than defaulting to a first-party claim (CPHMTP-FR-006, issue #563).
+   * rather than defaulting to a first-party claim (CPHMTP-FR-006, #977).
    */
   provenance: PluginProvenance;
   onViewLogs: () => void;
@@ -62,7 +62,7 @@ export default function ErroredBanner({
   onViewLogs,
 }: Props) {
   const restart = useRestartPlugin();
-  // #496: reuse the marketplace update -> consent -> commit machinery (the same
+  // #945: reuse the marketplace update -> consent -> commit machinery (the same
   // staging/consent flow the Marketplace view drives) to reinstall an errored
   // component plugin. Pressing Reinstall stages the marketplace update-preview
   // for this plugin id and surfaces the existing consent dialog on success.
@@ -80,7 +80,7 @@ export default function ErroredBanner({
     setConsentError(null);
     // No source choice here: this banner reinstalls a known-errored plugin by id.
     // If that id turns out to be served by several sources the server refuses it
-    // (409 ambiguous-source, issue #558) and its message surfaces as the toast,
+    // (409 ambiguous-source, #966) and its message surfaces as the toast,
     // pointing the consumer at the Marketplace, which owns the pick-a-source UI.
     updatePreview.mutate(
       { id: pluginId },
@@ -105,7 +105,7 @@ export default function ErroredBanner({
       onSuccess: () => {
         // Re-mint the plugin's ConsentRecord with the acknowledged categories so
         // the component-plugin consent gate admits it after the reinstall (issue
-        // #399), mirroring the Marketplace view's confirm handler.
+        // #884), mirroring the Marketplace view's confirm handler.
         grantConsent.mutate({ pluginId: preview.manifest.id, acknowledgedCategories });
         addToast(STRINGS.reinstalledToast(preview.manifest.name));
         setPending(null);

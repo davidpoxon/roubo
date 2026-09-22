@@ -19,7 +19,7 @@ import {
 // "APCC-TC-038".
 const observe = makeObserve("APCC-TC-038");
 
-// APCC-TC-038 (#870): a developer sets a posture and project rules, then
+// APCC-TC-038 (#1349): a developer sets a posture and project rules, then
 // launches.
 //
 // The integration-level drift guard for the APCC-FR-015 / APCC-FR-016 /

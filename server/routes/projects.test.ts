@@ -236,7 +236,7 @@ describe("POST /check-config", () => {
   });
 
   // The handler touches the user-supplied directory off disk (fs.existsSync +
-  // parseConfig), so it is rate-limited (CodeQL js/missing-rate-limiting #39).
+  // parseConfig), so it is rate-limited (CodeQL js/missing-rate-limiting #84).
   // Asserting the draft-7 RateLimit headers proves the limiter is wired onto
   // the route.
   it("attaches RateLimit response headers (limiter is mounted)", async () => {
@@ -492,7 +492,7 @@ describe("POST /save-config", () => {
   });
 
   // The handler writes roubo.yaml to disk, so it is rate-limited (CodeQL
-  // js/missing-rate-limiting #41). Asserting the draft-7 RateLimit headers
+  // js/missing-rate-limiting #89). Asserting the draft-7 RateLimit headers
   // proves the limiter is wired onto the route.
   it("attaches RateLimit response headers (limiter is mounted)", async () => {
     vi.mocked(validateConfigObject).mockReturnValue({ valid: true, config: {} } as any);
@@ -588,7 +588,7 @@ describe("DELETE /:projectId", () => {
     expect(res.body.code).toBe("HAS_BENCHES");
   });
 
-  it("serialises the HAS_BENCHES bench count and ids onto the body (#829)", async () => {
+  it("serialises the HAS_BENCHES bench count and ids onto the body (#1191)", async () => {
     vi.mocked(projectRegistry.unregisterProject).mockImplementation(() => {
       throw new ProjectRegistryError("Has active benches", "HAS_BENCHES", {
         benchCount: 2,
@@ -635,7 +635,7 @@ describe("GET /:projectId/config", () => {
     expect(res.body.fieldErrors).toEqual([]);
   });
 
-  // Issue #399: an invalid component binding surfaces its path-keyed field
+  // #884: an invalid component binding surfaces its path-keyed field
   // errors on the config-load response.
   it("returns 400 with path-keyed fieldErrors for an invalid component binding", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue({
@@ -709,7 +709,7 @@ describe("GET /:projectId/config/raw", () => {
   });
 
   // The handler reads roubo.yaml off disk, so it is rate-limited (CodeQL
-  // js/missing-rate-limiting #42). Asserting the draft-7 RateLimit headers
+  // js/missing-rate-limiting #91). Asserting the draft-7 RateLimit headers
   // proves the limiter is wired onto the route.
   it("attaches RateLimit response headers (limiter is mounted)", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue({
@@ -1000,7 +1000,7 @@ describe("PUT /:projectId/config/raw", () => {
     expect(res.body.error).toBe("disk full");
   });
 
-  // Alert #43 (js/missing-rate-limiting): the config-write surface is fronted
+  // Alert #93 (js/missing-rate-limiting): the config-write surface is fronted
   // by a per-route express-rate-limit middleware. A successful PUT carries the
   // draft-7 RateLimit headers, proving the limiter is wired onto the route.
   it("attaches RateLimit response headers (limiter is mounted)", async () => {

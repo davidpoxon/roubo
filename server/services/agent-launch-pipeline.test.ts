@@ -168,7 +168,7 @@ describe("resolveLaunchAgentId (AP-FR-006 launch resolution order)", () => {
   // The whole of AP-TC-021 in one test, so the case maps to a single suite
   // entry that covers every observation. The three tests after it break the
   // same steps out one at a time and are deliberately not id-tagged: a case
-  // with more than one id-tagged test can never be corroborated (#680).
+  // with more than one id-tagged test can never be corroborated (#1097).
   it("covers the jig binding, the default fallback, and the binding surviving a default change (AP-TC-021)", () => {
     onlyInstalled("claude-code", "codex-cli");
 
@@ -423,7 +423,7 @@ describe("AP-TC-083: config values reach argv literally", () => {
   });
 });
 
-describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
+describe("pre-spawn version gate (AP-FR-014, #1064)", () => {
   const VERSION_PROBE = {
     args: ["--version"],
     parse: "semver" as const,
@@ -464,7 +464,7 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
     expect(prepared.compatibility?.status).toBe("within-tested-range");
   });
 
-  it("probes against the descriptor's own PATH rather than the server's (#660)", async () => {
+  it("probes against the descriptor's own PATH rather than the server's (#1075)", async () => {
     pluginManagerMocks.invoke.mockResolvedValue(
       makeDescriptor({
         capabilities: { versionProbe: VERSION_PROBE },
@@ -489,7 +489,7 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
     );
   });
 
-  it("probes with the manifest's declared install locations too (#712)", async () => {
+  it("probes with the manifest's declared install locations too (#1115)", async () => {
     const declared = ["~/.local/bin/codex", "/opt/homebrew/bin/codex"];
     pluginManagerMocks.getRecord.mockReturnValue(
       makeRecord({ manifest: makeManifest({ agentInstallLocations: declared }) }),
@@ -514,7 +514,7 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
     );
   });
 
-  it("resolves a templated descriptor PATH before probing it (#670)", async () => {
+  it("resolves a templated descriptor PATH before probing it (#1081)", async () => {
     pluginManagerMocks.invoke.mockResolvedValue(
       makeDescriptor({
         capabilities: { versionProbe: VERSION_PROBE },
@@ -539,7 +539,7 @@ describe("pre-spawn version gate (AP-FR-014, issue #519)", () => {
     );
   });
 
-  it("resolves {{sessionId}} and {{port}} in the probed PATH too (#670)", async () => {
+  it("resolves {{sessionId}} and {{port}} in the probed PATH too (#1081)", async () => {
     pluginManagerMocks.invoke.mockResolvedValue(
       makeDescriptor({
         capabilities: { versionProbe: VERSION_PROBE },

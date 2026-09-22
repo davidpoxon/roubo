@@ -4,7 +4,7 @@ import { registerTestProject } from "../../project-settings/_support/test-projec
 // Shared harness for the searchable, project-first Jira source-picker e2e-flow
 // specs (JSS-WU-007 picker journeys + JSS-WU-008 source-search journey). Keeping the
 // picker-driving helpers in one place means every e2e_flow spec for this area
-// runs off a single automation harness (issue #357 AC2) instead of copy-pasting
+// runs off a single automation harness (#433 AC2) instead of copy-pasting
 // the open / search / read-back boilerplate per file.
 
 // The instance value written into each fixture project's integration override
@@ -37,7 +37,7 @@ export async function openConfigure(
 // `waitForPicker` (default true) waits for the source-picker to render before
 // returning. The picker only renders when the connection pill resolves
 // "connected", so specs that drive a picker-independent surface (e.g. JSS-TC-025's
-// status-category exclusion toggle, #452) pass `false` to avoid hanging on a
+// status-category exclusion toggle, #458) pass `false` to avoid hanging on a
 // picker they never touch.
 export async function openConfigureDialog(
   page: Page,

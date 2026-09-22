@@ -10,9 +10,9 @@ import {
   waitForAvailableAgents,
 } from "./_support/agent-env.js";
 
-// E2E (#703): the real-rendering WCAG AA color-contrast guard for the two agent
+// E2E (#1111): the real-rendering WCAG AA color-contrast guard for the two agent
 // surfaces, closing the half of AP-TC-050 S003-O01 and AP-TC-127 S003-O01 that
-// the jsdom vitest-axe suites (#524) cannot decide. jsdom computes no layout, so
+// the jsdom vitest-axe suites (#1110) cannot decide. jsdom computes no layout, so
 // axe-core's `color-contrast` rule never executes there: it silently reports zero
 // contrast violations even when text fails AA in a browser. This spec injects the
 // bundled axe-core into Chromium against the BUILT app and runs ONLY the
@@ -24,7 +24,7 @@ import {
 //   - Settings, Jigs: the default-agent picker radiogroup, at rest and with a
 //     tile keyboard-focused (AP-TC-050 S003-O01).
 //
-// The technique is the one #493 established for the spec picker; the helpers are
+// The technique is the one #943 established for the spec picker; the helpers are
 // shared from e2e-flow/_support/axe-contrast.ts rather than copied.
 //
 // WHAT THIS DOES NOT COVER. axe's `color-contrast` rule measures TEXT against its
@@ -37,8 +37,8 @@ import {
 // CLI, and with a single available agent the Jigs picker force-selects it
 // (AP-TC-041) and the AI Agents screen renders one card, so neither surface would
 // be the one the case describes. The second agent is the `codex-cli` bundled
-// overlay at e2e/fixtures/bundled-overlays/codex-cli/, added by AP-TC-113 (#683)
-// and reused here exactly as default-agent-tiles.spec.ts (#681) reuses it.
+// overlay at e2e/fixtures/bundled-overlays/codex-cli/, added by AP-TC-113 (#1095)
+// and reused here exactly as default-agent-tiles.spec.ts (#1101) reuses it.
 //
 // The overlay is force-DISABLED by every /test/__reset (see
 // OPT_IN_AGENT_FIXTURE_PLUGIN_IDS in server/routes/test.ts). Consent has no

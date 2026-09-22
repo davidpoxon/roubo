@@ -3,7 +3,7 @@
 // detect staleness (FR-016); this module does NOT hash.
 //
 // Platform-agnostic: no fs, no node:crypto, no React. Safe in the Vite client
-// build. Canonical contract types land with testbench-contracts (#6); until
+// build. Canonical contract types land with testbench-contracts (#445); until
 // then this consumes the local types in testbench-domain-types.ts.
 //
 // See .specifications/testbench/spikes/spike-407-staleness-hash-reconcile.md
@@ -70,10 +70,10 @@ function projectStep(step: Step): {
 // (area, type, tags, linked_*) are deliberately NOT projected: the staleness hash
 // tracks the testable body (title, level, steps), so re-tagging or re-linking a
 // case never marks it stale-for-retest. Like every TargetingField and unknown
-// field, they are dropped. The v1.2.0 `lifecycle` block (#764) is excluded for
+// field, they are dropped. The v1.2.0 `lifecycle` block (#1158) is excluded for
 // the same reason, and by construction: this projection is an allowlist, so
 // retiring or superseding a case changes neither the plan hash nor that case's
-// changed/unchanged classification. #767 locks that exclusion downstream too
+// changed/unchanged classification. #1160 locks that exclusion downstream too
 // (computePlanHash, the store's stale flag, reconcile, and the verify gate) and
 // states the resulting hash semantics where the hash is defined, in
 // server/lib/testbench-store.ts.

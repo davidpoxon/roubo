@@ -42,7 +42,7 @@ describe("useTestbenchPlan", () => {
     expect(mockedApi.fetchTestbenchPlan).toHaveBeenCalledTimes(1);
   });
 
-  it("does not fire while disabled, then fetches once enabled flips true (#500)", async () => {
+  it("does not fire while disabled, then fetches once enabled flips true (#503)", async () => {
     mockedApi.fetchTestbenchPlan.mockResolvedValue(planResponse as never);
     const { result, rerender } = renderHookWithProviders(
       ({ enabled }: { enabled: boolean }) => useTestbenchPlan("p1", 3, { enabled }),
@@ -100,7 +100,7 @@ describe("useSetTestbenchFocus", () => {
   });
 });
 
-// #772 (SATCA-FR-019/FR-021, SATCA-TC-056): the lifecycle mutation sends the
+// #1167 (SATCA-FR-019/FR-021, SATCA-TC-056): the lifecycle mutation sends the
 // fingerprint from the cached plan (the view the reviewer actually acted on) as
 // the If-Match precondition, and invalidates the plan on success rather than
 // guessing at the new rollup.

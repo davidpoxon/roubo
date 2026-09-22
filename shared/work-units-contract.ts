@@ -6,7 +6,7 @@
 // reference tables in .specifications/verify-gate/work-unit-model.md VERBATIM and
 // is not re-derived (see that document's "Field reference" section).
 //
-// Scope note (#697): this module authors the zod source schema, the inferred
+// Scope note (#718): this module authors the zod source schema, the inferred
 // type, the runtime validator, and the versioned `$id` constant. The root carries
 // `.meta({ $id })` so the generate script + CI drift guard emit a versioned JSON
 // Schema from it (schema/work-units.schema.json). Gate evaluation and writing

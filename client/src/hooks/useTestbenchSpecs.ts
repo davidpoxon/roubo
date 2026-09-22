@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import * as api from "../lib/api";
 import type { DiscoveredSpec, InvalidSpec, ManualPathValidation } from "../lib/api";
 
-// Discovery query for the spec-picker (#418, FR-001/FR-002). Enumerates every
+// Discovery query for the spec-picker (#467, FR-001/FR-002). Enumerates every
 // `.specifications/<slug>/test-cases.json` under the project repo, returning both
 // the usable `specs` and any present-but-invalid spec files (`invalid`) with their
 // validation errors, so the picker can distinguish a schema mismatch from a
@@ -19,7 +19,7 @@ export function useTestbenchSpecs(projectId: string, enabled: boolean) {
   });
 }
 
-// The partition the spec picker renders (#483, TSPF-FR-003; #770, SATCA-FR-015):
+// The partition the spec picker renders (#937, TSPF-FR-003; #1162, SATCA-FR-015):
 // archived specs are split off FIRST and hidden behind the show-archived control,
 // then the remaining live specs divide into needs-attention (the prominent main
 // space) and all-passed (the collapsed tail disclosure).
@@ -50,7 +50,7 @@ export function partitionSpecs(specs: DiscoveredSpec[]): {
   return { needsAttention, allPassed, archived };
 }
 
-// How one archived row is labelled (#770, SATCA-FR-016, SATCA-TC-036/TC-037).
+// How one archived row is labelled (#1162, SATCA-FR-016, SATCA-TC-036/TC-037).
 // "Superseded" is DERIVED, not persisted: the record carries `archived: true`
 // plus an optional `supersededBy` slug, so a superseded spec is an archived one
 // that names its replacement. The label is always words, never colour alone, and
@@ -72,7 +72,7 @@ export function deriveArchivedLabel(spec: DiscoveredSpec): SpecArchivedLabel {
   };
 }
 
-// The visual marker a pass-state summary leads with (#483, TSPF-FR-006). Each
+// The visual marker a pass-state summary leads with (#937, TSPF-FR-006). Each
 // maps to a specific dot or icon in the row; the accompanying text is always
 // present, so meaning is never carried by colour alone.
 //   - "none":     hollow stone dot   (no results yet)
@@ -93,7 +93,7 @@ export interface SpecPassSummary {
 }
 
 // Derive a spec's pass-state summary purely from its verification payload and
-// case count (#483, TSPF-FR-006). Precedence mirrors the approved prototype
+// case count (#937, TSPF-FR-006). Precedence mirrors the approved prototype
 // (.specifications/testbench-spec-picker-filter/design-prototype/index.html):
 //   1. no sidecar on disk           -> "no results yet"
 //   2. valid sidecar, hash mismatch -> "results stale"

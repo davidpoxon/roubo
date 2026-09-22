@@ -47,13 +47,13 @@
 // private or loopback address would NOT turn it red: that range is SOFT blocked, and SOFT
 // is rejected only when the hop is not the consented origin, whereas here the asset URL IS
 // the consented source origin (the fixture puts the catalog and the asset on one origin).
-// Origin scoping itself is NOT proven here (see S004-O01 below); it is covered by #554's
+// Origin scoping itself is NOT proven here (see S004-O01 below); it is covered by #956's
 // own unit tests.
 //
 // The TC-049 precondition that makes this the TAMPER journey and not a different one:
 // the hostile catalog declares a VALID-FORMAT sha256 that does not match the served
 // bytes. A malformed or absent digest is a DIFFERENT case: the installer treats it as
-// unverifiable and fails pre-fetch with `missing-integrity` (CPHMTP-NFR-004, #559),
+// unverifiable and fails pre-fetch with `missing-integrity` (CPHMTP-NFR-004, #961),
 // which this journey deliberately does not assert. assertHostilePrecondition() below
 // pins that distinction so the fixture cannot drift into the wrong code path.
 //
@@ -83,26 +83,25 @@ import type { ThirdPartyCatalogResult, VerifiedCatalog } from "./catalog-client.
 
 // ── Owning slices ──
 // Each step localizes a divergence to the slice(s) that own its behaviour, so a red
-// run points at one attributable issue rather than the whole journey. #574's
-// blocked-by names the two install-path slices (#554, #559), but the journey also
+// run points at one attributable issue rather than the whole journey. #973's
+// blocked-by names the two install-path slices (#956, #961), but the journey also
 // crosses the registration and listing slices it depends on, so those are named here
 // too: the point of the contract is to name the slice that actually owns the
 // diverging behaviour, and "blocked by" is a conservative superset, not a ceiling.
 // All four are CLOSED (merged), so this unit is a drift guard over them.
 const SLICE_SOURCE_REGISTRY =
-  "#553 (marketplace source registry: add/list/remove persistence; registration is a pure write)";
+  "marketplace source registry: add/list/remove persistence; registration is a pure write";
 const SLICE_GUARDED_FETCH =
-  "#554 (guarded-fetch transport: SSRF/redirect guard, origin-scoped credential)";
+  "guarded-fetch transport: SSRF/redirect guard, origin-scoped credential";
 const SLICE_MULTI_SOURCE_LISTING =
-  "#557 (multi-source listing: merged catalog, per-entry provenance, parallel fetch)";
+  "multi-source listing: merged catalog, per-entry provenance, parallel fetch";
 const SLICE_MANDATORY_DIGEST =
-  "#559 (mandatory integrity digest and guarded artifact download for unsigned installs)";
-// The web-client slice behind the rendered badge. It and #562 (registration consent
+  "mandatory integrity digest and guarded artifact download for unsigned installs";
+// The web-client slice behind the rendered badge. It and #975 (registration consent
 // dialog: raw URL, ack gate, consent-before-fetch) own the two observations this
 // service-altitude journey cannot see; both are OPEN and absent from the codebase.
 // See the deferred-gap notes on S002 and S003.
-const SLICE_UNVERIFIED_BADGE =
-  "#563 (unverified and orphaned badges plus provenance across surfaces)";
+const SLICE_UNVERIFIED_BADGE = "unverified and orphaned badges plus provenance across surfaces";
 
 // ── Fixture identifiers (TC-049 preconditions) ──
 // A hostile source standing by: its catalog declares a valid-format sha256 for the
@@ -112,7 +111,7 @@ const HOSTILE_CATALOG_URL = "https://hostile.example.invalid/catalog.json";
 // The asset lives on the SAME origin as the catalog: guarded-fetch scopes a
 // third-party download to the source's consented origin, so a cross-origin asset
 // would be refused for that reason and never reach the digest recompute this journey
-// is about (#554).
+// is about (#956).
 const HOSTILE_ASSET_URL = "https://hostile.example.invalid/hostile-widget-1.0.0.tgz";
 // The valid-format sha256 the hostile catalog DECLARES. Correct shape
 // (`sha256-` + 64 lowercase hex), so it is a usable digest the installer will compare
@@ -141,13 +140,13 @@ vi.mock("./plugin-manager.js", () => ({
 
 vi.mock("undici", () => ({
   fetch: vi.fn(),
-  // guarded-fetch builds a connect-pinning Agent (issue #590); the mocked fetch
+  // guarded-fetch builds a connect-pinning Agent (#960); the mocked fetch
   // ignores the dispatcher, so a constructable stub is all this mock needs.
   Agent: vi.fn(),
 }));
 
 // The provenance ledger's persistence boundary: commit records the chosen source to
-// ~/.roubo/plugins-provenance.json (issue #558). Never reached on this journey (the
+// ~/.roubo/plugins-provenance.json (#966). Never reached on this journey (the
 // install fails before commit), but mocked so a regression that DID reach it could
 // not write the developer's own state dir. Its file IO is covered by
 // plugin-provenance-state.test.ts.
@@ -388,7 +387,7 @@ describe("CPHMTP-TC-049: tamper rejection from a hostile source, fail closed wit
 
     // S001 (Settings -> Marketplaces -> Add, enter the hostile URL) and the ACCEPT half
     // of S002 land on the same service call: addSource() is what the consent dialog's
-    // accept button drives. The dialog itself is #562 and does not exist yet (see the
+    // accept button drives. The dialog itself is #975 and does not exist yet (see the
     // deferred-gap note below), so the journey drives the registry directly.
     const result = await sourcesState.addSource({ url: HOSTILE_CATALOG_URL });
 
@@ -429,12 +428,12 @@ describe("CPHMTP-TC-049: tamper rejection from a hostile source, fail closed wit
 
     // ── Deferred gap, S002-O01 (attributed, NOT asserted here) ──
     // "The dialog shows the raw source URL and an arbitrary-code warning and defaults
-    // to decline" is a web-client observation owned by #562, which is OPEN: the
+    // to decline" is a web-client observation owned by #975, which is OPEN: the
     // Marketplaces settings UI and its registration consent dialog do not exist in the
     // codebase yet. A dialog's copy and its default-focused button are not observable
     // from a service call, so asserting them at this altitude would prove nothing.
-    // #574's blocked-by names only the server slices (#554, #559), both merged, so
-    // this journey is deliberately service-altitude. When #562 lands, S002-O01 belongs
+    // #973's blocked-by names only the server slices (#956, #961), both merged, so
+    // this journey is deliberately service-altitude. When #975 lands, S002-O01 belongs
     // in a Playwright spec under e2e/component-plugins/ driving the real dialog.
   });
 
@@ -488,11 +487,11 @@ describe("CPHMTP-TC-049: tamper rejection from a hostile source, fail closed wit
 
     // ── Deferred gap, S003-O01 (badge half, attributed, NOT asserted here) ──
     // The provenance half of S003-O01 is asserted above. Its other half, "a
-    // non-dismissible unverified badge", is a web-client observation owned by #563,
+    // non-dismissible unverified badge", is a web-client observation owned by #977,
     // which is OPEN: the badge component does not exist in the codebase yet. Whether a
     // badge renders and whether it can be dismissed are not observable from a service
     // call; what IS observable, and is asserted above, is the server-side fact the
-    // badge must be driven by (verified === false plus the sourceId stamp). When #563
+    // badge must be driven by (verified === false plus the sourceId stamp). When #977
     // lands, the badge's presence and non-dismissibility belong in a Playwright spec
     // under e2e/component-plugins/.
   });
@@ -542,7 +541,7 @@ describe("CPHMTP-TC-049: tamper rejection from a hostile source, fail closed wit
     // journey. downloadAssetToFile passes `thirdParty?.sourceOrigin ?? new URL(assetUrl)
     // .origin`, and the fixture's catalog and asset URLs are same-origin by construction,
     // so the real sourceOrigin and the fallback resolve to the identical string and no
-    // assertion here could tell them apart. #554's own unit tests cover origin scoping on
+    // assertion here could tell them apart. #956's own unit tests cover origin scoping on
     // a cross-origin fixture, where it is falsifiable.
     const fetchCalls = vi.mocked(fetch).mock.calls;
     expect(

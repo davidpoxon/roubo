@@ -117,7 +117,7 @@ describe("runProcess", () => {
     const { runProcess } = await loadModule();
 
     // A process may legitimately exit with code 124 on its own; without a timer
-    // firing it must NOT be labeled a timeout (#411).
+    // firing it must NOT be labeled a timeout (#894).
     const promise = runProcess("run-124", "cmd", [], {}, "/cwd", 1000);
     child.emit("close", 124);
 
@@ -163,7 +163,7 @@ describe("runProcess", () => {
     vi.advanceTimersByTime(1000);
 
     expect(mockTreeKill).toHaveBeenCalledWith(77777, "SIGKILL", expect.any(Function));
-    // timedOut is the explicit signal (#411): set true only on the timer path.
+    // timedOut is the explicit signal (#894): set true only on the timer path.
     await expect(promise).resolves.toEqual({ exitCode: 124, timedOut: true });
   });
 

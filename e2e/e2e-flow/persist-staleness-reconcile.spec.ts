@@ -14,7 +14,7 @@ import {
   TESTBENCH_SPEC_SLUG,
 } from "./_support/testbench-plan.js";
 
-// E2E (#440): the authoritative `e2e_flow` drift guard for the
+// E2E (#487): the authoritative `e2e_flow` drift guard for the
 // "persist results -> detect staleness -> reconcile without data loss" journey
 // (TC-043, US-008/US-009, FR-014/FR-015/FR-016/FR-017, NFR-003). It walks the
 // integrated system end to end against the BUILT app: create a spec-bound
@@ -25,7 +25,7 @@ import {
 // case (with its mark + note) survived and the source plan's checksum is
 // unchanged.
 //
-// Unlike the per-slice unit tests (#406/#407/#412/#413/#415/#416/#422 own those),
+// Unlike the per-slice unit tests (#428/#429/#446/#450/#457/#459/#465 own those),
 // this asserts the JOURNEY, not any single slice's implementation. Each leg is
 // wrapped in a labelled `test.step` so a failure localises the diverging step,
 // reports the expected-vs-actual at that step, and names the owning slice(s)
@@ -33,7 +33,7 @@ import {
 //
 // The mid-test plan edit (remove TC-B, add TC-D) is driven through the
 // ROUBO_E2E-gated `/test/__rewrite-spec-cases` harness endpoint, because the
-// create-a-TestBench UI exposes no plan editor. As of #493 the endpoint resolves
+// create-a-TestBench UI exposes no plan editor. As of #494 the endpoint resolves
 // the focused spec's `.specifications/<slug>/test-cases.json` from the bench's own
 // worktree (bench.workspacePath) the same way the live TestBench routes do, so the
 // next plan load detects staleness against the rewritten source.
@@ -109,7 +109,7 @@ async function markCase(page: Page, caseId: string, result: "pass" | "fail"): Pr
 }
 
 // Resolve the case-detail notes surface, returning the "Notes" complementary
-// landmark (the same `<aside aria-label="Notes">` in both layouts). As of #524
+// landmark (the same `<aside aria-label="Notes">` in both layouts). As of #525
 // the detail pane gates the notes between an inline side rail and a bottom
 // drawer on the pane's own measured width, not the viewport: at this test's
 // 1280px Desktop Chrome viewport the projects sidebar and case list leave the
@@ -141,7 +141,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
 
   // ── Preconditions: feature enabled, project with the three-case spec, a real
   // spec-bound TestBench created through the UI ───────────────────────────────
-  await test.step("Precondition: enable the TestBench feature (#414)", async () => {
+  await test.step("Precondition: enable the TestBench feature (#456)", async () => {
     await enableTestBench(request);
   });
 
@@ -163,7 +163,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
   await test.step("Precondition: open the TestBench tab with the three seeded cases", async () => {
     await page.getByRole("tab", { name: /^TestBench/ }).click();
     const panel = page.getByRole("tabpanel");
-    // The view toggle now opens on the "Batches" surface by default (#359);
+    // The view toggle now opens on the "Batches" surface by default (#842);
     // switch to the Cases review this journey asserts on (overall rollup +
     // cases + recorded marks). The choice is remembered per bench, so the later
     // TestBench-tab visits in this spec stay on Cases without re-switching.
@@ -178,7 +178,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
   });
 
   // ── Step 1: record marks + a note (TC-A pass, TC-B fail + note, TC-C pass) ──
-  await test.step("Step 1: mark TC-A pass, TC-B fail with a note, TC-C pass (#412/#415)", async () => {
+  await test.step("Step 1: mark TC-A pass, TC-B fail with a note, TC-C pass (#446/#457)", async () => {
     await markCase(page, "TC-A", "pass");
 
     // TC-B: fail + a note via the case detail's notes rail.
@@ -195,7 +195,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
   });
 
   // ── Step 2: reload the tab -> the marks + note persist beside the spec (AC1) ─
-  await test.step("Step 2: reload the tab and assert all three results persist (AC1, #406/#415)", async () => {
+  await test.step("Step 2: reload the tab and assert all three results persist (AC1, #428/#457)", async () => {
     await page.reload();
     await page.getByRole("tab", { name: /^TestBench/ }).click();
     const panel = page.getByRole("tabpanel");
@@ -224,7 +224,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
   });
 
   // ── Step 3: edit the source plan (remove TC-B, add TC-D); banner appears (AC2) ─
-  await test.step("Step 3: edit the plan (remove TC-B, add TC-D); the staleness banner appears (AC2, #407/#422)", async () => {
+  await test.step("Step 3: edit the plan (remove TC-B, add TC-D); the staleness banner appears (AC2, #429/#465)", async () => {
     await rewriteSpecTestCases(request, {
       projectId: PROJECT_ID,
       benchId,
@@ -244,7 +244,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
   });
 
   // ── Step 4: open reconcile -> TC-D Added, TC-B Orphaned with mark + note (AC3) ─
-  await test.step("Step 4: open reconcile; TC-D is Added and TC-B is Orphaned (AC3, #413/#422)", async () => {
+  await test.step("Step 4: open reconcile; TC-D is Added and TC-B is Orphaned (AC3, #450/#465)", async () => {
     await page.getByTestId("staleness-banner-reconcile").click();
     const added = page.getByTestId("reconcile-section-added");
     const orphan = page.getByTestId("reconcile-section-orphan");
@@ -263,7 +263,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
   });
 
   // ── Step 5: Apply (keep orphans) -> active cases keep marks, TC-B archived (AC4) ─
-  await test.step("Step 5: apply 'keep orphans'; TC-A/TC-C active with marks, TC-D no mark, TC-B archived, banner clears (AC4, #413/#422)", async () => {
+  await test.step("Step 5: apply 'keep orphans'; TC-A/TC-C active with marks, TC-D no mark, TC-B archived, banner clears (AC4, #450/#465)", async () => {
     await page.getByTestId("reconcile-apply").click();
     const panel = page.getByRole("tabpanel");
 
@@ -331,7 +331,7 @@ test("TC-043: persist results, detect staleness, reconcile without data loss", a
       observationMarks?: Record<string, { result?: string }>;
       notes?: unknown[];
     }
-    // v2.0.0 flattened shape (#493): one results file per worktree, so caseResults
+    // v2.0.0 flattened shape (#494): one results file per worktree, so caseResults
     // sits at the file top level with no per-bench `benches` map.
     interface OnDiskResults {
       caseResults: Record<string, OnDiskCaseResult>;

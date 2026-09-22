@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #359: Batches is the first toggle option and the default view on first visit
+// #842: Batches is the first toggle option and the default view on first visit
 // (no remembered view), and the active Cases/Batches view is remembered per
 // bench so it restores after navigating away (another tab or another bench) and
 // back. Persistence rides the per-bench useBenchViewState localStorage store.
@@ -17,7 +17,7 @@ vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: (projectId: string, benchId: number) =>
     mockUseTestbenchPlan(projectId, benchId),
   useSetTestbenchFocus: () => ({ mutate: vi.fn(), isPending: false }),
-  // #772: the panel's archived entries and the case detail pane both reach for
+  // #1167: the panel's archived entries and the case detail pane both reach for
   // the lifecycle mutation; neither is under test here, so stub it inert.
   useSetCaseLifecycle: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   caseLifecycleErrorMessage: () => null,
@@ -78,7 +78,7 @@ beforeEach(() => {
   setPlan({ plan: plan([makeCase("c1"), makeCase("c2")]) });
 });
 
-describe("TestBenchPanel Cases/Batches view (#359)", () => {
+describe("TestBenchPanel Cases/Batches view (#842)", () => {
   it("renders Batches as the first toggle option (left of Cases)", () => {
     render(<TestBenchPanel projectId="p1" benchId={1} />);
     const toggles = screen
@@ -144,7 +144,7 @@ describe("TestBenchPanel Cases/Batches view (#359)", () => {
     // remembers Cases; bench 2 has no remembered view, so the surviving instance
     // must show bench 2's Batches default, and bench 2's storage must not be
     // clobbered with bench 1's view. (A useState mirror would keep bench 1's
-    // "cases" here and bleed/clobber it, the #359 per-bench-isolation regression.)
+    // "cases" here and bleed/clobber it, the #842 per-bench-isolation regression.)
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ "p1:1": { testbenchViewMode: "cases" } }));
 
     const { rerender } = render(<TestBenchPanel projectId="p1" benchId={1} />);

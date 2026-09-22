@@ -106,7 +106,7 @@ describe("clasp-deploy-stub contract", () => {
   });
 
   it("start reports a timeout statusDetail when the deploy run times out (CP-TC-068 S004-O01)", async () => {
-    // The host rejects a timed-out run with a typed process-timeout error (#411);
+    // The host rejects a timed-out run with a typed process-timeout error (#894);
     // the stub must catch it and name the timeout in statusDetail.
     const { host, reportStatus } = makeHost({
       runReject: { data: { code: "process-timeout", timeoutMs: 5000, exitCode: 124 } },

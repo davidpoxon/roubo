@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// AgentIdentifierGuard (issue #521, AP-NFR-006). #521 removed the built-in
+// AgentIdentifierGuard (#1114, AP-NFR-006). #1114 removed the built-in
 // Claude Code launch path, so every agent launch now goes through an agent
 // plugin's declarative launch descriptor. This guard makes that permanent: it
 // fails the build if core (server/ + shared/) regrows knowledge of a specific
@@ -24,7 +24,7 @@
 //   3. Agent-name string DISPATCH. An equality comparison or `case` label
 //      against a string naming an agent, e.g. `command === "claude"`,
 //      `case "codex":`. Rule 1 cannot see this (it blanks string contents by
-//      design, see below), yet it is precisely the branch #521 deleted from
+//      design, see below), yet it is precisely the branch #1114 deleted from
 //      `server/routes/terminal.ts` and `server/services/terminal.ts`. Naming an
 //      agent in a string is fine; BRANCHING on that name is the built-in path
 //      regrowing under a different spelling (AP-FR-019, AP-TC-104).
@@ -52,7 +52,7 @@
 // survivor `CLAUDE.md` names. Allowlisting one file mirrors the component guard,
 // whose own rule 1 allowlists exactly one file for the same reason.
 //
-// That allowlist is a fixed size, not a growing one (#712). Per-agent candidate
+// That allowlist is a fixed size, not a growing one (#1115). Per-agent candidate
 // locations now live on an agent plugin's manifest (`agentInstallLocations`),
 // which the host reads and probes, so the switch is frozen at the one base name
 // that predates the field and every other agent extends through its own
@@ -76,7 +76,7 @@ const ROOTS = ["server", "shared"];
 //
 // Cursor is matched only as `cursor-cli` / `cursor-agent` (and the joined or
 // underscored spellings an identifier uses, `CursorCli`, `cursor_agent`), never
-// as bare `cursor` (#856, APCC-NFR-006). Core already says `cursor` hundreds of
+// as bare `cursor` (#1269, APCC-NFR-006). Core already says `cursor` hundreds of
 // times for pagination (`nextCursor`, `cursor: string | null`), so a bare match
 // would drown the guard in false positives and be allowlisted into uselessness.
 // The qualified spellings are the ones a Cursor-specific branch would actually

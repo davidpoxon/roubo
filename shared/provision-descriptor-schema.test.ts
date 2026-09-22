@@ -92,7 +92,7 @@ describe("docker variant", () => {
     ).toThrow();
   });
 
-  it("parses a url.template (#834)", () => {
+  it("parses a url.template (#1207)", () => {
     const parsed = DockerProvisionDescriptorSchema.parse({
       schemaVersion: V,
       kind: "docker",
@@ -103,7 +103,7 @@ describe("docker variant", () => {
     expect(parsed.url).toEqual({ template: "http://localhost:{{port}}/admin" });
   });
 
-  it("parses a url.fromOutput (#834)", () => {
+  it("parses a url.fromOutput (#1207)", () => {
     const parsed = DockerProvisionDescriptorSchema.parse({
       schemaVersion: V,
       kind: "docker",
@@ -114,7 +114,7 @@ describe("docker variant", () => {
     expect(parsed.url).toEqual({ fromOutput: "https://\\S+" });
   });
 
-  it("rejects a url setting both template and fromOutput (#834)", () => {
+  it("rejects a url setting both template and fromOutput (#1207)", () => {
     expect(() =>
       DockerProvisionDescriptorSchema.parse({
         schemaVersion: V,
@@ -126,7 +126,7 @@ describe("docker variant", () => {
     ).toThrow();
   });
 
-  it("rejects an empty url object (#834)", () => {
+  it("rejects an empty url object (#1207)", () => {
     expect(() =>
       DockerProvisionDescriptorSchema.parse({
         schemaVersion: V,
@@ -196,7 +196,7 @@ describe("process variant", () => {
     ).toThrow();
   });
 
-  it("parses a url.template (#834)", () => {
+  it("parses a url.template (#1207)", () => {
     const parsed = ProcessProvisionDescriptorSchema.parse({
       schemaVersion: V,
       kind: "process",
@@ -206,7 +206,7 @@ describe("process variant", () => {
     expect(parsed.url).toEqual({ template: "http://localhost:{{port}}" });
   });
 
-  it("rejects a url.fromOutput: a long-running process has no completed output (#834)", () => {
+  it("rejects a url.fromOutput: a long-running process has no completed output (#1207)", () => {
     expect(() =>
       ProcessProvisionDescriptorSchema.parse({
         schemaVersion: V,
@@ -264,7 +264,7 @@ describe("oneshot variant", () => {
     ).toThrow();
   });
 
-  it("parses a url.fromOutput (#834)", () => {
+  it("parses a url.fromOutput (#1207)", () => {
     const parsed = OneshotProvisionDescriptorSchema.parse({
       schemaVersion: V,
       kind: "oneshot",
@@ -274,7 +274,7 @@ describe("oneshot variant", () => {
     expect(parsed.url).toEqual({ fromOutput: "Deployed to (https://\\S+)" });
   });
 
-  it("rejects a url setting neither template nor fromOutput (#834)", () => {
+  it("rejects a url setting neither template nor fromOutput (#1207)", () => {
     expect(() =>
       OneshotProvisionDescriptorSchema.parse({
         schemaVersion: V,
@@ -335,9 +335,9 @@ describe("discriminated union", () => {
   });
 });
 
-// #836: `shell` is an optional opt-in on every descriptor that carries a
+// #1218: `shell` is an optional opt-in on every descriptor that carries a
 // command line. The schemas are `.strict()`, so this is the gate that admits it.
-describe("shell option (#836)", () => {
+describe("shell option (#1218)", () => {
   it("accepts shell: true on a process descriptor", () => {
     const parsed = ProcessProvisionDescriptorSchema.parse({
       schemaVersion: V,

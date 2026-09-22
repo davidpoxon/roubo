@@ -2,17 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../lib/api";
 
 // React Query hooks for the third-party marketplace source registry
-// (CPHMTP-FR-001 / CPHMTP-US-001, issue #561). The list query backs the
+// (CPHMTP-FR-001 / CPHMTP-US-001, #976). The list query backs the
 // Marketplaces settings section; remove invalidates BOTH the source list and the
 // merged catalog, because dropping a source changes which listings the Browse
 // screen shows.
 //
-// The list query is the only one issue #561 consumes: remove is the write half of
+// The list query is the only one #976 consumes: remove is the write half of
 // the same registry, and its caller arrives with the removal consequences dialog
-// (issue #564), out of scope here.
+// (#980), out of scope here.
 //
 // Registration is deliberately absent: it lives in useMarketplace.ts as
-// `useRegisterMarketplaceSource` (issue #562), next to the consent dialog that is
+// `useRegisterMarketplaceSource` (#975), next to the consent dialog that is
 // its only caller. One POST /marketplace/sources deserves one mutation hook.
 
 const MARKETPLACE_SOURCES_KEY = ["marketplace-sources"] as const;

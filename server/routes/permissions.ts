@@ -10,7 +10,7 @@ import { assertSafeRules, PermissionRuleError } from "../services/permission-rul
 import { AgentPostureSchema } from "@roubo/shared/agent-launch-descriptor-schema";
 import type { PermissionsResyncResult, ProjectPermissions } from "@roubo/shared";
 
-// Per-project agent permissions API (AP-FR-016, AP-FR-018, issue #514).
+// Per-project agent permissions API (AP-FR-016, AP-FR-018, #1058).
 //
 // One agent-generic model with two axes, mapped to each agent's native
 // mechanism by that agent's plugin rather than here: the universal `posture`

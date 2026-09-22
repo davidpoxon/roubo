@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// The Agent tools section of Settings, Jigs (AP-FR-008, AP-FR-009, issue #516).
+// The Agent tools section of Settings, Jigs (AP-FR-008, AP-FR-009, #1057).
 // Covers AP-TC-025 (a preset records its binding, params and jig behavior),
 // AP-TC-031 / AP-TC-039 / AP-TC-045 (default-bound presets re-resolve when the
 // default agent changes), AP-TC-032 (an uninstalled plugin is flagged),
@@ -93,7 +93,7 @@ function setPresets(agentTools: AgentToolPreset[]) {
 }
 
 /**
- * The server's resolved view of the same list (issue #672). Only `id` and
+ * The server's resolved view of the same list (#1084). Only `id` and
  * `degraded` are read by the section, so a case supplies just the entries it
  * cares about; a preset the response omits simply carries no marker.
  */
@@ -279,7 +279,7 @@ describe("AgentToolsSection", () => {
     );
   });
 
-  // AP-TC-032 in the editor (issue #650): the binding of a preset whose plugin
+  // AP-TC-032 in the editor (#1059): the binding of a preset whose plugin
   // is not installed stays named in the select and survives a save that never
   // touched the field, rather than reading as "Default agent" and being
   // rewritten to it.
@@ -313,7 +313,7 @@ describe("AgentToolsSection", () => {
     expect(screen.queryByRole("button", { name: "Delete Agent" })).toBeNull();
   });
 
-  // Issue #672: the server's advisory `degraded` field, surfaced here rather
+  // #1084: the server's advisory `degraded` field, surfaced here rather
   // than re-derived, so Settings stops presenting `Agent (Plan)` as if the
   // bound agent honoured its mode.
   describe("degraded built-ins", () => {

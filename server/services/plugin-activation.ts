@@ -26,7 +26,7 @@ interface ActivationResult {
  * This cache is keyed per plugin (not per project) because the data we push
  * here is plugin-wide: it is identical for every project that uses the
  * plugin. Per-project source selection used to ride along in the same RPC
- * (which is what caused #119's cross-project bleed when two projects used
+ * (which is what caused #124's cross-project bleed when two projects used
  * the same plugin) and now flows inline on every source-bound RPC instead;
  * see `resolveSources`.
  */
@@ -60,7 +60,7 @@ function buildPluginConfig(projectId: string): Record<string, unknown> | null {
   }
 
   // Drop any `advanced.*` keys the active plugin's manifest doesn't declare,
-  // so leftovers from earlier schema versions (e.g. issue #125's
+  // so leftovers from earlier schema versions (e.g. #231's
   // `advanced.sources: ""` in `~/.roubo/integrations/_global/github-com.yaml`)
   // never reach the `setActiveConfig` payload.
   const pluginId = effective.plugin;
@@ -269,7 +269,7 @@ export async function ensurePluginActivated(_projectId: string, pluginId: string
   // call (cheap), so `host.fetch` enforcement always reflects the current
   // instance even when the activation cache short-circuits the RPC below. A
   // plugin with no instance (e.g. github.com) records null, leaving its
-  // manifest allowlist to govern alone. See issue #338.
+  // manifest allowlist to govern alone. See #340.
   setInstanceHost(pluginId, deriveInstanceHost(config?.instance));
   if (!config || Object.keys(config).length === 0) {
     // Nothing plugin-wide to push (e.g. github.com): the plugin will read
@@ -316,7 +316,7 @@ export async function ensurePluginActivated(_projectId: string, pluginId: string
  * immediately.
  *
  * The `_projectId` argument is preserved for API compatibility with the
- * pre-#119 per-project cache; activations are now plugin-wide so any
+ * pre-#124 per-project cache; activations are now plugin-wide so any
  * project's config change forces a re-push for every project using that
  * plugin (which is what we want for global config changes).
  */

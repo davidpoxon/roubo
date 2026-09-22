@@ -19,13 +19,13 @@ import type {
 } from "../lib/api";
 
 // A live lifecycle payload (no record on disk), plus the archived variants each
-// test names explicitly (#770).
+// test names explicitly (#1162).
 function lifecycle(over: Partial<SpecLifecycleState> = {}): SpecLifecycleState {
   return { archived: false, reason: null, supersededBy: null, recordError: null, ...over };
 }
 
 // Build a verification payload with sensible defaults so each test states only
-// the fields it cares about (#482/#483).
+// the fields it cares about (#936/#937).
 function verification(
   over: Partial<Omit<SpecVerification, "statusCounts">> & {
     statusCounts?: Partial<SpecStatusCounts>;
@@ -243,7 +243,7 @@ describe("partitionSpecs", () => {
     expect(partitionSpecs([])).toEqual({ needsAttention: [], allPassed: [], archived: [] });
   });
 
-  // #770 (SATCA-FR-015): archived is decided BEFORE the live classification
+  // #1162 (SATCA-FR-015): archived is decided BEFORE the live classification
   // split, so an archived spec never also lands in a live group however its
   // cases happen to be verified.
   it("splits archived specs out ahead of the classification, whatever their classification", () => {

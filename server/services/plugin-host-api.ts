@@ -132,7 +132,7 @@ function wrapInternal(pluginId: string, methodName: string, log: HostLogger, err
   // err.cause. Surface that cause into the wrapped message and code so the
   // integration-test classifier can detect TLS failures (e.g.
   // DEPTH_ZERO_SELF_SIGNED_CERT / "self signed certificate") and offer the
-  // inline self-signed-TLS opt-in (issue #442). This is additive: when err has
+  // inline self-signed-TLS opt-in (#916). This is additive: when err has
   // no cause the message and code are byte-identical to the prior behaviour.
   const cause =
     err && typeof err === "object" && "cause" in err
@@ -181,7 +181,7 @@ export async function registerHostHandlers(
   // constrain host.fetch to the configured instance host recorded at activation
   // time. Read at call time so a fetcher built once here tracks instance
   // changes. Non-integration kinds (none today) and unconfigured plugins return
-  // null, leaving the manifest allowlist to govern alone. See issue #338.
+  // null, leaving the manifest allowlist to govern alone. See #340.
   const resolveInstanceHost = (): string | null =>
     manifest.kind === "integration" ? getInstanceHost(pluginId) : null;
   const strictFetcher: PluginFetcher =
@@ -389,7 +389,7 @@ export async function registerHostHandlers(
     // than the filesystem allowlist `host.fs.*` uses: a declared external path
     // is readable through the broker but is not a legal working directory.
     // A bench workspace is denied outright on all three caller-controlled
-    // paths: the cwd, the executable, and every argument (#633).
+    // paths: the cwd, the executable, and every argument (#1034).
     const cwd = await assertSpawnCwdConfined(
       pluginId,
       method,

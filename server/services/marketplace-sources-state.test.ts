@@ -208,7 +208,7 @@ describe("addSource", () => {
   });
 });
 
-// Issue #557: the read counterpart of the private storeCredential. A credentialed
+// #962: the read counterpart of the private storeCredential. A credentialed
 // source is unlistable without its token, so the multi-source listing fan-out
 // reads it here and hands it to that source's catalog client.
 describe("readSourceCredential", () => {
@@ -290,7 +290,7 @@ describe("removeSource", () => {
     expect(mod.listSources()).toHaveLength(0);
   });
 
-  // Issue #560 / CPHMTP-FR-009 AC4: the plugins installed from a removed source
+  // #968 / CPHMTP-FR-009 AC4: the plugins installed from a removed source
   // stay on disk and keep working, so removal stamps them as orphaned rather than
   // uninstalling them. The stamp is persisted, not recomputed later by joining
   // against a source registry the row has just left.

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// Marketplace catalog view (CP-FR-020 / CP-US-010, issue #621): browse, search,
+// Marketplace catalog view (CP-FR-020 / CP-US-010, #688): browse, search,
 // kind filter, install/update affordances, installed-state with no install
 // affordance, and the absence of any third-party submission affordance.
 
@@ -21,7 +21,7 @@ vi.mock("../../hooks/useMarketplace");
 vi.mock("../../hooks/useToast", () => ({
   useToast: () => ({ addToast: vi.fn() }),
 }));
-// Issue #399: Marketplace mints a ConsentRecord after a successful commit via
+// #884: Marketplace mints a ConsentRecord after a successful commit via
 // useGrantConsent. Mock the hook so these tests need no QueryClientProvider and
 // can assert the consent mutation payload.
 const pluginHooks = vi.hoisted(() => ({ grantConsentMutate: vi.fn() }));
@@ -100,7 +100,7 @@ function mutationStub<T>(extra: Record<string, unknown> = {}) {
   } as unknown as T;
 }
 
-// The always-present built-in source's status row (issue #557). The fan-out
+// The always-present built-in source's status row (#962). The fan-out
 // reports it first and it is never unavailable, so a first-party-only catalog
 // renders no source filter chips (there is nothing to choose between).
 const FIRST_PARTY_STATUS: MarketplaceSourceStatus = {
@@ -168,7 +168,7 @@ describe("Marketplace catalog", () => {
     const cards = screen.getAllByTestId("marketplace-card");
     expect(cards).toHaveLength(3);
     // every card has a trust badge and a version. These are first-party curated
-    // entries, so the badge carries the verified treatment (issue #563).
+    // entries, so the badge carries the verified treatment (#977).
     for (const card of cards) {
       expect(within(card).getByTestId("provenance-trust")).toHaveTextContent("Verified");
       expect(within(card).getByTestId("marketplace-card-version")).toBeInTheDocument();
@@ -258,7 +258,7 @@ describe("Marketplace catalog", () => {
     await user.click(screen.getByTestId("marketplace-card-install"));
     // Pressing the CARD's Install sends no sourceId: an ambiguous id must be
     // refused by the server rather than resolved from whichever card was clicked
-    // (issue #558).
+    // (#966).
     expect(mutate).toHaveBeenCalledWith({ id: "redis", sourceId: undefined }, expect.anything());
   });
 
@@ -331,7 +331,7 @@ describe("Marketplace catalog", () => {
     expect(screen.getByTestId("marketplace-card-install")).toBeInTheDocument();
   });
 
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref makes the staging progress modal's modality explicit to AT.
   it("stamps aria-modal on the staging progress modal", async () => {
     const mutate = vi.fn((_id: string, opts: { onError: (e: unknown) => void }) => {
@@ -363,7 +363,7 @@ describe("Marketplace catalog", () => {
     expect(screen.getByTestId("marketplace-drawer-sandbox")).toHaveTextContent("Unsandboxed");
   });
 
-  // Lifecycle + Declared permissions in the detail drawer (issue #401,
+  // Lifecycle + Declared permissions in the detail drawer (#883,
   // CP-TC-080 / CP-TC-097 / CP-TC-104). The server derives these onto the listing
   // pre-install; the drawer renders a Lifecycle row and a Declared permissions
   // section from them.
@@ -461,7 +461,7 @@ describe("Marketplace catalog", () => {
     });
   });
 
-  // Issue #522 (AP-FR-022 / AP-NFR-006 / AP-US-011): the third kind is
+  // #1112 (AP-FR-022 / AP-NFR-006 / AP-US-011): the third kind is
   // discoverable and installable from the marketplace. AP-TC-116 asks an agent
   // listing to carry a kind chip, a source chip, compatibility metadata and an
   // install affordance; AP-TC-121 asks for a graceful fallback when the window
@@ -586,11 +586,11 @@ describe("Marketplace catalog", () => {
     });
   });
 
-  // Issue #720: a listing whose declared `roubo` range excludes the running host
+  // #1134: a listing whose declared `roubo` range excludes the running host
   // is marked incompatible pre-install, naming the required Roubo version, and
   // offers no install affordance. The verdict is server-derived
   // (`hostCompatibility`); the client renders it and suppresses the action.
-  describe("host-incompatible listings (issue #720)", () => {
+  describe("host-incompatible listings (#1134)", () => {
     const INCOMPATIBLE = listing({
       id: "future-plugin",
       name: "Future Plugin",
@@ -666,7 +666,7 @@ describe("Marketplace catalog", () => {
     });
   });
 
-  // CPHM-TC-043 (S001/S002) + CPHM-TC-051 (S003), issue #372: the offline /
+  // CPHM-TC-043 (S001/S002) + CPHM-TC-051 (S003), #851: the offline /
   // staleness banner. It is absent on a live network catalog and present when the
   // catalog degraded to the last-known cache, while the (cached) entries still
   // render.
@@ -721,13 +721,13 @@ describe("Marketplace catalog", () => {
   });
 });
 
-// The 4-step install progress surface (issue #374). The four stages already run
+// The 4-step install progress surface (#855). The four stages already run
 // across the two existing server calls (preview = download + verify catalog
-// Issue #557 (CPHMTP-FR-004 / CPHMTP-TC-028 / CPHMTP-TC-029): the Browse screen
+// #962 (CPHMTP-FR-004 / CPHMTP-TC-028 / CPHMTP-TC-029): the Browse screen
 // renders the MERGED multi-source list. Every card carries exactly one source
 // provenance chip, first-party rendered distinctly from a registered source, and
 // the source filter chip row scopes the list to one source and back to all.
-describe("Marketplace multi-source browse (issue #557)", () => {
+describe("Marketplace multi-source browse (#962)", () => {
   const MERGED: MarketplaceListing[] = [
     listing({ id: "redis", name: "Redis" }),
     listing({
@@ -796,7 +796,7 @@ describe("Marketplace multi-source browse (issue #557)", () => {
   // The "Source: " prefix must live in the chip's subtree as sr-only text, not in
   // an aria-label: the chip is a role-less span (ARIA role `generic`), which
   // prohibits aria-label, and a generic container is not a navigation stop, so a
-  // screen reader announces its subtree text rather than its name (issue #596).
+  // screen reader announces its subtree text rather than its name (#965).
   // Assert the announced text, not the DOM attribute.
   it("prefixes each provenance chip with screen-reader-only source context rather than showing a bare host", () => {
     setMerged();
@@ -997,7 +997,7 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
     await user.click(screen.getByTestId("marketplace-consent-confirm"));
 
     expect(confirm).toHaveBeenCalledWith("staging-1.3.0", expect.anything());
-    // Issue #399 (CP-TC-090): the successful commit mints a ConsentRecord with
+    // #884 (CP-TC-090): the successful commit mints a ConsentRecord with
     // the acknowledged (all declared) categories for the installed plugin.
     expect(pluginHooks.grantConsentMutate).toHaveBeenCalledWith({
       pluginId: "redis",
@@ -1046,7 +1046,7 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
         "failed",
       );
     });
-    // Issue #399: a failed commit mints no consent (the plugin never installed).
+    // #884: a failed commit mints no consent (the plugin never installed).
     expect(pluginHooks.grantConsentMutate).not.toHaveBeenCalled();
   });
 
@@ -1184,10 +1184,10 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
   });
 });
 
-// Issue #558 (CPHMTP-FR-005 / CPHMTP-US-005): a colliding id is marked on the card
+// #966 (CPHMTP-FR-005 / CPHMTP-US-005): a colliding id is marked on the card
 // and its install is refused with a pick-a-source banner offering one explicit
 // install-from choice per source. No source is ever pre-selected for the consumer.
-describe("cross-source id collision (issue #558)", () => {
+describe("cross-source id collision (#966)", () => {
   const BOTH = [FIRST_PARTY_SOURCE_ID, ACME_SOURCE_ID];
   const SOURCES = [FIRST_PARTY_STATUS, sourceStatus()];
 
@@ -1346,14 +1346,14 @@ describe("cross-source id collision (issue #558)", () => {
   });
 });
 
-// Issue #563 (CPHMTP-FR-006 / CPHMTP-NFR-001 / CPHMTP-US-005): the persistent,
+// #977 (CPHMTP-FR-006 / CPHMTP-NFR-001 / CPHMTP-US-005): the persistent,
 // non-dismissible Unverified badge plus source provenance across the marketplace
 // surfaces (list row / card, and detail drawer), and the install consent dialog
 // that gates the commit. The trust decision itself is pinned as a unit in
 // ProvenanceBadge.test.tsx; these tests pin that each surface actually renders
 // that badge and asserts nothing of its own (CPHMTP-TC-030 / TC-031 / TC-056 /
 // TC-072).
-describe("Marketplace unverified badge and provenance (issue #563)", () => {
+describe("Marketplace unverified badge and provenance (#977)", () => {
   const THIRD_PARTY = listing({
     id: "ghe",
     name: "GitHub Enterprise",
@@ -1435,7 +1435,7 @@ describe("Marketplace unverified badge and provenance (issue #563)", () => {
     expect(integrity).toHaveTextContent("artifact digest checked at install");
   });
 
-  // Issue #603: catalog signing keys off the SOURCE, not the per-entry curation
+  // #979: catalog signing keys off the SOURCE, not the per-entry curation
   // flag. An uncurated first-party entry (verified: false) still reads as signed by
   // Roubo in the Integrity row, while its Curation badge still reads Unverified.
   // The failure this guards against is the two claims being wrongly coupled.

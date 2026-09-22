@@ -3,7 +3,7 @@ import { getConnection, getRecord, HOST_API_VERSION } from "./plugin-manager.js"
 import { getProject } from "./project-registry.js";
 import { hasConsent } from "./plugin-consent-state.js";
 
-// ComponentPluginRegistry (issue #608, FR-010, architecture.md 'Components').
+// ComponentPluginRegistry (#651, FR-010, architecture.md 'Components').
 //
 // Resolves a `roubo.yaml` component-to-plugin binding to the live per-plugin
 // JSON-RPC connection. A component plugin is spawned once per plugin (not once
@@ -25,18 +25,18 @@ import { hasConsent } from "./plugin-consent-state.js";
  *   `type`-only built-in component, which this registry does not own).
  * - `not-installed`: the bound plugin id is not installed at all (no
  *   PluginRecord). Checked before the consent gate so an uninstalled id yields
- *   install guidance rather than misleading consent guidance (issue #408,
+ *   install guidance rather than misleading consent guidance (#891,
  *   CP-TC-025). Consent is reserved for installed-but-unconsented plugins.
  * - `incompatible`: the bound plugin is installed but held in status
  *   `incompatible` because its required manifest `roubo` range is not satisfied
  *   by the host API version, so it was never spawned. Carries the required range
  *   and host version so the bench-start error names the mismatch rather than a
- *   generic "not running" (issue #408, CP-TC-011). Checked before the consent
+ *   generic "not running" (#891, CP-TC-011). Checked before the consent
  *   gate too, so an incompatible plugin that has not been consented still
  *   surfaces the version mismatch rather than misleading consent guidance.
  * - `not-consented`: the bound plugin has no persisted ConsentRecord, so the
  *   consumer has not acknowledged its declared permissions. The server refuses
- *   to start the component, spawning no process or container (issue #615,
+ *   to start the component, spawning no process or container (#656,
  *   CP-FR-012, advisory v1 gate). Checked before the connection so a plugin that
  *   happens to be running still cannot back an unconsented component.
  * - `plugin-unavailable`: the bound plugin is installed and compatible but not
@@ -95,7 +95,7 @@ export function resolveBinding(
 
   const pluginId = binding.id;
 
-  // Existence gate (issue #408, CP-TC-025): an uninstalled plugin id has no
+  // Existence gate (#891, CP-TC-025): an uninstalled plugin id has no
   // PluginRecord, so it must not fall through to the consent gate and be told to
   // acknowledge permissions for a plugin that cannot be consented. Checked
   // before hasConsent so consent guidance stays reserved for installed plugins.
@@ -104,7 +104,7 @@ export function resolveBinding(
     return { reason: "not-installed", pluginId };
   }
 
-  // Compatibility gate (issue #408, CP-TC-011): a plugin whose required manifest
+  // Compatibility gate (#891, CP-TC-011): a plugin whose required manifest
   // `roubo` range is not satisfied by the host is held in status `incompatible`
   // and never spawned. Surface the range/host mismatch here, before the consent
   // gate, so an incompatible plugin that also has not been consented still names
@@ -119,7 +119,7 @@ export function resolveBinding(
     };
   }
 
-  // Consent gate (issue #615, CP-FR-012, AC5): refuse to resolve a binding whose
+  // Consent gate (#656, CP-FR-012, AC5): refuse to resolve a binding whose
   // plugin has no ConsentRecord. Checked before getConnection so nothing is
   // spawned and no process/container is started without acknowledged permissions.
   if (!hasConsent(pluginId)) {

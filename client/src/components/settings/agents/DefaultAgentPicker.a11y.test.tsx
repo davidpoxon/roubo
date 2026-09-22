@@ -4,7 +4,7 @@
 // radiogroup, moves selection with the arrow keys, commits with Space, and
 // scans clean.
 //
-// Coverage gap (#703): contrast, the second half of AP-TC-050 S003-O01, is out
+// Coverage gap (#1111): contrast, the second half of AP-TC-050 S003-O01, is out
 // of reach here. axe-core's `color-contrast` rule needs real layout, which jsdom
 // does not compute, so it reports zero contrast violations even when text fails
 // AA in a browser. Real-rendering color-contrast is therefore verified separately

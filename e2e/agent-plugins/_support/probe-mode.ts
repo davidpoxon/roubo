@@ -5,7 +5,7 @@ import { PROBE_MODE_PATH } from "./probe-mode-path.mjs";
 // The choice-probe mode channel for the APCC-TC-022 audit (issue #1306).
 //
 // One shared server serves the whole Playwright run, so the spec cannot restart
-// it between probe states the way the manual #887 recipe did. Instead the
+// it between probe states the way the manual #1276 recipe did. Instead the
 // `agent-choice-probe` overlay's probe names `roubo-e2e-probe-stub`, and the stub
 // reads this file on every run to decide what to print. `/test/__reset` empties
 // the host's probe cache, so the next warm spawns the stub again and sees the

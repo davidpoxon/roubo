@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 //
-// #440: the archived-cases section surfaces orphaned case results (a case removed
+// #487: the archived-cases section surfaces orphaned case results (a case removed
 // from the source plan whose results were retained, not deleted) so an authored
 // mark or note is never lost from the reviewer's view (NFR-003). It renders only
 // when at least one orphaned result exists, and shows each orphan's id, status,
 // observation marks, and notes.
 //
-// #769: the same section now also carries lifecycle-archived cases (retired or
+// #1161: the same section now also carries lifecycle-archived cases (retired or
 // superseded in the source plan, and therefore excluded from the rollup and the
 // live list). Both kinds coexist, each stating in text which situation it is.
 
-// #772: a lifecycle entry now carries Restore, the reversal of the action that
+// #1167: a lifecycle entry now carries Restore, the reversal of the action that
 // archived it. The mutation hook is mocked so the section renders without a
 // QueryClientProvider, the same way the case detail pane's hooks are.
 
@@ -46,7 +46,7 @@ function results(caseResults: BenchResults["caseResults"]): BenchResults {
 }
 
 // Omitting the lifecycle block yields a live case, which is what a revealable
-// replacement pointer has to name (#789).
+// replacement pointer has to name (#1165).
 function lifecycleCase(id: string, lifecycle?: CaseLifecycle): Case {
   return {
     id,
@@ -145,10 +145,10 @@ describe("ArchivedCases", () => {
   });
 });
 
-// #769 (SATCA-FR-006/FR-007). A case retired or superseded in the source plan is
+// #1161 (SATCA-FR-006/FR-007). A case retired or superseded in the source plan is
 // still IN the plan, so it is never orphaned: without this section it would
 // simply vanish from the panel once the rollup excluded it.
-describe("ArchivedCases lifecycle entries (#769)", () => {
+describe("ArchivedCases lifecycle entries (#1161)", () => {
   it("SATCA-TC-015: lists a retired case with its id, its state as text, and its reason", () => {
     const reason = "Superseded by the batch-level smoke check; kept for audit only.";
     render(
@@ -174,7 +174,7 @@ describe("ArchivedCases lifecycle entries (#769)", () => {
         archived={archivedFor(
           [
             lifecycleCase("TC-A", { state: "superseded", replacement: "TC-B" }),
-            // The target has to be in the plan and live to be revealable (#789).
+            // The target has to be in the plan and live to be revealable (#1165).
             lifecycleCase("TC-B"),
           ],
           null,
@@ -192,11 +192,11 @@ describe("ArchivedCases lifecycle entries (#769)", () => {
     expect(onSelectCase).toHaveBeenCalledWith("TC-B");
   });
 
-  // #789. A same-spec pointer is not proof the target can be revealed: the id may
+  // #1165. A same-spec pointer is not proof the target can be revealed: the id may
   // be in no plan at all, or name a case that is itself archived and so absent
   // from the live list. Either way the panel could not resolve the selection, so
   // the pointer is named as text rather than rendered as a dead control.
-  it("#789: does not make a same-spec replacement activatable when the target is missing", async () => {
+  it("#1165: does not make a same-spec replacement activatable when the target is missing", async () => {
     const onSelectCase = vi.fn();
     render(
       <ArchivedCases
@@ -219,7 +219,7 @@ describe("ArchivedCases lifecycle entries (#769)", () => {
     expect(onSelectCase).not.toHaveBeenCalled();
   });
 
-  it("#789: does not make a same-spec replacement activatable when the target is retired", async () => {
+  it("#1165: does not make a same-spec replacement activatable when the target is retired", async () => {
     const onSelectCase = vi.fn();
     render(
       <ArchivedCases
@@ -343,10 +343,10 @@ describe("ArchivedCases lifecycle entries (#769)", () => {
   });
 });
 
-// #772 (SATCA-TC-046, SATCA-FR-021): every lifecycle action is reversible, and
+// #1167 (SATCA-TC-046, SATCA-FR-021): every lifecycle action is reversible, and
 // the reversal lives on the archived entry, because retiring a case removes it
 // from the live list that the retiring surface belongs to.
-describe("ArchivedCases restore (#772)", () => {
+describe("ArchivedCases restore (#1167)", () => {
   function renderWithBench(cases: Case[], benchResults: BenchResults | null = null) {
     return render(
       <ArchivedCases

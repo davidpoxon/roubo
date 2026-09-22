@@ -1,4 +1,4 @@
-// LifecycleWriter, case half (#772, SATCA-FR-019/FR-021, SATCA-NFR-001/NFR-003).
+// LifecycleWriter, case half (#1167, SATCA-FR-019/FR-021, SATCA-NFR-001/NFR-003).
 //
 // Roubo's FIRST write into a spec's source case file. It sets or clears one
 // case's `lifecycle` block in `.specifications/<slug>/test-cases.json` and does
@@ -10,16 +10,16 @@
 //   - path safety: assertSafeIdentifier(SPEC_SLUG_RE) -> resolveWithin ->
 //     assertRealpathWithin, in that order, exactly as the store's planPath and
 //     the spec-lifecycle reader's manifestPath apply them (SATCA-NFR-001).
-//   - atomic write: writeSpecFile's same-directory temp-and-rename (#406), which
+//   - atomic write: writeSpecFile's same-directory temp-and-rename (#428), which
 //     also removes the temp when the rename fails, so an interrupted write
 //     leaves the original intact with no partial sibling (SATCA-TC-054).
-//   - the contract: CaseLifecycleSchema (#764), unchanged here.
+//   - the contract: CaseLifecycleSchema (#1158), unchanged here.
 //
 // Two properties are worth stating because they are easy to lose:
 //
 //   1. The conflict precondition is NOT the plan hash. `canonicalize` is an
 //      allowlist projection that deliberately excludes the lifecycle block
-//      (#767), so a lifecycle edit leaves the plan hash byte-identical and the
+//      (#1160), so a lifecycle edit leaves the plan hash byte-identical and the
 //      plan hash can never detect a concurrent lifecycle change. The precondition
 //      is therefore a SEPARATE sha256 over the raw file bytes
 //      (computeCaseFileFingerprint), taken on the read that produced the caller's
@@ -157,7 +157,7 @@ function isAtLeast(recorded: unknown, minimum: string): boolean {
 }
 
 // Rebuild a case object without its `lifecycle` key, rather than dynamically
-// deleting a computed property off a parsed-JSON object (the #508 pattern).
+// deleting a computed property off a parsed-JSON object (the #1032 pattern).
 // Key order for every OTHER key is preserved, so a restore produces the minimal
 // diff against what product-dev authored.
 function withoutLifecycle(caseObject: Record<string, unknown>): Record<string, unknown> {

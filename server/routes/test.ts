@@ -62,7 +62,7 @@ const router: Router = Router();
 // `js/missing-rate-limiting` on the file-system access in
 // /__register-fixture-project.
 //
-// #466: the full Playwright suite (workers: 1) fires well over 120 /test/*
+// #925: the full Playwright suite (workers: 1) fires well over 120 /test/*
 // requests inside a single 60s window (many __reset + __register-fixture-project
 // + __seed-* calls), so the limiter's window fills mid-suite and later
 // fixture-registering specs get a 429, breaking 10x determinism (NFR-018). Exempt
@@ -107,7 +107,7 @@ interface FixtureProjectEntry {
 }
 const fixtureProjects = new Map<string, FixtureProjectEntry>();
 
-// #686: drop the bench workspaces a fixture project provisioned under
+// #1102: drop the bench workspaces a fixture project provisioned under
 // `<rouboDir>/workspaces/<projectId>/`. Unlike `seededWorkspacePaths` (tmpdirs
 // this route mints for `seedBenches`), these are written by the real
 // provisioning path in bench-manager, so nothing in FixtureProjectEntry tracks
@@ -183,7 +183,7 @@ function cleanupFixtureProject(entry: FixtureProjectEntry): void {
       );
     }
   }
-  // #686: and the bench workspaces the real provisioning path wrote under
+  // #1102: and the bench workspaces the real provisioning path wrote under
   // `<rouboDir>/workspaces/<projectId>/`, which nothing above covers.
   removeProjectWorkspaces(entry.projectId, "/test/__reset");
 }
@@ -192,7 +192,7 @@ function cleanupFixtureProject(entry: FixtureProjectEntry): void {
 // a developer's pre-existing dev projects unlikely.
 const FIXTURE_DEFAULT_PORT_BASE = 39100;
 
-// AP-TC-026 (#681): one `roubo.yaml tools:` entry of type `agent`, as a fixture
+// AP-TC-026 (#1101): one `roubo.yaml tools:` entry of type `agent`, as a fixture
 // spec declares it. Mirrors the `agent` arm of the strict ToolConfigSchema minus
 // its `type` discriminator, which the writer supplies.
 interface FixtureAgentTool {
@@ -213,7 +213,7 @@ interface FixtureAgentTool {
 // so the `seedBenches` option below can pin multiple persisted benches
 // without violating the config cap.
 //
-// CLI-TC-062 (#573): a spec that registers two fixture projects at once (e.g.
+// CLI-TC-062 (#643): a spec that registers two fixture projects at once (e.g.
 // to prove per-project config independence across plugins) must give each a
 // distinct `portBase`, since the port allocator rejects overlapping ranges.
 function writeFixtureRouboYaml(
@@ -234,7 +234,7 @@ function writeFixtureRouboYaml(
   // non-empty repo set and the Configure modal's derived-sources preview renders
   // its success state instead of the "could not see this repository" fallback.
   const repoLine = repo ? `\n  repo: ${repo}` : "";
-  // CP-TC-028 (#626): bind a `deploy` component to the requested imperative
+  // CP-TC-028 (#662): bind a `deploy` component to the requested imperative
   // component plugin (e.g. `clasp-deploy-stub`). The component carries no
   // config (the stub's start hook needs none); the binding alone makes the
   // bench's `deploy` component resolve to the plugin via the component registry.
@@ -245,7 +245,7 @@ function writeFixtureRouboYaml(
       id: ${componentPlugin}
     config: {}`
     : "";
-  // CPHMTP-TC-073 (#575): bind an arbitrary named component to an arbitrary
+  // CPHMTP-TC-073 (#989): bind an arbitrary named component to an arbitrary
   // plugin id, which may be UNINSTALLED (e.g. an `apps-script` component bound to
   // `google-clasp`, served only by a declared third-party marketplace). The
   // binding stays valid at config-load (unknown-plugin bindings are tolerated,
@@ -258,14 +258,14 @@ function writeFixtureRouboYaml(
       id: ${componentBinding.pluginId}
     config: {}`
     : "";
-  // CPHMTP-TC-073 (#575): declare one or more third-party marketplaces so the
+  // CPHMTP-TC-073 (#989): declare one or more third-party marketplaces so the
   // project-open flow offers to register the declared-but-unregistered source.
   // Each entry is a URL only (never a credential), matching the strict schema.
   const marketplacesBlock =
     declaredMarketplaces.length > 0
       ? `\nmarketplaces:\n${declaredMarketplaces.map((url) => `  - url: ${url}`).join("\n")}`
       : "";
-  // AP-TC-026 (#681): declare project-level agent tool presets under `tools:`,
+  // AP-TC-026 (#1101): declare project-level agent tool presets under `tools:`,
   // which is the only route by which a preset reaches a bench launch menu with
   // source `project`. Every optional field is emitted only when the caller set
   // it, so the block satisfies the STRICT AgentToolConfigSchema. `params` is a
@@ -351,7 +351,7 @@ function wipePersistedTestState(): void {
   for (const name of [
     "projects.json",
     "state.json",
-    // #571 (CPHMTP-TC-011): the third-party marketplace registry and the plugin
+    // #990 (CPHMTP-TC-011): the third-party marketplace registry and the plugin
     // provenance ledger the marketplace-removal journey seeds. Wiped alongside the
     // rest so a seeded source / orphan stamp never leaks into a later spec (NFR-018).
     "marketplace-sources.json",
@@ -364,7 +364,7 @@ function wipePersistedTestState(): void {
       // Best-effort: tolerate a missing file or a transient unlink failure.
     }
   }
-  // #575 (CPHMTP-TC-073): drop the per-source marketplace catalog caches
+  // #989 (CPHMTP-TC-073): drop the per-source marketplace catalog caches
   // (`marketplace/sources/<id>/catalog-cache.json`, written by the
   // third-party client and by the __seed-source-catalog seam). Without an
   // explicit wipe a source registered + seeded by the declared-source journey
@@ -372,7 +372,7 @@ function wipePersistedTestState(): void {
   // serve stale entries), breaking 10x determinism (NFR-018). Paired with the
   // marketplace-sources.json removal above and the in-memory resets in
   // /__reset, so a later spec starts with no registered third-party sources.
-  // #571 (CPHMTP-TC-011): also drops the per-source cache tree the
+  // #990 (CPHMTP-TC-011): also drops the per-source cache tree the
   // __seed-marketplace-source seam pre-creates (`marketplace/sources/<id>/`).
   try {
     fs.rmSync(path.join(rouboDir, "marketplace"), { recursive: true, force: true });
@@ -435,7 +435,7 @@ function parseResetBody(body: ResetBody | undefined): ParsedResetConfig | string
   return { scenario, now, bundledPluginsDisabled };
 }
 
-// WU-068 (#159): mark every bundled plugin id (`github-com`, `ghe`,
+// WU-068 (#251): mark every bundled plugin id (`github-com`, `ghe`,
 // `jira-self-hosted`) as enabled in `~/.roubo/plugins-state.json`. The first
 // `migrate.run()` on a greenfield install seeds these as "disabled" so the
 // migration banner can prompt the user to opt-in; the e2e harness needs them
@@ -448,7 +448,7 @@ function ensureBundledPluginsEnabled(): void {
   }
 }
 
-// TC-154 (#222): fixture plugins under e2e/fixtures/bundled-overlays/ whose
+// TC-154 (#261): fixture plugins under e2e/fixtures/bundled-overlays/ whose
 // entry script intentionally exits non-zero. Without an explicit "disabled"
 // entry these would auto-enable at boot (isPluginEnabled defaults missing
 // entries to enabled), crash on spawn, and land in `errored` status. The
@@ -456,9 +456,9 @@ function ensureBundledPluginsEnabled(): void {
 // the failure-path spec needs these to start disabled. Forcing them disabled
 // in /__reset also keeps unrelated specs free of spawn-failure noise.
 //
-// CPHM-TC-082 (#317): `errored-component-stub` is a component-kind fixture whose
+// CPHM-TC-082 (#875): `errored-component-stub` is a component-kind fixture whose
 // entry file (./dist/index.js) is intentionally absent. Left enabled it would
-// fail the #759 pre-spawn host check at every boot and land `errored` in every
+// fail the #760 pre-spawn host check at every boot and land `errored` in every
 // spec's plugin list; forcing it disabled here keeps it out of unrelated specs.
 // The errored-banner drift guard enables it on demand (POST /api/plugins/
 // errored-component-stub/enable) to drive the real missing-entry errored state.
@@ -469,7 +469,7 @@ function disableFailureFixturePlugins(): void {
   }
 }
 
-// AP-TC-018 (#681): agent-kind fixtures that exist to be a SECOND agent, and so
+// AP-TC-018 (#1101): agent-kind fixtures that exist to be a SECOND agent, and so
 // must be opted into rather than ambiently present. `resolveLaunchAgentId` treats
 // "exactly one available agent" as the default whether or not anything is
 // persisted, so a second consented agent left running would silently un-resolve
@@ -479,7 +479,7 @@ function disableFailureFixturePlugins(): void {
 // something a spec asks for (POST /api/plugins/codex-cli/enable) and cannot leak
 // (NFR-018), even if an earlier run was interrupted mid-spec.
 //
-// AP-TC-115 (#534) adds a third agent-kind fixture (gemini-cli) on the same
+// AP-TC-115 (#1127) adds a third agent-kind fixture (gemini-cli) on the same
 // terms, for the marketplace-install-to-launch journey. Its overlay declares a
 // configSchema, which the other two deliberately do not, so leaving it enabled
 // would also add config controls to every page that renders the AI Agents
@@ -490,7 +490,7 @@ function disableFailureFixturePlugins(): void {
 // control to every AI Agents screen and spawn its stub on every agent read, so
 // it is opt-in on the same terms.
 //
-// APCC-TC-038 (#870) adds a fifth, cursor-cli, the Cursor overlay whose
+// APCC-TC-038 (#1349) adds a fifth, cursor-cli, the Cursor overlay whose
 // permission postures and two-tier rules back the permissions journey. Since
 // APCC-TC-011 its `model` field is populated by a choice probe too, so left
 // enabled it would also spawn its stub on every agent read.
@@ -567,28 +567,28 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // the helper itself refuses to run unless ROUBO_PRODUCTION is unset and
     // the resolved roubo dir lives under `.roubo-dev/`.
     wipePersistedTestState();
-    // #571 (CPHMTP-TC-011): drop the in-process caches for the plugin provenance
+    // #990 (CPHMTP-TC-011): drop the in-process caches for the plugin provenance
     // ledger and the ROUBO_E2E in-memory keyring that wipePersistedTestState just
     // cleared on disk, so a seeded provenance row / credential never bleeds into
     // the next spec (NFR-018). The load helpers return null on an absent file, but
     // the saved `lastKnown` snapshot would otherwise survive a corrupt-file
     // fallback. (The marketplace-sources snapshot + per-source client cache are
-    // reset in the #575 block below.)
+    // reset in the #989 block below.)
     pluginProvenanceState.__test.reset();
     credentialStore.__test.resetE2EKeyring();
-    // #568: restore the cut-list disk-cache bypass to its env-derived default.
+    // #590: restore the cut-list disk-cache bypass to its env-derived default.
     // The cut-list-refresh drift guard (CLI-TC-017) un-bypasses the disk path
     // via /test/__set-cut-list-disk-cache to reach the warm-snapshot serve;
     // without this restore that toggle would leak the warm path into the next
     // spec, breaking 10x determinism (NFR-018). wipePersistedTestState already
     // wiped issue-snapshots/, so the next warm spec starts from a clean disk.
     cutListQueryService.restoreBypassDefault();
-    // #314 (CPHM-TC-051): restore the marketplace catalog client to its
+    // #850 (CPHM-TC-051): restore the marketplace catalog client to its
     // reachable (network) default so the offline-journey toggle
     // (POST /test/__set-marketplace-reachable) never leaks an "unreachable"
     // state into a later spec (NFR-018). No-op outside ROUBO_E2E.
     await catalogClient.__setE2EMarketplaceReachable(true);
-    // #575 (CPHMTP-TC-073): drop the in-memory marketplace-sources snapshot and
+    // #989 (CPHMTP-TC-073): drop the in-memory marketplace-sources snapshot and
     // the per-source third-party client cache. wipePersistedTestState already
     // removed marketplace-sources.json + the per-source caches on disk, but the
     // sources-state module memoises the last-loaded state and the marketplace
@@ -608,7 +608,7 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // discovery sees the right project set.
     projectRegistry.__test.reset();
     projectRegistry.initialize();
-    // TC-001 (#438): drop the in-memory bench map and re-hydrate from the now
+    // TC-001 (#478): drop the in-memory bench map and re-hydrate from the now
     // empty state.json. A spec that drove the REAL create path (e.g. the
     // create-a-TestBench journey) left a persisted bench in bench-manager's
     // Map; `wipePersistedTestState` truncated state.json but the Map itself
@@ -620,7 +620,7 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // initialize: initialize() is what spawns the plugin processes, and the
     // pinning must be in place at spawn time so spawnPlugin sees it.
     pluginManager.__test.setE2EConfig({ scenario: parsed.scenario, now: parsed.now });
-    // WU-068 (#159): force-enable the bundled plugin ids before initialize()
+    // WU-068 (#251): force-enable the bundled plugin ids before initialize()
     // runs. The migrate seed (greenfield install path) writes them as
     // "disabled" by default, which suppresses spawn under ROUBO_E2E too, so
     // /api/plugins/github-com/connection-status would otherwise return
@@ -647,13 +647,13 @@ router.post("/__reset", async (req: Request, res: Response) => {
   }
 });
 
-// POST /test/__seed-legacy-agent-settings (#530): plant (or remove) the retired
+// POST /test/__seed-legacy-agent-settings (#1125): plant (or remove) the retired
 // built-in agent preferences block in `settings.json`, which is the ONLY signal
 // that an install is an upgrade rather than a fresh one (AP-FR-021).
 //
 // The AP-TC-102 upgrade journey opens on "the user is upgrading from a build
 // that had built-in agent settings", and nothing in the product writes that
-// block any more: #521 deleted the field, leaving only a reader
+// block any more: #1114 deleted the field, leaving only a reader
 // (`hasLegacyAgentSettings`). `/test/__reset` does not truncate
 // `settings.json` either, so the block also has to be REMOVABLE from a spec's
 // teardown or a seeded upgrade would leak into every later spec (NFR-018).
@@ -691,7 +691,7 @@ router.post("/__seed-legacy-agent-settings", (req: Request, res: Response) => {
   }
 });
 
-// POST /test/__set-cut-list-disk-cache (#568): toggle whether the persistent
+// POST /test/__set-cut-list-disk-cache (#590): toggle whether the persistent
 // cut-list disk snapshot is bypassed at runtime. Under the e2e harness
 // (ROUBO_E2E=1) the CutListQueryService bypasses the disk path by default so a
 // snapshot written by one scenario is never served to a later one (NFR-018). The
@@ -714,7 +714,7 @@ router.post("/__set-cut-list-disk-cache", (req: Request, res: Response) => {
   res.status(200).json({ ok: true, enabled: body.enabled });
 });
 
-// POST /test/__set-marketplace-reachable (#314, CPHM-TC-051): flip the catalog
+// POST /test/__set-marketplace-reachable (#850, CPHM-TC-051): flip the catalog
 // client between reachable (network source) and unreachable (degrade to
 // cache/seed) at runtime, so the marketplace-offline-journey e2e can walk the
 // offline -> install-blocked -> reconnect path without real network. The toggle
@@ -743,7 +743,7 @@ router.post("/__set-marketplace-reachable", async (req: Request, res: Response) 
   }
 });
 
-// POST /test/__seed-source-catalog (#575, CPHMTP-TC-073): seed a registered
+// POST /test/__seed-source-catalog (#989, CPHMTP-TC-073): seed a registered
 // third-party source's per-source catalog CACHE so it deterministically serves
 // the given entries with NO real network. Registering a source is a pure write
 // (CPHMTP-NFR-003) and the declared ACME URL (ghe.acme.internal) is unreachable
@@ -794,7 +794,7 @@ router.post("/__seed-source-catalog", async (req: Request, res: Response) => {
   }
 });
 
-// POST /test/__seed-marketplace-source (#571, CPHMTP-TC-011): stand up the
+// POST /test/__seed-marketplace-source (#990, CPHMTP-TC-011): stand up the
 // preconditions for the marketplace-removal journey, which has no pure-UI path to
 // reach ("a third-party source registered WITH a credential, and one plugin
 // installed FROM it"). Registering a source is a UI flow, but installing a plugin
@@ -866,7 +866,7 @@ router.post("/__seed-marketplace-source", async (req: Request, res: Response) =>
   }
 });
 
-// POST /test/__refresh-plugin-provenance (#571, CPHMTP-TC-011): re-derive the live
+// POST /test/__refresh-plugin-provenance (#990, CPHMTP-TC-011): re-derive the live
 // plugin records from the provenance ledger without a server restart. The orphan
 // stamp a source removal writes to the ledger only reaches a record on its next
 // rebuild (a relaunch in production); the marketplace-removal journey calls this
@@ -880,7 +880,7 @@ router.post("/__refresh-plugin-provenance", (_req: Request, res: Response) => {
   res.status(200).json({ ok: true });
 });
 
-// GET /test/__inspect-marketplace-source?id= (#571, CPHMTP-TC-011): read the
+// GET /test/__inspect-marketplace-source?id= (#990, CPHMTP-TC-011): read the
 // on-disk aftermath of a source removal (S006) directly, so the drift guard can
 // assert the registry row, the per-source catalog cache dir, and the keyring
 // credential are all gone without the spec poking the filesystem/keyring itself.
@@ -908,7 +908,7 @@ router.get("/__inspect-marketplace-source", async (req: Request, res: Response) 
   }
 });
 
-// POST /test/__register-fixture-project (#232): create a throwaway project
+// POST /test/__register-fixture-project (#249): create a throwaway project
 // whose active integration is the requested plugin, so a Playwright spec can
 // drive surfaces that only render once a project is registered (e.g. the
 // project Issue Source tile header in TC-168 placement C). The route writes
@@ -930,7 +930,7 @@ interface RegisterFixtureBody {
   // success state (the preview reads `config.project.repo` via
   // `deriveGithubSources`). Independent of `integrationConfig`.
   projectRepo?: unknown;
-  // CLI-TC-062 (#573): optional port base written into the fixture roubo.yaml.
+  // CLI-TC-062 (#643): optional port base written into the fixture roubo.yaml.
   // A spec that registers two fixture projects at once must give each a
   // distinct base so the port allocator does not reject the second one's
   // overlapping range. Defaults to FIXTURE_DEFAULT_PORT_BASE when omitted.
@@ -946,43 +946,43 @@ interface RegisterFixtureBody {
   // bench-provisioning UI. Each entry's `assignedIssue` is persisted onto a
   // freshly minted tmpdir-backed PersistedBench.
   seedBenches?: unknown;
-  // TC-001 (#438): optional list of specs to seed into the fixture repo so
+  // TC-001 (#478): optional list of specs to seed into the fixture repo so
   // TestBench spec discovery (`discoverSpecs`) and the create flow can run
   // against a real `.specifications/<slug>/test-cases.json`. Each entry writes
   // its `testCases` JSON to `<repoPath>/.specifications/<slug>/test-cases.json`.
-  // TSPF-TC-010 (#486): an entry may also carry `seedResults` ("all-passed" |
+  // TSPF-TC-010 (#940): an entry may also carry `seedResults` ("all-passed" |
   // "partial") to emit a hash-matching test-results.json so the spec lands in a
   // known verification classification for the partitioned-picker journey.
   seedSpecs?: unknown;
-  // TC-001 (#438): when true, `git init` + an initial commit are run in the
+  // TC-001 (#478): when true, `git init` + an initial commit are run in the
   // fixture repo so a real TestBench worktree (`git worktree add`) can be
   // provisioned. Provisioning is also pinned to the local HEAD (worktreeSource
   // branchFromDefault/pullLatest both false) so it does not require an `origin`
   // remote the throwaway repo does not have.
   gitInit?: unknown;
-  // CP-TC-028 (#626): optional id of a component plugin to bind a `deploy`
+  // CP-TC-028 (#662): optional id of a component plugin to bind a `deploy`
   // component to in the fixture roubo.yaml (in addition to the default `app`
   // process component). Lets the component-deploy e2e drive a bench whose
   // `deploy` component resolves to the imperative `clasp-deploy-stub` plugin.
   componentPlugin?: unknown;
-  // TC-032 (#708): when true, the fixture roubo.yaml sets
+  // TC-032 (#724): when true, the fixture roubo.yaml sets
   // `benches.enforceIssueDependencies: true` so the project-level config turns
   // the host's hard start-gate ON (resolveEnforceIssueDependencies reads
   // `project.config.benches.enforceIssueDependencies` first). The start-gate
   // e2e drives the blocked -> allowed journey against this, with no reliance on
   // the global setting default.
   enforceIssueDependencies?: unknown;
-  // CPHMTP-TC-073 (#575): optional list of third-party marketplace URLs written
+  // CPHMTP-TC-073 (#989): optional list of third-party marketplace URLs written
   // into the fixture roubo.yaml `marketplaces:` block, so the declared-source
   // registration-offer flow has a declared-but-unregistered source to act on.
   declaredMarketplaces?: unknown;
-  // CPHMTP-TC-073 (#575): optional binding of an arbitrary named component to an
+  // CPHMTP-TC-073 (#989): optional binding of an arbitrary named component to an
   // arbitrary (possibly UNINSTALLED) plugin id, e.g. `apps-script` -> `google-clasp`.
   // Distinct from `componentPlugin` (which always binds a `deploy` component to a
   // real, installed component plugin): this drives the missing-plugin bench-start
   // resolution for a plugin served only by a declared marketplace.
   componentBinding?: unknown;
-  // AP-TC-026 (#681): optional list of `agent` tool presets written into the
+  // AP-TC-026 (#1101): optional list of `agent` tool presets written into the
   // fixture roubo.yaml `tools:` block. A project-level preset has no other route
   // into the app (the editor writes app-level presets into settings.json), so
   // without this the "declared in roubo.yaml, listed under Agent tools" journey
@@ -994,7 +994,7 @@ interface SeedBenchInput {
   assignedIssue: AssignedIssue;
 }
 
-// TSPF-TC-010 (#486): the results-seed variants a fixture spec can request so a
+// TSPF-TC-010 (#940): the results-seed variants a fixture spec can request so a
 // discovered spec lands in a KNOWN verification classification. `writeSeededSpecs`
 // today writes only a test-cases.json, so every seeded spec is needs-attention
 // (no results sidecar). The partitioned-picker journey needs both partitions
@@ -1010,19 +1010,19 @@ const SEED_RESULTS_MODES: readonly SeedResultsMode[] = ["all-passed", "partial"]
 interface SeedSpecInput {
   slug: string;
   testCases: unknown;
-  // TSPF-TC-010 (#486): optional results-seed. When set, the route synthesizes a
+  // TSPF-TC-010 (#940): optional results-seed. When set, the route synthesizes a
   // hash-matching test-results.json alongside test-cases.json so the spec lands in
   // the requested classification. Omitted => no sidecar (needs-attention, "no
   // results yet"), preserving the prior seedSpecs behaviour.
   seedResults?: SeedResultsMode;
-  // SATCA-TC-035/036/037 (#770): optional `lifecycle` subtree written into the
+  // SATCA-TC-035/036/037 (#1162): optional `lifecycle` subtree written into the
   // spec's `.specifications/<slug>/manifest.json`, so the spec reads ARCHIVED
   // (optionally superseded) to the lifecycle reader. Omitted => no manifest at
   // all, which is the live state (SATCA-FR-017). Validated against the published
   // record schema at parse time, so a fixture can never seed a shape the reader
   // would reject.
   lifecycle?: unknown;
-  // SATCA-TC-047/049 (#773): the spec's whole `manifest.json`, written verbatim.
+  // SATCA-TC-047/049 (#1166): the spec's whole `manifest.json`, written verbatim.
   // This is what lets a fixture stage a REALISTIC product-dev manifest (stage
   // tracking, id counters, and a key Roubo does not recognise) so the in-app
   // lifecycle write can be proven to preserve every one of them. Combines with
@@ -1030,13 +1030,13 @@ interface SeedSpecInput {
   // also omitted => no manifest at all, which is the live state and the
   // precondition for minimal-manifest creation.
   manifest?: Record<string, unknown>;
-  // SATCA-TC-033 (#777): the spec's whole `work-units.json`, written verbatim.
+  // SATCA-TC-033 (#1176): the spec's whole `work-units.json`, written verbatim.
   // Without it no fixture project can carry a verify gate at all, so the gate
   // surface (the Batches view, GatesOverview / BatchView) is unreachable in e2e
   // and the gate-release journey cannot be driven end to end. Validated against
   // the published contract at parse time, so a fixture can never seed a file the
   // loader would report as invalid. Omitted => no work-units.json, which is the
-  // pre-#777 behaviour (a spec with no gates).
+  // pre-#1176 behaviour (a spec with no gates).
   workUnits?: unknown;
 }
 
@@ -1052,24 +1052,24 @@ interface ParsedRegisterFixture {
   seedBenches: SeedBenchInput[];
   seedSpecs: SeedSpecInput[];
   gitInit: boolean;
-  // CP-TC-028 (#626): id of the component plugin bound to a `deploy` component,
+  // CP-TC-028 (#662): id of the component plugin bound to a `deploy` component,
   // or null when the fixture project keeps only the default `app` component.
   componentPlugin: string | null;
-  // TC-032 (#708): when true, the fixture roubo.yaml sets
+  // TC-032 (#724): when true, the fixture roubo.yaml sets
   // `benches.enforceIssueDependencies: true`, turning the host start-gate ON.
   enforceIssueDependencies: boolean;
-  // CPHMTP-TC-073 (#575): declared third-party marketplace URLs for the
+  // CPHMTP-TC-073 (#989): declared third-party marketplace URLs for the
   // `marketplaces:` block (empty when the fixture declares none).
   declaredMarketplaces: string[];
-  // CPHMTP-TC-073 (#575): an extra component bound to an arbitrary plugin id, or
+  // CPHMTP-TC-073 (#989): an extra component bound to an arbitrary plugin id, or
   // null when the fixture project keeps only the default `app` component.
   componentBinding: { name: string; pluginId: string } | null;
-  // AP-TC-026 (#681): project-level agent tool presets for the `tools:` block
+  // AP-TC-026 (#1101): project-level agent tool presets for the `tools:` block
   // (empty when the fixture declares none).
   agentTools: FixtureAgentTool[];
 }
 
-// TC-001 (#438): slug component of a `.specifications/<slug>/` feature folder.
+// TC-001 (#478): slug component of a `.specifications/<slug>/` feature folder.
 // Kebab-case starting with a letter, matching the spec-slug allowlist the
 // discovery + containment barriers enforce server-side.
 const SPEC_SLUG_RE = /^[a-z][a-z0-9-]*$/;
@@ -1091,7 +1091,7 @@ function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
     if (testCases === undefined) {
       return `seedSpecs[${i}].testCases is required`;
     }
-    // TSPF-TC-010 (#486): validate the optional results-seed. A sidecar can only
+    // TSPF-TC-010 (#940): validate the optional results-seed. A sidecar can only
     // be synthesized from a schema-valid plan (its planHash must match what
     // discovery recomputes from test-cases.json), so when seedResults is set the
     // testCases must already parse as a valid plan; reject with a 400 here rather
@@ -1111,7 +1111,7 @@ function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
       }
       seedResults = seedResultsRaw as SeedResultsMode;
     }
-    // #770: an optional archived lifecycle record for the spec's manifest.
+    // #1162: an optional archived lifecycle record for the spec's manifest.
     const lifecycleRaw = (entry as { lifecycle?: unknown }).lifecycle;
     if (lifecycleRaw !== undefined) {
       const validation = validateSpecLifecycle(lifecycleRaw);
@@ -1119,7 +1119,7 @@ function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
         return `seedSpecs[${i}].lifecycle must be a valid spec lifecycle record: ${validation.errors.join("; ")}`;
       }
     }
-    // #773: an optional whole manifest for the spec folder.
+    // #1166: an optional whole manifest for the spec folder.
     const manifestRaw = (entry as { manifest?: unknown }).manifest;
     if (
       manifestRaw !== undefined &&
@@ -1127,7 +1127,7 @@ function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
     ) {
       return `seedSpecs[${i}].manifest must be an object when provided`;
     }
-    // #777: an optional work-units.json, so the spec carries verify gates. Reject
+    // #1176: an optional work-units.json, so the spec carries verify gates. Reject
     // an invalid file here rather than letting the gate loader skip the spec
     // mid-journey with a "present but invalid" diagnostic the fixture never meant.
     const workUnitsRaw = (entry as { workUnits?: unknown }).workUnits;
@@ -1149,7 +1149,7 @@ function parseSeedSpecs(raw: unknown): SeedSpecInput[] | string {
   return parsed;
 }
 
-// TSPF-TC-010 (#486): synthesize a schema-valid test-results.json from a seeded
+// TSPF-TC-010 (#940): synthesize a schema-valid test-results.json from a seeded
 // plan so a fixture spec lands in the requested classification. The planHash is
 // computed with computePlanHash (the same hash discovery recomputes), so the
 // sidecar is hash-matching and never stale. Every case is left with an empty
@@ -1298,7 +1298,7 @@ function parseRegisterFixtureBody(
     }
     enforceIssueDependencies = body.enforceIssueDependencies;
   }
-  // CPHMTP-TC-073 (#575): declared marketplace URLs. Each must be a non-empty
+  // CPHMTP-TC-073 (#989): declared marketplace URLs. Each must be a non-empty
   // http(s) string; the strict RouboConfig parse re-validates the shape at load,
   // but rejecting an obviously bad value here keeps the 400 close to the caller.
   let declaredMarketplaces: string[] = [];
@@ -1313,7 +1313,7 @@ function parseRegisterFixtureBody(
     }
     declaredMarketplaces = body.declaredMarketplaces as string[];
   }
-  // CPHMTP-TC-073 (#575): an extra component bound to an arbitrary plugin id.
+  // CPHMTP-TC-073 (#989): an extra component bound to an arbitrary plugin id.
   let componentBinding: { name: string; pluginId: string } | null = null;
   if (body?.componentBinding !== undefined) {
     const cb = body.componentBinding;
@@ -1329,7 +1329,7 @@ function parseRegisterFixtureBody(
     }
     componentBinding = { name, pluginId };
   }
-  // AP-TC-026 (#681): project-level agent tool presets. Shape-checked here so a
+  // AP-TC-026 (#1101): project-level agent tool presets. Shape-checked here so a
   // malformed entry answers 400 rather than writing a roubo.yaml the strict
   // RouboConfig parse rejects at load, which would surface as a project that
   // silently has no tools at all.
@@ -1392,12 +1392,12 @@ function parseRegisterFixtureBody(
   };
 }
 
-// TC-001 (#438): write each seeded spec's test-cases.json into
+// TC-001 (#478): write each seeded spec's test-cases.json into
 // `<repoPath>/.specifications/<slug>/test-cases.json`. The slug was already
 // validated against SPEC_SLUG_RE in parseSeedSpecs, so the join stays inside the
 // repo's `.specifications` tree.
 //
-// TSPF-TC-010 (#486): when a spec carries `seedResults`, also emit a
+// TSPF-TC-010 (#940): when a spec carries `seedResults`, also emit a
 // hash-matching test-results.json sidecar (via the shared writeResults primitive)
 // synthesized from the seeded plan, so the spec lands in a known classification
 // (all-passed / needs-attention-partial) for the partitioned-picker journey.
@@ -1411,10 +1411,10 @@ function writeSeededSpecs(repoPath: string, specs: SeedSpecInput[]): void {
       "utf-8",
     );
     if (spec.lifecycle !== undefined || spec.manifest !== undefined) {
-      // #770: the manifest is product-dev's file, so the fixture writes a
+      // #1162: the manifest is product-dev's file, so the fixture writes a
       // realistic one (a stage tracker sibling the reader must ignore) with the
       // `lifecycle` subtree the reader actually plucks.
-      // #773: a fixture may supply the whole manifest instead, to stage the
+      // #1166: a fixture may supply the whole manifest instead, to stage the
       // sibling keys an in-app lifecycle write has to preserve. The two combine:
       // `lifecycle` is always merged in as the subtree.
       const base = spec.manifest ?? { slug: spec.slug, stage: "verify" };
@@ -1426,7 +1426,7 @@ function writeSeededSpecs(repoPath: string, specs: SeedSpecInput[]): void {
       );
     }
     if (spec.workUnits !== undefined) {
-      // #777: the gate loader reads `.specifications/<slug>/work-units.json` from
+      // #1176: the gate loader reads `.specifications/<slug>/work-units.json` from
       // the PROJECT repo, so this is where a fixture's verify gate has to land.
       // parseSeedSpecs already validated it against the published contract.
       fs.writeFileSync(
@@ -1450,7 +1450,7 @@ function writeSeededSpecs(repoPath: string, specs: SeedSpecInput[]): void {
   }
 }
 
-// TC-001 (#438): turn the throwaway fixture repo into a real git repository with
+// TC-001 (#478): turn the throwaway fixture repo into a real git repository with
 // one commit so `git worktree add` succeeds during TestBench provisioning. Uses
 // a local identity + no GPG signing so it runs in a bare CI environment with no
 // global git config. All work is local: no remote is added, which is why the
@@ -1494,7 +1494,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
     return res.status(409).json({ error: `Fixture project '${projectId}' is already registered` });
   }
 
-  // #686: pre-clean this project id's bench workspaces before anything is
+  // #1102: pre-clean this project id's bench workspaces before anything is
   // created. `fixtureProjects` is a module-level Map, so it is empty after a
   // server restart and the /test/__reset cleanup below cannot reach a directory
   // left by an EARLIER `playwright test` invocation. Doing it here is what makes
@@ -1523,7 +1523,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
       componentBinding,
       agentTools,
     );
-    // TC-001 (#438): seed `.specifications/<slug>/test-cases.json` files BEFORE
+    // TC-001 (#478): seed `.specifications/<slug>/test-cases.json` files BEFORE
     // git init so they ride into the initial commit, making them visible both
     // to spec discovery (which reads the repo root) and to the provisioned
     // worktree.
@@ -1534,7 +1534,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
       gitInitFixtureRepo(repoPath);
     }
     const registered = projectRegistry.registerProject(repoPath);
-    // TC-001 (#438): when the repo was git-initialised for a real worktree,
+    // TC-001 (#478): when the repo was git-initialised for a real worktree,
     // pin the worktree source to the local HEAD so provisioning does not try to
     // fetch/fast-forward from an `origin` remote the throwaway repo lacks.
     if (gitInit) {
@@ -1612,7 +1612,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
   }
 });
 
-// TC-163 (#240): SIGKILL the live child of `pluginId` so the supervisor sees
+// TC-163 (#272): SIGKILL the live child of `pluginId` so the supervisor sees
 // an unexpected exit and runs the real auto-restart / restart-budget path in
 // plugin-manager. The Playwright spec calls this three times across the 5-min
 // window to drive the plugin into `errored` deterministically. Production
@@ -1651,7 +1651,7 @@ router.get("/__connection-state-log", (_req: Request, res: Response) => {
   res.status(200).json({ entries: pluginManager.__test.getE2EConnectionStateLogTap() });
 });
 
-// TC-154 (#222): read the persisted plugin-enable-state file so a Playwright
+// TC-154 (#261): read the persisted plugin-enable-state file so a Playwright
 // spec can assert the NFR-024 invariant ("plugin remains in its previous
 // disabled state on spawn failure") without poking the filesystem from the
 // test process. Gated by ROUBO_E2E.
@@ -1663,9 +1663,9 @@ router.get("/__plugin-enable-state", (_req: Request, res: Response) => {
   res.status(200).json({ plugins: state?.plugins ?? {} });
 });
 
-// TC-043 (#440): resolve the on-disk `.specifications/<slug>/` directory for a
+// TC-043 (#487): resolve the on-disk `.specifications/<slug>/` directory for a
 // provisioned TestBench, mirroring how the live TestBench routes (testbench.ts)
-// resolve it. As of #493 the bench's focused spec (its plan + results sidecar) is
+// resolve it. As of #494 the bench's focused spec (its plan + results sidecar) is
 // read and written under the bench's OWN WORKTREE (`bench.workspacePath`), not
 // the registered project repoPath. The slug is still resolved against the project
 // repoPath, where `focusedSpecPath` was picked and validated, exactly as the live
@@ -1688,7 +1688,7 @@ function resolveBenchSpecDir(
     return { status: 400, error: "Bench is not a testbench or has no focused spec" };
   }
   // An error-state bench with a blank workspacePath must fail cleanly rather than
-  // resolve to a bogus root, matching the live route's 400 (#493).
+  // resolve to a bogus root, matching the live route's 400 (#494).
   const rootPath = bench.workspacePath;
   if (typeof rootPath !== "string" || rootPath.trim().length === 0) {
     return { status: 400, error: "Bench has no workspace path" };
@@ -1718,13 +1718,13 @@ function parseBenchTarget(body: {
   return { projectId, benchId };
 }
 
-// POST /test/__rewrite-spec-cases (#440): overwrite the focused spec's
+// POST /test/__rewrite-spec-cases (#487): overwrite the focused spec's
 // test-cases.json for a provisioned TestBench, so the persist -> staleness ->
 // reconcile e2e spec can drive a mid-test PLAN edit (remove a case, add a case)
 // the create-a-TestBench UI does not expose. The path is resolved from the
 // bench's worktree (see resolveBenchSpecDir), and the slug is re-validated
 // through the same containment barrier the live routes use, so the write stays
-// inside `<workspacePath>/.specifications/<slug>/` (#493). Gated by ROUBO_E2E;
+// inside `<workspacePath>/.specifications/<slug>/` (#494). Gated by ROUBO_E2E;
 // production builds 404 the URL.
 //
 // Body: { projectId: string, benchId: number, testCases: object }.
@@ -1752,7 +1752,7 @@ router.post("/__rewrite-spec-cases", (req: Request, res: Response) => {
     // The slug came back through resolveFocusedSpec's SPEC_SLUG_RE barrier, so
     // the join stays inside the worktree's `.specifications` tree (matching
     // writeSeededSpecs above). Writing here (not repoPath) is what makes the
-    // bench's next plan load observe the staleness edit (#493).
+    // bench's next plan load observe the staleness edit (#494).
     const casesPath = path.join(
       resolved.rootPath,
       ".specifications",
@@ -1768,13 +1768,13 @@ router.post("/__rewrite-spec-cases", (req: Request, res: Response) => {
   }
 });
 
-// GET /test/__read-spec-results (#440): read the focused spec's
+// GET /test/__read-spec-results (#487): read the focused spec's
 // test-results.json sidecar for a provisioned TestBench so the e2e spec can
 // assert the on-disk integrity invariant (NFR-003): the flattened results retain
 // the archived (orphaned) case after reconcile. Returns the parsed sidecar plus
 // the source test-cases.json sha256 so the spec can prove the source plan's
 // checksum is unchanged by reconcile (reconcile only ever writes results).
-// Resolves the same way as the rewrite endpoint (rooted at the worktree, #493).
+// Resolves the same way as the rewrite endpoint (rooted at the worktree, #494).
 // Gated by ROUBO_E2E.
 //
 // Query: ?projectId=<id>&benchId=<n>.
@@ -1816,7 +1816,7 @@ router.get("/__read-spec-results", (req: Request, res: Response) => {
   }
 });
 
-// GET /test/__inspect-bench-git (#779, SATCA-TC-058): read-only git inspection of
+// GET /test/__inspect-bench-git (#1178, SATCA-TC-058): read-only git inspection of
 // a provisioned TestBench's own worktree, so the in-app-actions journey can assert
 // the GIT facts SATCA-TC-058 states and no other seam can express: exactly one
 // file is modified, the diff carries only the added lifecycle record, and nothing
@@ -1824,7 +1824,7 @@ router.get("/__read-spec-results", (req: Request, res: Response) => {
 // __read-spec-manifest) read file CONTENT, which cannot answer any of those.
 //
 // Resolves the same way as the rewrite/read endpoints (rooted at the bench
-// worktree, #493), which is exactly where the live lifecycle write lands via
+// worktree, #494), which is exactly where the live lifecycle write lands via
 // `resolveTestbench` (server/routes/testbench.ts). The fixture repo is git-init'd
 // and its seed committed before the worktree is added, so the worktree starts
 // clean and every assertion below is meaningful.
@@ -1890,15 +1890,15 @@ router.get("/__inspect-bench-git", (req: Request, res: Response) => {
   }
 });
 
-// POST /test/__seed-spec-results (#487, TSPF-TC-011): seed a plan-hash-matching
+// POST /test/__seed-spec-results (#942, TSPF-TC-011): seed a plan-hash-matching
 // test-results.json sidecar for a discovered spec in a fixture project's repo, so
 // the spec picker's server-side classification (verification.classification in
 // GET /:projectId/testbench/specs) sorts that spec into the "all-passed" group.
 // discoverSpecs reads the registered project repoPath, so the sidecar is written
 // there (NOT a bench worktree). This is the only harness seam that makes a seeded
 // spec classify all-passed: registerFixtureProject's seedSpecs writes the plan
-// (test-cases.json) only. The partitioned-picker drift guards (#487 re-point, and
-// its #486 create-flow sibling) both consume it.
+// (test-cases.json) only. The partitioned-picker drift guards (#942 re-point, and
+// its #940 create-flow sibling) both consume it.
 //
 // The sidecar is produced with the REAL store writer (setStatusOverride), so it
 // carries the correct planHash (computePlanHash of the on-disk plan, applied
@@ -1972,7 +1972,7 @@ router.post("/__seed-spec-results", async (req: Request, res: Response) => {
   }
 });
 
-// GET /test/__read-spec-manifest (#773, SATCA-TC-047/048/049): read one spec's
+// GET /test/__read-spec-manifest (#1166, SATCA-TC-047/048/049): read one spec's
 // `.specifications/<slug>/manifest.json` out of a fixture project's REPO (not a
 // bench worktree, matching where the picker's lifecycle write lands), plus the
 // sha256 of its test-cases.json. The archival drift guard uses it to assert on
@@ -2035,7 +2035,7 @@ router.get("/__read-spec-manifest", (req: Request, res: Response) => {
   }
 });
 
-// GET /test/__read-spec-work-units (#777, SATCA-TC-033 S003-O03): read one spec's
+// GET /test/__read-spec-work-units (#1176, SATCA-TC-033 S003-O03): read one spec's
 // `.specifications/<slug>/work-units.json` out of a fixture project's REPO, which
 // is the copy the gate loader reads, plus its sha256. The gate-release drift guard
 // uses it to prove the negative the case states: the gate went from pending to
@@ -2090,7 +2090,7 @@ router.get("/__read-spec-work-units", (req: Request, res: Response) => {
   }
 });
 
-// GET /test/__read-cut-list-cache-file (#567): read the persisted cut-list
+// GET /test/__read-cut-list-cache-file (#595): read the persisted cut-list
 // first-page snapshot file for a project so the warm-restart drift guard
 // (CLI-TC-001) can assert its on-disk S003 invariants directly against disk: the
 // file mode is exactly 0600 (CLI-NFR-001), and the parsed JSON content carries

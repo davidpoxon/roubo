@@ -22,7 +22,7 @@ import {
 } from "./agent-version-probe.js";
 import { AgentLaunchFailureError, belowFloorFailure } from "./agent-launch-failure.js";
 
-// Agent launch pipeline (issue #510, AP-FR-011, AP-NFR-002).
+// Agent launch pipeline (#1048, AP-FR-011, AP-NFR-002).
 //
 // The join between the two halves earlier slices built independently: the
 // four-layer effective configuration (agent-overrides.ts for app defaults,
@@ -46,8 +46,8 @@ const DEFAULT_ROUBO_PORT = "3335";
 
 /**
  * The two launch-time layers that sit above the stored app and project layers.
- * Neither has a producer yet (presets are AP-WU-015 / #516, per-launch overrides
- * are AP-WU-017 / #518); they are accepted here so the AP-FR-011 resolution
+ * Neither has a producer yet (presets are AP-WU-015 / #1057, per-launch overrides
+ * are AP-WU-017 / #1072); they are accepted here so the AP-FR-011 resolution
  * order is complete and testable rather than retro-fitted later.
  */
 export interface AgentConfigLayers {
@@ -105,7 +105,7 @@ export function resolveEffectiveAgentConfig(
 }
 
 /**
- * Which agent a jig-driven launch runs (AP-FR-006, issue #515).
+ * Which agent a jig-driven launch runs (AP-FR-006, #1051).
  *
  * The order is the whole contract: a jig's own binding wins, the app-level
  * default agent is the fallback for every jig that carries none, and a lone
@@ -251,14 +251,14 @@ export async function prepareAgentLaunch(
     // env over the host environment and PATH is not among the keys core withholds,
     // so a descriptor-supplied `env.PATH` replaces the host's outright. Handing it
     // to the probe is what keeps the gate reading the binary the launch will spawn
-    // rather than a same-named one on the server's PATH (#660).
+    // rather than a same-named one on the server's PATH (#1075).
     //
     // It is resolved against the same template context `createAgentSession`
     // builds, because a descriptor's `env` values are templates and everything
     // they may reference is already in hand here. Handing the probe the raw
     // template instead would trip its `{{` backstop and report `probe-failed`,
     // which never blocks, so a plugin declaring a templated `env.PATH` would get
-    // no floor enforcement at all (#670).
+    // no floor enforcement at all (#1081).
     const ctx: ResolvedTemplateContext = {
       ports: {},
       portHttps: {},
@@ -275,7 +275,7 @@ export async function prepareAgentLaunch(
         ? resolveTemplate(descriptor.env.PATH, ctx)
         : process.env.PATH,
       // The same manifest-declared candidates `createAgentSession` resolves the
-      // spawn with (#712), so the gate reads the binary the launch will run
+      // spawn with (#1115), so the gate reads the binary the launch will run
       // rather than reporting an unfindable CLI that then launches fine.
       resolved.manifest.agentInstallLocations,
     );

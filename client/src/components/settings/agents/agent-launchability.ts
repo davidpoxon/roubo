@@ -1,7 +1,7 @@
 import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 
 // Whether a launch surface may actually start a given agent or preset
-// (AP-TC-038, issue #517).
+// (AP-TC-038, #1063).
 //
 // One predicate for every surface: the menu row's disabled state, the
 // split-button's disabled state, and the guard inside the launch handler all

@@ -1,4 +1,4 @@
-// LifecycleWriter, manifest half (#773, SATCA-FR-020/FR-021, SATCA-NFR-001/
+// LifecycleWriter, manifest half (#1166, SATCA-FR-020/FR-021, SATCA-NFR-001/
 // NFR-003): the ONLY writer of a spec's `lifecycle` subtree, and the write
 // counterpart of the read-only testbench-spec-lifecycle.ts.
 //
@@ -26,7 +26,7 @@
 //    the reviewer never ran (SATCA-TC-048).
 //
 // Reversal is the same write with `lifecycle` deleted. That is what
-// absence-means-live buys (`archived: z.literal(true)` in the #765 schema):
+// absence-means-live buys (`archived: z.literal(true)` in the #1157 schema):
 // restoring a spec is a key deletion, not a state flag flipped to false.
 //
 // Path-safety mirrors the reader's manifestPath() exactly, so read and write can

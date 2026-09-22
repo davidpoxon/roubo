@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// In-memory per-session decline memory (CPHMTP-FR-007, issue #565). These cover
+// In-memory per-session decline memory (CPHMTP-FR-007, #982). These cover
 // the store's contract directly: a decline is remembered for the session
 // (CPHMTP-TC-078), scoped to the exact project+URL, and a fresh provider mount
 // (a new session) starts empty so the offer re-appears (CPHMTP-TC-087).

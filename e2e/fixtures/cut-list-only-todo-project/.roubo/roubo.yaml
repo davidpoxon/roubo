@@ -21,7 +21,7 @@ integration:
   sources:
     Repository:
       - "acme/widgets"
-  # CLI-FR-012 / issue #558: this fixture's only-To-Do DEFAULT. The committed
+  # CLI-FR-012 / #582: this fixture's only-To-Do DEFAULT. The committed
   # root excludes both In Progress and Done, so a fresh project (no per-user
   # override) resolves to "show To Do only". This is distinct from the
   # cut-list-flow-project fixture, which carries no root exclusion and relies on

@@ -96,7 +96,7 @@
 // .specifications/component-plugins-hosted-marketplace-third-party/test-cases.json
 // forces this test to be updated.
 //
-// Failure-output contract (issue #576 AC: "On failure the test reports which e2e_flow
+// Failure-output contract (#994 AC: "On failure the test reports which e2e_flow
 // step diverged, the expected-vs-actual at that step, and the owning slice(s) from
 // Blocked by"): every assertion attaches an expected-vs-actual message naming the
 // diverging step and the owning slice, so a red run localizes the integration drift to
@@ -117,25 +117,25 @@ import type { MarketplaceCatalogEntry, PluginRecord } from "@roubo/shared";
 import type { ThirdPartyCatalogResult, VerifiedCatalog } from "./catalog-client.js";
 
 // ── Owning slices ──
-// #576's blocked-by set is {#567, #568} (the two publish-half slices). Per the issue's
+// The work unit's blocked-by set is the two publish-half slices. Per the issue's
 // Technical Notes, the journey-to-slice mapping is a conservative FR/US superset: it also
 // crosses the consume-half slices it depends on, so those are named too. Each step
 // localizes a divergence to the slice that actually OWNS the diverging behaviour, so a red
 // run points at one attributable issue rather than the whole journey.
 const SLICE_WORKPLACE_PIPELINE =
-  "#567 (workplace marketplace repo + publish pipeline: tsup build, sha256, catalog regeneration, per-plugin release)";
+  "workplace marketplace repo + publish pipeline: tsup build, sha256, catalog regeneration, per-plugin release";
 const SLICE_EXTRACTION =
-  "#568 (extract GHE/Jira from the first-party catalog + pipeline into the workplace-published source)";
+  "extract GHE/Jira from the first-party catalog + pipeline into the workplace-published source";
 const SLICE_GUARDED_FETCH =
-  "#554 (guarded-fetch transport: SSRF/redirect guard, origin-scoped credential attached as Authorization)";
+  "guarded-fetch transport: SSRF/redirect guard, origin-scoped credential attached as Authorization";
 const SLICE_MULTI_SOURCE_LISTING =
-  "#557 (multi-source listing: merged catalog, per-entry provenance stamp, source filter, parallel fetch)";
+  "multi-source listing: merged catalog, per-entry provenance stamp, source filter, parallel fetch";
 const SLICE_MANDATORY_DIGEST =
-  "#559 (mandatory integrity digest + guarded artifact download for unsigned third-party installs)";
+  "mandatory integrity digest + guarded artifact download for unsigned third-party installs";
 const SLICE_PROVENANCE_LEDGER =
-  "#560 (install-record source provenance stored + surfaced across list/card/drawer)";
+  "install-record source provenance stored + surfaced across list/card/drawer";
 const SLICE_UNVERIFIED_BADGE =
-  "#563 (persistent non-dismissible unverified badge + provenance across list, card, and drawer surfaces)";
+  "persistent non-dismissible unverified badge + provenance across list, card, and drawer surfaces";
 
 // ── Fixture identifiers (TC-090 preconditions) ──
 // The workplace marketplace source, registered with a valid PAT credential and consent
@@ -146,7 +146,7 @@ const WORKPLACE_CATALOG_URL = "https://marketplace.acme.example.invalid/catalog.
 // The per-plugin release asset lives on the SAME origin as the catalog: guarded-fetch
 // scopes a third-party download to the source's consented origin AND attaches the
 // credential only there, so a cross-origin asset would be refused before the digest
-// recompute and would carry no credential (#554/#559).
+// recompute and would carry no credential (#956/#961).
 const WORKPLACE_ASSET_URL =
   "https://marketplace.acme.example.invalid/acme-workplace-widget-1.0.0.tgz";
 // The valid PAT credential recorded for the workplace source (precondition 2). A bare
@@ -182,13 +182,13 @@ vi.mock("./plugin-manager.js", () => ({
 
 vi.mock("undici", () => ({
   fetch: vi.fn(),
-  // guarded-fetch builds a connect-pinning Agent (issue #590); the mocked fetch ignores
+  // guarded-fetch builds a connect-pinning Agent (#960); the mocked fetch ignores
   // the dispatcher, so a constructable stub is all this mock needs.
   Agent: vi.fn(),
 }));
 
 // The provenance ledger's persistence boundary: commit records the chosen source to
-// ~/.roubo/plugins-provenance.json (issue #558/#560). Mocked so the journey cannot write
+// ~/.roubo/plugins-provenance.json (#966/#968). Mocked so the journey cannot write
 // the developer's own state dir; its file IO is covered by plugin-provenance-state.test.ts.
 // This journey asserts the stamping happens (the recordProvenance call) and its arguments
 // (the stored provenance), which is the server-side fact S006-O03 and the persistent
@@ -605,7 +605,7 @@ describe("CPHMTP-TC-090: operator publishes to the workplace repo, the catalog r
 
     // ── S005-O02 (rendered badge, attributed, NOT re-asserted here) ──
     // Whether a non-dismissible 'unverified' badge actually RENDERS, and that it has no
-    // dismiss/hide/close affordance, is a pure web-client render observation owned by #563.
+    // dismiss/hide/close affordance, is a pure web-client render observation owned by #977.
     // It is not observable from a service call; it is asserted by ProvenanceBadge.test.tsx
     // (the Unverified pill for a third-party sourceId, verified:true injected still renders
     // Unverified, and CPHMTP-TC-041: no dismiss affordance, re-renders identically). What
@@ -726,7 +726,7 @@ describe("CPHMTP-TC-090: operator publishes to the workplace repo, the catalog r
     // into a server-side driver and a render observation. The plugin running (enabled
     // record, on-disk dist/) and the unverified provenance row are asserted above. Whether
     // the same non-dismissible badge renders across the list, card, and drawer surfaces is a
-    // web-client observation owned by #563: ProvenanceBadge.test.tsx, Marketplace.a11y.test
+    // web-client observation owned by #977: ProvenanceBadge.test.tsx, Marketplace.a11y.test
     // .tsx, MarketplaceDrawer.test.tsx, and marketplace-journey-e2e.test.tsx assert it. All
     // three surfaces route through one trust derivation (trustTreatmentOf) keyed on exactly
     // the stored row this journey pins, so a change that let one surface diverge would first

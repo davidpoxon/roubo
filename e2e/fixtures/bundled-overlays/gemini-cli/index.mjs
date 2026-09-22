@@ -1,4 +1,4 @@
-// E2E overlay runtime for a third agent plugin slot, `gemini-cli` (issue #534).
+// E2E overlay runtime for a third agent plugin slot, `gemini-cli` (#1127).
 //
 // NOT a mirror of a shipped plugin: no Gemini agent plugin exists in
 // roubo-plugins/plugins/ yet. It implements the smallest runtime that makes the

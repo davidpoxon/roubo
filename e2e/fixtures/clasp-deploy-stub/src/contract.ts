@@ -18,7 +18,7 @@ import type {
 const DEPLOY_TIMEOUT_MS = 5000;
 
 // The host rejects a timed-out `host.process.run` with a typed error whose
-// structured `data.code` is "process-timeout" (server component-broker, #411).
+// structured `data.code` is "process-timeout" (server component-broker, #894).
 // Match on that code rather than the message so the timeout branch stays robust.
 function isProcessTimeout(err: unknown): boolean {
   if (typeof err !== "object" || err === null || !("data" in err)) return false;
@@ -58,7 +58,7 @@ export function buildContract(host: ComponentHostClient): ImperativeComponentCon
       // Run the deploy command to completion through the host broker. The host
       // owns the spawned process; `run` blocks until it exits and returns the
       // exit code. A timeoutMs-enforced kill does not resolve: the host rejects
-      // with a typed `process-timeout` error (#411), which we catch below.
+      // with a typed `process-timeout` error (#894), which we catch below.
       let result: ProcessRunResult;
       try {
         result = await host.process.run({

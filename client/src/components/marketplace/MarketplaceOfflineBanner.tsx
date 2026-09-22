@@ -2,7 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import type { MarketplaceCatalogSource } from "@roubo/shared";
 
 // Marketplace offline / staleness banner (CPHM-FR-009 / CPHM-NFR-003, issue
-// #372; verifies CPHM-TC-043 S002 and CPHM-TC-051 S003). The catalog-client
+// #851; verifies CPHM-TC-043 S002 and CPHM-TC-051 S003). The catalog-client
 // degrades NETWORK -> CACHE (bottoming out at an empty listing), and the route
 // surfaces the served catalog's `source` / `fetchedAt`, so the Plugins view can
 // tell the user it is offline and how stale the served catalog is.

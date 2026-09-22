@@ -33,7 +33,7 @@ export type ScenarioSourceOptions = Partial<
   Record<"project" | "board" | "filter" | "epic", ScenarioSourceOption[]>
 >;
 
-// JSS-TC-024/JSS-TC-025 (#358): a fixture-only status category attached to a
+// JSS-TC-024/JSS-TC-025 (#436): a fixture-only status category attached to a
 // scenario issue so the stub's `listIssues` can mirror the real plugin's
 // in-query status-category exclusion (JSS-FR-009/JSS-FR-010). The host-visible
 // `NormalizedIssue` carries no category because the production plugin excludes
@@ -77,7 +77,7 @@ export interface Scenario {
   labels: string[];
   facets: FilterFacet[];
   facetOptions: ScenarioFacetOptions;
-  // CLI-FR-009 (#584): the sort fields the stub declares via `getSortFields`.
+  // CLI-FR-009 (#632): the sort fields the stub declares via `getSortFields`.
   // When present and non-empty the contract exposes the method (the host
   // renders a sort picker) and `listIssues` orders the kept set source-side by
   // the requested field (`title` / `updated`). When omitted or empty the method

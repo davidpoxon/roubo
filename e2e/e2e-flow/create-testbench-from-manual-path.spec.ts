@@ -7,7 +7,7 @@ import {
 } from "./_support/scenario.js";
 import { OWNING_SLICES, TC_006_PLAN, TESTBENCH_SPEC_SLUG } from "./_support/testbench-plan.js";
 
-// E2E (#443): the authoritative `e2e_flow` drift guard for the
+// E2E (#484): the authoritative `e2e_flow` drift guard for the
 // "create a TestBench from a valid manual file path" journey (TC-006, US-012,
 // FR-003/FR-004). It walks the integrated system end to end against the BUILT
 // app: enable the feature, register a fixture project carrying a real
@@ -16,13 +16,13 @@ import { OWNING_SLICES, TC_006_PLAN, TESTBENCH_SPEC_SLUG } from "./_support/test
 // validation -> valid state -> Create) and assert the spec-bound bench, detail
 // view, TestBench-first tab, and review panel match TC-006.
 //
-// The only divergence from TC-001 (#438, create-from-empty-slot) is the
+// The only divergence from TC-001 (#478, create-from-empty-slot) is the
 // selection mechanism: instead of clicking a discovered spec row, this types a
 // repo-relative path into the manual-path TextField ("Or enter a path") and
 // asserts the aria-live status region transitions "Validating..." ->
 // "Valid: <slug> (n cases)". The create/detail/tab/panel legs are identical.
 //
-// Unlike the per-slice unit tests (#414/#416/#418/#419 own those), this asserts
+// Unlike the per-slice unit tests (#456/#459/#467/#466 own those), this asserts
 // the journey, not any single slice's implementation. Each step is wrapped in a
 // labelled `test.step` so a failure localises the diverging step, reports the
 // expected-vs-actual at that step, and names the owning slice (FR-020 / AC5).
@@ -78,7 +78,7 @@ test.beforeEach(async ({ request }) => {
 test("TC-006: create a TestBench with a valid manual file path", async ({ page, request }) => {
   // ── Preconditions: feature enabled, project with a real spec on disk, on the
   // bench list view ──────────────────────────────────────────────────────────
-  await test.step("Precondition: enable the TestBench feature (#414)", async () => {
+  await test.step("Precondition: enable the TestBench feature (#456)", async () => {
     await enableTestBench(request);
   });
 
@@ -104,9 +104,9 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
     await expect(page.getByText("Available").first()).toBeVisible();
   });
 
-  // ── Precondition: open the empty-slot menu -> spec-picker modal (#418) ───────
+  // ── Precondition: open the empty-slot menu -> spec-picker modal (#467) ───────
   // Shared with TC-001: the manual-path journey starts from the same modal.
-  await test.step("Precondition: open the option menu on an empty bench slot (#418)", async () => {
+  await test.step("Precondition: open the option menu on an empty bench slot (#467)", async () => {
     await page.getByText("Bench 1").locator("xpath=ancestor::button[1]").click();
     await expect(
       page.getByRole("button", { name: "Create a TestBench" }),
@@ -118,7 +118,7 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
   // popover (DialogTrigger) also carries role="dialog", so a bare
   // getByRole("dialog") is ambiguous.
   const dialog = page.getByRole("dialog", { name: "Create a TestBench" });
-  await test.step("Precondition: spec-picker modal opens (#418)", async () => {
+  await test.step("Precondition: spec-picker modal opens (#467)", async () => {
     await page.getByRole("button", { name: "Create a TestBench" }).click();
     await expect(dialog, `${OWNING_SLICES.specPicker}: spec-picker modal opens`).toBeVisible();
     await expect(
@@ -127,12 +127,12 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
     ).toBeVisible();
   });
 
-  // ── TC-006-S1: locate the manual-path input (AC1 precondition, #418) ─────────
+  // ── TC-006-S1: locate the manual-path input (AC1 precondition, #467) ─────────
   // The escape hatch is a RAC TextField labelled "Or enter a path"; it has no
   // data-testid, so it is located by its accessible label.
   const manualInput = dialog.getByLabel("Or enter a path");
   const createButton = dialog.getByRole("button", { name: "Create TestBench" });
-  await test.step("TC-006-S1: locate the manual-path input field in the modal (#418)", async () => {
+  await test.step("TC-006-S1: locate the manual-path input field in the modal (#467)", async () => {
     await expect(
       manualInput,
       `${OWNING_SLICES.manualPathInput}: the 'Or enter a path' input is present`,
@@ -145,8 +145,8 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
   // the validating / valid / invalid states (FR-003).
   const status = dialog.locator("#manual-path-status");
 
-  // ── TC-006-S2: type the path -> validating indicator (AC1, #418) ────────────
-  await test.step("TC-006-S2: type a valid path -> input shows a validating indicator (AC1, #418)", async () => {
+  // ── TC-006-S2: type the path -> validating indicator (AC1, #467) ────────────
+  await test.step("TC-006-S2: type a valid path -> input shows a validating indicator (AC1, #467)", async () => {
     await manualInput.fill(MANUAL_PATH);
     // Validation is debounced 300ms then hits the real endpoint; auto-waiting
     // expects (no fixed sleeps) catch the transient "Validating..." state. The
@@ -160,7 +160,7 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
   });
 
   // ── TC-006-S3: validation completes -> valid state, Create enabled, no error (AC2) ─
-  await test.step("TC-006-S3: validation completes -> valid state, Create enabled, no error (AC2, #418)", async () => {
+  await test.step("TC-006-S3: validation completes -> valid state, Create enabled, no error (AC2, #467)", async () => {
     // Valid: "<slug> (<n> case(s))". The count is derived from the seeded plan.
     // toHaveText normalises and matches the whole status region's text, so a
     // match proves the green-check valid line is the ONLY content there: any
@@ -182,7 +182,7 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
   });
 
   // ── TC-006-S4: Create -> modal closes, bench created spec-bound, detail opens (AC3) ─
-  await test.step("TC-006-S4: click Create -> modal closes, spec-bound bench created, detail opens (AC3, #416)", async () => {
+  await test.step("TC-006-S4: click Create -> modal closes, spec-bound bench created, detail opens (AC3, #459)", async () => {
     await createButton.click();
     await expect(dialog, `${OWNING_SLICES.specPicker}: modal closes on Create`).toBeHidden();
     // Bench detail view opens at /projects/:id/benches/:benchId (first bench => 1).
@@ -213,7 +213,7 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
 
   // ── TC-006-S4 (cont.): TestBench first tab + correct spec path in the panel (AC3) ─
   const tablist = page.getByRole("tablist");
-  await test.step("TC-006-S4: TestBench is the first (amber) tab and the panel shows the correct spec path (AC3, #416/#419)", async () => {
+  await test.step("TC-006-S4: TestBench is the first (amber) tab and the panel shows the correct spec path (AC3, #459/#466)", async () => {
     await expect(tablist).toBeVisible();
     const tabs = tablist.getByRole("tab");
     // Inspection is only present when configured; the fixture has no inspection
@@ -237,7 +237,7 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
     await tablist.getByRole("tab", { name: /^TestBench/ }).click();
     const testBenchPanel = page.getByRole("tabpanel");
     await expect(testBenchPanel).toBeVisible();
-    // The view toggle now opens on the "Batches" surface by default (#359);
+    // The view toggle now opens on the "Batches" surface by default (#842);
     // switch to the Cases review this step asserts on (overall rollup + cases).
     await showTestBenchCasesView(page);
     // Focused spec identity: slug + the full path to the manually specified

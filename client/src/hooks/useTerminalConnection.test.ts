@@ -111,7 +111,7 @@ describe("useTerminalConnection", () => {
     expect(onReplay).toHaveBeenCalledWith(["data"], 0, undefined);
   });
 
-  it("forwards a replayed launch failure so a reconnect still sees it (#519)", async () => {
+  it("forwards a replayed launch failure so a reconnect still sees it (#1064)", async () => {
     const { onReplay } = renderConnectionHook();
     await act(async () => {
       vi.advanceTimersByTime(1);

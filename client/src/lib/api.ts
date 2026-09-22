@@ -130,7 +130,7 @@ export function isDirtyBenchError(err: unknown): err is ApiError & {
 
 /**
  * A start failed because the component's bound plugin is not installed, AND the
- * server resolved somewhere it can be installed from (CPHMTP-FR-008, issue #566).
+ * server resolved somewhere it can be installed from (CPHMTP-FR-008, #978).
  *
  * Narrow deliberately: the guard requires an ACTIONABLE resolution (`single-source`
  * or `ambiguous`), so an id no source serves does not match and its plain
@@ -152,7 +152,7 @@ export function isMissingPluginError(err: unknown): err is ApiError & {
 
 /**
  * A start failed because the component's bound plugin is installed but has no
- * ConsentRecord: its permissions were never acknowledged (issue #617, AC3). The
+ * ConsentRecord: its permissions were never acknowledged (#991, AC3). The
  * server carries `consent.pluginId` on the `COMPONENT_NOT_BOUND` body so the bench
  * page can open an actionable consent prompt instead of stopping silently. Mirrors
  * `isMissingPluginError`: a typed body read off `ApiError.details`, which `request`
@@ -173,7 +173,7 @@ export function isConsentError(err: unknown): err is ApiError & {
 /**
  * An unregister was refused because the project still has persisted bench
  * records. The count comes from state.json, which can legitimately exceed what
- * the Benches view renders if a record was ever orphaned there (#829), so the
+ * the Benches view renders if a record was ever orphaned there (#1191), so the
  * body carries the count and ids the refusal is objecting to and the caller can
  * offer a forced unregister that names them. Mirrors `isDirtyBenchError`: a
  * typed body read off `ApiError.details`, which `request` populates with the
@@ -264,7 +264,7 @@ export function createBench(
     // the active plugin's getIssue.
     externalId?: string;
     branchConflictResolution?: "resume" | "new";
-    // TestBench variant (#418): when "testbench", the create path binds the bench
+    // TestBench variant (#467): when "testbench", the create path binds the bench
     // to focusedSpecPath rather than to an issue/branch.
     variant?: "testbench";
     focusedSpecPath?: string;
@@ -445,14 +445,14 @@ export function executeTool(
   });
 }
 
-// Agent tool presets (issue #516)
+// Agent tool presets (#1057)
 export function fetchAgentPresets(projectId: string): Promise<AgentPresetsResponse> {
   return request(`/projects/${projectId}/agent-presets`);
 }
 
 // The same list without a project layer: built-ins plus app-level presets,
 // resolved by the same server service, for the app-level Settings listing
-// (issue #672).
+// (#1084).
 export function fetchAppAgentPresets(): Promise<AgentPresetsResponse> {
   return request("/agents/presets");
 }
@@ -499,11 +499,11 @@ export function createTerminal(
   benchId: number,
   command?: string,
   jigId?: string,
-  // The agent launch path (issue #516): naming an agent plugin, and optionally
+  // The agent launch path (#1057): naming an agent plugin, and optionally
   // a preset's parameter overrides, routes session creation through the agent
   // launch pipeline instead of the built-in command path. `perLaunchOverrides`
   // is the transient fourth layer above the preset, produced by the per-launch
-  // override dialog and persisted nowhere (issue #518).
+  // override dialog and persisted nowhere (#1072).
   agent?: {
     agentPluginId?: string;
     presetOverrides?: Record<string, unknown>;
@@ -573,7 +573,7 @@ export function abortInspection(projectId: string, benchId: number): Promise<voi
 // The discriminated reason the results sidecar recovered (fail-open), mirrored
 // from the server's `ResultsRecoveryReason` (server/lib/testbench-store.ts, #896).
 // `null`/absent and "missing" are the silent clean-slate cases (a fresh bench with
-// no sidecar); the other reasons surface a dismissible recovery prompt (#417).
+// no sidecar); the other reasons surface a dismissible recovery prompt (#897).
 export type ResultsRecoveryReason =
   "missing" | "corrupt-json" | "future-version" | "version-migration-required" | "schema-invalid";
 
@@ -582,14 +582,14 @@ export interface TestbenchPlanResponse {
   results: BenchResults | null;
   stale: boolean;
   planHash: string;
-  // sha256 over the raw test-cases.json bytes the server read (#772). Echoed
+  // sha256 over the raw test-cases.json bytes the server read (#1167). Echoed
   // back as the `If-Match` precondition on a lifecycle write, which is how an
   // edit made outside the app between load and write is reported as a conflict
   // instead of being silently overwritten. Optional, matching how `lifecycle`
   // and `recoveryReason` tolerate an older server.
   caseFileFingerprint?: string;
   recovered: boolean;
-  // WHY the sidecar recovered, when it did (#896/#417). Mirrors the server's
+  // WHY the sidecar recovered, when it did (#896/#897). Mirrors the server's
   // optional `recoveryReason`; null on a clean read and absent from an older
   // server. The UI treats absent / null / "missing" as silent.
   recoveryReason?: ResultsRecoveryReason | null;
@@ -598,27 +598,27 @@ export interface TestbenchPlanResponse {
   // server's optional `migrationGuide`; null for every other reason and on a clean
   // read, absent from an older server.
   migrationGuide?: string | null;
-  // Present only when the plan was fetched with a ?gateIds= subset filter (#702,
+  // Present only when the plan was fetched with a ?gateIds= subset filter (#726,
   // VG-FR-008): the gate ids the plan was narrowed to. Absent on a full-plan fetch.
   filteredToGateIds?: string[];
   // The focused spec's read-only lifecycle state, read from THIS bench's own
-  // workspace (#770, SATCA-FR-018), so the panel can say the spec it is showing
+  // workspace (#1162, SATCA-FR-018), so the panel can say the spec it is showing
   // has been archived. Optional: an older server omits it entirely, the same way
   // `recoveryReason` is handled, and the panel treats absent as live.
   lifecycle?: SpecLifecycleState;
 }
 
-// The evaluated state of one verify gate (#702, VG-FR-012). Mirrors the server's
+// The evaluated state of one verify gate (#726, VG-FR-012). Mirrors the server's
 // `GateStateResponse` projection from the pure evaluator: the gate's id plus its
 // computed status, the unresolved gating case ids, and the covering slice unit
 // ids those cases trace to (the gate's `covers`). For a passed gate both id
 // arrays are empty; per VG-NFR-007 the server never reports a stale/unverified gate
 // as passed. `no_gating_cases` is the structural state for a gate whose narrowed
 // gating set is empty (e.g. all L3/L4, none e2e_flow): kept in sync with the
-// server's `GateStatus` union in `server/lib/gate-evaluator.ts` (issue #436).
+// server's `GateStatus` union in `server/lib/gate-evaluator.ts` (#912).
 export type GateStatus = "passed" | "failed" | "pending" | "stale" | "no_gating_cases";
 
-// Why a `no_gating_cases` gate's set is empty (#768, SATCA-FR-011): the level/type
+// Why a `no_gating_cases` gate's set is empty (#1164, SATCA-FR-011): the level/type
 // policy narrowed every declared case away, the case lifecycle blocks retired them
 // away, or both. Kept in sync with the server's `GateEmptyReason` union in
 // `server/lib/gate-evaluator.ts`.
@@ -629,31 +629,31 @@ export interface GateState {
   status: GateStatus;
   unresolvedCaseIds: string[];
   // The full narrowed gating set (L1/L2 + e2e_flow) the gate evaluates over; its
-  // length is the "N gating cases" count shown on the overview card (issue #433).
+  // length is the "N gating cases" count shown on the overview card (#914).
   // Non-empty even for a passed gate, so the count always traces to the same set
   // the server gates on.
   gatingCaseIds: string[];
   coveringUnitIds: string[];
   // Set only when `status` is `no_gating_cases`, naming what emptied the set
-  // (#768). Null on every other status, and null when the gate declared no cases
-  // at all. Optional so a response from a server that predates #768 still parses.
+  // (#1164). Null on every other status, and null when the gate declared no cases
+  // at all. Optional so a response from a server that predates #1164 still parses.
   emptyReason?: GateEmptyReason | null;
   // The declared gating case ids the case lifecycle removed from the effective
-  // set (#777, SATCA-FR-008/FR-011): the cases whose retirement is why the gate
+  // set (#1176, SATCA-FR-008/FR-011): the cases whose retirement is why the gate
   // reads the way it does. Present on every status, including `passed`, since a
   // gate can pass precisely because a case was retired. Optional so a response
-  // from a server that predates #777 still parses; absent is read as none.
+  // from a server that predates #1176 still parses; absent is read as none.
   lifecycleExcludedCaseIds?: string[];
   // The gate's milestone (phase) label, rendered as the card title with the gate
-  // id as a mono sub-label (issue #433). Null/absent when the unit carries none
+  // id as a mono sub-label (#914). Null/absent when the unit carries none
   // (e.g. a synthetic merged/split gate); the card then titles by the gate id.
   milestone?: string | null;
   // Upstream verify-gate ids this gate's phase depends on that are NOT yet signed
-  // off (issue #433, VG-FR-001). Empty when nothing upstream blocks it; an id clears
+  // off (#914, VG-FR-001). Empty when nothing upstream blocks it; an id clears
   // from the list once its upstream gate is signed off.
   blockedBy: string[];
   // Whether the gate's batch is signed off, derived from the gate's tracker-issue
-  // state on the server (issue #830). True only when a `passed` gate's tracker
+  // state on the server (#833). True only when a `passed` gate's tracker
   // issue is closed; a non-passed gate (or one with no active integration / no
   // tracker ref) is `false` by definition.
   signedOff: boolean;
@@ -662,7 +662,7 @@ export interface GateState {
 // The list endpoint returns one GateState per verify unit; the single endpoint
 // returns one GateState (or 404 for an unknown gate id). Both reuse the same
 // projection shape, so GateStateResponse is an alias kept for symmetry with the
-// server's named type and the issue's requested vocabulary (#702).
+// server's named type and the issue's requested vocabulary (#726).
 export type GateStateResponse = GateState;
 
 // The reconcile endpoint classifies cases (added/unchanged/changed/removed) and
@@ -675,7 +675,7 @@ export interface ReconcileResponse {
 
 // Fetch the bench's plan + results. With `gateIds` the server narrows the plan's
 // cases to the union of those gates' declared gating sets (the ?gateIds= subset
-// filter, #702 VG-FR-008) and stamps `filteredToGateIds` on the response; without
+// filter, #726 VG-FR-008) and stamps `filteredToGateIds` on the response; without
 // it the full-plan shape is returned unchanged. An empty `gateIds` array still
 // sends the param (narrowing to no cases), so callers that want the full plan
 // must omit the argument entirely.
@@ -688,7 +688,7 @@ export function fetchTestbenchPlan(
   return request(`/projects/${projectId}/benches/${benchId}/testbench/plan${query}`);
 }
 
-// One candidate replacement case (#774): enough to render a picker row, plus the
+// One candidate replacement case (#1169): enough to render a picker row, plus the
 // lifecycle block the shared resolver walks. Deliberately not a whole `Case`: the
 // picker never reads steps or observations, and a candidate list is not a plan.
 export interface ReplacementCandidateCase {
@@ -713,7 +713,7 @@ export interface ReplacementCandidateSpec {
   archived: boolean;
 }
 
-// GET /testbench/replacement-candidates (#774, SATCA-FR-028/FR-029). Everything
+// GET /testbench/replacement-candidates (#1169, SATCA-FR-028/FR-029). Everything
 // the picker needs to list candidates AND to resolve a chosen pointer with the
 // same shared resolver the gate uses: the requested spec's cases, every spec its
 // pointers transitively reach, and the archived-spec records for all of them.
@@ -741,7 +741,7 @@ export function fetchReplacementCandidates(
 }
 
 // A spec folder whose work-units.json EXISTS but failed contract validation, so
-// it was skipped by the aggregate gates load (#371). Carries the slug plus its
+// it was skipped by the aggregate gates load (#874). Carries the slug plus its
 // human-readable validation errors so the overview can warn the operator by name
 // instead of showing a bare "no verify gates yet". Named distinctly from the
 // specs-picker `InvalidSpec` (which also carries a `path`), since a gate diagnostic
@@ -751,7 +751,7 @@ export interface InvalidGateSpec {
   errors: string[];
 }
 
-// The GET /gates payload (#371): the effective gate list plus any specs whose
+// The GET /gates payload (#874): the effective gate list plus any specs whose
 // work-units.json was present-but-invalid (skipped, not aborting the load). Both
 // arrays empty is a genuinely-empty project (the normal empty state); a non-empty
 // `invalidSpecs` is a misconfiguration the operator must see.
@@ -760,12 +760,12 @@ export interface GatesResponse {
   invalidSpecs: InvalidGateSpec[];
 }
 
-// Gate state (#702, VG-FR-012; #371). `fetchGates` returns the gate list plus any
+// Gate state (#726, VG-FR-012; #874). `fetchGates` returns the gate list plus any
 // present-but-invalid skipped specs (`invalidSpecs`); `fetchGate` returns one gate
 // (or rejects with a 404 ApiError for an unknown gate id).
 //
 // An optional `slug` scopes the list to a single focused spec's gates (issue
-// #549), matching how the Cases tab scopes to the bench's focused spec; omitted,
+// #952), matching how the Cases tab scopes to the bench's focused spec; omitted,
 // the endpoint returns every spec's gates project-wide (backward compatible).
 export function fetchGates(projectId: string, slug?: string): Promise<GatesResponse> {
   const query = slug === undefined ? "" : `?slug=${encodeURIComponent(slug)}`;
@@ -777,14 +777,14 @@ export function fetchGate(projectId: string, gateId: string): Promise<GateState>
 }
 
 // One part of a split: a short label plus the source gate's covers WU- ids
-// assigned to that part (#703, VG-FR-002). The part's gating set is computed
+// assigned to that part (#728, VG-FR-002). The part's gating set is computed
 // server-side from the WU- -> test_case_ids map.
 export interface GateSplitPart {
   label: string;
   coversWorkUnitIds: string[];
 }
 
-// Operator merge (#703, VG-FR-002, AC1). Records a merge of two or more gates and
+// Operator merge (#728, VG-FR-002, AC1). Records a merge of two or more gates and
 // returns the recomputed effective gate list (the combined gate replaces its
 // sources). A 409 ApiError means an involved gate is signed off (passed); a 400
 // means an unknown gate id or a cross-spec merge.
@@ -795,7 +795,7 @@ export function mergeGates(projectId: string, gateIds: string[]): Promise<GateSt
   });
 }
 
-// Operator split (#703, VG-FR-002, AC2). Records a split of one gate into parts and
+// Operator split (#728, VG-FR-002, AC2). Records a split of one gate into parts and
 // returns the recomputed effective gate list. A 409 ApiError means the gate is
 // signed off (passed); a 400 means an unknown gate id or a non-partitioning
 // assignment (loss or overlap of the source's covers).
@@ -810,13 +810,13 @@ export function splitGate(
   });
 }
 
-// Reset all operator regroupings (#703). The effective gates revert to the
+// Reset all operator regroupings (#728). The effective gates revert to the
 // externally-authored work-units.json gates.
 export function resetGateOverrides(projectId: string): Promise<void> {
   return requestVoid(`/projects/${projectId}/gates/overrides`, { method: "DELETE" });
 }
 
-// Sign off a passed batch (#830, VG-FR-007/VG-FR-008). Closes the gate's tracker issue
+// Sign off a passed batch (#833, VG-FR-007/VG-FR-008). Closes the gate's tracker issue
 // via the active integration plugin and returns the updated GateState with
 // `signedOff: true`. A 409 means the gate is not passed (fail-closed) or has no
 // tracker issue / no active integration; a 422 means the active plugin lacks the
@@ -827,7 +827,7 @@ export function signOffGate(projectId: string, gateId: string): Promise<GateStat
   });
 }
 
-// Reopen a signed-off batch (#830, VG-US-005). Reopens the gate's tracker issue and
+// Reopen a signed-off batch (#833, VG-US-005). Reopens the gate's tracker issue and
 // returns the updated GateState with `signedOff: false`. A 409 means the gate has
 // no tracker issue / no active integration.
 export function reopenGate(projectId: string, gateId: string): Promise<GateState> {
@@ -836,7 +836,7 @@ export function reopenGate(projectId: string, gateId: string): Promise<GateState
   });
 }
 
-// File a fix issue for a failed gating case and wire it to block the gate (#706,
+// File a fix issue for a failed gating case and wire it to block the gate (#735,
 // VG-FR-009/VG-FR-010, VG-US-006). Returns the FixIssueRecord for BOTH a 201 complete and
 // a 207 link_pending outcome: `request` resolves any 2xx (Response.ok spans
 // 200-299) and the server sends the same record body for both, so callers branch
@@ -858,7 +858,7 @@ export function fileFixIssue(
 }
 
 // PUT /testbench/focus: re-point an active TestBench to a different focused spec
-// (#423, FR-024). The re-point is explicit: the server preserves the prior spec's
+// (#472, FR-024). The re-point is explicit: the server preserves the prior spec's
 // results untouched and re-evaluates staleness on the next plan load. Returns the
 // updated Bench (with the new focusedSpecPath).
 export function setTestbenchFocus(
@@ -905,7 +905,7 @@ export function fetchIssuesPage(
     search?: string;
     sortBy?: string;
     sortDir?: "asc" | "desc";
-    // One-shot force-refresh (#653): bypass the server's warm snapshot and pull
+    // One-shot force-refresh (#654): bypass the server's warm snapshot and pull
     // current data. Set by the cut-list refresh control, not normal loads.
     refresh?: boolean;
   },
@@ -1353,7 +1353,7 @@ export function saveGlobalPluginIntegration(
   });
 }
 
-// App-level agent configuration (Settings > AI Agents, issue #508)
+// App-level agent configuration (Settings > AI Agents, #510)
 export function fetchAgentPlugins(): Promise<AgentPluginsResponse> {
   return request("/agents");
 }
@@ -1372,7 +1372,7 @@ export function saveAgentConfig(
   });
 }
 
-// Project-level agent overrides (Project settings > Agent overrides, issue #509)
+// Project-level agent overrides (Project settings > Agent overrides, #1044)
 export function fetchProjectAgents(projectId: string): Promise<ProjectAgentsResponse> {
   return request(`/projects/${projectId}/agents`);
 }
@@ -1449,7 +1449,7 @@ export function uninstallPlugin(pluginId: string): Promise<void> {
   return requestVoid(`/plugins/${encodeURIComponent(pluginId)}`, { method: "DELETE" });
 }
 
-// Issue #756: copy a bundled plugin into the shared ~/.roubo/plugins/<id>/
+// #758: copy a bundled plugin into the shared ~/.roubo/plugins/<id>/
 // location, supersede the bundled entry, and start the user copy. Returns the
 // new (source: "user") record.
 export function reinstallPluginShared(pluginId: string): Promise<PluginRecord> {
@@ -1462,7 +1462,7 @@ export function fetchConnectionStatus(pluginId: string): Promise<ConnectionStatu
   return request(`/plugins/${encodeURIComponent(pluginId)}/connection-status`);
 }
 
-// Permission consent (issue #615, CP-FR-011 / CP-FR-012)
+// Permission consent (#656, CP-FR-011 / CP-FR-012)
 export interface PluginConsentStatus {
   declared: PluginPermissions;
   firstParty: boolean;
@@ -1521,13 +1521,13 @@ export function cancelInstallPlugin(stagingToken: string): Promise<void> {
 
 export type { InstallPreview, InstallSource };
 
-// Marketplace catalog (CP-FR-020 / CP-US-010, issue #621). The catalog is
+// Marketplace catalog (CP-FR-020 / CP-US-010, #688). The catalog is
 // first-party curated; install/update reuse the existing two-stage plugin
 // install flow (they return a staging token, then confirmInstallPlugin /
 // cancelInstallPlugin drive the commit step through the consent UI).
 /**
  * The merged multi-source catalog: first-party plus every registered source
- * (issue #557). `sourceId` scopes the listings to a single source (the Browse
+ * (#962). `sourceId` scopes the listings to a single source (the Browse
  * screen's source filter chips); the response's `sources` array always describes
  * every source regardless, so the chip row stays complete while filtered.
  */
@@ -1546,7 +1546,7 @@ export function fetchMarketplaceCatalog(params?: {
 
 /**
  * Stage an install. `sourceId` names which marketplace source to install from
- * (CPHMTP-FR-005, issue #558); omit it for the ordinary single-source case.
+ * (CPHMTP-FR-005, #582); omit it for the ordinary single-source case.
  *
  * When an id is served by several sources and none is named, the server refuses
  * with 409 `ambiguous-source` rather than picking one. `request` preserves the full
@@ -1568,7 +1568,7 @@ export function updateFromMarketplace(id: string, sourceId?: string): Promise<In
   });
 }
 
-// Third-party marketplace source registry (CPHMTP-FR-001, issue #561). The
+// Third-party marketplace source registry (CPHMTP-FR-001, #976). The
 // server synthesises the built-in first-party row into the list, so the client
 // renders whatever GET returns rather than merging the built-in in itself; the
 // row is recognised by its reserved FIRST_PARTY_SOURCE_ID.
@@ -1579,7 +1579,7 @@ export function fetchMarketplaceSources(): Promise<{ sources: MarketplaceSourceS
 
 /**
  * Register a third-party marketplace source (CPHMTP-FR-002 / CPHMTP-NFR-003,
- * issue #562). The consent dialog is the only caller: this POST is what turns an
+ * #975). The consent dialog is the only caller: this POST is what turns an
  * acknowledged candidate URL into a persisted source row, and that row IS the
  * consent record (url + unsigned + registeredAt).
  *
@@ -1589,7 +1589,7 @@ export function fetchMarketplaceSources(): Promise<{ sources: MarketplaceSourceS
  * always precedes the first request (CPHMTP-NFR-003).
  *
  * `allowHttp` is the per-source "allow http (intranet)" opt-in (Spike 551,
- * issue #551). https is always allowed; a plain-http URL is registrable only when
+ * #956). https is always allowed; a plain-http URL is registrable only when
  * this is explicitly true, and the server answers 400 `invalid-url` otherwise, so
  * http is never permitted silently.
  *
@@ -1621,14 +1621,14 @@ export type {
   MarketplaceSourceSummary,
 };
 
-// TestBench spec discovery + manual-path validation (#418). These mirror the
+// TestBench spec discovery + manual-path validation (#467). These mirror the
 // server-side shapes in server/lib/testbench-spec-discovery.ts; the client cannot
 // import from the server package, so the response types are restated here.
 
-// Per-status case tally for one spec (#482), mirrored from the server's
+// Per-status case tally for one spec (#936), mirrored from the server's
 // `SpecStatusCounts` (server/lib/testbench-spec-discovery.ts). Non-negative
 // integers keyed by the five CaseStatus values; the tally covers the spec's LIVE
-// cases only (#835) and sums to the spec's caseCount, which counts the same live
+// cases only (#1217) and sums to the spec's caseCount, which counts the same live
 // cases. The client cannot import from the server package, so the shape is
 // restated here.
 export interface SpecStatusCounts {
@@ -1639,7 +1639,7 @@ export interface SpecStatusCounts {
   blocked: number;
 }
 
-// The read-only, per-spec verification state discovery computes (#482), mirrored
+// The read-only, per-spec verification state discovery computes (#936), mirrored
 // from the server's `SpecVerification`. It carries classification inputs, not
 // presentation strings: the picker keys its partition on `classification` and
 // derives each row's pass-state summary from these fields client-side.
@@ -1664,7 +1664,7 @@ export interface SpecVerification {
   aggregationError: boolean;
 }
 
-// The read-only, per-spec lifecycle state discovery computes (#765/#770),
+// The read-only, per-spec lifecycle state discovery computes (#1157/#1162),
 // mirrored from the server's `SpecLifecycleState`. Flattened from the spec's
 // manifest lifecycle record, so the client never distinguishes "no record" from
 // "unreadable record" by probing for an absent object:
@@ -1686,9 +1686,9 @@ export interface SpecLifecycleState {
 
 // One discovered, contract-valid spec: the slug naming its
 // `.specifications/<slug>/` folder, the absolute path to its test-cases.json, the
-// number of LIVE cases in it (retired and superseded cases are excluded, #835),
-// its read-only per-spec verification state (#482), and its read-only lifecycle
-// state (#765).
+// number of LIVE cases in it (retired and superseded cases are excluded, #1217),
+// its read-only per-spec verification state (#936), and its read-only lifecycle
+// state (#1157).
 export interface DiscoveredSpec {
   slug: string;
   path: string;
@@ -1707,7 +1707,7 @@ export interface InvalidSpec {
 }
 
 // Result of validating a manual path: on success the resolved slug + live case
-// count (#835), on failure a flat list of human-readable error messages.
+// count (#1217), on failure a flat list of human-readable error messages.
 export type ManualPathValidation =
   { ok: true; slug: string; caseCount: number } | { ok: false; errors: string[] };
 
@@ -1739,7 +1739,7 @@ export async function validateSpecPath(
   return body as ManualPathValidation;
 }
 
-// The lifecycle record Roubo writes into a spec's manifest (#773), mirroring the
+// The lifecycle record Roubo writes into a spec's manifest (#1166), mirroring the
 // server's published SpecLifecycleRecordSchema. Absence, not `archived: false`,
 // is the live state, so there is no `archived` variant other than `true`.
 export interface SpecLifecycleRecordInput {
@@ -1765,7 +1765,7 @@ export function setSpecLifecycle(
   });
 }
 
-// TestBench notes (#421). Append-only: POST returns the stamped Note (author +
+// TestBench notes (#464). Append-only: POST returns the stamped Note (author +
 // timestamp + status-at-write captured server-side). A blank or whitespace-only
 // body is rejected server-side with 400 (surfaced here as an ApiError).
 export function appendNote(
@@ -1783,10 +1783,10 @@ export function appendNote(
   );
 }
 
-// TestBench observation mark (#420, FR-007/FR-008). PUT records a pass/fail mark
+// TestBench observation mark (#471, FR-007/FR-008). PUT records a pass/fail mark
 // for one observation and returns the updated CaseResult: the server stamps the
 // author + timestamp and recomputes derivedStatus (server is source of truth).
-// Passing null clears (un-sets) the mark entirely (#508).
+// Passing null clears (un-sets) the mark entirely (#510).
 export function markObservation(
   projectId: string,
   benchId: number,
@@ -1805,7 +1805,7 @@ export function markObservation(
   );
 }
 
-// The 200 body of a case lifecycle write (#772): the updated case, the new raw
+// The 200 body of a case lifecycle write (#1167): the updated case, the new raw
 // fingerprint (so a follow-up action needs no re-read), and the schemaVersion the
 // file now records.
 export interface SetCaseLifecycleResponse {
@@ -1827,7 +1827,7 @@ export function isCaseFileConflict(err: unknown): err is ApiError {
 export const CASE_FILE_CONFLICT_MESSAGE =
   "The case file changed on disk since this spec was loaded. Reload the spec, then try again.";
 
-// TestBench case lifecycle (#772, SATCA-FR-019/FR-021). PUT records a retirement
+// TestBench case lifecycle (#1167, SATCA-FR-019/FR-021). PUT records a retirement
 // or a supersession on one case, or clears the record entirely (`lifecycle:
 // null`) to restore it. `fingerprint` is the `caseFileFingerprint` the plan read
 // returned; the server refuses the write with 409 when it no longer matches the
@@ -1851,7 +1851,7 @@ export function setCaseLifecycle(
   );
 }
 
-// TestBench status override (#420, FR-010). PUT sets an explicit override (one of
+// TestBench status override (#471, FR-010). PUT sets an explicit override (one of
 // the five CaseStatus values) or clears it (override: null). Returns the updated
 // CaseResult with statusOverride set or absent. The override is recorded
 // distinctly from derivedStatus and takes precedence over later marks.

@@ -4,10 +4,10 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 import { openConfigureDialog, save } from "./_support/picker.js";
 import { loadAppShell, resetWithScenario } from "./_support/scenario.js";
 
-// Issue #571 (CLI-TC-046): the only-To-Do-default end-to-end journey. This is
+// #639 (CLI-TC-046): the only-To-Do-default end-to-end journey. This is
 // the integration-level drift guard for the journey "only-To-Do default,
 // re-include In Progress via config, persists per-project" (US-005 / US-007).
-// It spans the two slices #558 (only-To-Do default) and #566 (per-project
+// It spans the two slices #582 (only-To-Do default) and #637 (per-project
 // persistence) and asserts the integrated journey against the authoritative
 // e2e_flow case CLI-TC-046, not whatever any single slice implemented.
 //
@@ -92,17 +92,17 @@ test("CLI-TC-046: only-To-Do default, re-include In Progress via config, persist
     await page.goto(`/projects/${PROJECT_ID}`);
 
     // The only To Do issue resolves; assert it first so the absence checks run
-    // against a fully loaded list, not a mid-fetch one. Owning slice: #558.
+    // against a fully loaded list, not a mid-fetch one. Owning slice: #582.
     await expect(
       page.getByText("#101", { exact: true }),
-      "S001-O01 (#558): To Do issue #101 should be visible under the only-To-Do default",
+      "S001-O01 (#582): To Do issue #101 should be visible under the only-To-Do default",
     ).toBeVisible();
 
     // In Progress (#102) and every Done-category issue (#103/#104/#105) are
     // excluded in-query by the committed only-To-Do default, so none appear.
     await expect(
       page.getByText("#102", { exact: true }),
-      "S001-O01 (#558): In Progress issue #102 should be hidden by the only-To-Do default",
+      "S001-O01 (#582): In Progress issue #102 should be hidden by the only-To-Do default",
     ).toHaveCount(0);
     await expect(page.getByText("#103", { exact: true })).toHaveCount(0);
     await expect(page.getByText("#104", { exact: true })).toHaveCount(0);
@@ -114,32 +114,32 @@ test("CLI-TC-046: only-To-Do default, re-include In Progress via config, persist
     // = 4 filtered out.
     await expect(
       page.getByTestId("excluded-count-note"),
-      "S001-O01 (#558): banner should report 4 (1 In Progress + 3 Done) filtered out",
+      "S001-O01 (#582): banner should report 4 (1 In Progress + 3 Done) filtered out",
     ).toHaveText("4 filtered out by status");
   });
 
   await test.step("S002: open the status dialog - In Progress/Done excluded, To Do locked", async () => {
     // waitForPicker: false - this journey drives the status-exclusion toggle,
-    // not the source picker (same as JSS-TC-025, #452).
+    // not the source picker (same as JSS-TC-025, #458).
     const open = await openConfigureDialog(page, PROJECT_ID, { waitForPicker: false });
     await expect(
       open.dialog.getByTestId("status-exclusion-section"),
-      "S002-O01 (#558): the status-exclusion section should be present",
+      "S002-O01 (#582): the status-exclusion section should be present",
     ).toBeVisible();
 
     // S002-O02: In Progress and Done read checked (excluded); To Do is the
     // actionable category, so its checkbox is disabled and never selected.
     await expect(
       open.dialog.getByRole("checkbox", { name: "In Progress" }),
-      "S002-O02 (#558): In Progress should be checked (excluded) by default",
+      "S002-O02 (#582): In Progress should be checked (excluded) by default",
     ).toBeChecked();
     await expect(
       open.dialog.getByRole("checkbox", { name: "Done" }),
-      "S002-O02 (#558): Done should be checked (excluded) by default",
+      "S002-O02 (#582): Done should be checked (excluded) by default",
     ).toBeChecked();
     await expect(
       open.dialog.getByRole("checkbox", { name: "To Do" }),
-      "S002-O02 (#558): To Do should be disabled and cannot be excluded",
+      "S002-O02 (#582): To Do should be disabled and cannot be excluded",
     ).toBeDisabled();
 
     // S003: uncheck In Progress (re-include it) and save. force: React Aria
@@ -152,16 +152,16 @@ test("CLI-TC-046: only-To-Do default, re-include In Progress via config, persist
 
   await test.step("S003: re-included In Progress appears, hidden-by-status count drops", async () => {
     // The exclusion edit landed in the per-user override, so a full navigation
-    // re-resolves the cut list (now only Done is excluded). Owning slice: #566.
+    // re-resolves the cut list (now only Done is excluded). Owning slice: #637.
     await page.goto(`/projects/${PROJECT_ID}`);
 
     await expect(
       page.getByText("#101", { exact: true }),
-      "S003-O01 (#566): To Do issue #101 should remain visible",
+      "S003-O01 (#637): To Do issue #101 should remain visible",
     ).toBeVisible();
     await expect(
       page.getByText("#102", { exact: true }),
-      "S003-O01 (#566): re-included In Progress issue #102 should now be visible",
+      "S003-O01 (#637): re-included In Progress issue #102 should now be visible",
     ).toBeVisible();
 
     // Done-category issues stay excluded.
@@ -173,24 +173,24 @@ test("CLI-TC-046: only-To-Do default, re-include In Progress via config, persist
     // issues are excluded now).
     await expect(
       page.getByTestId("excluded-count-note"),
-      "S003-O02 (#566): banner should drop to 3 (Done only) filtered out",
+      "S003-O02 (#637): banner should drop to 3 (Done only) filtered out",
     ).toHaveText("3 filtered out by status");
   });
 
   await test.step("S004: close and reopen - In Progress remains visible (per-project persistence)", async () => {
     // Re-navigate away and back to model close/reopen. The re-inclusion was
     // persisted to the per-user override, so it survives the reload. Owning
-    // slice: #566.
+    // slice: #637.
     await page.goto("/");
     await page.goto(`/projects/${PROJECT_ID}`);
 
     await expect(
       page.getByText("#102", { exact: true }),
-      "S004-O01 (#566): In Progress issue #102 should persist after close/reopen",
+      "S004-O01 (#637): In Progress issue #102 should persist after close/reopen",
     ).toBeVisible();
     await expect(
       page.getByTestId("excluded-count-note"),
-      "S004-O01 (#566): the persisted exclusion should still report 3 filtered out",
+      "S004-O01 (#637): the persisted exclusion should still report 3 filtered out",
     ).toHaveText("3 filtered out by status");
   });
 });

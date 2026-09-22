@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Issue #553 / CPHMTP-FR-001, CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003.
+// #955 / CPHMTP-FR-001, CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003.
 // Persistent registry of third-party marketplace sources. See:
 //   .specifications/component-plugins-hosted-marketplace-third-party/prd.md
 //     (CPHMTP-FR-001, CPHMTP-FR-002, CPHMTP-FR-003, CPHMTP-NFR-002, CPHMTP-NFR-003)
@@ -19,7 +19,7 @@ export const MARKETPLACE_SOURCES_STATE_SCHEMA_VERSION = 1 as const;
  * The reserved id of the built-in first-party catalog: the always-present,
  * non-removable source. Shared (rather than server-local) because the client
  * needs it too, to tell a first-party listing's provenance chip from a
- * third-party one (CPHMTP-FR-004, issue #557). It can never collide with a
+ * third-party one (CPHMTP-FR-004, #962). It can never collide with a
  * generated third-party id: generated ids end in an 8-char hex suffix, and
  * "party" is not hex.
  */

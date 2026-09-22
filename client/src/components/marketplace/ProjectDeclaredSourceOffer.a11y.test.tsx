@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// CPHMTP-NFR-008 (WCAG 2.1 AA), issue #565: the project-open registration offer
+// CPHMTP-NFR-008 (WCAG 2.1 AA), #982: the project-open registration offer
 // is a warn banner a keyboard-only user must be able to read, act on, or decline.
 // We scan the banner (and the consent dialog it opens) for axe findings and assert
 // the banner exposes an accessible name and reachable actions.

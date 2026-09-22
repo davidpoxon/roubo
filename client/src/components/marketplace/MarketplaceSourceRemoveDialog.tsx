@@ -4,12 +4,12 @@ import { AlertTriangle, Puzzle, Trash2, Unlink } from "lucide-react";
 import { stampAriaModal } from "../../lib/aria-modal";
 
 // Removal consequences dialog for a third-party marketplace source
-// (CPHMTP-FR-009 / CPHMTP-US-006, issue #564). Removing a source is a cascade the
+// (CPHMTP-FR-009 / CPHMTP-US-006, #980). Removing a source is a cascade the
 // operator should understand before confirming: the source's installed plugins
 // keep running but are orphaned (no updates until the source is re-registered),
 // while the registry entry, cached catalog, and stored credential are deleted.
 //
-// It follows the MarketplaceSourceConsentModal (issue #562) shape deliberately:
+// It follows the MarketplaceSourceConsentModal (#975) shape deliberately:
 // presentational, with the container owning the mutation via onConfirm, so this
 // component touches no network and no query cache. Cancel, Escape, and a backdrop
 // press all resolve to onCancel, which mutates nothing (CPHMTP-TC-021). The
@@ -17,7 +17,7 @@ import { stampAriaModal } from "../../lib/aria-modal";
 // is the default (CPHMTP-TC-012 S001-O02).
 //
 // aria-modal is stamped through a ref because React Aria deliberately omits it and
-// <Dialog> strips the prop via filterDOMProps (issue #424), via the shared
+// <Dialog> strips the prop via filterDOMProps (#902), via the shared
 // stampAriaModal helper.
 
 const STRINGS = {

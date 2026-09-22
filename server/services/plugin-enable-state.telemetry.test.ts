@@ -11,7 +11,7 @@ import type { PluginRecord } from "@roubo/shared";
 // IP-NFR-019 / IP-FR-060 pin that ~/.roubo/plugins-state.json is never serialised by
 // routes or telemetry. This test captures every outbound channel during
 // enable/disable and asserts no leak; it also inventories the plugins router
-// for state-snapshot endpoints. See parent IP-WU-063 (#154) and issue #217.
+// for state-snapshot endpoints. See parent IP-WU-063 (#228) and #248.
 
 const MARKER_ID = "tc149-secret-marker";
 

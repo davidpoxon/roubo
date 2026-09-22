@@ -258,7 +258,7 @@ describe("preset resolution", () => {
     expect(bad.unresolved?.message).toContain("mode");
   });
 
-  // Issue #654: `mode` is a per-plugin `configSchema` key, not a host concept,
+  // #1070: `mode` is a per-plugin `configSchema` key, not a host concept,
   // but the built-ins hardcode it. An agent whose schema closes
   // `additionalProperties` and never declares `mode` therefore made
   // `Agent (Plan)` and `Agent (Auto)` permanently unlaunchable, and built-ins
@@ -290,7 +290,7 @@ describe("preset resolution", () => {
       expect(builtins.map((p) => p.params)).toEqual([{}, {}, {}]);
     });
 
-    // Issue #665: the drop used to be completely silent, so `Agent (Plan)`
+    // #1080: the drop used to be completely silent, so `Agent (Plan)`
     // launched as plain `Agent` under its own name with nothing to say so.
     it("reports the drop as an advisory notice that leaves the preset launchable", () => {
       const builtins = listAgentPresets().filter((p) => p.source === "builtin");
@@ -328,7 +328,7 @@ describe("preset resolution", () => {
       expect(resolved.unresolved?.message).toContain("mode");
       expect(resolved.params).toEqual({ mode: "plan" });
       // The advisory notice belongs to the degrade path only: this preset was
-      // rejected outright, not degraded (issue #665).
+      // rejected outright, not degraded (#1080).
       expect(resolved.degraded).toBeUndefined();
     });
 
@@ -343,7 +343,7 @@ describe("preset resolution", () => {
     });
   });
 
-  // Issue #743: the real agent plugins do not close `additionalProperties`, so
+  // #1149: the real agent plugins do not close `additionalProperties`, so
   // Ajv raised nothing for a key their schema simply never declares and the
   // whole degrade path above was skipped. `Agent (Plan)` re-pointed at such an
   // agent silently launched without `mode`. A schema that lists `properties`
@@ -579,7 +579,7 @@ describe("listAgentPresets", () => {
     expect(listAgentPresets("proj-1").every((p) => p.source === "builtin")).toBe(true);
   });
 
-  // Issue #649: `loadSettings` is uncached, so the batch must resolve off the
+  // #1062: `loadSettings` is uncached, so the batch must resolve off the
   // two reads it makes itself (the hoisted default, and the app presets) rather
   // than one per preset. No default agent set is the case that used to defeat
   // the hoist, because passing an explicit `undefined` re-triggered a

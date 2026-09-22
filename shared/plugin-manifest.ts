@@ -11,7 +11,7 @@ export type ParseManifestResult =
         path?: string;
         /**
          * The `roubo` compatibility range as literally declared in the manifest,
-         * surfaced only when the strict schema parse failed (issue #719).
+         * surfaced only when the strict schema parse failed (#1118).
          *
          * `PluginManifestSchema` is `.strict()`, so a host that predates a
          * manifest field fails on the unrecognized key before anything compares

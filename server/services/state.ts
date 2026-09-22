@@ -92,7 +92,7 @@ export function sanitizeBranchForPath(branch: string): string {
  * (`<rouboDir>/workspaces/<projectName>`), i.e. the parent of every
  * `getWorkspacePath(projectName, ...)`. Exposed so a caller that needs to drop a
  * project's workspaces wholesale (the e2e fixture-project cleanup in
- * routes/test.ts, #686) resolves the same containment-checked path the
+ * routes/test.ts, #1102) resolves the same containment-checked path the
  * provisioning side does, rather than re-joining `getWorkspacesDir()` by hand.
  */
 export function getProjectWorkspacesDir(projectName: string): string {
@@ -205,7 +205,7 @@ export function addBench(bench: PersistedBench) {
  * Replaces an existing persisted bench in place. Deliberately a no-op when no
  * record with this (projectId, id) exists: creation is `addBench`'s job.
  *
- * This asymmetry is the fix for #829. Background writers hold a `Bench`
+ * This asymmetry is the fix for #1191. Background writers hold a `Bench`
  * reference across awaits (component setup, PTY-driven notifications, container
  * assignment); if a teardown clears the bench in that window, an upserting
  * update re-adds the record to state.json. Memory then says the bench is gone
@@ -224,7 +224,7 @@ export function updateBench(bench: PersistedBench) {
 }
 
 /**
- * The persisted mirror of every runtime-reported component URL (#833). Only the
+ * The persisted mirror of every runtime-reported component URL (#1206). Only the
  * components that actually reported one are carried, and a bench where none did
  * writes no key at all, so state.json gains nothing for projects that never use
  * the feature.
@@ -311,7 +311,7 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
     return {
       theme: raw.theme ?? "dark",
       jigs: mergedJigSettings as UserPreferences["jigs"],
-      // AP-FR-008 (found while writing the AP-TC-025 e2e, #681): the app-level
+      // AP-FR-008 (found while writing the AP-TC-025 e2e, #1101): the app-level
       // agent tool presets have to be read back explicitly. This object is
       // rebuilt key by key rather than spread from `raw`, so an unlisted key is
       // dropped on EVERY read: `listAppAgentPresets` saw no presets, the editor
@@ -358,7 +358,7 @@ export function saveSettings(data: UserPreferences) {
 
 /**
  * The key the retired built-in agent preferences were stored under. It is a
- * legacy FILE key, not a `UserPreferences` field: #521 removed the field, and
+ * legacy FILE key, not a `UserPreferences` field: #1114 removed the field, and
  * nothing reads or writes this block any more. It is named in exactly one place
  * so the core-purity guard can allowlist that one place (AP-FR-021).
  */

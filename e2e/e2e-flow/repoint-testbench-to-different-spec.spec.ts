@@ -13,9 +13,9 @@ import {
   TC_007_SPEC_B_SLUG,
 } from "./_support/testbench-plan.js";
 
-// E2E (#444): the authoritative `e2e_flow` drift guard for the
+// E2E (#486): the authoritative `e2e_flow` drift guard for the
 // "re-point a TestBench to a different spec, preserve results per spec" journey
-// (TC-007, US-013, FR-024/FR-004). It is the TC-007 sibling of #438's TC-001
+// (TC-007, US-013, FR-024/FR-004). It is the TC-007 sibling of #478's TC-001
 // create-flow guard and mirrors that file's structure: labelled `test.step`s, an
 // owning-slice map for failure localization, two drift-guard plan projections
 // seeded into a fixture repo, and assertions against the BUILT app.
@@ -28,7 +28,7 @@ import {
 // Per-spec result isolation is enforced server-side (results are keyed by the
 // focused spec's slug in testbench-store; re-point only swaps
 // `bench.focusedSpecPath`), so this spec proves that contract rather than
-// implementing it. Unlike the per-slice unit tests (#414/#416/#423 own those),
+// implementing it. Unlike the per-slice unit tests (#456/#459/#472 own those),
 // this asserts the integrated journey; each step is wrapped in a labelled
 // `test.step` so a failure localises the diverging step, reports the
 // expected-vs-actual at that step, and names the owning slice (FR-020 / AC5).
@@ -102,7 +102,7 @@ test("TC-007: re-point a TestBench to a different spec, preserving each spec's r
   request,
 }) => {
   // ── Preconditions: feature enabled, project with two discoverable specs ──────
-  await test.step("Precondition: enable the TestBench feature (#414)", async () => {
+  await test.step("Precondition: enable the TestBench feature (#456)", async () => {
     await enableTestBench(request);
   });
 
@@ -129,7 +129,7 @@ test("TC-007: re-point a TestBench to a different spec, preserving each spec's r
 
   // ── Precondition: create the TestBench bound to spec-A via the real create flow ─
   const createDialog = page.getByRole("dialog", { name: "Create a TestBench" });
-  await test.step("Precondition: create a TestBench bound to spec-A through the create flow (#418/#416)", async () => {
+  await test.step("Precondition: create a TestBench bound to spec-A through the create flow (#467/#459)", async () => {
     await page.getByText("Bench 1").locator("xpath=ancestor::button[1]").click();
     await page.getByRole("button", { name: "Create a TestBench" }).click();
     await expect(
@@ -192,7 +192,7 @@ test("TC-007: re-point a TestBench to a different spec, preserving each spec's r
 
   // ── Open the TestBench tab and confirm the recorded result is reflected ──────
   const tablist = page.getByRole("tablist");
-  await test.step("Open the TestBench tab; the recorded spec-A result is reflected (#416)", async () => {
+  await test.step("Open the TestBench tab; the recorded spec-A result is reflected (#459)", async () => {
     // The result was recorded out-of-band via the API after the create flow
     // already opened the panel, so reload to fetch the panel's plan + results
     // fresh (mirrors a "reload the panel" step) rather than serving a cached
@@ -201,7 +201,7 @@ test("TC-007: re-point a TestBench to a different spec, preserving each spec's r
     await tablist.getByRole("tab", { name: /^TestBench/ }).click();
     const panel = page.getByRole("tabpanel");
     await expect(panel).toBeVisible();
-    // The view toggle now opens on the "Batches" surface by default (#359);
+    // The view toggle now opens on the "Batches" surface by default (#842);
     // switch to the Cases review this step asserts on (overall rollup + result).
     // The choice is remembered per bench, so later panel reads stay on Cases.
     await showTestBenchCasesView(page);
@@ -227,7 +227,7 @@ test("TC-007: re-point a TestBench to a different spec, preserving each spec's r
 
   // ── Step 1+2 (AC1): open the picker -> spec-A shown active, spec-B listed ─────
   const repointDialog = page.getByRole("dialog", { name: "Change focused spec" });
-  await test.step("Step 1+2 (AC1): 'Change focused spec' opens the picker with spec-A active and spec-B listed (#423)", async () => {
+  await test.step("Step 1+2 (AC1): 'Change focused spec' opens the picker with spec-A active and spec-B listed (#472)", async () => {
     await page.getByRole("button", { name: "Change focused spec" }).click();
     await expect(
       repointDialog,
@@ -257,7 +257,7 @@ test("TC-007: re-point a TestBench to a different spec, preserving each spec's r
   });
 
   // ── Step 3+4 (AC2): select spec-B, confirm -> header shows spec-B focused ─────
-  await test.step("Step 3+4 (AC2): select spec-B, confirm re-point -> header shows spec-B and its plan loads (#423)", async () => {
+  await test.step("Step 3+4 (AC2): select spec-B, confirm re-point -> header shows spec-B and its plan loads (#472)", async () => {
     const specBRow = repointDialog.getByRole("radio", {
       name: new RegExp(`^${TC_007_SPEC_B_SLUG}`),
     });
@@ -300,7 +300,7 @@ test("TC-007: re-point a TestBench to a different spec, preserving each spec's r
   });
 
   // ── Step 5 (AC3): re-point back to spec-A -> spec-A's result preserved intact ─
-  await test.step("Step 5 (AC3): re-point back to spec-A -> spec-A's prior result preserved, no spec-B results mixed in (#423)", async () => {
+  await test.step("Step 5 (AC3): re-point back to spec-A -> spec-A's prior result preserved, no spec-B results mixed in (#472)", async () => {
     await page.getByRole("button", { name: "Change focused spec" }).click();
     await expect(repointDialog).toBeVisible();
     // In this re-point, spec-B is now the active spec.

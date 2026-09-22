@@ -6,7 +6,7 @@ import { describeEffectiveParams } from "./agent-params";
 
 /**
  * One radio tile in the Settings > Jigs default-agent picker (AP-FR-005,
- * issue #515).
+ * #1051).
  *
  * Structurally the sibling of `JigPickerOption`: the same tile chrome and
  * radio indicator, with the agent's effective params carried as a monospace
@@ -49,7 +49,7 @@ export default function DefaultAgentTile({ agent }: { agent: AgentPluginState })
           </span>
           {/*
             text-secondary clears AA body on the selected tile's accent-muted
-            ground as well as on the surface (#703). One colour for both states so
+            ground as well as on the surface (#1111). One colour for both states so
             the subtitle does not shift weight on selection; the hierarchy against
             the agent name reads through size and the monospace face instead.
           */}

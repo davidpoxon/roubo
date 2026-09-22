@@ -143,7 +143,7 @@ describe("composeDown", () => {
 });
 
 describe("composeDownByProject", () => {
-  it("downs by project name alone, without a -f compose file (issue #613)", async () => {
+  it("downs by project name alone, without a -f compose file (#657)", async () => {
     mockRunCommand.mockResolvedValue({ code: 0, stdout: "", stderr: "" });
 
     await composeDownByProject("roubo-project-bench-2");

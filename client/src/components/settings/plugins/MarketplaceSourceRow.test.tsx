@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// CPHMTP-FR-001 / CPHMTP-TC-001, CPHMTP-TC-004 (issue #561): one row's
+// CPHMTP-FR-001 / CPHMTP-TC-001, CPHMTP-TC-004 (#976): one row's
 // provenance rendering, and the structural guarantee that the built-in
 // first-party row exposes no removal affordance.
 

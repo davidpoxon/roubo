@@ -5,7 +5,7 @@
 //
 // The "running system" here is the REAL, already-merged gate evaluator composed in
 // process under vitest, not a mock of the gate logic (AC-1): every step drives the
-// real `evaluateGate` (#698, server/lib/gate-evaluator.ts) over the same WU-040
+// real `evaluateGate` (#720, server/lib/gate-evaluator.ts) over the same WU-040
 // gate fixture and a results body that the verifier mutates one case at a time. The
 // unresolved-list and PENDING/PASSED badge the panel renders are read straight off
 // that real GateState; the only thing the test stands in for is the human clicking
@@ -17,12 +17,12 @@
 // .specifications/verify-gate/test-cases.json forces this test to be updated.
 //
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
-// message naming the owning slice issue from this unit's blocked-by set, so a red
+// message naming the owning slice from this unit's blocked-by set, so a red
 // run localizes the integration drift to one attributable slice:
-//   - the gate-state transition itself (PENDING/PASSED, unresolved set) is #698
+//   - the gate-state transition itself (PENDING/PASSED, unresolved set) is #720
 //     (deterministic gate evaluator);
-//   - the unresolved-list / gate-state panel surface that renders it is #702
-//     (TestBench batch UI / gate-state panel), riding on #701 (gate API routes +
+//   - the unresolved-list / gate-state panel surface that renders it is #726
+//     (TestBench batch UI / gate-state panel), riding on #725 (gate API routes +
 //     batch-subset) for the data it reads.
 
 import { describe, it, expect } from "vitest";
@@ -30,13 +30,12 @@ import { evaluateGate, type VerifyUnit, type GateResults } from "../lib/gate-eva
 import type { Tracker } from "@roubo/shared/work-units-contract";
 import type { BenchResults, CaseResult, CaseStatus } from "@roubo/shared/testbench-contracts";
 
-// ── Owning slices (this e2e unit's blocked-by set, per #710) ──
+// ── Owning slices (this e2e unit's blocked-by set, per #730) ──
 // The gate-state transition (PENDING -> PASSED, the unresolved set) is owned by the
 // deterministic evaluator; the unresolved-list / gate-state panel surface that
 // renders it is owned by the batch UI riding on the gate API routes.
-const SLICE_GATE_STATE = "#698 (deterministic gate evaluator)";
-const SLICE_PANEL =
-  "#702 (TestBench batch UI / gate-state panel), #701 (gate API routes + batch-subset)";
+const SLICE_GATE_STATE = "deterministic gate evaluator";
+const SLICE_PANEL = "TestBench batch UI / gate-state panel, gate API routes + batch-subset";
 
 // ── Fixture identifiers (VG-TC-019 preconditions) ──
 // Gate WU-040 covers WU-031, WU-032, WU-033; gating set is TC-019, TC-020, TC-024.
@@ -109,7 +108,7 @@ const recorded: Record<string, CaseStatus> = {
 describe("VG-TC-019: marking all gating cases passed transitions WU-040 from PENDING to PASSED", () => {
   it("S001: open the gate-state panel for WU-040 -> badge PENDING, unresolved list shows all three gating cases (S001-O01, S001-O02)", () => {
     // S001: open the batch detail and locate the gate-state panel. Drive the REAL
-    // evaluateGate (#698) over the recorded results with all three cases not_started.
+    // evaluateGate (#720) over the recorded results with all three cases not_started.
     const state = evaluateGate(gate, results(recorded), PLAN_HASH);
 
     // S001-O01: the gate badge shows PENDING (the panel renders PENDING from the

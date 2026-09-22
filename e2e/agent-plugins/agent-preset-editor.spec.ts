@@ -18,12 +18,12 @@ import {
 // "AP-TC-025".
 const observe = makeObserve("AP-TC-025");
 
-// AP-TC-025 (#681, AP-WU-036) - E2E: the agent tool editor binds an agent, takes
+// AP-TC-025 (#1101, AP-WU-036) - E2E: the agent tool editor binds an agent, takes
 // parameter overrides and a jig behaviour, and a default-agent-bound preset
 // renders as "default agent -> <current default>" in its list subtitle.
 //
 // ONE test carries the bare id and it asserts EVERY observation of the case
-// (#680). Before this spec no test carried AP-TC-025 at all.
+// (#1097). Before this spec no test carried AP-TC-025 at all.
 //
 // WHY A BROWSER, not jsdom. S003-O02 is a rendered string, and S002 is about
 // what the editor's controls will accept, which is a property of the form as
@@ -36,7 +36,7 @@ const observe = makeObserve("AP-TC-025");
 // SELECTS. It once diverged: `enumOptionsFor` read `configSchema.properties[key]
 // .enum` and nothing else, while the manifest spells its choices as
 // `oneOf: [{ const, title }]`, so the editor fell through to free-text inputs.
-// Issue #690 decided that in favour of the case, and the helper now delegates to
+// #1104 decided that in favour of the case, and the helper now delegates to
 // `config-schema-utils.ts`'s `enumOptions`, which reads both spellings.
 
 const SETTINGS_PATH = "/settings";

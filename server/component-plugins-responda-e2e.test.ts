@@ -4,14 +4,14 @@
 // CP-TC-033 (responda: a database component with migration + connection
 // template plus two dependent process components) and CP-TC-034 (roubo: a
 // database component plus a dependent process component) step by step (issue
-// #624).
+// #669).
 //
 // This is the journey's drift guard, mirroring server/component-plugins-e2e.test.ts
-// (the CP-TC-027 / #623 guard) and shared/testbench-e2e.test.ts (the TC-056 /
-// #442 guard): it exercises the integrated journey through the already-pure,
+// (the CP-TC-027 / #661 guard) and shared/testbench-e2e.test.ts (the TC-056 /
+// #455 guard): it exercises the integrated journey through the already-pure,
 // importable seams of the slices it spans, rather than re-testing any single
-// slice. The slices owned by this work unit are #598, #600, #601, #605, #606,
-// #610, #611, #612, #614, and #617 (the manifest/descriptor contract, the
+// slice. The slices owned by this work unit are #634, #633, #644, #648, #650,
+// #655, #659, #663, #664, and #665 (the manifest/descriptor contract, the
 // LifecycleEngine, the ledger, the bundled database + process plugins, the
 // bench-manager refactor, the config migration, and the status/logs parity
 // surface). A failing step is localised back to the owning slice(s) via
@@ -41,7 +41,7 @@
 //     this hermetic guard captures that running push directly.
 //   - teardown -> the REAL bench-manager.sweepOrphanedComposeProjects orphan-reap
 //     seam, which downs every roubo-* compose project the ledger still records and
-//     clears the ledger entry (the zero-orphan invariant, NFR-003 / #612 cleanup).
+//     clears the ledger entry (the zero-orphan invariant, NFR-003 / #663 cleanup).
 //     The integrated normal-stop path (stopComponent/stopAllComponents: status ->
 //     stopped + stopProcess for each recorded PID) needs the integrated bench
 //     registry, out of this hermetic guard's reach; it is asserted instead by
@@ -73,9 +73,10 @@ import * as dockerService from "./services/docker.js";
 import * as ledger from "./services/resource-ownership-ledger.js";
 import * as benchManager from "./services/bench-manager.js";
 
-// The slices this journey integrates, from #624's blocked_by / covers set.
+// The slices this journey integrates, from the work unit's blocked_by / covers set.
 // Reported when a step diverges so a failure is attributable (FR-020).
-const OWNING_SLICES = "#598, #600, #601, #605, #606, #610, #611, #612, #614, #617";
+const OWNING_SLICES =
+  "host-owns vs plugin-owns component lifecycle spike, host-RPC broker granularity + capability versioning spike, lifecycle-parity test matrix, HostComponentBroker RPC surface, LifecycleEngine, bundled process component plugin, bundled database component plugin, remove component-type dispatch from bench-manager, roubo and responda configs on plugin components, ComponentTypeKnowledgeGuard CI check";
 
 // ── State isolation: pin ~/.roubo into a throwaway HOME ──
 //
@@ -120,7 +121,7 @@ afterAll(() => {
   }
 });
 
-// ── Fixtures: the migrated plugin-backed configs (#614) ──
+// ── Fixtures: the migrated plugin-backed configs (#664) ──
 //
 // The journey's preconditions describe the responda and roubo roubo.yaml files
 // migrated to plugin declarations. We model the descriptors each component's
@@ -198,7 +199,7 @@ const DB_CONTAINER_ID = "postgres-container-abc123";
 // the roubo-<projectId>-bench-<N> convention; getContainerId returns a stable id
 // from the same resolution seam the broker uses after composeUp. liveComposeProjects
 // tracks brought-up compose projects so the teardown step proves none survive
-// (the zero-orphan invariant, NFR-003 / #612).
+// (the zero-orphan invariant, NFR-003 / #663).
 function makeFakeDocker(liveComposeProjects: Set<string>): DockerLike {
   return {
     composeUp: vi.fn(async ({ projectName }: { projectName: string }) => {
@@ -233,7 +234,7 @@ function makeFakeProcessManager(startOrder: string[]): ProcessManagerLike {
 // ── FR-020 failure-output wrapper ──
 //
 // Each e2e_flow step runs inside step(): on divergence it reports the diverging
-// step label, the expected-vs-actual, and the owning slice issue(s), so a
+// step label, the expected-vs-actual, and the owning slice(s), so a
 // failure is attributable to a slice rather than the whole journey.
 async function step<T>(label: string, expectation: string, body: () => T | Promise<T>): Promise<T> {
   try {
@@ -335,7 +336,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
     const webDescriptor = processDescriptor("npm run start:web", [RESPONDA_DB, RESPONDA_API]);
 
     // S001: create a bench. The descriptors validate against the typed union
-    // (#600), the precondition for a 201-creatable plugin-backed bench (#611).
+    // (#633), the precondition for a 201-creatable plugin-backed bench (#659).
     await track(
       TC033_STEPS.createBench,
       "the migrated responda config yields three valid plugin-backed component descriptors (db + two process)",
@@ -351,7 +352,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
     );
 
     // S002: start the bench. No component-type/docker branch survives in core
-    // (#612): the host hands every descriptor to the one engine. The "no error
+    // (#663): the host hands every descriptor to the one engine. The "no error
     // body" assertion is the aggregate of S003/S004 reaching running, captured
     // here as the precondition that start dispatches without throwing.
     const results: Record<string, ComponentStatus["status"]> = {};
@@ -366,7 +367,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
     // S003: the database component runs first (it has no dependsOn; the process
     // components dependsOn it). It progresses composeUp -> waitForHealthy ->
     // initService -> migration and reaches running, recording the compose
-    // project in the ledger (#605 database plugin, #606 engine, #607 ledger).
+    // project in the ledger (#648 database plugin, #650 engine, #647 ledger).
     let dbConnection: string | undefined;
     let dbContainerId: string | null = null;
     let dbRunningStatus: ComponentStatus | undefined;
@@ -387,7 +388,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
         results[RESPONDA_DB] = result.status;
         dbConnection = result.connection;
         // The status push stream covers the three named starting phases (the SSE
-        // status-push contract, #617): composeUp, waitForHealthy, init/migration.
+        // status-push contract, #665): composeUp, waitForHealthy, init/migration.
         const details = statuses.map((s) => s.statusDetail);
         expect(details).toContain("Starting container");
         expect(details).toContain("Waiting for healthy");
@@ -397,7 +398,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
         expect(result.status).toBe("running");
         expect(statuses.at(-1)?.status).toBe("running");
         // No process component has started yet: dependsOn ordering means the
-        // host runs the database to running before the dependents start (#611).
+        // host runs the database to running before the dependents start (#659).
         expect(startOrder).toEqual([]);
         // The ledger recorded the compose project under the database plugin.
         expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)?.composeProjects).toContain(
@@ -450,7 +451,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
     // S005: final bench state. All three running; the database has a connection
     // string resolved with the allocated port (not a placeholder) and a
     // containerId resolved via the broker's getContainerId(projectName, service)
-    // seam (#605 connection templating, #617 status surface). The engine now
+    // seam (#648 connection templating, #665 status surface). The engine now
     // attaches that id to the running status push, so it lands on the integrated
     // ComponentStatus surface (#892).
     await track(
@@ -482,7 +483,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
     // attaches (bench-manager.buildReportLog) with representative run-shaped lines,
     // then read them back through the REAL logs route (bench-manager.getComponentLogs,
     // the read path GET /components/:name/logs uses). This proves the production
-    // reportLog -> store -> logs-route path carries the reported lines (#617
+    // reportLog -> store -> logs-route path carries the reported lines (#665
     // status/logs parity), rather than poking the store primitive directly.
     await track(
       TC033_STEPS.dbLogs,
@@ -543,7 +544,7 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
     );
 
     // S008: teardown via the REAL orphan-reap seam: sweepOrphanedComposeProjects
-    // (#612 cleanup) replays the ledger, downs every roubo-* compose project it
+    // (#663 cleanup) replays the ledger, downs every roubo-* compose project it
     // still records, and clears the entry. Spying composeDownByProject lets the
     // real down path run (and remove the project from our live set) without a
     // Docker daemon, so "no roubo-* remains" and "the ledger entry is cleared"
@@ -638,7 +639,7 @@ describe("Dogfood-parity E2E (CP-TC-034): roubo bench starts identically on plug
     const dbDescriptor = databaseDescriptor(ROUBO_DB);
     const serverDescriptor = processDescriptor("npx tsx watch server/index.ts", [ROUBO_DB]);
 
-    // S001: create a bench from the migrated roubo config (#614): a database
+    // S001: create a bench from the migrated roubo config (#664): a database
     // component + a dependent process component, both valid descriptors.
     await track(
       TC034_STEPS.createBench,

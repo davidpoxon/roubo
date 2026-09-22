@@ -1,7 +1,7 @@
 import { ToggleButtonGroup, ToggleButton } from "react-aria-components";
 import { Check, X } from "lucide-react";
 
-// Segmented pass/fail mark control for one observation (#420, FR-007/FR-008).
+// Segmented pass/fail mark control for one observation (#471, FR-007/FR-008).
 //
 // Built on React Aria's ToggleButtonGroup (single selection) so it is one tab
 // stop with arrow-key navigation between the two segments and a visible 2px
@@ -14,7 +14,7 @@ import { Check, X } from "lucide-react";
 // disabled control drops to the disabled opacity.
 //
 // The mark is a pass/fail toggle with no separate clear affordance (DESIGN.md
-// "pass/fail toggle", #522): selecting the unset segment sets the mark, and
+// "pass/fail toggle", #523): selecting the unset segment sets the mark, and
 // pressing the already-selected segment clears it. The group is single-select
 // and does not disallow an empty selection, so re-pressing the selected segment
 // (by pointer or keyboard) deselects it and onSelectionChange fires an empty
@@ -25,7 +25,7 @@ interface ObservationMarkControlProps {
   // The observation this control marks; used to label the group for assistive tech.
   expected: string;
   value: "pass" | "fail" | undefined;
-  // Fired with "pass"/"fail" to set a mark, or null to clear it entirely (#522).
+  // Fired with "pass"/"fail" to set a mark, or null to clear it entirely (#523).
   onMark: (result: "pass" | "fail" | null) => void;
   isDisabled?: boolean;
 }

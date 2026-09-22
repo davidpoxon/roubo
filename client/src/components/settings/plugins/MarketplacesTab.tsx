@@ -4,14 +4,14 @@ import type { MarketplaceSourceSummary } from "@roubo/shared";
 import { useMarketplaceSources } from "../../../hooks/useMarketplaceSources";
 import MarketplaceSourceRow from "./MarketplaceSourceRow";
 
-// The Marketplaces settings section (CPHMTP-FR-001 / CPHMTP-US-001, issue #561):
+// The Marketplaces settings section (CPHMTP-FR-001 / CPHMTP-US-001, #976):
 // the built-in first-party source plus every registered third-party source, with
 // an add entry point and a per-row remove entry point.
 //
 // The server synthesises the first-party row into GET /api/marketplace/sources,
 // so this list renders the response as-is rather than merging the built-in in
 // itself. Both dialogs the entry points lead to (the registration consent dialog,
-// issue #562, and the removal consequences dialog, issue #564) are separate slices
+// #975, and the removal consequences dialog, #980) are separate slices
 // and out of scope here: this section wires the controls to seams, so those slices
 // mount the real dialogs without reshaping the section.
 
@@ -31,11 +31,11 @@ const STRINGS = {
 
 interface Props {
   /**
-   * Opens the registration consent dialog (issue #562, out of scope for issue
-   * #561). Defaults to a no-op so the section is renderable on its own.
+   * Opens the registration consent dialog (#975, out of scope for issue
+   * #976). Defaults to a no-op so the section is renderable on its own.
    */
   onAddSource?: () => void;
-  /** Opens the removal consequences dialog (issue #564, out of scope here). */
+  /** Opens the removal consequences dialog (#980, out of scope here). */
   onRemoveSource?: (source: MarketplaceSourceSummary) => void;
 }
 

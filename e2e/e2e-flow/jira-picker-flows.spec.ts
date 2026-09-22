@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { resetWithScenario } from "./_support/scenario.js";
 import { addSource, externalIds, openConfigure, readSources, save } from "./_support/picker.js";
 
-// JSS-WU-007 (#356): the picker-area end-to-end journeys for the searchable,
+// JSS-WU-007 (#426): the picker-area end-to-end journeys for the searchable,
 // project-first Jira source picker. These mirror the seven `e2e_flow` picker
 // cases from `.specifications/jira-sources-scale/test-cases.json`:
 //

@@ -209,7 +209,7 @@ describe("PUT /:projectId/benches/overrides", () => {
   });
 
   // The PUT handler reads/writes roubo.yaml on disk, so it is rate-limited
-  // (CodeQL js/missing-rate-limiting #35). Asserting the draft-7 RateLimit
+  // (CodeQL js/missing-rate-limiting #86). Asserting the draft-7 RateLimit
   // headers proves the limiter is wired onto the route.
   it("attaches RateLimit response headers (limiter is mounted)", async () => {
     const res = await request(app)

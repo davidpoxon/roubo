@@ -1,6 +1,6 @@
 "use strict";
 
-// Minimal agent-kind plugin fixture for the choice-probe manifest (#856). The
+// Minimal agent-kind plugin fixture for the choice-probe manifest (#1269). The
 // host only has to discover, validate, and spawn it; the manifest is the thing
 // under test, so the plugin answers `translateLaunch` and nothing else.
 const rpc = require("vscode-jsonrpc/node");

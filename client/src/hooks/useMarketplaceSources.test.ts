@@ -17,11 +17,11 @@ const fetchMarketplaceSources = vi.mocked(api.fetchMarketplaceSources);
 const removeMarketplaceSource = vi.mocked(api.removeMarketplaceSource);
 const fetchMarketplaceCatalog = vi.mocked(api.fetchMarketplaceCatalog);
 
-// The Marketplaces settings section (issue #561) reads the registry through this
+// The Marketplaces settings section (#976) reads the registry through this
 // hook. Removing a source changes which listings the merged Browse catalog
 // serves, so the mutation must invalidate the catalog query too, not only the
 // source list. Registration is covered in useMarketplace.test.ts, next to the
-// useRegisterMarketplaceSource hook that owns it (issue #562).
+// useRegisterMarketplaceSource hook that owns it (#975).
 
 const ACME: MarketplaceSourceSummary = {
   id: "marketplace-acme-example-1a2b3c4d",

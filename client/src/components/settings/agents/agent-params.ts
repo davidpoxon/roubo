@@ -1,6 +1,6 @@
 // One agent's effective params as a compact summary line.
 //
-// Extracted from `DefaultAgentTile` (issue #517) so the Terminal-tab launch
+// Extracted from `DefaultAgentTile` (#1063) so the Terminal-tab launch
 // menu and the Settings default-agent tile describe the same agent with the
 // same string. Two independent formatters would drift, and AP-TC-023 reads the
 // menu's summary against what Settings shows.
@@ -32,8 +32,8 @@ export function describeEffectiveParams(config: Record<string, unknown>): string
  * so each renders as a select when the bound agent declares a closed set of
  * values for it and as a free-text field otherwise.
  *
- * Shared by the agent tool editor (#516) and the per-launch override dialog
- * (#518) so the two surfaces offer the same fields in the same order; two
+ * Shared by the agent tool editor (#1057) and the per-launch override dialog
+ * (#1072) so the two surfaces offer the same fields in the same order; two
  * private lists would drift.
  */
 export const PARAM_FIELDS = [
@@ -58,7 +58,7 @@ export const INHERIT = "";
  * `enum: [...]`, and the `oneOf: [{ const, title }]` form every shipping agent
  * manifest actually uses. Parsing the schema a second time here is what made
  * these fields fall through to free text while the AI Agents card rendered
- * selects for the very same key (issue #690).
+ * selects for the very same key (#1104).
  *
  * Only string `const`s survive: both override surfaces hold their draft as
  * strings, and a non-string option could not round-trip through the control.

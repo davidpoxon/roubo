@@ -156,7 +156,7 @@ describe("validateTemplateVariables", () => {
   });
 
   // A component with no allocated port can still resolve {{urls.<name>}} by
-  // reporting one at runtime (#833), so the authoring surface must not flag it.
+  // reporting one at runtime (#1206), so the authoring surface must not flag it.
   it("passes a url reference to a component that has no allocated port", () => {
     const ctx = makeContext({
       portNames: ["web"],

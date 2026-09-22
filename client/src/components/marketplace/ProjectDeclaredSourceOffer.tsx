@@ -12,7 +12,7 @@ import MarketplaceSourceConsentModal, {
 } from "./MarketplaceSourceConsentModal";
 
 // Project-open registration offer for declared-but-unregistered marketplaces
-// (CPHMTP-FR-007 / CPHMTP-NFR-003 / CPHMTP-US-002, issue #565).
+// (CPHMTP-FR-007 / CPHMTP-NFR-003 / CPHMTP-US-002, #982).
 //
 // The offer is a PURE CLIENT-SIDE comparison of data already loaded: the
 // project's `marketplaces[]` (from useProjects) against the registered sources

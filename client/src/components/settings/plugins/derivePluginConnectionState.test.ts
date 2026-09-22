@@ -59,7 +59,7 @@ describe("derivePluginConnectionState", () => {
   });
 });
 
-describe("derivePluginConnectionState: live ConnectionStatus precedence (issue #204)", () => {
+describe("derivePluginConnectionState: live ConnectionStatus precedence (#227)", () => {
   it('prefers a live "auth-problem" over the derive-from-config connected path', () => {
     expect(
       derivePluginConnectionState(

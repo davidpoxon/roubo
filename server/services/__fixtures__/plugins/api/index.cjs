@@ -1,7 +1,7 @@
 "use strict";
 
 // Long-lived sibling 'api' component fixture for the CP-TC-099 enforced
-// sandboxing e2e drift guard (issue #628). The host spawns and supervises it
+// sandboxing e2e drift guard (#681). The host spawns and supervises it
 // over the same vscode-jsonrpc/stdio transport as every other plugin. It answers
 // a liveness ping and otherwise just stays running, so the e2e test can assert
 // the sibling remains 'running' throughout while the offending ports-only

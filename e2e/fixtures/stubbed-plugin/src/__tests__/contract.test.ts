@@ -352,10 +352,10 @@ describe("listIssues status exclusion (JSS-WU-009, JSS-TC-024/JSS-TC-025)", () =
   });
 });
 
-// #569: cursor pagination over the kept set, the stub behaviour the cut-list
+// #585: cursor pagination over the kept set, the stub behaviour the cut-list
 // Prev/Next e2e journey (TC-032) drives. The cut-list-pagination pack seeds six
 // To Do cuts; at a small pageSize the kept set spans multiple cursor pages.
-describe("listIssues cursor pagination (#569, TC-032)", () => {
+describe("listIssues cursor pagination (#585, TC-032)", () => {
   function buildPaginationContract() {
     const scenario = loadScenario("cut-list-pagination");
     const clock = createClock(new Date("2026-05-21T13:00:00.000Z"));

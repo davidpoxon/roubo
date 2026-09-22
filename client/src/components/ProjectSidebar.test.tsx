@@ -84,7 +84,7 @@ describe("ProjectSidebar", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
-  it("renders an inactive All Projects link in the text-body token for both themes (#885)", () => {
+  it("renders an inactive All Projects link in the text-body token for both themes (#1275)", () => {
     stubNoData();
     renderSidebar("/settings");
     const link = screen.getByText("All Projects").closest("button");
@@ -93,7 +93,7 @@ describe("ProjectSidebar", () => {
     expect(link?.className).not.toMatch(/dark:/);
   });
 
-  it("renders the active Settings item in medium-weight accent-text on accent-muted (#887)", () => {
+  it("renders the active Settings item in medium-weight accent-text on accent-muted (#1276)", () => {
     stubNoData();
     renderSidebar("/settings");
     const settings = screen.getByText("Settings").closest("button");
@@ -450,7 +450,7 @@ describe("ProjectSidebar", () => {
     });
   });
 
-  describe("collapse (#524)", () => {
+  describe("collapse (#525)", () => {
     function stubWithProject() {
       mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
         RegisteredProject[]

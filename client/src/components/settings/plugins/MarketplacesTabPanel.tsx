@@ -13,25 +13,25 @@ import MarketplaceSourceConsentModal, {
 } from "../../marketplace/MarketplaceSourceConsentModal";
 
 // Container for the Marketplaces settings section. MarketplacesTab renders the
-// list and exposes two seams (issue #561); this container wires both.
+// list and exposes two seams (#976); this container wires both.
 //
-// Add (CPHMTP-FR-002 / CPHMTP-US-001, issue #609): the onAddSource seam opens the
-// registration consent dialog (issue #562) with an empty URL field and owns the
+// Add (CPHMTP-FR-002 / CPHMTP-US-001, #983): the onAddSource seam opens the
+// registration consent dialog (#975) with an empty URL field and owns the
 // POST /api/marketplace/sources mutation (useRegisterMarketplaceSource) it drives
-// on confirm. Mirrors ProjectDeclaredSourceOffer (issue #565), which mounts the
+// on confirm. Mirrors ProjectDeclaredSourceOffer (#982), which mounts the
 // same presentational dialog against the same hook (just with a prefilled URL).
 // No fetch happens while the dialog is merely open (CPHMTP-NFR-003): the single
 // write runs only after the acknowledged Register press, and the hook already
 // invalidates the ["marketplace-sources"] settings-list key so the new row
 // appears without a manual refresh.
 //
-// Remove (CPHMTP-FR-009 / CPHMTP-US-006, issue #564): the onRemoveSource seam
+// Remove (CPHMTP-FR-009 / CPHMTP-US-006, #980): the onRemoveSource seam
 // wires the removal consequences dialog and owns the DELETE
 // /api/marketplace/sources/:id mutation the dialog drives on confirm.
 //
 // The backend cascade (registry-row delete, per-source cache delete, keyring
 // credential delete, and the orphan stamp on affected plugin records) already
-// ships and is tested (issues #553 / #558 / #560); DELETE answers 204 with no
+// ships and is tested (#955 / #966 / #968); DELETE answers 204 with no
 // body. The "N plugin orphaned" figure the confirmation reports is therefore
 // derived client-side from the installed plugin records (each carries the
 // `sourceId` it was installed from) filtered by the removed source's id, taken

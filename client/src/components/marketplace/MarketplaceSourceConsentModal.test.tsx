@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // Registration consent for a third-party marketplace source (CPHMTP-FR-002 /
-// CPHMTP-NFR-003, issue #562). The dialog is the only path to registering a
+// CPHMTP-NFR-003, #975). The dialog is the only path to registering a
 // source, so these cover what the consumer is shown before trusting a URL
 // (CPHMTP-TC-005), the acknowledgement gate (CPHMTP-TC-020), that declining
 // writes nothing (CPHMTP-TC-019), and that nothing is fetched while the dialog is

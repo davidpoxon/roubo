@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // Project-open registration offer for declared-but-unregistered marketplaces
-// (CPHMTP-FR-007 / CPHMTP-NFR-003 / CPHMTP-US-002, issue #565). These cover the
+// (CPHMTP-FR-007 / CPHMTP-NFR-003 / CPHMTP-US-002, #982). These cover the
 // offer banner and its copy (CPHMTP-TC-074), that opening or ignoring the project
 // fetches nothing from the declared URL (CPHMTP-TC-075), routing through the
 // consent gate with the raw URL prefilled and decline as the default
@@ -322,7 +322,7 @@ describe("ProjectDeclaredSourceOffer: multiple declarations (CPHMTP-TC-085)", ()
 
 // CPHMTP-TC-086: consenting records the exact declared URL. The unsigned status
 // and registration timestamp are stamped server-side by the register endpoint
-// (issue #562); the client contributes the URL the consent record is keyed on.
+// (#975); the client contributes the URL the consent record is keyed on.
 describe("ProjectDeclaredSourceOffer: recorded registration (CPHMTP-TC-086)", () => {
   it("hands the exact declared URL to the register mutation on consent", async () => {
     const user = userEvent.setup();

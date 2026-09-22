@@ -4,15 +4,15 @@
 // consumer browses the catalog, searches for Redis, installs it (with the
 // fetched package's integrity verified server-side against the signed catalog),
 // then updates it when a newer version is published, asserting the authoritative
-// e2e_flow case CP-TC-101 step by step (issue #629).
+// e2e_flow case CP-TC-101 step by step (#694).
 //
 // This is the journey's drift guard: it exercises the integrated journey
 // through the already-shipped, real seams of the slices it spans, rather than
-// re-testing any single slice. The slices owned by this work unit are #621 (the
-// catalog browse/search/install/update UI) and #622 (integrity verification). A
+// re-testing any single slice. The slices owned by this work unit are #688 (the
+// catalog browse/search/install/update UI) and #690 (integrity verification). A
 // failing step is localised back to the owning slice(s) via OWNING_SLICES below
 // (FR-020). (The sibling CP-TC-076 permission-consent journey guard was removed
-// with the orphan PermissionConsentModal in issue #399; the shipped consent
+// with the orphan PermissionConsentModal in #884; the shipped consent
 // journey now runs through this marketplace flow, asserted in S005 / S008.)
 //
 // Hermetic by construction (matching the Marketplace.test.tsx precedent, but at
@@ -25,20 +25,20 @@
 // real server. The useToast hook is mocked so addToast can be captured and emits
 // no console noise.
 //
-// Integrity verification (CP-FR-021 / #622) is authoritatively server-side
+// Integrity verification (CP-FR-021 / #690) is authoritatively server-side
 // (#690: signed ed25519 catalog + per-entry sha256 digests, fail-closed) and has
 // its own server tests. This client journey guard asserts the UI-observable
 // integrity OUTCOMES (S005-O04 / S008-O04: after a successful confirm, no
 // integrity error or signature warning is shown). The mocked confirm boundary
 // resolving successfully represents the server having verified the package, and
 // the mocked grantPluginConsent boundary represents the consent POST that mints
-// the ConsentRecord after the commit (issue #399).
+// the ConsentRecord after the commit (#884).
 //
 // FIDELITY NOTE (asserts the real SHIPPED behaviour; changing production strings
 // is explicitly out of scope for this e2e work unit). Three points of CP-TC-101's
 // authoritative prose diverge from the shipped marketplace UX. This guard asserts
 // the shipped behaviour and the divergences are tracked for reconciliation in
-// #693:
+// #695:
 //   1. Toast text: the shipped Marketplace emits "Installed Redis." / "Updated
 //      Redis." (STRINGS.installedToast = `Installed ${name}.`), NOT TC-101's
 //      "Installed Redis · roubo/redis" / "Updated Redis · roubo/redis"
@@ -76,7 +76,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
     updateFromMarketplace: vi.fn(),
     confirmInstallPlugin: vi.fn(),
     cancelInstallPlugin: vi.fn(),
-    // Issue #399: the real useGrantConsent runs in this journey and POSTs
+    // #884: the real useGrantConsent runs in this journey and POSTs
     // /consent after a successful commit. Mock only that boundary.
     grantPluginConsent: vi.fn(),
   };
@@ -105,9 +105,10 @@ const mockedConfirm = vi.mocked(confirmInstallPlugin);
 const mockedCancel = vi.mocked(cancelInstallPlugin);
 const mockedGrantConsent = vi.mocked(grantPluginConsent);
 
-// The slices this journey integrates, from #629's covers / blocked-by set.
+// The slices this journey integrates, from the work unit's covers / blocked-by set.
 // Reported when a step diverges so a failure is attributable to a slice (FR-020).
-const OWNING_SLICES = "#621, #622";
+const OWNING_SLICES =
+  "marketplace catalog browse/search/install/update; marketplace integrity verification + revocation";
 
 const PLUGIN_ID = "redis";
 const PLUGIN_NAME = "Redis";
@@ -245,7 +246,7 @@ const TC101_SEQUENCE = [
 // ── FR-020 failure-output wrapper ──
 //
 // Each CP-TC-101 step runs inside step(): on divergence it reports the diverging
-// step label, the expected-vs-actual, and the owning slice issue(s), so a failure
+// step label, the expected-vs-actual, and the owning slice(s), so a failure
 // is attributable to a slice rather than the whole journey.
 async function step<T>(label: string, expectation: string, body: () => T | Promise<T>): Promise<T> {
   try {
@@ -270,11 +271,11 @@ beforeEach(() => {
       curated: true,
       listings: currentListings().filter((l) => matchesQuery(l, params?.q)),
       // The browse/install/update journey is the online (live network) path, so
-      // the offline / staleness banner stays absent (issue #372).
+      // the offline / staleness banner stays absent (#851).
       source: "network",
       fetchedAt: "2026-06-28T00:00:00.000Z",
       // First-party only: this journey registers no third-party source, so the
-      // fan-out is a single healthy source and no filter chips render (#557).
+      // fan-out is a single healthy source and no filter chips render (#962).
       sources: [
         {
           id: FIRST_PARTY_SOURCE_ID,
@@ -321,7 +322,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
       </QueryClientProvider>,
     );
 
-    // S001: the marketplace view renders with the full plugin grid (#621). There
+    // S001: the marketplace view renders with the full plugin grid (#688). There
     // is no sidebar-navigation seam in this hermetic render (see S001 NOTE in the
     // header): rendering the real Marketplace and asserting its grid is the
     // equivalent of arriving on the view.
@@ -340,7 +341,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
 
     // S002: typing 'redis' into the search field filters the grid (server-side
     // search via the real catalog query re-key) to ONLY the Redis card, which
-    // shows Install, a Verified indicator, and the current version (#621).
+    // shows Install, a Verified indicator, and the current version (#688).
     await track(
       TC101_STEPS.search,
       "the grid filters to only the Redis card showing marketplace-card-install, 'Verified', and 'v1.3.0'",
@@ -363,7 +364,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
     // version line, the trust banner (content/role, NOT the exact icon, per the
     // FIDELITY NOTE: shipped renders ShieldAlert), the docker+ports permission
     // items in plain language, and the confirm is gated (aria-disabled) while the
-    // acknowledgement is unchecked (#621).
+    // acknowledgement is unchecked (#688).
     await track(
       TC101_STEPS.installConsent,
       "marketplace-consent-modal opens titled 'Install Redis?' with the id/kind/version line, the trust banner, exactly the ports+docker permission items, and an aria-disabled confirm",
@@ -374,13 +375,13 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         expect(within(modal).getByRole("heading")).toHaveTextContent("Install Redis?");
 
         // FIDELITY: shipped shows manifest.id "redis" and kind "component plugin"
-        // and version "v1.3.0" (NOT TC-101's "roubo/redis" id; see #693).
+        // and version "v1.3.0" (NOT TC-101's "roubo/redis" id; see #695).
         expect(modal.textContent).toContain(PLUGIN_ID);
         expect(modal.textContent).toMatch(/component plugin/i);
         expect(modal.textContent).toContain("v1.3.0");
 
         // Trust banner: assert its content/role, NOT the icon (see FIDELITY NOTE
-        // #693: shipped renders ShieldAlert, TC-101 says shield-check).
+        // #695: shipped renders ShieldAlert, TC-101 says shield-check).
         const trust = within(modal).getByTestId("marketplace-consent-trust");
         expect(trust).toBeInTheDocument();
         expect(trust.textContent).toMatch(/Verified, first-party/i);
@@ -406,7 +407,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
     );
 
     // S004: ticking the acknowledgement checkbox enables the 'Install plugin'
-    // confirm (aria-disabled flips to false) (#621).
+    // confirm (aria-disabled flips to false) (#688).
     await track(
       TC101_STEPS.ackEnablesInstall,
       "ticking marketplace-consent-ack flips marketplace-consent-confirm to aria-disabled false",
@@ -425,7 +426,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
     // signed catalog, CP-FR-021). The dialog closes, the success toast fires, the
     // card flips to Installed, and NO integrity error / consent error is shown
     // (S005-O04). FIDELITY: shipped toast is "Installed Redis." (no "· roubo/redis"
-    // suffix; see #693).
+    // suffix; see #695).
     await track(
       TC101_STEPS.confirmInstall,
       "confirm closes the dialog, addToast fires the shipped install toast, the card shows Installed, and no integrity/consent error is shown",
@@ -439,7 +440,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         await waitFor(() => {
           expect(mockedConfirm).toHaveBeenCalledWith("staging-1.3.0");
         });
-        // Issue #399 (CP-TC-090): the committed install mints a ConsentRecord
+        // #884 (CP-TC-090): the committed install mints a ConsentRecord
         // with the acknowledged (all declared) categories, so the
         // component-plugin registry consent gate admits it.
         await waitFor(() => {
@@ -449,7 +450,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         await waitFor(() => {
           expect(queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();
         });
-        // Shipped success toast (no "· roubo/redis" suffix; #693).
+        // Shipped success toast (no "· roubo/redis" suffix; #695).
         expect(addToast).toHaveBeenCalledWith("Installed Redis.");
         // Card flips to Installed (the invalidated catalog re-fetched as installed).
         await waitFor(() => {
@@ -465,7 +466,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
     // S006: simulate the registry publishing v1.4.0 by flipping the mocked
     // catalog to the update-available shape and invalidating the marketplace
     // query (the real reload seam). The card flips to Update and shows the old
-    // version struck through alongside the new version (#621).
+    // version struck through alongside the new version (#688).
     await track(
       TC101_STEPS.publishUpdate,
       "after the registry publishes v1.4.0 and the catalog reloads, the card shows marketplace-card-update with strikethrough v1.3.0 and v1.4.0",
@@ -496,7 +497,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
     // S007: pressing Update stages the update preview (real update-preview
     // mutation) and opens the consent dialog titled 'Update Redis?' targeting
     // v1.4.0, with the trust banner and the permission list present and accurate
-    // for the updated version (#621).
+    // for the updated version (#688).
     await track(
       TC101_STEPS.updateConsent,
       "marketplace-consent-modal opens titled 'Update Redis?' targeting v1.4.0 with the trust banner and the ports+docker permission list",
@@ -520,7 +521,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
     // mutation (server-verified update package). The dialog closes, the update
     // toast fires, the card shows v1.4.0 + the Installed badge, and NO integrity /
     // signature error is shown (S008-O04). FIDELITY: shipped toast is "Updated
-    // Redis." (no "· roubo/redis" suffix; #693).
+    // Redis." (no "· roubo/redis" suffix; #695).
     await track(
       TC101_STEPS.confirmUpdate,
       "ticking ack + confirm closes the dialog, addToast fires the shipped update toast, the card shows v1.4.0 + Installed, and no integrity/signature error is shown",
@@ -539,7 +540,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         await waitFor(() => {
           expect(mockedConfirm).toHaveBeenCalledWith("staging-1.4.0");
         });
-        // Issue #399 (CP-TC-096): a permission-relevant update refreshes the
+        // #884 (CP-TC-096): a permission-relevant update refreshes the
         // ConsentRecord with the re-acknowledged categories.
         await waitFor(() => {
           expect(mockedGrantConsent).toHaveBeenCalledWith("redis", ["ports", "docker"]);
@@ -547,7 +548,7 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         await waitFor(() => {
           expect(queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();
         });
-        // Shipped update toast (no "· roubo/redis" suffix; #693).
+        // Shipped update toast (no "· roubo/redis" suffix; #695).
         expect(addToast).toHaveBeenCalledWith("Updated Redis.");
         // Card shows the new version in monospace and the Installed badge.
         await waitFor(() => {

@@ -48,7 +48,7 @@ describe("ReconcileDialog", () => {
     expect(orphan.textContent).toMatch(/never deleted/i);
   });
 
-  // #504: the former "Added" bucket is reframed as informational "Not yet
+  // #505: the former "Added" bucket is reframed as informational "Not yet
   // recorded", made clear that Apply does not touch these cases.
   it("reframes the added section as not-yet-recorded and informational", () => {
     renderDialog();
@@ -60,7 +60,7 @@ describe("ReconcileDialog", () => {
     expect(added.textContent).toMatch(/does not touch them|untouched|leaves/i);
   });
 
-  // #504: actionable sections (Changed, Orphaned) come first; the
+  // #505: actionable sections (Changed, Orphaned) come first; the
   // de-emphasized not-yet-recorded section renders last.
   it("orders sections Changed, Orphaned, then Not-yet-recorded", () => {
     renderDialog();
@@ -124,7 +124,7 @@ describe("ReconcileDialog", () => {
     expect(screen.queryByTestId("reconcile-section-added")).toBeNull();
   });
 
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the modality explicit to AT.
   it("stamps aria-modal on the dialog", () => {
     renderDialog();

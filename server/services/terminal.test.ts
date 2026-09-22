@@ -60,7 +60,7 @@ vi.mock("./env.js", () => ({
   },
   getLoginShell: () => "/bin/zsh",
   cleanEnv: vi.fn(() => ({})),
-  // Identity: binary resolution (#645) is env.ts's job and is pinned in env.test.ts.
+  // Identity: binary resolution (#1056) is env.ts's job and is pinned in env.test.ts.
   resolveAgentCommand: (command: string) => command,
 }));
 
@@ -69,7 +69,7 @@ vi.mock("node-pty", () => ({
   spawn: (...args: unknown[]) => mockSpawn(...args),
 }));
 
-// The spawn-helper diagnosis (#685) reads the real node_modules, so it is
+// The spawn-helper diagnosis (#1103) reads the real node_modules, so it is
 // stubbed here to keep these assertions about the wiring rather than about the
 // machine the suite happens to run on. pty-preflight.test.ts owns the diagnosis
 // itself.
@@ -160,7 +160,7 @@ describe("createSession", () => {
     expect(session.status).toBe("live");
     expect(mockSpawn).toHaveBeenCalledWith(
       "/bin/zsh",
-      // `-l`: a plain terminal is a login shell, as Terminal.app opens one (#762)
+      // `-l`: a plain terminal is a login shell, as Terminal.app opens one (#1154)
       ["-l"],
       expect.objectContaining({
         cwd: "/workspace",
@@ -193,7 +193,7 @@ describe("createSession", () => {
     }
   });
 
-  it("carries the spawn-helper diagnosis into a spawn failure (#685)", async () => {
+  it("carries the spawn-helper diagnosis into a spawn failure (#1103)", async () => {
     mockSpawn.mockImplementation(() => {
       throw new Error("posix_spawnp failed.");
     });
@@ -203,7 +203,7 @@ describe("createSession", () => {
     const { createSession } = await loadModule();
 
     // On its own `posix_spawnp failed` names neither the cause nor the fix,
-    // which is what made #685 cost a full verification run.
+    // which is what made #1103 cost a full verification run.
     expect(() => createSession("project1", 1, "/workspace", "My Project")).toThrow(
       /posix_spawnp failed\..*chmod \+x \/pkg\/node-pty\/prebuilds\/x\/spawn-helper/,
     );

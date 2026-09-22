@@ -61,7 +61,7 @@ export interface JsonRpcConnection {
    * no specific handler registered. vscode-jsonrpc routes an unregistered method
    * to the star handler (with the method name and params) only when no specific
    * handler matched, instead of auto-replying its bare -32601. This lets a caller
-   * emit its own descriptive method-not-found error (#409).
+   * emit its own descriptive method-not-found error (#893).
    */
   onRequest(handler: (method: string, params: unknown) => unknown): void;
   onNotification<P = unknown>(method: string, handler: (params: P) => void): void;
@@ -99,7 +99,7 @@ export function createConnection(proc: ChildProcess): JsonRpcConnection {
       // Star form: a single function argument registers a fallback handler that
       // vscode-jsonrpc invokes (with the method name) for any request without a
       // specific handler, so the caller can reply its own descriptive -32601
-      // instead of the transport's bare one (#409).
+      // instead of the transport's bare one (#893).
       if (typeof methodOrHandler === "function") {
         const starHandler = methodOrHandler;
         connection.onRequest((method: string, params: unknown) => starHandler(method, params));

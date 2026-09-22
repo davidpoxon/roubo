@@ -172,7 +172,7 @@ describe("ConfigSchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith({ model: "opus" });
   });
 
-  it("renders the select placeholder in the text-secondary token for both themes (#887)", () => {
+  it("renders the select placeholder in the text-secondary token for both themes (#1276)", () => {
     render(
       <ConfigSchemaForm
         schema={{
@@ -215,7 +215,7 @@ describe("ConfigSchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith({ retries: 3 });
   });
 
-  // #852: the server merges a probed field's resolved choices into the schema as
+  // #1268: the server merges a probed field's resolved choices into the schema as
   // oneOf const/title branches. Rendered here beside a static oneOf field, the
   // two must be indistinguishable (APCC-TC-003) and the probed one must save the
   // choice id, not its label (APCC-TC-002).
@@ -288,7 +288,7 @@ describe("ConfigSchemaForm", () => {
   });
 });
 
-describe("ConfigSchemaForm: choice-probe states (#853)", () => {
+describe("ConfigSchemaForm: choice-probe states (#1274)", () => {
   const probedSchema = {
     type: "object",
     properties: {

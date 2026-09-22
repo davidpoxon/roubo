@@ -37,7 +37,7 @@ function renderBanner(
   return render(<IsolationNoticeBanner notices={notices} pluginId={pluginId} source={source} />);
 }
 
-describe("IsolationNoticeBanner (#743)", () => {
+describe("IsolationNoticeBanner (#746)", () => {
   beforeEach(() => {
     setupReinstall();
   });
@@ -52,7 +52,7 @@ describe("IsolationNoticeBanner (#743)", () => {
     expect(banner.className).not.toContain("danger");
   });
 
-  it("lets a long plugin path wrap inside the card instead of overflowing (#754)", () => {
+  it("lets a long plugin path wrap inside the card instead of overflowing (#755)", () => {
     const longPath = "/Applications/Roubo.app/Contents/Resources/plugins/github-com";
     const { getByTestId } = renderBanner([notice(longPath)]);
     const message = getByTestId("plugin-isolation-notice").querySelector("p");
@@ -75,7 +75,7 @@ describe("IsolationNoticeBanner (#743)", () => {
   });
 });
 
-describe("IsolationNoticeBanner reinstall action (#756)", () => {
+describe("IsolationNoticeBanner reinstall action (#758)", () => {
   beforeEach(() => {
     setupReinstall();
   });

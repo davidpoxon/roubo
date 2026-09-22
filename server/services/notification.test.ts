@@ -60,7 +60,7 @@ describe("createNotification", () => {
     });
   });
 
-  it("preserves benchSetupComplete when persisting (#630)", () => {
+  it("preserves benchSetupComplete when persisting (#997)", () => {
     // updateBench replaces the whole record, so omitting the flag would erase it
     // from state.json, and initialize hydrates an absent flag as `true`. The
     // bench-error notification fires on the failed-setup path that must stay
@@ -74,7 +74,7 @@ describe("createNotification", () => {
     );
   });
 
-  it("does not persist a bench teardown already cleared (#829)", () => {
+  it("does not persist a bench teardown already cleared (#1191)", () => {
     // A late PTY-driven notification must not write the bench back into
     // state.json: the record would outlive the cleared bench, block unregister
     // and hydrate back into the UI on the next launch.

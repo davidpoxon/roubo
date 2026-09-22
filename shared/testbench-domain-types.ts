@@ -2,7 +2,7 @@
 // (testbench-domain, testbench-canonicalize).
 //
 // The canonical contract types are owned by testbench-contracts (issue #6),
-// which is authored in parallel with this work (#412) and has NOT landed yet.
+// which is authored in parallel with this work (#446) and has NOT landed yet.
 // To keep these pure modules self-contained, the shapes below are local copies
 // that structurally match the architecture.md data model
 // (.specifications/testbench/architecture.md, the Data model table). When #6
@@ -59,7 +59,7 @@ export interface Step {
 }
 
 // The optional case lifecycle block, mirroring CaseLifecycleSchema in
-// testbench-contracts.ts (v1.2.0, #764). Absent means the case is live. The
+// testbench-contracts.ts (v1.2.0, #1158). Absent means the case is live. The
 // pure domain modules do not read it; canonicalisation deliberately drops it so
 // a lifecycle-only edit never changes the plan hash (see testbench-canonicalize).
 export type CaseLifecycle =

@@ -72,7 +72,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
   // from `PluginsTab` / `PluginConfigureDialog` populate the same query key.
   const connectionQuery = useConnectionStatus(plugin.id, isEnabled);
 
-  // Issue #490, widened by #507: component AND agent plugins are consent-gated
+  // #938, widened by #1026: component AND agent plugins are consent-gated
   // (the server refuses to start a bench-bound component, or to resolve an agent
   // for launch, whose plugin has no ConsentRecord). Integration plugins are never
   // gated, so fetch consent (and offer the affordance) for those two kinds only.
@@ -139,7 +139,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
             SourceLabel says where the plugin lives on THIS machine (bundled with
             the app, or unpacked under ~/.roubo/plugins); the badge says which
             marketplace source served it and at what trust level (CPHMTP-FR-006,
-            issue #563). Different facts, so both render: the installed tab is one
+            #977). Different facts, so both render: the installed tab is one
             of the surfaces the persistent Unverified badge must reach, and an
             orphaned plugin (its source deregistered) is flagged here too.
           */}
@@ -177,7 +177,7 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
 
       {/* An incompatible record with NO manifest: the manifest declared a key this
           host does not know, so the strict parse never produced one and the host
-          reported the declared range instead (issue #719). There is no range to
+          reported the declared range instead (#1118). There is no range to
           hand IncompatibleBanner, but lastError.message already names the required
           Roubo version, so it is rendered rather than left silent. */}
       {plugin.status === "incompatible" && !plugin.manifest && plugin.lastError && (

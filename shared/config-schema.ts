@@ -9,7 +9,7 @@ export const JigSettingsSchema = z.object({
   issueTypeMappings: z.record(z.string(), z.string()).optional(),
   /**
    * The `agent`-kind plugin a launch falls back to when the jig driving it
-   * carries no binding of its own (AP-FR-005, AP-FR-006, issue #515). Absent
+   * carries no binding of its own (AP-FR-005, AP-FR-006, #1051). Absent
    * means no default has been chosen yet, in which case a jig-driven launch
    * with no binding falls through to the single configured agent when exactly
    * one is available, and otherwise stays on the built-in command path.
@@ -68,7 +68,7 @@ export const ConnectionConfigSchema = z
   .strict();
 export type ConnectionConfig = z.infer<typeof ConnectionConfigSchema>;
 
-// Component-to-plugin binding reference (issue #608, FR-010). This is the
+// Component-to-plugin binding reference (#651, FR-010). This is the
 // plugin REFERENCE: a component points at a `component`-kind plugin by `id`
 // (with an optional `source`). The host's ComponentPluginRegistry reads
 // `plugin.id` off the parsed component to resolve the live JSON-RPC connection.
@@ -82,7 +82,7 @@ export const ComponentBindingSchema = z
   .strict();
 export type ComponentBinding = z.infer<typeof ComponentBindingSchema>;
 
-// ── Components-map entry (FR-003 / #609): the canonical component binding ──
+// ── Components-map entry (FR-003 / #652): the canonical component binding ──
 //
 // A component binds to a component plugin (`plugin: { id, source? }`) plus an
 // opaque `config` block the plugin's own manifest `configSchema` validates
@@ -95,8 +95,8 @@ export type ComponentBinding = z.infer<typeof ComponentBindingSchema>;
 // the TS `ComponentConfig` type as a transition shim (see below): core
 // consumers (bench-manager, config-parser) and the setup wizard still read
 // `.type` / `.docker` / `.command` etc. off a parsed component until that
-// behavioural dispatch moves onto the plugin contract in #612 (F1.11) and the
-// live-config migration of #614 (F1.13); both are out of scope for #609. Do NOT
+// behavioural dispatch moves onto the plugin contract in #663 (F1.11) and the
+// live-config migration of #664 (F1.13); both are out of scope for #652. Do NOT
 // grow new behaviour onto this shim: new component behaviour rides the plugin
 // contract.
 export const ComponentConfigSchema = z
@@ -110,10 +110,10 @@ export const ComponentConfigSchema = z
   .strict();
 
 // The legacy two-value component discriminator. The `type` enum is GONE from
-// the zod schema (#609); this type is retained ONLY for the transition shim so
+// the zod schema (#652); this type is retained ONLY for the transition shim so
 // the setup wizard and repo-scanner keep type-checking while their legacy
-// inline-component editing/scanning is ported to the plugin contract (#612 /
-// #614, out of scope here).
+// inline-component editing/scanning is ported to the plugin contract (#663 /
+// #664, out of scope here).
 export type ComponentType = "database" | "process";
 
 // The optional legacy inline component descriptor. These fields are NOT in the
@@ -121,8 +121,8 @@ export type ComponentType = "database" | "process";
 // populated at parse time once configs migrate; they exist purely as a TS
 // transition shim for core consumers (bench-manager, config-parser) and the
 // setup wizard, which still read `.type` / `.docker` / `.command` etc. off a
-// parsed component until #612 (F1.11) moves that dispatch onto the plugin
-// contract and #614 (F1.13) migrates the live configs.
+// parsed component until #663 (F1.11) moves that dispatch onto the plugin
+// contract and #664 (F1.13) migrates the live configs.
 export interface LegacyComponentInline {
   type?: ComponentType;
   command?: string;
@@ -139,8 +139,8 @@ export interface LegacyComponentInline {
 
 // The components-map entry TS type. `plugin` + `config` + `dependsOn` are the
 // canonical binding fields the zod `ComponentConfigSchema` validates; they are
-// typed loosely here (plugin/config optional) so the #609-deferred consumers
-// and the live-config migration (#614, F1.13) keep type-checking against
+// typed loosely here (plugin/config optional) so the #652-deferred consumers
+// and the live-config migration (#664, F1.13) keep type-checking against
 // pre-migration fixtures and in-progress wizard drafts during the transition.
 // The legacy inline fields ride alongside as the transition shim described
 // above. The zod schema never populates the legacy keys, so they are
@@ -211,7 +211,7 @@ const ShellToolConfigSchema = z
 
 /**
  * The `agent` binding value that follows the app-level default agent instead of
- * naming a plugin (AP-FR-009, issue #516). Stored, never resolved on write: the
+ * naming a plugin (AP-FR-009, #1057). Stored, never resolved on write: the
  * concrete agent is computed on every read, so changing the default re-points
  * every default-bound preset without rewriting one of them.
  */
@@ -283,7 +283,7 @@ export const BenchesConfigSchema = z
      */
     setup: z.string().optional(),
     /**
-     * Optional override for the shell `setup` runs through (#836). Omitted,
+     * Optional override for the shell `setup` runs through (#1218). Omitted,
      * `setup` keeps the login-shell default described above. `true` runs it
      * through `/bin/sh -c` instead, which sources no rc file. A string is the
      * shell invocation `setup` is appended to as `-c`, e.g. `bash -lc` or
@@ -409,7 +409,7 @@ export const IntegrationOverrideSchema = z
 export type IntegrationOverride = z.infer<typeof IntegrationOverrideSchema>;
 
 // Application-level defaults for one `agent`-kind plugin (AP-FR-002, issue
-// #508). Opaque to roubo-core exactly like the integration `advanced` block:
+// #1032). Opaque to roubo-core exactly like the integration `advanced` block:
 // the only contract the record answers to is the plugin's own manifest
 // `configSchema`, which `validateAgentConfig` enforces host-side.
 export const AgentConfigSchema = z.record(z.string(), z.unknown());
@@ -432,7 +432,7 @@ export const AgentOverrideSchema = z
 export type AgentOverride = z.infer<typeof AgentOverrideSchema>;
 
 // Per-project override file for one agent plugin, at
-// `~/.roubo/agents/<projectId>/<pluginId>.yaml` (AP-FR-004, issue #509). The
+// `~/.roubo/agents/<projectId>/<pluginId>.yaml` (AP-FR-004, #1044). The
 // envelope is deliberately identical to the app-level one: a project override
 // is the same opaque config record, one layer down, so the two layers can be
 // overlaid without translating between shapes.
@@ -450,7 +450,7 @@ export const AgentProjectOverrideSchema = z
   .strict();
 export type AgentProjectOverride = z.infer<typeof AgentProjectOverrideSchema>;
 
-// Third-party marketplace declaration (CPHMTP-FR-007, issue #556). A project may
+// Third-party marketplace declaration (CPHMTP-FR-007, #954). A project may
 // declare one or more plugin marketplaces in roubo.yaml so the project-open flow
 // can offer to register them. Each entry carries a URL ONLY: it is a source
 // pointer the host later fetches a signed catalog from, never a credential.
@@ -521,8 +521,8 @@ export const RouboConfigSchema = z
   });
 // Use the flat ToolConfig type for the tools field so callers don't need to
 // narrow the discriminated union. `components` is widened to `ComponentConfig`
-// (the binding fields + the legacy inline-descriptor shim) so #609-deferred
-// consumers (#612 / #614) keep type-checking against `.docker` / `.type` etc.
+// (the binding fields + the legacy inline-descriptor shim) so #652-deferred
+// consumers (#663 / #664) keep type-checking against `.docker` / `.type` etc.
 export type RouboConfig = Omit<z.infer<typeof RouboConfigSchema>, "tools" | "components"> & {
   tools?: ToolConfig[];
   components: Record<string, ComponentConfig>;

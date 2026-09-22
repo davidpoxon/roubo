@@ -1,9 +1,9 @@
 import type { AgentLaunchFailure, AgentLaunchFailureAction } from "@roubo/shared";
 import type { AgentVersionProbeResult } from "./agent-version-probe.js";
 
-// Agent launch-failure detection and wording (issue #519, AP-FR-015, AP-NFR-003).
+// Agent launch-failure detection and wording (#1064, AP-FR-015, AP-NFR-003).
 //
-// Implements spike #504's AC2 classifier verbatim. A PTY has no separate stderr
+// Implements the launch-failure spike's AC2 classifier verbatim. A PTY has no separate stderr
 // fd, so "capture stderr" means: buffer the merged stream from byte zero, and
 // when the child exits inside the early window the buffer IS the error text.
 // Observed failures are under 300 bytes arriving within ~110ms, so the session's
@@ -16,7 +16,7 @@ import type { AgentVersionProbeResult } from "./agent-version-probe.js";
 // missing-binary exec arm (node-pty's spawn helper fails after the fork on
 // macOS, so an absent binary does not throw: the child exits 1 with no output).
 
-/** How long after spawn an exit still counts as a launch failure (spike #504). */
+/** How long after spawn an exit still counts as a launch failure (launch-failure spike). */
 export const EARLY_EXIT_WINDOW_MS = 5000;
 
 /** Cap on the captured agent output carried to the client. */
@@ -35,7 +35,7 @@ export interface PtyExitSignals {
 }
 
 /**
- * Classify a PTY exit against spike #504's counterexamples.
+ * Classify a PTY exit against the launch-failure spike's counterexamples.
  *
  * - `claude --version` exits 0 in 48ms: fast-clean-exit, never a failure.
  * - `sh -c 'sleep 6; exit 3'` exits nonzero at 6019ms: session-ended, outlived
@@ -56,7 +56,7 @@ export function classifyPtyExit(signals: PtyExitSignals): PtyExitClass {
   return signals.outputBytes > 0 ? "launch-failure" : "missing-binary";
 }
 
-/** The exit code a shell reports for a command it could not find (spike #504 S3). */
+/** The exit code a shell reports for a command it could not find (launch-failure spike S3). */
 const SHELL_COMMAND_NOT_FOUND = 127;
 
 // CSI, OSC and the two-character escapes an agent TUI emits before it dies.
@@ -121,7 +121,7 @@ export function missingBinaryFailure(
 }
 
 /**
- * A `pty.spawn` throw, which spike #504 traced to node-pty's own spawn helper
+ * A `pty.spawn` throw, which the launch-failure spike traced to node-pty's own spawn helper
  * being unusable. In that state every spawn fails, including known-good
  * binaries, so it is a Roubo install problem and is attributed to the host
  * rather than to the agent plugin.

@@ -147,7 +147,7 @@ describe("broadcast", () => {
   });
 });
 
-describe("broadcastComponentStatusChange (#397, CP-TC-074)", () => {
+describe("broadcastComponentStatusChange (#886, CP-TC-074)", () => {
   function parseEvents(res: Response): Array<Record<string, unknown>> {
     return vi
       .mocked(res.write)
@@ -237,7 +237,7 @@ describe("broadcastComponentStatusChange (#397, CP-TC-074)", () => {
     clearComponentStatusForBench("proj-1", 1);
     // Without the teardown clear this repeat `running` would be suppressed as a
     // consecutive duplicate; the clear makes the reused bench's first status
-    // observable again (#397).
+    // observable again (#886).
     broadcastComponentStatusChange("proj-1", 1, "db", "running");
 
     expect(parseEvents(res).map((e) => e.status)).toEqual(["running", "running"]);

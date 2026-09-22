@@ -46,7 +46,7 @@ const STRINGS = {
   enterGitUrl: "Enter the Git URL of a plugin repository.",
   enterLocalPath: "Enter the absolute path to a local plugin directory.",
   installedToast: (name: string) => `Installed ${name}.`,
-  // Marketplace-resolved missing plugin (CPHMTP-FR-008, issue #566).
+  // Marketplace-resolved missing plugin (CPHMTP-FR-008, #978).
   componentTitle: "Plugin needed for this component",
   componentDescriptionPrefix: "Component ",
   componentDescriptionBinds: " binds plugin ",
@@ -92,7 +92,7 @@ function errorMessage(err: unknown, fallback: string): string {
  * `resolution` switches the dialog from the project-integration flow (install a
  * plugin id from a roubo.yaml-suggested Git URL / local path) to the
  * marketplace-resolved component flow (install a bound component plugin from the
- * marketplace source that serves it, CPHMTP-FR-008, issue #566).
+ * marketplace source that serves it, CPHMTP-FR-008, #978).
  *
  * The two install paths stay DISTINCT rather than generalised into one, because
  * they are genuinely different operations: `pluginSource` is a raw Git URL or
@@ -392,7 +392,7 @@ function offeredSources(resolution: MissingPluginResolution): MissingPluginSourc
 }
 
 /**
- * The marketplace-resolved missing-plugin screen (CPHMTP-FR-008, issue #566).
+ * The marketplace-resolved missing-plugin screen (CPHMTP-FR-008, #978).
  *
  * One source renders one primary install action; two or more render one action per
  * source with NO primary among them, which is the whole point of the FR-005

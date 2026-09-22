@@ -317,7 +317,7 @@ function JigsTab() {
   // `data` is undefined until the query resolves, and an undefined list is "not
   // known yet", not "zero agents". Without this gate the tab would claim nothing
   // is configured and flag every bound jig as unavailable for the length of the
-  // fetch, both of which are false (#647).
+  // fetch, both of which are false (#1052).
   const { data: agentData, isPending: agentsPending } = useAgentPlugins();
   // Installed-and-configured, as the agent registry reports it: an agent is
   // selectable exactly when it resolves to a live, consented connection
@@ -643,7 +643,7 @@ function AppearanceTab() {
   );
 }
 
-// "marketplace" is the Browse view; "marketplaces" (issue #561) is the source
+// "marketplace" is the Browse view; "marketplaces" (#976) is the source
 // registry section. Near-identical ids, deliberately distinct sections.
 const TAB_LABELS: Record<string, string> = {
   "ai-agents": "AI Agents",

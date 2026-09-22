@@ -97,7 +97,7 @@ describe("copyResources", () => {
     await expect(lstat(path.join(electronRoot, "resources", "plugins"))).rejects.toThrow();
   });
 
-  it("removes a stale resources/seed/ left by an earlier build (SEED channel retired, #621)", async () => {
+  it("removes a stale resources/seed/ left by an earlier build (SEED channel retired, #993)", async () => {
     const repoRoot = path.join(tmpDir, "repo");
     const electronRoot = path.join(tmpDir, "electron");
     await makeRepoArtifacts(repoRoot);

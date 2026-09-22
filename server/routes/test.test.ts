@@ -6,7 +6,7 @@ import express from "express";
 import request from "supertest";
 import * as YAML from "yaml";
 import { discoverSpecs } from "../lib/testbench-spec-discovery.js";
-// AP-TC-026 (#681): the `tools:` block the fixture writer emits has to survive
+// AP-TC-026 (#1101): the `tools:` block the fixture writer emits has to survive
 // the same strict parse a real project's roubo.yaml goes through, so the
 // round-trip below re-validates it through the production parser rather than
 // through a hand-rolled expectation about YAML text.
@@ -93,13 +93,13 @@ vi.mock("../services/state.js", () => ({
   removeProject: vi.fn(),
   addBench: vi.fn(),
   getRouboDir: () => TEST_ROUBO_DIR,
-  // #686: the directory /test/__reset and /test/__register-fixture-project rm to
+  // #1102: the directory /test/__reset and /test/__register-fixture-project rm to
   // stop a previous run's bench workspaces being inherited. Mirrors the real
   // `<rouboDir>/workspaces/<projectId>` shape so the tests below can seed and
   // assert against a concrete path under the throwaway roubo dir.
   getProjectWorkspacesDir: (projectId: string) =>
     `${TEST_ROUBO_DIR}${TEST_SEP}workspaces${TEST_SEP}${projectId}`,
-  // #530: the seam /test/__seed-legacy-agent-settings writes through, plus the
+  // #1125: the seam /test/__seed-legacy-agent-settings writes through, plus the
   // reader the route echoes back so the response reports the resulting state
   // rather than the requested one.
   writeLegacyAgentSettings: vi.fn(),
@@ -118,7 +118,7 @@ vi.mock("../services/bench-manager.js", () => ({
   },
 }));
 
-// #568: the singleton the /test/__set-cut-list-disk-cache route toggles and
+// #590: the singleton the /test/__set-cut-list-disk-cache route toggles and
 // /test/__reset restores. Mocked so the unit suite asserts the route wiring
 // without touching the real DiskSnapshotStore.
 vi.mock("../services/cut-list-query-service.js", () => ({
@@ -128,7 +128,7 @@ vi.mock("../services/cut-list-query-service.js", () => ({
   },
 }));
 
-// #314 (CPHM-TC-051): the catalog-client seam the /test/__set-marketplace-reachable
+// #850 (CPHM-TC-051): the catalog-client seam the /test/__set-marketplace-reachable
 // route flips and /test/__reset restores. Mocked so the unit suite asserts the
 // route wiring without running the real client (ed25519 keygen + a cache write).
 // The fake echoes the resolved source so the route's surfaced `source` is testable.
@@ -136,7 +136,7 @@ vi.mock("../services/catalog-client.js", () => ({
   __setE2EMarketplaceReachable: vi.fn(async (reachable: boolean) =>
     reachable ? "network" : "cache",
   ),
-  // #575 (CPHMTP-TC-073): the seam the /test/__seed-source-catalog route writes
+  // #989 (CPHMTP-TC-073): the seam the /test/__seed-source-catalog route writes
   // through. Mocked so the unit suite asserts the route wiring without touching
   // the real per-source cache file; echoes a fake path the route surfaces.
   seedThirdPartyCacheForE2E: vi.fn(
@@ -144,7 +144,7 @@ vi.mock("../services/catalog-client.js", () => ({
   ),
 }));
 
-// #575 (CPHMTP-TC-073): the marketplace service members the seed-source-catalog
+// #989 (CPHMTP-TC-073): the marketplace service members the seed-source-catalog
 // route and /test/__reset call (drop a memoised source client, clear the whole
 // client cache). Mocked so the unit suite asserts the wiring without loading the
 // real fan-out (network clients, plugin-installer).
@@ -153,7 +153,7 @@ vi.mock("../services/marketplace.js", () => ({
   __test: { resetSourceClients: vi.fn() },
 }));
 
-// #575 (CPHMTP-TC-073): the sources-state in-memory reset /test/__reset calls so
+// #989 (CPHMTP-TC-073): the sources-state in-memory reset /test/__reset calls so
 // a registered source never survives a reset in memory. Mocked to the one member
 // the route touches.
 vi.mock("../services/marketplace-sources-state.js", () => ({
@@ -301,18 +301,18 @@ describe("POST /test/__reset", () => {
     expect(pluginManager.shutdown).toHaveBeenCalledTimes(1);
     expect(projectRegistry.__test.reset).toHaveBeenCalledTimes(1);
     expect(projectRegistry.initialize).toHaveBeenCalledTimes(1);
-    // TC-001 (#438): the bench-manager Map is re-hydrated from the wiped
+    // TC-001 (#478): the bench-manager Map is re-hydrated from the wiped
     // state.json so a previous spec's real-create bench cannot survive a reset.
     expect(benchManager.__test.reloadFromState).toHaveBeenCalledTimes(1);
-    // #568: the cut-list disk-cache bypass is restored to its env default so a
+    // #590: the cut-list disk-cache bypass is restored to its env default so a
     // prior spec's /test/__set-cut-list-disk-cache toggle cannot leak the warm
     // path into the next spec.
     expect(cutListQueryService.restoreBypassDefault).toHaveBeenCalledTimes(1);
-    // #314 (CPHM-TC-051): the marketplace catalog client is restored to its
+    // #850 (CPHM-TC-051): the marketplace catalog client is restored to its
     // reachable (network) default so a prior spec's offline toggle cannot leak an
     // "unreachable" state into the next spec.
     expect(catalogClient.__setE2EMarketplaceReachable).toHaveBeenCalledWith(true);
-    // #575 (CPHMTP-TC-073): the in-memory marketplace-sources snapshot and the
+    // #989 (CPHMTP-TC-073): the in-memory marketplace-sources snapshot and the
     // per-source third-party client cache are cleared so a source registered by
     // the declared-source journey cannot survive a reset in memory.
     expect(sourcesState.__test.reset).toHaveBeenCalledTimes(1);
@@ -328,14 +328,14 @@ describe("POST /test/__reset", () => {
       scenario: null,
       now: null,
     });
-    // WU-068 (#159): every bundled plugin id is force-enabled on reset so
+    // WU-068 (#251): every bundled plugin id is force-enabled on reset so
     // the project-settings specs can drive the overlay slots.
-    // TC-154 (#222): known fixture failure plugins (e.g. broken-plugin) are
+    // TC-154 (#261): known fixture failure plugins (e.g. broken-plugin) are
     // force-disabled so they don't auto-spawn and crash on every reset.
-    // AP-TC-018 (#681): the second-agent fixture is force-disabled too, so a
+    // AP-TC-018 (#1101): the second-agent fixture is force-disabled too, so a
     // spec that consented it cannot leave a second available agent behind.
-    // AP-TC-115 (#534) adds a third (gemini-cli) on the same terms, and
-    // APCC-TC-022 (#1306) a fourth (agent-choice-probe), and APCC-TC-038 (#870)
+    // AP-TC-115 (#1127) adds a third (gemini-cli) on the same terms, and
+    // APCC-TC-022 (#1306) a fourth (agent-choice-probe), and APCC-TC-038 (#1349)
     // a fifth (cursor-cli).
     const FAILURE_FIXTURE_IDS = ["broken-plugin", "errored-component-stub"];
     const OPT_IN_AGENT_FIXTURE_IDS = [
@@ -477,10 +477,10 @@ describe("POST /test/__reset", () => {
   // WU-066 (TC-171/TC-172): when the caller passes `bundledPluginsDisabled:
   // true` the reset writes every bundled plugin id as "disabled" instead of
   // force-enabling them, so the project-load Enable-plugin prompt fires for
-  // the next spec. TC-154 (#222): disableFailureFixturePlugins() also fires
+  // the next spec. TC-154 (#261): disableFailureFixturePlugins() also fires
   // regardless of the bundledPluginsDisabled flag, so the call count includes
   // those ids (broken-plugin, errored-component-stub) as well, and AP-TC-018
-  // (#681), AP-TC-115 (#534), APCC-TC-022 (#1306) and APCC-TC-038 (#870) add
+  // (#1101), AP-TC-115 (#1127), APCC-TC-022 (#1306) and APCC-TC-038 (#1349) add
   // the opt-in agent fixtures (codex-cli, gemini-cli, agent-choice-probe,
   // cursor-cli) to the same set.
   it("writes every bundled plugin id as disabled when bundledPluginsDisabled: true", async () => {
@@ -516,7 +516,7 @@ describe("POST /test/__reset", () => {
   });
 });
 
-// #530: plant (or remove) the retired built-in agent preferences block, the one
+// #1125: plant (or remove) the retired built-in agent preferences block, the one
 // signal that an install is an upgrade (AP-FR-021). The AP-TC-102 journey opens
 // on that precondition and nothing in the product writes the block any more, so
 // this route is the only way to reach it (and the only way to hand it back).
@@ -618,7 +618,7 @@ describe("POST /test/__seed-legacy-agent-settings", () => {
   });
 });
 
-// #568: toggle the cut-list disk-cache bypass so the warm-snapshot drift guard
+// #590: toggle the cut-list disk-cache bypass so the warm-snapshot drift guard
 // (CLI-TC-017) can reach the disk path the harness bypasses by default.
 describe("POST /test/__set-cut-list-disk-cache", () => {
   it("returns 404 when ROUBO_E2E is unset", async () => {
@@ -670,7 +670,7 @@ describe("POST /test/__set-cut-list-disk-cache", () => {
   });
 });
 
-// #314 (CPHM-TC-051): flip the marketplace catalog client between reachable
+// #850 (CPHM-TC-051): flip the marketplace catalog client between reachable
 // (network) and unreachable (degrade to cache/seed) so the offline-journey e2e
 // can walk offline -> install-paused -> reconnect without real network.
 describe("POST /test/__set-marketplace-reachable", () => {
@@ -731,7 +731,7 @@ describe("POST /test/__set-marketplace-reachable", () => {
   });
 });
 
-// #575 (CPHMTP-TC-073): seed a registered third-party source's per-source catalog
+// #989 (CPHMTP-TC-073): seed a registered third-party source's per-source catalog
 // cache so the declared-source-consent-install-journey drift guard makes a
 // registered ACME source serve `google-clasp` with no real network.
 describe("POST /test/__seed-source-catalog", () => {
@@ -804,7 +804,7 @@ describe("POST /test/__seed-source-catalog", () => {
   });
 });
 
-// #313 (CPHM-TC-041): drive a genuine offline first-run seed of the default
+// #859 (CPHM-TC-041): drive a genuine offline first-run seed of the default
 // plugins and report the installed set + idempotency marker, so the
 // fresh-launch-seed-journey drift guard can assert the integrated seed run
 // matches the authoritative case.
@@ -959,7 +959,7 @@ describe("POST /test/__register-fixture-project", () => {
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 
-  // CP-TC-028 (#626): an optional `componentPlugin` binds a `deploy` component
+  // CP-TC-028 (#662): an optional `componentPlugin` binds a `deploy` component
   // to the named component plugin in the generated roubo.yaml, alongside the
   // default `app` process component. The component-plugin e2e drift guard uses
   // this to register a project whose `deploy` component resolves to the
@@ -1005,7 +1005,7 @@ describe("POST /test/__register-fixture-project", () => {
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 
-  // CPHMTP-TC-073 (#575): `declaredMarketplaces` writes a `marketplaces:` block
+  // CPHMTP-TC-073 (#989): `declaredMarketplaces` writes a `marketplaces:` block
   // (URL-only entries) so the declared-source registration-offer flow has a
   // declared-but-unregistered source; `componentBinding` binds an arbitrary
   // named component to an arbitrary (possibly uninstalled) plugin id.
@@ -1056,7 +1056,7 @@ describe("POST /test/__register-fixture-project", () => {
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 
-  // AP-TC-026 (#681): `agentTools` writes a `tools:` block of `type: agent`
+  // AP-TC-026 (#1101): `agentTools` writes a `tools:` block of `type: agent`
   // entries, which is the only route by which a PROJECT-level preset reaches a
   // bench launch menu. The generated YAML has to survive the strict
   // RouboConfig parse, so the round-trip below re-parses it rather than only
@@ -1138,7 +1138,7 @@ describe("POST /test/__register-fixture-project", () => {
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 
-  // CLI-TC-062 (#573): an optional `portBase` lets a spec that registers two
+  // CLI-TC-062 (#643): an optional `portBase` lets a spec that registers two
   // fixture projects at once give each a non-overlapping port range so the
   // allocator does not reject the second one.
   it("writes a custom portBase into the fixture roubo.yaml", async () => {
@@ -1181,7 +1181,7 @@ describe("POST /test/__register-fixture-project", () => {
     expect(projectRegistry.registerProject).not.toHaveBeenCalled();
   });
 
-  // TC-032 (#708): an optional `enforceIssueDependencies` turns the host's hard
+  // TC-032 (#724): an optional `enforceIssueDependencies` turns the host's hard
   // start-gate ON at the project level by writing
   // `benches.enforceIssueDependencies: true` into the fixture roubo.yaml. The
   // start-gate e2e drives the blocked -> allowed journey against it.
@@ -1510,11 +1510,11 @@ describe("POST /test/__register-fixture-project", () => {
     });
   });
 
-  // TC-001 (#438): optional seedSpecs writes `.specifications/<slug>/test-cases.json`
+  // TC-001 (#478): optional seedSpecs writes `.specifications/<slug>/test-cases.json`
   // into the fixture repo so TestBench spec discovery + the create flow run
   // against real files; optional gitInit makes the repo a real git repository so
   // a spec-bound worktree can be provisioned without an origin remote.
-  describe("seedSpecs + gitInit options (TC-001, #438)", () => {
+  describe("seedSpecs + gitInit options (TC-001, #478)", () => {
     const PLAN = {
       $schema: "https://roubo.dev/schema/testbench/test-cases/v1.0.0.json",
       schemaVersion: "1.0.0",
@@ -1633,13 +1633,13 @@ describe("POST /test/__register-fixture-project", () => {
       expect(projectRegistry.registerProject).not.toHaveBeenCalled();
     });
 
-    // TSPF-TC-010 (#486): an optional per-spec `seedResults` synthesizes a
+    // TSPF-TC-010 (#940): an optional per-spec `seedResults` synthesizes a
     // hash-matching test-results.json from the seeded plan so a fixture spec
     // lands in a known verification classification for the partitioned-picker
     // journey. Assertions run discovery over the written repo (the same
     // aggregation the picker consumes), so they prove the sidecar is
     // hash-matching end to end, not just present.
-    describe("seedResults sidecar option (TSPF-TC-010, #486)", () => {
+    describe("seedResults sidecar option (TSPF-TC-010, #940)", () => {
       // A schema-valid v1.1.0 plan with two cases, so "partial" leaves a genuine
       // one-passed / one-not-passed mix.
       const RESULTS_PLAN = {
@@ -1798,7 +1798,7 @@ describe("POST /test/__register-fixture-project", () => {
   });
 });
 
-// #232: /test/__reset cleans up any fixture projects that were registered
+// #249: /test/__reset cleans up any fixture projects that were registered
 // via __register-fixture-project, so the next spec sees a fresh registry.
 describe("POST /test/__reset (fixture cleanup)", () => {
   it("removes integration override + persisted project + tmpdir for each fixture", async () => {
@@ -1873,7 +1873,7 @@ describe("POST /test/__reset (fixture cleanup)", () => {
   });
 });
 
-// #686: the bench workspaces the REAL provisioning path writes under
+// #1102: the bench workspaces the REAL provisioning path writes under
 // `<rouboDir>/workspaces/<projectId>/` (as opposed to the `seedBenches` tmpdirs
 // above). Nothing tracked them, so one survived every reset and was inherited by
 // the next `playwright test` invocation, where bench-manager's pre-flight had to
@@ -1881,7 +1881,7 @@ describe("POST /test/__reset (fixture cleanup)", () => {
 // directions are covered: __reset for the within-run case, and
 // __register-fixture-project for the cross-run case that no in-memory bookkeeping
 // can reach (the fixtureProjects Map is empty after a server restart).
-describe("bench workspace cleanup (#686)", () => {
+describe("bench workspace cleanup (#1102)", () => {
   const workspacesFor = (projectId: string): string =>
     path.join(TEST_ROUBO_DIR, "workspaces", projectId);
 
@@ -1988,7 +1988,7 @@ describe("GET /test/__connection-state-log", () => {
   });
 });
 
-// TC-154 (#222): read-only mirror of plugins-state.json so a spec can assert
+// TC-154 (#261): read-only mirror of plugins-state.json so a spec can assert
 // the NFR-024 invariant ("plugin remains in its previous disabled state on
 // spawn failure") without poking the filesystem from the test process.
 describe("GET /test/__plugin-enable-state", () => {
@@ -2017,7 +2017,7 @@ describe("GET /test/__plugin-enable-state", () => {
   });
 });
 
-describe("POST /test/__crash-plugin (TC-163, #240)", () => {
+describe("POST /test/__crash-plugin (TC-163, #272)", () => {
   it("returns 404 when ROUBO_E2E is unset", async () => {
     const res = await request(app).post("/test/__crash-plugin").send({ pluginId: "e2e-stub" });
     expect(res.status).toBe(404);
@@ -2060,14 +2060,14 @@ describe("POST /test/__crash-plugin (TC-163, #240)", () => {
   });
 });
 
-// TC-043 (#440): the two TestBench harness endpoints. As of #493 they resolve the
+// TC-043 (#487): the two TestBench harness endpoints. As of #494 they resolve the
 // focused spec directory from the bench's OWN WORKTREE (bench.workspacePath),
 // while the slug is still derived from the registered project repoPath + the
 // bench's focusedSpecPath (mirroring the live TestBench routes). The tests seed a
 // real tmp worktree with a `.specifications/<slug>/test-cases.json`, keep a
 // separate repoPath that anchors focusedSpecPath, and point getProject / getBench
 // at both. `specDir` is the worktree's spec dir, where all spec-file IO lands.
-describe("TestBench harness endpoints (#440)", () => {
+describe("TestBench harness endpoints (#487)", () => {
   const SLUG = "testbench";
   const PROJECT_ID = "tc-043-fixture";
   const BENCH_ID = 1;
@@ -2082,7 +2082,7 @@ describe("TestBench harness endpoints (#440)", () => {
     // dir under the repo (resolveFocusedSpec checks structure, not existence).
     fs.mkdirSync(path.join(repoPath, ".specifications", SLUG), { recursive: true });
     // The bench's worktree is where the live route (and now the harness) reads the
-    // plan and reads/writes the results sidecar (#493). Seed the plan there.
+    // plan and reads/writes the results sidecar (#494). Seed the plan there.
     workspacePath = fs.mkdtempSync(path.join(TEST_TMP_ROOT, "tb-wt-"));
     specDir = path.join(workspacePath, ".specifications", SLUG);
     fs.mkdirSync(specDir, { recursive: true });
@@ -2118,7 +2118,7 @@ describe("TestBench harness endpoints (#440)", () => {
       variant: "testbench",
       workspacePath,
       // focusedSpecPath anchors against repoPath (slug derivation), so it points
-      // at the repo's spec dir, not the worktree where IO lands (#493).
+      // at the repo's spec dir, not the worktree where IO lands (#494).
       focusedSpecPath: path.join(repoPath, ".specifications", SLUG, "test-cases.json"),
     } as never);
   }
@@ -2223,7 +2223,7 @@ describe("TestBench harness endpoints (#440)", () => {
       // "Invalid focusedSpecPath" branch of resolveBenchSpecDir (the
       // security-relevant path-traversal rejection). A non-blank workspacePath is
       // supplied so resolution reaches the slug barrier rather than the earlier
-      // blank-workspace 400 (#493).
+      // blank-workspace 400 (#494).
       vi.mocked(benchManager.getBench).mockReturnValue({
         id: BENCH_ID,
         projectId: PROJECT_ID,
@@ -2282,7 +2282,7 @@ describe("TestBench harness endpoints (#440)", () => {
     it("returns the parsed sidecar when one exists", async () => {
       seedRepo(VALID_PLAN);
       pointMocksAtRepo();
-      // v2.0.0 flattened shape (#493): caseResults + updatedAt at the top level,
+      // v2.0.0 flattened shape (#494): caseResults + updatedAt at the top level,
       // no per-bench `benches` map. The harness reads and returns the sidecar
       // verbatim, so this fixture documents the contract the e2e spec now asserts.
       const resultsFile = {
@@ -2353,7 +2353,7 @@ describe("TestBench harness endpoints (#440)", () => {
     });
   });
 
-  // #779 (SATCA-TC-058): the git-inspection tap. The e2e journey that consumes it
+  // #1178 (SATCA-TC-058): the git-inspection tap. The e2e journey that consumes it
   // can only ever assert `staged` and `untracked` as EMPTY (a retirement stages
   // nothing and creates nothing), so a parse bug that hardcoded either to `[]`
   // would leave "nothing has been committed" and "no new file left behind"
@@ -2489,12 +2489,12 @@ describe("TestBench harness endpoints (#440)", () => {
   });
 });
 
-// #567 (CLI-TC-001): the warm-restart drift guard reads the persisted cut-list
+// #595 (CLI-TC-001): the warm-restart drift guard reads the persisted cut-list
 // snapshot file through this route to assert the S003 on-disk invariants (mode
 // 0600, no credential/token fields). The state mock points getRouboDir() at the
 // throwaway TEST_ROUBO_DIR, so these tests write real snapshot files under
 // `<TEST_ROUBO_DIR>/issue-snapshots/<projectId>/` and read them back.
-describe("GET /test/__read-cut-list-cache-file (#567)", () => {
+describe("GET /test/__read-cut-list-cache-file (#595)", () => {
   const CACHE_PROJECT_ID = "e2e-cut-list-refresh";
   const snapshotsRoot = path.join(TEST_ROUBO_DIR, "issue-snapshots");
 
@@ -2593,7 +2593,7 @@ describe("GET /test/__read-cut-list-cache-file (#567)", () => {
   });
 });
 
-// #466: the rate-limiter skip predicate. This suite mocks express-rate-limit to
+// #925: the rate-limiter skip predicate. This suite mocks express-rate-limit to
 // a pass-through (see the top of the file), so it can't exercise the real skip
 // wiring; instead we assert the predicate directly. The predicate is the ONLY
 // thing gating the exemption, so covering its truth table protects both the e2e

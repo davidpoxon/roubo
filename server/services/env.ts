@@ -27,7 +27,7 @@ export function getLoginShell(): string {
  *
  * zsh reads `~/.zshrc` only for INTERACTIVE shells, and that is exactly where
  * the conventional nvm, fnm, and asdf snippets live, so a plain `-lc` login
- * shell cannot see them and `nvm use` fails with "command not found" (#628).
+ * shell cannot see them and `nvm use` fails with "command not found" (#996).
  * Adding `-i` for zsh makes those shell functions resolve.
  *
  * Other shells keep `-lc`. The `-i` flag is not a general fix: bash reads
@@ -185,7 +185,7 @@ function resolveDeclaredLocation(location: string): string | undefined {
  * Well-known install locations to probe for an agent CLI.
  *
  * `declared` is the `agentInstallLocations` list from the agent plugin's own
- * manifest (#712), and it is where per-agent candidates now live. The manifest
+ * manifest (#1115), and it is where per-agent candidates now live. The manifest
  * won that decision over the two alternatives: a host-side table keyed on more
  * base names would leave core accreting per-agent knowledge (the exact growth
  * `lint:agent-guard` / AP-NFR-006 exists to stop) and would never cover a
@@ -233,7 +233,7 @@ export function wellKnownPathsFor(command: string, declared?: readonly string[])
 }
 
 /**
- * True when `p` is a regular file the current process may execute (#651).
+ * True when `p` is a regular file the current process may execute (#1060).
  *
  * Bare existence is not enough: a directory, or a real-but-unchmodded file, at a
  * well-known install location would otherwise be handed to pty.spawn and surface
@@ -267,7 +267,7 @@ export class AgentCommandNotFoundError extends Error {
 }
 
 /**
- * Resolves an agent CLI command to something spawnable, in this order (#645):
+ * Resolves an agent CLI command to something spawnable, in this order (#1056):
  *
  * 1. A command containing a path separator is an explicit path: returned as-is.
  * 2. A command found as an executable file on `searchPath` is returned unchanged,
@@ -278,7 +278,7 @@ export class AgentCommandNotFoundError extends Error {
  *    so a session launched from an agent plugin finds the CLI on installs whose
  *    PATH the server process never inherits (notably per-user shims and GUI
  *    launches). The candidates come from the agent plugin's own manifest
- *    when it declares `agentInstallLocations` (#712), and otherwise from the
+ *    when it declares `agentInstallLocations` (#1115), and otherwise from the
  *    legacy basename table in `wellKnownPathsFor`.
  * 4. On a total miss, throws AgentCommandNotFoundError naming every location
  *    tried, rather than leaving an opaque ENOENT to surface from the PTY.

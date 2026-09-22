@@ -17,7 +17,7 @@ function RuleTypeBadge({ type }: { type: RuleType }) {
   );
 }
 
-/** Says a stored rule's tier is one the project's agent never writes (#862). */
+/** Says a stored rule's tier is one the project's agent never writes (#1345). */
 function NotAppliedMarker() {
   return (
     <span className="text-11 text-text-secondary font-sans whitespace-nowrap">not applied</span>
@@ -36,7 +36,7 @@ interface PermissionsRulesTableProps {
   selection?: SelectionState;
   highlightKeys?: Set<string>;
   /**
-   * The rule tiers the project's agent carries (#862). A rule whose tier is not
+   * The rule tiers the project's agent carries (#1345). A rule whose tier is not
    * on this list is still listed, so the user can see and remove it, but it is
    * marked as not applied and no picker offers that tier to a new rule. Defaults
    * to every tier, which is what an agent that declares nothing reports.

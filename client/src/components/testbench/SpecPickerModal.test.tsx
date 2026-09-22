@@ -12,13 +12,13 @@ import type {
 import type { ManualPathState } from "../../hooks/useTestbenchSpecs";
 
 // Lifecycle defaults to live (no record on disk); archived fixtures state only
-// the fields they need (#770).
+// the fields they need (#1162).
 function lifecycle(over: Partial<SpecLifecycleState> = {}): SpecLifecycleState {
   return { archived: false, reason: null, supersededBy: null, recordError: null, ...over };
 }
 
 // Build a verification payload with sensible defaults; each fixture states only
-// the fields it needs (#482/#483).
+// the fields it needs (#936/#937).
 function verification(
   over: Partial<Omit<SpecVerification, "statusCounts">> & {
     statusCounts?: Partial<SpecVerification["statusCounts"]>;
@@ -46,7 +46,7 @@ function verification(
 
 const mockUseTestbenchSpecs = vi.hoisted(() => vi.fn());
 const mockUseManualPathValidation = vi.hoisted(() => vi.fn());
-// #773: the lifecycle write is the only network call the picker makes itself
+// #1166: the lifecycle write is the only network call the picker makes itself
 // (the rest go through the mocked hooks above), so stub it at the api boundary
 // and keep the real useSpecLifecycleMutation, whose cache invalidation is part
 // of what these tests exercise.
@@ -108,7 +108,7 @@ const SPECS: DiscoveredSpec[] = [
   },
 ];
 
-// #770: one merely-archived spec and one recorded as superseded, added to the
+// #1162: one merely-archived spec and one recorded as superseded, added to the
 // live fixtures above for the archival suite.
 const ARCHIVED: DiscoveredSpec = {
   slug: "retired-flow",
@@ -291,7 +291,7 @@ describe("SpecPickerModal", () => {
     expect(screen.getByRole("button", { name: "Creating..." })).toBeInTheDocument();
   });
 
-  describe("partitioned picker (#483)", () => {
+  describe("partitioned picker (#937)", () => {
     it("lists only needs-attention specs in the main space, all-passed behind the collapsed disclosure", () => {
       renderModal();
       // Needs-attention specs are in the main space.
@@ -374,7 +374,7 @@ describe("SpecPickerModal", () => {
       expect(alpha).toBeInTheDocument();
       // De-emphasized via colour hierarchy: the slug drops to text-secondary
       // (never the text-primary a needs-attention slug uses). text-secondary
-      // holds the AA floor on the modal's bg-surface in both themes (#493).
+      // holds the AA floor on the modal's bg-surface in both themes (#943).
       expect(alpha).toHaveClass("text-text-secondary");
       expect(alpha.className).not.toMatch(/dark:/);
       expect(screen.getByText("testbench")).toHaveClass("text-text-primary");
@@ -411,7 +411,7 @@ describe("SpecPickerModal", () => {
     });
   });
 
-  describe("re-point mode (#423)", () => {
+  describe("re-point mode (#472)", () => {
     it("uses the re-point title, helper text, and confirm label", () => {
       renderModal({ mode: "repoint" });
       expect(screen.getByText("Change focused spec")).toBeInTheDocument();
@@ -434,7 +434,7 @@ describe("SpecPickerModal", () => {
       expect(onCreate).toHaveBeenCalledWith("/repo/.specifications/billing/test-cases.json");
     });
 
-    it("flags the currently focused spec row as Active (#444, TC-007 step 2)", () => {
+    it("flags the currently focused spec row as Active (#486, TC-007 step 2)", () => {
       renderModal({
         mode: "repoint",
         activePath: "/repo/.specifications/testbench/test-cases.json",
@@ -486,7 +486,7 @@ describe("SpecPickerModal", () => {
     });
   });
 
-  describe("all-passed empty state (#484)", () => {
+  describe("all-passed empty state (#939)", () => {
     // Every discovered spec is all-passed: the main space would otherwise be
     // blank, so the picker shows the explicit empty state.
     const ALL_PASSED_ONLY = SPECS.filter((s) => s.verification.classification === "all-passed");
@@ -649,10 +649,10 @@ describe("SpecPickerModal", () => {
       await userEvent.click(screen.getByRole("button", { name: /All passed/ }));
       const slug = screen.getByText("shipped-alpha");
       // The muted slug and path hold the AA text floor in BOTH themes through the
-      // text-secondary role, which semantic-dark.css switches per theme (#493).
+      // text-secondary role, which semantic-dark.css switches per theme (#943).
       // Dark-theme jsdom cannot execute the axe color-contrast
       // rule, so the real-rendering check lives in the Playwright spec
-      // e2e/e2e-flow/spec-picker-contrast.spec.ts (#493).
+      // e2e/e2e-flow/spec-picker-contrast.spec.ts (#943).
       expect(slug).toHaveClass("text-text-secondary");
       const path = screen.getByText("/repo/.specifications/shipped-alpha/test-cases.json");
       expect(path).toHaveClass("text-text-secondary");
@@ -660,7 +660,7 @@ describe("SpecPickerModal", () => {
     });
   });
 
-  describe("archived specs (#770, SATCA-FR-015/FR-016)", () => {
+  describe("archived specs (#1162, SATCA-FR-015/FR-016)", () => {
     beforeEach(() => {
       mockUseTestbenchSpecs.mockReturnValue(
         specsQuery({ data: { specs: SPECS_WITH_ARCHIVED, invalid: [] } }),
@@ -786,8 +786,8 @@ describe("SpecPickerModal", () => {
     });
   });
 
-  // #773, SATCA-FR-020/FR-021/FR-028, SATCA-TC-047/050.
-  describe("spec lifecycle actions (#773)", () => {
+  // #1166, SATCA-FR-020/FR-021/FR-028, SATCA-TC-047/050.
+  describe("spec lifecycle actions (#1166)", () => {
     beforeEach(() => {
       mockUseTestbenchSpecs.mockReturnValue(
         specsQuery({ data: { specs: SPECS_WITH_ARCHIVED, invalid: [] } }),

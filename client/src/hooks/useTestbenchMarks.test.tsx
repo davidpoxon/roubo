@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
-// #420 TC-019/TC-021/TC-022/TC-024: marking an observation and setting/clearing
-// a status override PUT to the #416 routes and reconcile with the authoritative
+// #471 TC-019/TC-021/TC-022/TC-024: marking an observation and setting/clearing
+// a status override PUT to the #459 routes and reconcile with the authoritative
 // CaseResult, applying an optimistic cache update (< 150ms perceived) and a later
 // invalidation so the source-of-truth refetch reconciles. A later mark never
 // clears an existing override (server-enforced precedence).
@@ -112,7 +112,7 @@ describe("useMarkObservation", () => {
     resolve({ observationMarks: {}, derivedStatus: "in_progress", notes: [] });
   });
 
-  it("#508: optimistically un-sets the mark and re-derives when result is null", async () => {
+  it("#510: optimistically un-sets the mark and re-derives when result is null", async () => {
     const queryClient = makeQueryClient();
     queryClient.setQueryData(
       testbenchPlanQueryKey(PROJECT, BENCH),

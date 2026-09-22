@@ -4,7 +4,7 @@ import { atomicWrite, getRouboDir } from "./state.js";
 
 /**
  * The notifier program core ships for the `spawned-notifier` notification
- * wiring (issue #698, AP-FR-013).
+ * wiring (#1113, AP-FR-013).
  *
  * An agent declaring `capabilities.notification.kind === "spawned-notifier"`
  * cannot POST to core itself: it spawns a configured program when its declared

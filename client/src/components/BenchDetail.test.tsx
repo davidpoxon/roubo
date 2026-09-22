@@ -37,7 +37,7 @@ vi.mock("./IssueAssignControl", () => ({
 vi.mock("../hooks/useBenchIssue", () => ({
   useBenchIssue: vi.fn(() => ({ data: undefined })),
 }));
-// Issue #566: stand in for the dialog so these tests assert the WIRING (does a
+// #978: stand in for the dialog so these tests assert the WIRING (does a
 // missing-plugin start error open it, with which resolution, and does resuming
 // retry the start), not the dialog's own rendering, which MissingPluginDialog.test
 // covers.
@@ -64,7 +64,7 @@ vi.mock("./MissingPluginDialog", () => ({
   ),
 }));
 
-// Issue #617 (AC3): the bench page's defensive consent fallback. We assert the
+// #991 (AC3): the bench page's defensive consent fallback. We assert the
 // WIRING (a consent-gate 400 opens the prompt, granting re-runs the start), not the
 // dialog's own rendering, which ConsentReviewDialog.test covers.
 vi.mock("./settings/plugins/ConsentReviewDialog", () => ({
@@ -283,7 +283,7 @@ describe("BenchDetail", () => {
     expect(screen.getByText(/clear bench/i)).toBeInTheDocument();
   });
 
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the modality explicit to AT.
   it("stamps aria-modal on the teardown dialog", async () => {
     renderBench();
@@ -682,7 +682,7 @@ describe("BenchDetail", () => {
     });
   });
 
-  describe("TestBench variant tab (#418, #419)", () => {
+  describe("TestBench variant tab (#467, #466)", () => {
     const testbenchBench = {
       ...baseBench,
       variant: "testbench",
@@ -714,7 +714,7 @@ describe("BenchDetail", () => {
       expect(screen.queryByRole("tab", { name: /testbench/i })).not.toBeInTheDocument();
     });
 
-    it("opens on the TestBench tab when it is the persisted active tab (#418)", () => {
+    it("opens on the TestBench tab when it is the persisted active tab (#467)", () => {
       localStorage.setItem(
         "roubo-bench-view-state",
         JSON.stringify({ "proj-1:1": { activeTab: "testbench" } }),
@@ -727,7 +727,7 @@ describe("BenchDetail", () => {
       expect(screen.getByTestId("testbench-panel")).toBeInTheDocument();
     });
 
-    it("ignores a persisted testbench tab for a non-testbench bench (#418)", () => {
+    it("ignores a persisted testbench tab for a non-testbench bench (#467)", () => {
       localStorage.setItem(
         "roubo-bench-view-state",
         JSON.stringify({ "proj-1:1": { activeTab: "testbench" } }),
@@ -1020,7 +1020,7 @@ describe("BenchDetail", () => {
     });
   });
 
-  describe("header collapse (#805)", () => {
+  describe("header collapse (#809)", () => {
     const benchWithMeta = {
       ...baseBench,
       baseBranch: "main",
@@ -1055,7 +1055,7 @@ describe("BenchDetail", () => {
       expect(screen.queryByText("provisioning failed")).not.toBeInTheDocument();
     });
 
-    it("keeps the terminal mounted (not torn down) when collapsed (#805)", async () => {
+    it("keeps the terminal mounted (not torn down) when collapsed (#809)", async () => {
       renderBench(benchWithMeta as never);
       // The Terminal panel uses shouldForceMount, so it is mounted while expanded.
       expect(screen.getByTestId("terminal-tabs")).toBeInTheDocument();
@@ -1130,10 +1130,10 @@ describe("BenchDetail", () => {
     });
   });
 
-  // Issue #566 (CPHMTP-FR-008 / CPHMTP-US-002): a component start blocked by an
+  // #978 (CPHMTP-FR-008 / CPHMTP-US-002): a component start blocked by an
   // uninstalled bound plugin becomes actionable, but ONLY when the server resolved
   // somewhere to install it from.
-  describe("missing-plugin start recovery (issue #566)", () => {
+  describe("missing-plugin start recovery (#978)", () => {
     const stoppedBench = {
       ...baseBench,
       components: {
@@ -1215,11 +1215,11 @@ describe("BenchDetail", () => {
     });
   });
 
-  // Issue #617 (AC3): defensive fallback for when the resumed start still hits the
+  // #991 (AC3): defensive fallback for when the resumed start still hits the
   // consent gate. The bench page must surface an actionable consent prompt rather
   // than stopping silently with the dialog closed, and granting must resume the
   // start it blocked.
-  describe("consent-gate start recovery (issue #617)", () => {
+  describe("consent-gate start recovery (#991)", () => {
     const stoppedBench = {
       ...baseBench,
       components: {

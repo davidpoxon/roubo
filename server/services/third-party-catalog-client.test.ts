@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { MarketplaceCatalogEntry, MarketplaceSource } from "@roubo/shared";
 
-// Third-party (unsigned) source catalog client tests (issue #555,
+// Third-party (unsigned) source catalog client tests (#959,
 // CPHMTP-NFR-001 / NFR-007 / FR-004). The client is exercised through dependency
 // injection: a fake fetch, a temp cache dir (either injected or derived from a
 // redirected getRouboDir), and a no-op log sink so the run is silent. It shares

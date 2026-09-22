@@ -72,14 +72,14 @@ const PLUGINS_WITH_INTEGRATION_FIELDS = new Set(["github-com", "ghe"]);
 // its consolidation work unit.
 const PLUGINS_WITHOUT_SOURCE_PICKER = new Set(["github-com", "ghe"]);
 
-// JSS-FR-010 (issue #435): Jira's three system status categories. The Configure
+// JSS-FR-010 (#454): Jira's three system status categories. The Configure
 // dialog's exclusion toggle offers these by default; any category already
 // present in the saved/default set is unioned in so a custom value stays
 // visible and removable. A plugin opts in by declaring
 // `defaultIntegrationConfig.excludedStatusCategories` in its manifest.
 const CANONICAL_STATUS_CATEGORIES = ["To Do", "In Progress", "Done"];
 
-// FR-013 (issue #558): the actionable "To-Do" category is what the cut list
+// FR-013 (#582): the actionable "To-Do" category is what the cut list
 // exists to surface, so it can never be excluded. Its row renders disabled and
 // it is stripped from any persisted exclusion set. Matched case-insensitively
 // against the discovered/canonical category names so a real instance's "To Do"
@@ -93,7 +93,7 @@ function isActionableCategory(category: string): boolean {
   );
 }
 
-// FR-014 (issue #558): plugins with no native In Progress status category
+// FR-014 (#582): plugins with no native In Progress status category
 // (the GitHub family) map only-to-do to their closest approximation: the cut
 // list already drops closed/done issues via its open-only fetch, and there is
 // no faithful board-independent "In Progress" category to exclude. The Configure
@@ -106,12 +106,12 @@ const STRINGS = {
   integrationFieldsHeading: "Repository & metadata",
   statusExclusionHeading: "Excluded status categories",
   statusExclusionHelp: "Issues in checked categories are hidden from the cut list.",
-  // FR-013 (issue #558): label on the non-excludable actionable To-Do row.
+  // FR-013 (#582): label on the non-excludable actionable To-Do row.
   statusActionableHint: "always shown",
-  // FR-014 (issue #558): mapping note for plugins with no native status category.
+  // FR-014 (#582): mapping note for plugins with no native status category.
   statusMappingNote:
     "This integration has no In Progress status category, only Open and Closed. The cut list already hides Closed items and shows Open ones; In Progress is not excluded by default.",
-  // CLI-FR-014 / FR-015 (issue #423): shown when live discovery reports that
+  // CLI-FR-014 / FR-015 (#900): shown when live discovery reports that
   // this instance does not expose native status categories, so the cut list
   // matches excluded statuses by name instead of by category.
   statusNameFallbackNote:
@@ -208,7 +208,7 @@ function seedInitialValues(
     // seeding one injects an invalid non-array value into the validateConfig
     // test snapshot, which the GitHub-family plugins reject ("sources must be
     // an array"). This check runs BEFORE the `advanced` passthrough below:
-    // a stale `advanced.sources` that survives into `effective` (issue #125)
+    // a stale `advanced.sources` that survives into `effective` (#231)
     // must not ride into the form values just because it appears in advanced.
     if (def.type === "array" || def.type === "object") continue;
     if (key in advanced) {
@@ -434,13 +434,13 @@ function ConfigureFlow(props: ConfigureFlowProps) {
   };
   const isMetaRepo = fields.layoutType === "meta-repo";
 
-  // JSS-FR-010 (issue #435): project-scoped status-category exclusion toggle. A
+  // JSS-FR-010 (#454): project-scoped status-category exclusion toggle. A
   // plugin opts in by declaring `defaultIntegrationConfig.excludedStatusCategories`.
   // Seed from the effective override if set, otherwise the manifest default, so
   // the checked state matches what the cut list actually excludes today.
   const manifestDefaultCategories = manifest?.defaultIntegrationConfig?.excludedStatusCategories;
   const showStatusExclusion = mode === "project" && manifestDefaultCategories !== undefined;
-  // FR-014 (issue #558): the GitHub family has no native status categories, so
+  // FR-014 (#582): the GitHub family has no native status categories, so
   // it shows the open/closed mapping note instead of a category toggle.
   const showStatusMappingNote =
     mode === "project" && !showStatusExclusion && GITHUB_FAMILY_PLUGIN_IDS.has(plugin.id);
@@ -449,7 +449,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     [effective.excludedStatusCategories, manifestDefaultCategories],
   );
   const [excludedCategories, setExcludedCategories] = useState<string[]>(seededCategories);
-  // Discover the connected instance's real status categories (issue #453) and
+  // Discover the connected instance's real status categories (#461) and
   // use them as the option base; fall back to the canonical set when discovery
   // is unsupported, failed, or empty. Either way the seeded values are unioned
   // in so a saved/default category stays visible and removable.
@@ -551,7 +551,7 @@ function ConfigureFlow(props: ConfigureFlowProps) {
     if (Object.keys(advanced).length > 0) update.advanced = advanced;
     // Only persist the exclusion set when the user actually changed it, so
     // merely verifying an untouched dialog doesn't convert the implicit
-    // manifest default into an explicit stored override (issue #435).
+    // manifest default into an explicit stored override (#454).
     if (showStatusExclusion && excludedCategoriesChanged) {
       // Never persist the actionable To-Do category as excluded (FR-013), even
       // if a stale saved set somehow carried it in.

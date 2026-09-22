@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isStatusExcluded } from "../status-exclusion.js";
 
-describe("isStatusExcluded (issue #399)", () => {
+describe("isStatusExcluded (#404)", () => {
   const EXCLUDED = ["Closed", "Done", "Resolved", "In review", "PR open"];
 
   it("never excludes when the exclusion list is empty or undefined", () => {

@@ -7,7 +7,7 @@ import {
   waitForPluginRecord,
 } from "../e2e-flow/_support/scenario.js";
 
-// IP-TC-163 (#240, IP-US-009, IP-FR-013/IP-FR-014/IP-FR-015, IP-NFR-018, IP-NFR-024): drive the
+// IP-TC-163 (#272, IP-US-009, IP-FR-013/IP-FR-014/IP-FR-015, IP-NFR-018, IP-NFR-024): drive the
 // stubbed plugin through 2 unexpected exits + auto-restart, force a 3rd
 // strike into `errored`, verify the cut-list still serves the last-good
 // snapshot, and observe the crash entries through the in-app log viewer.

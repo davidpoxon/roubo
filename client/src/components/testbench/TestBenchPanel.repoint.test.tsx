@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #423 TC-007/TC-011/TC-014 (FR-024, US-013): the TestBench header carries the
+// #472 TC-007/TC-011/TC-014 (FR-024, US-013): the TestBench header carries the
 // focused-spec identity and an explicit "Change focused spec" action that opens
 // the spec-picker in re-point mode. Confirming re-points via the mutation;
 // dismissing the picker changes nothing (explicit only). Staleness re-evaluation
@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
-// The spec picker this panel opens uses a react-query mutation (#773), so the
+// The spec picker this panel opens uses a react-query mutation (#1166), so the
 // panel must render inside a QueryClientProvider.
 import { renderWithProviders as render } from "../../test/renderWithProviders";
 import userEvent from "@testing-library/user-event";
@@ -30,7 +30,7 @@ vi.mock("../../hooks/useTestbenchPlan", () => ({
   useTestbenchPlan: (projectId: string, benchId: number) =>
     mockUseTestbenchPlan(projectId, benchId),
   useSetTestbenchFocus: () => mockUseSetTestbenchFocus(),
-  // #772: the panel's archived entries and the case detail pane both reach for
+  // #1167: the panel's archived entries and the case detail pane both reach for
   // the lifecycle mutation; neither is under test here, so stub it inert.
   useSetCaseLifecycle: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   caseLifecycleErrorMessage: () => null,
@@ -47,7 +47,7 @@ vi.mock("../../hooks/useTestbenchSpecs", async (importOriginal) => {
       mockUseManualPathValidation(projectId, path, enabled),
   };
 });
-// The panel now mounts the staleness/reconcile surface (#440 integration), which
+// The panel now mounts the staleness/reconcile surface (#487 integration), which
 // pulls in the reconcile mutation hooks; mock them so the panel renders without a
 // QueryClientProvider.
 vi.mock("../../hooks/useReconcile", () => ({
@@ -60,8 +60,8 @@ import TestBenchPanel from "./TestBenchPanel";
 
 const FOCUSED = "/repo/.specifications/checkout/test-cases.json";
 
-// Both specs are needs-attention so they stay in the picker's main space (#483);
-// the partition keys on verification.classification, added by discovery (#482).
+// Both specs are needs-attention so they stay in the picker's main space (#937);
+// the partition keys on verification.classification, added by discovery (#936).
 const needsAttentionVerification = (caseCount: number): DiscoveredSpec["verification"] => ({
   classification: "needs-attention",
   statusCounts: { not_started: caseCount, in_progress: 0, passed: 0, failed: 0, blocked: 0 },
@@ -73,7 +73,7 @@ const needsAttentionVerification = (caseCount: number): DiscoveredSpec["verifica
 });
 
 // Both specs are live, so neither is hidden behind the picker's archived reveal
-// (#770); lifecycle absence on disk is the live state.
+// (#1162); lifecycle absence on disk is the live state.
 const liveLifecycle = (): DiscoveredSpec["lifecycle"] => ({
   archived: false,
   reason: null,
@@ -133,7 +133,7 @@ function setPlan(data: Partial<TestbenchPlanResponse> & { plan: TestCasesPlan })
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // The panel now defaults to the Batches view on first visit (#359); this suite
+  // The panel now defaults to the Batches view on first visit (#842); this suite
   // exercises the Cases view (header + re-point), so seed the persisted per-bench
   // view to "cases".
   localStorage.clear();
@@ -171,7 +171,7 @@ describe("TestBenchPanel re-point header", () => {
     expect(screen.getByRole("button", { name: /Re-point TestBench/ })).toBeInTheDocument();
   });
 
-  it("flags the currently focused spec as Active in the re-point picker (#444, TC-007 step 2)", async () => {
+  it("flags the currently focused spec as Active in the re-point picker (#486, TC-007 step 2)", async () => {
     render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
     await userEvent.click(screen.getByRole("button", { name: /Change focused spec/ }));
     const badge = screen.getByText("Active");

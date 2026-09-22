@@ -15,14 +15,14 @@ import type {
 } from "@roubo/shared";
 
 /**
- * Boundary helper for the setup wizard (#609 transition).
+ * Boundary helper for the setup wizard (#652 transition).
  *
  * `RouboConfig.components` is typed `Record<string, ComponentConfig>`, where
  * `ComponentConfig` is the binding entry (`plugin` + opaque `config` +
  * `dependsOn`) widened with the optional legacy inline-descriptor shim
  * (`type` / `docker` / `command` / ...). The setup-wizard editors still create
  * and edit legacy-shaped component values: migrating them to edit plugin
- * bindings is the live-config migration in #614 (F1.13), out of scope for #609.
+ * bindings is the live-config migration in #664 (F1.13), out of scope for #652.
  * This helper coalesces the (possibly undefined) map for the editor boundary;
  * the legacy fields it reads ride on the same `ComponentConfig` shim.
  */

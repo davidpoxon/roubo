@@ -1,7 +1,7 @@
 import type { GateEmptyReason, GateState } from "../../lib/api";
 import GateStateIndicator from "./GateStateIndicator";
 
-// Gate-state panel (#702, VG-FR-012): for any gate, the operator sees its current
+// Gate-state panel (#726, VG-FR-012): for any gate, the operator sees its current
 // state (passed / failed / pending / stale) and, for a non-passed gate, the
 // unresolved gating cases and the slice unit(s) they trace to (the gate's
 // `covers`). Reuses the DESIGN.md status-dot vocabulary via GateStateIndicator;
@@ -13,7 +13,7 @@ import GateStateIndicator from "./GateStateIndicator";
 // write, so the status and unresolved sets here flip pending/failed/passed/stale
 // as cases are marked, with no local state of its own.
 //
-// Lifecycle exclusion (#777, SATCA-FR-008/FR-011): retiring the case that was
+// Lifecycle exclusion (#1176, SATCA-FR-008/FR-011): retiring the case that was
 // holding a gate pending releases the gate, and the released gate then looks
 // identical to one whose cases were all verified. The exclusion line is what tells
 // those two apart, so it renders on EVERY status, including `passed`, naming the
@@ -32,11 +32,11 @@ const EMPTY_REASON_COPY: Record<GateEmptyReason, string> = {
 export default function GateStatePanel({ gate }: { gate: GateState }) {
   const isPassed = gate.status === "passed";
   // A gate whose (narrowed) gating set is empty is a structural "nothing to gate
-  // on" state, distinct from passed: it must never read as a pass (issue #436).
+  // on" state, distinct from passed: it must never read as a pass (#912).
   const isNoGatingCases = gate.status === "no_gating_cases";
   const unresolved = gate.unresolvedCaseIds;
   const covering = gate.coveringUnitIds;
-  // Absent on a response from a server predating #777; read that as none.
+  // Absent on a response from a server predating #1176; read that as none.
   const lifecycleExcluded = gate.lifecycleExcludedCaseIds ?? [];
   const emptyReason = isNoGatingCases && gate.emptyReason ? gate.emptyReason : null;
 

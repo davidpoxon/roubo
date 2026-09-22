@@ -121,7 +121,7 @@ function setupMutations(opts?: {
     },
   ) => void;
   cancelMutate?: (token: string) => void;
-  // The marketplace-source install path (issue #566): takes { id, sourceId }
+  // The marketplace-source install path (#978): takes { id, sourceId }
   // rather than a Git URL / local path.
   marketplacePreviewMutate?: (
     vars: { id: string; sourceId?: string },
@@ -188,7 +188,7 @@ beforeEach(() => {
 });
 
 describe("MissingPluginDialog", () => {
-  // Issue #612 / #424: React Aria omits aria-modal and strips the prop, so the
+  // #985 / #902: React Aria omits aria-modal and strips the prop, so the
   // shared stampAriaModal ref is what makes the modality explicit to AT.
   it("stamps aria-modal on the dialog", () => {
     setupMutations();
@@ -358,10 +358,10 @@ describe("MissingPluginDialog", () => {
     });
   });
 
-  // Issue #566 (CPHMTP-FR-008 / CPHMTP-US-002): a bound component plugin the
+  // #978 (CPHMTP-FR-008 / CPHMTP-US-002): a bound component plugin the
   // marketplace can resolve gets an actionable error. This is a DIFFERENT install
   // path from the Git-URL prompt above: it names a marketplace sourceId.
-  describe("marketplace-resolved missing plugin (issue #566)", () => {
+  describe("marketplace-resolved missing plugin (#978)", () => {
     // CPHMTP-TC-077 S002-O01 (AC1): both actions are present for one source.
     it("offers install-from-<source> and view-in-marketplace for a single source", () => {
       setupMutations();

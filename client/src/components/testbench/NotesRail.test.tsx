@@ -105,7 +105,7 @@ describe("NotesRail (TC-032: blank rejected)", () => {
 });
 
 describe("NotesRail (TE-TC-081: keyboard focus after append)", () => {
-  it("returns focus to the cleared textarea after a keyboard submit, never dropping to body (#478)", async () => {
+  it("returns focus to the cleared textarea after a keyboard submit, never dropping to body (#931)", async () => {
     const user = userEvent.setup();
     const mutate = vi.fn();
     mockUseAppendNote.mockReturnValue(makeAppendMock({ mutate }));

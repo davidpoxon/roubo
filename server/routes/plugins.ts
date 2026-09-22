@@ -41,7 +41,7 @@ function installErrorStatus(code: InstallErrorCode): number {
   switch (code) {
     case "invalid-input":
     case "clone-failed":
-    case "download-failed": // release-asset fetch failure; mirrors clone-failed (#370)
+    case "download-failed": // release-asset fetch failure; mirrors clone-failed (#849)
     case "missing-manifest":
     case "invalid-manifest":
     case "incompatible-host":
@@ -51,14 +51,14 @@ function installErrorStatus(code: InstallErrorCode): number {
     case "unknown-token":
     case "update-target-missing":
       return 404;
-    // Marketplace channel-integrity codes (issue #622). They do not normally
+    // Marketplace channel-integrity codes (#690). They do not normally
     // arise on the raw install path (it threads no catalog digest), but the
     // switch must stay exhaustive over InstallErrorCode.
     case "revoked":
       return 410;
     // integrity-failed (tampered digest), unpack-failed (zip-slip / bad entry
-    // / over limit, #370), and missing-integrity (an unsigned entry with no
-    // usable per-artifact digest, #559) are all unprocessable-content: 422.
+    // / over limit, #849), and missing-integrity (an unsigned entry with no
+    // usable per-artifact digest, #961) are all unprocessable-content: 422.
     case "integrity-failed":
     case "unpack-failed":
     case "missing-integrity":
@@ -122,7 +122,7 @@ router.post("/install/:token/confirm", async (req, res) => {
   }
   try {
     const plugin = await pluginInstaller.commit(token);
-    // Record the consumer's consent for the just-installed plugin (issue #617,
+    // Record the consumer's consent for the just-installed plugin (#991,
     // CPHMTP-FR-008). The install flow's PermissionsScreen already displayed every
     // declared permission category and the user acknowledged them by confirming, so
     // the confirm IS the consent step: persist a ConsentRecord acknowledging the
@@ -207,7 +207,7 @@ router.post("/:id/restart", async (req, res) => {
   }
 });
 
-// Issue #756: one-click reinstall of a bundled plugin into the shared
+// #758: one-click reinstall of a bundled plugin into the shared
 // ~/.roubo/plugins/<id>/ location so OS-level docker isolation can engage.
 // Copies the bundled directory, supersedes the bundled in-memory entry, and
 // registers + starts the user copy. Returns the new (source: "user") record on
@@ -283,7 +283,7 @@ router.get("/:id/logs", async (req, res) => {
   }
 });
 
-// --- Permission consent (issue #615, CP-FR-011 / CP-FR-012 / CP-NFR-001) -----
+// --- Permission consent (#656, CP-FR-011 / CP-FR-012 / CP-NFR-001) -----
 //
 // v1's declare-then-enforce model: the consumer is shown every permission
 // category the plugin's manifest declares and must acknowledge them before the
@@ -534,7 +534,7 @@ router.put("/:id/integration/config", (req, res) => {
     nextIntegration.plugin = id;
     if (update.instance !== undefined) nextIntegration.instance = update.instance;
     if (update.advanced !== undefined) {
-      // Issue #125: strip any keys not in the manifest schema before writing,
+      // #231: strip any keys not in the manifest schema before writing,
       // so a save touching this plugin canonicalises stale leftovers like
       // `advanced.sources: ""` out of the on-disk YAML.
       const manifest = pluginManager.listInstalled().find((r) => r.id === id)?.manifest ?? null;

@@ -1,5 +1,5 @@
 // SpecLifecycleReader: the fail-open, path-safe, READ-ONLY face of a spec's
-// lifecycle record (#765, SATCA-FR-013/FR-017, SATCA-NFR-003).
+// lifecycle record (#1157, SATCA-FR-013/FR-017, SATCA-NFR-003).
 //
 // One job: given a project repoPath and a spec slug, answer "is this spec
 // archived?" by reading the `lifecycle` subtree of

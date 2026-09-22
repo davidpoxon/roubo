@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /// <reference types="node" />
-// #279 pattern: references node types for the `process.env` perf-harness gate;
+// #284 pattern: references node types for the `process.env` perf-harness gate;
 // the client tsconfig pins `types: ["vite/client"]`, so @types/node is not
 // otherwise in scope for this file.
 /**

@@ -159,7 +159,7 @@ describe("component-log-store", () => {
     expect(getComponentLogLines(P, B, C)).toEqual([]);
   });
 
-  it("clears every component's logs for a bench on teardown, scoped to that bench id (#397)", () => {
+  it("clears every component's logs for a bench on teardown, scoped to that bench id (#886)", () => {
     appendComponentLog(P, B, C, {
       source: "stdout",
       text: "db-line",

@@ -17,7 +17,7 @@ export interface BenchStatusEvent {
 
 /**
  * A single component's observable status transition (CP-FR-014 / CP-NFR-004,
- * #397). Distinct from the bench-scoped `bench-status` event: it names the
+ * #886). Distinct from the bench-scoped `bench-status` event: it names the
  * component and carries a per-component monotonic `ts`, so a client can render
  * an ordered, deduplicated per-component timeline across a crash-and-recovery
  * cycle (CP-TC-074). Emitted by broadcastComponentStatusChange, which suppresses
@@ -79,7 +79,7 @@ export function broadcastBenchStatus(bench: Bench): void {
 }
 
 /**
- * Broadcast a component's status transition (CP-FR-014 / CP-NFR-004, #397).
+ * Broadcast a component's status transition (CP-FR-014 / CP-NFR-004, #886).
  *
  * Two invariants CP-TC-074 asserts across a crash-and-recovery cycle:
  *   - Consecutive duplicates are suppressed: a repeated (component, status) pair
@@ -106,7 +106,7 @@ export function broadcastComponentStatusChange(
 }
 
 /**
- * Drop every per-component status record for a bench (#397). Called on bench
+ * Drop every per-component status record for a bench (#886). Called on bench
  * teardown alongside the other per-bench in-memory clears (clearAuditLog /
  * unregisterBrokerContextsForBench), so a bench id that is later reused does not
  * inherit the prior generation's last component status and wrongly suppress the

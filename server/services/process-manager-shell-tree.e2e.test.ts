@@ -11,7 +11,7 @@ import {
 } from "./process-manager.js";
 
 /**
- * Non-mocked companion to process-manager.test.ts (#836, AC5).
+ * Non-mocked companion to process-manager.test.ts (#1218, AC5).
  *
  * Wrapping a component command in a shell adds a process layer between Roubo
  * and the real server, so the question the `shell` option raises is whether
@@ -53,7 +53,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<bo
   return predicate();
 }
 
-describe.skipIf(!isPosix)("shell-wrapped process lifecycle (#836, AC5)", () => {
+describe.skipIf(!isPosix)("shell-wrapped process lifecycle (#1218, AC5)", () => {
   it("stopping a shell-wrapped component reaps the grandchild, leaving no orphan", async () => {
     const id = "shell-tree-test:1:web";
     // `; :` keeps the shell alive as a parent rather than letting it exec the
@@ -96,7 +96,7 @@ describe.skipIf(!isPosix)("shell-wrapped process lifecycle (#836, AC5)", () => {
       "two",
     ]);
     // The same string in argv mode would spawn `echo` with `&&` as a literal
-    // argument, which is exactly the inert behaviour #836 is about.
+    // argument, which is exactly the inert behaviour #1218 is about.
     expect(resolveSpawn(command)).toEqual({ file: "echo", args: ["one", "&&", "echo", "two"] });
   }, 30_000);
 });

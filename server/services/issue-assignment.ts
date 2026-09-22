@@ -114,7 +114,7 @@ async function finalizeAssignedBench(
 
 /**
  * Resolve the agent for a create-and-assign launch and open its session through
- * the plugin runtime (AP-FR-019, #521). Core no longer has a built-in agent to
+ * the plugin runtime (AP-FR-019, #1114). Core no longer has a built-in agent to
  * fall back on, so an unresolved or unavailable agent leaves the bench created
  * and assigned with no session rather than launching something else: the caller
  * reports `terminalSessionId` as absent and the user launches from the bench
@@ -500,7 +500,7 @@ export async function assignIssue(
 
   // Persist changes. `updateBench` replaces the whole record, so an omitted
   // `benchSetupComplete` is erased from state.json and hydrates back as `true`
-  // (#630), which would mark an unfinished or failed `benches.setup` complete.
+  // (#997), which would mark an unfinished or failed `benches.setup` complete.
   persistBenchIfLive({
     id: bench.id,
     projectId: bench.projectId,

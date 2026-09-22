@@ -8,7 +8,7 @@ import {
 } from "@roubo/shared";
 import { atomicWrite, ensureDirs, getRouboDir } from "./state.js";
 
-// Issue #615 / CP-FR-011, CP-FR-012, CP-NFR-001: persistent per-plugin consent
+// #656 / CP-FR-011, CP-FR-012, CP-NFR-001: persistent per-plugin consent
 // records. See:
 //   .specifications/component-plugins/prd.md (CP-FR-011, CP-FR-012, CP-NFR-001)
 //   .specifications/component-plugins/architecture.md ('Data model', endpoints)

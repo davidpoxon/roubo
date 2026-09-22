@@ -6,7 +6,7 @@ import { makeConfig } from "../test/fixtures.js";
 vi.mock("./config-parser.js");
 vi.mock("./state.js");
 vi.mock("./port-allocator.js");
-// Issue #399: the registry validates a project's component bindings against the
+// #884: the registry validates a project's component bindings against the
 // installed component-kind manifests. Mock the plugin-manager boundary so the
 // second pass runs against a controlled manifest set (and to keep the real,
 // heavy plugin-manager module out of these unit tests). The default set carries
@@ -51,7 +51,7 @@ const PROCESS_MANIFEST = { id: "process", kind: "component" } as unknown as Plug
 // `port`. The shared fixture's { command } config omits it, so this manifest
 // makes the second pass fail with a path-keyed configSchema error (rule 2). Used
 // by the tests that need the LOADED-plugin invalidation path, since config-load
-// is now lenient about a not-loaded plugin (issue #399).
+// is now lenient about a not-loaded plugin (#884).
 const PROCESS_REQUIRES_PORT_MANIFEST = {
   id: "process",
   kind: "component",
@@ -422,7 +422,7 @@ describe("unregisterProject", () => {
     }
   });
 
-  it("carries the persisted bench count and ids on the HAS_BENCHES refusal (#829)", () => {
+  it("carries the persisted bench count and ids on the HAS_BENCHES refusal (#1191)", () => {
     // The guard counts state.json, which can list records the Benches view never
     // renders. The client offers a forced unregister off the back of this
     // refusal, so it has to be able to name what forcing would drop.
@@ -546,7 +546,7 @@ describe("unregisterProject", () => {
   });
 });
 
-describe("unregisterProject with a live bench source (issue #830)", () => {
+describe("unregisterProject with a live bench source (#1204)", () => {
   // The Benches view renders benchManager.getBenches (the in-memory map), while the
   // guard read only state.json. Memory leads persisted state during the reservation
   // window and forever for a bench whose provisioning failed, so the guard could
@@ -804,14 +804,14 @@ describe("ProjectRegistryError", () => {
   });
 });
 
-// Issue #399 (CP-TC-005): the plugin-aware component-binding second pass.
+// #884 (CP-TC-005): the plugin-aware component-binding second pass.
 // makeConfig() binds components.backend to plugin { id: "process" } with config
 // { command: "..." }.
-describe("component-binding validation (issue #399)", () => {
+describe("component-binding validation (#884)", () => {
   it("registerProject leaves a project valid when its bound component plugin is not loaded", () => {
-    // Config-load is lenient (issue #399): no installed component manifests, so
+    // Config-load is lenient (#884): no installed component manifests, so
     // the "process" binding is not loaded, but that does NOT brick the project.
-    // The plugin-present check is enforced at bench-start (#612), not here.
+    // The plugin-present check is enforced at bench-start (#663), not here.
     pluginManagerMocks.getComponentManifests.mockReturnValue([]);
     mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
     mockedCheckPortConflicts.mockReturnValue([]);
@@ -897,7 +897,7 @@ describe("component-binding validation (issue #399)", () => {
     expect(registryModule.getProject("p1")?.configValid).toBe(true);
 
     // The bound plugin is uninstalled before the reload. Config-load is lenient
-    // (issue #399): a not-loaded plugin does not invalidate the project.
+    // (#884): a not-loaded plugin does not invalidate the project.
     pluginManagerMocks.getComponentManifests.mockReturnValue([]);
     const reloaded = registryModule.reloadConfig("p1");
 

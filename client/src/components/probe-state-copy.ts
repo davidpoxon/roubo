@@ -1,7 +1,7 @@
 import type { AgentChoiceProbeFailureCause } from "@roubo/shared";
 
 // The words a probe-bound configuration field shows while its choice probe is
-// loading or after it failed (#853, APCC-FR-003). One agent-agnostic map keyed
+// loading or after it failed (#1274, APCC-FR-003). One agent-agnostic map keyed
 // by the host's failure cause, so every agent plugin's probed field reads the
 // same way and none of this copy names a specific AI coding agent (APCC-FR-006).
 // Lives outside `ConfigSchemaForm.tsx` for the same fast-refresh reason as

@@ -1,7 +1,7 @@
 "use strict";
 
 // Spawnable integration-kind fixture mounted under the bundled plugin id
-// "github-com" for the CP-TC-029 drift guard (issue #630). It rides the same
+// "github-com" for the CP-TC-029 drift guard (#660). It rides the same
 // vscode-jsonrpc/stdio transport the host spawns every plugin over, so the e2e
 // test can prove the integration spawn path still works after the component
 // kind / HOST_API_VERSION 1.3.0 bump.

@@ -11,7 +11,7 @@ export const CODE_SCANNING_ISSUE_TYPE = "security-code-scanning";
 export const SECRET_SCANNING_ISSUE_TYPE = "security-secret-scanning";
 export const DEPENDABOT_ISSUE_TYPE = "security-dependabot";
 
-/** Canonical alert lifecycle vocabulary the host uses for auto-clear (#289). */
+/** Canonical alert lifecycle vocabulary the host uses for auto-clear (#299). */
 export type NormalizedAlertState = "open" | "fixed" | "dismissed";
 
 /**

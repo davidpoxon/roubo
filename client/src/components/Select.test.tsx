@@ -17,7 +17,7 @@ describe("Select", () => {
     expect(screen.getByText("Choose…")).toBeInTheDocument();
   });
 
-  it("renders the placeholder in the text-secondary role for both themes (#887)", () => {
+  it("renders the placeholder in the text-secondary role for both themes (#1276)", () => {
     render(<Select items={items} value="" onChange={vi.fn()} placeholder="Choose…" />);
     const placeholder = screen.getByText("Choose…").closest("[data-placeholder]");
     expect(placeholder).not.toBeNull();

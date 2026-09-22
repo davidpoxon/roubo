@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #419 FR-006/NFR-004: the progress bar renders passed/failed/in-progress
+// #466 FR-006/NFR-004: the progress bar renders passed/failed/in-progress
 // segments with a mono count, an accessible text summary (never colour alone),
 // and a dimmed empty state.
 

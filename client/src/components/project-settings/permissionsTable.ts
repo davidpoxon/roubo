@@ -28,7 +28,7 @@ export const RULE_TYPE_ITEMS = [
 export const ALL_RULE_TYPES: RuleType[] = ["allow", "deny", "ask"];
 
 /**
- * The tier vocabulary a picker may offer (#862, AP-FR-016). `honoured` is what
+ * The tier vocabulary a picker may offer (#1345, AP-FR-016). `honoured` is what
  * the project's agent declared it carries; `keep` is a tier the row being
  * edited already has, which stays on the list even when the agent does not
  * carry it, so editing such a rule's pattern never silently reassigns its tier.

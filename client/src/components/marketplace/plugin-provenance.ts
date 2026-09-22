@@ -2,7 +2,7 @@ import { FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import type { MarketplaceListing, PluginRecord } from "@roubo/shared";
 
 // The trust derivation behind the shared ProvenanceBadge (CPHMTP-FR-006 /
-// CPHMTP-NFR-001, issue #563).
+// CPHMTP-NFR-001, #977).
 //
 // CPHMTP-NFR-001 requires "0 UI states where a third-party plugin renders
 // first-party verified styling". That is only checkable if there is exactly ONE
@@ -78,7 +78,7 @@ export function trustTreatmentOf(provenance: PluginProvenance): TrustTreatment {
  * signature), not by the per-entry `curated` flag. So an uncurated first-party
  * entry (`curated: false`) is still signed-by-Roubo here, while `trustTreatmentOf`
  * still grades it unverified. Callers deciding curation must use `trustTreatmentOf`;
- * callers deciding the catalog signature use this (issue #603).
+ * callers deciding the catalog signature use this (#979).
  */
 export function isFirstPartySource(provenance: PluginProvenance): boolean {
   return provenance.sourceId === FIRST_PARTY_SOURCE_ID;
@@ -111,7 +111,7 @@ export function listingProvenance(
     curated: listing.verified,
     // A catalog entry is a thing you could install, not a thing installed from a
     // now-removed source, so it is never orphaned. Orphaning is a property of the
-    // install record only (issue #560).
+    // install record only (#968).
     orphaned: false,
   };
 }
@@ -124,7 +124,7 @@ export function listingProvenance(
  * This was once a display-layer heuristic that read absence as first-party for the
  * seed set and unverified for everything else, because a seeded default and a raw
  * git / local install both carried no ledger row and only the id told them apart
- * (CPHMTP-NFR-001, issue #563). Keying trust off a self-asserted id is not a trust
+ * (CPHMTP-NFR-001, #977). Keying trust off a self-asserted id is not a trust
  * root, so every install path now stamps a ledger row (a first-party seed, and the
  * raw git / local paths, #981). With the durable fix in
  * place, absence no longer needs interpreting: a stamped row is authoritative, and

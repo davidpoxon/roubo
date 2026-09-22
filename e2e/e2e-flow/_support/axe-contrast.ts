@@ -2,8 +2,8 @@ import { createRequire } from "node:module";
 import { expect, type Locator, type Page } from "@playwright/test";
 
 // Shared real-rendering WCAG AA color-contrast helpers, extracted from
-// spec-picker-contrast.spec.ts (#493) when a second surface needed the same
-// technique (#703). jsdom has no layout/paint engine, so axe silently reports
+// spec-picker-contrast.spec.ts (#943) when a second surface needed the same
+// technique (#1111). jsdom has no layout/paint engine, so axe silently reports
 // zero color-contrast violations there even when text fails AA; the only way to
 // decide the rule is to run it in a real browser against the BUILT app. The
 // subtleties encoded below (frozen transitions, the two-frame settle after a

@@ -27,7 +27,7 @@ export interface LogLine {
  * A structured, user-visible notice that the docker isolation tier could not
  * engage for the plugin's directory. Surfaced on PluginRecord so callers of
  * listInstalled() can present an actionable remediation rather than relying
- * only on the log line (#743).
+ * only on the log line (#746).
  */
 export interface IsolationNotice {
   kind: "docker-mount-unshared";
@@ -47,7 +47,7 @@ export interface PluginRecord {
   restartHistory: RestartEvent[];
   pid: number | null;
   isolationNotices?: IsolationNotice[];
-  // Marketplace install provenance (CPHMTP-FR-005 / CPHMTP-FR-006, issue #558).
+  // Marketplace install provenance (CPHMTP-FR-005 / CPHMTP-FR-006, #966).
   // Additive and OPTIONAL: `source` above says only how the plugin reached the
   // machine (bundled with the app vs installed by the user), never WHICH
   // marketplace source served it, and every record predating the provenance
@@ -58,7 +58,7 @@ export interface PluginRecord {
   // record one (#981), so the client grades trust by
   // the ledger row rather than the plugin's self-asserted id. A record with no
   // provenance fields (in practice one predating the ledger) therefore reads as
-  // unverified, never first-party (CPHMTP-NFR-001, issue #563).
+  // unverified, never first-party (CPHMTP-NFR-001, #977).
   //
   // Stamped when a record is rebuilt from disk, read from the provenance ledger
   // (~/.roubo/plugins-provenance.json) that the install commit wrote: the record
@@ -70,13 +70,13 @@ export interface PluginRecord {
   // catalog URL, retained so the record still reads standalone once the source row
   // is removed; `unverified` is true when the chosen source is unsigned. Rendering
   // the persistent unverified badge from these fields across every plugin surface
-  // is issue #563.
+  // is #977.
   //
   // `orphaned` is true once the source this plugin was installed from has been
-  // removed from the registry (issue #560). It is stamped onto the ledger at
+  // removed from the registry (#968). It is stamped onto the ledger at
   // removal time rather than recomputed here by joining against the source
   // registry, so the plugin keeps reading as orphaned across restarts. Absent
-  // means not orphaned. The removal UX that consumes it is issue #564.
+  // means not orphaned. The removal UX that consumes it is #980.
   sourceId?: string;
   sourceUrl?: string;
   unverified?: boolean;

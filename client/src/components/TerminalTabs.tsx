@@ -43,7 +43,7 @@ import { useToast } from "../hooks/useToast";
 
 /**
  * The agent a session tab belongs to. `agentPluginId` is the only carrier:
- * since #521 every agent session is opened by an agent plugin, and a session
+ * since #1114 every agent session is opened by an agent plugin, and a session
  * without one is a plain shell terminal.
  */
 function sessionAgentId(session: TerminalSession): string | undefined {
@@ -61,7 +61,7 @@ function SourceBadge({ source }: { source: JigMeta["source"] }) {
 
 /**
  * The jig picker for a live session (inject into the running agent). The launch
- * path no longer routes through this menu: since #517 a launch resolves its jig
+ * path no longer routes through this menu: since #1063 a launch resolves its jig
  * from auto-inject and the chosen preset, and the split-button's chevron opens
  * `AgentLaunchMenu` instead.
  */
@@ -144,7 +144,7 @@ export default function TerminalTabs({
   // the terminal pane itself. Without this the only surface would be a toast,
   // which is exactly the silent-failure shape AP-NFR-003 rules out.
   const [blockedLaunch, setBlockedLaunch] = useState<AgentLaunchFailure | null>(null);
-  // The per-launch override dialog (issue #518). The counter is the remount key:
+  // The per-launch override dialog (#1072). The counter is the remount key:
   // each open mounts a fresh form, so a cancelled draft is unrecoverable rather
   // than merely hidden, which is what makes "nothing is persisted" structural
   // rather than a cleanup step that can be forgotten (AP-TC-034).
@@ -406,7 +406,7 @@ export default function TerminalTabs({
   /**
    * The same question for the overrides dialog, whose launch carries the
    * bench's own jig baseline rather than the selected preset's jig (issue
-   * #676). Reusing `targetFor` there would point the dialog's Agent select at
+   * #1086). Reusing `targetFor` there would point the dialog's Agent select at
    * an agent bound by a jig the session never runs under.
    */
   const overridesTargetFor = useCallback(
@@ -470,12 +470,12 @@ export default function TerminalTabs({
         agentPluginId: selection.agentPluginId,
         agentName: selection.agentName,
         // An ad-hoc launch carries the bench's own jig baseline. The dialog's
-        // preset selection contributes params only (issue #668): adopting the
+        // preset selection contributes params only (#1085): adopting the
         // selected preset's own jig would change how the layers combine, not
         // which preset feeds layer three, so it is deliberately left alone.
         // The dialog resolves its own targets through this same baseline
         // (`overridesTargetFor`), so its Agent select names the agent this
-        // launch really starts (issue #676).
+        // launch really starts (#1086).
         jigId: resolveLaunchJigId(),
         ...(selection.presetOverrides !== undefined && {
           presetOverrides: selection.presetOverrides,
@@ -579,7 +579,7 @@ export default function TerminalTabs({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Per-launch overrides (issue #518). Keyed so each open is a fresh form. */}
+      {/* Per-launch overrides (#1072). Keyed so each open is a fresh form. */}
       {overridesOpen && (
         <LaunchOverridesDialog
           key={overridesKey}
@@ -668,7 +668,7 @@ export default function TerminalTabs({
           </TooltipTrigger>
 
           {/* Agent split-button: primary segment launches the default agent,
-              chevron opens the grouped launch menu (AP-FR-007, issue #517). */}
+              chevron opens the grouped launch menu (AP-FR-007, #1063). */}
           <div className="flex items-center">
             <TooltipTrigger delay={500}>
               <Button

@@ -15,9 +15,9 @@ import { AlertTriangle, Check, PlusCircle, ShieldAlert } from "lucide-react";
 import { stampAriaModal } from "../../lib/aria-modal";
 
 // Registration consent for a third-party marketplace source (CPHMTP-FR-002 /
-// CPHMTP-NFR-003 / CPHMTP-NFR-008, issue #562). This dialog is the ONLY path to
+// CPHMTP-NFR-003 / CPHMTP-NFR-008, #975). This dialog is the ONLY path to
 // registering a source, and it is shared by the Marketplaces settings section
-// (issue #561) and the project-open offer (issue #565), so it stays
+// (#976) and the project-open offer (#982), so it stays
 // presentational: the container owns the mutation and hands it `onConfirm`.
 //
 // Consent-before-fetch (CPHMTP-NFR-003) falls out of that split. Nothing here
@@ -30,7 +30,7 @@ import { stampAriaModal } from "../../lib/aria-modal";
 //   - the Register control uses aria-disabled plus a guarded no-op onPress, not
 //     native disabled, so it stays keyboard reachable while gated (CPHMTP-NFR-008);
 //   - aria-modal is stamped through a ref, because React Aria deliberately omits
-//     it and <Dialog> strips the prop via filterDOMProps (issue #424).
+//     it and <Dialog> strips the prop via filterDOMProps (#902).
 
 const STRINGS = {
   title: "Register a third-party marketplace",

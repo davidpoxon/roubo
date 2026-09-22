@@ -6,7 +6,7 @@ import { describeEffectiveParams, NO_PARAMS_LABEL } from "./settings/agents/agen
 import { agentLaunchBlocker, type LaunchTarget } from "./settings/agents/agent-launchability";
 
 // The bench Terminal tab's grouped launch menu (AP-FR-007, AP-FR-009, issue
-// #517).
+// #1063).
 //
 // Three sections in a fixed order (AP-TC-043): the presets Roubo ships, the
 // named agent tools an app or a project declares, and one entry per installed
@@ -41,7 +41,7 @@ const ITEM_CLASS = (isFocused: boolean, isDisabled: boolean) =>
  * preset's own binding, so a row redirected by a jig binding says which agent
  * it will really start.
  *
- * Both halves render when both exist (AP-TC-027 S001-O01, issue #690). The slot
+ * Both halves render when both exist (AP-TC-027 S001-O01, #1104). The slot
  * used to hold one or the other, which meant a parameterised preset never named
  * its agent, and "says which agent it will really start" held for the
  * parameterless rows only.
@@ -57,7 +57,7 @@ function PresetItem({ preset, target }: { preset: ResolvedAgentPreset; target: L
   // The row reads the same resolved target the split-button does, so a preset
   // can never render disabled here while the button beside it launches it.
   const blocked = target.blocked;
-  // Advisory, never a blocker (issue #665): a built-in that dropped a rejected
+  // Advisory, never a blocker (#1080): a built-in that dropped a rejected
   // param still launches, it just will not do what its name promises. The
   // notice therefore rides in the summary slot and leaves `isDisabled` alone,
   // where the amber blocker chip disables the row.
@@ -161,7 +161,7 @@ export default function AgentLaunchMenu({
   resolveTarget: (preset: ResolvedAgentPreset) => LaunchTarget;
   onLaunchPreset: (preset: ResolvedAgentPreset) => void;
   onLaunchAgent: (agent: ProjectAgentState) => void;
-  /** Open the per-launch override dialog (AP-FR-010, issue #518). */
+  /** Open the per-launch override dialog (AP-FR-010, #1072). */
   onLaunchWithOverrides: () => void;
 }) {
   const builtins = presets.filter((preset) => preset.source === "builtin");
@@ -220,7 +220,7 @@ export default function AgentLaunchMenu({
         {/*
          * Structurally required by AP-TC-043 O02: the action sits below the
          * groups, separated from them, because it adjusts a launch rather than
-         * naming one. It opens the per-launch override dialog (issue #518).
+         * naming one. It opens the per-launch override dialog (#1072).
          */}
         <MenuItem
           id={OVERRIDES_ACTION_ID}

@@ -15,7 +15,7 @@ import * as dockerService from "./docker.js";
 import * as ledger from "./resource-ownership-ledger.js";
 
 /**
- * The generic host-side LifecycleEngine (T1.5, issue #606).
+ * The generic host-side LifecycleEngine (T1.5, #650).
  *
  * A component plugin's `translate(config)` emits a typed ProvisionDescriptor;
  * this engine is the declarative execution path that validates the descriptor's
@@ -24,7 +24,7 @@ import * as ledger from "./resource-ownership-ledger.js";
  * NFR-002) and introduces the `completed` terminal state for a successful
  * one-shot (FR-014 / FR-022).
  *
- * Per spike #600 (SPK-3, architecture.md "Open questions"), the engine
+ * Per spike #633 (SPK-3, architecture.md "Open questions"), the engine
  * sequences the fine-grained host operations (composeUp -> waitForHealthy ->
  * composeRunInit -> migration; startProcess / runProcess) coarsely IN-HOST to
  * stay within the NFR-002 budget. It does not call the broker over RPC to
@@ -85,7 +85,7 @@ export interface LifecycleContext {
   /** Push sink for ComponentStatus updates (never polled, NFR-002). */
   reportStatus: (status: ComponentStatus) => void;
   /**
-   * Push sink for structured log lines (#397). The engine forwards the
+   * Push sink for structured log lines (#886). The engine forwards the
    * compose / init / migration output it drives here so a plugin-backed docker
    * component surfaces logs at GET .../components/:name/logs, even though a
    * declarative database plugin never calls host.component.reportLog itself (the
@@ -112,7 +112,7 @@ const MIGRATION_TIMEOUT_MS = 300_000;
 const INIT_TIMEOUT_MS = 120_000;
 /**
  * Ceiling on how much captured output a `url.fromOutput` pattern is run over
- * (#834). The pattern comes from a plugin, so it is untrusted with respect to
+ * (#1207). The pattern comes from a plugin, so it is untrusted with respect to
  * backtracking cost; matching only the tail bounds the work a pathological
  * pattern can do, and a URL a command prints is at the end of its output in
  * practice.
@@ -157,11 +157,11 @@ export async function runDescriptor(
   }
 }
 
-// --- shell-aware spawn helper (#836) ----------------------------------------
+// --- shell-aware spawn helper (#1218) ----------------------------------------
 
 /**
  * Runs a spawn and, when it fails in ARGV mode on a command that carries shell
- * syntax, rethrows with the metacharacter named and `shell` suggested (#836).
+ * syntax, rethrows with the metacharacter named and `shell` suggested (#1218).
  *
  * Without this, `command: nvm use && npm run dev` dies with `spawn nvm ENOENT`,
  * which names the wrong thing: the binary is missing because there is no shell
@@ -222,7 +222,7 @@ async function runDocker(
         : descriptor.connection?.template;
     // No command runs on this branch (the user owns the container), so only a
     // `url.template` can resolve here; a `url.fromOutput` has no output to match
-    // against and simply reports nothing (#834).
+    // against and simply reports nothing (#1207).
     const url = resolveDescriptorUrl(descriptor.url, ctx.componentName, port);
     completePhases(phases);
     // Surface the externally-assigned container id on the running status so the
@@ -237,7 +237,7 @@ async function runDocker(
   }
 
   // Accumulate the compose / init output a `url.fromOutput` pattern is matched
-  // against (#834). Both commands have completed and handed back their captured
+  // against (#1207). Both commands have completed and handed back their captured
   // stdout+stderr by the time the terminal `running` push is built.
   const capturedOutput: string[] = [];
 
@@ -249,7 +249,7 @@ async function runDocker(
     portOverrides,
     cwd: ctx.workspacePath,
   });
-  // Forward compose output into the component log store (AC1, #397) before the
+  // Forward compose output into the component log store (AC1, #886) before the
   // success gate, so a failed compose surfaces its diagnostic output too.
   forwardOutput(ctx, up.stdout, up.stderr);
   capturedOutput.push(up.stdout ?? "", up.stderr ?? "");
@@ -288,7 +288,7 @@ async function runDocker(
     // `args` are extra arguments appended to the migration command. In argv
     // mode they extend the parsed argv; in shell mode there is no argv to
     // extend (the whole command is one `-c` script), so they extend the command
-    // line the shell interprets instead (#836).
+    // line the shell interprets instead (#1218).
     const extraArgs = descriptor.migration.args ?? [];
     const shell = descriptor.migration.shell;
     const useShell = shell !== undefined && shell !== false;
@@ -316,7 +316,7 @@ async function runDocker(
     );
     // runProcess buffered the migration output under `migrationId`, which the
     // logs route never reads (it keys on the component id). Forward it into the
-    // component log store so migration output surfaces too (AC1, #397). Only read
+    // component log store so migration output surfaces too (AC1, #886). Only read
     // the buffered lines back when a log sink is wired: forwardLines is a no-op
     // without ctx.reportLog, so fetching them otherwise is discarded work (and
     // lets a pure-status unit test omit getProcessLogLines from its mock).
@@ -408,7 +408,7 @@ async function runProcess(
   led.recordProcess(ctx.pluginId, ctx.benchId, processId);
 
   // `process` declares a `url.template` only: startProcess returns as soon as
-  // the child is spawned, so there is no completed output for a regex (#834).
+  // the child is spawned, so there is no completed output for a regex (#1207).
   const url = resolveDescriptorUrl(descriptor.url, ctx.componentName, ctx.ports[ctx.componentName]);
 
   completePhases(phases);
@@ -445,7 +445,7 @@ async function runOneshot(
     // A non-zero exit (or a timeoutMs breach, which process-manager surfaces as
     // a non-zero exit code) drives the component to error, not completed.
     if (timedOut) {
-      // Name the timeout at the component surface (#411): a timeoutMs breach is
+      // Name the timeout at the component surface (#894): a timeoutMs breach is
       // reported with both an error and a statusDetail that carry the configured
       // budget, so a killed one-shot is distinguishable from a plain exit(124).
       const timeoutMs = descriptor.timeoutMs ?? 0;
@@ -461,7 +461,7 @@ async function runOneshot(
 
   // The one-shot has exited, so its output is buffered under `processId` and can
   // be read back synchronously. This is the motivating `url.fromOutput` case: a
-  // deploy that prints the endpoint it just minted (#834). Only read the buffer
+  // deploy that prints the endpoint it just minted (#1207). Only read the buffer
   // back when a pattern actually needs it.
   const needsOutput = descriptor.url?.fromOutput !== undefined;
   const url = resolveDescriptorUrl(
@@ -487,7 +487,7 @@ async function runOneshot(
 
 /**
  * Forward a compose / init command's captured stdout+stderr into the component
- * log store via ctx.reportLog (AC1, #397). Splits each stream on newlines, drops
+ * log store via ctx.reportLog (AC1, #886). Splits each stream on newlines, drops
  * empty lines, and stamps each surviving line with its source and a capture
  * timestamp, matching process-manager's own line-capture shape. A no-op when the
  * caller wired no reportLog sink (a pure-status unit test).
@@ -503,7 +503,7 @@ function forwardOutput(
   // so a single shared batch ts would silently collapse a legitimately repeated
   // consecutive compose/init line (e.g. a wait-loop printing identical output).
   // A per-line millisecond increment keeps such lines distinct while staying
-  // monotonic (AC1, #397).
+  // monotonic (AC1, #886).
   const base = Date.now();
   let offset = 0;
   for (const source of ["stdout", "stderr"] as const) {
@@ -562,8 +562,8 @@ function resolveConnectionTemplate(template: string, componentName: string, port
 }
 
 /**
- * Resolve the descriptor's declared runtime URL (#834), the declarative route
- * to `ComponentStatus.url` that #833 left open for `translate`-only plugins.
+ * Resolve the descriptor's declared runtime URL (#1207), the declarative route
+ * to `ComponentStatus.url` that #1206 left open for `translate`-only plugins.
  *
  * `template` is filled from the host-allocated port through the same brace
  * substitution `connection.template` uses. `fromOutput` is a plugin-supplied

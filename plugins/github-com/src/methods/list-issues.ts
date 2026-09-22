@@ -186,7 +186,7 @@ async function listFromProject(
     return true;
   });
 
-  // Server-side status exclusion (issue #399): drop board items whose Projects
+  // Server-side status exclusion (#404): drop board items whose Projects
   // v2 "Status" column is in the host-resolved excludedStatuses list, before
   // pagination so an excluded item never occupies a result-page slot. Alerts
   // still fan out over `scopedNodes` (below), so a repo whose issues are all
@@ -195,7 +195,7 @@ async function listFromProject(
     (node) => !isStatusExcluded(node.fieldValueByName?.name, params.excludedStatuses),
   );
 
-  // Dedupe board items by issue identity (issue #548). A Projects v2 board can
+  // Dedupe board items by issue identity (#549). A Projects v2 board can
   // surface the same underlying issue in more than one item (the same issue
   // parked under two Status columns, or otherwise listed twice). Collapsing to
   // the first occurrence here, before the slice, means a duplicated issue never
@@ -280,7 +280,7 @@ async function listFromProject(
   // `scopedNodes` is already scoped to the project's configured repos, so we
   // never fetch alerts for a foreign repo that merely shares the board. It is
   // deliberately the pre-status-exclusion set: a repo whose issues are all in
-  // an excluded status still surfaces its security alerts (issue #399).
+  // an excluded status still surfaces its security alerts (#404).
   if (pageNumber === 1) {
     const alertFlags = alertFlagsOf(source);
     const reposForAlerts = new Set<string>();

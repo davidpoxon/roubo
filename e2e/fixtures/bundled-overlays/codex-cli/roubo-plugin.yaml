@@ -7,7 +7,7 @@ roubo: ^1.0.0
 entry: ./index.mjs
 contractVersion: 1
 # OPT-IN, not ambient. Every POST /test/__reset forces this id disabled, via
-# OPT_IN_AGENT_FIXTURE_PLUGIN_IDS in server/routes/test.ts (#681). Consent has no
+# OPT_IN_AGENT_FIXTURE_PLUGIN_IDS in server/routes/test.ts (#1101). Consent has no
 # revoke route and outlives both the reset and the server process, so the enable
 # ledger is the only lever that stops a spec which consented this agent from
 # leaving a SECOND available agent behind: "exactly one available agent" is a
@@ -16,7 +16,7 @@ contractVersion: 1
 # back disabled.
 #
 # The window below is re-based on the shipped Codex agent plugin's manifest
-# (roubo-plugins/plugins/codex/roubo-plugin.yaml, #520), so the overlay claims
+# (roubo-plugins/plugins/codex/roubo-plugin.yaml), so the overlay claims
 # the same compatibility window the real plugin does rather than the plausible
 # bracket it carried before that plugin existed. Both come from spike 502's
 # real-binary survey
@@ -28,7 +28,7 @@ contractVersion: 1
 # resolves `within-tested-range`.
 #
 # The RUNTIME now mirrors the shipped plugin's argv mapping and its waiting
-# detection (#532), so the AP-TC-056 / AP-TC-105 journeys can drive the
+# detection (#1128), so the AP-TC-056 / AP-TC-105 journeys can drive the
 # integrated configure-then-launch path. The notification wiring and the
 # permissions bindings still stay out of index.mjs (see the note there).
 #
@@ -50,7 +50,7 @@ agentCompatibility:
 # here would make the AP-TC-105 drift guard assert a form the shipped plugin does
 # not have.
 #
-# This schema was held back until #532 for one reason: the AP-TC-087 guard read
+# This schema was held back until #1128 for one reason: the AP-TC-087 guard read
 # `config-field-<key>` test ids PAGE-WIDE while every agent card mounts its form
 # expanded, so a second `model` property made that guard count two controls where
 # it expects one. Those reads are now scoped to

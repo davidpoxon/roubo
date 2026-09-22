@@ -445,7 +445,7 @@ describe("plugin-host-api", () => {
       ).toBe(true);
     });
 
-    it("constrains a `**` plugin to its configured instance host (#338)", async () => {
+    it("constrains a `**` plugin to its configured instance host (#340)", async () => {
       // No injected fetcher: registerHostHandlers builds the real one wired to
       // the instance registry. The instance gate denies before any network I/O,
       // so no stub fetch is needed. The manifest declares `**`, so only the
@@ -578,7 +578,7 @@ describe("plugin-host-api", () => {
       expect(fetcher).not.toHaveBeenCalled();
     });
 
-    describe("self-signed TLS opt-in (issue #70)", () => {
+    describe("self-signed TLS opt-in (#95)", () => {
       let server: https.Server;
       let port: number;
       beforeAll(async () => {
@@ -643,7 +643,7 @@ describe("plugin-host-api", () => {
       }
     });
 
-    it("surfaces the undici cause (cert code + message) so a self-signed TLS failure classifies as tls (issue #442)", async () => {
+    it("surfaces the undici cause (cert code + message) so a self-signed TLS failure classifies as tls (#916)", async () => {
       const manifest = makeManifest([], ["api.example.com"]);
       const connection = makeConnection();
       const store = makeStoreSpy();
@@ -1007,7 +1007,7 @@ describe("plugin-host-api", () => {
       await registerHostHandlers(connection, makeRecord(manifest), log, { spawn });
       const handler = need(connection.handlers.get("host.process.spawn"), "host.process.spawn");
       const promise = handler({ executable: "git", args: ["status"] });
-      // The cwd confinement check (#633) is async, so spawn is reached on a
+      // The cwd confinement check (#1034) is async, so spawn is reached on a
       // later tick than the handler call.
       await vi.waitFor(() => expect(spawn).toHaveBeenCalled());
       finish({ code: 0, stdout: "clean\n" });
@@ -1022,7 +1022,7 @@ describe("plugin-host-api", () => {
       );
     });
 
-    // Issue #633: the child is confined to the plugin directory, which is
+    // #1034: the child is confined to the plugin directory, which is
     // narrower than the filesystem allowlist, and a bench workspace is denied.
     const fakeWorkspaces = "/fake-workspaces";
 

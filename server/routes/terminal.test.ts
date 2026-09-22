@@ -46,7 +46,7 @@ vi.mock("../services/issue-formatting.js", () => ({
 // Partial mock: the error classes stay real (the route matches on them with
 // `instanceof`), only the launch-agent resolution is stubbed. Its own order
 // semantics are covered in agent-launch-pipeline.test.ts; what matters here is
-// the wiring. The default is "no agent resolved", which since #521 is a launch
+// the wiring. The default is "no agent resolved", which since #1114 is a launch
 // failure rather than a fall-through.
 const pipelineMocks = vi.hoisted(() => ({
   resolveLaunchAgentId: vi.fn<() => string | undefined>(() => undefined),
@@ -173,7 +173,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       status: "live",
     });
-    // Since #521 a jig only ever drives an agent launch, so these cases resolve
+    // Since #1114 a jig only ever drives an agent launch, so these cases resolve
     // an agent and go down the plugin path. The built-in they used to take is
     // gone (AP-TC-103).
     pipelineMocks.resolveLaunchAgentId.mockReturnValue("acme-agent");
@@ -571,7 +571,7 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
     });
   });
 
-  it("onAgentExit callback calls createNotification with the bench and agent-exited type (#646, AP-TC-066)", async () => {
+  it("onAgentExit callback calls createNotification with the bench and agent-exited type (#1053, AP-TC-066)", async () => {
     await request(app).post("/project1/benches/1/terminals").send({ agentPluginId: "acme-agent" });
 
     const onAgentExit = vi.mocked(terminalService.createAgentSession).mock.calls[0][0]
@@ -593,7 +593,7 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
     );
   });
 
-  it("still resolves an agent when no agentPluginId is supplied, never a built-in (#521)", async () => {
+  it("still resolves an agent when no agentPluginId is supplied, never a built-in (#1114)", async () => {
     await request(app).post("/project1/benches/1/terminals").send({ command: "acme" });
 
     expect(terminalService.createSession).not.toHaveBeenCalled();
@@ -647,7 +647,7 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
     ["missing-binary", 409],
     ["launch-failure", 409],
     ["host-install-broken", 500],
-  ])("maps a %s launch failure to %i with the structured body (#519)", async (cls, status) => {
+  ])("maps a %s launch failure to %i with the structured body (#1064)", async (cls, status) => {
     vi.mocked(terminalService.createAgentSession).mockRejectedValue(
       new AgentLaunchFailureError({
         class: cls as never,
@@ -737,7 +737,7 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
   });
 });
 
-describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
+describe("jig-driven agent resolution (AP-FR-006, #1051)", () => {
   const AGENT_SESSION = {
     id: "agent-2",
     benchKey: "project1:1",
@@ -874,11 +874,11 @@ describe("jig-driven agent resolution (AP-FR-006, issue #515)", () => {
   });
 
   // The launch surfaces send `agentPluginId` with no `command` at all (issue
-  // #517), so jig resolution can no longer hang off the legacy `claude`
+  // #1063), so jig resolution can no longer hang off the legacy `claude`
   // command. Without this the jig is silently dropped from every such launch:
   // the request still succeeds and the agent still starts, just with no jig,
   // which is exactly the kind of failure no other assertion here would catch.
-  it("resolves the jig on a command-less agent launch (AP-FR-007, issue #517)", async () => {
+  it("resolves the jig on a command-less agent launch (AP-FR-007, #1063)", async () => {
     vi.mocked(jigManager.getJig).mockReturnValue(
       MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );

@@ -4,14 +4,14 @@
 //
 // The "running system" here is the REAL, already-merged gate stack composed as one
 // continuous journey, not a mock of the gate logic (AC-1):
-//   - S001 exercises the real `evaluateGate` (#698, server/lib/gate-evaluator.ts):
+//   - S001 exercises the real `evaluateGate` (#720, server/lib/gate-evaluator.ts):
 //     the gate reads pending before the final case flips, then `passed` after.
-//   - S002 exercises the real `onGatePassed` (#700,
+//   - S002 exercises the real `onGatePassed` (#721,
 //     server/services/gate-lifecycle-coordinator.ts): it closes tracker #451 via
 //     the plugin transition and audit-logs the close.
-//   - S003 re-reads the downstream Phase 3 unit's blockedBy (#700): closing the
+//   - S003 re-reads the downstream Phase 3 unit's blockedBy (#721): closing the
 //     tracker clears WU-040 from the blocker set.
-//   - S004 exercises the real `assertGateOpen` (#699,
+//   - S004 exercises the real `assertGateOpen` (#722,
 //     server/services/start-gate.ts): with the post-close issue (empty blockedBy)
 //     the Phase 3 start resolves without GATE_BLOCKED.
 //
@@ -25,10 +25,10 @@
 // in .specifications/verify-gate/test-cases.json forces this test to be updated.
 //
 // Failure-output contract (AC-3): every assertion attaches an expected-vs-actual
-// message naming the owning slice issue from this unit's blocked-by set, so a red
+// message naming the owning slice from this unit's blocked-by set, so a red
 // run localizes the integration drift to one attributable slice:
-//   S001 -> #698 (evaluateGate), S002 -> #700 (onGatePassed),
-//   S003 -> #700 (blockedBy clears), S004 -> #699 (assertGateOpen).
+//   S001 -> #720 (evaluateGate), S002 -> #721 (onGatePassed),
+//   S003 -> #721 (blockedBy clears), S004 -> #722 (assertGateOpen).
 
 import { describe, it, expect } from "vitest";
 import { evaluateGate, type VerifyUnit, type GateResults } from "../lib/gate-evaluator.js";
@@ -44,10 +44,10 @@ import type { Tracker } from "@roubo/shared/work-units-contract";
 import type { BenchResults, CaseResult, CaseStatus } from "@roubo/shared/testbench-contracts";
 
 // ── Owning slices (this e2e unit's blocked-by set, per the gate journey) ──
-const SLICE_S001 = "#698 (deterministic gate evaluator)";
-const SLICE_S002 = "#700 (gate lifecycle: close on pass)";
-const SLICE_S003 = "#700 (gate lifecycle: unblock next batch)";
-const SLICE_S004 = "#699 (hard start-gate, fail-closed)";
+const SLICE_S001 = "deterministic gate evaluator";
+const SLICE_S002 = "gate lifecycle: close on pass";
+const SLICE_S003 = "gate lifecycle: unblock next batch";
+const SLICE_S004 = "hard start-gate, fail-closed";
 
 // ── Fixture identifiers (VG-TC-040 preconditions) ──
 const PROJECT_ID = "proj-verify-gate";
@@ -167,7 +167,7 @@ const deps: GateLifecycleDeps = {
 describe("VG-TC-040: last gating case passes, gate closes #451, Phase 3 unblocks, a Phase 3 bench can start", () => {
   it("S001: mark the final remaining gating case passed -> gate state changes to passed (S001-O01)", () => {
     // Precondition: before the final case flips, the gate is not passed. Drive the
-    // REAL evaluateGate (#698) with the final case still unresolved.
+    // REAL evaluateGate (#720) with the final case still unresolved.
     const before = evaluateGate(gate, results("in_progress"), PLAN_HASH);
     expect(
       before.status,
@@ -199,7 +199,7 @@ describe("VG-TC-040: last gating case passes, gate closes #451, Phase 3 unblocks
 
   it("S002: close gate & unblock Phase 3 -> audit logs a close referencing #451 and the plugin, gate reads closed (S002-O01, S002-O02)", async () => {
     // S002: click 'Close gate & unblock Phase 3' and wait for completion. Drive the
-    // REAL onGatePassed (#700) against the shared fake plugin.
+    // REAL onGatePassed (#721) against the shared fake plugin.
     await onGatePassed(PROJECT_ID, gate, PLUGIN_ID, deps);
 
     // S002-O01: the audit log records exactly one close/transition entry
@@ -237,7 +237,7 @@ describe("VG-TC-040: last gating case passes, gate closes #451, Phase 3 unblocks
   it("S003: inspect the Phase 3 card -> it shows Unblocked and no longer lists WU-040 as a blocker (S003-O01)", async () => {
     // S003: navigate to the batches overview and inspect the Phase 3 card. Re-read
     // the downstream unit's blockedBy through the same plugin seam the start path
-    // uses; closing the tracker (#700) cleared the gate ref from it.
+    // uses; closing the tracker (#721) cleared the gate ref from it.
     const downstream = phase3Issue;
 
     // S003-O01: the Phase 3 card no longer lists WU-040 / the gate tracker as a
@@ -257,7 +257,7 @@ describe("VG-TC-040: last gating case passes, gate closes #451, Phase 3 unblocks
   });
 
   it("S004: start a new Phase 3 bench -> it starts with no blocked-by error referencing the gate (S004-O01)", async () => {
-    // S004: start a new bench in Phase 3. Drive the REAL assertGateOpen (#699) with
+    // S004: start a new bench in Phase 3. Drive the REAL assertGateOpen (#722) with
     // enforcement ON and the post-close prefetched issue whose blockedBy is now
     // empty, so the start path issues no further RPC and must not block.
     let thrown: unknown;

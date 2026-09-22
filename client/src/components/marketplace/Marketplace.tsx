@@ -37,14 +37,14 @@ import { listingProvenance } from "./plugin-provenance";
 import { deriveStageStatuses, describeArtifact } from "./marketplace-install-stages";
 import MarketplaceOfflineBanner from "./MarketplaceOfflineBanner";
 
-// Marketplace catalog view (CP-FR-020 / CP-NFR-007 / CP-US-010, issue #621).
+// Marketplace catalog view (CP-FR-020 / CP-NFR-007 / CP-US-010, #688).
 // There is deliberately NO third-party SUBMISSION affordance anywhere in this
 // view: entries come from the first-party curated catalog and from marketplace
 // sources the consumer explicitly registered elsewhere. Browse + search + kind
 // filter; install and update reuse the existing staging -> consent -> commit flow
 // via the consent modal.
 //
-// Multi-source browse (CPHMTP-FR-004, issue #557): the list is the MERGED catalog
+// Multi-source browse (CPHMTP-FR-004, #962): the list is the MERGED catalog
 // across the first-party source and every registered source, each card carrying
 // exactly one provenance chip. The source filter chip row scopes the list to a
 // single source and back to all, and a source that could serve nothing is called
@@ -77,7 +77,7 @@ const STRINGS = {
   stagingFailed:
     "The install was refused before anything was written. Nothing ran on your machine.",
   stagingClose: "Close",
-  // Pick-a-source refusal (CPHMTP-FR-005, issue #558). The heading names the
+  // Pick-a-source refusal (CPHMTP-FR-005, #966). The heading names the
   // condition; the body explains why nothing was chosen for the consumer.
   ambiguousTitle: "Ambiguous source",
   ambiguousBody: (id: string, count: number) =>
@@ -93,7 +93,7 @@ const KIND_TABS: { id: "all" | MarketplaceKind; label: string }[] = [
   { id: "all", label: "All" },
   { id: "component", label: "Component" },
   { id: "integration", label: "Integration" },
-  // The third kind (AP-FR-022, issue #522). Listed last so the two kinds that
+  // The third kind (AP-FR-022, #1112). Listed last so the two kinds that
   // shipped first keep their positions rather than shuffling under an
   // alphabetical sort.
   { id: "agent", label: "Agent" },
@@ -131,7 +131,7 @@ interface PendingConsent {
 // The active install/update during the staging (preview) phase, before the
 // consent modal opens. It drives the 4-step progress surface so a staging-phase
 // signature/digest failure is visible on its own stage, not only as a toast
-// (issue #374).
+// (#855).
 interface ActiveStaging {
   mode: "install" | "update";
   listing: MarketplaceListing;
@@ -144,7 +144,7 @@ interface ActiveStaging {
   // WHAT failed; this says WHY).
   errorDetail?: string;
   // The source ids the server named when it refused this id as ambiguous
-  // (CPHMTP-FR-005, issue #558). Present only for an `ambiguous-source` refusal,
+  // (CPHMTP-FR-005, #966). Present only for an `ambiguous-source` refusal,
   // and what the pick-a-source banner renders its per-source choices from.
   ambiguousSourceIds?: string[];
 }
@@ -189,7 +189,7 @@ export default function Marketplace() {
   // plugin id (a marked, deliberately unresolved collision, CPHMTP-FR-005), so a
   // bare id would open whichever entry sorted first and could show a first-party
   // entry's verified treatment for the third-party card the consumer pressed
-  // (CPHMTP-NFR-001, issue #563).
+  // (CPHMTP-NFR-001, #977).
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingConsent | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
@@ -330,7 +330,7 @@ export default function Marketplace() {
         // The install/update is committed. Mint (install) or refresh (update
         // across a permissions change) the plugin's ConsentRecord with the
         // categories the consumer just acknowledged, so the component-plugin
-        // registry consent gate (hasConsent) admits the component (issue #399,
+        // registry consent gate (hasConsent) admits the component (#884,
         // CP-TC-090 / CP-TC-096). The POST is safe for every confirm: an
         // in-place update that did not change permissions keeps its record
         // regardless (uninstallForUpdate preserves consent), and a matching
@@ -524,7 +524,7 @@ export default function Marketplace() {
         <MarketplaceConsentModal
           preview={pending.preview}
           // The consent modal's trust lead is provenance-driven (CPHMTP-FR-006,
-          // issue #563): it is derived from the LISTING being installed, the only
+          // #977): it is derived from the LISTING being installed, the only
           // shape here that carries the server-stamped source id, never from the
           // staged preview (whose manifest is the plugin's own, unverifiable copy).
           provenance={listingProvenance(pending.listing, labelFor(pending.listing.sourceId))}

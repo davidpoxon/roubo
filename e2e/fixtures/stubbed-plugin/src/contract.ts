@@ -31,7 +31,7 @@ interface BuildContractDeps {
   journal: Journal;
 }
 
-// VG-TC-032 (#708): the host's hard start-gate refuses a unit while its
+// VG-TC-032 (#724): the host's hard start-gate refuses a unit while its
 // `blockedBy` is non-empty. The real GitHub plugin only ever lists *open*
 // blockers (a closed/resolved blocker drops out of the graph), so a blocker
 // whose tracker issue has closed no longer gates the dependent. We mirror that
@@ -84,7 +84,7 @@ function findIssue(scenario: Scenario, externalId: string): ScenarioIssue {
 }
 
 /**
- * Source-side cut-list ordering for the stub (CLI-FR-010, #584). Sorts the kept
+ * Source-side cut-list ordering for the stub (CLI-FR-010, #632). Sorts the kept
  * set by the requested field before pagination so the order is stable across
  * pages and a sort change visibly reorders the list (TC-032 S004). Supported
  * keys: `title` and `updated`. An unrecognised / absent field returns the input
@@ -123,7 +123,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
         ...(step.warnings && step.warnings.length > 0 ? { warnings: step.warnings } : {}),
       };
     }
-    // JSS-TC-024/JSS-TC-025 (#358): mirror the real plugin's in-query status
+    // JSS-TC-024/JSS-TC-025 (#436): mirror the real plugin's in-query status
     // exclusion (JSS-FR-009/JSS-FR-010). The host resolves the effective
     // excluded set from the three-layer merge and passes it in; we drop issues
     // whose fixture `statusCategory` is excluded (or whose `currentState` is in
@@ -134,14 +134,14 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
       (issue.statusCategory !== undefined && excludedCategories.has(issue.statusCategory)) ||
       excludedStatuses.has(issue.currentState);
     const keptUnsorted = scenario.issues.filter((issue) => !isExcluded(issue));
-    // CLI-FR-010 (#584): when the scenario declares sort fields and the host
+    // CLI-FR-010 (#632): when the scenario declares sort fields and the host
     // passes a `sortBy` matching one, order the kept set source-side BEFORE
     // pagination so the order is stable across pages and the picker visibly
     // reorders the list (TC-032 S004). `title` and `updated` are the supported
     // keys; an unrecognised field falls through to the natural externalId order
     // (the default the existing pagination spec relies on).
     const kept = sortKept(keptUnsorted, params.sortBy, params.sortDir);
-    // #569: cursor pagination over the kept set so the cut-list Prev/Next
+    // #585: cursor pagination over the kept set so the cut-list Prev/Next
     // journey (FR-007/FR-008, TC-032) is exercised end to end. The host passes
     // an opaque `cursor` and a `pageSize` (the project's integration pageSize,
     // default 50); we treat the cursor as a numeric offset (same scheme as
@@ -200,7 +200,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     // The host sends `transition` on every call site (the bench-view route
     // `POST /projects/:id/issues/:externalId/transitions` and the gate lifecycle
     // coordinator's close / reopen paths), matching the SDK type. It sent
-    // `transitionName` until issue #642, where the mismatch surfaced as
+    // `transitionName` until #1047, where the mismatch surfaced as
     // `Unknown transition "undefined"` at runtime. The `transitionName` fallback
     // below is kept only for third-party plugins predating that fix, not because
     // the host emits it.
@@ -354,7 +354,7 @@ export function buildContract({ scenario, clock, journal }: BuildContractDeps): 
     contract.getFacetOptions = getFacetOptions;
   }
 
-  // CLI-FR-009/CLI-FR-011 (#584): only register `getSortFields` when the
+  // CLI-FR-009/CLI-FR-011 (#632): only register `getSortFields` when the
   // scenario declares sort fields. A scenario without them leaves the method
   // off the contract, so the host RPC layer rejects with MethodNotFound and
   // `plugin-sort-fields.ts` maps it to an empty list (no sort picker). Models a

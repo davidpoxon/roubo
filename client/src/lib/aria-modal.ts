@@ -1,4 +1,4 @@
-// Issue #424: React Aria Components intentionally omits `aria-modal` from the
+// #902: React Aria Components intentionally omits `aria-modal` from the
 // rendered dialog (it works around a historical VoiceOver double-announce bug),
 // so a role="dialog" element carries no modality semantics even though the
 // backdrop, focus trap, Escape-to-close, and focus restoration all behave

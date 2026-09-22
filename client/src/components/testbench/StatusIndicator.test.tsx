@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// #419 NFR-004: every status renders a visible text label (never colour alone)
+// #466 NFR-004: every status renders a visible text label (never colour alone)
 // plus a decorative dot, across the full CaseStatus set.
 
 import { describe, it, expect } from "vitest";

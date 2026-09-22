@@ -9,7 +9,7 @@ import { deriveStatus } from "@roubo/shared/testbench-domain";
 import * as api from "../lib/api";
 import { testbenchPlanQueryKey, type TestbenchPlanData } from "./useTestbenchPlan";
 
-// Observation-mark and status-override mutations for the case detail pane (#420,
+// Observation-mark and status-override mutations for the case detail pane (#471,
 // FR-007/FR-008/FR-010). Both apply an optimistic update to the cached plan so
 // the mark round-trip feels instant (< 150ms, NFR-004), then reconcile with the
 // authoritative CaseResult the server returns. The server is the source of truth:
@@ -68,7 +68,7 @@ interface MarkVars {
   benchId: number;
   caseId: string;
   observationId: string;
-  // null clears (un-sets) the mark entirely (#508).
+  // null clears (un-sets) the mark entirely (#510).
   result: "pass" | "fail" | null;
 }
 
@@ -88,7 +88,7 @@ export function useMarkObservation() {
             let observationMarks: Record<string, ObservationMark>;
             if (vars.result === null) {
               // Clear (un-set) the mark entirely by rebuilding without its key
-              // (#508). A rebuild avoids a dynamic `delete` on the cached object.
+              // (#510). A rebuild avoids a dynamic `delete` on the cached object.
               observationMarks = Object.fromEntries(
                 Object.entries(result.observationMarks).filter(([id]) => id !== vars.observationId),
               );

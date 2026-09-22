@@ -6,7 +6,7 @@
 // arguments field are exercised here rather than only scanned in place by
 // `AgentsTab.a11y.test.tsx`.
 //
-// Coverage gap (#703): contrast, the second half of S003-O01, is undecidable in
+// Coverage gap (#1111): contrast, the second half of S003-O01, is undecidable in
 // jsdom, which computes no layout, so axe reports zero contrast violations even
 // when text fails AA in a browser. Real-rendering color-contrast is therefore
 // verified separately in the Playwright spec

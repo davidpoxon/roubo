@@ -18,7 +18,7 @@ import {
   SATCA_WRITE_REASON,
 } from "./_support/testbench-plan.js";
 
-// E2E (#773): the integrated drift guard for the "archive or supersede a whole
+// E2E (#1166): the integrated drift guard for the "archive or supersede a whole
 // spec from the picker, and reverse either" journey (SATCA-TC-047/048/049/050
 // S003+S004, SATCA-FR-020/FR-021/FR-028, SATCA-US-006/US-007). It runs against
 // the BUILT app with a fixture repo carrying three live specs that differ only

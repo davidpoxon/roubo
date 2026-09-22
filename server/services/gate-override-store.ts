@@ -1,4 +1,4 @@
-// Per-project store for the Roubo-owned gate-overrides document (#703, VG-FR-002,
+// Per-project store for the Roubo-owned gate-overrides document (#728, VG-FR-002,
 // VG-US-007). The operator's batch merge / split regroupings are persisted here, in
 // `~/.roubo/gate-overrides/<projectId>.json`, NOT in roubo.yaml and NOT in the
 // externally-authored work-units.json (Roubo never writes that file). The store

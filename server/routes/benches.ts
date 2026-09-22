@@ -52,11 +52,11 @@ function handleBenchError(res: import("express").Response, err: unknown) {
       ? 404
       : 400;
     // A COMPONENT_NOT_BOUND error whose bound plugin is merely uninstalled carries
-    // where it can be installed from (CPHMTP-FR-008, issue #566). Spread it through
+    // where it can be installed from (CPHMTP-FR-008, #978). Spread it through
     // so the client can offer install-from-<source> / pick-a-source rather than
     // re-resolving the sources itself. Every other error omits the key entirely, so
     // an absent `resolution` keeps meaning "no install affordance". A bound-but-
-    // unconsented plugin instead carries `consent.pluginId` (issue #617) so the
+    // unconsented plugin instead carries `consent.pluginId` (#991) so the
     // bench page can open an actionable consent prompt; likewise absent otherwise.
     res.status(status).json({
       error: err.message,
@@ -75,7 +75,7 @@ router.get("/:projectId/benches", (req, res) => {
   if (!isNaN(issue)) {
     // The ?issue= filter targets GitHub issue numbers. Alert-backed benches reuse
     // assignedIssue.number for the alert number, so skip them to avoid colliding
-    // with a real issue #N. See #291.
+    // with a real issue #N. See #297.
     benches = benches.filter(
       (b) => b.assignedIssue?.number === issue && !isAlertExternalId(b.assignedIssue?.externalId),
     );
@@ -87,7 +87,7 @@ router.post("/:projectId/benches", async (req, res) => {
   const { branch, externalId, branchConflictResolution, variant, focusedSpecPath } =
     req.body as CreateBenchRequest;
 
-  // TestBench-variant create (#416). A TestBench has no issue/branch coupling: it
+  // TestBench-variant create (#459). A TestBench has no issue/branch coupling: it
   // binds a focused spec instead. Validation + containment of focusedSpecPath
   // happens inside bench-manager.createBench (BenchError "INVALID_FOCUS" -> 400).
   if (variant === "testbench") {
@@ -129,7 +129,7 @@ router.post("/:projectId/benches", async (req, res) => {
       return;
     }
 
-    // #437: when enforcement is ON and there is no active integration plugin,
+    // #915: when enforcement is ON and there is no active integration plugin,
     // run the gate before getActivePluginOrRespond so the refusal surfaces the
     // gate-state contract (409 GATE_INDETERMINATE, per NFR-003 / TC-033) rather
     // than the generic 503 no-active-integration that would otherwise fire first
@@ -151,7 +151,7 @@ router.post("/:projectId/benches", async (req, res) => {
     try {
       // Bound the single getIssue read to the gate budget when enforcement is ON
       // so a hung plugin fails closed in ~3s instead of stalling for the 30s RPC
-      // default (#438, NFR-002). fetchIssueForStart returns the full issue, which
+      // default (#917, NFR-002). fetchIssueForStart returns the full issue, which
       // is reused as prefetchedIssue below so the request still issues one RPC.
       issue = await fetchIssueForStart(req.params.projectId, externalId, active.pluginId);
     } catch (err) {
@@ -170,7 +170,7 @@ router.post("/:projectId/benches", async (req, res) => {
     const comments = await fetchPluginComments(active.pluginId, externalId);
 
     try {
-      // Hard start-gate (#699): when enforceIssueDependencies is ON, refuse to
+      // Hard start-gate (#722): when enforceIssueDependencies is ON, refuse to
       // create-and-assign a unit whose upstream verify gate has not passed. The
       // freshly fetched issue is reused so no second getIssue RPC is needed
       // (NFR-002). A blocked or indeterminate gate throws a 409 ServiceError
@@ -377,9 +377,9 @@ router.post("/:projectId/benches/:id/components/:name/start", async (req, res) =
       // per-component Start is non-resilient, so a COMPONENT_NOT_BOUND throw
       // propagates here rather than being recorded on the component's status.
       // Carry the resolution through so the dialog can offer install-from-<source>
-      // (CPHMTP-FR-008, issue #566), and the consent payload so a bound-but-
+      // (CPHMTP-FR-008, #978), and the consent payload so a bound-but-
       // unconsented plugin surfaces an actionable consent prompt on the bench page
-      // (issue #617, AC3): this is exactly where the resumed start's consent-gate
+      // (#991, AC3): this is exactly where the resumed start's consent-gate
       // 400 lands. Kept as its own 400 rather than routed through handleBenchError,
       // which would remap this route's NOT_FOUND codes to 404.
       res.status(400).json({
@@ -428,7 +428,7 @@ router.get("/:projectId/benches/:id/components/:name/logs", (req, res) => {
   }
 });
 
-// Recorded privileged broker calls for this bench (#671). Returns AuditEntry[] in
+// Recorded privileged broker calls for this bench (#680). Returns AuditEntry[] in
 // chronological order, optionally filtered to a single plugin via ?pluginId=.
 router.get("/:projectId/benches/:id/audit-log", (req, res) => {
   try {
@@ -469,7 +469,7 @@ router.post("/:projectId/benches/:id/tools/:index/execute", async (req, res) => 
   }
 });
 
-// ── Agent tool preset routes (AP-FR-008, AP-FR-009, issue #516) ──
+// ── Agent tool preset routes (AP-FR-008, AP-FR-009, #1057) ──
 
 // Bench-independent by design: a preset is a launch configuration, not bench
 // state, so every bench in the project offers the same list. Built-in presets

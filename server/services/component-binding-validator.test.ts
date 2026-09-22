@@ -69,7 +69,7 @@ describe("validateComponentBindings", () => {
   });
 
   it("skips (does not flag) an unknown plugin id when ignoreUnknownPlugins is set", () => {
-    // The config-load posture (issue #399): a binding to a not-loaded plugin is
+    // The config-load posture (#884): a binding to a not-loaded plugin is
     // skipped rather than reported, but a loaded plugin's config is still checked.
     const manifests = [
       makeManifest({

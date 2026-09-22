@@ -32,7 +32,7 @@ export interface PluginSourceEntry {
  * (e.g. `"repo"`, `"project"`, `"filter"`).
  *
  * Still hard-coded centrally; the longer-term direction is to let each
- * plugin advertise its own mapping in `roubo-plugin.yaml` (tracked in #349).
+ * plugin advertise its own mapping in `roubo-plugin.yaml`.
  * Until then, adding a new plugin family means adding its categories here.
  *
  * Jira: the project-first searchable picker returns the singular categories

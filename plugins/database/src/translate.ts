@@ -21,7 +21,7 @@ import type { BenchContext, DockerProvisionDescriptor } from "@roubo/plugin-sdk"
  * - `migration`: an optional `{ command, args?, shell? }` run after the service
  *   is healthy (and after the init service, when present). `shell` is the
  *   opt-in that makes the command run through a shell rather than as argv
- *   (#836); the host owns the branch, and in shell mode it appends `args` to
+ *   (#1218); the host owns the branch, and in shell mode it appends `args` to
  *   the command line the shell interprets rather than to an argv.
  * - `connection`: an optional `{ template }` connection string; the engine fills
  *   `{{port}}` / `{{ports.<component>}}` with the allocated host port.
