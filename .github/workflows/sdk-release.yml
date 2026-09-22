@@ -93,6 +93,9 @@ jobs:
     name: smoke (${{ matrix.plugin }})
     needs: publish
     runs-on: ubuntu-latest
+    # Must stay above scripts/sdk-registry-wait.sh's 600s ceiling plus the
+    # install, build and test time, so a publish that never lands fails with the
+    # wait's own error, not a job timeout (#1346).
     timeout-minutes: 15
     permissions:
       contents: read
