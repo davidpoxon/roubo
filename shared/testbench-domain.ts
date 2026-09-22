@@ -1,7 +1,7 @@
 // Pure derived-status state machine (FR-009).
 //
 // Platform-agnostic: no fs, no node:crypto, no React. Safe in the Vite client
-// build. Canonical contract types land with testbench-contracts (#6); until
+// build. Canonical contract types land with testbench-contracts (#445); until
 // then this consumes the local types in testbench-domain-types.ts.
 
 import type {

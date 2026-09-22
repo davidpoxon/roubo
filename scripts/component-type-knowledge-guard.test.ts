@@ -69,7 +69,7 @@ describe("scanFiles (ComponentTypeKnowledgeGuard, CP-NFR-006)", () => {
   });
 
   it("does NOT flag bench-manager reading the plugin's cached descriptor", () => {
-    // Post-#612, bench-manager reads the descriptor (the plugin's typed output)
+    // Post-#663, bench-manager reads the descriptor (the plugin's typed output)
     // to down compose projects on teardown; that is not a config docker-field.
     const findings = scan({
       "server/services/bench-manager.ts": [

@@ -108,7 +108,7 @@ const mockedGrantConsent = vi.mocked(grantPluginConsent);
 // The slices this journey integrates, from the work unit's covers / blocked-by set.
 // Reported when a step diverges so a failure is attributable to a slice (FR-020).
 const OWNING_SLICES =
-  "marketplace catalog: browse, search, install, update, marketplace integrity verification + revocation";
+  "marketplace catalog browse/search/install/update; marketplace integrity verification + revocation";
 
 const PLUGIN_ID = "redis";
 const PLUGIN_NAME = "Redis";

@@ -316,7 +316,7 @@ export async function ensurePluginActivated(_projectId: string, pluginId: string
  * immediately.
  *
  * The `_projectId` argument is preserved for API compatibility with the
- * pre-#119 per-project cache; activations are now plugin-wide so any
+ * pre-#124 per-project cache; activations are now plugin-wide so any
  * project's config change forces a re-push for every project using that
  * plugin (which is what we want for global config changes).
  */

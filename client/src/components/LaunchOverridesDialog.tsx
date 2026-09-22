@@ -257,7 +257,7 @@ export default function LaunchOverridesDialog({
                 value={presetId}
                 onChange={(e) => handlePresetChange(e.target.value)}
               >
-                {/* Layer three stays optional, so the pre-#668 behaviour of
+                {/* Layer three stays optional, so the pre-#1085 behaviour of
                     overriding nothing but the agent is still reachable. */}
                 <option value={NO_PRESET}>No preset</option>
                 {choices.map(({ preset, target, selectable }) => (

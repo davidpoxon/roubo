@@ -23,7 +23,7 @@
  * baseline is DERIVED inside the run: withMs is a full discoverSpecs pass,
  * deltaMs is an isolated readSpecLifecycle pass over the same 25 slugs, and the
  * baseline is withMs - deltaMs. That is a within-run derivation, not a
- * historical measurement of pre-#765 code; it holds because computeLifecycle is
+ * historical measurement of pre-#1157 code; it holds because computeLifecycle is
  * a single call inside discovery's existing per-spec loop, so the work it added
  * is exactly that isolated pass. An absolute millisecond baseline would be
  * machine-dependent and could not be asserted on at all.

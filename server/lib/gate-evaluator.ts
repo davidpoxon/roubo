@@ -106,7 +106,7 @@ export interface GateState {
   // a gate can pass precisely BECAUSE a case was retired, and the operator reading
   // a passed gate is owed the reason it passed. `emptyReason` only ever answers
   // that question for a gate lifecycle emptied outright, which is the narrower
-  // case. Empty when lifecycle dropped nothing (the pre-#777 shape, byte for byte).
+  // case. Empty when lifecycle dropped nothing (the pre-#1176 shape, byte for byte).
   lifecycleExcludedCaseIds: string[];
 }
 
@@ -135,7 +135,7 @@ export type GateResults = (BenchResults & { planHash: string }) | null;
 // treated as unresolved rather than as passed: every gap degrades to unresolved,
 // never to a pass.
 //
-// Omitting the whole input preserves the pre-#768 behaviour byte for byte.
+// Omitting the whole input preserves the pre-#1164 behaviour byte for byte.
 export interface GateLifecycle {
   resolutions: readonly Resolution[];
   resultsBySlug?: ReadonlyMap<string, BenchResults>;

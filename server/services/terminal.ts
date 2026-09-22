@@ -496,7 +496,7 @@ function registerSession(
   // Refuse a token another live session already owns: two sessions sharing one
   // token would let either agent's notifier raise notifications against the
   // other. The launch itself is unaffected; that session simply falls back on
-  // quiescence, which is the pre-#698 behaviour.
+  // quiescence, which is the pre-#1113 behaviour.
   //
   // Liveness, not mere presence: a session record outlives its PTY so the
   // scrollback stays readable, and its token is spent the moment the PTY exits

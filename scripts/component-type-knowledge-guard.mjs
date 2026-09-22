@@ -20,7 +20,7 @@
 //      engine, and the descriptor schema. Everywhere else, reading a docker
 //      field means core has regrown container knowledge.
 //
-//      bench-manager is a narrower case (#888, CP-TC-042): post-#612 it
+//      bench-manager is a narrower case (#888, CP-TC-042): post-#663 it
 //      reads only the PLUGIN's cached `descriptor` (its typed output, not a
 //      config docker-field) to drive teardown / reconcile, and it calls the
 //      docker facade methods for that teardown. A blanket file allowlist there

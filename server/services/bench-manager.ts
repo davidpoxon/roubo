@@ -181,7 +181,7 @@ export function initialize() {
     const components: Record<string, ComponentStatus> = {};
 
     if (project?.config) {
-      // Legacy benches (pre-#538) have no componentSetupState at all: those
+      // Legacy benches (from before this field) have no componentSetupState at all: those
       // were created under the old full-provisioning flow, so setup ran.
       // Coerce every component to setupComplete: true for that whole bench.
       // When componentSetupState is present but lacks an entry for a specific
@@ -229,7 +229,7 @@ export function initialize() {
       injectedJigSource: ps.injectedJigSource,
       variant: ps.variant,
       focusedSpecPath: ps.focusedSpecPath,
-      // Benches persisted before this field existed (pre-#630) were provisioned
+      // Benches persisted before this field existed (pre-#997) were provisioned
       // under the old flow, which always ran `benches.setup`, so treat a missing
       // flag as complete rather than re-running setup on their next Start.
       benchSetupComplete: ps.benchSetupComplete ?? true,

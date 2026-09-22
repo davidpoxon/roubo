@@ -1036,7 +1036,7 @@ interface SeedSpecInput {
   // and the gate-release journey cannot be driven end to end. Validated against
   // the published contract at parse time, so a fixture can never seed a file the
   // loader would report as invalid. Omitted => no work-units.json, which is the
-  // pre-#777 behaviour (a spec with no gates).
+  // pre-#1176 behaviour (a spec with no gates).
   workUnits?: unknown;
 }
 

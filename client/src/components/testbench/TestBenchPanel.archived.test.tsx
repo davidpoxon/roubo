@@ -23,7 +23,7 @@ const mockUseTestbenchPlan = vi.hoisted(() => vi.fn());
 const mockMarkObservation = vi.hoisted(() => vi.fn());
 // #1173: the AC4 join needs a lifecycle mutation that can actually succeed, so
 // the stub is controllable rather than inert. Defaulted to a no-op mutate in
-// beforeEach, which is what every pre-#775 case in this suite assumes.
+// beforeEach, which is what every pre-#1173 case in this suite assumes.
 const mockSetCaseLifecycle = vi.hoisted(() => vi.fn());
 
 vi.mock("../../hooks/useTestbenchPlan", () => ({

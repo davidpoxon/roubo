@@ -560,7 +560,7 @@ describe("evaluateGate: a retired case leaves the gating set (SATCA-TC-022, SATC
     expect(gate.implements.test_case_ids).toEqual(declaredSnapshot);
   });
 
-  it("without the lifecycle input the same retired case still gates (pre-#768 behaviour)", () => {
+  it("without the lifecycle input the same retired case still gates (pre-#1164 behaviour)", () => {
     const gate = makeGate(declared, ["WU-10"]);
     const p = plan([...live, retired(planCase("TC-4", 1, "functional"))]);
     const state = evaluateGate(gate, recorded, PLAN_HASH, p);
