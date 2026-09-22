@@ -120,12 +120,13 @@ vi.mock("node:child_process", async (importOriginal) => {
   };
 });
 
-// #1269 (APCC-TC-009) and #1345: simulate a host that predates a manifest
+// #1269 (APCC-TC-009), #1345 and APCC-NFR-003: simulate a host that predates a manifest
 // key. The switch swaps the strict manifest schema for the same strict schema
 // with the named keys removed, which is the schema the older host shipped, so a
 // manifest declaring one fails the parse on an unrecognised key exactly as it
 // would there. `drop` names the keys that host did not know: `choiceProbes` for
-// a pre-1.6.0 host, `agentPermissionRuleTiers` for a pre-1.8.0 one. Off by
+// a pre-1.6.0 host, `agentPermissionRuleTiers` for a pre-1.8.0 one,
+// `agentInstallGuidance` for a pre-1.9.0 one. Off by
 // default: every other test in this file sees the real schema.
 const manifestSchemaControl = vi.hoisted(() => ({
   preFloor: false,
@@ -260,8 +261,8 @@ afterEach(async () => {
 });
 
 describe("host-API version", () => {
-  it("reports host-API 1.8.0 (agentPermissionRuleTiers floor: #1345)", () => {
-    expect(pluginManager.HOST_API_VERSION).toBe("1.8.0");
+  it("reports host-API 1.9.0 (agentInstallGuidance floor: APCC-NFR-003)", () => {
+    expect(pluginManager.HOST_API_VERSION).toBe("1.9.0");
   });
 });
 
@@ -673,6 +674,77 @@ describe("a below-floor host refuses a rule-tiers manifest by version (#1345)", 
     expect(record.lastError).toBeFalsy();
     expect(record.status).toBe("enabled");
     expect(record.manifest?.agentPermissionRuleTiers).toEqual(["allow", "deny"]);
+    expect(typeof record.pid).toBe("number");
+  });
+});
+
+// APCC-NFR-003, the same gate one version up again: a plugin declaring the 1.9.0
+// `agentInstallGuidance` key pins `roubo: ^1.9.0`. The pre-floor host is 1.8.0,
+// which hosts built from main before this key landed report without knowing it, the
+// exact reason the key did not ride 1.8.0.
+describe("a below-floor host refuses an install-guidance manifest by version (APCC-NFR-003)", () => {
+  const FIXTURE = "agent-install-guidance";
+  const PRE_FLOOR_HOST = "1.8.0";
+  const REFUSAL = `Plugin requires roubo "^1.9.0" but host is ${PRE_FLOOR_HOST}`;
+  const GUIDANCE = {
+    install: {
+      command: "curl https://example.com/install -fsS | bash",
+      url: "https://example.com/docs/cli/installation",
+    },
+    update: { command: "guided-agent update" },
+  };
+
+  beforeEach(() => {
+    manifestSchemaControl.drop = ["agentInstallGuidance"];
+  });
+
+  afterEach(() => {
+    manifestSchemaControl.preFloor = false;
+    manifestSchemaControl.drop = ["choiceProbes"];
+  });
+
+  it("the fixture declares the 1.9.0 key and pins the 1.9.0 floor", async () => {
+    const { parseManifest } = await import("@roubo/shared");
+    const { readFile } = await import("node:fs/promises");
+    const manifestPath = path.join(FIXTURES_ROOT, FIXTURE, "roubo-plugin.yaml");
+    const parsed = parseManifest(await readFile(manifestPath, "utf8"), manifestPath);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.manifest.kind).toBe("agent");
+    expect(parsed.manifest.roubo).toBe("^1.9.0");
+    expect(parsed.manifest.agentInstallGuidance).toEqual(GUIDANCE);
+
+    manifestSchemaControl.preFloor = true;
+    const preFloor = parseManifest(await readFile(manifestPath, "utf8"), manifestPath);
+    expect(preFloor.ok).toBe(false);
+    if (preFloor.ok) return;
+    expect(preFloor.error.message).toContain("agentInstallGuidance");
+    expect(preFloor.error.declaredRoubo).toBe("^1.9.0");
+  });
+
+  it("a host whose schema lacks the key names the version it needs, not the unrecognised key", async () => {
+    manifestSchemaControl.preFloor = true;
+    sandbox = await makeSandbox({ bundled: [FIXTURE] });
+    mgr = await loadManager();
+    mgr.__test.setHostApiVersion(PRE_FLOOR_HOST);
+    await mgr.initialize();
+    const record = findRecord(mgr.listInstalled(), FIXTURE);
+    expect(record.status).toBe("incompatible");
+    expect(record.lastError?.code).toBe("incompatible-host");
+    expect(record.lastError?.message).toBe(REFUSAL);
+    expect(record.lastError?.message).not.toContain("agentInstallGuidance");
+    expect(record.lastError?.message).not.toMatch(/unrecognized|unrecognised/i);
+    expect(record.pid).toBeNull();
+  });
+
+  it("the current host accepts the manifest and spawns the plugin", async () => {
+    sandbox = await makeSandbox({ bundled: [FIXTURE] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const record = findRecord(mgr.listInstalled(), FIXTURE);
+    expect(record.lastError).toBeFalsy();
+    expect(record.status).toBe("enabled");
+    expect(record.manifest?.agentInstallGuidance).toEqual(GUIDANCE);
     expect(typeof record.pid).toBe("number");
   });
 });

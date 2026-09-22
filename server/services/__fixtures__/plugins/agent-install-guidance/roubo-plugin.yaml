@@ -1,0 +1,27 @@
+# An agent plugin that declares how its CLI is installed and updated (APCC-NFR-003): it
+# declares the 1.9.0 `agentInstallGuidance` key and pins `roubo: ^1.9.0` as the
+# SDK contract documentation tells it to. The manifest fixture test drives it
+# through a simulated pre-1.9.0 host to prove the refusal names the version it
+# needs rather than the unrecognised key. It names no real agent.
+id: agent-install-guidance
+name: Agent Install Guidance Fixture
+version: 0.0.0
+description: An agent-kind fixture that declares install and update guidance for its CLI
+kind: agent
+roubo: ^1.9.0
+entry: ./index.cjs
+contractVersion: 1
+agentInstallGuidance:
+  install:
+    command: curl https://example.com/install -fsS | bash
+    url: https://example.com/docs/cli/installation
+  update:
+    command: guided-agent update
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  processes: false

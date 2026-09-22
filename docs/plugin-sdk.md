@@ -97,6 +97,7 @@ The manifest is validated by [`schema/roubo-plugin.schema.json`](../schema/roubo
 | `agentInstallLocations`         | string[]                                | Optional (agent plugins). Where your agent CLI installs itself, probed in declared order when it is not on the `PATH` the server inherits. Each entry is absolute or `~/`-prefixed, with no `..` segment and no `{{ }}` template. Rejected on a non-`agent` manifest. See [Where your agent CLI installs](#where-your-agent-cli-installs)                                                                                                                                                                                                                                                                                                        |
 | `choiceProbes`                  | object                                  | Optional. Binds a `configSchema` field to a host-executed probe whose output populates that field's choices, keyed by field name. Each value is `{ command, args, parse }`, all three required. See [Configuration choice probes](#configuration-choice-probes)                                                                                                                                                                                                                                                                                                                                                                                  |
 | `agentPermissionRuleTiers`      | string[]                                | Optional (agent plugins). Which tiers of the fine-grained permission rules your agent CLI's own rules format carries, drawn from `allow`, `ask` and `deny`. A tier you leave out is never written and the permissions screen offers no control for it. Rejected on a non-`agent` manifest. See [Which permission rule tiers you carry](#which-permission-rule-tiers-you-carry)                                                                                                                                                                                                                                                                   |
+| `agentInstallGuidance`          | object                                  | Optional (agent plugins). How a user installs your agent CLI and how they update it, `{ install?, update? }`, each step `{ command?, url? }`. A launch that fails because the CLI is missing names the install step, and a launch blocked below `minVersion` names the update step. The host shows each step and never runs it. Rejected on a non-`agent` manifest. See [How users install and update your agent CLI](#how-users-install-and-update-your-agent-cli)                                                                                                                                                                              |
 
 `host.fetch` to a host outside `network.hosts` is rejected with a structured error before any DNS lookup. `host.credentials.get/set` to a slot not declared in `permissions.credentials.slots` is rejected before the keyring is touched.
 
@@ -255,6 +256,29 @@ Each entry is `allow`, `ask` or `deny`, named at most once, and the list may not
 `agentPermissionRuleTiers` is optional. An existing agent plugin needs no change: a manifest that omits it validates unchanged and is offered all three tiers, exactly as before.
 
 Note the `roubo` range once more. The key landed in host API **1.8.0**, so declare `^1.8.0` (or higher) whenever you declare `agentPermissionRuleTiers`. It has a version of its own rather than riding 1.7.0 because 1.7.0 shipped before it, so a host reporting 1.7.0 may not know the key at all.
+
+### How users install and update your agent CLI
+
+Your plugin drives a CLI it does not ship. When that CLI is missing, the launch fails, and when it is older than your `minVersion`, the launch is blocked. Without more to go on, Roubo can only say "install the agent CLI" or "update the agent CLI". Say how:
+
+```yaml
+agentInstallGuidance:
+  install:
+    command: curl https://example.com/install -fsS | bash
+    url: https://example.com/docs/cli/installation
+  update:
+    command: example-cli update
+```
+
+A `missing-binary` failure then names the install step, and a `below-floor-version` failure names the update step, both in the guidance sentence and as a command the user can copy and a link they can open. The AI Agents card shows the same install step when it cannot detect the CLI, and the same update step when the detected version is below your floor, so the user can learn how before a launch is refused.
+
+This is metadata about your CLI, not about a launch, so it sits on the manifest beside [`agentInstallLocations`](#where-your-agent-cli-installs). Core carries no installer knowledge of its own (see `lint:agent-guard`), so this key is the only place the right command can come from.
+
+A step is **display text, never an instruction**. The host shows the `command` for the user to copy and never runs it, so it must be one line of printable text, at most 500 characters: a newline or a control character would render as a different command from the one the user copies. The `url` must be `http` or `https`, the only schemes the desktop app opens externally. Each step needs a `command`, a `url`, or both, and the block needs an `install` step, an `update` step, or both. The key is rejected on a non-`agent` manifest.
+
+`agentInstallGuidance` is optional, and each step falls back on its own. A manifest that omits the key validates unchanged and keeps the generic wording, and a plugin that declares only `install` keeps the generic update wording.
+
+Note the `roubo` range again. The key landed in host API **1.9.0**, so declare `^1.9.0` (or higher) whenever you declare `agentInstallGuidance`. It has a version of its own rather than riding 1.8.0 because hosts built before it already report 1.8.0, so a `^1.8.0` pin could be accepted by a host that does not know the key.
 
 ## Agent contract
 
@@ -449,7 +473,7 @@ Every agent-contract name this document describes is a named export of `@roubo/p
 | `WorkspaceWriteSpec`               | type  | A declared workspace file mutation. See [Workspace writes are declarative, always](#workspace-writes-are-declarative-always)                         |
 | `WriteOp`                          | type  | One op inside a `WorkspaceWriteSpec`: `unionArray`, `upsertArray`, `set`, or `delete`                                                                |
 
-The manifest fields these pair with (`kind: agent`, `agentCompatibility`, `agentInstallLocations`, `agentPermissionRuleTiers`, `choiceProbes`, `configSchema`, `permissions.processes`) are in the [Manifest reference](#manifest-reference); they are validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json) and have no SDK type of their own.
+The manifest fields these pair with (`kind: agent`, `agentCompatibility`, `agentInstallLocations`, `agentPermissionRuleTiers`, `agentInstallGuidance`, `choiceProbes`, `configSchema`, `permissions.processes`) are in the [Manifest reference](#manifest-reference); they are validated by [`schema/roubo-plugin.schema.json`](../schema/roubo-plugin.schema.json) and have no SDK type of their own.
 
 ### `translateLaunch({ config, context }): Promise<AgentLaunchDescriptor>`
 
@@ -625,8 +649,8 @@ Every way a launch can fail ends in an actionable in-terminal error with the age
 
 | Class                 | Detected by                                                                                        | What the user sees                                                                                                                                                                                                                    |
 | --------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `missing-binary`      | The command resolves nowhere, or the child exits nonzero inside 5s with no output, or it exits 127 | "CLI was not found", with every location tried and an install next step.                                                                                                                                                              |
-| `below-floor-version` | The pre-launch probe reads a version below the floor                                               | The detected version, the required floor, and the update action. Nothing was spawned.                                                                                                                                                 |
+| `missing-binary`      | The command resolves nowhere, or the child exits nonzero inside 5s with no output, or it exits 127 | "CLI was not found", with every location tried and an install next step: your declared [install step](#how-users-install-and-update-your-agent-cli) when you declare one.                                                             |
+| `below-floor-version` | The pre-launch probe reads a version below the floor                                               | The detected version, the required floor, and the update action: your declared [update step](#how-users-install-and-update-your-agent-cli) when you declare one. Nothing was spawned.                                                 |
 | `launch-failure`      | Exit inside 5s, nonzero code, and non-empty output, all three                                      | The captured output verbatim, ANSI-stripped, as the error body.                                                                                                                                                                       |
 | `host-install-broken` | `pty.spawn` itself throws                                                                          | A Roubo install error. Every spawn fails in this state, so it is not attributed to your plugin. When the host can name the cause (for example a node-pty spawn helper missing its executable bit) the guidance carries the exact fix. |
 

@@ -287,7 +287,13 @@ export async function prepareAgentLaunch(
       invalidateAgentVersionProbe(params.pluginId);
       throw new AgentVersionGateError(
         belowFloorFailure(
-          { agentPluginId: params.pluginId, agentName: resolved.manifest.name },
+          {
+            agentPluginId: params.pluginId,
+            agentName: resolved.manifest.name,
+            ...(resolved.manifest.agentInstallGuidance !== undefined && {
+              installGuidance: resolved.manifest.agentInstallGuidance,
+            }),
+          },
           compatibility,
         ),
         compatibility,

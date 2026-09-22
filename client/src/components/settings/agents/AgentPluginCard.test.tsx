@@ -216,3 +216,83 @@ describe("AgentPluginCard CLI-not-detected state (AP-TC-122)", () => {
     );
   });
 });
+
+// APCC-NFR-003: the install and update steps the plugin declares in its manifest
+// `agentInstallGuidance`, shown where the card already reports the CLI missing
+// or too old, so the user learns HOW before any launch is refused.
+describe("AgentPluginCard declared install and update steps (APCC-NFR-003)", () => {
+  const GUIDANCE = {
+    install: {
+      command: "curl https://example.com/install -fsS | bash",
+      url: "https://example.com/docs/cli/installation",
+    },
+    update: { command: "acme update" },
+  };
+
+  function withGuidance(compatibility: AgentCompatibilityState): AgentPluginState {
+    return { ...agent(compatibility), installGuidance: GUIDANCE };
+  }
+
+  const MISSING: AgentCompatibilityState = {
+    minVersion: "2.1.111",
+    status: "probe-failed",
+    cause: "command-not-found",
+    reason: "`acme --version` could not be found on your PATH",
+  };
+  const BELOW: AgentCompatibilityState = {
+    minVersion: "2.1.111",
+    detectedVersion: "2.1.100",
+    status: "below-floor",
+  };
+
+  it("names the declared install command and guide when the CLI is not detected", () => {
+    render(<AgentPluginCard agent={withGuidance(MISSING)} />);
+
+    const status = screen.getByTestId("agent-cli-missing-claude-code");
+    expect(status).toHaveTextContent("Install the agent's command-line tool, then reopen");
+    expect(screen.getByTestId("agent-cli-install-claude-code-command")).toHaveTextContent(
+      GUIDANCE.install.command,
+    );
+    expect(screen.getByTestId("agent-cli-install-claude-code-link")).toHaveAttribute(
+      "href",
+      GUIDANCE.install.url,
+    );
+  });
+
+  it("names the declared update command in place of Ready when the CLI is below the floor", () => {
+    render(<AgentPluginCard agent={withGuidance(BELOW)} />);
+
+    const status = screen.getByTestId("agent-cli-below-floor-claude-code");
+    expect(status).toHaveTextContent("Update the agent's command-line tool to 2.1.111 or newer");
+    expect(screen.getByTestId("agent-cli-update-claude-code-command")).toHaveTextContent(
+      "acme update",
+    );
+    expect(screen.queryByText("Ready")).toBeNull();
+  });
+
+  it("keeps the generic text and no step for a plugin that declares none", () => {
+    render(<AgentPluginCard agent={agent(MISSING)} />);
+    expect(screen.getByTestId("agent-cli-missing-claude-code")).toHaveTextContent(
+      "Install the agent's command-line tool and make sure it is on your PATH",
+    );
+    expect(screen.queryByTestId("agent-cli-install-claude-code")).toBeNull();
+  });
+
+  it("leaves a below-floor card as it was when no update step is declared", () => {
+    render(<AgentPluginCard agent={agent(BELOW)} />);
+    expect(screen.queryByTestId("agent-cli-below-floor-claude-code")).toBeNull();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+  });
+
+  it("does not show the update step for an agent the registry refuses to run", () => {
+    render(
+      <AgentPluginCard
+        agent={{
+          ...withGuidance(BELOW),
+          unavailable: { reason: "not-consented", message: "Not consented." },
+        }}
+      />,
+    );
+    expect(screen.queryByTestId("agent-cli-below-floor-claude-code")).toBeNull();
+  });
+});

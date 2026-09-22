@@ -325,6 +325,86 @@ export const AgentPermissionRuleTiersSchema = z
   .refine((tiers) => new Set(tiers).size === tiers.length, "Must not name the same tier twice");
 export type AgentPermissionRuleTiers = z.infer<typeof AgentPermissionRuleTiersSchema>;
 
+// ── Agent install guidance ──
+
+// How a user installs THIS agent's CLI, and how they update it (APCC-NFR-003,
+// APCC-TC-036, APCC-TC-054). A launch that fails because the CLI is missing, or
+// is blocked because it is below the declared floor, names the declared step
+// instead of a bare "install the agent CLI". The AI Agents card does the same.
+//
+// It sits on install-time metadata beside `agentInstallLocations` for the same
+// reason: how a CLI is installed is fixed by the CLI, not by a launch, and core
+// that hard-coded an installer command would be exactly the per-agent knowledge
+// `lint:agent-guard` exists to stop.
+//
+// A step is display text and a link, never an instruction to the host. The
+// command is shown for the user to copy and is never run, so it is held to one
+// line of printable text: a newline or a control character would render as a
+// different command from the one the user copies. The URL is limited to http
+// and https, the only schemes the desktop shell opens externally.
+//
+// Each step needs at least one of the two, and the block needs at least one
+// step, for the same reason an empty `agentInstallLocations` is rejected: an
+// empty declaration is an authoring error, not a quieter way to declare nothing.
+export const AGENT_CLI_COMMAND_MAX_LENGTH = 500;
+
+// C0 controls, DEL and the C1 range: a newline, a tab, an escape sequence.
+function hasControlCharacter(value: string): boolean {
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) return true;
+  }
+  return false;
+}
+
+// Written out as `http://` or `https://`: `new URL("http:example.com")` parses,
+// but that spelling is not a link a reader would recognise, and the JSON Schema
+// mirror can only check the prefix.
+export function isHttpUrl(value: string): boolean {
+  if (!/^https?:\/\/[^/]/i.test(value)) return false;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export const AgentCliStepSchema = z
+  .object({
+    command: z
+      .string()
+      .refine((command) => command.trim().length > 0, "Required")
+      .max(
+        AGENT_CLI_COMMAND_MAX_LENGTH,
+        `Must be at most ${AGENT_CLI_COMMAND_MAX_LENGTH} characters`,
+      )
+      .refine(
+        (command) => !hasControlCharacter(command),
+        "Must be one line of printable text, with no newline or control character",
+      )
+      .optional(),
+    url: z.string().refine(isHttpUrl, "Must be an http or https URL").optional(),
+  })
+  .strict()
+  .refine(
+    (step) => step.command !== undefined || step.url !== undefined,
+    "Must declare a `command`, a `url`, or both",
+  );
+export type AgentCliStep = z.infer<typeof AgentCliStepSchema>;
+
+export const AgentInstallGuidanceSchema = z
+  .object({
+    install: AgentCliStepSchema.optional(),
+    update: AgentCliStepSchema.optional(),
+  })
+  .strict()
+  .refine(
+    (guidance) => guidance.install !== undefined || guidance.update !== undefined,
+    "Must declare an `install` step, an `update` step, or both",
+  );
+export type AgentInstallGuidance = z.infer<typeof AgentInstallGuidanceSchema>;
+
 export const AgentCompatibilitySchema = z
   .object({
     minVersion: z
@@ -405,6 +485,11 @@ export const PluginManifestSchema = z
     // and an agent declaring nothing is offered all three. Agent-only, like
     // `agentInstallLocations`: the key describes an agent CLI's rules format.
     agentPermissionRuleTiers: AgentPermissionRuleTiersSchema.optional(),
+    // How a user installs and updates this agent's CLI (APCC-NFR-003): the step a
+    // missing-CLI or below-floor launch failure names. Optional, so every
+    // existing manifest validates unchanged and an agent declaring nothing keeps
+    // the generic wording. Agent-only, like `agentInstallLocations`.
+    agentInstallGuidance: AgentInstallGuidanceSchema.optional(),
   })
   .strict()
   // An agent plugin may not declare a `processes` permission (#1030,
@@ -435,7 +520,8 @@ export const PluginManifestSchema = z
   // The remaining rules are the mirror image and land for the same reason:
   // `agentInstallLocations` says where an agent CLI installs itself (#1115) and
   // `agentPermissionRuleTiers` says which permission rule tiers its rules format
-  // carries (#1345), so both mean nothing on an integration or component
+  // carries (#1345), and `agentInstallGuidance` says how a user installs and
+  // updates it (APCC-NFR-003), so all three mean nothing on an integration or component
   // manifest, and a silently-ignored field is exactly the ambiguity the rule
   // above exists to avoid.
   .superRefine((manifest, ctx) => {
@@ -454,6 +540,14 @@ export const PluginManifestSchema = z
           path: ["agentPermissionRuleTiers"],
           message:
             "`agentPermissionRuleTiers` is an agent-plugin field: only a `kind: agent` manifest declares which permission rule tiers its own agent CLI carries.",
+        });
+      }
+      if (manifest.agentInstallGuidance !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["agentInstallGuidance"],
+          message:
+            "`agentInstallGuidance` is an agent-plugin field: only a `kind: agent` manifest declares how its own agent CLI is installed and updated.",
         });
       }
       return;

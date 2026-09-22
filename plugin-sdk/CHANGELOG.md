@@ -12,11 +12,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 - **`agentPermissionRuleTiers` on the plugin manifest, and the `PermissionRuleTier` type** (#1345). An agent plugin may name which tiers of Roubo's fine-grained permission rules its own CLI's rules format carries, drawn from `allow`, `ask` and `deny`. The permissions screen then offers only those tiers, states that a rule in a tier the agent does not carry is never written, and marks any such rule a project already saved rather than letting it look applied. Each entry appears at most once, the list may not be empty (an agent that carries no rules at all says so by declaring no `rules` capability on its descriptor), and the key is rejected on a non-`agent` manifest.
 
-- **New exported types:** `PermissionRuleTier` (from `@roubo/shared`).
+- **`agentInstallGuidance` on the plugin manifest.** An agent plugin may declare how a user installs its CLI and how they update it, as `{ install?, update? }` with each step `{ command?, url? }`. A launch that fails because the CLI is missing names the install step, and a launch blocked below `minVersion` names the update step, both in the guidance sentence and as a command to copy and a link. The AI Agents card shows the same steps. The host shows each step and never runs it: the command must be one line of printable text of at most 500 characters, the URL must be `http` or `https`, each step needs at least one of the two, and the key is rejected on a non-`agent` manifest.
+
+- **`remedy` on `AgentLaunchFailure`, and `installGuidance` on `AgentPluginState`.** Both are optional and carry the declared steps structured, for the launch-failure panel and the AI Agents card.
+
+- **New exported types:** `PermissionRuleTier`, `AgentCliStep` and `AgentInstallGuidance` (from `@roubo/shared`).
 
 ### Compatibility
 
 Nothing here is breaking for a plugin. The key is optional, so every existing manifest validates unchanged and an agent that declares nothing is offered all three tiers exactly as before. The manifest schema is strict, so a manifest declaring it pins `roubo: ^1.8.0` (the host API moves to 1.8.0 with this change) and a host below that floor refuses it with a message naming the version it needs rather than an unrecognised manifest key. A manifest fixture test asserts that refusal, so it does not depend on release order. The key takes 1.8.0 rather than riding the 1.7.0 that `0.6.0` moved to, because `0.6.0` shipped that version without it: a host reporting 1.7.0 may well not know the key, so a `^1.7.0` pin would be accepted and then fail on the unrecognised key, which is the failure a floor exists to replace.
+
+`agentInstallGuidance` follows the same pattern one version up. The key is optional and every step falls back on its own, so a manifest that omits it validates unchanged and keeps the generic install and update wording. A manifest declaring it pins `roubo: ^1.9.0` (the host API moves to 1.9.0 with this change), and a manifest fixture test asserts the version-named refusal from a 1.8.0 host. It takes 1.9.0 rather than riding the unreleased 1.8.0, because hosts built from main before it already report 1.8.0 without the key.
 
 `AgentPermissionsCapabilities` gains a required `ruleTiers: PermissionRuleTier[]` field, which narrows an exported interface. It is not classed as breaking the way `AgentPermissionsModel.rules` was in `0.3.0`, because nothing outside the host constructs or implements this one: it is the shape the host's own permissions-capabilities endpoint returns, and a plugin neither receives it nor produces it. A consumer that builds one by hand, such as a test fixture, does have to add the field.
 

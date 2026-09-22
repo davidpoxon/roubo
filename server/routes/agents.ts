@@ -95,6 +95,11 @@ function toState(manifest: PluginManifest): AgentPluginState {
       : null,
     ...(compatibility !== undefined && { compatibility }),
     ...(choiceProbes !== undefined && { choiceProbes }),
+    // Verbatim, so the card can name the plugin's own install step when the CLI
+    // is not detected and its update step when it is below the floor (APCC-NFR-003).
+    ...(manifest.agentInstallGuidance !== undefined && {
+      installGuidance: manifest.agentInstallGuidance,
+    }),
   };
 }
 

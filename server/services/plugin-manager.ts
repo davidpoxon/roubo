@@ -121,7 +121,16 @@ import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-p
 // 0.6.0, without this key: a host that reports it may well not know the key,
 // so a `^1.7.0` pin would be accepted and then fail on the unrecognised key,
 // which is the failure the floor exists to replace.
-export const HOST_API_VERSION = "1.8.0";
+// 1.9.0 (APCC-NFR-003): the optional `agentInstallGuidance` manifest key lands,
+// declaring how a user installs and updates an agent CLI, so a missing-CLI or
+// below-floor launch failure names the plugin's own step rather than a bare
+// "install the agent CLI". Same additive class as 1.8.0: every plugin built
+// against 1.0.0 through 1.8.0 keeps working unchanged and keeps the generic
+// wording, but a manifest declaring the key must pin `roubo: ^1.9.0`. It takes
+// its own version rather than riding 1.8.0 because hosts built from main
+// already report 1.8.0 without the key, so a `^1.8.0` pin would be accepted by
+// one of them and then fail on the unrecognised key.
+export const HOST_API_VERSION = "1.9.0";
 export const RESTART_BUDGET = 3;
 export const RESTART_WINDOW_MS = 5 * 60 * 1000;
 export const SHUTDOWN_GRACE_MS = 5000;
