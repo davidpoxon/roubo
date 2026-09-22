@@ -242,13 +242,13 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 500,
-              "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f-\\u009f]*$",
+              "pattern": "^(?=[\\s\\S]*\\S)[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]*$",
               "description": "The command a user runs, shown for them to copy. One line of printable text; the host never runs it."
             },
             "url": {
               "type": "string",
               "format": "uri",
-              "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/]",
+              "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/?#:\\s]",
               "description": "An http or https page with the instructions, opened as an external link."
             }
           },
@@ -263,13 +263,13 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 500,
-              "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f-\\u009f]*$",
+              "pattern": "^(?=[\\s\\S]*\\S)[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]*$",
               "description": "The command a user runs, shown for them to copy. One line of printable text; the host never runs it."
             },
             "url": {
               "type": "string",
               "format": "uri",
-              "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/]",
+              "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/?#:\\s]",
               "description": "An http or https page with the instructions, opened as an external link."
             }
           },

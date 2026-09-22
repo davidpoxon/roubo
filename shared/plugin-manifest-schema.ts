@@ -348,11 +348,14 @@ export type AgentPermissionRuleTiers = z.infer<typeof AgentPermissionRuleTiersSc
 // empty declaration is an authoring error, not a quieter way to declare nothing.
 export const AGENT_CLI_COMMAND_MAX_LENGTH = 500;
 
-// C0 controls, DEL and the C1 range: a newline, a tab, an escape sequence.
+// C0 controls, DEL, the C1 range, and the Unicode line and paragraph
+// separators: a newline, a tab, an escape sequence, or anything else that
+// breaks the command onto a second line.
 function hasControlCharacter(value: string): boolean {
   for (const char of value) {
     const code = char.codePointAt(0) ?? 0;
     if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) return true;
+    if (code === 0x2028 || code === 0x2029) return true;
   }
   return false;
 }
@@ -361,7 +364,7 @@ function hasControlCharacter(value: string): boolean {
 // but that spelling is not a link a reader would recognise, and the JSON Schema
 // mirror can only check the prefix.
 export function isHttpUrl(value: string): boolean {
-  if (!/^https?:\/\/[^/]/i.test(value)) return false;
+  if (!/^https?:\/\/[^/?#:\s]/i.test(value)) return false;
   try {
     const { protocol } = new URL(value);
     return protocol === "http:" || protocol === "https:";

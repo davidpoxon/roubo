@@ -692,6 +692,7 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
         "   ",
         "acme update\nrm -rf ~",
         "acme\u001b[2Jupdate",
+        "\u2028acme update",
         "a".repeat(AGENT_CLI_COMMAND_MAX_LENGTH + 1),
       ]) {
         expectFieldError(
@@ -710,6 +711,9 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
         "example.com/install",
         "http:",
         "http:example.com",
+        "http://?",
+        "http://#x",
+        "http://:80",
         "",
       ]) {
         expectFieldError(
@@ -1456,11 +1460,14 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
       expect(commandPattern.test("acme update")).toBe(true);
       expect(commandPattern.test("acme update\nrm -rf ~")).toBe(false);
       expect(commandPattern.test("   ")).toBe(false);
+      expect(commandPattern.test("\u2028acme install")).toBe(false);
       const urlPattern = new RegExp(fields.url.pattern as string);
       expect(urlPattern.test("https://example.com")).toBe(true);
       expect(urlPattern.test("javascript:alert(1)")).toBe(false);
       expect(urlPattern.test("http:")).toBe(false);
       expect(urlPattern.test("http:example.com")).toBe(false);
+      expect(urlPattern.test("http://?")).toBe(false);
+      expect(urlPattern.test("http://:80")).toBe(false);
     }
 
     const allOf = jsonSchema.allOf as Array<Record<string, Record<string, unknown>>>;
