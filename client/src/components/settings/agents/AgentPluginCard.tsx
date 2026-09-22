@@ -3,6 +3,7 @@ import { Button } from "react-aria-components";
 import { Bot, CheckCircle2, ChevronDown, ChevronRight, TriangleAlert } from "lucide-react";
 import type { AgentCompatibilityState, AgentPluginState } from "@roubo/shared";
 import AgentConfigForm from "./AgentConfigForm";
+import CliRemedy from "../../CliRemedy";
 
 const STRINGS = {
   configure: "Configure",
@@ -28,6 +29,11 @@ const STRINGS = {
   cliMissingHeadline: (name: string) => `${name} is installed, but its agent CLI was not detected.`,
   cliMissingGuidance:
     "Install the agent's command-line tool and make sure it is on your PATH, then reopen this screen.",
+  // Used instead when the plugin declares its own install step (APCC-NFR-003), which
+  // the card then shows as a command to copy and a link.
+  cliMissingGuidanceDeclared: "Install the agent's command-line tool, then reopen this screen.",
+  belowFloorGuidance: (minVersion: string | undefined) =>
+    `Update the agent's command-line tool to ${minVersion ?? "a supported version"} or newer, then reopen this screen.`,
 };
 
 const CHIP_CLASS =
@@ -139,7 +145,43 @@ function CliNotDetected({ agent }: { agent: AgentPluginState }) {
           {agent.compatibility.reason}
         </p>
       )}
-      <p>{STRINGS.cliMissingGuidance}</p>
+      {agent.installGuidance?.install ? (
+        <>
+          <p>{STRINGS.cliMissingGuidanceDeclared}</p>
+          <CliRemedy
+            step={agent.installGuidance.install}
+            kind="install"
+            testId={`agent-cli-install-${agent.id}`}
+          />
+        </>
+      ) : (
+        <p>{STRINGS.cliMissingGuidance}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The detected CLI is below the plugin's floor, and the plugin declares how to
+ * update it (APCC-NFR-003). A launch would be refused with the same step, so the card
+ * says so before anyone tries. Without a declared step the compatibility chip
+ * alone carries the verdict, as it always has.
+ */
+function CliBelowFloor({
+  agent,
+  update,
+}: {
+  agent: AgentPluginState;
+  update: NonNullable<NonNullable<AgentPluginState["installGuidance"]>["update"]>;
+}) {
+  return (
+    <div
+      role="status"
+      data-testid={`agent-cli-below-floor-${agent.id}`}
+      className="rounded-lg border border-accent-border bg-accent-muted px-3 py-2 text-11 text-accent-text leading-relaxed space-y-1"
+    >
+      <p>{STRINGS.belowFloorGuidance(agent.compatibility?.minVersion)}</p>
+      <CliRemedy step={update} kind="update" testId={`agent-cli-update-${agent.id}`} />
     </div>
   );
 }
@@ -171,6 +213,12 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
   // ordinary Ready/status line.
   const cliMissing =
     agent.unavailable === null && agent.compatibility?.cause === "command-not-found";
+  // Same ordering: only a resolvable agent with a detected, too-old CLI, and
+  // only when the plugin says how to update it (APCC-NFR-003).
+  const belowFloorUpdate =
+    agent.unavailable === null && agent.compatibility?.status === "below-floor"
+      ? agent.installGuidance?.update
+      : undefined;
 
   return (
     <section
@@ -223,6 +271,8 @@ export default function AgentPluginCard({ agent }: { agent: AgentPluginState }) 
         </p>
       ) : cliMissing ? (
         <CliNotDetected agent={agent} />
+      ) : belowFloorUpdate ? (
+        <CliBelowFloor agent={agent} update={belowFloorUpdate} />
       ) : (
         <p className="text-11 text-text-secondary">{STRINGS.ready}</p>
       )}

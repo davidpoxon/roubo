@@ -5,8 +5,8 @@ description: E2E overlay that takes the Cursor CLI agent plugin's slot during Pl
 kind: agent
 # The same floor as the shipped manifest
 # (roubo-plugins/plugins/cursor-cli/roubo-plugin.yaml): `agentPermissionRuleTiers`
-# below needs host plugin API 1.8.0.
-roubo: ^1.8.0
+# below needs host plugin API 1.8.0, and `agentInstallGuidance` needs 1.9.0.
+roubo: ^1.9.0
 entry: ./index.mjs
 contractVersion: 1
 # OPT-IN, not ambient. Every POST /test/__reset forces this id disabled, via
@@ -70,6 +70,16 @@ choiceProbes:
 agentPermissionRuleTiers:
   - allow
   - deny
+# Copied VERBATIM from the shipped manifest, so a missing-CLI or below-floor
+# launch in a journey shows the same install and update steps a user sees. The
+# commands are display text: nothing here runs them.
+agentInstallGuidance:
+  install:
+    command: curl https://cursor.com/install -fsS | bash
+    url: https://cursor.com/docs/cli/installation
+  update:
+    command: agent update
+    url: https://cursor.com/docs/cli/installation
 permissions:
   network:
     hosts: []

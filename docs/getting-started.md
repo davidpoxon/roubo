@@ -128,7 +128,7 @@ The **Marketplace** tab lists agent plugins alongside components and integration
 
 An agent plugin and the AI coding agent's own command-line tool are separate installs. Installing the plugin from the Marketplace does not install the CLI.
 
-If Roubo cannot detect the CLI, the plugin's card under **Settings > AI Agents** says so: it reports that the plugin is installed but its agent CLI was not detected, shows what the version check actually tried and what happened, and tells you to install the agent's command-line tool and put it on your `PATH`. The install itself succeeded, so there is nothing to reinstall. Install the CLI, then reopen the screen: Roubo re-checks in the background, so the card picks up the detected version and compares it against the plugin's declared window on a following refresh rather than the instant you return.
+If Roubo cannot detect the CLI, the plugin's card under **Settings > AI Agents** says so: it reports that the plugin is installed but its agent CLI was not detected, shows what the version check actually tried and what happened, and tells you to install the agent's command-line tool and put it on your `PATH`. When the plugin says how its CLI is installed, the card shows that command, with a button to copy it, and a link to the installation guide. The same goes for an installed CLI older than the plugin supports: the card shows the plugin's update command in place of **Ready**. The install itself succeeded, so there is nothing to reinstall. Install the CLI, then reopen the screen: Roubo re-checks in the background, so the card picks up the detected version and compares it against the plugin's declared window on a following refresh rather than the instant you return.
 
 ### Choosing which agent a jig launches
 

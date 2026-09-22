@@ -43,6 +43,17 @@
           "kind": { "const": "agent" }
         }
       }
+    },
+    {
+      "description": "agentInstallGuidance says how a user installs and updates an agent CLI, so it is meaningful only on a kind: agent manifest. Kept in lockstep with the kind gate on PluginManifestSchema in shared/plugin-manifest-schema.ts.",
+      "if": {
+        "required": ["agentInstallGuidance"]
+      },
+      "then": {
+        "properties": {
+          "kind": { "const": "agent" }
+        }
+      }
     }
   ],
   "properties": {
@@ -216,6 +227,65 @@
       },
       "description": "Agent-plugin field: which tiers of Roubo's fine-grained permission rules this plugin's agent CLI actually carries. A tier left out is never written, and the permissions screen offers no control for it. Optional; a plugin that declares nothing is offered all three. Kept in lockstep with AgentPermissionRuleTiersSchema in shared/plugin-manifest-schema.ts.",
       "examples": [["allow", "deny"]]
+    },
+    "agentInstallGuidance": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "install": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "command": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "pattern": "^(?=[\\s\\S]*\\S)[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]*$",
+              "description": "The command a user runs, shown for them to copy. One line of printable text; the host never runs it."
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/?#:\\s]",
+              "description": "An http or https page with the instructions, opened as an external link."
+            }
+          },
+          "description": "How to install the agent CLI. Declares a command, a url, or both."
+        },
+        "update": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "command": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "pattern": "^(?=[\\s\\S]*\\S)[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]*$",
+              "description": "The command a user runs, shown for them to copy. One line of printable text; the host never runs it."
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/?#:\\s]",
+              "description": "An http or https page with the instructions, opened as an external link."
+            }
+          },
+          "description": "How to update the agent CLI to a newer version. Declares a command, a url, or both."
+        }
+      },
+      "description": "Agent-plugin field: how a user installs this plugin's agent CLI, and how they update it. A launch that fails because the CLI is missing names the install step, and a launch blocked below the version floor names the update step. The host shows each step and never runs it. Optional; a plugin that declares nothing keeps the generic wording. Kept in lockstep with AgentInstallGuidanceSchema in shared/plugin-manifest-schema.ts.",
+      "examples": [
+        {
+          "install": {
+            "command": "curl https://example.com/install -fsS | bash",
+            "url": "https://example.com/docs/cli/installation"
+          },
+          "update": { "command": "acme update" }
+        }
+      ]
     },
     "permissions": {
       "type": "object",

@@ -90,7 +90,12 @@ vi.mock("./env.js", () => ({
 const spawnMock = vi.hoisted(() => vi.fn());
 vi.mock("node-pty", () => ({ spawn: spawnMock }));
 
-import { createAgentSession, destroyAllSessions, handleWebSocket } from "./terminal.js";
+import {
+  createAgentSession,
+  destroyAllSessions,
+  getSessions,
+  handleWebSocket,
+} from "./terminal.js";
 import { AgentLaunchFailureError } from "./agent-launch-failure.js";
 import { resetAgentVersionProbeCache } from "./agent-version-probe.js";
 import { AgentCommandNotFoundError } from "./env.js";
@@ -259,5 +264,86 @@ describe("AP-TC-076: every launch-failure class is detected and surfaced", () =>
 
     expect(compatibility?.status).toBe("within-tested-range");
     expect(failureFor(session.id)).toBeUndefined();
+  });
+});
+
+// APCC-NFR-003: the same two refusals for a plugin whose manifest declares how its CLI
+// is installed and updated. Driven through the real gate and resolver path, so
+// this proves the manifest value reaches the failure, not only that the builder
+// can word it. The other observations of APCC-TC-036 and APCC-TC-054 must hold
+// unchanged: the launch is refused, the message names the command or both
+// versions, and no session is left behind.
+describe("APCC-TC-036, APCC-TC-054: a declared install or update step reaches the failure", () => {
+  const INSTALL = {
+    command: "curl https://example.com/install -fsS | bash",
+    url: "https://example.com/docs/cli/installation",
+  };
+  const UPDATE = { command: "acme update" };
+
+  beforeEach(() => {
+    const record = pluginManagerMocks.getRecord() as PluginRecord;
+    pluginManagerMocks.getRecord.mockReturnValue({
+      ...record,
+      manifest: { ...MANIFEST, agentInstallGuidance: { install: INSTALL, update: UPDATE } },
+    } as PluginRecord);
+  });
+
+  it("APCC-TC-036 S001: a missing CLI names the declared install step", async () => {
+    envMocks.resolveAgentCommand.mockImplementation(() => {
+      throw new AgentCommandNotFoundError("acme", ["~/.local/bin/acme"]);
+    });
+
+    const err = (await launch().catch((e: unknown) => e)) as AgentLaunchFailureError;
+
+    expect(err).toBeInstanceOf(AgentLaunchFailureError);
+    expect(err.failure.class).toBe("missing-binary");
+    expect(err.failure.message).toContain('the "acme" CLI was not found');
+    expect(err.failure.guidance).toContain(`by running \`${INSTALL.command}\``);
+    expect(err.failure.guidance).toContain(INSTALL.url);
+    expect(err.failure.guidance).toContain("~/.local/bin/acme");
+    expect(err.failure.remedy).toEqual(INSTALL);
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(getSessions("roubo", 2)).toEqual([]);
+  });
+
+  it("APCC-TC-036: a spawned child that exits as unrunnable carries the install step too", async () => {
+    const { session } = await launch();
+
+    lastPty()._emit("exit", { exitCode: 127 });
+
+    const failure = failureFor(session.id);
+    expect(failure?.class).toBe("missing-binary");
+    expect(failure?.remedy).toEqual(INSTALL);
+  });
+
+  it("APCC-TC-054 S001: a CLI below the floor names the declared update step", async () => {
+    probeSpawnMocks.spawnProbe.mockResolvedValue({ code: 0, stdout: "2.1.100", stderr: "" });
+
+    const err = (await launch().catch((e: unknown) => e)) as AgentLaunchFailureError;
+
+    expect(err).toBeInstanceOf(AgentLaunchFailureError);
+    expect(err.failure.class).toBe("below-floor-version");
+    expect(err.failure.message).toContain("2.1.100");
+    expect(err.failure.message).toContain("2.1.111");
+    expect(err.failure.guidance).toContain("by running `acme update`");
+    expect(err.failure.remedy).toEqual(UPDATE);
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(stateMocks.atomicWrite).not.toHaveBeenCalled();
+    expect(getSessions("roubo", 2)).toEqual([]);
+  });
+
+  it("a plugin declaring nothing keeps the generic wording and no remedy", async () => {
+    pluginManagerMocks.getRecord.mockReturnValue({
+      ...(pluginManagerMocks.getRecord() as PluginRecord),
+      manifest: MANIFEST,
+    } as PluginRecord);
+    probeSpawnMocks.spawnProbe.mockResolvedValue({ code: 0, stdout: "2.1.100", stderr: "" });
+
+    const err = (await launch().catch((e: unknown) => e)) as AgentLaunchFailureError;
+
+    expect(err.failure.guidance).toMatch(
+      /^Update the agent CLI to 2\.1\.111 or newer, then launch/,
+    );
+    expect(err.failure).not.toHaveProperty("remedy");
   });
 });

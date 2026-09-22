@@ -805,6 +805,11 @@ export async function createAgentSession(
     agentName: prepared.manifest.name,
     command,
     ...(prepared.compatibility !== undefined && { compatibility: prepared.compatibility }),
+    // The plugin's declared install step, so a missing CLI names how to install
+    // it, both here and when the spawned child exits as unrunnable (APCC-NFR-003).
+    ...(prepared.manifest.agentInstallGuidance !== undefined && {
+      installGuidance: prepared.manifest.agentInstallGuidance,
+    }),
   };
 
   let binary: string;

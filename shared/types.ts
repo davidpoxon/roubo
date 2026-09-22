@@ -9,10 +9,14 @@ import type {
   JigSettings,
 } from "./config-schema.js";
 import type { AgentPosture } from "./agent-launch-descriptor-schema.js";
-import type { PermissionRuleTier } from "./plugin-manifest-schema.js";
+import type {
+  AgentCliStep,
+  AgentInstallGuidance,
+  PermissionRuleTier,
+} from "./plugin-manifest-schema.js";
 
 export type { AgentPosture };
-export type { PermissionRuleTier };
+export type { AgentCliStep, AgentInstallGuidance, PermissionRuleTier };
 
 export type {
   RouboConfig,
@@ -780,6 +784,13 @@ export interface AgentPluginState {
    */
   compatibility?: AgentCompatibilityState;
   /**
+   * How to install and update this plugin's agent CLI, verbatim from its
+   * manifest `agentInstallGuidance` (APCC-NFR-003). The card shows the install step when
+   * the CLI is not detected and the update step when it is below the floor.
+   * Absent when the manifest declares none.
+   */
+  installGuidance?: AgentInstallGuidance;
+  /**
    * Each probed configuration field's state, keyed by field name (#1268,
    * APCC-FR-002). A resolved field's choices are already merged into
    * `configSchema` as `oneOf` const/title branches, so the form reads them like
@@ -882,6 +893,13 @@ export interface AgentLaunchFailure {
   message: string;
   /** What the user can do about it. */
   guidance?: string;
+  /**
+   * The install or update step the agent plugin declares for this failure, from
+   * its manifest `agentInstallGuidance` (APCC-NFR-003). `guidance` already names it in
+   * prose; this carries it structured, so the panel can offer the command to
+   * copy and the URL as a link. Absent when the plugin declares no such step.
+   */
+  remedy?: AgentCliStep;
   capturedOutput?: string;
   agentPluginId?: string;
   agentName?: string;

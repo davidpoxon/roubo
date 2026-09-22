@@ -170,6 +170,111 @@ describe("failure wording", () => {
   });
 });
 
+// APCC-NFR-003: the install and update steps an agent plugin declares in its manifest
+// `agentInstallGuidance`. APCC-TC-036 and APCC-TC-054 S001-O03 each require the
+// message to say HOW, which the generic sentence alone never did.
+describe("declared install and update guidance (APCC-NFR-003)", () => {
+  const GUIDED: AgentLaunchContextInfo = {
+    agentPluginId: "cursor-cli",
+    agentName: "Cursor CLI",
+    command: "agent",
+    installGuidance: {
+      install: {
+        command: "curl https://cursor.com/install -fsS | bash",
+        url: "https://cursor.com/docs/cli/installation",
+      },
+      update: { command: "agent update" },
+    },
+  };
+  const BELOW = {
+    status: "below-floor",
+    detectedVersion: "2026.09.01",
+    minVersion: "2026.09.08",
+  } as const;
+
+  it("APCC-TC-036 S001-O03: a missing CLI names the declared install command and link", () => {
+    const failure = missingBinaryFailure(GUIDED, "Tried: ~/.local/bin/agent.");
+    expect(failure.guidance).toBe(
+      "Install the agent CLI by running `curl https://cursor.com/install -fsS | bash` " +
+        "(see https://cursor.com/docs/cli/installation), or point Cursor CLI at an existing " +
+        "install from its plugin settings. Tried: ~/.local/bin/agent.",
+    );
+    expect(failure.remedy).toEqual(GUIDED.installGuidance?.install);
+  });
+
+  it("APCC-TC-036 S001-O02: the message still names the missing command", () => {
+    const failure = missingBinaryFailure(GUIDED, "Tried: ~/.local/bin/agent.");
+    expect(failure.class).toBe("missing-binary");
+    expect(failure.message).toBe('Cursor CLI could not start: the "agent" CLI was not found.');
+    expect(failure.actions).toEqual(["open-plugin-settings", "retry"]);
+  });
+
+  it("APCC-TC-036: a child that exits as unrunnable carries the same install step", () => {
+    const failure = classifyLaunchExit(GUIDED, { exitCode: 127, timeToExitMs: 6, output: "" });
+    expect(failure?.class).toBe("missing-binary");
+    expect(failure?.guidance).toContain("`curl https://cursor.com/install -fsS | bash`");
+    expect(failure?.remedy).toEqual(GUIDED.installGuidance?.install);
+  });
+
+  it("APCC-TC-054 S001-O03: a CLI below the floor names the declared update command", () => {
+    const failure = belowFloorFailure(GUIDED, BELOW);
+    expect(failure.guidance).toBe(
+      "Update the agent CLI to 2026.09.08 or newer by running `agent update`, then launch " +
+        "again. Nothing was started, so no session is running.",
+    );
+    expect(failure.remedy).toEqual({ command: "agent update" });
+  });
+
+  it("APCC-TC-054 S001-O02: the message still names both versions", () => {
+    const failure = belowFloorFailure(GUIDED, BELOW);
+    expect(failure.class).toBe("below-floor-version");
+    expect(failure.message).toBe(
+      "Cursor CLI requires CLI version 2026.09.08 or newer, but 2026.09.01 is installed.",
+    );
+    expect(failure.detectedVersion).toBe("2026.09.01");
+    expect(failure.minVersion).toBe("2026.09.08");
+  });
+
+  it("a step with only a url reads as a link to follow", () => {
+    const failure = belowFloorFailure(
+      { ...GUIDED, installGuidance: { update: { url: "https://example.com/update" } } },
+      BELOW,
+    );
+    expect(failure.guidance).toContain(
+      "to 2026.09.08 or newer by following https://example.com/update, then launch again.",
+    );
+    expect(failure.remedy).toEqual({ url: "https://example.com/update" });
+  });
+
+  it("each step falls back on its own: an install-only plugin keeps the generic update text", () => {
+    const failure = belowFloorFailure(
+      { ...GUIDED, installGuidance: { install: { command: "acme-installer" } } },
+      BELOW,
+    );
+    expect(failure.guidance).toBe(
+      "Update the agent CLI to 2026.09.08 or newer, then launch again. Nothing was started, so no session is running.",
+    );
+    expect(failure).not.toHaveProperty("remedy");
+  });
+
+  it("a plugin that declares nothing keeps today's generic wording exactly", () => {
+    const missing = missingBinaryFailure(CTX, "Tried: /usr/bin/claude");
+    expect(missing.guidance).toBe(
+      "Install the agent CLI, or point Claude Code at an existing install from its plugin settings. Tried: /usr/bin/claude",
+    );
+    expect(missing).not.toHaveProperty("remedy");
+    const below = belowFloorFailure(CTX, {
+      status: "below-floor",
+      detectedVersion: "2.1.100",
+      minVersion: "2.1.111",
+    });
+    expect(below.guidance).toBe(
+      "Update the agent CLI to 2.1.111 or newer, then launch again. Nothing was started, so no session is running.",
+    );
+    expect(below).not.toHaveProperty("remedy");
+  });
+});
+
 describe("compatibilityNotice", () => {
   it("says nothing for an in-range launch (AP-TC-070)", () => {
     expect(

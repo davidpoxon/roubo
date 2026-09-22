@@ -2,6 +2,7 @@ import { Button } from "react-aria-components";
 import { Link } from "react-router";
 import { OctagonAlert } from "lucide-react";
 import type { AgentLaunchFailure } from "@roubo/shared";
+import CliRemedy from "./CliRemedy";
 
 const AGENTS_SETTINGS_ROUTE = "/settings#ai-agents";
 
@@ -19,7 +20,9 @@ const ACTION_CLASS =
  * (AP-FR-015, AP-NFR-003). Every failure class lands here, so a dead terminal is
  * structurally impossible: the message says what failed, the captured agent
  * output (ANSI already stripped server-side) says why, and the two actions are
- * the recovery routes the failure declares.
+ * the recovery routes the failure declares. When the agent plugin declares how
+ * to install or update its CLI, the step is offered as a command to copy and a
+ * link (APCC-NFR-003).
  *
  * The panel overlays the xterm surface rather than replacing it, so whatever the
  * agent managed to print before dying stays readable underneath.
@@ -47,6 +50,13 @@ export default function AgentLaunchFailurePanel({
           <p className="text-13 text-danger-text">{failure.message}</p>
           {failure.guidance && (
             <p className="mt-1 text-12 text-text-body leading-relaxed">{failure.guidance}</p>
+          )}
+          {failure.remedy && (
+            <CliRemedy
+              step={failure.remedy}
+              kind={failure.class === "below-floor-version" ? "update" : "install"}
+              testId="agent-launch-failure-remedy"
+            />
           )}
           {failure.capturedOutput && (
             <pre

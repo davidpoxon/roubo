@@ -8,6 +8,7 @@ import {
   ChoiceProbeParseModeSchema,
   PermissionRuleTierSchema,
   isValidAgentInstallLocation,
+  AGENT_CLI_COMMAND_MAX_LENGTH,
   type PluginManifest,
 } from "./plugin-manifest-schema.js";
 import { RouboConfigSchema, zodIssuesToValidationErrors } from "./config-schema.js";
@@ -619,6 +620,119 @@ describe("PluginManifestSchema: agent kind (AP-FR-001)", () => {
     });
   });
 
+  describe("agentInstallGuidance (APCC-NFR-003)", () => {
+    const INSTALL = {
+      command: "curl https://example.com/install -fsS | bash",
+      url: "https://example.com/docs/cli/installation",
+    };
+
+    it("accepts an install and an update step on a kind: agent manifest", () => {
+      const agentInstallGuidance = { install: INSTALL, update: { command: "acme update" } };
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "agent", agentInstallGuidance }),
+      );
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.agentInstallGuidance).toEqual(agentInstallGuidance);
+    });
+
+    it("accepts either step on its own, and a step with only a command or only a url", () => {
+      for (const agentInstallGuidance of [
+        { install: { command: "acme-installer" } },
+        { update: { url: "http://example.com/update" } },
+      ]) {
+        const result = PluginManifestSchema.safeParse(
+          makeManifest({ kind: "agent", agentInstallGuidance }),
+        );
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it("stays optional, so an agent manifest that omits it validates unchanged", () => {
+      const result = PluginManifestSchema.safeParse(makeManifest({ kind: "agent" }));
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.agentInstallGuidance).toBeUndefined();
+    });
+
+    it("rejects an empty block and an empty step", () => {
+      expectFieldError(
+        PluginManifestSchema.safeParse(makeManifest({ kind: "agent", agentInstallGuidance: {} })),
+        "agentInstallGuidance",
+      );
+      expectFieldError(
+        PluginManifestSchema.safeParse(
+          makeManifest({ kind: "agent", agentInstallGuidance: { install: {} } }),
+        ),
+        "agentInstallGuidance.install",
+      );
+    });
+
+    it("rejects an unknown key in the block or in a step", () => {
+      expect(
+        PluginManifestSchema.safeParse(
+          makeManifest({
+            kind: "agent",
+            agentInstallGuidance: { install: INSTALL, uninstall: INSTALL } as never,
+          }),
+        ).success,
+      ).toBe(false);
+      expect(
+        PluginManifestSchema.safeParse(
+          makeManifest({
+            kind: "agent",
+            agentInstallGuidance: { install: { ...INSTALL, shell: "bash" } as never },
+          }),
+        ).success,
+      ).toBe(false);
+    });
+
+    // The command is display text the user copies. A newline or a control
+    // character would render as a different command from the one copied.
+    it("rejects a blank, multi-line, control-character or over-long command", () => {
+      for (const command of [
+        "   ",
+        "acme update\nrm -rf ~",
+        "acme\u001b[2Jupdate",
+        "\u2028acme update",
+        "a".repeat(AGENT_CLI_COMMAND_MAX_LENGTH + 1),
+      ]) {
+        expectFieldError(
+          PluginManifestSchema.safeParse(
+            makeManifest({ kind: "agent", agentInstallGuidance: { update: { command } } }),
+          ),
+          "agentInstallGuidance.update.command",
+        );
+      }
+    });
+
+    it("rejects a url that is not http or https", () => {
+      for (const url of [
+        "javascript:alert(1)",
+        "file:///etc/passwd",
+        "example.com/install",
+        "http:",
+        "http:example.com",
+        "http://?",
+        "http://#x",
+        "http://:80",
+        "",
+      ]) {
+        expectFieldError(
+          PluginManifestSchema.safeParse(
+            makeManifest({ kind: "agent", agentInstallGuidance: { install: { url } } }),
+          ),
+          "agentInstallGuidance.install.url",
+        );
+      }
+    });
+
+    it("rejects the field on a non-agent manifest rather than ignoring it", () => {
+      const result = PluginManifestSchema.safeParse(
+        makeManifest({ kind: "component", agentInstallGuidance: { install: INSTALL } }),
+      );
+      expectFieldError(result, "agentInstallGuidance");
+    });
+  });
+
   it("surfaces the malformed agent field through parseManifest with no raw stack trace (AP-TC-007)", async () => {
     const { parseManifest } = await import("./plugin-manifest.js");
     const yaml = [
@@ -919,6 +1033,7 @@ describe("PluginManifestSchema: every shipped manifest validates unchanged (#126
       if (!result.ok) throw new Error(`${file} no longer validates: ${result.error.message}`);
       // Parsed as written, with no new key added, so no manifest needs a new field.
       expect(result.manifest.choiceProbes).toBeUndefined();
+      expect(result.manifest.agentInstallGuidance).toBeUndefined();
     });
   }
 
@@ -1319,6 +1434,45 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
     const allOf = jsonSchema.allOf as Array<Record<string, Record<string, unknown>>>;
     const gate = allOf.find((entry) =>
       (entry.if?.required as string[] | undefined)?.includes("agentPermissionRuleTiers"),
+    );
+    expect(gate).toBeDefined();
+    expect((gate?.then.properties as Record<string, { const?: string }>).kind.const).toBe("agent");
+  });
+
+  // Hand-authored and exempt from schema-drift as well, so this keeps the agentInstallGuidance
+  // field, its step shape, and its kind gate in lockstep with the zod schema.
+  it("declares an optional agentInstallGuidance object gated to kind: agent (lockstep with zod, APCC-NFR-003)", () => {
+    const properties = jsonSchema.properties as Record<string, Record<string, unknown>>;
+    const guidance = properties.agentInstallGuidance;
+    expect(guidance.type).toBe("object");
+    expect(guidance.additionalProperties).toBe(false);
+    expect(guidance.minProperties).toBe(1);
+    expect((jsonSchema.required as string[]).includes("agentInstallGuidance")).toBe(false);
+    const steps = guidance.properties as Record<string, Record<string, unknown>>;
+    expect(Object.keys(steps).sort()).toEqual(["install", "update"]);
+    for (const step of Object.values(steps)) {
+      expect(step.additionalProperties).toBe(false);
+      expect(step.minProperties).toBe(1);
+      const fields = step.properties as Record<string, Record<string, unknown>>;
+      expect(Object.keys(fields).sort()).toEqual(["command", "url"]);
+      expect(fields.command.maxLength).toBe(AGENT_CLI_COMMAND_MAX_LENGTH);
+      const commandPattern = new RegExp(fields.command.pattern as string);
+      expect(commandPattern.test("acme update")).toBe(true);
+      expect(commandPattern.test("acme update\nrm -rf ~")).toBe(false);
+      expect(commandPattern.test("   ")).toBe(false);
+      expect(commandPattern.test("\u2028acme install")).toBe(false);
+      const urlPattern = new RegExp(fields.url.pattern as string);
+      expect(urlPattern.test("https://example.com")).toBe(true);
+      expect(urlPattern.test("javascript:alert(1)")).toBe(false);
+      expect(urlPattern.test("http:")).toBe(false);
+      expect(urlPattern.test("http:example.com")).toBe(false);
+      expect(urlPattern.test("http://?")).toBe(false);
+      expect(urlPattern.test("http://:80")).toBe(false);
+    }
+
+    const allOf = jsonSchema.allOf as Array<Record<string, Record<string, unknown>>>;
+    const gate = allOf.find((entry) =>
+      (entry.if?.required as string[] | undefined)?.includes("agentInstallGuidance"),
     );
     expect(gate).toBeDefined();
     expect((gate?.then.properties as Record<string, { const?: string }>).kind.const).toBe("agent");

@@ -1,4 +1,9 @@
-import type { AgentLaunchFailure, AgentLaunchFailureAction } from "@roubo/shared";
+import type {
+  AgentCliStep,
+  AgentInstallGuidance,
+  AgentLaunchFailure,
+  AgentLaunchFailureAction,
+} from "@roubo/shared";
 import type { AgentVersionProbeResult } from "./agent-version-probe.js";
 
 // Agent launch-failure detection and wording (#1064, AP-FR-015, AP-NFR-003).
@@ -101,6 +106,21 @@ export interface AgentLaunchContextInfo {
   command: string;
   /** The pre-launch probe result, when the agent declared a probe. */
   compatibility?: AgentVersionProbeResult;
+  /** The manifest's `agentInstallGuidance`, when the plugin declares one (APCC-NFR-003). */
+  installGuidance?: AgentInstallGuidance;
+}
+
+/**
+ * How a declared step reads inside a guidance sentence: the command in
+ * backticks, the URL in parentheses. The command is quoted, never run.
+ */
+function describeStep(step: AgentCliStep): string {
+  const parts: string[] = [];
+  if (step.command !== undefined) parts.push(`by running \`${step.command}\``);
+  if (step.url !== undefined) {
+    parts.push(step.command !== undefined ? `(see ${step.url})` : `by following ${step.url}`);
+  }
+  return parts.join(" ");
 }
 
 /** An agent CLI that could not be found anywhere (AP-TC-058). */
@@ -109,10 +129,15 @@ export function missingBinaryFailure(
   detail: string,
   exit?: { exitCode: number; timeToExitMs: number },
 ): AgentLaunchFailure {
+  // The plugin's own install step when it declares one (APCC-NFR-003, APCC-TC-036
+  // S001-O03); the generic sentence otherwise, unchanged.
+  const install = ctx.installGuidance?.install;
+  const how = install !== undefined ? ` ${describeStep(install)}` : "";
   return {
     class: "missing-binary",
     message: `${ctx.agentName} could not start: the "${ctx.command}" CLI was not found.`,
-    guidance: `Install the agent CLI, or point ${ctx.agentName} at an existing install from its plugin settings. ${detail}`,
+    guidance: `Install the agent CLI${how}, or point ${ctx.agentName} at an existing install from its plugin settings. ${detail}`,
+    ...(install !== undefined && { remedy: install }),
     agentPluginId: ctx.agentPluginId,
     agentName: ctx.agentName,
     ...(exit !== undefined && { exitCode: exit.exitCode, timeToExitMs: exit.timeToExitMs }),
@@ -142,13 +167,18 @@ export function hostInstallBrokenFailure(
 
 /** A detected CLI version below the plugin's declared floor (AP-TC-071). */
 export function belowFloorFailure(
-  ctx: Pick<AgentLaunchContextInfo, "agentPluginId" | "agentName">,
+  ctx: Pick<AgentLaunchContextInfo, "agentPluginId" | "agentName" | "installGuidance">,
   probe: AgentVersionProbeResult,
 ): AgentLaunchFailure {
+  // The plugin's own update step when it declares one (APCC-NFR-003, APCC-TC-054
+  // S001-O03); the generic sentence otherwise, unchanged.
+  const update = ctx.installGuidance?.update;
+  const how = update !== undefined ? ` ${describeStep(update)}` : "";
   return {
     class: "below-floor-version",
     message: `${ctx.agentName} requires CLI version ${probe.minVersion} or newer, but ${probe.detectedVersion} is installed.`,
-    guidance: `Update the agent CLI to ${probe.minVersion} or newer, then launch again. Nothing was started, so no session is running.`,
+    guidance: `Update the agent CLI to ${probe.minVersion} or newer${how}, then launch again. Nothing was started, so no session is running.`,
+    ...(update !== undefined && { remedy: update }),
     agentPluginId: ctx.agentPluginId,
     agentName: ctx.agentName,
     ...(probe.detectedVersion !== undefined && { detectedVersion: probe.detectedVersion }),

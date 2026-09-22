@@ -455,6 +455,30 @@ describe("GET /api/agents compatibility block (AP-TC-113, AP-TC-114)", () => {
   });
 });
 
+describe("GET /api/agents install guidance (APCC-NFR-003)", () => {
+  it("passes the manifest's declared install and update steps through verbatim", async () => {
+    const agentInstallGuidance = {
+      install: { command: "acme-installer", url: "https://example.com/install" },
+      update: { command: "acme update" },
+    };
+    vi.mocked(registry.listAgents).mockReturnValue([
+      { ...CODEX, agentInstallGuidance } as PluginManifest,
+    ]);
+
+    const res = await request(app()).get("/api/agents");
+
+    expect(res.body.agents[0].installGuidance).toEqual(agentInstallGuidance);
+  });
+
+  it("omits the field for an agent that declares none", async () => {
+    vi.mocked(registry.listAgents).mockReturnValue([CODEX]);
+
+    const res = await request(app()).get("/api/agents");
+
+    expect(res.body.agents[0]).not.toHaveProperty("installGuidance");
+  });
+});
+
 describe("GET /api/agents probed choices (#1268, APCC-TC-002, APCC-TC-003)", () => {
   const CHOICE_PROBES = {
     model: { command: "agent", args: ["models"], parse: "dash-line-pairs" as const },
