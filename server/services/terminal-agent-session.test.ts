@@ -403,7 +403,7 @@ describe("AP-TC-082: workspace writes are path-validated core-side", () => {
     expect(JSON.parse(body)).toEqual({ permissions: { defaultMode: "plan" } });
   });
 
-  it("rejects a relative path escaping the workspace, spawning nothing and writing nothing", async () => {
+  it("rejects a relative path escaping the workspace, spawning nothing and writing nothing (APCC-TC-045 S002)", async () => {
     prepare({
       capabilities: {
         workspaceWrites: [
