@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import type { ChoiceProbes } from "@roubo/shared";
+import { CHOICE_PROBE_TIMEOUT_MS, type ChoiceProbes } from "@roubo/shared";
 import { AgentCommandNotFoundError, resolveAgentCommand } from "./env.js";
 import {
   readProbeOutput,
@@ -80,6 +80,12 @@ export interface ProbeRequest<M extends ProbeParseMode> {
   searchPath?: string;
   /** The plugin's manifest-declared `agentInstallLocations` (#1115). */
   installLocations?: readonly string[];
+  /**
+   * How long the probe may run before it is killed. Defaults to `PROBE_TIMEOUT_MS`.
+   * A request that joins a run already in flight under the same key gets that
+   * run's bound, not its own.
+   */
+  timeoutMs?: number;
 }
 
 export interface ProbeRun<M extends ProbeParseMode> {
@@ -199,7 +205,8 @@ export async function runProbe<M extends ProbeParseMode>(
 
   let pending = inFlight.get(key) as Promise<ProbeResult<Value>> | undefined;
   if (pending === undefined) {
-    pending = execute(binary, args, parse, searchPath).then((result) => {
+    const timeoutMs = request.timeoutMs ?? PROBE_TIMEOUT_MS;
+    pending = execute(binary, args, parse, searchPath, timeoutMs).then((result) => {
       if (result.status === "ok" || failurePolicy === "keep-for-ttl") results.set(key, result);
       else results.delete(key);
       return result;
@@ -216,6 +223,7 @@ async function execute<M extends ProbeParseMode>(
   args: readonly string[],
   parse: M,
   searchPath: string | undefined,
+  timeoutMs: number,
 ): Promise<ProbeResult<ProbeValueByMode[M]>> {
   const commandLine = `\`${binary} ${args.join(" ")}\``;
   try {
@@ -228,10 +236,10 @@ async function execute<M extends ProbeParseMode>(
       args,
       os.homedir(),
       searchPath !== undefined ? { PATH: searchPath } : undefined,
-      { timeoutMs: PROBE_TIMEOUT_MS, maxOutputBytes: PROBE_MAX_OUTPUT_BYTES },
+      { timeoutMs, maxOutputBytes: PROBE_MAX_OUTPUT_BYTES },
     );
     if (output.timedOut === true) {
-      return failed(`${commandLine} did not finish within ${PROBE_TIMEOUT_MS}ms`, "timeout");
+      return failed(`${commandLine} did not finish within ${timeoutMs}ms`, "timeout");
     }
     const reading = readProbeOutput(parse, output);
     if (reading.ok) return { status: "ok", value: reading.value, at: Date.now() };
@@ -269,7 +277,8 @@ function choiceKey(pluginId: string, field: string): string {
  * Returns at once and blocks nothing, so a settings read never waits on a spawn
  * (APCC-NFR-002). A field whose success is still inside the TTL is answered from
  * the cache without a spawn, and a field whose probe is already running joins it.
- * A failure is never kept (APCC-TC-024): the next warm spawns again.
+ * A failure is never kept (APCC-TC-024): the next warm spawns again. Each run is
+ * killed at `CHOICE_PROBE_TIMEOUT_MS`, under the 5 s the field is held to (APCC-NFR-002).
  */
 export function warmChoiceProbes(
   pluginId: string,
@@ -284,6 +293,7 @@ export function warmChoiceProbes(
       parse: directive.parse,
       failurePolicy: "discard",
       installLocations,
+      timeoutMs: CHOICE_PROBE_TIMEOUT_MS,
     })
       .then(({ result }) => {
         choiceOutcomes.set(choiceKey(pluginId, field), result);

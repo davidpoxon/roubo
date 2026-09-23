@@ -31,7 +31,7 @@ const observe = makeObserve("APCC-TC-002");
 // overlay (e2e/fixtures/bundled-overlays/agent-choice-probe/) declares a
 // `dash-line-pairs` choice probe on its `probedModel` field, pointed at
 // `roubo-e2e-probe-stub` (e2e/fixtures/bin/, on the server's PATH). The stub's
-// `slow` mode prints its listing after 4.5 s, so the field reads `loading` long
+// `slow` mode prints its listing after 3 s, so the field reads `loading` long
 // enough for S002 to observe it and then resolves for S003. `/test/__reset`
 // empties the probe cache, so every run spawns the stub again.
 //
@@ -138,7 +138,7 @@ test(
   { tag: "@APCC-TC-002" },
   async ({ page, request }) => {
     // --- S001: install the probe-declaring agent plugin; it loads ------------
-    // `slow` holds the field in `loading` for 4.5 s after the first warm, which
+    // `slow` holds the field in `loading` for 3 s after the first warm, which
     // the inventory read below kicks off once the agent resolves.
     setProbeMode("slow");
     await enablePlugin(request, PLUGIN_ID);
@@ -183,7 +183,7 @@ test(
       `card count=${cardCount}`,
     );
 
-    // Read promptly: the slow probe resolves 4.5 s after its warm and the screen
+    // Read promptly: the slow probe resolves 3 s after its warm and the screen
     // polls while a field loads, so this is the window the loading state is in.
     const loadingState = await field
       .getAttribute("data-probe-state", { timeout: 5_000 })

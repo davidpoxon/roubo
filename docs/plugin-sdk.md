@@ -205,7 +205,7 @@ choiceProbes:
 
 Each probe has the same three fields as [`agentCompatibility.probe`](#agent-compatibility): `command` (a bare name or an absolute path, resolved the same way a launch resolves it), `args` (spawned as argv, never through a shell), and `parse`. All three are required. `parse` names the shape of the output, not the tool that produces it, and it takes no options. The one mode today is `dash-line-pairs`: a listing where each choice is one `<value> - <label>` line. Any other `parse` value fails manifest validation with an error at the `parse` field.
 
-The host runs a choice probe the same way it runs the version probe: it resolves `command` the way a launch resolves it, spawns it with your `args` only, gives it no stdin, and kills it if it has not finished within 5s. A killed probe reports a timeout, even when the CLI printed nothing. For `dash-line-pairs` the host then reads the output under these rules:
+The host runs a choice probe the same way it runs the version probe, with a shorter time bound: it resolves `command` the way a launch resolves it, spawns it with your `args` only, gives it no stdin, and kills it if it has not finished within 4s. The bound is a second under the version probe's 5s, so the field below can show the result within 5s of opening the screen. A killed probe reports a timeout, even when the CLI printed nothing. For `dash-line-pairs` the host then reads the output under these rules:
 
 - It reads stdout only, and only when the CLI exits with code 0. A nonzero exit is a probe failure, and the first line of stderr is its reason, so print the reason there.
 - Each line that matches `^(\S+) - (.+)$` becomes one choice: the value before `-` and the label after it. Every other line, such as a heading, a blank line or a trailing tip, is skipped.
@@ -225,7 +225,7 @@ A resolved probe keeps every other key on that property. The host changes only t
 
 The settings form draws each probed field in one of three states from that map, and the rest of the form stays usable in all three:
 
-- **Loading.** The field shows an empty choice control and a status line saying the choices are being read. While any field is loading, the screen re-reads the list every second, so the field leaves this state as soon as the probe answers, and never later than the 5s kill. The host runs probes only for an agent it can run, so an unavailable agent's fields stay loading and the screen does not re-read the list for them.
+- **Loading.** The field shows an empty choice control and a status line saying the choices are being read. While any field is loading, the screen re-reads the list every second, so the field leaves this state as soon as the probe answers, and within 5s at most: the 4s kill plus at most one re-read. The host runs probes only for an agent it can run, so an unavailable agent's fields stay loading and the screen does not re-read the list for them.
 - **Resolved.** The field is the ordinary choice control, filled with the probed choices.
 - **Failed.** The field is empty and offers no free-text entry, because an unset field already means the account default. A status line states the cause and a remedy. For `command-not-found`, `timeout` and `parse-error` the host writes both. For `probe-error` the cause is the first line your CLI printed to stderr, shown to the user as written, so make that line a sentence a user can act on, such as `Not signed in. Run the login command first.` That line is how a sign-in problem reads differently from a missing command.
 

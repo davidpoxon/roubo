@@ -1,4 +1,4 @@
-import type { AgentChoiceProbeFailureCause } from "@roubo/shared";
+import { CHOICE_PROBE_TIMEOUT_MS, type AgentChoiceProbeFailureCause } from "@roubo/shared";
 
 // The words a probe-bound configuration field shows while its choice probe is
 // loading or after it failed (#1274, APCC-FR-003). One agent-agnostic map keyed
@@ -69,7 +69,7 @@ export function probeFailureCopy(
     }
     case "timeout":
       return {
-        cause: "Could not read the choices: the CLI did not answer within 5 seconds.",
+        cause: `Could not read the choices: the CLI did not answer within ${CHOICE_PROBE_TIMEOUT_MS / 1000} seconds.`,
         remedy: `Check your network connection, then reopen this screen. ${UNSET_NOTE}`,
       };
     case "parse-error":

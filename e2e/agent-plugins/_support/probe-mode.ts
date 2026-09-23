@@ -17,10 +17,11 @@ export { PROBE_MODE_PATH };
  * What the next probe run does.
  *
  * - `resolved`: prints a `<value> - <label>` listing and exits 0 at once.
- * - `slow`: the same listing, after a 4.5 s sleep (under the host's 5 s kill).
+ * - `slow`: the same listing, after a 3 s sleep (under the host's 4 s kill).
  * - `fail`: prints a reason on stderr and exits non-zero.
+ * - `hang`: prints nothing and never exits, until the host kills it.
  */
-export type ProbeMode = "resolved" | "slow" | "fail";
+export type ProbeMode = "resolved" | "slow" | "fail" | "hang";
 
 /** The mode the stub falls back to when the file is absent. */
 export const DEFAULT_PROBE_MODE: ProbeMode = "resolved";

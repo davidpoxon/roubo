@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, waitFor } from "@testing-library/react";
+import { CHOICE_PROBE_TIMEOUT_MS } from "@roubo/shared";
 import { makeQueryClient, renderHookWithProviders } from "../test/renderWithProviders";
 
 vi.mock("../lib/api", async () => {
@@ -64,6 +65,12 @@ describe("useAgentPlugins", () => {
 });
 
 describe("useAgentPlugins: choice-probe polling (#1274, APCC-TC-019)", () => {
+  it("leaves one poll's headroom between the host's kill and the 5 s bound at the field (APCC-NFR-002, APCC-TC-019)", () => {
+    // The field sees the kill on its next read, up to one poll after it lands,
+    // so the two together must fit inside the bound the field is held to.
+    expect(CHOICE_PROBE_TIMEOUT_MS + PROBE_POLL_INTERVAL_MS).toBeLessThanOrEqual(5_000);
+  });
+
   function agentWith(state: "loading" | "resolved" | "failed") {
     return {
       agents: [

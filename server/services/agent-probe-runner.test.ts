@@ -1,6 +1,7 @@
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { CHOICE_PROBE_TIMEOUT_MS } from "@roubo/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The spawn is a spy that runs the REAL bounded spawn unless a test overrides
@@ -19,7 +20,7 @@ import {
   runProbe,
   warmChoiceProbes,
 } from "./agent-probe-runner.js";
-import { spawnProbe } from "./probe-spawn.js";
+import { PROBE_TIMEOUT_MS, spawnProbe } from "./probe-spawn.js";
 
 const NODE = process.execPath;
 
@@ -150,6 +151,26 @@ describe("failure causes (never throws)", () => {
     const { result } = await nodeProbe("");
     expect(result.status).toBe("failed");
     expect(result.cause).toBe("timeout");
+    expect(result.reason).toContain(`did not finish within ${PROBE_TIMEOUT_MS}ms`);
+  });
+
+  it("kills at the request's own time bound, and names that bound in the reason", async () => {
+    spawnReturns("", 1, { timedOut: true });
+    const { result } = await runProbe({
+      command: NODE,
+      args: ["-e", ""],
+      parse: "dash-line-pairs",
+      failurePolicy: "discard",
+      timeoutMs: 1234,
+    });
+    expect(vi.mocked(spawnProbe).mock.calls[0]?.[4].timeoutMs).toBe(1234);
+    expect(result.reason).toContain("did not finish within 1234ms");
+  });
+
+  it("kills at the default time bound when the request names none", async () => {
+    spawnReturns("a - Alpha");
+    await nodeProbe("");
+    expect(vi.mocked(spawnProbe).mock.calls[0]?.[4].timeoutMs).toBe(PROBE_TIMEOUT_MS);
   });
 
   it("reports a spawn that rejects as a probe error instead of throwing", async () => {
@@ -286,6 +307,14 @@ describe("warmChoiceProbes / readChoiceProbe (APCC-TC-024)", () => {
     await vi.waitFor(() => expect(readChoiceProbe("example", "model")?.status).toBe("ok"));
     expect(readChoiceProbe("example", "model")?.value).toHaveLength(2);
     expect(spawnProbe).toHaveBeenCalledTimes(1);
+  });
+
+  it("kills a choice probe at the choice-probe bound, not the default (APCC-NFR-002)", async () => {
+    spawnReturns("a - Alpha");
+    warmChoiceProbes("example", PROBES);
+    await vi.waitFor(() => expect(spawnProbe).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(spawnProbe).mock.calls[0]?.[4].timeoutMs).toBe(CHOICE_PROBE_TIMEOUT_MS);
+    expect(CHOICE_PROBE_TIMEOUT_MS).toBeLessThan(PROBE_TIMEOUT_MS);
   });
 
   it("spawns once for two warms inside the window", async () => {
