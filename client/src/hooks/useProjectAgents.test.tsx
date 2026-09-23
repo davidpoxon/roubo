@@ -14,6 +14,7 @@ vi.mock("../lib/api", async () => {
 
 import * as api from "../lib/api";
 import { useProjectAgents, useSaveProjectAgentOverride } from "./useProjectAgents";
+import { PROBE_POLL_INTERVAL_MS } from "./useAgentPlugins";
 
 const mockedApi = vi.mocked(api);
 
@@ -75,6 +76,44 @@ describe("useProjectAgents", () => {
     expect(result.current.data?.orphanedOverrides).toEqual([
       { pluginId: "ghost-agent", reason: "not-installed" },
     ]);
+  });
+});
+
+describe("useProjectAgents: choice-probe polling (APCC-TC-024)", () => {
+  function withProbe(state: "loading" | "resolved" | "failed", unavailable: unknown = null) {
+    return {
+      ...PAYLOAD,
+      agents: [{ ...PAYLOAD.agents[0], unavailable, choiceProbes: { model: { state } } }],
+    };
+  }
+
+  it("re-reads while a probe is loading and stops once every probe settles", async () => {
+    mockedApi.fetchProjectAgents
+      .mockResolvedValueOnce(withProbe("loading") as never)
+      .mockResolvedValue(withProbe("resolved") as never);
+
+    const { result } = renderHookWithProviders(() => useProjectAgents("demo"));
+
+    await waitFor(
+      () => expect(result.current.data?.agents[0]?.choiceProbes?.model?.state).toBe("resolved"),
+      { timeout: PROBE_POLL_INTERVAL_MS * 3 },
+    );
+    expect(mockedApi.fetchProjectAgents).toHaveBeenCalledTimes(2);
+
+    await new Promise((resolve) => setTimeout(resolve, PROBE_POLL_INTERVAL_MS * 1.5));
+    expect(mockedApi.fetchProjectAgents).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not poll for an unavailable agent, whose probe the server never warms", async () => {
+    mockedApi.fetchProjectAgents.mockResolvedValue(
+      withProbe("loading", { reason: "not-consented", message: "x" }) as never,
+    );
+
+    const { result } = renderHookWithProviders(() => useProjectAgents("demo"));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await new Promise((resolve) => setTimeout(resolve, PROBE_POLL_INTERVAL_MS * 1.5));
+    expect(mockedApi.fetchProjectAgents).toHaveBeenCalledTimes(1);
   });
 });
 

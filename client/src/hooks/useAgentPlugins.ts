@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AgentPluginsResponse } from "@roubo/shared";
+import type { AgentPluginState } from "@roubo/shared";
 import * as api from "../lib/api";
 
 /** How often the list is re-read while any choice probe is still loading. */
@@ -14,12 +14,17 @@ export const PROBE_POLL_INTERVAL_MS = 1_000;
  */
 export const PROBE_POLL_MAX_READS = 10;
 
+/** The slice of an agent list the probe poll reads: app-level and project-level alike. */
+interface ProbedAgentList {
+  agents: Array<Pick<AgentPluginState, "unavailable" | "choiceProbes">>;
+}
+
 /**
  * True while any runnable agent's choice probe has not produced an outcome yet.
  * An unavailable agent is skipped: the server never warms its probes, so its
  * fields report `loading` on every read and polling would never settle.
  */
-function anyProbeLoading(data: AgentPluginsResponse | undefined): boolean {
+function anyProbeLoading(data: ProbedAgentList | undefined): boolean {
   return (
     data?.agents.some(
       (agent) =>
@@ -27,6 +32,33 @@ function anyProbeLoading(data: AgentPluginsResponse | undefined): boolean {
         Object.values(agent.choiceProbes ?? {}).some((probe) => probe.state === "loading"),
     ) ?? false
   );
+}
+
+/**
+ * A `refetchInterval` for any query whose agents carry a `choiceProbes` map:
+ * re-read every second while a field is `loading`, for at most
+ * `PROBE_POLL_MAX_READS` reads per loading episode, and stop once every probe
+ * settles. A field reads `loading` on the first read after the server starts,
+ * and again on the first read after its last result aged out of the one-minute
+ * cache window (APCC-TC-024), so every screen that draws probed choices needs
+ * it or it keeps the bare declared field until the next reopen.
+ */
+export function useChoiceProbePoll() {
+  // The read count at which the current loading episode began, so the cap
+  // counts only this episode's reads and never earlier saves or refetches.
+  const loadingSince = useRef<number | null>(null);
+  return (query: {
+    state: { data: ProbedAgentList | undefined; dataUpdateCount: number };
+  }): number | false => {
+    if (!anyProbeLoading(query.state.data)) {
+      loadingSince.current = null;
+      return false;
+    }
+    loadingSince.current ??= query.state.dataUpdateCount;
+    return query.state.dataUpdateCount - loadingSince.current < PROBE_POLL_MAX_READS
+      ? PROBE_POLL_INTERVAL_MS
+      : false;
+  };
 }
 
 /**
@@ -43,23 +75,12 @@ function anyProbeLoading(data: AgentPluginsResponse | undefined): boolean {
  * window without the user reopening the screen (#1274, APCC-TC-019).
  */
 export function useAgentPlugins() {
-  // The read count at which the current loading episode began, so the cap
-  // counts only this episode's reads and never earlier saves or refetches.
-  const loadingSince = useRef<number | null>(null);
+  const refetchInterval = useChoiceProbePoll();
   return useQuery({
     queryKey: ["agent-plugins"],
     queryFn: api.fetchAgentPlugins,
     staleTime: 30_000,
-    refetchInterval: (query) => {
-      if (!anyProbeLoading(query.state.data)) {
-        loadingSince.current = null;
-        return false;
-      }
-      loadingSince.current ??= query.state.dataUpdateCount;
-      return query.state.dataUpdateCount - loadingSince.current < PROBE_POLL_MAX_READS
-        ? PROBE_POLL_INTERVAL_MS
-        : false;
-    },
+    refetchInterval,
   });
 }
 

@@ -311,4 +311,24 @@ describe("warmChoiceProbes / readChoiceProbe (APCC-TC-024)", () => {
     expect(read?.value).toBeUndefined();
     expect(read?.reason).toContain("offline");
   });
+
+  it("reads an expired success as no outcome while the re-probe runs (APCC-TC-024)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    spawnReturns("a - Alpha");
+    warmChoiceProbes("example", PROBES);
+    await vi.waitFor(() => expect(readChoiceProbe("example", "model")?.status).toBe("ok"));
+
+    vi.setSystemTime(Date.now() + DETECTION_TTL_MS + 1000);
+    expect(readChoiceProbe("example", "model")).toBeUndefined();
+
+    vi.mocked(spawnProbe).mockResolvedValue({ code: 1, stdout: "", stderr: "offline" });
+    warmChoiceProbes("example", PROBES);
+    expect(readChoiceProbe("example", "model")).toBeUndefined();
+    await vi.waitFor(() => expect(readChoiceProbe("example", "model")?.status).toBe("failed"));
+
+    // A failure stays readable past the window: it is the latest answer, and
+    // aging it out would leave the field loading on every poll.
+    vi.setSystemTime(Date.now() + DETECTION_TTL_MS + 1000);
+    expect(readChoiceProbe("example", "model")?.status).toBe("failed");
+  });
 });

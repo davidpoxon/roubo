@@ -66,7 +66,8 @@ export interface ProbeResult<T> {
  * - `keep-for-ttl`: kept for the TTL like a success. The version probe uses it,
  *   so a CLI that cannot be read is not re-spawned on every launch.
  * - `discard`: never kept, and it also discards any earlier success under the
- *   same key, so a later read can never answer with a stale list (APCC-TC-024).
+ *   same key, so a later run can never answer with a stale list (APCC-TC-024).
+ *   `readChoiceProbe` covers the gap before that run finishes.
  */
 export type ProbeFailurePolicy = "keep-for-ttl" | "discard";
 
@@ -296,13 +297,19 @@ export function warmChoiceProbes(
  *
  * A failure is reported as the failure, never as the list an earlier run
  * resolved, so the field can say what went wrong instead of offering choices that
- * may no longer exist. Resolves to `undefined` until a warm has finished.
+ * may no longer exist. Resolves to `undefined` until a warm has finished, and
+ * again once a success is older than the TTL: the warm that preceded this read
+ * is re-probing it, and the answer may now be a failure (APCC-TC-024), so
+ * the field reads as loading until that run lands rather than offering the
+ * expired list. A failure is not aged out, because every warm re-runs it anyway.
  */
 export function readChoiceProbe(
   pluginId: string,
   field: string,
 ): ProbeResult<ProbeChoice[]> | undefined {
-  return choiceOutcomes.get(choiceKey(pluginId, field));
+  const outcome = choiceOutcomes.get(choiceKey(pluginId, field));
+  if (outcome?.status === "ok" && Date.now() - outcome.at > DETECTION_TTL_MS) return undefined;
+  return outcome;
 }
 
 /** Drops every cached result and every choice outcome. Tests, and any future re-probe trigger. */
