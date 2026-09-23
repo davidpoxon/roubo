@@ -810,6 +810,16 @@ export type AgentChoiceProbeFailureCause =
   "command-not-found" | "probe-error" | "parse-error" | "timeout";
 
 /**
+ * How long the host lets a configuration choice probe run before it kills it.
+ *
+ * Deliberately under APCC-NFR-002's 5 s, because that bound is held at the
+ * field, not at the host: the field learns of the kill only on its next read of
+ * the list, up to one client poll later (APCC-TC-019). The failure copy names this
+ * value, so it cannot drift from what the host does.
+ */
+export const CHOICE_PROBE_TIMEOUT_MS = 4_000;
+
+/**
  * One probed configuration field's state as the settings response serves it
  * (#1268). `loading` means no probe outcome exists yet, `resolved` means the
  * field's choices are in the schema, `failed` carries the cause and reason.

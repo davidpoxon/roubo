@@ -27,7 +27,7 @@ import { clearProbeMode, setProbeMode, type ProbeMode } from "./_support/probe-m
 //     choice probe for its `probedModel` field, pointed at
 //     `roubo-e2e-probe-stub` (e2e/fixtures/bin/, on the server's PATH);
 //   - the stub reads a mode file on every run (`setProbeMode`): `resolved`
-//     answers at once, `slow` answers after 4.5 s (under the host's 5 s kill),
+//     answers at once, `slow` answers after 3 s (under the host's 4 s kill),
 //     `fail` exits non-zero;
 //   - `/test/__reset` empties the host's probe cache, so each test's first warm
 //     spawns the stub again and reads the mode that test has just written.
@@ -144,7 +144,7 @@ test(
   "APCC-TC-022 S002: the AI Agents screen has no serious or critical axe violation with the probed field loading, in both themes",
   { tag: "@APCC-TC-022" },
   async ({ page, request }) => {
-    // Freeze the screen on the first read it makes. The slow probe answers 4.5 s
+    // Freeze the screen on the first read it makes. The slow probe answers 3 s
     // after its warm, and the screen polls every second while a field loads, so
     // without this the field could resolve mid-audit and the second theme would
     // be scanned in a different state from the first. The first reply is the real

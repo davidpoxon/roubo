@@ -14,7 +14,11 @@ import { cleanEnv } from "./env.js";
 // It is a module of its own so tests can replace the spawn without replacing the
 // runner that calls it.
 
-/** How long a probe may run before it is killed (model-probe spike: the CLI can hang forever). */
+/**
+ * How long a probe may run before it is killed (model-probe spike: the CLI can
+ * hang forever). The default bound: a configuration choice probe is killed
+ * sooner, at `CHOICE_PROBE_TIMEOUT_MS` in `@roubo/shared` (APCC-NFR-002).
+ */
 export const PROBE_TIMEOUT_MS = 5000;
 
 /** The most output, across stdout and stderr together, a probe reads before it is killed. */

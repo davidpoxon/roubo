@@ -404,7 +404,7 @@ describe("ConfigSchemaForm: choice-probe states (#1274)", () => {
       <ProbeHarness probe={{ state: "failed", cause: "timeout", reason: "killed" }} />,
     );
     expect(screen.getByTestId("config-field-model-probe-status")).toHaveTextContent(
-      "did not answer within 5 seconds",
+      "did not answer within 4 seconds",
     );
     unmount();
 
@@ -418,7 +418,7 @@ describe("ConfigSchemaForm: choice-probe states (#1274)", () => {
     render(<ProbeHarness probe={{ state: "failed", cause: "timeout" }} />);
     const control = screen.getByRole("button", { name: /Model/ });
     expect(control).toHaveAttribute("aria-disabled", "true");
-    expect(control).toHaveAccessibleDescription(/did not answer within 5 seconds/);
+    expect(control).toHaveAccessibleDescription(/did not answer within 4 seconds/);
   });
 
   it("keeps the same status region across the loading-to-failed change so it is announced", () => {

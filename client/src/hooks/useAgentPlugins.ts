@@ -8,9 +8,9 @@ export const PROBE_POLL_INTERVAL_MS = 1_000;
 
 /**
  * The most reads one loading episode makes before polling gives up. The server
- * kills a probe at 5s, so a warm that answers settles well inside this; the cap
- * only stops a warm that never writes an outcome from polling for as long as the
- * screen is open.
+ * kills a probe at `CHOICE_PROBE_TIMEOUT_MS`, so a warm that answers settles
+ * well inside this; the cap only stops a warm that never writes an outcome from
+ * polling for as long as the screen is open.
  */
 export const PROBE_POLL_MAX_READS = 10;
 
@@ -39,8 +39,9 @@ function anyProbeLoading(data: AgentPluginsResponse | undefined): boolean {
  * A choice probe runs asynchronously on the server, so the first read can serve
  * a probed field as `loading` (#1268). While any field is loading, the list is
  * re-read every second until each probe settles, and polling then stops. The
- * server kills a probe at 5s, so a field leaves its loading state within that
- * window without the user reopening the screen (#1274, APCC-TC-019).
+ * server kills a probe at `CHOICE_PROBE_TIMEOUT_MS`, one poll short of 5s, so a
+ * field leaves its loading state within 5s without the user reopening the
+ * screen (#1274, APCC-TC-019).
  */
 export function useAgentPlugins() {
   // The read count at which the current loading episode began, so the cap
