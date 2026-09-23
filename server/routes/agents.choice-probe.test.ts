@@ -113,6 +113,18 @@ describe("GET /api/agents choice probe cache window (APCC-TC-024)", () => {
     expect(settled.property).toEqual(DECLARED_MODEL);
   });
 
+  it("serves the re-probed list, not the expired one, when the CLI still answers", async () => {
+    await vi.waitFor(async () => expect((await readModel()).probe).toEqual({ state: "resolved" }));
+
+    vi.setSystemTime(Date.now() + DETECTION_TTL_MS + 1000);
+    vi.mocked(spawnProbe).mockResolvedValue({ code: 0, stdout: "m-gamma - Gamma", stderr: "" });
+
+    expect((await readModel()).probe).toEqual({ state: "loading" });
+    await vi.waitFor(async () => expect((await readModel()).probe).toEqual({ state: "resolved" }));
+    expect((await readModel()).property.oneOf).toEqual([{ const: "m-gamma", title: "Gamma" }]);
+    expect(spawnProbe).toHaveBeenCalledTimes(2);
+  });
+
   it("spawns the command once for two opens inside the window", async () => {
     await vi.waitFor(async () => expect((await readModel()).probe).toEqual({ state: "resolved" }));
     const again = await readModel();
