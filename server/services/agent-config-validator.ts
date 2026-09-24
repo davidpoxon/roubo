@@ -1,5 +1,6 @@
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import type { ConfigFieldError, PluginManifest } from "@roubo/shared";
+import { ownSchemaErrorMessage } from "./ajv-schema-error-message.js";
 
 /**
  * Validates one agent plugin's app-level config record against that plugin's
@@ -75,7 +76,7 @@ export function validateAgentConfig(
   if (validate(config)) return [];
   return (validate.errors ?? []).map((issue) => ({
     path: errorPath(issue),
-    message: ajvMessage(issue),
+    message: ajvMessage(issue, manifest.configSchema),
   }));
 }
 
@@ -165,9 +166,11 @@ export function unknownConfigKeys(manifest: PluginManifest, keys: string[]): str
   return keys.filter((key) => !(key in declared));
 }
 
-function ajvMessage(issue: ErrorObject): string {
+function ajvMessage(issue: ErrorObject, rootSchema: unknown): string {
   // AP-TC-011: an out-of-enum value must name the field's allowed values, not
-  // just say "must be equal to one of the allowed values".
+  // just say "must be equal to one of the allowed values". Checked ahead of
+  // `errorMessage` below so a property that declares both keeps this,
+  // deliberately more specific, message.
   if (issue.keyword === "enum" && Array.isArray(issue.params?.allowedValues)) {
     const allowed = (issue.params.allowedValues as unknown[]).map((v) => String(v)).join(", ");
     return `Must be one of: ${allowed}`;
@@ -178,5 +181,11 @@ function ajvMessage(issue: ErrorObject): string {
   ) {
     return unexpectedPropertyMessage(issue.params.additionalProperty);
   }
+  // A manifest can attach a custom `errorMessage` string to a property's own
+  // schema (e.g. a `pattern` a reviewer would otherwise see as raw Ajv regex
+  // text) to say, in the field's own terms, what it actually wants, instead
+  // of Ajv's default message for the keyword that failed.
+  const ownMessage = ownSchemaErrorMessage(issue, rootSchema);
+  if (ownMessage) return ownMessage;
   return issue.message ?? "Invalid value";
 }

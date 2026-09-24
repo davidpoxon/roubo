@@ -107,4 +107,102 @@ describe("validateAgentConfig", () => {
     const m = manifest({ configSchema: { type: "not-a-json-schema-type" } });
     expect(validateAgentConfig(m, { whatever: true })).toEqual([]);
   });
+
+  it("returns a property's own errorMessage on a pattern failure, naming the field", () => {
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        artifactoryTokenFile: {
+          type: "string",
+          pattern: "^$|^(~/|/)\\S*$",
+          errorMessage: 'takes a file path (starting with "~/" or "/"), not a credential value',
+        },
+      },
+    };
+    const m = manifest({ configSchema: schema });
+    const errors = validateAgentConfig(m, {
+      artifactoryTokenFile: "ghp_AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH1234",
+    });
+    expect(errors).toEqual([
+      {
+        path: "artifactoryTokenFile",
+        message: 'takes a file path (starting with "~/" or "/"), not a credential value',
+      },
+    ]);
+  });
+
+  it("falls back to Ajv's default message on a pattern failure when no errorMessage is declared", () => {
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        artifactoryTokenFile: { type: "string", pattern: "^$|^(~/|/)\\S*$" },
+      },
+    };
+    const m = manifest({ configSchema: schema });
+    const errors = validateAgentConfig(m, { artifactoryTokenFile: "ghp_notapath" });
+    expect(errors).toEqual([
+      { path: "artifactoryTokenFile", message: 'must match pattern "^$|^(~/|/)\\S*$"' },
+    ]);
+  });
+
+  it("keeps naming an out-of-enum field's allowed values even when the property declares an errorMessage", () => {
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        model: {
+          type: "string",
+          enum: ["sonnet", "opus", "haiku"],
+          errorMessage: "pick a supported model",
+        },
+      },
+    };
+    const m = manifest({ configSchema: schema });
+    const errors = validateAgentConfig(m, { model: "gpt-5" });
+    expect(errors).toEqual([{ path: "model", message: "Must be one of: sonnet, opus, haiku" }]);
+  });
+
+  it("keeps Ajv's own required-property message even when the containing object declares an errorMessage", () => {
+    // A `required` failure reports at the containing object's instancePath,
+    // not the missing property's own, so an errorMessage declared on the
+    // object must never be read as if it belonged to the missing property.
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        auth: {
+          type: "object",
+          errorMessage: "auth block is misconfigured",
+          required: ["token"],
+          properties: { token: { type: "string" } },
+        },
+      },
+    };
+    const m = manifest({ configSchema: schema });
+    const errors = validateAgentConfig(m, { auth: {} });
+    expect(errors).toEqual([
+      { path: "auth.token", message: "must have required property 'token'" },
+    ]);
+  });
+
+  it("ignores a blank errorMessage and falls back to Ajv's default rather than an empty message", () => {
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        artifactoryTokenFile: {
+          type: "string",
+          pattern: "^$|^(~/|/)\\S*$",
+          errorMessage: "   ",
+        },
+      },
+    };
+    const m = manifest({ configSchema: schema });
+    const errors = validateAgentConfig(m, { artifactoryTokenFile: "ghp_notapath" });
+    expect(errors).toEqual([
+      { path: "artifactoryTokenFile", message: 'must match pattern "^$|^(~/|/)\\S*$"' },
+    ]);
+  });
 });
