@@ -79,6 +79,64 @@ describe("LaunchOverridesDialog: axe-core (AP-NFR-005)", () => {
     expectNoAxeFindings(await axe(baseElement));
   });
 
+  // #1365: a probe-bound field shows a read-only control and a status line
+  // instead of free text while its choices load or after they failed.
+  it("has no axe violations with loading and failed choice probes", async () => {
+    const probed: ProjectAgentState = {
+      ...CLAUDE,
+      configSchema: { properties: { model: { type: "string" }, effort: { type: "string" } } },
+      choiceProbes: {
+        model: { state: "failed", cause: "timeout" },
+        effort: { state: "loading" },
+      },
+    };
+    const { baseElement } = render(
+      <LaunchOverridesDialog
+        isOpen
+        agents={[probed]}
+        presets={[]}
+        resolveTarget={(preset) => resolveLaunchTarget(preset, [probed], undefined)}
+        initialPresetId={null}
+        onCancel={vi.fn()}
+        onLaunch={vi.fn()}
+      />,
+    );
+    expectNoAxeFindings(await axe(baseElement));
+  });
+
+  it("keeps a pending probe-bound field in the tab order (APCC-TC-023)", async () => {
+    const user = userEvent.setup();
+    const probed: ProjectAgentState = {
+      ...CLAUDE,
+      configSchema: { properties: { model: { type: "string" } } },
+      choiceProbes: { model: { state: "loading" } },
+    };
+    render(
+      <LaunchOverridesDialog
+        isOpen
+        agents={[probed]}
+        presets={[]}
+        resolveTarget={(preset) => resolveLaunchTarget(preset, [probed], undefined)}
+        initialPresetId={null}
+        onCancel={vi.fn()}
+        onLaunch={vi.fn()}
+      />,
+    );
+
+    const model = screen.getByLabelText("Model");
+    await user.tab();
+    await user.tab();
+    await user.tab();
+    expect(document.activeElement).toBe(model);
+    // Typing into it changes nothing: there is no free-text entry.
+    await user.keyboard("gpt-5");
+    expect((model as HTMLInputElement).value).not.toContain("gpt-5");
+    expect(screen.getByRole("status")).toHaveAttribute(
+      "id",
+      model.getAttribute("aria-describedby"),
+    );
+  });
+
   it("carries modal semantics and a title, and traps focus inside the dialog", () => {
     // The dialog is rendered beside a focusable sibling on purpose. With the
     // dialog alone, "everything focusable is inside it" holds trivially and

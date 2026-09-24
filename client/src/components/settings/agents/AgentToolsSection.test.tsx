@@ -29,6 +29,12 @@ import {
   useAppAgentPresets as _useAppAgentPresets,
 } from "../../../hooks/useAgentTools";
 import AgentToolsSection from "./AgentToolsSection";
+import {
+  PROBE_FAILED_PLACEHOLDER,
+  PROBE_LOADING_PLACEHOLDER,
+  PROBE_LOADING_TEXT,
+  probeFailureCopy,
+} from "../../probe-state-copy";
 
 const mockedAgentTools = vi.mocked(_useAgentTools);
 const mockedAppPresets = vi.mocked(_useAppAgentPresets);
@@ -412,5 +418,57 @@ describe("AgentToolsSection", () => {
     await user.type(screen.getByLabelText("Mode"), "auto");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(saveAgentTool.mock.calls[0][0].params).toEqual({ mode: "auto" });
+  });
+});
+
+// #1365: the editor offers the same parameter fields as the per-launch dialog,
+// so a probe-bound field must show its probe state here too rather than fall
+// back to free text (APCC-FR-003, APCC-TC-016).
+describe("AgentToolsSection editor: choice-probe states (#1365)", () => {
+  const CURSOR: AgentPluginState = {
+    id: "cursor-cli",
+    name: "Cursor CLI",
+    configSchema: { type: "object", properties: { model: { type: "string" } } },
+    config: {},
+    unavailable: null,
+    choiceProbes: { model: { state: "loading" } },
+  };
+
+  it("shows a loading probe's status on a read-only Model control", async () => {
+    const user = userEvent.setup();
+    render(<AgentToolsSection agents={[CURSOR]} defaultAgent={CURSOR} jigs={JIGS} />);
+    await user.click(screen.getByRole("button", { name: "New agent tool" }));
+
+    const model = screen.getByLabelText("Model") as HTMLInputElement;
+    expect(model).toHaveAttribute("readonly");
+    expect(model).toHaveAttribute("aria-disabled", "true");
+    expect(model.value).toBe(PROBE_LOADING_PLACEHOLDER);
+    expect(screen.getByTestId("agent-tool-model-probe-status")).toHaveTextContent(
+      PROBE_LOADING_TEXT,
+    );
+  });
+
+  it("shows a failed probe's cause and remedy", async () => {
+    const user = userEvent.setup();
+    const failed: AgentPluginState = {
+      ...CURSOR,
+      choiceProbes: {
+        model: {
+          state: "failed",
+          cause: "probe-error",
+          reason: "`agent` exited with code 1: Not signed in",
+        },
+      },
+    };
+    render(<AgentToolsSection agents={[failed]} defaultAgent={failed} jigs={JIGS} />);
+    await user.click(screen.getByRole("button", { name: "New agent tool" }));
+
+    const copy = probeFailureCopy("probe-error", "`agent` exited with code 1: Not signed in");
+    const status = screen.getByTestId("agent-tool-model-probe-status");
+    expect(status).toHaveTextContent(copy.cause);
+    expect(status).toHaveTextContent(copy.remedy);
+    expect((screen.getByLabelText("Model") as HTMLInputElement).value).toBe(
+      PROBE_FAILED_PLACEHOLDER,
+    );
   });
 });

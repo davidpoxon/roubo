@@ -88,6 +88,34 @@ describe("AgentOverridesSection: axe-core", () => {
     expectNoAxeFindings(await axe(container));
   });
 
+  // #1365: an overridden probe-bound field renders the pending choice control
+  // and its status line, and an inherited one a locked toggle with its reason.
+  it("has no axe violations with loading and failed choice probes", async () => {
+    const probed: ProjectAgentState = {
+      id: "cursor-cli",
+      name: "Cursor CLI",
+      configSchema: {
+        type: "object",
+        properties: {
+          model: { type: "string", title: "Model" },
+          fallback: { type: "string", title: "Fallback model" },
+        },
+      },
+      appDefaults: {},
+      overrides: { model: "gpt-5" },
+      effective: { model: "gpt-5" },
+      unavailable: null,
+      misconfigured: null,
+      choiceProbes: {
+        model: { state: "failed", cause: "command-not-found", reason: "agent not on PATH" },
+        fallback: { state: "loading" },
+      },
+    };
+    mockedList.mockReturnValue(listResult([probed]));
+    const { container } = render(<AgentOverridesSection projectId="demo" />);
+    expectNoAxeFindings(await axe(container));
+  });
+
   it("has no axe violations in the no-plugins empty state", async () => {
     mockedList.mockReturnValue(listResult([]));
     const { container } = render(<AgentOverridesSection projectId="demo" />);

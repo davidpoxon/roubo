@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button, Checkbox } from "react-aria-components";
 import { Bot, Check, Loader2 } from "lucide-react";
 import type { ConfigFieldError, ProjectAgentState } from "@roubo/shared";
@@ -6,6 +6,7 @@ import ConfigSchemaForm from "../ConfigSchemaForm";
 import { OverrideBadge } from "../settings/OverrideBadge";
 import { titleCase } from "../../lib/title-case";
 import { enumOptions } from "../config-schema-utils";
+import { pendingProbe } from "../settings/agents/agent-params";
 import { useProjectAgents, useSaveProjectAgentOverride } from "../../hooks/useProjectAgents";
 import { ApiError } from "../../lib/api";
 
@@ -17,6 +18,8 @@ const STRINGS = {
   orphanedSuffix:
     ". They are ignored and no configuration is resolved for them. Install the plugin, or clear the override file, to make them take effect.",
   inherit: "Inherits app default",
+  probeLoadingLock: " Override is available once its choices are read.",
+  probeFailedLock: " Override needs its choices, which could not be read.",
   override: "Override",
   appDefaultPrefix: "App default: ",
   notSet: "not set",
@@ -73,6 +76,20 @@ function initialOverrideValue(def: FieldDef, appDefault: unknown): unknown {
   return "";
 }
 
+/**
+ * Whether `initialOverrideValue` has anything real to seed a row with. It has
+ * nothing for a field with no app default, no schema default, no choices and
+ * no boolean or numeric type, where it falls back to `""`. That is exactly the
+ * shape of a probe-bound field whose probe has not answered (#1365), and
+ * seeding it would store `""` as an override the pending control can neither
+ * show nor edit.
+ */
+function hasSeedValue(def: FieldDef, appDefault: unknown): boolean {
+  if (appDefault !== undefined || def.default !== undefined) return true;
+  if ((enumOptions(def)?.length ?? 0) > 0) return true;
+  return def.type === "boolean" || def.type === "number" || def.type === "integer";
+}
+
 interface PartitionedErrors {
   /** Errors that address an overridden field, so a control exists to carry them. */
   fields: Record<string, string>;
@@ -119,6 +136,12 @@ function partitionFieldErrors(
  * That makes the effective preview a plain per-field overlay of app defaults
  * and draft, and makes toggling a field off a deletion rather than a value
  * (AP-TC-005, AP-TC-016).
+ *
+ * An overridden probe-bound field renders its probe's loading or failed state
+ * exactly as the AI Agents screen does, through the same `ConfigSchemaForm`
+ * `probes` prop (#1365). An inherited one shows no probe state, since nothing
+ * is being chosen there, but its toggle stays locked while the probe leaves the
+ * row nothing to seed an override with.
  */
 function ProjectAgentOverrideCard({
   projectId,
@@ -138,6 +161,7 @@ function ProjectAgentOverrideCard({
   const [formError, setFormError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   const save = useSaveProjectAgentOverride(projectId, agent.id);
+  const idPrefix = useId();
 
   const fields = schemaFields(agent.configSchema);
   const effective = { ...agent.appDefaults, ...draft };
@@ -267,6 +291,12 @@ function ProjectAgentOverrideCard({
             // could never be toggled back to inheriting.
             const overridden = Object.prototype.hasOwnProperty.call(draft, key);
             const label = def.title ?? titleCase(key);
+            const probe = pendingProbe(agent, key);
+            // Turning a row off is always allowed; only turning one on is held
+            // back, and only when it could store nothing but an empty value.
+            const locked =
+              !overridden && probe !== undefined && !hasSeedValue(def, agent.appDefaults[key]);
+            const inheritId = `${idPrefix}-${key}-inherit`;
             return (
               <div
                 key={key}
@@ -276,10 +306,12 @@ function ProjectAgentOverrideCard({
                 <div className="flex items-center justify-between gap-3">
                   <Checkbox
                     isSelected={overridden}
+                    isDisabled={locked}
                     onChange={(on) => toggleField(key, def, on)}
                     aria-label={`Override ${label}`}
+                    {...(locked && { "aria-describedby": inheritId })}
                     data-testid={`project-agent-toggle-${agent.id}-${key}`}
-                    className="flex items-center gap-2 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="flex items-center gap-2 cursor-pointer data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
                     {({ isSelected }) => (
                       <>
@@ -318,13 +350,19 @@ function ProjectAgentOverrideCard({
                     }}
                     onChange={(next) => setFieldValue(key, def, next[key])}
                     errors={errors}
+                    probes={agent.choiceProbes}
                   />
                 ) : (
                   <p
+                    id={inheritId}
                     data-testid={`project-agent-inherits-${agent.id}-${key}`}
                     className="text-11 text-text-secondary"
                   >
                     {STRINGS.inherit}
+                    {locked &&
+                      (probe.state === "loading"
+                        ? STRINGS.probeLoadingLock
+                        : STRINGS.probeFailedLock)}
                   </p>
                 )}
               </div>
