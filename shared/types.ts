@@ -2572,7 +2572,7 @@ export interface AssignedIssue {
   // Legacy GitHub issue number. Present for github-com issues and security
   // alerts (where it holds the alert number); load-time migration derives
   // externalId from this for pre-plugin benches. Absent for integrations whose
-  // issues have no numeric form (e.g. Jira keys like PLNRPTGOOG-3782), which
+  // issues have no numeric form (e.g. Jira keys like PROJ-3782), which
   // identify by externalId/integrationId instead. Consumers that need a GitHub
   // issue number must guard on its presence.
   number?: number;

@@ -446,10 +446,10 @@ describe("resolveJigContent", () => {
       portHttps: {},
       workspace: "/workspace",
       components: {},
-      issueKey: "PLNRPTGOOG-3782",
+      issueKey: "PROJ-3782",
       issueTitle: "Add billing dashboard",
     });
-    expect(result).toBe("PLNRPTGOOG-3782 /  Add billing dashboard");
+    expect(result).toBe("PROJ-3782 /  Add billing dashboard");
   });
 
   it("leaves unknown variables unreplaced", () => {

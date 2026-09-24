@@ -4,11 +4,11 @@ import { formatIssueBody, formatComments, buildPluginIssueContext } from "./issu
 describe("buildPluginIssueContext", () => {
   it("re-hydrates the issue key + title with no number and no network fields", () => {
     const ctx = buildPluginIssueContext({
-      externalId: "PLNRPTGOOG-3782",
+      externalId: "PROJ-3782",
       title: "Add billing dashboard",
     });
     expect(ctx).toEqual({
-      issueKey: "PLNRPTGOOG-3782",
+      issueKey: "PROJ-3782",
       issueTitle: "Add billing dashboard",
       issueBody: "",
       issueUrl: "",

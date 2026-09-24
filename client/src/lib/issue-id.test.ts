@@ -68,6 +68,6 @@ describe("displayIssueRef", () => {
   });
 
   it("renders the externalId key when there is no number (e.g. Jira)", () => {
-    expect(displayIssueRef({ externalId: "PLNRPTGOOG-3782" })).toBe("PLNRPTGOOG-3782");
+    expect(displayIssueRef({ externalId: "PROJ-3782" })).toBe("PROJ-3782");
   });
 });

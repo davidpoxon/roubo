@@ -41,7 +41,7 @@ export function shortIdFromExternalId(externalId: string): string {
 /**
  * Display label for an assigned issue. GitHub issues and alerts have a numeric
  * `number` and render as `#42` / `#117`; integrations without one (e.g. Jira)
- * render the externalId key as-is (`PLNRPTGOOG-3782`).
+ * render the externalId key as-is (`PROJ-3782`).
  */
 export function displayIssueRef(assignedIssue: { number?: number; externalId: string }): string {
   return assignedIssue.number != null ? `#${assignedIssue.number}` : assignedIssue.externalId;
