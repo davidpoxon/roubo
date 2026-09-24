@@ -4,7 +4,8 @@ import { Bot } from "lucide-react";
 import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import { stampAriaModal } from "../lib/aria-modal";
 import { INPUT } from "./setup/styles";
-import { PARAM_FIELDS, INHERIT, enumOptionsFor } from "./settings/agents/agent-params";
+import { PARAM_FIELDS, enumOptionsFor, pendingProbe } from "./settings/agents/agent-params";
+import AgentParamFields from "./settings/agents/AgentParamFields";
 import { agentLaunchBlocker, type LaunchTarget } from "./settings/agents/agent-launchability";
 import { buildResolutionTrace, type ResolutionLayer } from "./launch-overrides-trace";
 
@@ -153,7 +154,9 @@ export default function LaunchOverridesDialog({
    * is dropped rather than carried over, so the rendered field and the launched
    * payload can never disagree, and the fields update to reflect the newly
    * selected agent's parameters (AP-TC-029 S001-O01). A field the new agent
-   * leaves free text keeps its value: nothing there is invalid.
+   * leaves free text keeps its value: nothing there is invalid. A field whose
+   * choice probe is still loading or has failed on the new agent is dropped too:
+   * its control cannot show a value, so it must not launch one either (#1365).
    */
   const rebaseParams = (nextAgentId: string) => {
     const nextAgent = launchable.find((candidate) => candidate.id === nextAgentId);
@@ -161,7 +164,7 @@ export default function LaunchOverridesDialog({
       const kept: Record<string, string> = {};
       for (const field of PARAM_FIELDS) {
         const value = current[field.key];
-        if (!value) continue;
+        if (!value || pendingProbe(nextAgent, field.key)) continue;
         const options = enumOptionsFor(nextAgent, field.key);
         if (options === undefined || options.some((option) => option.key === value))
           kept[field.key] = value;
@@ -288,46 +291,12 @@ export default function LaunchOverridesDialog({
               </select>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              {PARAM_FIELDS.map((field) => {
-                const options = enumOptionsFor(agent, field.key);
-                const id = `launch-overrides-${field.key}`;
-                return (
-                  <div key={field.key}>
-                    <label htmlFor={id} className={LABEL_CLASS}>
-                      {field.label}
-                    </label>
-                    {options ? (
-                      <select
-                        id={id}
-                        className={INPUT}
-                        value={params[field.key] ?? INHERIT}
-                        onChange={(e) =>
-                          setParams((prev) => ({ ...prev, [field.key]: e.target.value }))
-                        }
-                      >
-                        <option value={INHERIT}>inherit</option>
-                        {options.map((option) => (
-                          <option key={option.key} value={option.key}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        id={id}
-                        className={INPUT}
-                        value={params[field.key] ?? INHERIT}
-                        placeholder="inherit"
-                        onChange={(e) =>
-                          setParams((prev) => ({ ...prev, [field.key]: e.target.value }))
-                        }
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <AgentParamFields
+              agent={agent}
+              params={params}
+              onChange={(key, value) => setParams((prev) => ({ ...prev, [key]: value }))}
+              idPrefix="launch-overrides"
+            />
 
             {/*
              * A named group, not anonymous divs: the "Resolution" caption is

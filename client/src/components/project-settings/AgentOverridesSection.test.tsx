@@ -12,6 +12,7 @@ import {
   useSaveProjectAgentOverride as _useSave,
 } from "../../hooks/useProjectAgents";
 import { AgentOverridesSection } from "./AgentOverridesSection";
+import { PROBE_LOADING_TEXT, probeFailureCopy } from "../probe-state-copy";
 
 const mockedList = vi.mocked(_useProjectAgents);
 const mockedSave = vi.mocked(_useSave);
@@ -392,5 +393,177 @@ describe("AgentOverridesSection", () => {
     const codexCard = within(screen.getByTestId("project-agent-card-codex-cli"));
     expect(codexCard.getByText("Sandbox")).toBeInTheDocument();
     expect(codexCard.queryByText("Model")).not.toBeInTheDocument();
+  });
+});
+
+// #1365: the project agents response serves the same `choiceProbes` map as the
+// AI Agents screen's, and an overridden probe-bound field reads it the same way:
+// an empty choice control with a loading line, or the failure's cause and
+// remedy, never the manifest's plain free-text property (APCC-FR-003,
+// APCC-TC-016, APCC-TC-024).
+describe("AgentOverridesSection: choice-probe states (#1365)", () => {
+  /** Cursor's shape: a plain-string `model` whose choices only the probe supplies. */
+  const CURSOR: ProjectAgentState = {
+    id: "cursor-cli",
+    name: "Cursor CLI",
+    configSchema: {
+      type: "object",
+      properties: {
+        model: { type: "string", title: "Model" },
+        mode: { type: "string", title: "Mode", enum: ["plan", "ask"] },
+      },
+    },
+    appDefaults: {},
+    overrides: { model: "gpt-5" },
+    effective: { model: "gpt-5" },
+    unavailable: null,
+    misconfigured: null,
+    choiceProbes: { model: { state: "loading" } },
+  };
+
+  const FAILED = {
+    state: "failed",
+    cause: "command-not-found",
+    reason: "agent not on PATH",
+  } as const;
+
+  it("shows an overridden field's loading probe as the AI Agents screen does", () => {
+    mockedList.mockReturnValue(listResult([CURSOR]));
+    render(<AgentOverridesSection projectId="demo" />);
+
+    const row = within(screen.getByTestId("project-agent-field-cursor-cli-model"));
+    expect(row.getByTestId("config-field-model")).toHaveAttribute("data-probe-state", "loading");
+    expect(row.getByTestId("config-field-model-probe-status")).toHaveTextContent(
+      PROBE_LOADING_TEXT,
+    );
+    expect(row.queryByRole("textbox")).toBeNull();
+    // The probe binds `model` only; the other row is untouched.
+    expect(screen.queryByTestId("config-field-mode-probe-status")).toBeNull();
+  });
+
+  it("shows an overridden field's failed probe with its cause and remedy", () => {
+    mockedList.mockReturnValue(listResult([{ ...CURSOR, choiceProbes: { model: FAILED } }]));
+    render(<AgentOverridesSection projectId="demo" />);
+
+    const copy = probeFailureCopy(FAILED.cause, FAILED.reason);
+    const row = within(screen.getByTestId("project-agent-field-cursor-cli-model"));
+    expect(row.getByTestId("config-field-model")).toHaveAttribute("data-probe-state", "failed");
+    const status = row.getByTestId("config-field-model-probe-status");
+    expect(status).toHaveTextContent(copy.cause);
+    expect(status).toHaveTextContent(copy.remedy);
+    expect(row.queryByRole("textbox")).toBeNull();
+  });
+
+  it("announces the failure through the status region the loading line used (APCC-TC-022)", () => {
+    mockedList.mockReturnValue(listResult([CURSOR]));
+    const { rerender } = render(<AgentOverridesSection projectId="demo" />);
+    const loading = screen.getByTestId("config-field-model-probe-status");
+    expect(loading).toHaveAttribute("role", "status");
+
+    // The bounded poll in `useProjectAgents` delivers the failure on the same
+    // open; the card must re-read it rather than keep its first render.
+    mockedList.mockReturnValue(listResult([{ ...CURSOR, choiceProbes: { model: FAILED } }]));
+    rerender(<AgentOverridesSection projectId="demo" />);
+
+    const failed = screen.getByTestId("config-field-model-probe-status");
+    expect(failed).toBe(loading);
+    expect(failed).toHaveTextContent(probeFailureCopy(FAILED.cause, FAILED.reason).cause);
+  });
+
+  it("renders a resolved probe's choices through the ordinary select", () => {
+    mockedList.mockReturnValue(
+      listResult([
+        {
+          ...CURSOR,
+          configSchema: {
+            type: "object",
+            properties: {
+              model: {
+                type: "string",
+                title: "Model",
+                oneOf: [{ const: "gpt-5", title: "GPT-5" }],
+              },
+            },
+          },
+          choiceProbes: { model: { state: "resolved" } },
+        },
+      ]),
+    );
+    render(<AgentOverridesSection projectId="demo" />);
+
+    expect(screen.queryByTestId("config-field-model-probe-status")).toBeNull();
+    expect(screen.getByTestId("config-field-model")).not.toHaveAttribute("data-probe-state");
+  });
+
+  it("will not start an override it could only seed with an empty value while the probe is pending", () => {
+    mockedList.mockReturnValue(
+      listResult([
+        { ...CURSOR, overrides: {}, effective: {} },
+        {
+          ...CURSOR,
+          id: "cursor-failed",
+          name: "Cursor failed",
+          overrides: {},
+          effective: {},
+          choiceProbes: { model: FAILED },
+        },
+      ]),
+    );
+    render(<AgentOverridesSection projectId="demo" />);
+
+    // Nothing to seed the row with and no choices to pick from, so turning it
+    // on could only store `model: ""`. The row says why it is locked.
+    const loadingToggle = screen.getByTestId("project-agent-toggle-cursor-cli-model");
+    expect(within(loadingToggle).getByRole("checkbox")).toBeDisabled();
+    const loadingHint = screen.getByTestId("project-agent-inherits-cursor-cli-model");
+    expect(loadingHint).toHaveTextContent("Inherits app default");
+    expect(loadingHint).toHaveTextContent("once its choices are read");
+    expect(within(loadingToggle).getByRole("checkbox")).toHaveAttribute(
+      "aria-describedby",
+      loadingHint.id,
+    );
+
+    const failedToggle = screen.getByTestId("project-agent-toggle-cursor-failed-model");
+    expect(within(failedToggle).getByRole("checkbox")).toBeDisabled();
+    expect(screen.getByTestId("project-agent-inherits-cursor-failed-model")).toHaveTextContent(
+      "could not be read",
+    );
+
+    // A field the probe does not bind stays freely overridable.
+    const modeToggle = screen.getByTestId("project-agent-toggle-cursor-cli-mode");
+    expect(within(modeToggle).getByRole("checkbox")).not.toBeDisabled();
+  });
+
+  it("still starts an override the app default can seed while the probe is pending", async () => {
+    const user = userEvent.setup();
+    mockedList.mockReturnValue(
+      listResult([
+        {
+          ...CURSOR,
+          appDefaults: { model: "gpt-5" },
+          overrides: {},
+          effective: { model: "gpt-5" },
+        },
+      ]),
+    );
+    render(<AgentOverridesSection projectId="demo" />);
+
+    await user.click(screen.getByRole("checkbox", { name: "Override Model" }));
+
+    expect(screen.getByTestId("config-field-model")).toHaveAttribute("data-probe-state", "loading");
+    await user.click(screen.getByTestId("project-agent-save-cursor-cli"));
+    expect(mutate.mock.calls[0][0]).toEqual({ model: "gpt-5" });
+  });
+
+  it("lets an already-overridden field go back to inheriting while the probe is pending", async () => {
+    const user = userEvent.setup();
+    mockedList.mockReturnValue(listResult([CURSOR]));
+    render(<AgentOverridesSection projectId="demo" />);
+
+    await user.click(screen.getByRole("checkbox", { name: "Override Model" }));
+
+    expect(screen.getByTestId("project-agent-inherits-cursor-cli-model")).toBeInTheDocument();
+    await user.click(screen.getByTestId("project-agent-save-cursor-cli"));
+    expect(mutate.mock.calls[0][0]).toEqual({});
   });
 });

@@ -8,10 +8,11 @@ import {
   AGENT_TOOL_JIG_NONE,
 } from "@roubo/shared";
 import type { AgentPluginState, AgentToolPreset, JigMeta } from "@roubo/shared";
-// The three exposed params, the inherit sentinel, and the enum lookup are shared
-// with the per-launch override dialog (#1072), so both surfaces offer the same
-// fields with the same inherit semantics.
-import { PARAM_FIELDS, INHERIT, enumOptionsFor } from "./agent-params";
+// The three exposed params, the inherit sentinel, and the fields that edit them
+// are shared with the per-launch override dialog (#1072), so both surfaces offer
+// the same fields with the same inherit semantics.
+import { PARAM_FIELDS, INHERIT } from "./agent-params";
+import AgentParamFields from "./AgentParamFields";
 
 interface Props {
   isOpen: boolean;
@@ -161,49 +162,12 @@ export default function AgentToolEditorModal({
               </select>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              {PARAM_FIELDS.map((field) => {
-                const options = enumOptionsFor(boundAgent, field.key);
-                const id = `agent-tool-${field.key}`;
-                return (
-                  <div key={field.key}>
-                    <label
-                      htmlFor={id}
-                      className="block text-11 font-medium text-text-secondary mb-1.5"
-                    >
-                      {field.label}
-                    </label>
-                    {options ? (
-                      <select
-                        id={id}
-                        className={INPUT}
-                        value={params[field.key] ?? INHERIT}
-                        onChange={(e) =>
-                          setParams((prev) => ({ ...prev, [field.key]: e.target.value }))
-                        }
-                      >
-                        <option value={INHERIT}>inherit</option>
-                        {options.map((option) => (
-                          <option key={option.key} value={option.key}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        id={id}
-                        className={INPUT}
-                        value={params[field.key] ?? INHERIT}
-                        placeholder="inherit"
-                        onChange={(e) =>
-                          setParams((prev) => ({ ...prev, [field.key]: e.target.value }))
-                        }
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <AgentParamFields
+              agent={boundAgent}
+              params={params}
+              onChange={(key, value) => setParams((prev) => ({ ...prev, [key]: value }))}
+              idPrefix="agent-tool"
+            />
 
             <div>
               <label

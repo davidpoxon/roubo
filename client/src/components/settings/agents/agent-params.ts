@@ -5,6 +5,7 @@
 // same string. Two independent formatters would drift, and AP-TC-023 reads the
 // menu's summary against what Settings shows.
 
+import type { AgentChoiceProbeState } from "@roubo/shared";
 import { enumOptions, type EnumOption } from "../../config-schema-utils";
 
 export const NO_PARAMS_LABEL = "No params configured";
@@ -78,4 +79,28 @@ export function enumOptionsFor(
   if (options === null) return undefined;
   const strings = options.filter((option) => typeof option.value === "string");
   return strings.length > 0 ? strings : undefined;
+}
+
+/**
+ * One config key's choice probe while it is still `loading` or has `failed`,
+ * or `undefined` when the key has no probe or its probe resolved (#1365).
+ *
+ * A pending probe-bound field has no choices yet, so `enumOptionsFor` reads it
+ * as free text. Every surface that edits the field asks this first and shows
+ * the probe's state instead, because free-text entry is what a probed field
+ * must not offer (APCC-TC-016).
+ *
+ * Typed structurally for the same reason as `enumOptionsFor`: both
+ * `AgentPluginState` and `ProjectAgentState` carry the same `choiceProbes` map.
+ */
+export function pendingProbe(
+  agent: { choiceProbes?: Record<string, AgentChoiceProbeState> } | undefined,
+  key: string,
+): AgentChoiceProbeState | undefined {
+  const probes = agent?.choiceProbes;
+  // `hasOwnProperty` rather than a bare index: the keys come from a plugin's
+  // opaque configSchema, so `toString` must not read as a probe.
+  if (!probes || !Object.prototype.hasOwnProperty.call(probes, key)) return undefined;
+  const probe = probes[key];
+  return probe.state === "resolved" ? undefined : probe;
 }

@@ -4,6 +4,12 @@ import { render, screen, act, fireEvent } from "@testing-library/react";
 import type { ProjectAgentState, ResolvedAgentPreset } from "@roubo/shared";
 import LaunchOverridesDialog from "./LaunchOverridesDialog";
 import { resolveLaunchTarget, type LaunchTarget } from "./settings/agents/agent-launchability";
+import {
+  PROBE_FAILED_PLACEHOLDER,
+  PROBE_LOADING_PLACEHOLDER,
+  PROBE_LOADING_TEXT,
+  probeFailureCopy,
+} from "./probe-state-copy";
 
 // The per-launch override dialog (AP-TC-029, AP-TC-034, AP-TC-046, #1072),
 // including its preset picker (#1085).
@@ -469,5 +475,111 @@ describe("LaunchOverridesDialog", () => {
 
     expect(agents[0].appDefaults).toEqual({ model: "opus", effort: "high", mode: "plan" });
     expect(agents[0].overrides).toEqual({ model: "sonnet" });
+  });
+});
+
+// #1365: a probe-bound field whose choices are still loading, or could not be
+// read, must not fall back to free text here. It shows the same state the AI
+// Agents screen shows (APCC-FR-003, APCC-TC-016).
+describe("LaunchOverridesDialog: choice-probe states (#1365)", () => {
+  const CURSOR: ProjectAgentState = {
+    id: "cursor-cli",
+    name: "Cursor CLI",
+    // A plain string on purpose, as the Cursor manifest declares it: the choices
+    // only arrive through the probe.
+    configSchema: { properties: { model: { type: "string" }, mode: { enum: ["plan", "ask"] } } },
+    appDefaults: {},
+    overrides: {},
+    effective: {},
+    unavailable: null,
+    misconfigured: null,
+    choiceProbes: { model: { state: "loading" } },
+  };
+
+  beforeEach(() => {
+    onCancel.mockClear();
+    onLaunch.mockClear();
+  });
+
+  it("shows a loading probe's status on a read-only control instead of a free-text box", () => {
+    open({ agents: [CURSOR] });
+
+    const model = screen.getByLabelText("Model") as HTMLInputElement;
+    expect(model).toHaveAttribute("readonly");
+    expect(model).toHaveAttribute("aria-disabled", "true");
+    expect(model.value).toBe(PROBE_LOADING_PLACEHOLDER);
+    const status = screen.getByTestId("launch-overrides-model-probe-status");
+    expect(status).toHaveAttribute("role", "status");
+    expect(status).toHaveTextContent(PROBE_LOADING_TEXT);
+    expect(model.getAttribute("aria-describedby")).toBe(status.id);
+    // The field the probe does not bind is untouched.
+    expect((screen.getByLabelText("Mode") as HTMLSelectElement).tagName).toBe("SELECT");
+  });
+
+  it("shows a failed probe's cause and remedy, announced through the same status region", () => {
+    const { rerender } = open({ agents: [CURSOR] });
+    const status = screen.getByTestId("launch-overrides-model-probe-status");
+
+    const failed: ProjectAgentState = {
+      ...CURSOR,
+      choiceProbes: {
+        model: { state: "failed", cause: "command-not-found", reason: "agent not on PATH" },
+      },
+    };
+    rerender(
+      <LaunchOverridesDialog
+        isOpen
+        agents={[failed]}
+        presets={[]}
+        resolveTarget={(preset) => resolveLaunchTarget(preset, [failed], undefined)}
+        initialPresetId={null}
+        onCancel={onCancel}
+        onLaunch={onLaunch}
+      />,
+    );
+
+    const copy = probeFailureCopy("command-not-found", "agent not on PATH");
+    const after = screen.getByTestId("launch-overrides-model-probe-status");
+    expect(after).toBe(status);
+    expect(after).toHaveTextContent(copy.cause);
+    expect(after).toHaveTextContent(copy.remedy);
+    expect((screen.getByLabelText("Model") as HTMLInputElement).value).toBe(
+      PROBE_FAILED_PLACEHOLDER,
+    );
+  });
+
+  it("drops a value the newly selected agent can only hold behind a pending probe", () => {
+    open({ agents: [CODEX, CURSOR] });
+
+    setField("Model", "gpt-5.2-codex");
+    setField("Agent", "cursor-cli");
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    // The control can no longer show the value, so it must not launch either.
+    expect(onLaunch).toHaveBeenCalledWith({
+      agentPluginId: "cursor-cli",
+      agentName: "Cursor CLI",
+      perLaunchOverrides: {},
+    });
+  });
+
+  it("renders a resolved probe's choices through the ordinary select", () => {
+    open({
+      agents: [
+        {
+          ...CURSOR,
+          configSchema: {
+            properties: { model: { type: "string", oneOf: [{ const: "gpt-5", title: "GPT-5" }] } },
+          },
+          choiceProbes: { model: { state: "resolved" } },
+        },
+      ],
+    });
+
+    expect((screen.getByLabelText("Model") as HTMLSelectElement).tagName).toBe("SELECT");
+    expect(screen.queryByTestId("launch-overrides-model-probe-status")).toBeNull();
   });
 });
