@@ -16,20 +16,25 @@ let binDir: string;
  * propagation lag), and a package mapped to Infinity never resolves. `mode`
  * picks how a miss looks: `e404` mirrors npm 11 (exit 1 with an E404 on
  * stderr), `empty` mirrors older npm (exit 0 with empty stdout).
- * `npm view <pkg>@<v> dist.tarball` always answers with the registry's
- * tarball URL; whether that URL serves yet is up to `stubCurl`.
+ * `npm view <pkg>@<v> dist.tarball` answers with the registry's tarball URL,
+ * except that a package listed in `tarballMisses` fails the lookup (exit 1,
+ * nothing on stdout) for its first N calls. Whether the URL serves yet is up
+ * to `stubCurl`.
  */
 function stubNpm(
   misses: Record<string, number>,
   mode: "e404" | "empty" = "e404",
   warnOnHit = false,
+  tarballMisses: Record<string, number> = {},
 ): void {
-  const cases = Object.entries(misses)
-    .map(([pkg, n]) => {
-      const limit = Number.isFinite(n) ? String(n) : "999999";
-      return `  "${pkg}@"*) limit=${limit} ;;`;
-    })
-    .join("\n");
+  const toCases = (table: Record<string, number>) =>
+    Object.entries(table)
+      .map(([pkg, n]) => {
+        const limit = Number.isFinite(n) ? String(n) : "999999";
+        return `  "${pkg}@"*) limit=${limit} ;;`;
+      })
+      .join("\n");
+  const cases = toCases(misses);
   const miss =
     mode === "e404"
       ? `echo "npm error code E404" >&2; echo "npm error 404 No match found for version \${spec##*@}" >&2; exit 1`
@@ -38,6 +43,14 @@ function stubNpm(
 [[ "$1" == "view" ]] || { echo "unexpected npm call: $*" >&2; exit 2; }
 spec="$2"
 if [[ "$3" == "dist.tarball" ]]; then
+  limit=0
+  case "$spec" in
+${toCases(tarballMisses)}
+  esac
+  counter="${binDir}/tcount-$(echo "$spec" | tr '/@' '__')"
+  n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 ))
+  echo "$n" > "$counter"
+  if (( n <= limit )); then echo "npm error network request failed" >&2; exit 1; fi
   pkg="\${spec%@*}"
   echo "https://registry.npmjs.org/\${pkg}/-/\${pkg##*/}-\${spec##*@}.tgz"
   exit 0
@@ -153,6 +166,31 @@ describe("sdk-registry-wait.sh", () => {
     );
     // The last curl error is surfaced so the log alone explains the miss.
     expect(run.output).toContain("404");
+  });
+
+  it("looks the tarball URL up again when the first lookup fails", () => {
+    stubNpm({}, "e404", false, { "@roubo/plugin-sdk": 2 });
+    const run = runWait(
+      { SDK_SMOKE_REGISTRY_POLL_S: "1", SDK_SMOKE_REGISTRY_TIMEOUT_S: "30" },
+      "@roubo/plugin-sdk",
+    );
+    expect(run.status, run.output).toBe(0);
+    expect(run.stdout).toContain("tarball not yet fetchable");
+    expect(run.stdout).toMatch(/@roubo\/plugin-sdk@0\.7\.0 tarball fetchable after [1-9]\d*s/);
+  });
+
+  it("fails within the ceiling, with its own error, when the tarball URL never resolves", () => {
+    stubNpm({}, "e404", false, { "@roubo/plugin-sdk": Infinity });
+    const run = runWait(
+      { SDK_SMOKE_REGISTRY_POLL_S: "1", SDK_SMOKE_REGISTRY_TIMEOUT_S: "2" },
+      "@roubo/plugin-sdk",
+    );
+    expect(run.status).not.toBe(0);
+    expect(run.elapsedMs).toBeLessThan(10_000);
+    expect(run.output).toMatch(
+      /::error::@roubo\/plugin-sdk@0\.7\.0 tarball \(no dist\.tarball in the packument\) was not fetchable after waiting \d+s \(limit 2s\)/,
+    );
+    expect(run.output).toContain("npm error network request failed");
   });
 
   it("counts the version wait and the tarball wait against one deadline", () => {
