@@ -6,13 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
-## [Unreleased]
+## [0.7.0] - 2026-09-24
+
+Two optional additions to the agent plugin manifest: the permission rule tiers an agent's CLI carries, and the steps to install or update that CLI. Both are optional, and no existing plugin needs a change to build or run against this release.
 
 ### Added
 
 - **`agentPermissionRuleTiers` on the plugin manifest, and the `PermissionRuleTier` type** (#1345). An agent plugin may name which tiers of Roubo's fine-grained permission rules its own CLI's rules format carries, drawn from `allow`, `ask` and `deny`. The permissions screen then offers only those tiers, states that a rule in a tier the agent does not carry is never written, and marks any such rule a project already saved rather than letting it look applied. Each entry appears at most once, the list may not be empty (an agent that carries no rules at all says so by declaring no `rules` capability on its descriptor), and the key is rejected on a non-`agent` manifest.
 
-- **`agentInstallGuidance` on the plugin manifest.** An agent plugin may declare how a user installs its CLI and how they update it, as `{ install?, update? }` with each step `{ command?, url? }`. A launch that fails because the CLI is missing names the install step, and a launch blocked below `minVersion` names the update step, both in the guidance sentence and as a command to copy and a link. The AI Agents card shows the same steps. The host shows each step and never runs it: the command must be one line of printable text of at most 500 characters, the URL must be `http` or `https`, each step needs at least one of the two, and the key is rejected on a non-`agent` manifest.
+- **`agentInstallGuidance` on the plugin manifest** (#1362). An agent plugin may declare how a user installs its CLI and how they update it, as `{ install?, update? }` with each step `{ command?, url? }`. A launch that fails because the CLI is missing names the install step, and a launch blocked below `minVersion` names the update step, both in the guidance sentence and as a command to copy and a link. The AI Agents card shows the same steps. The host shows each step and never runs it: the command must be one line of printable text of at most 500 characters, the URL must be `http` or `https`, each step needs at least one of the two, and the key is rejected on a non-`agent` manifest.
 
 - **`remedy` on `AgentLaunchFailure`, and `installGuidance` on `AgentPluginState`.** Both are optional and carry the declared steps structured, for the launch-failure panel and the AI Agents card.
 
