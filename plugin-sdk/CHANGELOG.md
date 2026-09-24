@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 ## [0.7.0] - 2026-09-24
 
-Two optional additions to the agent plugin manifest: the permission rule tiers an agent's CLI carries, and the steps to install or update that CLI. Both are optional, and no existing plugin needs a change to build or run against this release.
+Two optional additions to the agent plugin manifest, the permission rule tiers an agent's CLI carries and the steps to install or update that CLI, plus one new exported constant. Nothing is required of a plugin, and no existing plugin needs a change to build or run against this release.
 
 ### Added
 
@@ -17,6 +17,8 @@ Two optional additions to the agent plugin manifest: the permission rule tiers a
 - **`agentInstallGuidance` on the plugin manifest** (#1362). An agent plugin may declare how a user installs its CLI and how they update it, as `{ install?, update? }` with each step `{ command?, url? }`. A launch that fails because the CLI is missing names the install step, and a launch blocked below `minVersion` names the update step, both in the guidance sentence and as a command to copy and a link. The AI Agents card shows the same steps. The host shows each step and never runs it: the command must be one line of printable text of at most 500 characters, the URL must be `http` or `https`, each step needs at least one of the two, and the key is rejected on a non-`agent` manifest.
 
 - **`remedy` on `AgentLaunchFailure`, and `installGuidance` on `AgentPluginState`.** Both are optional and carry the declared steps structured, for the launch-failure panel and the AI Agents card.
+
+- **`CHOICE_PROBE_TIMEOUT_MS` (from `@roubo/shared`)** (#1366). The host kills a configuration choice probe that has not exited after this many milliseconds (4000) and shows the field's failed state. The failure copy names the same value.
 
 - **New exported types:** `PermissionRuleTier`, `AgentCliStep` and `AgentInstallGuidance` (from `@roubo/shared`).
 
