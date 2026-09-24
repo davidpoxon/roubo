@@ -316,7 +316,7 @@ describe("POST /:projectId/benches with externalId (security alert)", () => {
 describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", () => {
   const issue = {
     integrationId: "jira-self-hosted",
-    externalId: "PLNRPTGOOG-3782",
+    externalId: "PROJ-3782",
     issueType: "Story",
     title: "Add billing dashboard",
   };
@@ -340,13 +340,13 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
 
     const res = await request(app)
       .post("/my-project/benches")
-      .send({ externalId: "PLNRPTGOOG-3782", branchConflictResolution: "new" });
+      .send({ externalId: "PROJ-3782", branchConflictResolution: "new" });
 
     expect(res.status).toBe(201);
     expect(pluginManager.invoke).toHaveBeenCalledWith("jira-self-hosted", "getIssue", {
-      externalId: "PLNRPTGOOG-3782",
+      externalId: "PROJ-3782",
     });
-    expect(fetchPluginComments).toHaveBeenCalledWith("jira-self-hosted", "PLNRPTGOOG-3782");
+    expect(fetchPluginComments).toHaveBeenCalledWith("jira-self-hosted", "PROJ-3782");
     expect(issueAssignment.createBenchAndAssignFromIssue).toHaveBeenCalledWith(
       "my-project",
       issue,
@@ -364,9 +364,7 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
       terminalSessionId: "t",
     } as any);
 
-    const res = await request(app)
-      .post("/my-project/benches")
-      .send({ externalId: "PLNRPTGOOG-3782" });
+    const res = await request(app).post("/my-project/benches").send({ externalId: "PROJ-3782" });
 
     expect(res.status).toBe(201);
     expect(issueAssignment.createBenchAndAssignFromIssue).toHaveBeenCalledWith(
@@ -384,9 +382,7 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
       status: "conflict",
     } as any);
 
-    const res = await request(app)
-      .post("/my-project/benches")
-      .send({ externalId: "PLNRPTGOOG-3782" });
+    const res = await request(app).post("/my-project/benches").send({ externalId: "PROJ-3782" });
     expect(res.status).toBe(409);
   });
 });

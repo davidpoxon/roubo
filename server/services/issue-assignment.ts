@@ -304,7 +304,7 @@ async function resolveBranchNameForCreate(
 /**
  * Extract a GitHub-style numeric id from an externalId: the trailing `#<n>` or a
  * bare `<n>`. Returns undefined for keys with no numeric form (e.g. Jira's
- * PLNRPTGOOG-3782) and for alert externalIds (handled separately).
+ * PROJ-3782) and for alert externalIds (handled separately).
  */
 function numericIdFromExternalId(externalId: string): number | undefined {
   const after = externalId.includes("#") ? externalId.split("#").pop() : externalId;
