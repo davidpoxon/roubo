@@ -566,6 +566,42 @@ describe("LaunchOverridesDialog: choice-probe states (#1365)", () => {
     });
   });
 
+  it("does not launch a picked value once a re-read puts its probe back to pending", () => {
+    const resolved: ProjectAgentState = {
+      ...CURSOR,
+      configSchema: {
+        properties: { model: { type: "string", oneOf: [{ const: "gpt-5", title: "GPT-5" }] } },
+      },
+      choiceProbes: { model: { state: "resolved" } },
+    };
+    const { rerender } = open({ agents: [resolved] });
+    setField("Model", "gpt-5");
+
+    // The list is re-read while the dialog is open and the cached result has
+    // expired, so the probe is loading again.
+    rerender(
+      <LaunchOverridesDialog
+        isOpen
+        agents={[CURSOR]}
+        presets={[]}
+        resolveTarget={(preset) => resolveLaunchTarget(preset, [CURSOR], undefined)}
+        initialPresetId={null}
+        onCancel={onCancel}
+        onLaunch={onLaunch}
+      />,
+    );
+    expect(screen.getByTestId("resolution-layer-perLaunch").textContent).not.toContain("gpt-5");
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Launch session/ }));
+    });
+
+    expect(onLaunch).toHaveBeenCalledWith({
+      agentPluginId: "cursor-cli",
+      agentName: "Cursor CLI",
+      perLaunchOverrides: {},
+    });
+  });
+
   it("renders a resolved probe's choices through the ordinary select", () => {
     open({
       agents: [

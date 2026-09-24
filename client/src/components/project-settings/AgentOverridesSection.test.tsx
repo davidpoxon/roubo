@@ -534,6 +534,43 @@ describe("AgentOverridesSection: choice-probe states (#1365)", () => {
     expect(within(modeToggle).getByRole("checkbox")).not.toBeDisabled();
   });
 
+  it("releases the lock once the probe resolves, seeding the first probed choice", async () => {
+    const user = userEvent.setup();
+    const locked = { ...CURSOR, overrides: {}, effective: {} };
+    mockedList.mockReturnValue(listResult([locked]));
+    const { rerender } = render(<AgentOverridesSection projectId="demo" />);
+    expect(screen.getByRole("checkbox", { name: "Override Model" })).toBeDisabled();
+
+    mockedList.mockReturnValue(
+      listResult([
+        {
+          ...locked,
+          configSchema: {
+            type: "object",
+            properties: {
+              model: {
+                type: "string",
+                title: "Model",
+                oneOf: [
+                  { const: "gpt-5", title: "GPT-5" },
+                  { const: "sonnet-4", title: "Sonnet 4" },
+                ],
+              },
+            },
+          },
+          choiceProbes: { model: { state: "resolved" } },
+        },
+      ]),
+    );
+    rerender(<AgentOverridesSection projectId="demo" />);
+
+    const toggle = screen.getByRole("checkbox", { name: "Override Model" });
+    expect(toggle).not.toBeDisabled();
+    await user.click(toggle);
+    await user.click(screen.getByTestId("project-agent-save-cursor-cli"));
+    expect(mutate.mock.calls[0][0]).toEqual({ model: "gpt-5" });
+  });
+
   it("still starts an override the app default can seed while the probe is pending", async () => {
     const user = userEvent.setup();
     mockedList.mockReturnValue(

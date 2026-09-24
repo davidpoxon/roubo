@@ -203,11 +203,16 @@ export default function LaunchOverridesDialog({
     selectedPreset?.agentPluginId !== undefined && selectedPreset.agentPluginId === agentId;
   const presetParams = presetApplies ? selectedPreset.params : undefined;
 
-  /** The draft, with inherit-valued fields dropped rather than sent as empty. */
+  /**
+   * The draft, with inherit-valued fields dropped rather than sent as empty. A
+   * field whose probe is pending is dropped too, even when a value was picked
+   * before the list was re-read and the probe went back to loading: its control
+   * can no longer show or clear the value, so it must not launch it (#1365).
+   */
   const draft: Record<string, unknown> = {};
   for (const field of PARAM_FIELDS) {
     const value = params[field.key]?.trim();
-    if (value) draft[field.key] = value;
+    if (value && !pendingProbe(agent, field.key)) draft[field.key] = value;
   }
 
   const trace = buildResolutionTrace({
