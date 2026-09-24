@@ -135,6 +135,85 @@ describe("validateComponentBindings", () => {
     expect(errors[0].path).toBe("components.db.config.port");
   });
 
+  it("returns a property's own errorMessage on a pattern failure, naming the field", () => {
+    const manifests = [
+      makeManifest({
+        id: "database",
+        configSchema: {
+          type: "object",
+          properties: {
+            connection: {
+              type: "string",
+              pattern: "^\\$\\{",
+              errorMessage: "must reference a secret, e.g. ${DATABASE_URL}",
+            },
+          },
+          additionalProperties: false,
+        },
+      }),
+    ];
+    const config = makeComponents({
+      db: { plugin: { id: "database" }, config: { connection: "postgres://literal" } },
+    });
+
+    const errors = validateComponentBindings(config, manifests);
+    expect(errors).toEqual([
+      {
+        path: "components.db.config.connection",
+        message: "must reference a secret, e.g. ${DATABASE_URL}",
+      },
+    ]);
+  });
+
+  it("keeps Ajv's own required-property message even when the containing object declares an errorMessage", () => {
+    const manifests = [
+      makeManifest({
+        id: "database",
+        configSchema: {
+          type: "object",
+          properties: {
+            auth: {
+              type: "object",
+              errorMessage: "auth block is misconfigured",
+              required: ["token"],
+              properties: { token: { type: "string" } },
+            },
+          },
+          additionalProperties: false,
+        },
+      }),
+    ];
+    const config = makeComponents({ db: { plugin: { id: "database" }, config: { auth: {} } } });
+
+    const errors = validateComponentBindings(config, manifests);
+    expect(errors).toEqual([
+      { path: "components.db.config.auth.token", message: "must have required property 'token'" },
+    ]);
+  });
+
+  it("ignores a blank errorMessage and falls back to Ajv's default rather than an empty message", () => {
+    const manifests = [
+      makeManifest({
+        id: "database",
+        configSchema: {
+          type: "object",
+          properties: {
+            connection: { type: "string", pattern: "^\\$\\{", errorMessage: "  " },
+          },
+          additionalProperties: false,
+        },
+      }),
+    ];
+    const config = makeComponents({
+      db: { plugin: { id: "database" }, config: { connection: "postgres://literal" } },
+    });
+
+    const errors = validateComponentBindings(config, manifests);
+    expect(errors).toEqual([
+      { path: "components.db.config.connection", message: 'must match pattern "^\\$\\{"' },
+    ]);
+  });
+
   it("rejects an unexpected property when the configSchema forbids additionalProperties", () => {
     const manifests = [
       makeManifest({

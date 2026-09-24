@@ -1,5 +1,6 @@
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import type { ConfigFieldError, PluginManifest, RouboConfig } from "@roubo/shared";
+import { ownSchemaErrorMessage } from "./ajv-schema-error-message.js";
 
 /**
  * Plugin-aware validation of the roubo.yaml components map (FR-003, #652).
@@ -98,7 +99,7 @@ export function validateComponentBindings(
       for (const issue of validate.errors ?? []) {
         errors.push({
           path: configErrorPath(name, issue),
-          message: ajvMessage(issue),
+          message: ajvMessage(issue, manifest.configSchema),
         });
       }
     }
@@ -158,12 +159,18 @@ function configErrorPath(name: string, issue: ErrorObject): string {
   return ["components", name, "config", ...pointerSegments].join(".");
 }
 
-function ajvMessage(issue: ErrorObject): string {
+function ajvMessage(issue: ErrorObject, rootSchema: unknown): string {
   if (
     issue.keyword === "additionalProperties" &&
     typeof issue.params?.additionalProperty === "string"
   ) {
     return `Unexpected property '${issue.params.additionalProperty}'`;
   }
+  // Same errorMessage-reading fix as agent-config-validator.ts's ajvMessage.
+  // This file has no enum-specific handling to preserve (unlike that one's
+  // AP-TC-011 case): an out-of-enum component config value here has always
+  // fallen through to Ajv's own message, with or without this fix.
+  const ownMessage = ownSchemaErrorMessage(issue, rootSchema);
+  if (ownMessage) return ownMessage;
   return issue.message ?? "Invalid value";
 }
