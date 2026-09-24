@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Wait until every named package resolves from the npm registry at <version>
-# (issue #1346).
+# and its tarball is served (issues #1346, #1375).
 #
 # Usage: scripts/sdk-registry-wait.sh <version> <pkg>...
 #
@@ -12,7 +12,12 @@
 # with exactly <version>. The exit code alone is not trusted, because older npm
 # releases exit 0 with empty output for an unknown version.
 #
-# All packages share one deadline, so a publish that never landed fails the job
+# The packument can list a version before the registry CDN serves its tarball,
+# and `npm install` then fails with a 404 on the tarball (#1375). So after the
+# version resolves, the wait also polls the packument's `dist.tarball` URL with
+# a HEAD request until it answers 200.
+#
+# All packages and both checks share one deadline, so a publish that never landed fails the job
 # within a bounded time, not at the job timeout. Every log line gives the
 # elapsed wait, so the log alone shows how long propagation took.
 #
@@ -63,6 +68,33 @@ for pkg in "$@"; do
 
     sleep_s=$(( interval < remaining ? interval : remaining ))
     echo "${spec} not yet on the registry (propagation lag); waited ${SECONDS}s, next check in ${sleep_s}s"
+    sleep "${sleep_s}"
+    interval=$(( interval * 2 > POLL_MAX_S ? POLL_MAX_S : interval * 2 ))
+  done
+
+  url=""
+  interval="${POLL_S}"
+  while true; do
+    if [[ -z "${url}" ]]; then
+      url="$(npm view "${spec}" dist.tarball --prefer-online 2>"${ERR_FILE}")" || url=""
+    fi
+    if [[ -n "${url}" ]] && curl -fsSIL --max-time 30 -o /dev/null "${url}" 2>"${ERR_FILE}"; then
+      echo "${spec} tarball fetchable after ${SECONDS}s"
+      break
+    fi
+
+    remaining=$(( TIMEOUT_S - SECONDS ))
+    if (( remaining <= 0 )); then
+      if [[ -s "${ERR_FILE}" ]]; then
+        echo "Last error fetching the ${spec} tarball:"
+        cat "${ERR_FILE}"
+      fi
+      echo "::error::${spec} tarball ${url:-(no dist.tarball in the packument)} was not fetchable after waiting ${SECONDS}s (limit ${TIMEOUT_S}s); CDN propagation lag or a publish that never landed"
+      exit 1
+    fi
+
+    sleep_s=$(( interval < remaining ? interval : remaining ))
+    echo "${spec} tarball not yet fetchable (CDN propagation lag); waited ${SECONDS}s, next check in ${sleep_s}s"
     sleep "${sleep_s}"
     interval=$(( interval * 2 > POLL_MAX_S ? POLL_MAX_S : interval * 2 ))
   done
