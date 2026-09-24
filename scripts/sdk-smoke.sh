@@ -8,10 +8,11 @@
 # checkout, so nothing can resolve through the workspace symlinks and only the
 # live npm registry can satisfy the @roubo/* dependencies at <version>. Then:
 #
-#   1. waits until both packages resolve from the registry at <version>
-#      (scripts/sdk-registry-wait.sh, issue #1346: propagation lags a publish by
-#      longer than a few install retries can absorb), then installs, with a
-#      few retries for transient install failures,
+#   1. waits until both packages resolve from the registry at <version> and
+#      their tarballs are served (scripts/sdk-registry-wait.sh, issues #1346 and
+#      #1375: propagation lags a publish by longer than a few install retries
+#      can absorb), then installs, with a few retries for transient install
+#      failures,
 #   2. asserts every @roubo/* dep came from the registry at the expected version
 #      with no surviving file:/workspace link,
 #   3. typechecks and builds the plugin unchanged,
@@ -136,10 +137,10 @@ install_with_retry() {
   local started="${SECONDS}"
   until npm install --no-audit --no-fund --prefer-online; do
     if (( attempt >= max_attempts )); then
-      echo "::error::npm install failed after ${max_attempts} attempts over $(( SECONDS - started ))s in $(pwd), after the registry already listed the published ${VERSION} packages (registry propagation lag or a transient registry failure)"
+      echo "::error::npm install failed after ${max_attempts} attempts over $(( SECONDS - started ))s in $(pwd), after the registry already served the published ${VERSION} tarballs (a transient registry failure)"
       exit 1
     fi
-    echo "npm install attempt ${attempt} failed after $(( SECONDS - started ))s (registry propagation lag?); retrying in 15s"
+    echo "npm install attempt ${attempt} failed after $(( SECONDS - started ))s (transient registry failure?); retrying in 15s"
     attempt=$(( attempt + 1 ))
     sleep 15
   done

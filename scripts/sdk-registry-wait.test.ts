@@ -16,18 +16,25 @@ let binDir: string;
  * propagation lag), and a package mapped to Infinity never resolves. `mode`
  * picks how a miss looks: `e404` mirrors npm 11 (exit 1 with an E404 on
  * stderr), `empty` mirrors older npm (exit 0 with empty stdout).
+ * `npm view <pkg>@<v> dist.tarball` answers with the registry's tarball URL,
+ * except that a package listed in `tarballMisses` fails the lookup (exit 1,
+ * nothing on stdout) for its first N calls. Whether the URL serves yet is up
+ * to `stubCurl`.
  */
 function stubNpm(
   misses: Record<string, number>,
   mode: "e404" | "empty" = "e404",
   warnOnHit = false,
+  tarballMisses: Record<string, number> = {},
 ): void {
-  const cases = Object.entries(misses)
-    .map(([pkg, n]) => {
-      const limit = Number.isFinite(n) ? String(n) : "999999";
-      return `  "${pkg}@"*) limit=${limit} ;;`;
-    })
-    .join("\n");
+  const toCases = (table: Record<string, number>) =>
+    Object.entries(table)
+      .map(([pkg, n]) => {
+        const limit = Number.isFinite(n) ? String(n) : "999999";
+        return `  "${pkg}@"*) limit=${limit} ;;`;
+      })
+      .join("\n");
+  const cases = toCases(misses);
   const miss =
     mode === "e404"
       ? `echo "npm error code E404" >&2; echo "npm error 404 No match found for version \${spec##*@}" >&2; exit 1`
@@ -35,6 +42,19 @@ function stubNpm(
   const script = `#!/usr/bin/env bash
 [[ "$1" == "view" ]] || { echo "unexpected npm call: $*" >&2; exit 2; }
 spec="$2"
+if [[ "$3" == "dist.tarball" ]]; then
+  limit=0
+  case "$spec" in
+${toCases(tarballMisses)}
+  esac
+  counter="${binDir}/tcount-$(echo "$spec" | tr '/@' '__')"
+  n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 ))
+  echo "$n" > "$counter"
+  if (( n <= limit )); then echo "npm error network request failed" >&2; exit 1; fi
+  pkg="\${spec%@*}"
+  echo "https://registry.npmjs.org/\${pkg}/-/\${pkg##*/}-\${spec##*@}.tgz"
+  exit 0
+fi
 limit=0
 case "$spec" in
 ${cases}
@@ -51,6 +71,36 @@ echo "\${spec##*@}"
   chmodSync(npm, 0o755);
 }
 
+/**
+ * Put a stub `curl` first on PATH. A tarball URL whose package is listed in
+ * `misses` fails with a 404 (curl -f exits non-zero) for its first N fetches, the CDN
+ * lag of run 36003079914 (#1375), and a package mapped to Infinity never
+ * serves. Every other URL serves at once, so no test reaches the network.
+ */
+function stubCurl(misses: Record<string, number>): void {
+  const cases = Object.entries(misses)
+    .map(([pkg, n]) => {
+      const limit = Number.isFinite(n) ? String(n) : "999999";
+      return `  *"/${pkg}/-/"*) limit=${limit} ;;`;
+    })
+    .join("\n");
+  const script = `#!/usr/bin/env bash
+url="\${*: -1}"
+limit=0
+case "$url" in
+${cases}
+esac
+counter="${binDir}/count-$(echo "$url" | tr '/@:.' '____')"
+n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 ))
+echo "$n" > "$counter"
+if (( n <= limit )); then echo "curl: (22) The requested URL returned error: 404" >&2; exit 22; fi
+exit 0
+`;
+  const curl = join(binDir, "curl");
+  writeFileSync(curl, script);
+  chmodSync(curl, 0o755);
+}
+
 function runWait(env: Record<string, string>, ...pkgs: string[]) {
   const started = Date.now();
   const result = spawnSync("bash", [SCRIPT, VERSION, ...pkgs], {
@@ -62,6 +112,7 @@ function runWait(env: Record<string, string>, ...pkgs: string[]) {
 
 beforeEach(() => {
   binDir = mkdtempSync(join(tmpdir(), "sdk-registry-wait-"));
+  stubCurl({});
 });
 
 afterEach(() => {
@@ -73,8 +124,90 @@ describe("sdk-registry-wait.sh", () => {
     stubNpm({});
     const run = runWait({}, "@roubo/plugin-sdk", "@roubo/shared");
     expect(run.status).toBe(0);
-    expect(run.stdout).toContain(`@roubo/plugin-sdk@${VERSION} resolvable after 0s`);
-    expect(run.stdout).toContain(`@roubo/shared@${VERSION} resolvable after 0s`);
+    // Bash's SECONDS ticks on wall-clock second boundaries, so a run with no
+    // poll at all can still report 1s. "At once" means no miss was logged.
+    expect(run.stdout).not.toContain("not yet");
+    expect(run.stdout).toContain(`@roubo/plugin-sdk@${VERSION} resolvable after`);
+    expect(run.stdout).toContain(`@roubo/shared@${VERSION} resolvable after`);
+    expect(run.stdout).toContain(`@roubo/plugin-sdk@${VERSION} tarball fetchable after`);
+    expect(run.stdout).toContain(`@roubo/shared@${VERSION} tarball fetchable after`);
+  });
+
+  // Run 36003079914 (#1375): the packument listed 0.7.0, then every install
+  // got a 404 on the tarball because the CDN had not caught up yet.
+  it("keeps waiting when the version is listed but its tarball is not served yet", () => {
+    stubNpm({});
+    stubCurl({ "@roubo/plugin-sdk": 2 });
+    const run = runWait(
+      { SDK_SMOKE_REGISTRY_POLL_S: "1", SDK_SMOKE_REGISTRY_TIMEOUT_S: "30" },
+      "@roubo/plugin-sdk",
+      "@roubo/shared",
+    );
+    expect(run.status, run.output).toBe(0);
+    expect(run.stdout).not.toContain("not yet on the registry");
+    expect(run.stdout).toMatch(
+      /@roubo\/plugin-sdk@0\.7\.0 tarball not yet fetchable \(CDN propagation lag\); waited \d+s, next check in 1s/,
+    );
+    expect(run.stdout).toMatch(/@roubo\/plugin-sdk@0\.7\.0 tarball fetchable after [1-9]\d*s/);
+    expect(run.stdout).toContain(`@roubo/shared@${VERSION} tarball fetchable after`);
+  });
+
+  it("fails within the ceiling when the tarball is never served, naming its URL", () => {
+    stubNpm({});
+    stubCurl({ "@roubo/plugin-sdk": Infinity });
+    const run = runWait(
+      { SDK_SMOKE_REGISTRY_POLL_S: "1", SDK_SMOKE_REGISTRY_TIMEOUT_S: "2" },
+      "@roubo/plugin-sdk",
+    );
+    expect(run.status).not.toBe(0);
+    expect(run.elapsedMs).toBeLessThan(10_000);
+    expect(run.output).toMatch(
+      /::error::@roubo\/plugin-sdk@0\.7\.0 tarball https:\/\/registry\.npmjs\.org\/@roubo\/plugin-sdk\/-\/plugin-sdk-0\.7\.0\.tgz was not fetchable after waiting \d+s \(limit 2s\)/,
+    );
+    // The last curl error is surfaced so the log alone explains the miss.
+    expect(run.output).toContain("404");
+  });
+
+  it("looks the tarball URL up again when the first lookup fails", () => {
+    stubNpm({}, "e404", false, { "@roubo/plugin-sdk": 2 });
+    const run = runWait(
+      { SDK_SMOKE_REGISTRY_POLL_S: "1", SDK_SMOKE_REGISTRY_TIMEOUT_S: "30" },
+      "@roubo/plugin-sdk",
+    );
+    expect(run.status, run.output).toBe(0);
+    expect(run.stdout).toContain("tarball not yet fetchable");
+    expect(run.stdout).toMatch(/@roubo\/plugin-sdk@0\.7\.0 tarball fetchable after [1-9]\d*s/);
+  });
+
+  it("fails within the ceiling, with its own error, when the tarball URL never resolves", () => {
+    stubNpm({}, "e404", false, { "@roubo/plugin-sdk": Infinity });
+    const run = runWait(
+      { SDK_SMOKE_REGISTRY_POLL_S: "1", SDK_SMOKE_REGISTRY_TIMEOUT_S: "2" },
+      "@roubo/plugin-sdk",
+    );
+    expect(run.status).not.toBe(0);
+    expect(run.elapsedMs).toBeLessThan(10_000);
+    expect(run.output).toMatch(
+      /::error::@roubo\/plugin-sdk@0\.7\.0 tarball \(no dist\.tarball in the packument\) was not fetchable after waiting \d+s \(limit 2s\)/,
+    );
+    expect(run.output).toContain("npm error network request failed");
+  });
+
+  it("counts the version wait and the tarball wait against one deadline", () => {
+    stubNpm({ "@roubo/plugin-sdk": 2 });
+    stubCurl({ "@roubo/plugin-sdk": Infinity });
+    const run = runWait(
+      { SDK_SMOKE_REGISTRY_POLL_S: "1", SDK_SMOKE_REGISTRY_TIMEOUT_S: "4" },
+      "@roubo/plugin-sdk",
+    );
+    expect(run.status).not.toBe(0);
+    const waited = /tarball \S+ was not fetchable after waiting (\d+)s \(limit 4s\)/.exec(
+      run.output,
+    );
+    expect(waited, run.output).not.toBeNull();
+    // The version took about 3s to resolve; a fresh per-phase budget would
+    // run the tarball wait to about 7s.
+    expect(Number(waited?.[1])).toBeLessThan(6);
   });
 
   it("keeps polling through a propagation lag instead of giving up", () => {
@@ -105,7 +238,8 @@ describe("sdk-registry-wait.sh", () => {
     stubNpm({}, "e404", true);
     const run = runWait({ SDK_SMOKE_REGISTRY_TIMEOUT_S: "2" }, "@roubo/plugin-sdk");
     expect(run.status, run.output).toBe(0);
-    expect(run.stdout).toContain(`@roubo/plugin-sdk@${VERSION} resolvable after 0s`);
+    expect(run.stdout).not.toContain("not yet");
+    expect(run.stdout).toContain(`@roubo/plugin-sdk@${VERSION} resolvable after`);
   });
 
   it("fails within the ceiling, naming the package and how long it waited", () => {
