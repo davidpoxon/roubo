@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
-## [Unreleased]
+## [0.8.0] - 2026-09-26
 
 One optional addition to the agent launch context. Nothing is required of a plugin, and no existing plugin needs a change to build or run against it.
 
