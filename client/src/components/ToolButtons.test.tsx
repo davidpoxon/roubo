@@ -121,6 +121,22 @@ describe("ToolButtons", () => {
     expect(buttons.length).toBeGreaterThanOrEqual(2);
   });
 
+  // The icon-only chevron is shorter than the text primary segment, so a
+  // centring row renders the two segments at different heights.
+  it("stretches both split-button segments to one height", () => {
+    mockUseTools.mockReturnValue({
+      data: [
+        { name: "Browser", icon: "globe", enabled: true, requiresUserPicker: false },
+        { name: "IDE", icon: "code", enabled: true, requiresUserPicker: false },
+      ],
+    } as unknown as ReturnType<typeof useTools>);
+    mockUseExecuteTool.mockReturnValue(makeExecuteMock());
+    render(<ToolButtons projectId="p1" benchId={1} />);
+    const row = screen.getByRole("button", { name: "Browser" }).parentElement as HTMLElement;
+    expect(row.className).toContain("items-stretch");
+    expect(row.querySelectorAll("button")).toHaveLength(2);
+  });
+
   describe("user picker", () => {
     const usersFixture = [
       { name: "Alice", properties: { email: "alice@example.com" } },

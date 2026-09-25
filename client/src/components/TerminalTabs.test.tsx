@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, act, fireEvent } from "@testing-library/react";
+import { screen, act, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { renderWithProviders } from "../test/renderWithProviders";
 import TerminalTabs from "./TerminalTabs";
@@ -514,6 +514,39 @@ describe("TerminalTabs: agent launch and jig resolution", () => {
     for (const name of ["Launch Claude Code", "Choose launch option"]) {
       expect(screen.getByRole("button", { name }).className).toContain("focus-visible:ring-2");
     }
+  });
+
+  // The chevron holds only a 12px icon while the primary segment holds a line of
+  // text (or a larger icon), so a centring row renders the chevron shorter than
+  // its partner. The row has to stretch both segments to one height.
+  it("stretches both split-button segments to one height, in the tab bar and the empty state", () => {
+    setupMocks({ autoInject: true });
+    vi.mocked(useTerminalSessions).mockReturnValue({
+      data: SESSION,
+    } as unknown as ReturnType<typeof useTerminalSessions>);
+    const { unmount } = renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+    const tabBarRow = screen.getByRole("button", { name: "Launch Claude Code" })
+      .parentElement as HTMLElement;
+    expect(tabBarRow.className).toContain("items-stretch");
+    expect(tabBarRow).toContainElement(
+      screen.getByRole("button", { name: "Choose launch option" }),
+    );
+    unmount();
+
+    vi.mocked(useTerminalSessions).mockReturnValue({
+      data: [],
+    } as unknown as ReturnType<typeof useTerminalSessions>);
+    renderWithProviders(
+      <TerminalTabs projectId="project1" benchId={1} projectName="Project" hasAssignedIssue />,
+    );
+    const emptyStateRow = screen.getByRole("button", { name: "Claude Code" })
+      .parentElement as HTMLElement;
+    expect(emptyStateRow.className).toContain("items-stretch");
+    expect(
+      within(emptyStateRow).getByRole("button", { name: "Choose launch option" }),
+    ).toBeInTheDocument();
   });
 
   // AP-FR-006: a jig's own agent binding beats the DEFAULT agent. The host

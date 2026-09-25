@@ -669,13 +669,13 @@ export default function TerminalTabs({
 
           {/* Agent split-button: primary segment launches the default agent,
               chevron opens the grouped launch menu (AP-FR-007, #1063). */}
-          <div className="flex items-center">
+          <div className="flex items-stretch">
             <TooltipTrigger delay={500}>
               <Button
                 aria-label={`Launch ${primaryLabel}`}
                 isDisabled={primaryDisabled}
                 onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}
-                className="p-1.5 rounded-l-control text-text-secondary hover:text-text-primary hover:bg-bg-hover disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex items-center p-1.5 rounded-l-control text-text-secondary hover:text-text-primary hover:bg-bg-hover disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
                 <Bot size={14} />
               </Button>
@@ -719,7 +719,7 @@ export default function TerminalTabs({
                 New Terminal
               </Button>
               {/* The same split-button as the tab bar, in the empty state. */}
-              <div className="flex items-center">
+              <div className="flex items-stretch">
                 <Button
                   isDisabled={primaryDisabled}
                   onPress={() => defaultPreset && handleLaunchPreset(defaultPreset)}

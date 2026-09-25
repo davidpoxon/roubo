@@ -130,7 +130,7 @@ export default function ToolButtons({ projectId, benchId, compact }: Props) {
   } else {
     // Multiple tools: split button
     toolsContent = (
-      <div className="flex items-center">
+      <div className="flex items-stretch">
         <Button
           isDisabled={!primary.enabled}
           onPress={() => executeLaunchable(0)}
