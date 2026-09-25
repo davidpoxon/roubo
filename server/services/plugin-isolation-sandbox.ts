@@ -435,15 +435,28 @@ export async function ensureEgressImage(): Promise<void> {
  * addressable inside the container. Transport is JSON-RPC over `docker run -i`
  * raw stdio (no socket bridge).
  *
+ * `pluginEnv` and `hostEnv` are kept apart deliberately (#1377). `pluginEnv` is
+ * the only environment that crosses into the container; `hostEnv` is what the
+ * `docker` CLI process itself needs (PATH, HOME, DOCKER_HOST, and whatever
+ * credentials the launching shell holds) to find and reach the daemon, and is
+ * never forwarded past it. Every entry of `pluginEnv` (plus the sandbox-internal
+ * `ROUBO_ALLOWED_HOSTS` / `ROUBO_PLUGIN_ENTRY` keys the allow-listed path adds
+ * below) is passed to `docker run` by NAME ONLY, `-e KEY` with no `=value`: this
+ * tells docker to resolve the value from its own process env (the returned
+ * `env`) rather than putting it on the `docker run` argv, so no value, credential
+ * or otherwise, is ever visible via `ps` on the host. `docker inspect
+ * Config.Env` still reports the container's resolved env, same as it always
+ * has; that view only ever holds what `pluginEnv` declared.
+ *
  * Egress policy shapes:
  * - `deny-all`: uses `node:24-slim` with `--network none`. No tooling needed.
  * - `allow-listed`: uses `roubo-plugin-egress:node24` (node:24-slim + iptables,
  *   built on demand by ensureEgressImage). Adds `--cap-add NET_ADMIN` so the
  *   init script can program iptables rules, passes the declared hosts via
- *   `-e ROUBO_ALLOWED_HOSTS=<comma-separated list>`, and wraps the node
- *   invocation in an inline `sh -c '<egress-setup>; exec node <entry>'` that
- *   sets a default-DROP OUTPUT policy and ACCEPTs only the resolved IPs of the
- *   declared hosts before handing off to node.
+ *   `-e ROUBO_ALLOWED_HOSTS` (name-only; value carried in `env`), and wraps the
+ *   node invocation in an inline `sh -c '<egress-setup>; exec node <entry>'`
+ *   that sets a default-DROP OUTPUT policy and ACCEPTs only the resolved IPs of
+ *   the declared hosts before handing off to node.
  *
  * The `vz-vm` and `apple-container` rungs are modelled and selected-if-present,
  * but a full VM backend is out of scope for this slice (spike #635 keeps them
@@ -458,13 +471,17 @@ export function buildSandboxedSpawn(
   options: {
     pluginDir: string;
     entryPath: string;
-    baseEnv?: Record<string, string>;
+    /** The only variables that cross into the container (#1377). */
+    pluginEnv?: Record<string, string>;
+    /** The `docker` CLI process's own environment; never forwarded into the container (#1377). */
+    hostEnv?: Record<string, string>;
   },
 ): SandboxedSpawn | null {
   if (tier === "broker-only") return null;
 
   const egress = deriveEgressPolicy(manifest);
-  const baseEnv = options.baseEnv ?? {};
+  const pluginEnv = options.pluginEnv ?? {};
+  const hostEnv = options.hostEnv ?? {};
 
   if (tier === "docker") {
     // Compute the entry path relative to the plugin directory so it is
@@ -485,12 +502,30 @@ export function buildSandboxedSpawn(
       args.push("--cap-add", "NET_ADMIN");
     }
 
-    for (const [key, value] of Object.entries(baseEnv)) {
-      args.push("-e", `${key}=${value}`);
-    }
+    const containerEntry = `${DOCKER_CONTAINER_DIR}/${entryRel}`;
 
+    // containerEnv is every variable that crosses into the container: the
+    // plugin's own declared env, plus (for the allow-listed path) the
+    // sandbox-internal ROUBO_ALLOWED_HOSTS / ROUBO_PLUGIN_ENTRY values the
+    // egress setup below needs. Each is passed to `docker run` by NAME ONLY
+    // (`-e KEY`, no `=value`, see the function docstring), so no value ever
+    // lands on the docker process's own argv (#1377).
+    const containerEnv: Record<string, string> = { ...pluginEnv };
     if (egress.mode === "allow-listed") {
-      args.push("-e", `ROUBO_ALLOWED_HOSTS=${egress.allowedHosts.join(",")}`);
+      containerEnv.ROUBO_ALLOWED_HOSTS = egress.allowedHosts.join(",");
+      // The container entry path rides the same name-only -e mechanism rather
+      // than being interpolated into the shell string below. `manifest.entry`
+      // is only validated for traversal / absoluteness (not shell
+      // metacharacters), so a crafted entry like `index.js; iptables -F` would
+      // otherwise inject into the sh -c script and tear down the egress
+      // filter. As an env value resolved by docker (never an argv element),
+      // and referenced only via `exec node "$ROUBO_PLUGIN_ENTRY"` expanded
+      // inside double quotes, the in-container shell treats it as one literal
+      // value with no word-splitting or re-interpretation.
+      containerEnv.ROUBO_PLUGIN_ENTRY = containerEntry;
+    }
+    for (const key of Object.keys(containerEnv)) {
+      args.push("-e", key);
     }
 
     // Bind-mount the plugin directory read-only and set it as the working
@@ -498,24 +533,11 @@ export function buildSandboxedSpawn(
     args.push("-v", `${options.pluginDir}:${DOCKER_CONTAINER_DIR}:ro`);
     args.push("-w", DOCKER_CONTAINER_DIR);
 
-    const containerEntry = `${DOCKER_CONTAINER_DIR}/${entryRel}`;
-
     if (egress.mode === "allow-listed") {
       // Use the egress image (node:24-slim + iptables). Wrap the node invocation
       // in an inline sh -c that first programs the iptables filter, then execs
       // node on the entry path so the plugin process inherits the restricted
       // network environment.
-      //
-      // The container entry path is passed as a discrete `-e` env value rather
-      // than interpolated into the shell string. `manifest.entry` is only
-      // validated for traversal / absoluteness (not shell metacharacters), so a
-      // crafted entry like `index.js; iptables -F` would otherwise inject into
-      // this sh -c script and tear down the egress filter. As a `-e` value it is
-      // a single literal argv element to `docker run` (the host spawn uses
-      // shell:false), and `exec node "$ROUBO_PLUGIN_ENTRY"` expands it inside
-      // double quotes, so the in-container shell treats it as one literal
-      // argument with no word-splitting or re-interpretation.
-      args.push("-e", `ROUBO_PLUGIN_ENTRY=${containerEntry}`);
       const egressSetup = buildEgressSetupScript(egress.allowedHosts);
       // Join the egress setup and `exec node` with a NEWLINE, not `; `. The setup
       // script ends with a backgrounded loop (`...} &`), and in POSIX sh (dash, in
@@ -535,7 +557,11 @@ export function buildSandboxedSpawn(
       args.push(DOCKER_IMAGE, "node", containerEntry);
     }
 
-    return { command: "docker", args, env: baseEnv, egress };
+    // `env` is the complete environment for the `docker` CLI spawn: the host's
+    // own env (so the CLI can find its binary and reach the daemon) plus the
+    // container env (so docker can resolve every name-only `-e KEY` above).
+    // Only `containerEnv`'s keys are ever forwarded into the container itself.
+    return { command: "docker", args, env: { ...hostEnv, ...containerEnv }, egress };
   }
 
   // vz-vm / apple-container: modelled and selected-if-present, but no VM backend

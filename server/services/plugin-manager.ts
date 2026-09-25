@@ -1072,14 +1072,22 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     if (e2eNow !== null) spawnArgs.push(`--now=${e2eNow}`);
   }
 
+  // The only environment a plugin process itself ever needs (#1377): plugins
+  // never read process.env at runtime, they get credentials via
+  // host.credentials.* and make requests via host.fetch, so these two
+  // host-set identity variables are the plugin's whole declared surface.
+  const pluginEnv: Record<string, string> = {
+    ROUBO_PLUGIN_ID: manifest.id,
+    ROUBO_HOST_API_VERSION: HOST_API_VERSION,
+  };
+
   const spawnEnv: Record<string, string> = {
     ...cleanEnv(),
     // Under Electron, process.execPath is the Electron binary. Without this flag it would
     // launch as a new GUI app and exit code 0 within seconds. With the flag, Electron runs
     // the entry as Node. Plain Node ignores the variable, so this is safe in dev too.
     ELECTRON_RUN_AS_NODE: "1",
-    ROUBO_PLUGIN_ID: manifest.id,
-    ROUBO_HOST_API_VERSION: HOST_API_VERSION,
+    ...pluginEnv,
   };
 
   // PluginIsolationSandbox tier selection (F2.3, #676). Select the highest
@@ -1146,7 +1154,12 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
       : buildSandboxedSpawn(manifest, effectiveTier, {
           pluginDir: resolvedDir,
           entryPath,
-          baseEnv: spawnEnv,
+          // #1377: only the plugin's own declared env crosses into the
+          // container; cleanEnv() (the host's full environment, credentials
+          // included) is scoped to the `docker` CLI process itself, which
+          // needs it to find its binary and reach the daemon.
+          pluginEnv,
+          hostEnv: cleanEnv(),
         });
   const spawnCommand = sandboxed ? sandboxed.command : process.execPath;
   // For the docker tier the entry and any e2e args are already baked into the
@@ -1169,7 +1182,10 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   try {
     proc = spawn(spawnCommand, finalArgs, {
       cwd: entry.record.pluginDir,
-      env: spawnEnv,
+      // #1377: a sandboxed (docker) spawn gets sandboxed.env (the docker CLI's
+      // own env, plus the container env it resolves the name-only -e flags
+      // from); the floor spawn gets spawnEnv (the full host env), unchanged.
+      env: sandboxed ? sandboxed.env : spawnEnv,
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
     });
