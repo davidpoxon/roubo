@@ -114,6 +114,12 @@ export default function Terminal({
       fontSize: 13,
       lineHeight: 1.4,
       theme: terminalTheme(),
+      // The roles above only reach the sixteen ANSI colours. An agent left on
+      // its own dark theme paints near-white truecolor on the light ground, so
+      // xterm moves text under the 4.5:1 floor the roles are held to
+      // (scripts/terminal-contrast.test.ts) toward it, against whatever theme
+      // is current.
+      minimumContrastRatio: 4.5,
       scrollback: 5000,
       allowProposedApi: true,
     });

@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import Terminal from "./Terminal";
 
-const xtermOptions = vi.hoisted(() => [] as { theme?: Record<string, string> }[]);
+type XTermOptions = { theme?: Record<string, string>; minimumContrastRatio?: number };
+
+const xtermOptions = vi.hoisted(() => [] as XTermOptions[]);
 
 const mockTerminalInstance = {
   options: {} as { theme?: Record<string, string> },
@@ -24,7 +26,7 @@ const mockFitAddonInstance = {
 };
 
 vi.mock("@xterm/xterm", () => ({
-  Terminal: function MockXTerm(options: { theme?: Record<string, string> }) {
+  Terminal: function MockXTerm(options: XTermOptions) {
     xtermOptions.push(options);
     return mockTerminalInstance;
   },
@@ -441,5 +443,14 @@ describe("Terminal: theme from the DESIGN.md terminal roles (#1323)", () => {
       document.documentElement.classList.add("dark");
     });
     expect(mockTerminalInstance.options.theme).toBeUndefined();
+  });
+});
+
+describe("Terminal: contrast floor on program output (#1382)", () => {
+  // An agent on its own dark theme paints near-white truecolor, which the ANSI
+  // roles never touch; only xterm's contrast floor keeps it readable.
+  it("asks xterm for the 4.5:1 floor the ANSI roles are held to", () => {
+    render(<Terminal sessionId="sess-1" active />);
+    expect(xtermOptions[0]?.minimumContrastRatio).toBe(4.5);
   });
 });
