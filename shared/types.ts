@@ -883,7 +883,8 @@ export type AgentLaunchFailureClass =
   | "host-install-broken"
   | "below-floor-version"
   | "version-probe-failed"
-  | "launch-failure";
+  | "launch-failure"
+  | "workspace-unavailable";
 
 /** The recovery affordances a failure surface offers (AP-TC-075 S001-O03). */
 export type AgentLaunchFailureAction = "open-plugin-settings" | "retry";

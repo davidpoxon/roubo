@@ -1332,6 +1332,67 @@ describe("background provisioning", () => {
     expect(stateService.addBench).not.toHaveBeenCalled();
   });
 
+  describe("whenWorkspaceProvisioned", () => {
+    it("does not resolve until `git worktree add` has run", async () => {
+      setupCreateBenchMocks();
+      setupProcessMocks();
+
+      let releaseWorktreeAdd!: () => void;
+      const worktreeAddReached = new Promise<void>((resolveReached) => {
+        const gate = new Promise<void>((release) => {
+          releaseWorktreeAdd = () => release();
+        });
+        vi.mocked(execModule.runCommand).mockImplementation(async (_cmd, args) => {
+          if (Array.isArray(args) && args[0] === "worktree" && args[1] === "add") {
+            resolveReached();
+            await gate;
+          }
+          return { code: 0, stdout: "", stderr: "" };
+        });
+      });
+
+      benchManager.createBench("test-project", "my-branch");
+      await worktreeAddReached;
+
+      let resolved = false;
+      void benchManager.whenWorkspaceProvisioned("test-project", 1).then(() => {
+        resolved = true;
+      });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(resolved).toBe(false);
+
+      releaseWorktreeAdd();
+      await vi.waitFor(() => expect(resolved).toBe(true));
+    });
+
+    it("resolves once provisioning fails, not just once it succeeds", async () => {
+      setupCreateBenchMocks();
+      vi.mocked(execModule.runCommand).mockResolvedValue({
+        code: 1,
+        stdout: "",
+        stderr: "git error",
+      });
+
+      benchManager.createBench("test-project");
+
+      await benchManager.whenWorkspaceProvisioned("test-project", 1);
+      expect(benchManager.getBench("test-project", 1)?.status).toBe("error");
+    });
+
+    it("resolves immediately for a bench it has no entry for (e.g. hydrated from persisted state)", async () => {
+      const config = makeConfig();
+      const project = makeProject({ config });
+      vi.mocked(stateService.loadState).mockReturnValue({ benches: [makePersistedBench()] });
+      vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+      benchManager.initialize();
+
+      // Must not hang: there is nothing to await for a bench this map never
+      // tracked (already provisioned in a prior process).
+      await benchManager.whenWorkspaceProvisioned("test-project", 1);
+    });
+  });
+
   it("cleans up workspace on failure when path exists", async () => {
     setupCreateBenchMocks();
     vi.mocked(execModule.runCommand).mockResolvedValue({
@@ -6223,6 +6284,44 @@ describe("cleanupAndRetryBench", () => {
       "/repos/test-project",
     );
     expect(stateService.removeBench).toHaveBeenCalledWith("test-project", 1);
+  });
+
+  it("registers a new whenWorkspaceProvisioned wait for the retry round, not the original failed one", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(fs.default.existsSync).mockReturnValue(false);
+
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "error";
+    bench.error = "workspace error";
+
+    let releaseWorktreeAdd!: () => void;
+    const worktreeAddReached = new Promise<void>((resolveReached) => {
+      const gate = new Promise<void>((release) => {
+        releaseWorktreeAdd = () => release();
+      });
+      vi.mocked(execModule.runCommand).mockImplementation(async (_cmd, args) => {
+        if (Array.isArray(args) && args[0] === "worktree" && args[1] === "add") {
+          resolveReached();
+          await gate;
+        }
+        return { code: 0, stdout: "", stderr: "" };
+      });
+    });
+
+    void benchManager.cleanupAndRetryBench("test-project", 1);
+    await worktreeAddReached;
+
+    let resolved = false;
+    void benchManager.whenWorkspaceProvisioned("test-project", 1).then(() => {
+      resolved = true;
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(resolved).toBe(false);
+
+    releaseWorktreeAdd();
+    await vi.waitFor(() => expect(resolved).toBe(true));
   });
 
   it("preserves assignedIssue through cleanup", async () => {

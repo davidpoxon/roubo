@@ -60,9 +60,10 @@ function toPersisted(bench: Bench): PersistedBench {
 
 /**
  * Shared tail for the create-and-assign flows once the bench exists and its
- * `assignedIssue` is set: persist, start the agent session (injecting the
- * resolved jig), persist the injected jig, and return the success response.
- * Used by the alert and generic plugin-issue paths.
+ * `assignedIssue` is set: persist, wait for the worktree to be provisioned,
+ * start the agent session (injecting the resolved jig), persist the injected
+ * jig, and return the success response. Used by the alert and generic
+ * plugin-issue paths.
  */
 async function finalizeAssignedBench(
   projectId: string,
@@ -81,6 +82,20 @@ async function finalizeAssignedBench(
 ): Promise<CreateBenchWithIssueResponse> {
   // Persist before the network/session work so a failure can't orphan the bench.
   persistBenchIfLive(toPersisted(bench));
+
+  // The bench was just created by benchManager.createBench and its worktree may
+  // still be provisioning: `git worktree add` has to have created
+  // bench.workspacePath before an agent session is spawned into it, or the spawn
+  // fails with a misleading "CLI was not found" (the working directory doesn't
+  // exist, not the binary). This resolves immediately once provisioning has
+  // already finished, so it costs nothing on the common case where it's already
+  // done by the time issue metadata was resolved.
+  await benchManager.whenWorkspaceProvisioned(projectId, bench.id);
+
+  if (bench.status === "error" || bench.status === "clearing") {
+    const launchWarning = `The issue was assigned, but the bench's workspace could not be prepared, so no agent session opened${bench.error ? `: ${bench.error}` : "."}`;
+    return { status: "success", bench, terminalSessionId: undefined, launchWarning };
+  }
 
   const {
     sessionId: terminalSessionId,
@@ -441,6 +456,22 @@ export async function assignIssue(
   // git checkout below would otherwise run with cwd="" (the server's own repo) and
   // create/switch a branch there.
   assertBenchOperable(bench, "be assigned an issue");
+
+  // workspacePath being non-blank (just checked above) does not mean the
+  // directory exists yet: a bench dragged an issue onto while still
+  // provisioning has a real path string but no `git worktree add` behind it.
+  // Wait for that to finish before running git commands or spawning an agent
+  // into it, or both fail against a missing directory (the agent spawn as a
+  // misleading "CLI was not found"). A bench whose provisioning failed or was
+  // torn down in the meantime is refused the same way assertBenchOperable
+  // refuses a permanently-blank path: nothing here is safe to run against it.
+  await benchManager.whenWorkspaceProvisioned(projectId, benchId);
+  if (bench.status === "error" || bench.status === "clearing") {
+    throw new ServiceError(
+      409,
+      `Bench's workspace could not be prepared and cannot be assigned an issue${bench.error ? `: ${bench.error}` : "."}`,
+    );
+  }
 
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) throw new ServiceError(404, "Project config not found");

@@ -762,6 +762,38 @@ describe("createAgentSession labelling and persistence (AC5)", () => {
     expect(err.failure.message).not.toContain("Failed to spawn agent session");
     expect(spawnMock).not.toHaveBeenCalled();
   });
+
+  it("refuses to launch into a workspace that doesn't exist yet, instead of spawning into it", async () => {
+    prepare({
+      command: "acme",
+      // A workspace write here proves the guard runs before executeWorkspaceWrites,
+      // not just before the spawn: that write's own mkdirSync would otherwise
+      // silently recreate the "missing" directory (see terminal.ts).
+      capabilities: {
+        workspaceWrites: [
+          { relPath: "hook.json", format: "json", ops: [{ op: "set", path: "x", value: "1" }] },
+        ],
+      },
+    });
+    const missingWorkspace = path.join(workspace, "not-provisioned-yet");
+
+    const err = (await launchWith({ workspacePath: missingWorkspace }).catch(
+      (e: unknown) => e,
+    )) as AgentLaunchFailureError;
+
+    // A missing cwd fails node-pty's spawn in exactly the same
+    // exit-nonzero-no-output shape as a missing binary (see
+    // agent-launch-failure.ts), so this has to be caught before the spawn, or
+    // the reported failure blames the CLI instead of the real cause.
+    expect(err).toBeInstanceOf(AgentLaunchFailureError);
+    expect(err.failure.class).toBe("workspace-unavailable");
+    expect(err.failure.guidance).toContain(missingWorkspace);
+    expect(spawnMock).not.toHaveBeenCalled();
+    // Nothing should have written into (and thereby created) the missing
+    // directory either: the check has to run before workspace writes, not just
+    // before the spawn.
+    expect(fs.existsSync(missingWorkspace)).toBe(false);
+  });
 });
 
 // ── Notifications: hook eligibility, per-agent debounce, exit (AP-FR-013) ──
