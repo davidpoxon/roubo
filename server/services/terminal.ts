@@ -32,6 +32,7 @@ import {
   compatibilityNotice,
   hostInstallBrokenFailure,
   missingBinaryFailure,
+  workspaceUnavailableFailure,
   type AgentLaunchContextInfo,
 } from "./agent-launch-failure.js";
 import type { AgentVersionProbeResult } from "./agent-version-probe.js";
@@ -752,6 +753,22 @@ export async function createAgentSession(
     promptInjection.injected = true;
   }
   const cwd = descriptor.cwd ? resolveTemplate(descriptor.cwd, ctx) : opts.workspacePath;
+
+  // A bench whose worktree hasn't been created yet (still provisioning, or
+  // provisioning failed) has a real `workspacePath` string with nothing on disk
+  // at it. Caught here, before any workspace write (which could otherwise
+  // `mkdirSync` the directory into existence) or the spawn: node-pty's
+  // exec-failure signature for a missing cwd is indistinguishable from a
+  // missing binary (see workspaceUnavailableFailure), so this is the one point
+  // that can still tell the two apart and report the real cause.
+  if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
+    throw new AgentLaunchFailureError(
+      workspaceUnavailableFailure(
+        { agentPluginId: opts.agentPluginId, agentName: prepared.manifest.name, command },
+        cwd,
+      ),
+    );
+  }
 
   // Workspace writes run BEFORE the spawn: a descriptor whose relPath escapes
   // the bench workspace aborts the whole batch (and this launch) with nothing

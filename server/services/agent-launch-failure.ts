@@ -165,6 +165,29 @@ export function hostInstallBrokenFailure(
   };
 }
 
+/**
+ * The bench's workspace directory does not exist yet when a launch is
+ * attempted, most commonly because worktree provisioning is still running (or
+ * failed). Reported as its own class rather than left to fall through to a
+ * spawn failure: node-pty's exec-failure signature for a missing `cwd` is
+ * indistinguishable from a missing binary (both exit nonzero with no output
+ * inside the early window), so without this the error names the CLI instead of
+ * the real, temporary cause.
+ */
+export function workspaceUnavailableFailure(
+  ctx: AgentLaunchContextInfo,
+  workspacePath: string,
+): AgentLaunchFailure {
+  return {
+    class: "workspace-unavailable",
+    message: `${ctx.agentName} could not start: the bench's workspace does not exist yet.`,
+    guidance: `Wait for the bench to finish preparing, then try again. (workspace: ${workspacePath})`,
+    agentPluginId: ctx.agentPluginId,
+    agentName: ctx.agentName,
+    actions: ["retry"],
+  };
+}
+
 /** A detected CLI version below the plugin's declared floor (AP-TC-071). */
 export function belowFloorFailure(
   ctx: Pick<AgentLaunchContextInfo, "agentPluginId" | "agentName" | "installGuidance">,

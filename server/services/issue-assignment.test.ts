@@ -6,6 +6,10 @@ vi.mock("./bench-manager.js", () => ({
   createBench: vi.fn(),
   // Default true: the bench is still tracked, so guarded persists go through.
   isBenchLive: vi.fn().mockReturnValue(true),
+  // Default already-resolved: most tests don't care about the provisioning
+  // race and want the launch to proceed immediately, same as a bench whose
+  // worktree was already ready.
+  whenWorkspaceProvisioned: vi.fn().mockResolvedValue(undefined),
   // Stubbed so tests can assert issue-assignment never invokes the auto-start
   // primitives directly: those live behind createBench's background path.
   startAllComponents: vi.fn(),
@@ -325,6 +329,47 @@ describe("assignIssue", () => {
     // Must reject before running `git checkout -b` with cwd="" (the server's own repo).
     await expect(assignIssue("project1", 1, githubIssue(), [])).rejects.toThrow(
       /no valid workspace path/i,
+    );
+    expect(runCommand).not.toHaveBeenCalled();
+  });
+
+  it("waits for the worktree to be provisioned before checking out a branch", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench, status: "preparing" });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    mockAgentSession("term-1");
+    let resolveProvisioning!: () => void;
+    vi.mocked(benchManager.whenWorkspaceProvisioned).mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveProvisioning = resolve;
+      }),
+    );
+
+    const pending = assignIssue("project1", 1, githubIssue(), []);
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runCommand).not.toHaveBeenCalled();
+
+    resolveProvisioning();
+    const result = await pending;
+
+    expect(benchManager.whenWorkspaceProvisioned).toHaveBeenCalledWith("project1", 1);
+    expect(runCommand).toHaveBeenCalled();
+    expect(result.terminalSessionId).toBe("term-1");
+  });
+
+  it("refuses a bench whose worktree failed to provision, before any git command", async () => {
+    const errorBench = { ...bench, status: "preparing" as const };
+    vi.mocked(benchManager.getBench).mockReturnValue(errorBench);
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(benchManager.whenWorkspaceProvisioned).mockImplementation(async () => {
+      (errorBench as any).status = "error";
+      (errorBench as any).error = "Failed to create workspace: fatal: destination exists";
+    });
+
+    await expect(assignIssue("project1", 1, githubIssue(), [])).rejects.toThrow(
+      "Failed to create workspace: fatal: destination exists",
     );
     expect(runCommand).not.toHaveBeenCalled();
   });
@@ -885,6 +930,54 @@ describe("createBenchAndAssignFromIssue", () => {
     // (AP-NFR-003), not just logged server-side.
     expect(result.launchWarning).toContain("no agent session opened");
     expect(result.launchWarning).toContain("Failed to spawn terminal");
+  });
+
+  it("waits for the worktree to be provisioned before starting the agent session", async () => {
+    setupHappyPath();
+    let resolveProvisioning!: () => void;
+    vi.mocked(benchManager.whenWorkspaceProvisioned).mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveProvisioning = resolve;
+      }),
+    );
+
+    const pending = createBenchAndAssignFromIssue("project1", githubIssue(), []);
+
+    // Give the pending promise a chance to run ahead if the wait were missing.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
+
+    resolveProvisioning();
+    const result = await pending;
+
+    expect(benchManager.whenWorkspaceProvisioned).toHaveBeenCalledWith("project1", 1);
+    expect(terminalService.createAgentSession).toHaveBeenCalled();
+    expect(result.status).toBe("success");
+    if (result.status !== "success") throw new Error("expected success");
+    expect(result.terminalSessionId).toBe("term-1");
+  });
+
+  it("does not start an agent session and reports a launchWarning when the worktree failed to provision", async () => {
+    setupHappyPath();
+    const bench = { ...createdBench };
+    vi.mocked(benchManager.createBench).mockReturnValue(bench);
+    vi.mocked(benchManager.whenWorkspaceProvisioned).mockImplementation(async () => {
+      // Mirrors what runWorktreeProvisioning's failure branch does to the same
+      // bench object createBench returned (bench-manager.ts's markBackgroundError).
+      (bench as any).status = "error";
+      (bench as any).error = "Failed to create workspace: fatal: destination exists";
+    });
+
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
+
+    expect(result.status).toBe("success");
+    if (result.status !== "success") throw new Error("expected success");
+    expect(terminalService.createAgentSession).not.toHaveBeenCalled();
+    expect(result.terminalSessionId).toBeUndefined();
+    expect(result.bench.assignedIssue).toBeDefined();
+    expect(result.launchWarning).toContain("workspace could not be prepared");
+    expect(result.launchWarning).toContain("Failed to create workspace: fatal: destination exists");
   });
 
   it("returns branch conflict info when branch exists and no resolution provided", async () => {

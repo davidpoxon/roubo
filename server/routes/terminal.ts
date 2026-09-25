@@ -69,6 +69,7 @@ function statusForLaunchFailure(failureClass: AgentLaunchFailureClass): number {
     case "below-floor-version":
     case "version-probe-failed":
     case "launch-failure":
+    case "workspace-unavailable":
       return 409;
   }
 }

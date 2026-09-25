@@ -59,6 +59,15 @@ import {
 export const RESOLVE_DEFAULT_BRANCH_PHASE = "Resolving default branch";
 const benches = new Map<string, Bench>();
 
+// Worktree-provisioning promise per in-flight bench, so a caller that needs the
+// workspace directory to exist (e.g. issue-assignment launching an agent, or
+// checking out a branch) can await readiness instead of racing it. Populated in
+// createBench, consumed by whenWorkspaceProvisioned, and removed once the
+// promise settles (runWorktreeProvisioning never rejects, see below) or the
+// bench is torn down. Absent entry means "nothing to wait for": either the
+// bench predates this map (persisted/hydrated) or was never tracked.
+const workspaceReady = new Map<string, Promise<void>>();
+
 // Guards the one-warning-per-process-load contract for a corrupt settings.json
 // when the global bench cap is evaluated (GBL-NFR-004). Reset only on process restart.
 let corruptedSettingsWarned = false;
@@ -554,6 +563,22 @@ export function isBenchLive(projectId: string, benchId: number): boolean {
 }
 
 /**
+ * Resolves once a bench's worktree has finished provisioning (`git worktree
+ * add` has run, so `workspacePath` exists on disk), whether provisioning
+ * succeeded or failed. Callers that spawn a process or run a git command with
+ * `cwd: bench.workspacePath` must await this first: nothing here checks
+ * `bench.status`, so a bench that ended in "error" still resolves and the
+ * caller must check status itself before touching the directory.
+ *
+ * Resolves immediately for a bench this map has no entry for: one whose
+ * worktree provisioning already finished and was cleaned up, or one hydrated
+ * from persisted state (already provisioned in a prior process).
+ */
+export function whenWorkspaceProvisioned(projectId: string, benchId: number): Promise<void> {
+  return workspaceReady.get(benchKey(projectId, benchId)) ?? Promise.resolve();
+}
+
+/**
  * Bench ids currently tracked in the in-memory map for a project, i.e. exactly what
  * the Benches view renders via {@link getBenches}. `unregisterProject`'s active-bench
  * guard reads persisted state, which lags memory during the reservation window
@@ -581,6 +606,7 @@ export function dropProjectBenches(projectId: string): number {
   for (const [key, bench] of benches) {
     if (bench.projectId === projectId) {
       benches.delete(key);
+      workspaceReady.delete(key);
       removed++;
     }
   }
@@ -693,8 +719,15 @@ export function createBench(
     benchSetupComplete: false,
   };
 
-  benches.set(benchKey(projectId, benchNumber), bench);
-  void runCreateBenchBackground(bench, project);
+  const key = benchKey(projectId, benchNumber);
+  benches.set(key, bench);
+  // Started here (not inside runCreateBenchBackground) so the promise is in
+  // workspaceReady before createBench returns: a caller synchronously
+  // following up with whenWorkspaceProvisioned must never observe a gap where
+  // the bench is tracked but nothing to await yet.
+  const provisioningPromise = runWorktreeProvisioning(bench, project);
+  workspaceReady.set(key, provisioningPromise);
+  void runCreateBenchBackground(bench, project, provisioningPromise);
   return bench;
 }
 
@@ -1199,8 +1232,20 @@ async function runStartAllBackground(
   }
 }
 
-async function runCreateBenchBackground(bench: Bench, project: RegisteredProject): Promise<void> {
-  await runWorktreeProvisioning(bench, project);
+async function runCreateBenchBackground(
+  bench: Bench,
+  project: RegisteredProject,
+  provisioningPromise: Promise<void>,
+): Promise<void> {
+  await provisioningPromise;
+  // Provisioning has settled (it never rejects, see workspaceReady above), so
+  // nothing else needs to await it: drop the entry rather than let it dangle
+  // for the rest of the bench's life. Only if it's still ours: cleanupAndRetryBench
+  // may have already replaced it with a retry round's own promise.
+  const settledKey = benchKey(bench.projectId, bench.id);
+  if (workspaceReady.get(settledKey) === provisioningPromise) {
+    workspaceReady.delete(settledKey);
+  }
   // Bail if worktree provisioning failed or the bench is being torn down: the
   // status here may be "error" (provisioning failed) or "clearing" (teardown
   // started while we were awaiting). Either case means we must not chain into
@@ -1493,6 +1538,7 @@ async function runTeardownBackground(
 
     // Final removal from memory: after this, GET /bench returns 404
     benches.delete(key);
+    workspaceReady.delete(key);
   } catch (err) {
     const failedStep = bench.teardownSteps.find((s) => s.status === "running");
     if (failedStep) {
@@ -1888,7 +1934,19 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     };
   }
 
-  void runWorktreeProvisioning(bench, project);
+  // Same registration as createBench's initial provisioning: a caller awaiting
+  // whenWorkspaceProvisioned for this bench must see this retry round, not the
+  // (already-settled) one from the original create.
+  const retryKey = benchKey(projectId, benchId);
+  const retryProvisioningPromise = runWorktreeProvisioning(bench, project);
+  workspaceReady.set(retryKey, retryProvisioningPromise);
+  // Only drop the entry if it's still ours: a second retry started before this
+  // one settles will have already overwritten it with its own promise.
+  void retryProvisioningPromise.then(() => {
+    if (workspaceReady.get(retryKey) === retryProvisioningPromise) {
+      workspaceReady.delete(retryKey);
+    }
+  });
   return bench;
 }
 
