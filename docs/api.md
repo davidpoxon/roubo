@@ -207,6 +207,8 @@ Claims the next available bench number, allocates ports, creates the git worktre
 
 `branch` is validated against `/^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/`. Omitting `branch` cuts the worktree from the project's default branch.
 
+A request that creates the bench from an issue starts an agent on it, and may carry `appTheme` (`"light"` or `"dark"`) for that agent's theme hint, exactly as the terminal launch below does. `POST /api/projects/:projectId/benches/:id/assign-issue` accepts the same field.
+
 - `201 Created` with the freshly created `Bench`
 - `400` for invalid `branch`
 - `404 PROJECT_NOT_FOUND` if `:projectId` is unknown
@@ -411,6 +413,8 @@ Each jig in the payload may carry an `agentPluginId`: the `agent`-kind plugin th
 At launch, `POST /api/projects/:projectId/benches/:id/terminals` resolves the agent in that order: an explicit `agentPluginId` in the request first, then the driving jig's binding, then the default agent, and finally the single configured agent when exactly one is available. Every layer is availability-gated, so a binding or a default whose plugin is no longer resolvable falls through to the next layer rather than failing the launch. When no layer names an agent that resolves, the launch is refused with a `409` naming the way out (install an agent plugin from Settings, then AI Agents): there is no built-in agent behind the plugin runtime to fall back to, and no silent downgrade to a plain shell.
 
 A request counts as an agent launch when it carries any of `agentPluginId`, `jigId`, or `command`. The legacy `command` field is retained only as that carrier: it no longer selects a binary, so a request sending it resolves an agent through the order above and is refused with the same `409` when none resolves, rather than opening the shell it used to. Only a request carrying none of the three opens a plain login shell.
+
+The request may also carry `appTheme`, `"light"` or `"dark"`: the theme the client is showing, with a `system` preference already resolved. The host gives the session's environment a `COLORFGBG` hint for it (`0;15` light, `15;0` dark) and, for an agent, passes it to the plugin as the launch context's `appTheme`. Any other value is ignored. Without it the host uses the stored theme when that is `light` or `dark`, and gives no hint when it is `system`. The hint is a snapshot taken at spawn.
 
 How the jig then reaches that agent is the agent's own declared capability (`initialPrompt` on its launch descriptor), not something the host assumes. With `jigs.autoExecute` on, the resolved jig is passed as the agent's initial prompt so it submits on start and the response carries `jigInjected: true`; with it off the jig is written into the session 1500ms after launch without submitting, and the response carries `jigScheduled: true`. An agent that declares no injection capability gets neither: it launches normally, nothing is injected, no post-startup write is scheduled, and the response reports neither flag. `sizeWarning` is about the jig rather than the agent, so it is still reported either way.
 

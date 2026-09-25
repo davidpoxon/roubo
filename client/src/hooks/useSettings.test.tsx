@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { waitFor, act } from "@testing-library/react";
 import { renderHookWithProviders } from "../test/renderWithProviders";
 import { useSettings, useThemeSync } from "./useSettings";
+import { resolvedTheme } from "../lib/theme";
 
 vi.mock("../lib/api");
 import * as api from "../lib/api";
@@ -63,6 +64,30 @@ describe("useThemeSync", () => {
     unmount();
     expect(removeEventListenerSpy).toHaveBeenCalledWith("change", expect.any(Function));
   });
+
+  // #1383: the theme sent with a terminal launch is the one applyTheme resolved,
+  // so a `system` preference reaches the host as the OS scheme.
+  it.each([
+    ["dark", false, "dark"],
+    ["light", true, "light"],
+    ["system", true, "dark"],
+    ["system", false, "light"],
+  ] as const)(
+    "resolves theme %s (OS dark: %s) to %s for a launch",
+    async (theme, osDark, expected) => {
+      vi.spyOn(window, "matchMedia").mockReturnValue({
+        matches: osDark,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      } as unknown as MediaQueryList);
+      mockedApi.fetchSettings.mockResolvedValue({ theme, contextWindow: 200_000 });
+
+      renderHookWithProviders(() => useThemeSync());
+      await waitFor(() => expect(localStorage.getItem("roubo-theme")).toBe(theme));
+
+      expect(resolvedTheme()).toBe(expected);
+    },
+  );
 });
 
 describe("useSettings", () => {

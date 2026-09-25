@@ -85,6 +85,7 @@ import type {
   CaseStatus,
 } from "@roubo/shared/testbench-contracts";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
+import { resolvedTheme } from "./theme";
 
 const BASE = "/api";
 
@@ -272,7 +273,11 @@ export function createBench(
 ): Promise<Bench | CreateBenchWithIssueResponse> {
   const body: CreateBenchRequest = {};
   if (opts.branch) body.branch = opts.branch;
-  if (opts.externalId) body.externalId = opts.externalId;
+  if (opts.externalId) {
+    body.externalId = opts.externalId;
+    // Assigning the issue starts an agent, which gets the theme at spawn (#1383).
+    body.appTheme = resolvedTheme();
+  }
   if (opts.branchConflictResolution) body.branchConflictResolution = opts.branchConflictResolution;
   if (opts.variant) body.variant = opts.variant;
   if (opts.focusedSpecPath) body.focusedSpecPath = opts.focusedSpecPath;
@@ -518,6 +523,8 @@ export function createTerminal(
       ...(agent?.agentPluginId ? { agentPluginId: agent.agentPluginId } : {}),
       ...(agent?.presetOverrides ? { presetOverrides: agent.presetOverrides } : {}),
       ...(agent?.perLaunchOverrides ? { perLaunchOverrides: agent.perLaunchOverrides } : {}),
+      // The theme at spawn, so the host can hint it to the program (#1383).
+      appTheme: resolvedTheme(),
     }),
   });
 }
@@ -991,7 +998,8 @@ export function assignIssue(
 ): Promise<AssignIssueResponse> {
   return request(`/projects/${projectId}/benches/${benchId}/assign-issue`, {
     method: "POST",
-    body: JSON.stringify({ externalId }),
+    // The agent the assignment starts gets the theme at spawn (#1383).
+    body: JSON.stringify({ externalId, appTheme: resolvedTheme() }),
   });
 }
 

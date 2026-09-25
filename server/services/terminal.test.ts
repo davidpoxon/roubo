@@ -193,6 +193,34 @@ describe("createSession", () => {
     }
   });
 
+  it.each([
+    ["light", "0;15"],
+    ["dark", "15;0"],
+  ] as const)("hints a %s app theme to the shell as COLORFGBG (#1383)", async (theme, hint) => {
+    mockSpawn.mockReturnValue(createMockPty());
+    const { createSession } = await loadModule();
+
+    createSession("project1", 1, "/workspace", "My Project", theme);
+
+    const spawnEnv = (mockSpawn.mock.calls[0][2] as { env: Record<string, string> }).env;
+    expect(spawnEnv.COLORFGBG).toBe(hint);
+  });
+
+  it("leaves an inherited COLORFGBG alone when no theme is known (#1383)", async () => {
+    mockSpawn.mockReturnValue(createMockPty());
+    const { createSession } = await loadModule();
+
+    vi.stubEnv("COLORFGBG", "7;0");
+    try {
+      createSession("project1", 1, "/workspace", "My Project");
+
+      const spawnEnv = (mockSpawn.mock.calls[0][2] as { env: Record<string, string> }).env;
+      expect(spawnEnv.COLORFGBG).toBe("7;0");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("carries the spawn-helper diagnosis into a spawn failure (#1103)", async () => {
     mockSpawn.mockImplementation(() => {
       throw new Error("posix_spawnp failed.");

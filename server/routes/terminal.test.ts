@@ -221,13 +221,15 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       label: "Terminal 1 - My Project #1",
       wsUrl: "/ws/terminal/term-1",
     });
-    // Four arguments and no more: core assembles no agent argv and passes no
-    // agent settings (AP-TC-103, AP-TC-104).
+    // The bench, the project name, and the theme hint (#1383), and no more:
+    // core assembles no agent argv and passes no agent settings (AP-TC-103,
+    // AP-TC-104). No theme was sent and none is stored, so there is no hint.
     expect(terminalService.createSession).toHaveBeenCalledWith(
       "project1",
       1,
       "/workspace",
       "My Project",
+      undefined,
     );
     expect(terminalService.createAgentSession).not.toHaveBeenCalled();
   });
@@ -568,6 +570,55 @@ describe("POST /:projectId/benches/:id/terminals with agentPluginId (AP-FR-011)"
       },
       layers: { preset: { posture: "auto-edit" }, perLaunch: { model: "opus" } },
       onAgentExit: expect.any(Function),
+    });
+  });
+
+  describe("app theme hint (#1383)", () => {
+    it.each(["light", "dark"] as const)(
+      "passes a %s appTheme to a shell and to an agent launch",
+      async (theme) => {
+        await request(app).post("/project1/benches/1/terminals").send({ appTheme: theme });
+        await request(app)
+          .post("/project1/benches/1/terminals")
+          .send({ agentPluginId: "acme-agent", appTheme: theme });
+
+        expect(vi.mocked(terminalService.createSession).mock.calls[0][4]).toBe(theme);
+        expect(vi.mocked(terminalService.createAgentSession).mock.calls[0][0].appTheme).toBe(theme);
+      },
+    );
+
+    it("drops an appTheme that is not a theme name", async () => {
+      await request(app)
+        .post("/project1/benches/1/terminals")
+        .send({ agentPluginId: "acme-agent", appTheme: "15;0\nEVIL=1" });
+
+      expect(vi.mocked(terminalService.createAgentSession).mock.calls[0][0]).not.toHaveProperty(
+        "appTheme",
+      );
+    });
+
+    it("falls back to an explicit stored theme when the request carries none", async () => {
+      vi.mocked(state.loadSettings).mockReturnValueOnce({
+        theme: "light",
+        jigs: { autoInject: true, autoExecute: true, defaultJigId: "feature-dev" },
+      } as ReturnType<typeof state.loadSettings>);
+
+      await request(app)
+        .post("/project1/benches/1/terminals")
+        .send({ agentPluginId: "acme-agent" });
+
+      expect(vi.mocked(terminalService.createAgentSession).mock.calls[0][0].appTheme).toBe("light");
+    });
+
+    it("prefers the client's resolved theme over the stored preference", async () => {
+      vi.mocked(state.loadSettings).mockReturnValueOnce({
+        theme: "system",
+        jigs: { autoInject: true, autoExecute: true, defaultJigId: "feature-dev" },
+      } as ReturnType<typeof state.loadSettings>);
+
+      await request(app).post("/project1/benches/1/terminals").send({ appTheme: "dark" });
+
+      expect(vi.mocked(terminalService.createSession).mock.calls[0][4]).toBe("dark");
     });
   });
 

@@ -487,6 +487,9 @@ The manifest fields these pair with (`kind: agent`, `agentCompatibility`, `agent
 | `sessionId`       | A session id the HOST minted. A plugin never mints one.                         |
 | `effectiveConfig` | App defaults, project overrides, preset, and per-launch values, already merged. |
 | `initialPrompt`   | The resolved jig content, when the launch carries one.                          |
+| `appTheme`        | `"light"` or `"dark"`: the app theme at spawn, when the host can tell it.       |
+
+`appTheme` is there so a plugin can start its agent in the matching theme through whatever per-launch mechanism the agent has, such as a settings flag. It is a snapshot: a later theme change does not reach a running agent. It is absent on hosts that predate it, and when the host cannot tell the theme (a launch with no client theme while the stored preference is `system`), so treat absent as "leave the agent's own theme alone".
 
 ### The descriptor
 
@@ -703,7 +706,7 @@ Note the `roubo` range for `upsertArray`. The op landed in host API **1.7.0**. I
 9. **Command resolution.** A `command` containing a path separator is an explicit path and is spawned exactly as given. A bare name is looked for on the child's `PATH` first, then in the host's well-known install locations for that CLI, so a bare command resolves on installs the server's own `PATH` would miss (a shim under the agent's home directory, or a Dock launch whose `PATH` the server never inherits). A candidate counts only when it is a regular file the host may execute, so a directory or an unchmodded file at one of those locations is skipped rather than spawned and does not shadow a working install further down the list. A command found nowhere fails the launch with an error naming every location tried, before the PTY is opened. The well-known list comes from your manifest's [`agentInstallLocations`](#where-your-agent-cli-installs) when you declare one, and otherwise from a host-side table keyed on the command's base name and frozen at one base name, so an agent that declares nothing and is not that one resolves through `PATH` alone. Keep declaring a bare command, and never hardcode an absolute install path in a descriptor: the manifest is where an install location belongs.
 10. **Spawn.** `args` reaches the PTY as an **array**. Nothing joins it into a shell string, so shell metacharacters anywhere in the effective config, including a free-form extra-arguments field, arrive at your agent as literal argv elements. There is no shell, so there is nothing to expand.
 
-The environment the agent inherits is the host environment minus the host-internal keys (`ROUBO_PRODUCTION`, `ROUBO_PORT`), with your descriptor's `env` layered on top. The layering skips those same keys, so a descriptor can neither reinstate nor observe what the host withholds: declaring one is silently dropped rather than honoured. If you need the port, template `{{port}}`.
+The environment the agent inherits is the host environment minus the host-internal keys (`ROUBO_PRODUCTION`, `ROUBO_PORT`), plus a `COLORFGBG` theme hint (`0;15` light, `15;0` dark) when the launch has an `appTheme`, with your descriptor's `env` layered on top. A plain shell session gets the same hint. A descriptor `env` entry for `COLORFGBG` overrides the hint. The layering skips those same keys, so a descriptor can neither reinstate nor observe what the host withholds: declaring one is silently dropped rather than honoured. If you need the port, template `{{port}}`.
 
 The session is labelled from your manifest's `name`, and records the `agentPluginId` that launched it. Nothing in the label path is specific to any one agent.
 

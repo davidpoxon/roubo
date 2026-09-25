@@ -7,6 +7,7 @@ import type {
   PersistedBench,
   RouboConfig,
   JigDefaultSource,
+  ResolvedTheme,
 } from "@roubo/shared";
 import { AGENT_STARTUP_DELAY_MS, DONE_STATUSES, NO_AGENT_RESOLVED_MESSAGE } from "@roubo/shared";
 import { parseAlertExternalId, isAlertExternalId } from "./alert-external-id.js";
@@ -24,6 +25,7 @@ import { ServiceError } from "./service-error.js";
 import { assertBenchOperable } from "./bench-operability.js";
 import { loadSettings } from "./state.js";
 import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
+import { resolveLaunchTheme } from "./launch-theme.js";
 import { toLaunchPermissions } from "./agent-permissions.js";
 
 /**
@@ -79,6 +81,7 @@ async function finalizeAssignedBench(
   },
   comments: Array<{ user: string; body: string }>,
   issueType: string | null,
+  appTheme: ResolvedTheme | undefined,
 ): Promise<CreateBenchWithIssueResponse> {
   // Persist before the network/session work so a failure can't orphan the bench.
   persistBenchIfLive(toPersisted(bench));
@@ -111,6 +114,7 @@ async function finalizeAssignedBench(
     sessionIssue,
     comments,
     issueType,
+    appTheme,
   );
 
   if (jigId) {
@@ -159,6 +163,9 @@ async function buildAndStartAgentSession(
   },
   comments: Array<{ user: string; body: string }>,
   issueType?: string | null,
+  // The theme the client sent with the assigning request. The route casts the
+  // body rather than parsing it, so resolveLaunchTheme below validates it (#1383).
+  requestedTheme?: ResolvedTheme,
 ): Promise<
   { sessionId?: string; launchWarning?: string } & (
     { jigId: string; jigSource: JigDefaultSource } | { jigId?: undefined; jigSource?: undefined }
@@ -214,6 +221,8 @@ async function buildAndStartAgentSession(
     return jigId && jigSource ? { jigId, jigSource, launchWarning } : { launchWarning };
   }
 
+  // The client's resolved theme, else an explicit stored one (#1383).
+  const appTheme = resolveLaunchTheme(requestedTheme, settings.theme);
   let launch;
   try {
     launch = await terminalService.createAgentSession({
@@ -224,6 +233,7 @@ async function buildAndStartAgentSession(
       agentPluginId,
       ...(autoInject && autoExecute && jig !== undefined && { initialInput: jig }),
       permissions: toLaunchPermissions(stateService.getProjectPermissions(projectId)),
+      ...(appTheme !== undefined && { appTheme }),
     });
   } catch (err) {
     console.warn(
@@ -361,6 +371,7 @@ export async function createBenchAndAssignFromIssue(
   issue: NormalizedIssue,
   comments: Array<{ user: string; body: string }>,
   conflictResolution?: "resume" | "new",
+  appTheme?: ResolvedTheme,
 ): Promise<CreateBenchWithIssueResponse> {
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) throw new ServiceError(404, "Project config not found");
@@ -440,6 +451,7 @@ export async function createBenchAndAssignFromIssue(
     },
     comments,
     issueType,
+    appTheme,
   );
 }
 
@@ -448,6 +460,7 @@ export async function assignIssue(
   benchId: number,
   issue: NormalizedIssue,
   comments: Array<{ user: string; body: string }>,
+  appTheme?: ResolvedTheme,
 ): Promise<AssignIssueResponse> {
   const bench = benchManager.getBench(projectId, benchId);
   if (!bench) throw new ServiceError(404, "Bench not found");
@@ -565,6 +578,7 @@ export async function assignIssue(
     },
     comments,
     issueType,
+    appTheme,
   );
 
   if (jigId) {
