@@ -85,6 +85,7 @@ import type {
   CaseStatus,
 } from "@roubo/shared/testbench-contracts";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
+import { resolvedTheme } from "./theme";
 
 const BASE = "/api";
 
@@ -518,6 +519,8 @@ export function createTerminal(
       ...(agent?.agentPluginId ? { agentPluginId: agent.agentPluginId } : {}),
       ...(agent?.presetOverrides ? { presetOverrides: agent.presetOverrides } : {}),
       ...(agent?.perLaunchOverrides ? { perLaunchOverrides: agent.perLaunchOverrides } : {}),
+      // The theme at spawn, so the host can hint it to the program (#1383).
+      appTheme: resolvedTheme(),
     }),
   });
 }

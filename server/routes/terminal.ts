@@ -23,6 +23,7 @@ import { AgentDescriptorError } from "../services/agent-launch-executor.js";
 import { AgentLaunchFailureError } from "../services/agent-launch-failure.js";
 import type { AgentLaunchFailureClass } from "@roubo/shared";
 import { toLaunchPermissions } from "../services/agent-permissions.js";
+import { resolveLaunchTheme } from "../services/launch-theme.js";
 import type { AgentNotAvailable } from "../services/agent-plugin-registry.js";
 import { parseIntParam, VALID_JIG_ID } from "./helpers.js";
 import type { TerminalCreateRequest } from "@roubo/shared";
@@ -85,8 +86,13 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     res.status(400).json({ error: "Invalid bench id" });
     return;
   }
-  const { command, agentPluginId, presetOverrides, perLaunchOverrides } =
-    req.body as TerminalCreateRequest;
+  const {
+    command,
+    agentPluginId,
+    presetOverrides,
+    perLaunchOverrides,
+    appTheme: requestedTheme,
+  } = req.body as TerminalCreateRequest;
   let { jigId } = req.body as TerminalCreateRequest;
 
   if (jigId !== undefined && !VALID_JIG_ID.test(jigId)) {
@@ -124,6 +130,9 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
   const agentLaunchRequested = command !== undefined || jigId !== undefined;
 
   const settings = loadSettings();
+  // The theme hint the session is spawned with (#1383). The body is cast rather
+  // than parsed, so the helper drops anything but the two theme names.
+  const appTheme = resolveLaunchTheme(requestedTheme, settings.theme);
   let initialInput: string | undefined;
   let jigInjected = false;
   let jigScheduled = false;
@@ -234,6 +243,7 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
         projectName,
         agentPluginId: launchAgentPluginId,
         ...(initialInput !== undefined && { initialInput }),
+        ...(appTheme !== undefined && { appTheme }),
         // #1053: without this the agent branch registers no exit callback, so a
         // jig-driven launch that resolves an agent stops producing the bench
         // exit notification the built-in path emits. The descriptor schema has
@@ -327,7 +337,13 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
 
   let session;
   try {
-    session = terminalService.createSession(projectId, benchId, bench.workspacePath, projectName);
+    session = terminalService.createSession(
+      projectId,
+      benchId,
+      bench.workspacePath,
+      projectName,
+      appTheme,
+    );
   } catch (err) {
     const message = (err as Error).message ?? String(err);
     console.error(

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { DirtyReason } from "@roubo/shared";
 import {
   ApiError,
@@ -680,13 +680,40 @@ describe("unassignContainer", () => {
 });
 
 describe("createTerminal", () => {
+  // This file runs without a DOM, so each case stands in the `<html>` class
+  // list the theme is read from.
+  function stubHtmlClass(dark: boolean) {
+    vi.stubGlobal("document", {
+      documentElement: { classList: { contains: (c: string) => dark && c === "dark" } },
+    });
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal("fetch", mockFetch);
+  });
+
   it("sends POST to /api/projects/:id/benches/:id/terminals", async () => {
+    stubHtmlClass(true);
     mockFetch.mockResolvedValue(jsonResponse({ sessionId: "s1" }));
     await createTerminal("p1", 1);
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/projects/p1/benches/1/terminals",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  // #1383: the host hints the theme the app shows at spawn to the session.
+  it.each([
+    [true, "dark"],
+    [false, "light"],
+  ])("sends the resolved app theme (dark class %s) as appTheme %s", async (dark, theme) => {
+    stubHtmlClass(dark);
+    mockFetch.mockResolvedValue(jsonResponse({ sessionId: "s1" }));
+    await createTerminal("p1", 1, undefined, undefined, { agentPluginId: "agent-a" });
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({ agentPluginId: "agent-a", appTheme: theme });
   });
 });
 

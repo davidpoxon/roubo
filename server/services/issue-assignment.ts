@@ -24,6 +24,7 @@ import { ServiceError } from "./service-error.js";
 import { assertBenchOperable } from "./bench-operability.js";
 import { loadSettings } from "./state.js";
 import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
+import { resolveLaunchTheme } from "./launch-theme.js";
 import { toLaunchPermissions } from "./agent-permissions.js";
 
 /**
@@ -214,6 +215,9 @@ async function buildAndStartAgentSession(
     return jigId && jigSource ? { jigId, jigSource, launchWarning } : { launchWarning };
   }
 
+  // No client request carries a theme here, so only an explicit stored theme
+  // becomes the launch's theme hint (#1383).
+  const appTheme = resolveLaunchTheme(undefined, settings.theme);
   let launch;
   try {
     launch = await terminalService.createAgentSession({
@@ -224,6 +228,7 @@ async function buildAndStartAgentSession(
       agentPluginId,
       ...(autoInject && autoExecute && jig !== undefined && { initialInput: jig }),
       permissions: toLaunchPermissions(stateService.getProjectPermissions(projectId)),
+      ...(appTheme !== undefined && { appTheme }),
     });
   } catch (err) {
     console.warn(

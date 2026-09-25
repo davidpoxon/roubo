@@ -559,6 +559,30 @@ describe("assignIssue", () => {
     expect(terminalService.writeToSession).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["light", "light"],
+    ["dark", "dark"],
+    ["system", undefined],
+  ] as const)(
+    "hints a stored %s theme to the agent launch as %s (#1383)",
+    async (theme, expected) => {
+      vi.mocked(stateService.loadSettings).mockReturnValue({
+        theme,
+        jigs: { autoExecute: true, autoInject: true, defaultJigId: "feature-dev" },
+      });
+      vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+      vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+      vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+      mockAgentSession("term-1");
+
+      await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
+
+      const opts = vi.mocked(terminalService.createAgentSession).mock.calls[0][0];
+      if (expected === undefined) expect(opts).not.toHaveProperty("appTheme");
+      else expect(opts.appTheme).toBe(expected);
+    },
+  );
+
   it("forwards the project's permissions model to the agent launch (#1114)", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);

@@ -356,6 +356,43 @@ describe("createAgentSession env handling", () => {
   });
 });
 
+describe("createAgentSession theme hint (#1383)", () => {
+  it.each([
+    ["light", "0;15"],
+    ["dark", "15;0"],
+  ] as const)(
+    "hints a %s app theme as COLORFGBG and hands it to the plugin",
+    async (theme, hint) => {
+      prepare({ args: [] });
+
+      await launch({ appTheme: theme });
+
+      expect((spawnCall().opts.env as Record<string, string>).COLORFGBG).toBe(hint);
+      expect(pipelineMocks.prepareAgentLaunch).toHaveBeenCalledWith(
+        expect.objectContaining({ appTheme: theme }),
+      );
+    },
+  );
+
+  it("leaves an inherited COLORFGBG alone and passes no theme when none is known", async () => {
+    vi.stubEnv("COLORFGBG", "7;0");
+    prepare({ args: [] });
+
+    await launch();
+
+    expect((spawnCall().opts.env as Record<string, string>).COLORFGBG).toBe("7;0");
+    expect(pipelineMocks.prepareAgentLaunch.mock.calls[0][0]).not.toHaveProperty("appTheme");
+  });
+
+  it("lets the descriptor's env override the hint", async () => {
+    prepare({ args: [], env: { COLORFGBG: "12;8" } });
+
+    await launch({ appTheme: "light" });
+
+    expect((spawnCall().opts.env as Record<string, string>).COLORFGBG).toBe("12;8");
+  });
+});
+
 describe("AP-TC-083: argv is never shell-interpreted", () => {
   it("passes shell metacharacters through as literal argv elements", async () => {
     const hostile = "--fallback-model sonnet ; $(touch /tmp/pwned)";

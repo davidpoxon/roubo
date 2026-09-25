@@ -1110,6 +1110,14 @@ export interface AgentLaunchContext {
   sessionId: string;
   effectiveConfig: Record<string, unknown>;
   initialPrompt?: string;
+  /**
+   * The app theme the session is spawned under, already resolved from the
+   * user's light, dark or system preference. Map it to the agent's own
+   * per-launch theme mechanism where the agent has one. It is a snapshot at
+   * spawn: a later theme change does not reach a running agent. Absent when
+   * the host cannot tell the theme, and on hosts that predate it.
+   */
+  appTheme?: "light" | "dark";
 }
 
 /**

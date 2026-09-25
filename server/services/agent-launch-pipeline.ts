@@ -1,4 +1,4 @@
-import type { PluginManifest } from "@roubo/shared";
+import type { PluginManifest, ResolvedTheme } from "@roubo/shared";
 import type {
   AgentLaunchDescriptor,
   AgentPermissionsModel,
@@ -171,6 +171,8 @@ export interface PrepareAgentLaunchParams {
   initialPrompt?: string;
   layers?: AgentConfigLayers;
   permissions?: LaunchPermissions;
+  /** The app theme at spawn, passed to the plugin as `context.appTheme` (#1383). */
+  appTheme?: ResolvedTheme;
   timeoutMs?: number;
 }
 
@@ -234,6 +236,7 @@ export async function prepareAgentLaunch(
         sessionId: params.sessionId,
         effectiveConfig,
         ...(params.initialPrompt !== undefined && { initialPrompt: params.initialPrompt }),
+        ...(params.appTheme !== undefined && { appTheme: params.appTheme }),
       },
     },
     params.timeoutMs !== undefined ? { timeoutMs: params.timeoutMs } : undefined,

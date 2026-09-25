@@ -2270,6 +2270,14 @@ export interface TerminalCreateRequest {
    */
   presetOverrides?: Record<string, unknown>;
   perLaunchOverrides?: Record<string, unknown>;
+  /**
+   * The app theme the client resolved when it asked for the session, with
+   * `system` already collapsed to the OS scheme. The host turns it into a
+   * `COLORFGBG` hint in the PTY env and, for an agent, into the launch
+   * context's `appTheme`. A snapshot at spawn: a later theme change does not
+   * reach the running program (#1383).
+   */
+  appTheme?: ResolvedTheme;
 }
 
 export interface TerminalCreateResponse {
@@ -2803,6 +2811,8 @@ export interface UpdateProjectIssueTypeMappingsRequest {
 
 export const THEME_MODES = ["light", "dark", "system"] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
+/** A `ThemeMode` with `system` resolved against the OS colour scheme. */
+export type ResolvedTheme = Exclude<ThemeMode, "system">;
 
 export interface BenchSettings {
   enforceIssueDependencies: boolean;

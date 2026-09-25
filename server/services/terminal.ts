@@ -3,7 +3,12 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import * as pty from "node-pty";
 import type { WebSocket } from "ws";
-import type { TerminalSession, PersistedTerminalSession, AgentLaunchFailure } from "@roubo/shared";
+import type {
+  TerminalSession,
+  PersistedTerminalSession,
+  AgentLaunchFailure,
+  ResolvedTheme,
+} from "@roubo/shared";
 import type {
   AgentPosture,
   WaitingDetectionSpec,
@@ -37,6 +42,7 @@ import {
 } from "./agent-launch-failure.js";
 import type { AgentVersionProbeResult } from "./agent-version-probe.js";
 import { withSpawnHelperDiagnosis } from "./pty-preflight.js";
+import { themeEnvHint } from "./launch-theme.js";
 import { UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const MAX_BUFFER_CHUNKS = 5000;
@@ -61,6 +67,21 @@ const HOST_INTERNAL_ENV_KEYS = new Set(["ROUBO_PRODUCTION", "ROUBO_PORT"]);
 // port yet. It is exactly why ROUBO_PORT is stripped from every child env above:
 // core tells the agent the port, the agent never inherits it.
 const DEFAULT_ROUBO_PORT = "3335";
+
+/**
+ * The environment every bench PTY starts from: the server's own env minus the
+ * host-internal keys, plus the theme hint when the theme is known (#1383).
+ */
+function basePtyEnv(appTheme: ResolvedTheme | undefined): Record<string, string> {
+  return {
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(
+        (e): e is [string, string] => e[1] !== undefined && !HOST_INTERNAL_ENV_KEYS.has(e[0]),
+      ),
+    ),
+    ...themeEnvHint(appTheme),
+  };
+}
 
 class CircularBuffer<T> {
   private items: (T | undefined)[];
@@ -409,6 +430,8 @@ export function createSession(
   benchId: number,
   workspacePath: string,
   projectName: string,
+  // The app theme at spawn, hinted to the shell's programs (#1383).
+  appTheme?: ResolvedTheme,
 ): TerminalSession {
   const id = randomUUID();
   const key = benchKey(projectId, benchId);
@@ -425,11 +448,7 @@ export function createSession(
       cols: 80,
       rows: 24,
       cwd: workspacePath,
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(
-          (e): e is [string, string] => e[1] !== undefined && !HOST_INTERNAL_ENV_KEYS.has(e[0]),
-        ),
-      ),
+      env: basePtyEnv(appTheme),
     });
   } catch (err) {
     // A spawn throw is usually node-pty's own helper rather than the shell, so
@@ -614,6 +633,12 @@ export interface CreateAgentSessionOptions {
    */
   permissions?: LaunchPermissions;
   initialInput?: string;
+  /**
+   * The app theme at spawn (#1383). It becomes the `COLORFGBG` hint in the PTY
+   * env and the launch context's `appTheme`, so the plugin can map it to its
+   * agent's own theme mechanism.
+   */
+  appTheme?: ResolvedTheme;
   onAgentExit?: (sessionId: string) => void;
 }
 
@@ -672,6 +697,7 @@ export async function createAgentSession(
     ...(opts.initialInput !== undefined && { initialPrompt: opts.initialInput }),
     ...(opts.layers !== undefined && { layers: opts.layers }),
     ...(opts.permissions !== undefined && { permissions: opts.permissions }),
+    ...(opts.appTheme !== undefined && { appTheme: opts.appTheme }),
   });
 
   const { descriptor } = prepared;
@@ -784,18 +810,15 @@ export async function createAgentSession(
   }
   executeWorkspaceWrites(opts.workspacePath, resolveWriteTemplates(writes, ctx));
 
-  const env: Record<string, string> = Object.fromEntries(
-    Object.entries(process.env).filter(
-      (e): e is [string, string] => e[1] !== undefined && !HOST_INTERNAL_ENV_KEYS.has(e[0]),
-    ),
-  );
+  const env = basePtyEnv(opts.appTheme);
   // Descriptor env is additive, layered on AFTER the host-internal strip so a
   // plugin can neither reinstate nor observe the keys core withholds. The strip
   // above only filters `process.env`, so the layering re-checks each descriptor
   // key against the same set: `env` is an unrestricted record in the descriptor
   // schema, and without this a descriptor declaring ROUBO_PRODUCTION would hand
   // the child the very key #877 removed, pointing a bench-started dev server at
-  // the real ~/.roubo state (AP-NFR-001).
+  // the real ~/.roubo state (AP-NFR-001). It is also layered on after the theme
+  // hint, so a plugin that knows its agent better can override `COLORFGBG`.
   for (const [key, value] of Object.entries(descriptor.env ?? {})) {
     if (HOST_INTERNAL_ENV_KEYS.has(key)) continue;
     env[key] = resolveTemplate(value, ctx);

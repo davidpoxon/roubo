@@ -333,6 +333,18 @@ describe("prepareAgentLaunch", () => {
     expect(context.context).not.toHaveProperty("initialPrompt");
   });
 
+  it("passes the app theme to translateLaunch as context.appTheme (#1383)", async () => {
+    await prepareAgentLaunch({ ...launchParams, appTheme: "light" });
+    const context = pluginManagerMocks.invoke.mock.calls[0][2] as { context: object };
+    expect(context.context).toHaveProperty("appTheme", "light");
+  });
+
+  it("omits appTheme from the context when the launch carries none (#1383)", async () => {
+    await prepareAgentLaunch(launchParams);
+    const context = pluginManagerMocks.invoke.mock.calls[0][2] as { context: object };
+    expect(context.context).not.toHaveProperty("appTheme");
+  });
+
   it("returns the descriptor validated against the shared schema", async () => {
     const prepared = await prepareAgentLaunch(launchParams);
     expect(prepared.descriptor.command).toBe("claude");
