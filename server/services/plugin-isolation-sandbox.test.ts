@@ -214,14 +214,51 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn", () => {
     expect(result?.egress).toEqual({ mode: "allow-listed", allowedHosts: ["api.example.com"] });
   });
 
-  it("forwards base env into the docker run command as -e flags", () => {
+  it("forwards pluginEnv into the docker run command as name-only -e flags (#1377)", () => {
     const result = buildSandboxedSpawn(manifest([]), "docker", {
       ...opts,
-      baseEnv: { ROUBO_PLUGIN_ID: "demo" },
+      pluginEnv: { ROUBO_PLUGIN_ID: "demo" },
     });
     expect(result?.args).toContain("-e");
-    expect(result?.args).toContain("ROUBO_PLUGIN_ID=demo");
+    expect(result?.args).toContain("ROUBO_PLUGIN_ID");
+    // The value never appears on argv, only the key.
+    expect(result?.args).not.toContain("ROUBO_PLUGIN_ID=demo");
     expect(result?.env).toEqual({ ROUBO_PLUGIN_ID: "demo" });
+  });
+
+  it("never puts an env VALUE on the docker run argv, only the key (#1377)", () => {
+    // No argv element following a `-e` flag may contain `=`: docker resolves
+    // the value from its own process env (the returned `env`), not from argv.
+    const result = buildSandboxedSpawn(manifest([]), "docker", {
+      ...opts,
+      pluginEnv: { ROUBO_PLUGIN_ID: "demo", ROUBO_HOST_API_VERSION: "3" },
+    });
+    const args = result?.args ?? [];
+    for (let i = 0; i < args.length - 1; i++) {
+      if (args[i] === "-e") {
+        expect(args[i + 1]).not.toContain("=");
+      }
+    }
+  });
+
+  it("scopes hostEnv to the docker CLI's own env; it never crosses into the container args (#1377)", () => {
+    // hostEnv models what the launching shell holds (e.g. a real credential):
+    // it must be reachable in `env` (so the `docker` CLI process can use it)
+    // but must never appear anywhere on the container-bound argv.
+    const result = buildSandboxedSpawn(manifest([]), "docker", {
+      ...opts,
+      pluginEnv: { ROUBO_PLUGIN_ID: "demo" },
+      hostEnv: { FAKE_HOST_TOKEN: "sekrit-value", PATH: "/usr/bin" },
+    });
+    expect(result?.args).not.toContain("FAKE_HOST_TOKEN");
+    expect(result?.args).not.toContain("sekrit-value");
+    expect(result?.args.some((a) => a.includes("sekrit-value"))).toBe(false);
+    // hostEnv is still present in the returned env, alongside the container env.
+    expect(result?.env).toEqual({
+      FAKE_HOST_TOKEN: "sekrit-value",
+      PATH: "/usr/bin",
+      ROUBO_PLUGIN_ID: "demo",
+    });
   });
 
   it("resolves a nested entry relative to pluginDir for the container path", () => {
@@ -420,14 +457,17 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#74
     expect(result?.args[capAddIdx + 1]).toBe("NET_ADMIN");
   });
 
-  it("passes ROUBO_ALLOWED_HOSTS env with the declared hosts comma-separated", () => {
+  it("passes ROUBO_ALLOWED_HOSTS name-only, with the declared hosts comma-separated in env (#1377)", () => {
     const result = buildSandboxedSpawn(
       manifest(["api.example.com", "cdn.example.com"]),
       "docker",
       opts,
     );
     expect(result?.args).toContain("-e");
-    expect(result?.args).toContain("ROUBO_ALLOWED_HOSTS=api.example.com,cdn.example.com");
+    expect(result?.args).toContain("ROUBO_ALLOWED_HOSTS");
+    // The value never appears on argv, only the key.
+    expect(result?.args).not.toContain("ROUBO_ALLOWED_HOSTS=api.example.com,cdn.example.com");
+    expect(result?.env.ROUBO_ALLOWED_HOSTS).toBe("api.example.com,cdn.example.com");
   });
 
   it("wraps the node invocation in sh -c with the egress setup script", () => {
@@ -442,16 +482,19 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#74
     // The shell command execs node on the entry via a quoted env var so a
     // crafted manifest entry cannot inject into the sh -c script.
     expect(shellCmd).toContain('exec node "$ROUBO_PLUGIN_ENTRY"');
-    // The entry path is passed as a discrete -e env value, not interpolated.
-    expect(result?.args).toContain(`ROUBO_PLUGIN_ENTRY=${DOCKER_CONTAINER_DIR}/index.js`);
+    // The entry path is passed as a name-only -e flag; docker resolves the
+    // value (asserted via env) from its own process env, never argv (#1377).
+    expect(result?.args).toContain("ROUBO_PLUGIN_ENTRY");
+    expect(result?.args).not.toContain(`ROUBO_PLUGIN_ENTRY=${DOCKER_CONTAINER_DIR}/index.js`);
+    expect(result?.env.ROUBO_PLUGIN_ENTRY).toBe(`${DOCKER_CONTAINER_DIR}/index.js`);
     // iptables default-DROP policy must be present.
     expect(shellCmd).toContain("iptables -P OUTPUT DROP");
   });
 
   it("does NOT interpolate the entry path into the sh -c string (no entry injection)", () => {
     // A crafted manifest entry with shell metacharacters must not break out of
-    // the sh -c script; it is carried as a literal -e env value and referenced
-    // as a quoted shell variable.
+    // the sh -c script; it is carried as a literal env value (resolved by
+    // docker, never on argv) and referenced as a quoted shell variable.
     const malicious = "index.js; iptables -F OUTPUT";
     const result = buildSandboxedSpawn(manifest(["api.example.com"]), "docker", {
       pluginDir: "/plugins/demo",
@@ -462,8 +505,10 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#74
     // The injected fragment never appears in the executed shell string.
     expect(shellCmd).not.toContain("index.js; iptables -F OUTPUT");
     expect(shellCmd).toContain('exec node "$ROUBO_PLUGIN_ENTRY"');
-    // The raw (untrusted) value is confined to the env assignment argv element.
-    expect(result?.args).toContain(`ROUBO_PLUGIN_ENTRY=${DOCKER_CONTAINER_DIR}/${malicious}`);
+    // The raw (untrusted) value is confined to the env, never argv.
+    expect(result?.args).toContain("ROUBO_PLUGIN_ENTRY");
+    expect(result?.args.some((a) => a.includes(malicious))).toBe(false);
+    expect(result?.env.ROUBO_PLUGIN_ENTRY).toBe(`${DOCKER_CONTAINER_DIR}/${malicious}`);
   });
 
   it("does NOT add --network none for allow-listed egress", () => {

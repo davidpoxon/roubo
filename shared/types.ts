@@ -1564,18 +1564,25 @@ export interface SandboxEgressPolicy {
  * on the egress policy:
  *
  * - deny-all (no declared network hosts):
- *   `docker run --rm -i --network none -v <pluginDir>:/roubo-plugin:ro
+ *   `docker run --rm -i --network none -e ROUBO_PLUGIN_ID -v <pluginDir>:/roubo-plugin:ro
  *   -w /roubo-plugin node:24-slim node /roubo-plugin/<entryRel>`
  *
  * - allow-listed (declared hosts present):
  *   `docker run --rm -i --cap-add NET_ADMIN
- *   -e ROUBO_ALLOWED_HOSTS=<comma-separated hosts>
+ *   -e ROUBO_PLUGIN_ID -e ROUBO_ALLOWED_HOSTS -e ROUBO_PLUGIN_ENTRY
  *   -v <pluginDir>:/roubo-plugin:ro -w /roubo-plugin
- *   roubo-plugin-egress:node24 sh -c '<iptables-setup>; exec node /roubo-plugin/<entryRel>'`
+ *   roubo-plugin-egress:node24 sh -c '<iptables-setup>; exec node "$ROUBO_PLUGIN_ENTRY"'`
  *
- * `env` is merged over the base spawn env. `egress` is the derived network
- * policy. The `broker-only` floor produces no SandboxedSpawn; the host spawns
- * the plugin directly.
+ * Every `-e` above is NAME ONLY (#1377): no `=value` ever appears on the
+ * `docker` command line, so `ps` on the host never exposes a value, credential
+ * or otherwise. `env` is the complete environment
+ * for the `docker` CLI spawn itself (so it can find its binary, reach the
+ * daemon, and resolve every name-only `-e KEY` above), not the container's:
+ * only the keys a plugin actually declared needing (plus the sandbox-internal
+ * `ROUBO_ALLOWED_HOSTS` / `ROUBO_PLUGIN_ENTRY` the allow-listed path adds) ever
+ * cross into the container. `egress` is the derived network policy. The
+ * `broker-only` floor produces no SandboxedSpawn; the host spawns the plugin
+ * directly.
  */
 export interface SandboxedSpawn {
   command: string;

@@ -3462,6 +3462,59 @@ describe("PluginIsolationSandbox wiring (#676)", () => {
       expect(fallbackEvents).toHaveLength(1);
     });
 
+    it("does NOT put a host credential on the docker spawn's argv, only in its env (#1377)", async () => {
+      // A live credential the launching shell holds must never appear on the
+      // `docker` process argv (readable host-wide via ps/docker inspect
+      // Config.Cmd); it may only ever be reachable via the spawn's own env,
+      // which only the docker CLI process (and same-user/root) can read.
+      dockerPingMock = () => Promise.resolve("OK");
+      dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+      process.env.NODE_ENV = "production";
+      delete process.env.ROUBO_E2E;
+      process.env.FAKE_HOST_TOKEN = "sekrit-1377-value";
+
+      let capturedDockerArgs: string[] | null = null;
+      let capturedDockerEnv: NodeJS.ProcessEnv | undefined;
+      childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+        if (args[0] === "docker") {
+          capturedDockerArgs = args[1] as string[];
+          capturedDockerEnv = args[2]?.env;
+          throw new Error("spawn docker ENOENT");
+        }
+        const realSpawn = childProcessControl.real as (
+          ...a: Parameters<SpawnFn>
+        ) => ReturnType<SpawnFn>;
+        return realSpawn(...args);
+      }) as SpawnFn;
+
+      try {
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+
+        expect(capturedDockerArgs).not.toBeNull();
+        const args = capturedDockerArgs as unknown as string[];
+        // The secret's value never appears anywhere on argv.
+        expect(args.some((a) => a.includes("sekrit-1377-value"))).toBe(false);
+        expect(args).not.toContain("FAKE_HOST_TOKEN");
+        // No argv element following a -e flag carries a value at all (name-only).
+        for (let i = 0; i < args.length - 1; i++) {
+          if (args[i] === "-e") expect(args[i + 1]).not.toContain("=");
+        }
+        // The spawn's own env still carries the secret (the docker CLI process
+        // needs its host env to reach the daemon) and the plugin's declared env.
+        expect(capturedDockerEnv?.FAKE_HOST_TOKEN).toBe("sekrit-1377-value");
+        expect(capturedDockerEnv?.ROUBO_PLUGIN_ID).toBe("echo");
+        expect(typeof capturedDockerEnv?.ROUBO_HOST_API_VERSION).toBe("string");
+
+        // The floor retry still starts the plugin (same #742 fallback path).
+        const rec = findRecord(mgr.listInstalled(), "echo");
+        expect(rec.status).toBe("enabled");
+      } finally {
+        delete process.env.FAKE_HOST_TOKEN;
+      }
+    });
+
     // #746: isolation notices for the docker-mount-unshared condition.
     describe("docker-mount-unshared isolation notices (#746)", () => {
       it("records exactly one isolation notice when the docker spawn fails with a mount-unavailable message", async () => {
