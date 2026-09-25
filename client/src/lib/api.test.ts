@@ -322,6 +322,26 @@ describe("createBench", () => {
       }),
     );
   });
+
+  // #1383: creating from an issue starts an agent, so it carries the theme.
+  it("sends the resolved app theme with an externalId", async () => {
+    vi.stubGlobal("document", {
+      documentElement: { classList: { contains: (c: string) => c === "dark" } },
+    });
+    try {
+      mockFetch.mockResolvedValue(jsonResponse({ id: 1 }));
+      await createBench("p1", { externalId: "owner/repo#42" });
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/projects/p1/benches",
+        expect.objectContaining({
+          body: JSON.stringify({ externalId: "owner/repo#42", appTheme: "dark" }),
+        }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+      vi.stubGlobal("fetch", mockFetch);
+    }
+  });
 });
 
 describe("teardownBench", () => {
@@ -864,14 +884,23 @@ describe("fetchLabels", () => {
 });
 
 describe("assignIssue", () => {
-  it("sends POST with externalId in body", async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal("fetch", mockFetch);
+  });
+
+  it("sends POST with externalId and the resolved app theme in body", async () => {
+    // No DOM here: stand in the `<html>` class list the theme is read from.
+    vi.stubGlobal("document", {
+      documentElement: { classList: { contains: () => false } },
+    });
     mockFetch.mockResolvedValue(jsonResponse({}));
     await assignIssue("p1", 1, "owner/repo#42");
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/projects/p1/benches/1/assign-issue",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ externalId: "owner/repo#42" }),
+        body: JSON.stringify({ externalId: "owner/repo#42", appTheme: "light" }),
       }),
     );
   });

@@ -284,6 +284,7 @@ describe("POST /:projectId/benches with externalId (security alert)", () => {
       alert,
       [],
       "new",
+      undefined,
     );
   });
 
@@ -340,7 +341,7 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
 
     const res = await request(app)
       .post("/my-project/benches")
-      .send({ externalId: "PROJ-3782", branchConflictResolution: "new" });
+      .send({ externalId: "PROJ-3782", branchConflictResolution: "new", appTheme: "light" });
 
     expect(res.status).toBe(201);
     expect(pluginManager.invoke).toHaveBeenCalledWith("jira-self-hosted", "getIssue", {
@@ -352,6 +353,8 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
       issue,
       [{ user: "Alice", body: "looks good" }],
       "new",
+      // The client's theme reaches the agent the assignment starts (#1383).
+      "light",
     );
   });
 
@@ -371,6 +374,7 @@ describe("POST /:projectId/benches with externalId (plugin issue, e.g. Jira)", (
       "my-project",
       issue,
       [],
+      undefined,
       undefined,
     );
   });

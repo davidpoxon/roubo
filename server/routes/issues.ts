@@ -293,7 +293,7 @@ router.post("/:projectId/benches/:id/assign-issue", async (req, res) => {
     res.status(400).json({ error: "Invalid bench id" });
     return;
   }
-  const { externalId } = req.body as AssignIssueRequest;
+  const { externalId, appTheme } = req.body as AssignIssueRequest;
 
   if (!externalId || typeof externalId !== "string") {
     res.status(400).json({ error: "externalId is required and must be a string" });
@@ -340,6 +340,7 @@ router.post("/:projectId/benches/:id/assign-issue", async (req, res) => {
       benchId,
       issue,
       comments,
+      appTheme,
     );
     res.json(result);
   } catch (err) {

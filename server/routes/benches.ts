@@ -84,7 +84,7 @@ router.get("/:projectId/benches", (req, res) => {
 });
 
 router.post("/:projectId/benches", async (req, res) => {
-  const { branch, externalId, branchConflictResolution, variant, focusedSpecPath } =
+  const { branch, externalId, branchConflictResolution, variant, focusedSpecPath, appTheme } =
     req.body as CreateBenchRequest;
 
   // TestBench-variant create (#459). A TestBench has no issue/branch coupling: it
@@ -185,6 +185,7 @@ router.post("/:projectId/benches", async (req, res) => {
         issue,
         comments,
         branchConflictResolution,
+        appTheme,
       );
       if (result.status === "conflict") {
         res.status(409).json(result);

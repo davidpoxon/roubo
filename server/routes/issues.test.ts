@@ -902,15 +902,20 @@ describe("POST /:projectId/benches/:id/assign-issue", () => {
 
     const res = await request(app)
       .post("/p1/benches/1/assign-issue")
-      .send({ externalId: "ROUBO-42" });
+      .send({ externalId: "ROUBO-42", appTheme: "dark" });
 
     expect(res.status).toBe(200);
     expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
       externalId: "ROUBO-42",
     });
-    expect(issueAssignment.assignIssue).toHaveBeenCalledWith("p1", 1, issue, [
-      { user: "Alice", body: "looks good" },
-    ]);
+    // The client's theme reaches the agent the assignment starts (#1383).
+    expect(issueAssignment.assignIssue).toHaveBeenCalledWith(
+      "p1",
+      1,
+      issue,
+      [{ user: "Alice", body: "looks good" }],
+      "dark",
+    );
   });
 
   it("returns 400 when externalId is missing", async () => {

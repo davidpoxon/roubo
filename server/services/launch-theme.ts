@@ -4,11 +4,11 @@ import type { ResolvedTheme, ThemeMode } from "@roubo/shared";
  * The app theme a PTY session is spawned under (#1383).
  *
  * The client's resolved theme wins, because only the client knows what
- * `system` resolved to. A launch with no client theme (a server-driven agent
- * start such as issue assignment, or an older client) falls back to the stored
- * preference when that is explicit. `system` with no client theme gives no
- * theme at all: the server cannot see the OS scheme the window follows, and no
- * hint is better than a wrong one.
+ * `system` resolved to. A request with no client theme (an older client, or a
+ * caller other than the app) falls back to the stored preference when that is
+ * explicit. `system` with no client theme gives no theme at all: the server
+ * cannot see the OS scheme the window follows, and no hint is better than a
+ * wrong one.
  *
  * `requested` is the raw request body value, so anything other than the two
  * theme names is dropped rather than passed on to a child environment.

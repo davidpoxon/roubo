@@ -1946,6 +1946,11 @@ export interface CreateBenchRequest {
    * the project repo server-side.
    */
   focusedSpecPath?: string;
+  /**
+   * The app theme the client is showing, with `system` already resolved. With
+   * `externalId`, the agent this request starts gets it as a theme hint (#1383).
+   */
+  appTheme?: ResolvedTheme;
 }
 
 export interface ApiError {
@@ -2633,6 +2638,11 @@ export interface AssignIssueRequest {
    * or a Jira key like `PROJ-45`). The issue is resolved via the active plugin.
    */
   externalId: string;
+  /**
+   * The app theme the client is showing, with `system` already resolved. The
+   * agent this request starts gets it as a theme hint (#1383).
+   */
+  appTheme?: ResolvedTheme;
 }
 
 export interface AssignIssueResponse {

@@ -207,6 +207,8 @@ Claims the next available bench number, allocates ports, creates the git worktre
 
 `branch` is validated against `/^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/`. Omitting `branch` cuts the worktree from the project's default branch.
 
+A request that creates the bench from an issue starts an agent on it, and may carry `appTheme` (`"light"` or `"dark"`) for that agent's theme hint, exactly as the terminal launch below does. `POST /api/projects/:projectId/benches/:id/assign-issue` accepts the same field.
+
 - `201 Created` with the freshly created `Bench`
 - `400` for invalid `branch`
 - `404 PROJECT_NOT_FOUND` if `:projectId` is unknown

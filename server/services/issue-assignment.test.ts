@@ -583,6 +583,21 @@ describe("assignIssue", () => {
     },
   );
 
+  it("prefers the theme the assigning request carried over a stored system theme (#1383)", async () => {
+    vi.mocked(stateService.loadSettings).mockReturnValue({
+      theme: "system",
+      jigs: { autoExecute: true, autoInject: true, defaultJigId: "feature-dev" },
+    });
+    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    mockAgentSession("term-1");
+
+    await assignIssue("project1", 1, githubIssue({ body: "Body" }), [], "light");
+
+    expect(vi.mocked(terminalService.createAgentSession).mock.calls[0][0].appTheme).toBe("light");
+  });
+
   it("forwards the project's permissions model to the agent launch (#1114)", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
@@ -848,6 +863,14 @@ describe("createBenchAndAssignFromIssue", () => {
     // benchManager.createBench: never invoke the start primitives itself.
     expect(benchManager.startAllComponents).not.toHaveBeenCalled();
     expect(benchManager.runComponentsInOrder).not.toHaveBeenCalled();
+  });
+
+  it("hands the theme the creating request carried to the agent launch (#1383)", async () => {
+    setupHappyPath();
+
+    await createBenchAndAssignFromIssue("project1", githubIssue(), [], undefined, "dark");
+
+    expect(vi.mocked(terminalService.createAgentSession).mock.calls[0][0].appTheme).toBe("dark");
   });
 
   it("does not persist raw for a plain github-com issue", async () => {
