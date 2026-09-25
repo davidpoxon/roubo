@@ -73,6 +73,8 @@ Success is `green`, never emerald; emerald is the open-issue tone.
 
 Every ANSI entry that prints text clears 4.5:1 on its ground (the lowest are light white at 4.59 and light yellow at 4.71). The two exceptions sit next to the ground by definition: dark black (1.13) and light bright white (2.41).
 
+The palette only reaches programs that print through those sixteen roles. An agent that paints in 24-bit colour, say on its own dark theme under a light Roubo, bypasses them, so the terminal also sets xterm's contrast floor to the same 4.5:1: any text below it against its cell, the two exceptions above included, is lifted until it clears, and the floor follows a live theme switch. Dim text gets half the floor, so it still reads as dim.
+
 ## Type
 
 - **Interface.** IBM Plex Sans at 400, 500, 600. Weight 700 exists for the ROUBO wordmark alone. Figures are tabular wherever numbers align in a column.
