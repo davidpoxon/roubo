@@ -6,17 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
-## [Unreleased]
+## [0.8.0] - 2026-09-26
 
-One optional addition to the agent launch context. Nothing is required of a plugin, and no existing plugin needs a change to build or run against it.
+One optional addition to the agent launch context, one new exported type, and one new agent launch failure class. Nothing is required of a plugin, and no existing plugin needs a change to build or run against it.
 
 ### Added
 
 - **`appTheme` on `AgentLaunchContext`** (#1383). The host passes the app theme the session is spawned under, `"light"` or `"dark"`, with the user's `system` preference already resolved. An agent plugin can map it to its agent's own per-launch theme mechanism, for example a settings flag, so the agent's backgrounds and syntax palette match the terminal. The value is a snapshot taken at spawn: a later theme change does not reach a running agent. Every bench PTY, agent or shell, also gets the same hint as `COLORFGBG` (`0;15` light, `15;0` dark) before the descriptor's `env` is layered on, so a program that reads that variable matches without a plugin, and a plugin's own `env` can still override it.
 
+- **`"workspace-unavailable"` in `AgentLaunchFailureClass`** (#1379). The host now checks that the bench workspace exists before any workspace write or spawn, and reports this class, naming the real cause, when it does not, rather than a misleading `missing-binary`.
+
+- **New exported type:** `ResolvedTheme` (from `@roubo/shared`), a `ThemeMode` with `system` resolved. The host's terminal, assign-issue and create-bench request types gain an optional `appTheme` of that type.
+
 ### Compatibility
 
-Nothing here is breaking. The field is optional and travels from the host to the plugin, where no strict schema checks it, so the host API version does not move. A plugin reading it must treat it as absent on older hosts, and on launches where the host cannot tell the theme (a launch with no client theme while the stored preference is `system`).
+Nothing here is breaking for a plugin. `appTheme` is optional and travels from the host to the plugin, where no strict schema checks it, so the host API version does not move. A plugin reading it must treat it as absent on older hosts, and on launches where the host cannot tell the theme (a launch with no client theme while the stored preference is `system`).
+
+`AgentLaunchFailureClass` is widened, which a plugin neither receives nor produces. A consumer that switches over it exhaustively, for example with a `never` check, needs a case for `"workspace-unavailable"`.
 
 ## [0.7.0] - 2026-09-24
 

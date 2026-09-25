@@ -250,7 +250,7 @@ const PLUGIN_PACKAGE_JSON = {
   type: "module",
   main: "dist/index.js",
   dependencies: {
-    "@roubo/plugin-sdk": "^0.7.0",
+    "@roubo/plugin-sdk": "^0.8.0",
   },
   devDependencies: {
     typescript: "6.0.3",

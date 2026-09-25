@@ -369,7 +369,7 @@ permissions:
   "private": true,
   "type": "module",
   "scripts": { "build": "tsc" },
-  "dependencies": { "@roubo/plugin-sdk": "0.7.0" },
+  "dependencies": { "@roubo/plugin-sdk": "0.8.0" },
   "devDependencies": { "@types/node": "26.0.1", "typescript": "6.0.3" }
 }
 ```
