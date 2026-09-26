@@ -110,7 +110,7 @@ Eighteen components. Each spec is the contract; none is anchored to a source lin
 - **Menu.** A floating surface at `elevation.0`; items take a wash, never a border.
 - **Dialog.** Surface at `elevation.1` over the scrim, one decision per dialog, actions right-aligned with the consequential one last.
 - **Tooltip.** The inverse surface. It still appears for a disabled trigger, which is how the reason gets read.
-- **Pile card.** One waiting bench in the needs-response pile. The top card is the live bench view under a 2px accent rule. A lower card shows only its title bar (dot, project, bench, terminal, origin, mono age) and raises on click or Enter. The origin text (signalled or inferred) is the dot's label. Cards arrive with `motion.slide-under` and leave with `motion.drop-away`. A card whose sessions ended is dropped, never disabled.
+- **Pile card.** One waiting bench in the needs-response pile. The top card is the live bench view under a 2px accent rule. A lower card shows only its title bar (dot, project, bench, terminal, origin, mono age) and raises on click or Enter. The dot marks waiting, and the origin text beside the terminal says whether the wait was signalled or inferred. Cards arrive with `motion.slide-under` and leave with `motion.drop-away`. A card whose sessions ended is dropped, never disabled.
 - **Split separator.** The line between two terminal panes, focusable with `role="separator"`. It steps from `border` to `border-strong` on hover and to `border-control` while dragging.
 - **Facet placeholder.** Surface ground with a hairline border where a torn-off terminal used to be, with one secondary button: Return.
 - **Count badge.** `accent-text` on `accent-muted`, the sidebar's count of waiting benches while the pile is hidden.
