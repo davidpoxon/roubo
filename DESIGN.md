@@ -94,7 +94,7 @@ The palette only reaches programs that print through those sixteen roles. An age
 
 ## Components
 
-Fourteen components. Each spec is the contract; none is anchored to a source line, because the code follows the spec.
+Eighteen components. Each spec is the contract; none is anchored to a source line, because the code follows the spec.
 
 - **Primary button.** Amber ground, stone-950 label at 9.20:1. At most one per view.
 - **Secondary button.** Surface ground with a `border-strong` outline. The default action style.
@@ -110,12 +110,16 @@ Fourteen components. Each spec is the contract; none is anchored to a source lin
 - **Menu.** A floating surface at `elevation.0`; items take a wash, never a border.
 - **Dialog.** Surface at `elevation.1` over the scrim, one decision per dialog, actions right-aligned with the consequential one last.
 - **Tooltip.** The inverse surface. It still appears for a disabled trigger, which is how the reason gets read.
+- **Pile card.** One waiting bench in the needs-response pile. The top card is the live bench view under a 2px accent rule. A lower card shows only its title bar (dot, bench, terminal, mono age) and raises on click or Enter. Cards arrive with `motion.slide-under` and leave with `motion.drop-away`.
+- **Split separator.** The line between two terminal panes, focusable with `role="separator"`. It steps from `border` to `border-strong` on hover and to `border-control` while dragging.
+- **Facet placeholder.** Surface ground with a hairline border where a torn-off terminal used to be, with one secondary button: Return.
+- **Count badge.** `accent-text` on `accent-muted`, the sidebar's count of waiting benches while the pile is hidden.
 
 **Which token when.** A ground is always a `bg-*` token and text on it is always one of the three text tones or a paired `*-text`. `accent` is never text. `danger` is never decoration. A `status-*` colour never appears without its label. A categorical hue never carries text.
 
 ## Motion
 
-Three durations (`fast` 150ms, `standard` 200ms, `slow` 300ms) and two easings: `standard`, a crisp ease-out with no overshoot, and `accelerate` for exits. Three transitions (`colors`, `opacity`, `exit`) and three keyframes (`spin`, `status-pulse`, `rise-in`). `rise-in` runs once, at `standard`, on anything that enters: tab content, menus, dialogs.
+Three durations (`fast` 150ms, `standard` 200ms, `slow` 300ms) and two easings: `standard`, a crisp ease-out with no overshoot, and `accelerate` for exits. Three transitions (`colors`, `opacity`, `exit`) and five keyframes (`spin`, `status-pulse`, `rise-in`, `slide-under`, `drop-away`). `rise-in` runs once, at `standard`, on anything that enters: tab content, menus, dialogs, a raised pile card. `slide-under` runs once, at `standard`, on a card entering beneath the pile. `drop-away` runs once, at `fast` on `accelerate`, on the top card leaving it.
 
 Reduced motion is a rule, not an observation: under `prefers-reduced-motion: reduce`, transitions resolve instantly and every keyframe is suppressed, including the looping ones. A suppressed `status-pulse` leaves a static dot beside its label, which already carries the meaning.
 
@@ -258,7 +262,9 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
     "keyframes": {
       "spin": {"properties": ["transform"], "keyframes": "rotate(0deg) -> rotate(360deg), linear, looping", "reduced": "none"},
       "status-pulse": {"properties": ["opacity"], "keyframes": "opacity 1 -> 0.25 -> 1 over two seconds, looping", "reduced": "none"},
-      "rise-in": {"properties": ["opacity", "transform"], "keyframes": "opacity 0 -> 1 with translateY(4px) -> translateY(0), once, at duration.standard on easing.standard", "reduced": "none"}
+      "rise-in": {"properties": ["opacity", "transform"], "keyframes": "opacity 0 -> 1 with translateY(4px) -> translateY(0), once, at duration.standard on easing.standard", "reduced": "none"},
+      "slide-under": {"properties": ["opacity", "transform"], "keyframes": "opacity 0 -> 1 with translateY(-8px) -> translateY(0), once, at duration.standard on easing.standard; a card entering beneath the pile", "reduced": "none"},
+      "drop-away": {"properties": ["opacity", "transform"], "keyframes": "opacity 1 -> 0 with translateY(0) -> translateY(12px), once, at duration.fast on easing.accelerate; the top card leaving the pile", "reduced": "none"}
     }
   },
   "components": [
@@ -661,6 +667,140 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
           "archetype": "surface",
           "bindings": {"background": "color.bg-inverse", "radius": "radius.1", "padding": "space.3", "elevation": "elevation.0"},
           "children": [{"name": "label", "archetype": "text", "sample": "Start all components on this bench", "bindings": {"color": "color.text-on-inverse", "font_size": "type.scale.1"}}]
+        }
+      ]
+    },
+    {
+      "name": "Pile card",
+      "role": "one waiting bench in the needs-response pile; the top card is the live bench view, a lower card shows only its title bar",
+      "states": {
+        "focus": "the title bar takes the focus ring; Enter raises a lower card",
+        "hover": "a lower card's title bar takes the bg-hover wash",
+        "active": "the pressed title bar takes the bg-pressed wash",
+        "disabled": "a card whose sessions have ended drops to the disabled opacity until it is closed"
+      },
+      "motion_refs": ["motion.slide-under", "motion.drop-away", "motion.rise-in", "motion.status-pulse", "motion.colors"],
+      "parts": [
+        {
+          "name": "frame",
+          "archetype": "container",
+          "bindings": {"background": "color.bg-base", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.2"},
+          "arrangement": {"kind": "column", "gap": "space.0", "align": "stretch"},
+          "state_deltas": {"disabled": {"opacity": "opacity.disabled"}},
+          "children": [
+            {
+              "name": "title-bar",
+              "archetype": "control",
+              "label": "Raise this bench",
+              "bindings": {"background": "color.bg-surface", "padding": "space.3", "radius": "radius.2", "color": "color.text-body"},
+              "arrangement": {"kind": "row", "gap": "space.4", "align": "center"},
+              "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}},
+              "children": [
+                {
+                  "name": "dot",
+                  "archetype": "custom",
+                  "label": "waiting",
+                  "bindings": {"background": "color.status-preparing", "radius": "radius.3"}
+                },
+                {
+                  "name": "bench",
+                  "archetype": "text",
+                  "sample": "roubo #1421 hot-reload",
+                  "bindings": {"color": "color.text-primary", "font_size": "type.scale.2", "font_weight": "type.weights.1"}
+                },
+                {
+                  "name": "terminal",
+                  "archetype": "text",
+                  "sample": "claude · permission",
+                  "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0"}
+                },
+                {
+                  "name": "age",
+                  "archetype": "text",
+                  "sample": "4m 12s",
+                  "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_family": "type.fonts.mono"}
+                }
+              ]
+            },
+            {
+              "name": "top-rule",
+              "archetype": "divider",
+              "bindings": {"color": "color.accent", "thickness": "border_width.thick"}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Split separator",
+      "role": "resizes two terminal panes by pointer or by arrow keys",
+      "states": {
+        "focus": "the focus ring outlines the whole separator",
+        "hover": "the line steps up from border to border-strong",
+        "active": "while dragging, the line takes border-control so it can be found",
+        "disabled": "a separator beside a torn-off pane is hidden, never disabled"
+      },
+      "motion_refs": ["motion.colors"],
+      "parts": [
+        {
+          "name": "handle",
+          "archetype": "control",
+          "label": "Resize panes",
+          "bindings": {"background": "color.border", "radius": "radius.0"},
+          "state_deltas": {"hover": {"background": "color.border-strong"}, "active": {"background": "color.border-control"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}}
+        }
+      ]
+    },
+    {
+      "name": "Facet placeholder",
+      "role": "stands in for a terminal that is torn off into its own window",
+      "states": {
+        "focus": "the Return control takes the focus ring",
+        "hover": "the Return control takes the bg-hover wash",
+        "active": "the Return control takes the bg-pressed wash",
+        "disabled": "the placeholder drops to the disabled opacity while the torn-off window is closing"
+      },
+      "parts": [
+        {
+          "name": "frame",
+          "archetype": "container",
+          "bindings": {"background": "color.bg-surface", "border": "color.border", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.8"},
+          "arrangement": {"kind": "column", "gap": "space.5", "align": "center"},
+          "state_deltas": {"disabled": {"opacity": "opacity.disabled"}},
+          "children": [
+            {
+              "name": "message",
+              "archetype": "text",
+              "sample": "claude is in its own window",
+              "bindings": {"color": "color.text-secondary", "font_size": "type.scale.2"}
+            },
+            {
+              "name": "return",
+              "archetype": "control",
+              "label": "Return",
+              "bindings": {"background": "color.bg-surface", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.2", "color": "color.text-primary"},
+              "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}, "disabled": {"opacity": "opacity.disabled"}}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Count badge",
+      "role": "number of waiting benches on the sidebar while the pile is hidden",
+      "states": {
+        "focus": "not focusable; it describes its parent",
+        "hover": "no change",
+        "active": "no change",
+        "disabled": "drops to the disabled opacity when its parent is disabled"
+      },
+      "parts": [
+        {
+          "name": "pill",
+          "archetype": "badge",
+          "label": "3",
+          "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.3", "padding": "space.2"},
+          "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}
         }
       ]
     }
