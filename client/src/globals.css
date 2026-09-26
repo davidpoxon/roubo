@@ -98,8 +98,10 @@
   --shadow-elevation-1: var(--elevation-1);
 }
 
-/* Motion. DESIGN.md records three keyframes (spin, status-pulse, rise-in) and
-   suppresses every one of them under prefers-reduced-motion: reduce. The
+/* Motion. DESIGN.md records five keyframes (spin, status-pulse, rise-in,
+   slide-under, drop-away); the first three are implemented here and the pile's
+   two land with it. DESIGN.md suppresses every one of them under
+   prefers-reduced-motion: reduce. The
    keyframes here are only attached under no-preference, and the reduce block
    below also stops Tailwind's animate-spin and snaps every transition. */
 @keyframes status-pulse {

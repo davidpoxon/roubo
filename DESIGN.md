@@ -110,7 +110,7 @@ Eighteen components. Each spec is the contract; none is anchored to a source lin
 - **Menu.** A floating surface at `elevation.0`; items take a wash, never a border.
 - **Dialog.** Surface at `elevation.1` over the scrim, one decision per dialog, actions right-aligned with the consequential one last.
 - **Tooltip.** The inverse surface. It still appears for a disabled trigger, which is how the reason gets read.
-- **Pile card.** One waiting bench in the needs-response pile. The top card is the live bench view under a 2px accent rule. A lower card shows only its title bar (dot, bench, terminal, mono age) and raises on click or Enter. Cards arrive with `motion.slide-under` and leave with `motion.drop-away`.
+- **Pile card.** One waiting bench in the needs-response pile. The top card is the live bench view under a 2px accent rule. A lower card shows only its title bar (dot, project, bench, terminal, origin, mono age) and raises on click or Enter. The origin text (signalled or inferred) is the dot's label. Cards arrive with `motion.slide-under` and leave with `motion.drop-away`. A card whose sessions ended is dropped, never disabled.
 - **Split separator.** The line between two terminal panes, focusable with `role="separator"`. It steps from `border` to `border-strong` on hover and to `border-control` while dragging.
 - **Facet placeholder.** Surface ground with a hairline border where a torn-off terminal used to be, with one secondary button: Return.
 - **Count badge.** `accent-text` on `accent-muted`, the sidebar's count of waiting benches while the pile is hidden.
@@ -677,7 +677,7 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
         "focus": "the title bar takes the focus ring; Enter raises a lower card",
         "hover": "a lower card's title bar takes the bg-hover wash",
         "active": "the pressed title bar takes the bg-pressed wash",
-        "disabled": "a card whose sessions have ended drops to the disabled opacity until it is closed"
+        "disabled": "a card is never disabled: a card whose sessions have ended leaves the pile with motion.drop-away"
       },
       "motion_refs": ["motion.slide-under", "motion.drop-away", "motion.rise-in", "motion.status-pulse", "motion.colors"],
       "parts": [
@@ -685,8 +685,7 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
           "name": "frame",
           "archetype": "container",
           "bindings": {"background": "color.bg-base", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.2"},
-          "arrangement": {"kind": "column", "gap": "space.0", "align": "stretch"},
-          "state_deltas": {"disabled": {"opacity": "opacity.disabled"}},
+          "arrangement": {"kind": "column", "align": "stretch"},
           "children": [
             {
               "name": "title-bar",
@@ -703,15 +702,27 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
                   "bindings": {"background": "color.status-preparing", "radius": "radius.3"}
                 },
                 {
+                  "name": "project",
+                  "archetype": "text",
+                  "sample": "roubo",
+                  "bindings": {"color": "color.text-secondary", "font_size": "type.scale.2"}
+                },
+                {
                   "name": "bench",
                   "archetype": "text",
-                  "sample": "roubo #1421 hot-reload",
+                  "sample": "#1421 hot-reload",
                   "bindings": {"color": "color.text-primary", "font_size": "type.scale.2", "font_weight": "type.weights.1"}
                 },
                 {
                   "name": "terminal",
                   "archetype": "text",
-                  "sample": "claude · permission",
+                  "sample": "claude",
+                  "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0"}
+                },
+                {
+                  "name": "origin",
+                  "archetype": "text",
+                  "sample": "signalled · permission",
                   "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0"}
                 },
                 {
