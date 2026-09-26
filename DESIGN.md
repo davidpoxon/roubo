@@ -94,7 +94,7 @@ The palette only reaches programs that print through those sixteen roles. An age
 
 ## Components
 
-Eighteen components. Each spec is the contract; none is anchored to a source line, because the code follows the spec.
+Twenty-seven components. Each spec is the contract; none is anchored to a source line, because the code follows the spec.
 
 - **Primary button.** Amber ground, stone-950 label at 9.20:1. At most one per view.
 - **Secondary button.** Surface ground with a `border-strong` outline. The default action style.
@@ -114,7 +114,6 @@ Eighteen components. Each spec is the contract; none is anchored to a source lin
 - **Split separator.** The line between two terminal panes, focusable with `role="separator"`. It steps from `border` to `border-strong` on hover and to `border-control` while dragging.
 - **Facet placeholder.** Surface ground with a hairline border where a torn-off terminal used to be, with one secondary button: Return.
 - **Count badge.** `accent-text` on `accent-muted`, the sidebar's count of waiting benches while the pile is hidden.
-
 - **Unit node.** One work unit in the delivery graph, the map's default view. Lanes are stacks, columns are layers, and edges drawn between nodes are `depends_on`: `border-strong` by default, `success-text` from a merged unit, `status-error` dashed from a gate to the batch it gates, and the 2px accent for the path of the node under the pointer or focus. The node holds the mono id and pull request, the title, and a meta line with the status dot and its label and the figures. The live unit carries the 2px accent rule at its left edge. A gate node swaps the ground to `danger-surface` and the border to `status-error`. Edges are decorative; the node's detail line names its dependencies for the screen reader.
 - **Unit row.** One work unit in the map's list view, a dense hairline row: stack, layer, mono id, title, status dot with label, pull request, gate badge, cases and cost in tabular figures. The live unit carries the 2px accent rule at its left edge; every other row omits the rule. Enter opens the unit drill-in.
 - **Delivery stat.** One figure in the burn and health strip: a mono eyebrow, a value at `type.scale.4`, a note, and an optional meter whose fill is the only accent on the strip.
@@ -124,6 +123,7 @@ Eighteen components. Each spec is the contract; none is anchored to a source lin
 - **Decision item.** One question from the delivery session, piled like the needs-response pile: the oldest pending decision is the live top card under the 2px accent rule, with its state badge, a mono origin line naming where it was raised and what it holds, the question, and the options as buttons with the recorded default as the primary. A lower card shows only its title bar (badge and origin) and raises on click or Enter. A new decision arrives with `motion.slide-under`; an answered one leaves with `motion.drop-away` and the next card rises. A default in force is a card too, marked in its badge, and stays until overturned or applied.
 - **Steering note.** One queued operator note: a state badge (queued, read back, applied), a mono line naming the boundary it lands at, the note, and the session's read-back once it exists. A queued note opens for edit on Enter; an applied note dims and keeps its read-back.
 - **Role matrix row.** One role in the delivery: the mono role name, its model and effort as two menus on the field ground, its spend so far, and an `accent-text` on `accent-muted` badge while a change waits for the next unit boundary. Changing a value writes a control; the badge clears on the session's read-back.
+
 **Which token when.** A ground is always a `bg-*` token and text on it is always one of the three text tones or a paired `*-text`. `accent` is never text. `danger` is never decoration. A `status-*` colour never appears without its label. A categorical hue never carries text.
 
 ## Motion
@@ -890,7 +890,7 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
           {"name": "kind", "archetype": "badge", "label": "pull request", "bindings": {"background": "color.bg-hover", "color": "color.text-secondary", "radius": "radius.0", "padding": "space.2"}},
           {"name": "body", "archetype": "container", "arrangement": {"kind": "column", "gap": "space.2", "align": "start"}, "children": [
             {"name": "text", "archetype": "text", "sample": "Draft #47 opened on stack #12, layer 4, base SB-WU-003", "bindings": {"color": "color.text-body", "font_size": "type.scale.1", "font_weight": "type.weights.0"}},
-            {"name": "detail", "archetype": "text", "sample": "unit-manager · attempt 1 · turn 23", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+            {"name": "detail", "archetype": "text", "sample": "manager · attempt 1 · turn 23", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
           ]}
         ]}
       ]
@@ -950,7 +950,7 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
       "motion_refs": ["motion.colors"],
       "parts": [
         {"name": "row", "archetype": "container", "bindings": {"background": "color.bg-surface", "border": "color.border", "border_width": "border_width.hairline", "radius": "radius.0", "padding": "space.4"}, "arrangement": {"kind": "row", "gap": "space.6", "align": "center"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [
-          {"name": "role", "archetype": "text", "sample": "unit-coder", "bindings": {"color": "color.text-primary", "font_size": "type.scale.1", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+          {"name": "role", "archetype": "text", "sample": "coder", "bindings": {"color": "color.text-primary", "font_size": "type.scale.1", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
           {"name": "model", "archetype": "control", "label": "sonnet", "bindings": {"background": "color.bg-field", "color": "color.text-body", "border": "color.border-control", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}},
           {"name": "effort", "archetype": "control", "label": "medium", "bindings": {"background": "color.bg-field", "color": "color.text-body", "border": "color.border-control", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}},
           {"name": "spent", "archetype": "text", "sample": "17.60 · 43 percent", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}},
