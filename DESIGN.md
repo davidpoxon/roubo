@@ -103,7 +103,7 @@ Eighteen components. Each spec is the contract; none is anchored to a source lin
 - **Input field.** `bg-field` with the `border-control` boundary. Focus takes the focus hue on the border plus a tight ring. It carries a fifth state, `invalid`. Paths and commands typed into it are mono.
 - **Tabs.** The selected tab is primary text over a 2px accent indicator; the rest are secondary text. Entering tab content uses `motion.rise-in`.
 - **Nav item.** The selected destination sits on `accent-muted` in `accent-text`, at medium weight.
-- **Bench card.** The border is the bench status, as `docs/brand.md` defines it. The card rests on `bg-surface` and its hover changes the ground only, so nothing shifts.
+- **Bench card.** The border is the bench status, as `docs/brand.md` defines it. The card rests on `bg-surface` and its hover changes the ground only, so nothing shifts. A TestBench or a Spec Bench carries a variant badge in its head, `accent-text` on `accent-muted`; a normal bench carries none.
 - **Status indicator.** Dot plus label, never the dot alone. Pulses with `motion.status-pulse` while preparing or clearing.
 - **Issue chip.** Tinted with its own tone; the spec shows the `issue-type` tone and the other three swap the two colour bindings.
 - **Callout.** The inline home of `danger-text`: states the cause, then the fix. The success variant swaps the three `success-*` tokens.
@@ -115,11 +115,20 @@ Eighteen components. Each spec is the contract; none is anchored to a source lin
 - **Facet placeholder.** Surface ground with a hairline border where a torn-off terminal used to be, with one secondary button: Return.
 - **Count badge.** `accent-text` on `accent-muted`, the sidebar's count of waiting benches while the pile is hidden.
 
+- **Unit node.** One work unit in the delivery graph, the map's default view. Lanes are stacks, columns are layers, and edges drawn between nodes are `depends_on`: `border-strong` by default, `success-text` from a merged unit, `status-error` dashed from a gate to the batch it gates, and the 2px accent for the path of the node under the pointer or focus. The node holds the mono id and pull request, the title, and a meta line with the status dot and its label and the figures. The live unit carries the 2px accent rule at its left edge. A gate node swaps the ground to `danger-surface` and the border to `status-error`. Edges are decorative; the node's detail line names its dependencies for the screen reader.
+- **Unit row.** One work unit in the map's list view, a dense hairline row: stack, layer, mono id, title, status dot with label, pull request, gate badge, cases and cost in tabular figures. The live unit carries the 2px accent rule at its left edge; every other row omits the rule. Enter opens the unit drill-in.
+- **Delivery stat.** One figure in the burn and health strip: a mono eyebrow, a value at `type.scale.4`, a note, and an optional meter whose fill is the only accent on the strip.
+- **Health chip.** The shell header's one-word health: fresh, stale, disconnected or blocked. The dot names the state and the label always carries the word; stale takes `status-preparing`, disconnected and blocked take `status-error`. Pressing it opens the reason.
+- **Timeline event.** One event in a unit's drill-in timeline, newest first: mono time, a kind badge, the text, and a mono detail line naming the role, attempt and turn. An event that names an artifact is pressable and opens it. The newest event carries the 2px accent rule; every other row omits it.
+- **Generation seam.** A hairline rule with a mono label across the timeline where a fresh session or a compaction took over. Events above and below it did not share a context.
+- **Decision item.** One question from the delivery session, piled like the needs-response pile: the oldest pending decision is the live top card under the 2px accent rule, with its state badge, a mono origin line naming where it was raised and what it holds, the question, and the options as buttons with the recorded default as the primary. A lower card shows only its title bar (badge and origin) and raises on click or Enter. A new decision arrives with `motion.slide-under`; an answered one leaves with `motion.drop-away` and the next card rises. A default in force is a card too, marked in its badge, and stays until overturned or applied.
+- **Steering note.** One queued operator note: a state badge (queued, read back, applied), a mono line naming the boundary it lands at, the note, and the session's read-back once it exists. A queued note opens for edit on Enter; an applied note dims and keeps its read-back.
+- **Role matrix row.** One role in the delivery: the mono role name, its model and effort as two menus on the field ground, its spend so far, and an `accent-text` on `accent-muted` badge while a change waits for the next unit boundary. Changing a value writes a control; the badge clears on the session's read-back.
 **Which token when.** A ground is always a `bg-*` token and text on it is always one of the three text tones or a paired `*-text`. `accent` is never text. `danger` is never decoration. A `status-*` colour never appears without its label. A categorical hue never carries text.
 
 ## Motion
 
-Three durations (`fast` 150ms, `standard` 200ms, `slow` 300ms) and two easings: `standard`, a crisp ease-out with no overshoot, and `accelerate` for exits. Three transitions (`colors`, `opacity`, `exit`) and five keyframes (`spin`, `status-pulse`, `rise-in`, `slide-under`, `drop-away`). `rise-in` runs once, at `standard`, on anything that enters: tab content, menus, dialogs, a raised pile card. `slide-under` runs once, at `standard`, on a card entering beneath the pile. `drop-away` runs once, at `fast` on `accelerate`, on the top card leaving it.
+Three durations (`fast` 150ms, `standard` 200ms, `slow` 300ms) and two easings: `standard`, a crisp ease-out with no overshoot, and `accelerate` for exits. Three transitions (`colors`, `opacity`, `exit`) and five keyframes (`spin`, `status-pulse`, `rise-in`, `slide-under`, `drop-away`). `rise-in` runs once, at `standard`, on anything that enters: tab content, menus, dialogs, a raised pile card. `slide-under` runs once, at `standard`, on a card entering beneath the pile. `drop-away` runs once, at `fast` on `accelerate`, on the top card leaving it. One orchestration, `stagger.gate-cases`, runs `rise-in` across the escalated cases when a gate sitting opens, 40ms apart in forward order, and is suppressed under reduced motion.
 
 Reduced motion is a rule, not an observation: under `prefers-reduced-motion: reduce`, transitions resolve instantly and every keyframe is suppressed, including the looping ones. A suppressed `status-pulse` leaves a static dot beside its label, which already carries the meaning.
 
@@ -265,6 +274,14 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
       "rise-in": {"properties": ["opacity", "transform"], "keyframes": "opacity 0 -> 1 with translateY(4px) -> translateY(0), once, at duration.standard on easing.standard", "reduced": "none"},
       "slide-under": {"properties": ["opacity", "transform"], "keyframes": "opacity 0 -> 1 with translateY(-8px) -> translateY(0), once, at duration.standard on easing.standard; a card entering beneath the pile", "reduced": "none"},
       "drop-away": {"properties": ["opacity", "transform"], "keyframes": "opacity 1 -> 0 with translateY(0) -> translateY(12px), once, at duration.fast on easing.accelerate; the top card leaving the pile", "reduced": "none"}
+    },
+    "orchestration": {
+      "stagger.gate-cases": {
+        "child": "motion.rise-in",
+        "stagger": "40ms",
+        "order": "forward",
+        "reduced": "none"
+      }
     }
   },
   "components": [
@@ -465,51 +482,25 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
     },
     {
       "name": "Bench card",
-      "role": "container surface for one bench; its border is the bench status",
-      "states": {
-        "focus": "two-pixel focus ring at a two-pixel offset around the card",
-        "hover": "ground moves to bg-hover; the status border is unchanged",
-        "active": "the hover ground holds while the bench opens",
-        "disabled": "the whole card drops to the disabled opacity while the bench clears"
-      },
+      "role": "container surface for one bench; its border is the bench status, and a variant badge names a TestBench or a Spec Bench",
+      "states": {"focus": "two-pixel focus ring at a two-pixel offset around the card", "hover": "ground moves to bg-hover; the status border is unchanged", "active": "the hover ground holds while the bench opens", "disabled": "the whole card drops to the disabled opacity while the bench clears"},
       "motion_refs": ["motion.colors", "motion.status-pulse"],
       "parts": [
-        {
-          "name": "frame",
-          "archetype": "container",
-          "bindings": {"background": "color.bg-surface", "border": "color.status-active", "border_width": "border_width.hairline", "radius": "radius.2", "padding": "space.7"},
-          "arrangement": {"kind": "column", "gap": "space.5", "align": "stretch"},
-          "state_deltas": {
-            "hover": {"background": "color.bg-hover"},
-            "active": {"background": "color.bg-hover"},
-            "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"},
-            "disabled": {"opacity": "opacity.disabled"}
-          },
-          "children": [
-            {
-              "name": "head",
-              "archetype": "container",
-              "arrangement": {"kind": "row", "gap": "space.4", "align": "center"},
-              "children": [
-                {"name": "dot", "archetype": "custom", "label": "active", "bindings": {"background": "color.status-active", "radius": "radius.3"}},
-                {"name": "title", "archetype": "text", "sample": "Bench 2", "bindings": {"color": "color.text-primary", "font_size": "type.scale.3", "font_weight": "type.weights.2"}},
-                {"name": "status", "archetype": "text", "sample": "active", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1"}}
-              ]
-            },
-            {"name": "workspace", "archetype": "text", "sample": "feat/verify-gate", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_family": "type.fonts.mono"}},
-            {"name": "rule", "archetype": "divider", "bindings": {"color": "color.border", "thickness": "border_width.hairline"}},
-            {
-              "name": "component",
-              "archetype": "container",
-              "arrangement": {"kind": "row", "gap": "space.4", "align": "center"},
-              "children": [
-                {"name": "dot", "archetype": "custom", "label": "active", "bindings": {"background": "color.status-active", "radius": "radius.3"}},
-                {"name": "name", "archetype": "text", "sample": "backend", "bindings": {"color": "color.text-body", "font_size": "type.scale.2"}},
-                {"name": "port", "archetype": "text", "sample": ":3021", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_family": "type.fonts.mono"}}
-              ]
-            }
-          ]
-        }
+        {"name": "frame", "archetype": "container", "bindings": {"background": "color.bg-surface", "border": "color.status-active", "border_width": "border_width.hairline", "radius": "radius.2", "padding": "space.7"}, "arrangement": {"kind": "column", "gap": "space.5", "align": "stretch"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-hover"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}, "disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "head", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.4", "align": "center"}, "children": [
+            {"name": "dot", "archetype": "custom", "label": "active", "bindings": {"background": "color.status-active", "radius": "radius.3"}},
+            {"name": "title", "archetype": "text", "sample": "Bench 2", "bindings": {"color": "color.text-primary", "font_size": "type.scale.3", "font_weight": "type.weights.2"}},
+            {"name": "status", "archetype": "text", "sample": "active", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1"}},
+            {"name": "variant", "archetype": "badge", "label": "Spec Bench", "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.0", "padding": "space.2"}}
+          ]},
+          {"name": "workspace", "archetype": "text", "sample": "feat/verify-gate", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_family": "type.fonts.mono"}},
+          {"name": "rule", "archetype": "divider", "bindings": {"color": "color.border", "thickness": "border_width.hairline"}},
+          {"name": "component", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.4", "align": "center"}, "children": [
+            {"name": "dot", "archetype": "custom", "label": "active", "bindings": {"background": "color.status-active", "radius": "radius.3"}},
+            {"name": "name", "archetype": "text", "sample": "backend", "bindings": {"color": "color.text-body", "font_size": "type.scale.2"}},
+            {"name": "port", "archetype": "text", "sample": ":3021", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_family": "type.fonts.mono"}}
+          ]}
+        ]}
       ]
     },
     {
@@ -813,6 +804,158 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
           "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.3", "padding": "space.2"},
           "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}
         }
+      ]
+    },
+    {
+      "name": "Unit row",
+      "role": "one work unit in the delivery map; the live row carries the accent rule and opens the unit on Enter",
+      "states": {"focus": "two-pixel focus ring tight to the row; Enter opens the unit drill-in", "hover": "ground moves to bg-hover; the status and the rule are unchanged", "active": "the pressed row takes the bg-pressed wash while the drill-in opens", "disabled": "a held or blocked row drops to the disabled opacity and keeps its reason chip readable"},
+      "motion_refs": ["motion.colors", "motion.status-pulse", "motion.rise-in"],
+      "parts": [
+        {"name": "frame", "archetype": "control", "label": "Open SB-WU-007", "bindings": {"background": "color.bg-surface", "color": "color.text-body", "border": "color.border", "border_width": "border_width.hairline", "radius": "radius.0", "padding": "space.3"}, "arrangement": {"kind": "row", "gap": "space.5", "align": "center"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}, "disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "rule", "archetype": "divider", "bindings": {"color": "color.accent", "thickness": "border_width.thick"}},
+          {"name": "stack", "archetype": "text", "sample": "#1", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}},
+          {"name": "layer", "archetype": "text", "sample": "4", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}},
+          {"name": "unit-id", "archetype": "text", "sample": "SB-WU-007", "bindings": {"color": "color.text-body", "font_size": "type.scale.1", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+          {"name": "title", "archetype": "text", "sample": "TestBench host resolver", "bindings": {"color": "color.text-primary", "font_size": "type.scale.1", "font_weight": "type.weights.1"}},
+          {"name": "status", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.3", "align": "center"}, "children": [
+            {"name": "dot", "archetype": "custom", "label": "review", "bindings": {"background": "color.status-preparing", "radius": "radius.3"}},
+            {"name": "label", "archetype": "text", "sample": "review", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1"}}
+          ]},
+          {"name": "pull-request", "archetype": "text", "sample": "#47 draft", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}},
+          {"name": "gate", "archetype": "badge", "label": "19/22 · 3 escalated", "bindings": {"background": "color.bg-hover", "color": "color.text-secondary", "radius": "radius.0", "padding": "space.2"}},
+          {"name": "cases", "archetype": "text", "sample": "3", "bindings": {"color": "color.text-body", "font_size": "type.scale.1", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}},
+          {"name": "cost", "archetype": "text", "sample": "2.65", "bindings": {"color": "color.text-body", "font_size": "type.scale.1", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+        ]}
+      ]
+    },
+    {
+      "name": "Delivery stat",
+      "role": "one figure in the burn and health strip: an eyebrow, a value, a note, and an optional meter",
+      "states": {"focus": "not focusable; it describes the delivery", "hover": "no change", "active": "no change", "disabled": "drops to the disabled opacity while the record is nonconformant"},
+      "motion_refs": ["motion.colors"],
+      "parts": [
+        {"name": "cell", "archetype": "container", "bindings": {"background": "color.bg-surface", "padding": "space.5"}, "arrangement": {"kind": "column", "gap": "space.2", "align": "start"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "eyebrow", "archetype": "text", "sample": "Spent", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+          {"name": "value", "archetype": "text", "sample": "41.20", "bindings": {"color": "color.text-primary", "font_size": "type.scale.4", "font_weight": "type.weights.2", "font_family": "type.fonts.mono"}},
+          {"name": "note", "archetype": "text", "sample": "of 118.00 soft budget", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0"}},
+          {"name": "meter", "archetype": "custom", "label": "38 percent", "bindings": {"background": "color.bg-hover", "radius": "radius.3"}, "children": [
+            {"name": "fill", "archetype": "custom", "label": "spent", "bindings": {"background": "color.accent", "radius": "radius.3"}}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "name": "Health chip",
+      "role": "one-word delivery health in the shell header: fresh, stale, disconnected or blocked; pressing it opens the reason",
+      "states": {"focus": "two-pixel focus ring tight to the chip", "hover": "the hairline steps up to border-control", "active": "the chip takes the bg-hover wash", "disabled": "drops to the disabled opacity when there is no record to describe"},
+      "motion_refs": ["motion.colors", "motion.status-pulse"],
+      "parts": [
+        {"name": "frame", "archetype": "control", "label": "Show health detail", "bindings": {"background": "color.bg-surface", "color": "color.text-secondary", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.0", "padding": "space.2"}, "arrangement": {"kind": "row", "gap": "space.3", "align": "center"}, "state_deltas": {"hover": {"border": "color.border-control"}, "active": {"background": "color.bg-hover"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}, "disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "dot", "archetype": "custom", "label": "fresh", "bindings": {"background": "color.status-active", "radius": "radius.3"}},
+          {"name": "label", "archetype": "text", "sample": "fresh · plan 9fe2ae9f", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}}
+        ]}
+      ]
+    },
+    {
+      "name": "Unit node",
+      "role": "one work unit in the delivery graph; a compact node in its stack lane at its layer, with edges drawn between nodes for depends_on",
+      "states": {"focus": "two-pixel focus ring at a two-pixel offset; the node's edges highlight in accent and the detail line names its dependencies", "hover": "ground moves to bg-hover and the node's edges highlight in accent", "active": "the pressed node takes the bg-pressed wash while the drill-in opens", "disabled": "a held node drops to the disabled opacity and keeps its held reason in the meta line"},
+      "motion_refs": ["motion.colors", "motion.status-pulse", "motion.rise-in"],
+      "parts": [
+        {"name": "frame", "archetype": "control", "label": "Open SB-WU-006", "bindings": {"background": "color.bg-base", "color": "color.text-body", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.4"}, "arrangement": {"kind": "column", "gap": "space.2", "align": "stretch"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}, "disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "rule", "archetype": "divider", "bindings": {"color": "color.accent", "thickness": "border_width.thick"}},
+          {"name": "head", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.5", "align": "center"}, "children": [
+            {"name": "unit-id", "archetype": "text", "sample": "SB-WU-006", "bindings": {"color": "color.text-body", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+            {"name": "pull-request", "archetype": "text", "sample": "#45 draft", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+          ]},
+          {"name": "title", "archetype": "text", "sample": "Record loader and event ingest", "bindings": {"color": "color.text-primary", "font_size": "type.scale.1", "font_weight": "type.weights.1"}},
+          {"name": "meta", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.5", "align": "center"}, "children": [
+            {"name": "dot", "archetype": "custom", "label": "active", "bindings": {"background": "color.status-preparing", "radius": "radius.3"}},
+            {"name": "state", "archetype": "text", "sample": "active", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}},
+            {"name": "figures", "archetype": "text", "sample": "4 cases · 6.40", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "name": "Timeline event",
+      "role": "one event in a unit's timeline: the time, the kind, the text, and an optional link to the artifact it names; the newest event carries the accent rule",
+      "states": {"focus": "two-pixel focus ring tight to the row; Enter follows the event's link when it has one", "hover": "ground moves to bg-hover on a row with a link; a row without one is unchanged", "active": "the pressed row takes the bg-pressed wash while the link opens", "disabled": "an event from a replaced attempt drops to the disabled opacity and stays readable"},
+      "motion_refs": ["motion.colors", "motion.rise-in"],
+      "parts": [
+        {"name": "row", "archetype": "control", "label": "Open pull request #47", "bindings": {"background": "color.bg-surface", "color": "color.text-body", "border": "color.border", "border_width": "border_width.hairline", "radius": "radius.0", "padding": "space.4"}, "arrangement": {"kind": "row", "gap": "space.6", "align": "start"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}, "disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "rule", "archetype": "divider", "bindings": {"color": "color.accent", "thickness": "border_width.thick"}},
+          {"name": "time", "archetype": "text", "sample": "08:37:12", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}},
+          {"name": "kind", "archetype": "badge", "label": "pull request", "bindings": {"background": "color.bg-hover", "color": "color.text-secondary", "radius": "radius.0", "padding": "space.2"}},
+          {"name": "body", "archetype": "container", "arrangement": {"kind": "column", "gap": "space.2", "align": "start"}, "children": [
+            {"name": "text", "archetype": "text", "sample": "Draft #47 opened on stack #12, layer 4, base SB-WU-003", "bindings": {"color": "color.text-body", "font_size": "type.scale.1", "font_weight": "type.weights.0"}},
+            {"name": "detail", "archetype": "text", "sample": "unit-manager · attempt 1 · turn 23", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "name": "Generation seam",
+      "role": "a rule across a unit's timeline where a fresh session or a compaction took over, so the reader knows the context above and below are not the same",
+      "states": {"focus": "not focusable; it describes the timeline", "hover": "no change", "active": "no change", "disabled": "drops to the disabled opacity with the events around it"},
+      "parts": [
+        {"name": "seam", "archetype": "container", "bindings": {"padding": "space.3"}, "arrangement": {"kind": "row", "gap": "space.5", "align": "center"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "line", "archetype": "divider", "bindings": {"color": "color.border-strong", "thickness": "border_width.hairline"}},
+          {"name": "label", "archetype": "text", "sample": "session 2 · resumed 2026-09-27 08:14 · compaction none", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+          {"name": "line-end", "archetype": "divider", "bindings": {"color": "color.border-strong", "thickness": "border_width.hairline"}}
+        ]}
+      ]
+    },
+    {
+      "name": "Decision item",
+      "role": "one question the delivery session raised, piled with the others: the oldest pending decision is the live top card with its options, a lower card shows only its title bar and raises on click or Enter",
+      "states": {"focus": "the title bar takes the focus ring; Enter raises a lower card, and Tab moves through the top card's options", "hover": "a lower card's title bar takes the bg-hover wash; the top card is unchanged", "active": "the pressed title bar takes the bg-pressed wash while the card raises", "disabled": "a card is never disabled: an answered decision leaves the pile with motion.drop-away, and a withdrawn one drops to the disabled opacity until it leaves"},
+      "motion_refs": ["motion.slide-under", "motion.drop-away", "motion.rise-in", "motion.colors"],
+      "parts": [
+        {"name": "frame", "archetype": "container", "bindings": {"background": "color.bg-surface", "border": "color.border", "border_width": "border_width.hairline", "radius": "radius.0", "padding": "space.5"}, "arrangement": {"kind": "column", "gap": "space.3", "align": "stretch"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "rule", "archetype": "divider", "bindings": {"color": "color.accent", "thickness": "border_width.thick"}},
+          {"name": "title-bar", "archetype": "control", "arrangement": {"kind": "row", "gap": "space.5", "align": "center"}, "label": "Raise this decision", "bindings": {"background": "color.bg-surface", "padding": "space.3", "radius": "radius.2", "color": "color.text-body"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}}, "children": [
+            {"name": "state", "archetype": "badge", "label": "D-004 · pending", "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.0", "padding": "space.2"}},
+            {"name": "origin", "archetype": "text", "sample": "raised at SB-WU-006 · holds SB-WU-011", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+          ]},
+          {"name": "question", "archetype": "text", "sample": "Keep the zod root refine for unique unit ids, or move uniqueness into the runtime validator only?", "bindings": {"color": "color.text-primary", "font_size": "type.scale.2", "font_weight": "type.weights.1"}},
+          {"name": "options", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.3", "align": "center"}, "children": [
+            {"name": "default", "archetype": "control", "label": "Keep zod refine (default)", "bindings": {"background": "color.accent", "color": "color.on-accent", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.accent-hover"}, "active": {"background": "color.accent-active"}}},
+            {"name": "option", "archetype": "control", "label": "Validator only", "bindings": {"background": "color.bg-surface", "color": "color.text-body", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}}}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "name": "Steering note",
+      "role": "one operator note queued for the next unit boundary, with its read-back once the session has it; queued, read back and applied are the three states of its badge",
+      "states": {"focus": "two-pixel focus ring tight to the row; Enter opens the note for edit while it is still queued", "hover": "ground moves to bg-hover while the note is still queued", "active": "the pressed row takes the bg-pressed wash while the editor opens", "disabled": "an applied note drops to the disabled opacity and keeps its read-back readable"},
+      "motion_refs": ["motion.colors", "motion.rise-in"],
+      "parts": [
+        {"name": "row", "archetype": "control", "label": "Edit steering note S-002", "bindings": {"background": "color.bg-surface", "color": "color.text-body", "border": "color.border", "border_width": "border_width.hairline", "radius": "radius.0", "padding": "space.4"}, "arrangement": {"kind": "column", "gap": "space.2", "align": "stretch"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}, "disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "head", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.5", "align": "center"}, "children": [
+            {"name": "state", "archetype": "badge", "label": "S-002 · queued", "bindings": {"background": "color.bg-hover", "color": "color.text-secondary", "radius": "radius.0", "padding": "space.2"}},
+            {"name": "applies", "archetype": "text", "sample": "applies at the next boundary · SB-WU-007", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+          ]},
+          {"name": "text", "archetype": "text", "sample": "Prefer React Aria Dialog over a custom modal.", "bindings": {"color": "color.text-primary", "font_size": "type.scale.1", "font_weight": "type.weights.0"}},
+          {"name": "read-back", "archetype": "text", "sample": "Read-back: will use Dialog from React Aria for every new modal from SB-WU-007 on.", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0"}}
+        ]}
+      ]
+    },
+    {
+      "name": "Role matrix row",
+      "role": "one role in the delivery's role matrix: the role, its model and effort as menus, its spend so far, and a pending badge while a change waits for the next unit boundary",
+      "states": {"focus": "two-pixel focus ring tight to the focused menu; arrow keys change the value and Enter commits it as a control", "hover": "the hovered menu's ground moves to bg-hover", "active": "the open menu holds the bg-pressed wash", "disabled": "the row drops to the disabled opacity while the delivery is ended or the record is nonconformant"},
+      "motion_refs": ["motion.colors"],
+      "parts": [
+        {"name": "row", "archetype": "container", "bindings": {"background": "color.bg-surface", "border": "color.border", "border_width": "border_width.hairline", "radius": "radius.0", "padding": "space.4"}, "arrangement": {"kind": "row", "gap": "space.6", "align": "center"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "role", "archetype": "text", "sample": "unit-coder", "bindings": {"color": "color.text-primary", "font_size": "type.scale.1", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+          {"name": "model", "archetype": "control", "label": "sonnet", "bindings": {"background": "color.bg-field", "color": "color.text-body", "border": "color.border-control", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}},
+          {"name": "effort", "archetype": "control", "label": "medium", "bindings": {"background": "color.bg-field", "color": "color.text-body", "border": "color.border-control", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}},
+          {"name": "spent", "archetype": "text", "sample": "17.60 · 43 percent", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}},
+          {"name": "pending", "archetype": "badge", "label": "pending · next boundary", "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.0", "padding": "space.2"}}
+        ]}
       ]
     }
   ],
