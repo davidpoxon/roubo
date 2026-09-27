@@ -32,7 +32,6 @@ export type {
   LoginStep,
   LoginConfig,
   ToolConfig,
-  InspectionConfig,
   BenchesConfig,
   JigsConfig,
   UserConfig,
@@ -57,7 +56,6 @@ export {
   ComponentBindingSchema,
   PortConfigSchema,
   ToolConfigSchema,
-  InspectionConfigSchema,
   BenchesConfigSchema,
   UserConfigSchema,
   IntegrationConfigSchema,
@@ -1744,7 +1742,6 @@ export type NotificationType =
   | "terminal-waiting"
   | "bench-ready"
   | "bench-error"
-  | "inspection-complete"
   | "component-error";
 
 export type NotificationPriority = "info" | "action-needed";
@@ -2300,26 +2297,6 @@ export interface TerminalCreateResponse {
    * launch is silent, so its absence is the normal case (AP-TC-070, AP-TC-072).
    */
   compatibility?: AgentCompatibilityState;
-}
-
-// ── Inspection run types ──
-
-export type InspectionRunStatus = "running" | "passed" | "failed" | "error" | "aborted";
-
-export interface InspectionRun {
-  id: string;
-  projectId: string;
-  benchId: number;
-  status: InspectionRunStatus;
-  filter?: string;
-  output: string[];
-  exitCode: number | null;
-  startedAt: string;
-  completedAt?: string;
-}
-
-export interface StartInspectionRequest {
-  filter?: string;
 }
 
 // ── GitHub issue types ──

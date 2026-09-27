@@ -32,7 +32,6 @@ export default function GuidedSummaryPanel({ config }: Props) {
         <StatRow label="Components" value={String(componentCount)} />
         <StatRow label="Bench cap" value={config.benches?.max ? String(config.benches.max) : "·"} />
         <StatRow label="Tools" value={String(config.tools?.length ?? 0)} />
-        <StatRow label="Inspections" value={config.inspection ? "1" : "0"} />
       </div>
     </div>
   );

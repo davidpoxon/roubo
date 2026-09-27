@@ -1,4 +1,4 @@
-import { Globe, GitFork, Server, Layers, TestTube, Settings, Eye, Users } from "lucide-react";
+import { Globe, GitFork, Server, Layers, Settings, Eye, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type {
   RouboConfig,
@@ -7,7 +7,6 @@ import type {
   ComponentConfig,
   PortConfig,
   ToolConfig,
-  InspectionConfig,
   BenchesConfig,
   UserConfig,
   RepoScanResult,
@@ -46,7 +45,7 @@ export function nextAvailablePort(
 }
 
 export type WizardSection =
-  "project" | "layout" | "components" | "tools" | "users" | "inspection" | "benches" | "review";
+  "project" | "layout" | "components" | "tools" | "users" | "benches" | "review";
 export type SectionStatus = "pristine" | "valid" | "invalid";
 
 export const WIZARD_SECTIONS: WizardSection[] = [
@@ -55,7 +54,6 @@ export const WIZARD_SECTIONS: WizardSection[] = [
   "components",
   "tools",
   "users",
-  "inspection",
   "benches",
   "review",
 ];
@@ -119,13 +117,6 @@ export function validateSection(
         ? "valid"
         : "invalid";
     }
-    case "inspection": {
-      const i = config.inspection;
-      if (!i) return undefined;
-      const allEmpty = !i.framework && !i.directory && !i.command;
-      const allFilled = !!(i.framework && i.directory && i.command);
-      return allEmpty || allFilled ? "valid" : "invalid";
-    }
     case "benches": {
       const max = config.benches?.max;
       if (max == null) return undefined;
@@ -142,7 +133,6 @@ export const SECTION_ICONS: Record<WizardSection, LucideIcon> = {
   components: Server,
   tools: Layers,
   users: Users,
-  inspection: TestTube,
   benches: Settings,
   review: Eye,
 };
@@ -153,7 +143,6 @@ export const SECTION_LABELS: Record<WizardSection, string> = {
   components: "Components",
   tools: "Tools",
   users: "Users",
-  inspection: "Inspection",
   benches: "Benches",
   review: "Review",
 };
@@ -192,7 +181,6 @@ export type WizardAction =
   | { type: "UPDATE_PORT"; payload: { key: string; port: PortConfig } }
   | { type: "SET_TOOLS"; payload: ToolConfig[] }
   | { type: "SET_USERS"; payload: UserConfig[] }
-  | { type: "UPDATE_INSPECTION"; payload: InspectionConfig | undefined }
   | { type: "UPDATE_BENCHES"; payload: BenchesConfig }
   | { type: "SET_SECTION"; payload: WizardSection }
   | {
@@ -374,12 +362,6 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         config: { ...state.config, users: action.payload },
       });
     }
-
-    case "UPDATE_INSPECTION":
-      return resetReview({
-        ...state,
-        config: { ...state.config, inspection: action.payload },
-      });
 
     case "UPDATE_BENCHES":
       return resetReview({

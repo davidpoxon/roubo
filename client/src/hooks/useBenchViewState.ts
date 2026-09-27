@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 
 const STORAGE_KEY = "roubo-bench-view-state";
 
-export type BenchTabId = "components" | "terminal" | "inspection" | "info" | "testbench";
+export type BenchTabId = "components" | "terminal" | "info" | "testbench";
 
 type BenchViewEntry = {
   activeTab?: BenchTabId;

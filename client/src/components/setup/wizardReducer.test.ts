@@ -6,7 +6,6 @@ import type {
   ComponentConfig,
   PortConfig,
   ToolConfig,
-  InspectionConfig,
   BenchesConfig,
   UserConfig,
   RepoScanResult,
@@ -279,40 +278,6 @@ describe("validateSection", () => {
           users: [{ name: "alice", properties: { role: "" } }],
         }),
       ).toBe("valid");
-    });
-  });
-
-  describe("inspection", () => {
-    it("returns undefined when inspection is absent", () => {
-      expect(validateSection("inspection", {})).toBeUndefined();
-    });
-
-    it("returns valid when all inspection fields are empty", () => {
-      expect(
-        validateSection("inspection", {
-          inspection: { framework: "", directory: "", command: "" },
-        }),
-      ).toBe("valid");
-    });
-
-    it("returns valid when all inspection fields are filled", () => {
-      expect(
-        validateSection("inspection", {
-          inspection: {
-            framework: "vitest",
-            directory: "tests/",
-            command: "npm test",
-          },
-        }),
-      ).toBe("valid");
-    });
-
-    it("returns invalid when only some fields are filled", () => {
-      expect(
-        validateSection("inspection", {
-          inspection: { framework: "vitest", directory: "", command: "" },
-        }),
-      ).toBe("invalid");
     });
   });
 
@@ -752,35 +717,6 @@ describe("wizardReducer", () => {
     });
   });
 
-  describe("UPDATE_INSPECTION", () => {
-    it("sets inspection config", () => {
-      const inspection: InspectionConfig = {
-        framework: "vitest",
-        directory: ".",
-        command: "npm test",
-      };
-      const state = makeState();
-      const next = wizardReducer(state, {
-        type: "UPDATE_INSPECTION",
-        payload: inspection,
-      });
-      expect(next.config.inspection).toEqual(inspection);
-    });
-
-    it("clears inspection config when undefined", () => {
-      const state = makeState({
-        config: {
-          inspection: { framework: "vitest", directory: ".", command: "test" },
-        },
-      });
-      const next = wizardReducer(state, {
-        type: "UPDATE_INSPECTION",
-        payload: undefined,
-      });
-      expect(next.config.inspection).toBeUndefined();
-    });
-  });
-
   describe("UPDATE_BENCHES", () => {
     it("sets benches config", () => {
       const benches: BenchesConfig = { max: 10 };
@@ -867,7 +803,6 @@ describe("wizardReducer", () => {
           components: "valid",
           tools: "valid",
           users: "valid",
-          inspection: "valid",
           benches: "valid",
           review: "valid",
         },
@@ -888,7 +823,6 @@ describe("wizardReducer", () => {
       components: "valid",
       tools: "valid",
       users: "valid",
-      inspection: "valid",
       benches: "valid",
       review: "valid",
     };

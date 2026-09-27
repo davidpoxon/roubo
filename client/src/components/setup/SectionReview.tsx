@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   Globe,
   Server,
-  TestTube,
   Layers,
   GitFork,
   Settings,
@@ -328,41 +327,6 @@ export default function SectionReview({
                 ))}
               </div>
             ))}
-          </div>
-        ) : (
-          <p className="text-12 text-text-secondary">None configured</p>
-        )}
-      </div>
-
-      {/* Inspection */}
-      <div className="bg-bg-base rounded-lg px-5 py-4">
-        <SectionHeader icon={TestTube} label="Inspection" status={sectionStatus.inspection} />
-        {config.inspection &&
-        (config.inspection.framework ||
-          config.inspection.directory ||
-          config.inspection.command) ? (
-          <div className="space-y-2">
-            <Row label="Framework" value={config.inspection.framework} />
-            {config.inspection.directory && (
-              <Row label="Directory">
-                <FilePathLabel path={config.inspection.directory} />
-              </Row>
-            )}
-            <Row label="Command" value={config.inspection.command} mono />
-            {config.inspection.env && Object.keys(config.inspection.env).length > 0 && (
-              <div>
-                <span className="text-11 text-text-secondary">Environment</span>
-                <div className="mt-1 space-y-0.5 pl-2">
-                  {Object.entries(config.inspection.env).map(([k, v]) => (
-                    <div key={k} className="text-12 font-mono text-text-body">
-                      <span className="text-text-secondary">{k}</span>
-                      <span className="text-text-secondary">=</span>
-                      {v}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           <p className="text-12 text-text-secondary">None configured</p>

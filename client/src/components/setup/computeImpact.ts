@@ -66,9 +66,6 @@ export function computeImpact(
   if (!deepEqual(pendingConfig.tools, savedConfig.tools)) {
     changedSections.push("tools");
   }
-  if (!deepEqual(pendingConfig.inspection, savedConfig.inspection)) {
-    changedSections.push("inspection");
-  }
 
   const changed = changedSections.length > 0;
 
@@ -131,10 +128,6 @@ export function computeImpact(
 
     if (changedSections.includes("tools")) {
       reasons.push("tools changed");
-    }
-
-    if (changedSections.includes("inspection")) {
-      reasons.push("inspection changed");
     }
 
     if (reasons.length > 0) {

@@ -533,7 +533,7 @@ describe("parseConfig", () => {
     expect(result.config.components.api.dependsOn).toEqual(["db"]);
   });
 
-  it("coerces testing.env numeric values to strings", () => {
+  it("strips a legacy inspection block and still parses (backward compat)", () => {
     const yamlContent = [
       "project:",
       "  name: test-project",
@@ -566,8 +566,7 @@ describe("parseConfig", () => {
     const result = parseConfig("/some/repo");
     expect(result.valid).toBe(true);
     if (!result.config) throw new Error("expected config");
-    expect(result.config.inspection?.env?.TEST_PORT).toBe("9999");
-    expect(result.config.inspection?.env?.CI).toBe("true");
+    expect(result.config).not.toHaveProperty("inspection");
   });
 
   it("surfaces the integration block in the parsed config", () => {
@@ -1063,6 +1062,18 @@ describe("validateConfigObject", () => {
     expect(result.valid).toBe(true);
     if (!result.config) throw new Error("expected config");
     expect(result.config.project).not.toHaveProperty("type");
+  });
+
+  it("strips a legacy inspection block before validating (backward compat)", () => {
+    const config = makeConfig();
+    const withInspection = {
+      ...config,
+      inspection: { framework: "vitest", directory: ".", command: "npx vitest run" },
+    };
+    const result = validateConfigObject(withInspection);
+    expect(result.valid).toBe(true);
+    if (!result.config) throw new Error("expected config");
+    expect(result.config).not.toHaveProperty("inspection");
   });
 
   it("returns errors for missing required fields", () => {

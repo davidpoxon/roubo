@@ -42,11 +42,6 @@ describe("RouboConfigSchema: valid configs", () => {
           url: "http://localhost:3000",
         },
       ],
-      inspection: {
-        framework: "jest",
-        directory: "tests",
-        command: "npm test",
-      },
       jigs: { defaultJig: "my-jig" },
       users: [{ name: "Admin", properties: { email: "admin@example.com" } }],
     });

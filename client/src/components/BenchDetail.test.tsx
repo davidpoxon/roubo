@@ -22,7 +22,6 @@ vi.mock("./ComponentStatusDot", () => ({ default: () => <span data-testid="statu
 vi.mock("./ToolButtons", () => ({ default: () => <span data-testid="tool-buttons" /> }));
 vi.mock("./LogStream", () => ({ default: () => <div data-testid="log-stream" /> }));
 vi.mock("./TerminalTabs", () => ({ default: () => <div data-testid="terminal-tabs" /> }));
-vi.mock("./InspectionRunner", () => ({ default: () => <div data-testid="inspection-runner" /> }));
 vi.mock("./AssignContainerModal", () => ({ default: () => null }));
 vi.mock("./IssueTransitionDropdown", () => ({
   default: () => <span data-testid="issue-transition-dropdown" />,
@@ -154,7 +153,6 @@ const baseProject = {
   config: {
     project: { name: "my-app", displayName: "My App" },
     components: { server: { type: "process", command: "npm start" } },
-    inspection: { command: "npx playwright test", framework: "playwright", directory: "tests" },
   },
 };
 
@@ -414,11 +412,6 @@ describe("BenchDetail", () => {
     );
   });
 
-  it("shows inspection tab when project has inspection config", () => {
-    renderBench();
-    expect(screen.getByRole("tab", { name: /inspection/i })).toBeInTheDocument();
-  });
-
   it("renders tool buttons", () => {
     renderBench();
     expect(screen.getByTestId("tool-buttons")).toBeInTheDocument();
@@ -608,26 +601,15 @@ describe("BenchDetail", () => {
       expect(screen.getByRole("tab", { name: /info/i })).toHaveAttribute("aria-selected", "true");
     });
 
-    it("falls back to Components when the persisted tab is no longer available", async () => {
-      // baseProject has inspection config, so Inspection tab is available
-      const { unmount } = renderBench();
-      await userEvent.click(screen.getByRole("tab", { name: /inspection/i }));
-      expect(screen.getByRole("tab", { name: /inspection/i })).toHaveAttribute(
-        "aria-selected",
-        "true",
+    it("falls back to Components when the persisted tab is no longer available", () => {
+      // "inspection" was a tab before the Inspection feature was removed; a
+      // browser that last had it selected still carries it in localStorage.
+      localStorage.setItem(
+        "roubo-bench-view-state",
+        JSON.stringify({ "proj-1:1": { activeTab: "inspection" } }),
       );
-
-      unmount();
-
-      // Re-render with a project config that has no inspection
-      const projectWithoutInspection = {
-        ...baseProject,
-        config: { ...baseProject.config, inspection: undefined },
-      };
-      mockUseProjects.mockReturnValue({ data: [projectWithoutInspection] } as never);
       renderBench();
 
-      // Inspection tab is gone; should fall back to Components
       expect(screen.queryByRole("tab", { name: /inspection/i })).not.toBeInTheDocument();
       expect(screen.getByRole("tab", { name: /components/i })).toHaveAttribute(
         "aria-selected",
@@ -696,7 +678,6 @@ describe("BenchDetail", () => {
       expect(tabs[0]).toMatch(/testbench/i);
       expect(screen.getByRole("tab", { name: /components/i })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: /terminal/i })).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: /inspection/i })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: /info/i })).toBeInTheDocument();
     });
 

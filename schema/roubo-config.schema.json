@@ -169,17 +169,6 @@
         ]
       }
     },
-    "inspection": {
-      "type": "object",
-      "required": ["framework", "directory", "command"],
-      "additionalProperties": false,
-      "properties": {
-        "framework": { "type": "string" },
-        "directory": { "type": "string" },
-        "command": { "type": "string" },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } }
-      }
-    },
     "benches": {
       "type": "object",
       "required": ["max"],

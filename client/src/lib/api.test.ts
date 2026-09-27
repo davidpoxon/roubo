@@ -34,9 +34,6 @@ import {
   createTerminal,
   fetchTerminals,
   destroyTerminal,
-  startInspection,
-  fetchInspectionRun,
-  abortInspection,
   fetchGitHubProjects,
   fetchProjectGitHubProjects,
   fetchIssuesPage,
@@ -754,57 +751,6 @@ describe("destroyTerminal", () => {
     await destroyTerminal("p1", 1, "sess-1");
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/projects/p1/benches/1/terminals/sess-1",
-      expect.objectContaining({ method: "DELETE" }),
-    );
-  });
-});
-
-describe("startInspection", () => {
-  it("sends POST to /api/projects/:id/benches/:id/inspection", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ status: "running" }));
-    await startInspection("p1", 1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/benches/1/inspection",
-      expect.objectContaining({ method: "POST" }),
-    );
-  });
-
-  it("includes filter in body when provided", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ status: "running" }));
-    await startInspection("p1", 1, "login");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/benches/1/inspection",
-      expect.objectContaining({ body: JSON.stringify({ filter: "login" }) }),
-    );
-  });
-});
-
-describe("fetchInspectionRun", () => {
-  it("appends since param when provided", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ status: "done" }));
-    await fetchInspectionRun("p1", 1, 12345);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/benches/1/inspection?since=12345",
-      expect.objectContaining({}),
-    );
-  });
-
-  it("omits since param when not provided", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ status: "done" }));
-    await fetchInspectionRun("p1", 1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/benches/1/inspection",
-      expect.objectContaining({}),
-    );
-  });
-});
-
-describe("abortInspection", () => {
-  it("sends DELETE to /api/projects/:id/benches/:id/inspection", async () => {
-    mockFetch.mockResolvedValue({ ok: true });
-    await abortInspection("p1", 1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/p1/benches/1/inspection",
       expect.objectContaining({ method: "DELETE" }),
     );
   });

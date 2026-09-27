@@ -13,7 +13,6 @@ import type {
   ToolResult,
   TerminalSession,
   TerminalCreateResponse,
-  InspectionRun,
   NormalizedIssue,
   NormalizedComment,
   PaginatedIssues,
@@ -539,33 +538,6 @@ export function destroyTerminal(
   sessionId: string,
 ): Promise<void> {
   return requestVoid(`/projects/${projectId}/benches/${benchId}/terminals/${sessionId}`, {
-    method: "DELETE",
-  });
-}
-
-// Inspection
-export function startInspection(
-  projectId: string,
-  benchId: number,
-  filter?: string,
-): Promise<InspectionRun> {
-  return request(`/projects/${projectId}/benches/${benchId}/inspection`, {
-    method: "POST",
-    body: JSON.stringify({ filter }),
-  });
-}
-
-export function fetchInspectionRun(
-  projectId: string,
-  benchId: number,
-  since?: number,
-): Promise<InspectionRun> {
-  const params = since !== undefined ? `?since=${since}` : "";
-  return request(`/projects/${projectId}/benches/${benchId}/inspection${params}`);
-}
-
-export function abortInspection(projectId: string, benchId: number): Promise<void> {
-  return requestVoid(`/projects/${projectId}/benches/${benchId}/inspection`, {
     method: "DELETE",
   });
 }

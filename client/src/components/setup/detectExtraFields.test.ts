@@ -20,7 +20,6 @@ describe("detectExtraFields", () => {
       components: {},
       ports: {},
       tools: [],
-      inspection: null,
       benches: { max: 5 },
       jigs: [],
       users: [],
@@ -45,6 +44,15 @@ describe("detectExtraFields", () => {
     expect(detectExtraFields({})).toEqual([]);
   });
 
+  it("does not report the removed inspection key as an extra field", () => {
+    const config = {
+      project: { name: "test" },
+      inspection: { framework: "vitest", directory: ".", command: "npx vitest run" },
+    };
+    expect(detectExtraFields(config)).toEqual([]);
+    expect(KNOWN_TOP_LEVEL_KEYS.has("inspection")).toBe(false);
+  });
+
   it("known keys constant covers all RouboConfig top-level fields", () => {
     const expected = [
       "project",
@@ -52,7 +60,6 @@ describe("detectExtraFields", () => {
       "components",
       "ports",
       "tools",
-      "inspection",
       "benches",
       "jigs",
       "users",

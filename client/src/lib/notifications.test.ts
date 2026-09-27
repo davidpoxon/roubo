@@ -113,7 +113,7 @@ describe("formatNotification", () => {
     "component-error",
     "agent-exited",
   ];
-  const infoTypes: NotificationType[] = ["bench-ready", "inspection-complete"];
+  const infoTypes: NotificationType[] = ["bench-ready"];
 
   for (const type of [...actionNeededTypes, ...infoTypes]) {
     it(`returns title and body for ${type}`, () => {

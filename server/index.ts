@@ -22,7 +22,6 @@ import benchesRouter from "./routes/benches.js";
 import containersRouter from "./routes/containers.js";
 import filesystemRouter from "./routes/filesystem.js";
 import terminalRouter from "./routes/terminal.js";
-import inspectionRouter from "./routes/inspection.js";
 import testbenchRouter from "./routes/testbench.js";
 import gatesRouter from "./routes/gates.js";
 import issuesRouter from "./routes/issues.js";
@@ -105,7 +104,6 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/projects", projectsRouter);
   app.use("/api/projects", benchesRouter);
   app.use("/api/projects", terminalRouter);
-  app.use("/api/projects", inspectionRouter);
   app.use("/api/projects", testbenchRouter);
   app.use("/api/projects", gatesRouter);
   app.use("/api/projects", issuesRouter);

@@ -13,7 +13,6 @@ const ALL_SECTIONS: WizardSection[] = [
   "components",
   "tools",
   "users",
-  "inspection",
   "benches",
   "review",
 ];
@@ -91,7 +90,7 @@ describe("WizardSidebar", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
-  it('shows "opt" label for optional sections (tools, inspection)', () => {
+  it('shows "opt" label for optional sections (tools, users)', () => {
     renderSidebar("project");
     const optLabels = screen.getAllByText("opt");
     expect(optLabels.length).toBeGreaterThanOrEqual(2);

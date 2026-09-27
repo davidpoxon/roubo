@@ -26,7 +26,6 @@ function derivePriority(type: NotificationType): NotificationPriority {
     case "agent-exited":
       return "action-needed";
     case "bench-ready":
-    case "inspection-complete":
       return "info";
   }
 }
