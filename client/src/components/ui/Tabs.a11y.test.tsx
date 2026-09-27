@@ -16,13 +16,13 @@ function Example() {
     <Tabs defaultSelectedKey="components" disabledKeys={["logs"]}>
       <TabList aria-label="Bench views" className="px-4">
         <Tab id="components">Components</Tab>
-        <Tab id="inspections">Inspections</Tab>
+        <Tab id="terminal">Terminal</Tab>
         <Tab id="logs">Logs</Tab>
       </TabList>
       <TabPanel id="components" className="p-2">
         Components content
       </TabPanel>
-      <TabPanel id="inspections">Inspections content</TabPanel>
+      <TabPanel id="terminal">Terminal content</TabPanel>
       <TabPanel id="logs">Logs content</TabPanel>
     </Tabs>
   );

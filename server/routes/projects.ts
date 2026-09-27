@@ -59,7 +59,7 @@ function describeInvalidConfig(parseResult: ReturnType<typeof validateConfigObje
 // directory path and touch it from disk (fs.existsSync + parseConfig / scanRepo),
 // so we cap requests per minute per IP to keep a runaway caller from hammering
 // the filesystem. Applied per-route (not router-wide) because projects.ts shares
-// the /api/projects mount with the bench, terminal, inspection and other routers.
+// the /api/projects mount with the bench, terminal, testbench and other routers.
 // Mirrors the pattern in plugins-github-oauth.ts and satisfies CodeQL
 // js/missing-rate-limiting (#87, #84).
 const scanRateLimiter = rateLimit({
@@ -297,7 +297,7 @@ router.get("/:projectId/issue-types", async (req, res) => {
 // writes roubo.yaml to disk (fs.mkdirSync + atomicWrite), so we cap requests per
 // minute per IP to prevent a runaway caller from saturating disk I/O. Applied
 // per-route (not router-wide) because projects.ts shares the /api/projects mount
-// with the bench, terminal, inspection and other routers. Mirrors the pattern in
+// with the bench, terminal, testbench and other routers. Mirrors the pattern in
 // plugins-github-oauth.ts and satisfies CodeQL js/missing-rate-limiting (#89).
 const saveConfigRateLimiter = rateLimit({
   windowMs: 60_000,
@@ -397,7 +397,7 @@ router.get("/:projectId/config", (req, res) => {
 // atomicWrite), so we cap requests per minute per IP to prevent a runaway caller
 // from saturating disk I/O. Applied per-route (not router-wide) because
 // projects.ts shares the /api/projects mount with the bench, terminal,
-// inspection and other routers. Mirrors the pattern in plugins-github-oauth.ts
+// testbench and other routers. Mirrors the pattern in plugins-github-oauth.ts
 // and satisfies CodeQL js/missing-rate-limiting (GET #91, PUT #93).
 const configRawRateLimiter = rateLimit({
   windowMs: 60_000,

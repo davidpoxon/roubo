@@ -8,7 +8,6 @@ import type { BenchesConfig, Bench } from "@roubo/shared";
 import type { WizardState, WizardAction } from "./wizardReducer";
 import { isWizardSaveDisabled, legacyComponents } from "./wizardReducer";
 import SectionProjectInfo from "./SectionProjectInfo";
-import SectionInspection from "./SectionInspection";
 import ToolChipList from "./ToolChipList";
 import ComponentsList from "./ComponentsList";
 import GuidedYamlToggle, { type SetupMode } from "./GuidedYamlToggle";
@@ -25,7 +24,6 @@ import type { ImpactResult } from "./computeImpact";
 interface Props {
   state: WizardState;
   dispatch: React.Dispatch<WizardAction>;
-  repoPath: string;
   projectId?: string;
   isSaving: boolean;
   saveError?: string;
@@ -64,7 +62,6 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 export default function SetupGuided({
   state,
   dispatch,
-  repoPath,
   projectId,
   isSaving,
   saveError,
@@ -303,25 +300,6 @@ export default function SetupGuided({
                     ports={config.ports ?? {}}
                     components={legacyComponents(config.components)}
                     projectName={projectName}
-                    dispatch={dispatch}
-                  />
-                </section>
-              </SectionCard>
-
-              {/* Inspections */}
-              <SectionCard>
-                <section aria-labelledby="section-inspections">
-                  <SectionHeading>
-                    <span id="section-inspections">Inspections</span>
-                  </SectionHeading>
-                  <SectionInspection
-                    inspection={config.inspection}
-                    portNames={portNames}
-                    componentNames={componentNames}
-                    ports={config.ports ?? {}}
-                    components={legacyComponents(config.components)}
-                    projectName={projectName}
-                    repoPath={repoPath}
                     dispatch={dispatch}
                   />
                 </section>

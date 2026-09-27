@@ -43,8 +43,8 @@ export function parseConfig(repoPath: string): ParseResult {
     };
   }
 
-  coerceEnvValues(raw);
   stripRemovedProjectType(raw);
+  stripRemovedInspection(raw);
   const legacyError = detectLegacyJigKeys(raw);
   if (legacyError) {
     return { valid: false, errors: [legacyError] };
@@ -54,6 +54,7 @@ export function parseConfig(repoPath: string): ParseResult {
 
 export function validateConfigObject(config: unknown): ParseResult {
   stripRemovedProjectType(config);
+  stripRemovedInspection(config);
   const legacyError = detectLegacyJigKeys(config);
   if (legacyError) {
     return { valid: false, errors: [legacyError] };
@@ -73,6 +74,17 @@ function stripRemovedProjectType(raw: unknown): void {
   if (project && typeof project === "object" && "type" in project) {
     delete (project as Record<string, unknown>).type;
   }
+}
+
+/**
+ * The top-level `inspection:` block (a per-bench test command) was removed along
+ * with the feature. Existing roubo.yaml files still carry it, and the strict
+ * schema would reject the now-unknown key, so silently drop it before
+ * validation, the same quiet strip as `project.type` above.
+ */
+function stripRemovedInspection(raw: unknown): void {
+  if (!raw || typeof raw !== "object") return;
+  delete (raw as Record<string, unknown>).inspection;
 }
 
 /**
@@ -293,26 +305,6 @@ export function applyComponentUrlOverrides(
     if (!status?.url) continue;
     ctx.urls ??= {};
     ctx.urls[name] = status.url;
-  }
-}
-
-function coerceEnvValues(raw: unknown): void {
-  if (typeof raw !== "object" || raw === null) return;
-  const config = raw as Record<string, unknown>;
-
-  // Component env vars used to live in inline `env` / `envVars` blocks that core
-  // coerced YAML scalars on. Those fields are gone from the components schema
-  // (#652): a component's env now lives inside its opaque, plugin-validated
-  // `config` block, so any scalar coercion there is the plugin's concern, not
-  // core's. Only `inspection.env` remains a core-owned string map.
-  if (config.inspection && typeof config.inspection === "object") {
-    const inspection = config.inspection as Record<string, unknown>;
-    if (inspection.env && typeof inspection.env === "object") {
-      const map = inspection.env as Record<string, unknown>;
-      for (const k of Object.keys(map)) {
-        if (typeof map[k] !== "string") map[k] = String(map[k]);
-      }
-    }
   }
 }
 

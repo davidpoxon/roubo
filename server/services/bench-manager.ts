@@ -229,7 +229,11 @@ export function initialize() {
       createdAt: ps.createdAt,
       provisioningSteps: [],
       teardownSteps: [],
-      notifications: ps.notifications ?? [],
+      // `inspection-complete` belonged to the removed Inspection feature; drop any
+      // a pre-removal state.json still carries so no orphan type is rehydrated.
+      notifications: (ps.notifications ?? []).filter(
+        (n) => (n.type as string) !== "inspection-complete",
+      ),
       assignedContainers: ps.assignedContainers,
       assignedIssue: ps.assignedIssue,
       baseBranch: ps.baseBranch,

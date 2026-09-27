@@ -18,10 +18,6 @@ tools:
     name: VS Code
     icon: code
     command: code "{{workspace}}"
-inspection:
-  framework: vitest
-  directory: .
-  command: npx vitest run
 benches:
   max: 6
   setup: npm ci

@@ -47,10 +47,6 @@ const notificationMessages: Record<NotificationType, { title: string; body: stri
     body: "An agent session has ended",
   },
   "bench-ready": { title: "Bench ready", body: "A bench is ready to use" },
-  "inspection-complete": {
-    title: "Inspection complete",
-    body: "An inspection run has finished",
-  },
 };
 
 export function formatNotification(notification: BenchNotification): {

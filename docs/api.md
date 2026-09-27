@@ -19,7 +19,7 @@ CORS is open (`Access-Control-Allow-Origin: *`); any browser-based tool on the s
 
 ## Authentication
 
-There is **no authentication on bench, project, component, tool, or inspection routes**. The security model is "localhost is trusted." If you are running Roubo on a multi-user machine, treat the API as you would any other unauthenticated local service.
+There is **no authentication on bench, project, component, or tool routes**. The security model is "localhost is trusted." If you are running Roubo on a multi-user machine, treat the API as you would any other unauthenticated local service.
 
 The only endpoints that involve a credential are GitHub-backed routes (issues, GitHub Projects, PR sync). These read a `GITHUB_TOKEN` from the environment or a token persisted by the in-app OAuth flow at `~/.roubo/auth.json` (mode `0600`). External callers using `curl` typically do not need to touch these.
 
@@ -349,55 +349,6 @@ The app-scoped sibling of the route above, for app-level Settings, which has no 
 
 ---
 
-## Inspection
-
-Inspection runs the project's configured test/QA command (`inspection.command`) inside the bench workspace and captures the output.
-
-### Start an inspection run
-
-```
-POST /api/projects/:projectId/benches/:id/inspection
-Content-Type: application/json
-
-{ "filter": "optional substring filter" }
-```
-
-Returns `201 Created` with `InspectionRun`:
-
-```ts
-{
-  id: string;
-  projectId: string;
-  benchId: number;
-  status: "running" | "passed" | "failed" | "error" | "aborted";
-  filter?: string;
-  output: string[];
-  exitCode: number | null;
-  startedAt: string;
-  completedAt?: string;
-}
-```
-
-### Get current inspection run
-
-```
-GET /api/projects/:projectId/benches/:id/inspection?since=N
-```
-
-Returns the current or most recent `InspectionRun`. The optional `since=N` parameter is a byte offset into `output` and is useful for incremental polling.
-
-`404` if no inspection has ever been started for this bench.
-
-### Abort a running inspection
-
-```
-DELETE /api/projects/:projectId/benches/:id/inspection
-```
-
-`204` if a run was aborted, `404` if no run is in progress.
-
----
-
 ## Jigs
 
 Jigs are sets of agent instructions Roubo can write into the bench workspace. The consumer is whichever AI coding agent the launch resolves to; the format is generic Markdown so any tool can read it.
@@ -616,7 +567,7 @@ Bidirectional terminal session for a bench's workspace. Outside the scope of typ
 
 ## A worked end-to-end example
 
-Spin up a bench, run inspection, tear it down. Assumes Roubo is running locally on port 3333 and a project repo at `/Users/me/code/my-app` already contains a valid `.roubo/roubo.yaml`.
+Spin up a bench, let your AI coding tool work in it, tear it down. Assumes Roubo is running locally on port 3333 and a project repo at `/Users/me/code/my-app` already contains a valid `.roubo/roubo.yaml`.
 
 ```bash
 BASE=http://localhost:3333
@@ -640,18 +591,10 @@ while [ "$(curl -s $BASE/api/projects/my-app/benches/$ID | jq -r .status)" != "a
   sleep 1
 done
 
-# 4. (Optional) Have your AI coding tool work in the worktree
+# 4. Have your AI coding tool work in the worktree
 # The path is $(echo "$BENCH" | jq -r .workspacePath)
 
-# 5. Run inspection and poll for completion
-RUN=$(curl -s -X POST $BASE/api/projects/my-app/benches/$ID/inspection \
-  -H "Content-Type: application/json" -d '{}')
-while [ "$(curl -s $BASE/api/projects/my-app/benches/$ID/inspection | jq -r .status)" = "running" ]; do
-  sleep 1
-done
-curl -s $BASE/api/projects/my-app/benches/$ID/inspection | jq '{status, exitCode}'
-
-# 6. Clear the bench (and remove the worktree)
+# 5. Clear the bench (and remove the worktree)
 curl -s -X DELETE "$BASE/api/projects/my-app/benches/$ID?removeWorkspace=true" > /dev/null
 ```
 

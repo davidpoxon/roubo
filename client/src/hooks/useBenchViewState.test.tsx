@@ -143,9 +143,9 @@ describe("useBenchViewState", () => {
     );
 
     act(() => {
-      result.current.setActiveTab("inspection");
+      result.current.setActiveTab("terminal");
     });
-    expect(result.current.activeTab).toBe("inspection");
+    expect(result.current.activeTab).toBe("terminal");
 
     // Same hook instance, new benchKey: simulates react-router navigating
     // from /benches/1 to /benches/2 while BenchDetail stays mounted.
@@ -159,7 +159,7 @@ describe("useBenchViewState", () => {
 
     // Navigating back restores bench 1's persisted tab.
     rerender({ projectId: "proj", benchId: 1 });
-    expect(result.current.activeTab).toBe("inspection");
+    expect(result.current.activeTab).toBe("terminal");
   });
 
   it("state for different projects does not cross-contaminate", () => {
@@ -167,13 +167,13 @@ describe("useBenchViewState", () => {
     const { result: projB } = renderHook(() => useBenchViewState("proj-b", 1));
 
     act(() => {
-      projA.current.setActiveTab("inspection");
+      projA.current.setActiveTab("terminal");
     });
     act(() => {
       projB.current.setActiveTab("info");
     });
 
-    expect(projA.current.activeTab).toBe("inspection");
+    expect(projA.current.activeTab).toBe("terminal");
     expect(projB.current.activeTab).toBe("info");
   });
 });

@@ -450,7 +450,6 @@ export default function Setup() {
       <SetupGuided
         state={state}
         dispatch={dispatch}
-        repoPath={state.repoPath || repoPath}
         projectId={projectId}
         isSaving={isSaving}
         saveError={saveError}

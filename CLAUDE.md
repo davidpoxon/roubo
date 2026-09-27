@@ -48,7 +48,7 @@ Roubo is tool-agnostic across AI coding agents (Claude Code, Codex, Gemini CLI, 
 
 ## Vocabulary
 
-Never reintroduce the legacy terms. Slot is a **bench**, application is a **project**, service is a **component**, launcher is a **tool**, testing is an **inspection**, prompt is a **jig**, worktree is a **workspace**. Definitions, status labels, and action labels are in [docs/brand.md](docs/brand.md#vocabulary).
+Never reintroduce the legacy terms. Slot is a **bench**, application is a **project**, service is a **component**, launcher is a **tool**, prompt is a **jig**, worktree is a **workspace**. Definitions, status labels, and action labels are in [docs/brand.md](docs/brand.md#vocabulary).
 
 ## Working agreements
 

@@ -6,15 +6,14 @@ This document describes how Roubo is put together: the concepts you'll see in th
 
 Roubo's vocabulary is deliberate; every term carries meaning. See [brand.md](./brand.md) for the full glossary; the essentials are below.
 
-| Term           | What it is                                                                                  |
-| -------------- | ------------------------------------------------------------------------------------------- |
-| **Project**    | A registered repository with a `roubo.yaml` config.                                         |
-| **Bench**      | An isolated dev environment for one project: a git worktree, ports, and running components. |
-| **Component**  | A running part of a bench, typically a database, backend, and frontend.                     |
-| **Tool**       | A quick-open action defined in `roubo.yaml`: open the browser, launch the IDE, run a shell. |
-| **Inspection** | Running quality checks (tests, lints) against the work on a bench.                          |
-| **Jig**        | AI coding agent instructions injected into a bench's workspace.                             |
-| **Workspace**  | The git worktree directory on disk for a specific bench.                                    |
+| Term          | What it is                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| **Project**   | A registered repository with a `roubo.yaml` config.                                         |
+| **Bench**     | An isolated dev environment for one project: a git worktree, ports, and running components. |
+| **Component** | A running part of a bench, typically a database, backend, and frontend.                     |
+| **Tool**      | A quick-open action defined in `roubo.yaml`: open the browser, launch the IDE, run a shell. |
+| **Jig**       | AI coding agent instructions injected into a bench's workspace.                             |
+| **Workspace** | The git worktree directory on disk for a specific bench.                                    |
 
 A project can have multiple benches. Each bench is fully isolated from the others: its own worktree, its own port range, its own database container, its own running processes. This is the whole point of Roubo: you can run several agents (or several streams of your own work) against the same project, in parallel, with no collisions.
 
@@ -138,7 +137,7 @@ Waiting notifications are transient by design and clear themselves as soon as th
 
 Roubo's UI is a React frontend that calls the same REST API any external tool can use. This is intentional: AI coding agents (see [Supported AI coding tools](../README.md#supported-ai-coding-tools)) can self-serve benches by hitting the API directly.
 
-The API is JSON, mounted under `/api/*`, binds to `127.0.0.1` only (port 3333 in the Electron app, 3335 in `npm run dev`), and has no authentication on bench, project, component, tool, or inspection routes. Real-time bench and notification events stream over Server-Sent Events at `GET /api/notifications/stream`; terminal sessions use a WebSocket at `WS /ws/terminal/:sessionId`.
+The API is JSON, mounted under `/api/*`, binds to `127.0.0.1` only (port 3333 in the Electron app, 3335 in `npm run dev`), and has no authentication on bench, project, component, or tool routes. Real-time bench and notification events stream over Server-Sent Events at `GET /api/notifications/stream`; terminal sessions use a WebSocket at `WS /ws/terminal/:sessionId`.
 
 The full endpoint reference, with request and response shapes, error codes, status code matrix, and a worked end-to-end curl example, lives in [docs/api.md](./api.md). The complete route list, including admin-only and UI-helper endpoints, is generated from the source into [docs/routes.md](./routes.md); the handlers themselves live in [`server/routes/`](../server/routes/), and [`client/src/lib/api.ts`](../client/src/lib/api.ts) is the typed client for the surface the UI actually uses.
 

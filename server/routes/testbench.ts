@@ -1,4 +1,4 @@
-// REST surface for the TestBench (#459). Shaped like inspection.ts: thin handlers
+// REST surface for the TestBench (#459). Thin handlers
 // that resolve the project repoPath + bench, validate request bodies with the
 // testbench-contracts zod schemas, derive the spec slug from the bench's
 // focusedSpecPath, then delegate every filesystem write to testbench-store (which
@@ -150,7 +150,7 @@ function resolveTestbench(projectId: string, benchId: number): { rootPath: strin
   return { rootPath, slug };
 }
 
-// Map any thrown error to an HTTP response, mirroring inspection.ts: RouteError /
+// Map any thrown error to an HTTP response: RouteError /
 // BenchError carry a statusCode, MissingPlanError -> 404, UnsafePathError -> 400,
 // everything else -> 500.
 function handleError(res: import("express").Response, err: unknown): void {

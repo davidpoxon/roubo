@@ -101,7 +101,6 @@ export const TC_001_PLAN: TestCasesPlan = {
               id: "TC-001-S6-O2",
               expected: "Standard tabs (Components, Terminal, Info) are also present",
             },
-            { id: "TC-001-S6-O3", expected: "Inspection tab is present if previously configured" },
           ],
         },
         {

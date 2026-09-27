@@ -12,7 +12,6 @@ layout: # Repo shape: single-repo, monorepo, or meta-repo
 components: # The processes and containers a bench runs
 ports: # Port allocation bases per component
 tools: # Quick-open actions in the UI (browser, shell) and agent launch presets
-inspection: # Test/QA command
 benches: # Bench cap, root setup command, auto-clear policy
 jigs: # Optional: default AI coding agent jig and issue-type mappings
 users: # Optional: non-sensitive seed users
@@ -296,28 +295,6 @@ tools:
 
 ---
 
-## `inspection`
-
-The command Roubo runs when you click **Run inspection** on a bench.
-
-```yaml
-inspection:
-  framework: vitest
-  directory: .
-  command: npx vitest run
-  env:
-    CI: "1"
-```
-
-| Field       | Required | Notes                                                         |
-| ----------- | -------- | ------------------------------------------------------------- |
-| `framework` | yes      | Free-form label (`vitest`, `playwright`, `jest`, …). UI only. |
-| `directory` | yes      | Working directory relative to the workspace.                  |
-| `command`   | yes      | The command to run.                                           |
-| `env`       | no       | Extra environment for the command.                            |
-
----
-
 ## `benches` (required)
 
 Bench cap and shared lifecycle settings.
@@ -437,10 +414,6 @@ tools:
     icon: code
     type: shell
     command: code "{{workspace}}"
-inspection:
-  framework: vitest
-  directory: .
-  command: npx vitest run
 benches:
   max: 6
   setup: npm ci

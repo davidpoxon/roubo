@@ -80,7 +80,6 @@ const validConfig: Partial<RouboConfig> = {
 
 describe("SetupGuided", () => {
   const defaultProps = {
-    repoPath: "/repo",
     projectId: "test-project",
     isSaving: false,
     saveError: undefined,
@@ -99,7 +98,7 @@ describe("SetupGuided", () => {
     } as unknown as ReturnType<typeof useSetupHooks.useRawConfig>);
   });
 
-  it("renders all six section headings", () => {
+  it("renders all five section headings", () => {
     const state = makeState(validConfig);
     renderInRouter(<SetupGuided {...defaultProps} state={state} dispatch={vi.fn()} />);
     // Use getAllByText to handle multiple matches; just verify at least one exists
@@ -107,7 +106,6 @@ describe("SetupGuided", () => {
     expect(screen.getAllByText(/^components$/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/bench capacity/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/tools/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/inspections/i).length).toBeGreaterThan(0);
     // "Ports" section heading
     const headings = screen
       .getAllByRole("heading")
@@ -270,12 +268,6 @@ describe("SetupGuided", () => {
     expect(screen.getByText(/add tool/i)).toBeInTheDocument();
   });
 
-  it("shows 'Add inspection' button when no inspection configured", () => {
-    const state = makeState({ ...validConfig, inspection: undefined });
-    renderInRouter(<SetupGuided {...defaultProps} state={state} dispatch={vi.fn()} />);
-    expect(screen.getByText(/add inspection/i)).toBeInTheDocument();
-  });
-
   it("shows validation error when bench max exceeds 99", async () => {
     const dispatch = vi.fn();
     const state = makeState({ ...validConfig, benches: { max: 100 } });
@@ -367,6 +359,5 @@ describe("SetupGuided", () => {
     expect(screen.getAllByText(/identity/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/bench capacity/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/tools/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/inspections/i).length).toBeGreaterThan(0);
   });
 });

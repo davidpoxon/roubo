@@ -121,12 +121,6 @@ describe("createNotification", () => {
     expect(result.priority).toBe("info");
   });
 
-  it("assigns info priority for inspection-complete", () => {
-    const bench = makeBench();
-    const result = createNotification(bench, "inspection-complete");
-    expect(result.priority).toBe("info");
-  });
-
   it("assigns action-needed priority for terminal-waiting", () => {
     const bench = makeBench();
     const result = createNotification(bench, "terminal-waiting", "session-1");
@@ -149,8 +143,8 @@ describe("createNotification", () => {
 
   it("stores metadata on the notification", () => {
     const bench = makeBench();
-    const result = createNotification(bench, "inspection-complete", undefined, { passed: true });
-    expect(result.metadata).toEqual({ passed: true });
+    const result = createNotification(bench, "bench-error", undefined, { step: "setup" });
+    expect(result.metadata).toEqual({ step: "setup" });
   });
 
   it("deduplicates when same type and sourceSessionId exist", () => {

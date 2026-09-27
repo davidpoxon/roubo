@@ -320,23 +320,6 @@ describe("SectionReview", () => {
     expect(screen.getByText("Custom")).toBeDefined();
   });
 
-  it("renders inspection section with details", () => {
-    renderReview(makeStatus(), vi.fn(), {
-      config: {
-        ...baseConfig,
-        inspection: {
-          framework: "jest",
-          directory: "tests/",
-          command: "npm test",
-          env: { NODE_ENV: "test" },
-        },
-      },
-    });
-    expect(screen.getByText("jest")).toBeDefined();
-    expect(screen.getByText("npm test")).toBeDefined();
-    expect(screen.getByText("NODE_ENV")).toBeDefined();
-  });
-
   // FR-070 (WU-057): submodules moved to the plugin Configure modal, so the
   // Review surface only confirms the meta-repo layout type. The alias list
   // is no longer rendered here.

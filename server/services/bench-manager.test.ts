@@ -558,6 +558,34 @@ describe("initialize", () => {
     expect(bench.notifications).toEqual([notification]);
   });
 
+  it("drops persisted notifications of the removed inspection-complete type", () => {
+    const kept: BenchNotification = {
+      id: "n1",
+      type: "bench-ready",
+      priority: "info",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    const legacy = {
+      id: "n2",
+      type: "inspection-complete",
+      priority: "info",
+      metadata: { passed: true },
+      createdAt: "2026-01-01T00:00:00.000Z",
+    } as unknown as BenchNotification;
+    const config = makeConfig();
+    const project = makeProject({ config });
+    const persisted = makePersistedBench({ notifications: [kept, legacy] });
+
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [persisted] });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+
+    benchManager.initialize();
+
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    expect(bench.notifications).toEqual([kept]);
+  });
+
   it("restores injectedJigId from persisted state", () => {
     const config = makeConfig();
     const project = makeProject({ config });

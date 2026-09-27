@@ -449,7 +449,7 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
               "archetype": "control",
               "bindings": {"padding": "space.3", "radius": "radius.0", "color": "color.text-secondary"},
               "state_deltas": {"hover": {"color": "color.text-primary"}, "active": {"background": "color.bg-hover"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}, "disabled": {"opacity": "opacity.disabled"}},
-              "children": [{"name": "label", "archetype": "text", "sample": "Inspections", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.2", "font_weight": "type.weights.1"}}]
+              "children": [{"name": "label", "archetype": "text", "sample": "Terminal", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.2", "font_weight": "type.weights.1"}}]
             }
           ]
         }

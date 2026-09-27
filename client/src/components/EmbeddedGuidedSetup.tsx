@@ -182,7 +182,6 @@ export default function EmbeddedGuidedSetup({ repoPath, onReady, onSaved }: Prop
     <SetupGuided
       state={state}
       dispatch={dispatch}
-      repoPath={repoPath}
       projectId={undefined}
       isSaving={isSaving}
       saveError={error}

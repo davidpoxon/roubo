@@ -256,16 +256,6 @@ export type ToolConfig = {
   jig?: string;
 };
 
-export const InspectionConfigSchema = z
-  .object({
-    framework: z.string(),
-    directory: z.string(),
-    command: z.string(),
-    env: z.record(z.string(), z.string()).optional(),
-  })
-  .strict();
-export type InspectionConfig = z.infer<typeof InspectionConfigSchema>;
-
 export const BenchesConfigSchema = z
   .object({
     max: z.int().min(1).max(99),
@@ -500,7 +490,6 @@ export const RouboConfigSchema = z
     components: ComponentsMapSchema.default({}),
     ports: PortsMapSchema.default({}),
     tools: z.array(ToolConfigSchema).optional(),
-    inspection: InspectionConfigSchema.optional(),
     benches: BenchesConfigSchema,
     jigs: JigsConfigSchema.optional(),
     integration: IntegrationConfigSchema.optional(),

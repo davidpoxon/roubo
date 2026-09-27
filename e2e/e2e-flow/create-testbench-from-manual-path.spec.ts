@@ -216,8 +216,6 @@ test("TC-006: create a TestBench with a valid manual file path", async ({ page, 
   await test.step("TC-006-S4: TestBench is the first (amber) tab and the panel shows the correct spec path (AC3, #459/#466)", async () => {
     await expect(tablist).toBeVisible();
     const tabs = tablist.getByRole("tab");
-    // Inspection is only present when configured; the fixture has no inspection
-    // component, so the expected order is TestBench, Components, Terminal, Info.
     await expect(
       tabs,
       `${OWNING_SLICES.variantTabs}: tab order is TestBench, Components, Terminal, Info`,

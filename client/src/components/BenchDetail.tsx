@@ -57,7 +57,6 @@ import ComponentStatusDot from "./ComponentStatusDot";
 import ToolButtons from "./ToolButtons";
 import LogStream from "./LogStream";
 import TerminalTabs from "./TerminalTabs";
-import InspectionRunner from "./InspectionRunner";
 import AssignContainerModal from "./AssignContainerModal";
 import { stepIcon, stepTextColor, phaseIcon, phaseTextColor } from "../lib/provisioning";
 import Spinner from "./Spinner";
@@ -555,7 +554,6 @@ export default function BenchDetail() {
       )?.[0] ?? null)
     : null;
   const hasDatabaseComponent = !!databaseComponentName;
-  const hasInsepection = !!project?.config?.inspection;
 
   const isTestbench = bench?.variant === "testbench";
 
@@ -570,7 +568,6 @@ export default function BenchDetail() {
     ...(isTestbench ? (["testbench"] as BenchTabId[]) : []),
     "components",
     "terminal",
-    ...(hasInsepection ? (["inspection"] as BenchTabId[]) : []),
     "info",
   ];
   const defaultTab: BenchTabId = availableTabIds[0];
@@ -787,11 +784,6 @@ export default function BenchDetail() {
                 notifications={bench.notifications.filter((n) => n.sourceSessionId)}
               />
             </Tab>
-            {hasInsepection && (
-              <Tab id="inspection" className={tabClassName}>
-                Inspection
-              </Tab>
-            )}
             <Tab id="info" className={tabClassName}>
               Info
             </Tab>
@@ -837,12 +829,6 @@ export default function BenchDetail() {
               notifications={bench.notifications}
             />
           </TabPanel>
-
-          {hasInsepection && (
-            <TabPanel id="inspection" className="outline-none overflow-auto flex-1">
-              <InspectionRunner projectId={projectId} benchId={benchId} />
-            </TabPanel>
-          )}
 
           <TabPanel id="info" className="outline-none overflow-auto flex-1">
             <InfoTab bench={bench} />

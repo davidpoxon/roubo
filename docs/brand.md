@@ -37,18 +37,17 @@ All user-facing text uses the Roubo vocabulary. Internal code should also use th
 
 ### Core Terms
 
-| Term           | Definition                                                                                                                               |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Roubo**      | The product name. Always capitalised as a proper noun. Never "the Roubo"; just "Roubo".                                                  |
-| **Bench**      | An isolated development environment with its own worktree, ports, and running components. The primary workspace unit. Plural: "benches". |
-| **Project**    | A registered repository that defines how benches are configured.                                                                         |
-| **Component**  | A running part of a bench: database, backend, frontend. Components are what you assemble.                                                |
-| **Tool**       | A quick-open action: open the browser, launch the IDE, start a shell. Tools are what you reach for.                                      |
-| **Inspection** | Running quality checks against the work on a bench.                                                                                      |
-| **Jig**        | A set of instructions for an AI coding agent working on a bench. A jig is a detailed drawing that guides the build.                      |
-| **Workspace**  | The git worktree directory on disk for a specific bench.                                                                                 |
+| Term          | Definition                                                                                                                               |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Roubo**     | The product name. Always capitalised as a proper noun. Never "the Roubo"; just "Roubo".                                                  |
+| **Bench**     | An isolated development environment with its own worktree, ports, and running components. The primary workspace unit. Plural: "benches". |
+| **Project**   | A registered repository that defines how benches are configured.                                                                         |
+| **Component** | A running part of a bench: database, backend, frontend. Components are what you assemble.                                                |
+| **Tool**      | A quick-open action: open the browser, launch the IDE, start a shell. Tools are what you reach for.                                      |
+| **Jig**       | A set of instructions for an AI coding agent working on a bench. A jig is a detailed drawing that guides the build.                      |
+| **Workspace** | The git worktree directory on disk for a specific bench.                                                                                 |
 
-**Retired terms.** Never reintroduce the vocabulary these replaced: slot (now bench), application (project), service (component), launcher (tool), testing (inspection), prompt (jig), worktree (workspace).
+**Retired terms.** Never reintroduce the vocabulary these replaced: slot (now bench), application (project), service (component), launcher (tool), prompt (jig), worktree (workspace).
 
 ### Status Labels
 
@@ -223,7 +222,7 @@ Roubo speaks like a skilled colleague: competent, direct, and economical with wo
 
 - **Do** use "Roubo" as a proper noun, capitalised. "Open Roubo", "in Roubo".
 - **Don't** say "the Roubo" or "Roubo app"; just "Roubo".
-- **Do** use the full vocabulary consistently: bench, project, component, tool, inspection, jig.
+- **Do** use the full vocabulary consistently: bench, project, component, tool, jig.
 - **Don't** mix old and new terms. Never "slot" in the UI. Never "service" where "component" is meant.
 - **Don't** over-extend the metaphor. If a woodworking term doesn't immediately make sense, use a plain word instead.
 
