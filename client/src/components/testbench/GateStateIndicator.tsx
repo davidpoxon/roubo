@@ -44,5 +44,3 @@ export default function GateStateIndicator({ status }: { status: GateStatus }) {
     </span>
   );
 }
-
-export { GATE_LABEL };
