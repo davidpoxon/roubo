@@ -2,19 +2,28 @@ import { describe, it, expect } from "vitest";
 import { formatIssueBody, formatComments, buildPluginIssueContext } from "./issue-formatting.js";
 
 describe("buildPluginIssueContext", () => {
-  it("re-hydrates the issue key + title with no number and no network fields", () => {
+  it("re-hydrates the issue key + title + URL with no number and no network fields", () => {
     const ctx = buildPluginIssueContext({
       externalId: "PROJ-3782",
       title: "Add billing dashboard",
+      externalUrl: "https://jira.example.com/browse/PROJ-3782",
     });
     expect(ctx).toEqual({
       issueKey: "PROJ-3782",
       issueTitle: "Add billing dashboard",
       issueBody: "",
-      issueUrl: "",
+      issueUrl: "https://jira.example.com/browse/PROJ-3782",
       comments: "",
     });
     expect(ctx.issueNumber).toBeUndefined();
+  });
+
+  it("falls back to an empty issueUrl when no externalUrl was persisted", () => {
+    const ctx = buildPluginIssueContext({
+      externalId: "PROJ-3782",
+      title: "Add billing dashboard",
+    });
+    expect(ctx.issueUrl).toBe("");
   });
 });
 

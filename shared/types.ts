@@ -2607,6 +2607,13 @@ export interface AssignedIssue {
    * unless functionally required.
    */
   raw?: unknown;
+  /**
+   * The issue's externalUrl at assignment time, saved so a manual relaunch can
+   * re-hydrate {{issueUrl}} without a network call (mirrors title/externalId
+   * above). Optional: benches assigned before this field existed persist
+   * without it, and re-injection then falls back to an empty issueUrl.
+   */
+  externalUrl?: string;
 }
 
 export interface AssignIssueRequest {

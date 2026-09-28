@@ -433,6 +433,7 @@ export async function createBenchAndAssignFromIssue(
     issueType,
     ...(linkedPullRequests ? { linkedPullRequests } : {}),
     ...(persistRaw ? { raw: issue.raw } : {}),
+    ...(issue.externalUrl ? { externalUrl: issue.externalUrl } : {}),
   };
 
   return await finalizeAssignedBench(
@@ -540,6 +541,7 @@ export async function assignIssue(
     issueType,
     ...(linkedPullRequests ? { linkedPullRequests } : {}),
     ...(persistRaw ? { raw: issue.raw } : {}),
+    ...(issue.externalUrl ? { externalUrl: issue.externalUrl } : {}),
   };
 
   // Persist changes. `updateBench` replaces the whole record, so an omitted

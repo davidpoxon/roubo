@@ -183,6 +183,9 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
           issueCtx = {
             issueNumber: bench.assignedIssue.number,
             issueTitle: bench.assignedIssue.title,
+            ...(bench.assignedIssue.externalUrl
+              ? { issueUrl: bench.assignedIssue.externalUrl }
+              : {}),
           };
         }
       }

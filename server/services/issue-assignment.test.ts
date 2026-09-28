@@ -271,6 +271,7 @@ describe("assignIssue", () => {
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
+      externalUrl: "https://github.com/org/repo/issues/42",
     });
     expect(result.bench.branch).toBe("issue-42-fix-login-bug");
     expect(result.terminalSessionId).toBe("term-1");
@@ -431,6 +432,7 @@ describe("assignIssue", () => {
       title: "New issue",
       linkedPullRequests: [],
       issueType: null,
+      externalUrl: "https://github.com/org/repo/issues/42",
     });
   });
 
@@ -712,6 +714,7 @@ describe("assignIssue", () => {
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
+      externalUrl: "https://github.com/org/repo/issues/42",
     });
   });
 
@@ -737,6 +740,7 @@ describe("assignIssue", () => {
       title: "Fix login bug",
       linkedPullRequests: [{ repoFullName: "org/repo", number: 99 }],
       issueType: null,
+      externalUrl: "https://github.com/org/repo/issues/42",
     });
     expect(githubService.fetchLinkedPullRequests).toHaveBeenCalledWith("org/repo", 42);
   });
@@ -793,6 +797,7 @@ describe("assignIssue", () => {
       title: "Add billing dashboard",
       issueType: "Story",
       raw: { key: "PROJ-45" },
+      externalUrl: "https://jira.example.com/browse/PROJ-45",
     });
     expect(result.bench.assignedIssue?.number).toBeUndefined();
     expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
@@ -857,6 +862,7 @@ describe("createBenchAndAssignFromIssue", () => {
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
+      externalUrl: "https://github.com/org/repo/issues/42",
     });
     expect(result.terminalSessionId).toBe("term-1");
     // createBenchAndAssignFromIssue must delegate auto-start orchestration to
@@ -910,6 +916,7 @@ describe("createBenchAndAssignFromIssue", () => {
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
+      externalUrl: "https://github.com/org/repo/issues/42",
     });
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -948,6 +955,7 @@ describe("createBenchAndAssignFromIssue", () => {
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
+      externalUrl: "https://github.com/org/repo/issues/42",
     });
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1244,6 +1252,7 @@ describe("createBenchAndAssignFromIssue", () => {
       title: "Fix login bug",
       linkedPullRequests: [],
       issueType: null,
+      externalUrl: "https://github.com/org/repo/issues/42",
     });
   });
 
@@ -1267,6 +1276,7 @@ describe("createBenchAndAssignFromIssue", () => {
         { repoFullName: "org/other", number: 12 },
       ],
       issueType: null,
+      externalUrl: "https://github.com/org/repo/issues/42",
     });
     expect(githubService.fetchLinkedPullRequests).toHaveBeenCalledWith("org/repo", 42);
   });
@@ -1426,6 +1436,7 @@ describe("createBenchAndAssignFromIssue", () => {
         externalId: "PROJ-45",
         title: "Add billing dashboard",
         issueType: "Story",
+        externalUrl: "https://jira.example.com/browse/PROJ-45",
       });
       // No GitHub-style number for a Jira key.
       expect(bench.assignedIssue.number).toBeUndefined();

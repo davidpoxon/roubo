@@ -17,18 +17,19 @@ export interface IssueContext {
  * Build jig issue context for a non-alert, non-GitHub assigned issue (e.g. a
  * Jira key) from the persisted bench state, without any network call. The
  * integration plugin owns the live issue; at re-injection time we re-hydrate
- * the minimal title + key the bench was assigned with. Mirrors
+ * the minimal title + key + URL the bench was assigned with. Mirrors
  * `buildAlertIssueContext` for alerts.
  */
 export function buildPluginIssueContext(assignedIssue: {
   externalId: string;
   title: string;
+  externalUrl?: string;
 }): IssueContext {
   return {
     issueKey: assignedIssue.externalId,
     issueTitle: assignedIssue.title,
     issueBody: "",
-    issueUrl: "",
+    issueUrl: assignedIssue.externalUrl ?? "",
     comments: "",
   };
 }
