@@ -9,7 +9,7 @@ import {
 } from "react-aria-components";
 import { ChevronDown } from "lucide-react";
 import type { CaseStatus } from "@roubo/shared/testbench-contracts";
-import { STATUS_LABEL } from "./StatusIndicator";
+import { STATUS_LABEL } from "./statusLabels";
 
 // Status override control (#471, FR-010).
 //
