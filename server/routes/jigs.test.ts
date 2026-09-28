@@ -52,9 +52,13 @@ vi.mock("../services/state.js", () => ({
   atomicWrite: vi.fn(),
 }));
 
-vi.mock("../services/issue-formatting.js", () => ({
-  fetchIssueContext: vi.fn(),
-}));
+// Partial mock: only fetchIssueContext (the network call) is stubbed;
+// buildPluginIssueContext stays real so its externalUrl re-hydration is
+// actually exercised, not just assumed.
+vi.mock("../services/issue-formatting.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/issue-formatting.js")>();
+  return { ...actual, fetchIssueContext: vi.fn() };
+});
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
@@ -560,6 +564,60 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
       }),
     );
     warnSpy.mockRestore();
+  });
+
+  it("still fills issueUrl from persisted state when the GitHub fetch fails", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      MOCK_PROJECT_WITH_REPO as unknown as ReturnType<typeof projectRegistry.getProject>,
+    );
+    vi.mocked(benchManager.getBench).mockReturnValue({
+      ...MOCK_BENCH_WITH_ISSUE,
+      assignedIssue: {
+        ...MOCK_BENCH_WITH_ISSUE.assignedIssue,
+        externalUrl: "https://github.com/owner/repo/issues/42",
+      },
+    } as unknown as ReturnType<typeof benchManager.getBench>);
+    vi.mocked(issueFormatting.fetchIssueContext).mockRejectedValue(new Error("GitHub API error"));
+    const warnSpy2 = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await request(app).post("/project-1/benches/1/inject-jig").send({ jigId: "feature-dev" });
+
+    expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+      MOCK_JIG_DETAIL.content,
+      expect.objectContaining({
+        issueNumber: 42,
+        issueTitle: "Fix the widget",
+        issueUrl: "https://github.com/owner/repo/issues/42",
+      }),
+    );
+    warnSpy2.mockRestore();
+  });
+
+  it("resolves {{issueUrl}} from persisted state on a Jira-assigned bench", async () => {
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      MOCK_PROJECT_WITH_REPO as unknown as ReturnType<typeof projectRegistry.getProject>,
+    );
+    vi.mocked(benchManager.getBench).mockReturnValue({
+      ...MOCK_BENCH,
+      assignedIssue: {
+        integrationId: "jira-self-hosted",
+        externalId: "PROJ-45",
+        title: "Add billing dashboard",
+        externalUrl: "https://jira.example.com/browse/PROJ-45",
+      },
+    } as unknown as ReturnType<typeof benchManager.getBench>);
+
+    await request(app).post("/project-1/benches/1/inject-jig").send({ jigId: "feature-dev" });
+
+    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+      MOCK_JIG_DETAIL.content,
+      expect.objectContaining({
+        issueKey: "PROJ-45",
+        issueTitle: "Add billing dashboard",
+        issueUrl: "https://jira.example.com/browse/PROJ-45",
+      }),
+    );
   });
 
   it("does not fetch issue data when bench has no assigned issue", async () => {

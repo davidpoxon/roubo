@@ -40,9 +40,13 @@ vi.mock("../services/state.js", () => ({
   }),
   getProjectPermissions: vi.fn().mockReturnValue({ allow: [], deny: [] }),
 }));
-vi.mock("../services/issue-formatting.js", () => ({
-  fetchIssueContext: vi.fn(),
-}));
+// Partial mock: only fetchIssueContext (the network call) is stubbed;
+// buildPluginIssueContext stays real so its externalUrl re-hydration is
+// actually exercised, not just assumed.
+vi.mock("../services/issue-formatting.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/issue-formatting.js")>();
+  return { ...actual, fetchIssueContext: vi.fn() };
+});
 // Partial mock: the error classes stay real (the route matches on them with
 // `instanceof`), only the launch-agent resolution is stubbed. Its own order
 // semantics are covered in agent-launch-pipeline.test.ts; what matters here is
@@ -429,6 +433,43 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     );
   });
 
+  it("resolves {{issueUrl}} from persisted state on a manual launch against a Jira-assigned bench", async () => {
+    const jiraBench = {
+      ...MOCK_BENCH,
+      assignedIssue: {
+        integrationId: "jira-self-hosted",
+        externalId: "PROJ-45",
+        title: "Add billing dashboard",
+        externalUrl: "https://jira.example.com/browse/PROJ-45",
+      },
+    };
+    vi.mocked(benchManager.getBench).mockReturnValue(
+      jiraBench as unknown as ReturnType<typeof benchManager.getBench>,
+    );
+    vi.mocked(jigManager.getJig).mockReturnValue({
+      ...MOCK_JIG,
+      content: "Action {{issueUrl}}",
+    } as unknown as ReturnType<typeof jigManager.getJig>);
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue(
+      "Action https://jira.example.com/browse/PROJ-45",
+    );
+
+    await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
+
+    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+      "Action {{issueUrl}}",
+      expect.objectContaining({
+        issueKey: "PROJ-45",
+        issueTitle: "Add billing dashboard",
+        issueUrl: "https://jira.example.com/browse/PROJ-45",
+      }),
+    );
+    expect(vi.mocked(terminalService.createAgentSession).mock.calls[0][0]).toMatchObject({
+      initialInput: "Action https://jira.example.com/browse/PROJ-45",
+    });
+  });
+
   it("skips jig injection silently when project has no config", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue({
       config: undefined,
@@ -479,6 +520,34 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       }),
     );
     warnSpy.mockRestore();
+  });
+
+  it("still fills issueUrl from persisted state when the GitHub fetch fails", async () => {
+    vi.mocked(benchManager.getBench).mockReturnValue({
+      ...MOCK_BENCH_WITH_ISSUE,
+      assignedIssue: {
+        ...MOCK_BENCH_WITH_ISSUE.assignedIssue,
+        externalUrl: "https://github.com/owner/repo/issues/42",
+      },
+    } as unknown as ReturnType<typeof benchManager.getBench>);
+    vi.mocked(jigManager.getJig).mockReturnValue(
+      MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
+    );
+    vi.mocked(jigManager.resolveJigContent).mockReturnValue("Resolved");
+    vi.mocked(issueFormatting.fetchIssueContext).mockRejectedValue(new Error("GitHub API error"));
+    const warnSpy2 = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
+
+    expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+      MOCK_JIG.content,
+      expect.objectContaining({
+        issueNumber: 42,
+        issueTitle: "Fix the widget",
+        issueUrl: "https://github.com/owner/repo/issues/42",
+      }),
+    );
+    warnSpy2.mockRestore();
   });
 
   it("wires the agent-exit notification through the plugin launch, not a command name", async () => {

@@ -12,9 +12,13 @@ vi.mock("./config-parser.js", () => ({
   applyComponentUrlOverrides: vi.fn(),
 }));
 
-vi.mock("./issue-formatting.js", () => ({
-  fetchIssueContext: vi.fn(),
-}));
+// Partial mock: only fetchIssueContext (the network call) is stubbed;
+// buildPluginIssueContext stays real so its externalUrl re-hydration is
+// actually exercised, not just assumed.
+vi.mock("./issue-formatting.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./issue-formatting.js")>();
+  return { ...actual, fetchIssueContext: vi.fn() };
+});
 
 import {
   getSampleResolveContext,
@@ -118,6 +122,40 @@ describe("buildPreviewContext", () => {
     expect(ctx.issueNumber).toBe(99);
     expect(ctx.issueTitle).toBe("Real issue");
     expect(ctx.issueBody).toBeUndefined();
+  });
+
+  it("still fills issueUrl from persisted state when fetchIssueContext fails", async () => {
+    vi.mocked(fetchIssueContext).mockRejectedValue(new Error("GitHub unavailable"));
+    const benchWithUrl: Bench = {
+      ...MOCK_BENCH,
+      assignedIssue: {
+        ...MOCK_BENCH.assignedIssue,
+        externalUrl: "https://github.com/org/repo/issues/99",
+      } as Bench["assignedIssue"],
+    };
+
+    const ctx = await buildPreviewContext(MOCK_PROJECT, benchWithUrl);
+
+    expect(ctx.issueUrl).toBe("https://github.com/org/repo/issues/99");
+  });
+
+  it("resolves issueUrl from persisted state on a Jira-assigned bench", async () => {
+    const jiraBench: Bench = {
+      ...MOCK_BENCH,
+      assignedIssue: {
+        integrationId: "jira-self-hosted",
+        externalId: "PROJ-45",
+        title: "Add billing dashboard",
+        externalUrl: "https://jira.example.com/browse/PROJ-45",
+      } as Bench["assignedIssue"],
+    };
+
+    const ctx = await buildPreviewContext(MOCK_PROJECT, jiraBench);
+
+    expect(fetchIssueContext).not.toHaveBeenCalled();
+    expect(ctx.issueKey).toBe("PROJ-45");
+    expect(ctx.issueTitle).toBe("Add billing dashboard");
+    expect(ctx.issueUrl).toBe("https://jira.example.com/browse/PROJ-45");
   });
 
   it("re-hydrates alert-backed benches from persisted raw without fetching", async () => {
