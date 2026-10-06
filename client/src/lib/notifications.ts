@@ -47,6 +47,14 @@ const notificationMessages: Record<NotificationType, { title: string; body: stri
     body: "An agent session has ended",
   },
   "bench-ready": { title: "Bench ready", body: "A bench is ready to use" },
+  "agent-launch-failed": {
+    title: "Agent did not start",
+    body: "A bench was created but its agent session never opened",
+  },
+  "agent-fallback": {
+    title: "Agent changed",
+    body: "The configured default agent was unavailable, so a different one was used",
+  },
 };
 
 export function formatNotification(notification: BenchNotification): {
