@@ -29,9 +29,16 @@ let monitorHandler: ((err: unknown) => void) | undefined;
 function logDir(): string {
   // Tests redirect here directly, the same way plugin-manager's
   // ROUBO_USER_PLUGINS_DIR redirects its own log root.
-  const override = process.env.ROUBO_APP_LOG_DIR;
-  if (override) return override;
-  return path.join(getRouboDir(), "logs");
+  const dir = path.resolve(process.env.ROUBO_APP_LOG_DIR || path.join(getRouboDir(), "logs"));
+  // CodeQL models process.env as a user-controlled source for js/path-injection,
+  // so run the same inline path.relative containment barrier plugin-manager uses
+  // on its env-overridden plugin roots before the value reaches any fs sink. A
+  // throw here is caught by writeLine, like any other log-file failure.
+  const rel = path.relative(path.parse(dir).root, dir);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error(`app-log: log dir "${dir}" is not a valid absolute path; rejecting`);
+  }
+  return dir;
 }
 
 function currentLogPath(): string {
