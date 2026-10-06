@@ -230,6 +230,82 @@ describe("createNotification", () => {
       expect.objectContaining({ injectedJigSource: "issue-type-mapping" }),
     );
   });
+
+  it("assigns action-needed priority for agent-launch-failed", () => {
+    const bench = makeBench();
+    const result = createNotification(bench, "agent-launch-failed");
+    expect(result.priority).toBe("action-needed");
+  });
+
+  it("assigns info priority for agent-fallback", () => {
+    const bench = makeBench();
+    const result = createNotification(bench, "agent-fallback");
+    expect(result.priority).toBe("info");
+  });
+
+  it("stores launchFailure on the notification", () => {
+    const bench = makeBench();
+    const failure = {
+      class: "missing-binary" as const,
+      message: 'Acme Agent could not start: the "acme" CLI was not found.',
+      guidance: "Install the agent CLI. Tried: /usr/bin/acme, /opt/acme/bin/acme.",
+      actions: ["open-plugin-settings" as const, "retry" as const],
+    };
+
+    const result = createNotification(bench, "agent-launch-failed", undefined, undefined, failure);
+
+    expect(result.launchFailure).toEqual(failure);
+  });
+
+  it("redacts captured output in launchFailure before persisting (NFR-004)", () => {
+    const bench = makeBench();
+    const failure = {
+      class: "launch-failure" as const,
+      message: "Acme Agent failed to launch: exited in 0.2s.",
+      actions: [] as const,
+      capturedOutput: "Authorization: Bearer ghp_1234567890abcdef1234567890abcdef1234",
+    };
+
+    const result = createNotification(bench, "agent-launch-failed", undefined, undefined, failure);
+
+    expect(result.launchFailure?.capturedOutput).not.toContain(
+      "ghp_1234567890abcdef1234567890abcdef1234",
+    );
+    expect(result.launchFailure?.capturedOutput).toContain("[REDACTED]");
+  });
+
+  it("overwrites the stale launchFailure on a repeat failure and persists it (dedupe fix)", () => {
+    const bench = makeBench();
+    const first = createNotification(bench, "agent-launch-failed", undefined, undefined, {
+      class: "missing-binary" as const,
+      message: "first failure",
+      actions: [] as const,
+    });
+    vi.clearAllMocks();
+
+    const second = createNotification(bench, "agent-launch-failed", undefined, undefined, {
+      class: "launch-failure" as const,
+      message: "second failure",
+      actions: [] as const,
+    });
+
+    // Previously this branch mutated the in-memory record but never called
+    // updateBench or broadcast, so a second failure's detail never reached
+    // state.json or an already-open dashboard.
+    expect(second).toBe(first);
+    expect(bench.notifications).toHaveLength(1);
+    expect(bench.notifications[0].launchFailure?.message).toBe("second failure");
+    expect(mockUpdateBench).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notifications: expect.arrayContaining([
+          expect.objectContaining({
+            launchFailure: expect.objectContaining({ message: "second failure" }),
+          }),
+        ]),
+      }),
+    );
+    expect(mockBroadcast).toHaveBeenCalled();
+  });
 });
 
 describe("dismissBenchLevelForBench", () => {
@@ -307,6 +383,38 @@ describe("dismissBenchLevelForBench", () => {
 
     expect(bench.notifications).toHaveLength(1);
     expect(bench.notifications[0].id).toBe("n2");
+  });
+
+  // AP-NFR-003: a failed auto-launch has to stay visible until the user
+  // dismisses it explicitly, so opening the bench (which calls this) must not
+  // clear it the way an ordinary bench-level notice is cleared.
+  it("keeps an agent-launch-failed notification when bench-level notifications are dismissed", () => {
+    const bench = makeBench();
+    bench.notifications = [
+      { id: "n1", type: "bench-ready", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
+      {
+        id: "n2",
+        type: "agent-launch-failed",
+        priority: "action-needed",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+
+    dismissBenchLevelForBench(bench);
+
+    expect(bench.notifications).toHaveLength(1);
+    expect(bench.notifications[0].id).toBe("n2");
+  });
+
+  it("clears an agent-fallback notification like any other bench-level notice", () => {
+    const bench = makeBench();
+    bench.notifications = [
+      { id: "n1", type: "agent-fallback", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
+    ];
+
+    dismissBenchLevelForBench(bench);
+
+    expect(bench.notifications).toHaveLength(0);
   });
 });
 describe("dismissOne", () => {

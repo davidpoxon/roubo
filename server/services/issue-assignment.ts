@@ -24,9 +24,11 @@ import { formatIssueBody, formatComments } from "./issue-formatting.js";
 import { ServiceError } from "./service-error.js";
 import { assertBenchOperable } from "./bench-operability.js";
 import { loadSettings } from "./state.js";
-import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
+import { resolveLaunchAgent } from "./agent-launch-pipeline.js";
 import { resolveLaunchTheme } from "./launch-theme.js";
 import { toLaunchPermissions } from "./agent-permissions.js";
+import { AgentLaunchFailureError } from "./agent-launch-failure.js";
+import { createNotification } from "./notification.js";
 
 /**
  * Persist a bench only if it is still tracked in the in-memory map. The
@@ -97,6 +99,7 @@ async function finalizeAssignedBench(
 
   if (bench.status === "error" || bench.status === "clearing") {
     const launchWarning = `The issue was assigned, but the bench's workspace could not be prepared, so no agent session opened${bench.error ? `: ${bench.error}` : "."}`;
+    createNotification(bench, "agent-launch-failed", undefined, { message: launchWarning });
     return { status: "success", bench, terminalSessionId: undefined, launchWarning };
   }
 
@@ -149,7 +152,7 @@ async function finalizeAssignedBench(
 async function buildAndStartAgentSession(
   projectId: string,
   benchId: number,
-  bench: { workspacePath: string; branch: string },
+  bench: Bench,
   projectName: string,
   config: RouboConfig,
   issue: {
@@ -205,12 +208,19 @@ async function buildAndStartAgentSession(
 
   // Same precedence as the terminal route (AP-FR-006): the jig's own binding
   // first, the app-level default agent second.
-  const agentPluginId = resolveLaunchAgentId({
+  const { agentPluginId, fallback } = resolveLaunchAgent({
     ...(jigAgentPluginId !== undefined && { jigAgentPluginId }),
     ...(settings.jigs?.defaultAgentPluginId !== undefined && {
       defaultAgentPluginId: settings.jigs.defaultAgentPluginId,
     }),
   });
+  if (fallback) {
+    createNotification(bench, "agent-fallback", undefined, {
+      from: fallback.from,
+      to: fallback.to,
+      reason: fallback.reason,
+    });
+  }
   if (agentPluginId === undefined) {
     console.warn(
       `No AI coding agent is available, so bench ${benchId} was created without a session ` +
@@ -218,6 +228,7 @@ async function buildAndStartAgentSession(
         `Settings > AI Agents and launch from the bench.`,
     );
     const launchWarning = `${NO_AGENT_RESOLVED_MESSAGE} The issue was assigned, so you can launch an agent from the bench once one is installed.`;
+    createNotification(bench, "agent-launch-failed", undefined, { message: launchWarning });
     return jigId && jigSource ? { jigId, jigSource, launchWarning } : { launchWarning };
   }
 
@@ -242,6 +253,17 @@ async function buildAndStartAgentSession(
     );
     const reason = err instanceof Error && err.message ? err.message : "the agent failed to start";
     const launchWarning = `The issue was assigned, but no agent session opened: ${reason}`;
+    // An AgentLaunchFailureError carries the full structured diagnosis (the
+    // guidance text, including every install-location path tried, the install
+    // or update remedy, and any captured agent output); everything else degrades
+    // to the flattened message above. Either way the failure is recorded on the
+    // bench so the bench detail view can show it even if the toast is missed
+    // (AP-NFR-003, TODO: cite tracking issue once filed).
+    if (err instanceof AgentLaunchFailureError) {
+      createNotification(bench, "agent-launch-failed", undefined, undefined, err.failure);
+    } else {
+      createNotification(bench, "agent-launch-failed", undefined, { message: launchWarning });
+    }
     return jigId && jigSource ? { jigId, jigSource, launchWarning } : { launchWarning };
   }
 

@@ -48,6 +48,7 @@ import {
   AgentVersionGateError,
   prepareAgentLaunch,
   resolveEffectiveAgentConfig,
+  resolveLaunchAgent,
   resolveLaunchAgentId,
 } from "./agent-launch-pipeline.js";
 import { AgentDescriptorError } from "./agent-launch-executor.js";
@@ -296,6 +297,66 @@ describe("resolveLaunchAgentId (AP-FR-006 launch resolution order)", () => {
     pluginManagerMocks.getAgentManifests.mockReturnValue([makeManifest({ id: "claude-code" })]);
 
     expect(resolveLaunchAgentId({ jigAgentPluginId: "codex-cli" })).toBe("codex-cli");
+  });
+
+  // TODO: cite tracking issue once filed. Silently substituting another agent
+  // when the configured default is unavailable used to be invisible: this is
+  // the reason resolveLaunchAgent exists alongside resolveLaunchAgentId.
+  describe("resolveLaunchAgent fallback reporting", () => {
+    it("reports a fallback when the configured default is unavailable and a different agent runs instead", () => {
+      onlyInstalled("claude-code");
+      pluginManagerMocks.getAgentManifests.mockReturnValue([makeManifest({ id: "claude-code" })]);
+
+      const result = resolveLaunchAgent({ defaultAgentPluginId: "codex-cli" });
+
+      expect(result.agentPluginId).toBe("claude-code");
+      expect(result.fallback).toEqual({
+        from: "codex-cli",
+        to: "claude-code",
+        reason: expect.stringContaining('"codex-cli"'),
+      });
+    });
+
+    it("reports no fallback when the jig's own binding resolves (ordinary precedence, not a fallback)", () => {
+      onlyInstalled("claude-code", "codex-cli");
+
+      const result = resolveLaunchAgent({
+        jigAgentPluginId: "claude-code",
+        defaultAgentPluginId: "codex-cli",
+      });
+
+      expect(result.agentPluginId).toBe("claude-code");
+      expect(result.fallback).toBeUndefined();
+    });
+
+    it("reports no fallback when the configured default resolves normally", () => {
+      onlyInstalled("claude-code");
+
+      const result = resolveLaunchAgent({ defaultAgentPluginId: "claude-code" });
+
+      expect(result.agentPluginId).toBe("claude-code");
+      expect(result.fallback).toBeUndefined();
+    });
+
+    it("reports no fallback when no default was ever configured (nothing to fall back from)", () => {
+      onlyInstalled("claude-code");
+      pluginManagerMocks.getAgentManifests.mockReturnValue([makeManifest({ id: "claude-code" })]);
+
+      const result = resolveLaunchAgent({});
+
+      expect(result.agentPluginId).toBe("claude-code");
+      expect(result.fallback).toBeUndefined();
+    });
+
+    it("reports no fallback when resolution still fails (nothing to announce)", () => {
+      onlyInstalled();
+      pluginManagerMocks.getAgentManifests.mockReturnValue([]);
+
+      const result = resolveLaunchAgent({ defaultAgentPluginId: "codex-cli" });
+
+      expect(result.agentPluginId).toBeUndefined();
+      expect(result.fallback).toBeUndefined();
+    });
   });
 });
 

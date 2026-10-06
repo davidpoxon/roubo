@@ -79,6 +79,55 @@ describe("AgentLaunchFailurePanel (AP-TC-075, AP-TC-077)", () => {
   });
 });
 
+// AP-NFR-003: the same structured failure also has to render on the bench
+// detail view, where the failure is recorded on the bench rather than a live
+// session, so it needs its own testid and a dismiss control (TODO: cite
+// tracking issue once filed).
+describe("AgentLaunchFailurePanel inline variant", () => {
+  function inlinePanel(onDismiss?: () => void) {
+    const failure: AgentLaunchFailure = {
+      class: "missing-binary",
+      message: 'Acme Agent could not start: the "acme" CLI was not found.',
+      guidance: "Install the agent CLI. Tried: /usr/bin/acme, /opt/acme/bin/acme.",
+      actions: ["open-plugin-settings"],
+    };
+    return render(
+      <MemoryRouter>
+        <AgentLaunchFailurePanel
+          failure={failure}
+          variant="inline"
+          {...(onDismiss !== undefined && { onDismiss })}
+        />
+      </MemoryRouter>,
+    );
+  }
+
+  it("uses a distinct testid so it can coexist with the overlay panel in the DOM", () => {
+    inlinePanel();
+    expect(screen.getByTestId("agent-launch-failure-inline")).toBeTruthy();
+    expect(screen.queryByTestId("agent-launch-failure")).toBeNull();
+  });
+
+  it("renders the guidance, including every path tried", () => {
+    inlinePanel();
+    expect(screen.getByRole("alert")).toHaveTextContent("Tried: /usr/bin/acme, /opt/acme/bin/acme");
+  });
+
+  it("shows no dismiss control when onDismiss is not provided", () => {
+    inlinePanel();
+    expect(screen.queryByTestId("agent-launch-failure-dismiss")).toBeNull();
+  });
+
+  it("calls onDismiss when the dismiss control is pressed", async () => {
+    const onDismiss = vi.fn();
+    inlinePanel(onDismiss);
+
+    await userEvent.click(screen.getByTestId("agent-launch-failure-dismiss"));
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+});
+
 // APCC-NFR-003: the install or update step the agent plugin declares, offered as a
 // command to copy and a link, so APCC-TC-036 and APCC-TC-054 S001-O03 hold on
 // the surface the user actually sees.

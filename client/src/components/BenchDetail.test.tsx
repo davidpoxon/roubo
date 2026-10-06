@@ -106,6 +106,7 @@ import {
   useStartComponent,
   useStopComponent,
   useDismissBenchNotifications,
+  useDismissNotification,
 } from "../hooks/useBenches";
 import { useProjects } from "../hooks/useProjects";
 import { useProjectIntegration } from "../hooks/useProjectIntegration";
@@ -166,6 +167,7 @@ beforeEach(() => {
   vi.mocked(useStartComponent).mockReturnValue(makeMutation());
   vi.mocked(useStopComponent).mockReturnValue(makeMutation());
   vi.mocked(useDismissBenchNotifications).mockReturnValue(makeMutation());
+  vi.mocked(useDismissNotification).mockReturnValue(makeMutation());
   mockUseUnassignContainer.mockReturnValue(makeMutation());
   vi.mocked(usePlugins).mockReturnValue({
     data: { hostApiVersion: "1.0.0", plugins: [] },
@@ -363,6 +365,102 @@ describe("BenchDetail", () => {
     expect(screen.getByRole("button", { name: /cleanup & retry/i })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /show more/i }));
     expect(screen.getByRole("button", { name: /cleanup & retry/i })).toBeInTheDocument();
+  });
+
+  // AP-NFR-003: a failed auto-launch must stay visible on the bench until the
+  // user dismisses it, including the paths the resolver tried (TODO: cite
+  // tracking issue once filed).
+  it("renders the structured launch failure, including every path tried", () => {
+    renderBench({
+      ...baseBench,
+      notifications: [
+        {
+          id: "n1",
+          type: "agent-launch-failed",
+          priority: "action-needed",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          launchFailure: {
+            class: "missing-binary",
+            message: 'Acme Agent could not start: the "acme" CLI was not found.',
+            guidance: "Install the agent CLI. Tried: /usr/bin/acme, /opt/acme/bin/acme.",
+            actions: ["open-plugin-settings"],
+          },
+        },
+      ],
+    } as never);
+
+    const panel = screen.getByTestId("agent-launch-failure-inline");
+    expect(panel).toHaveTextContent('the "acme" CLI was not found');
+    expect(panel).toHaveTextContent("Tried: /usr/bin/acme, /opt/acme/bin/acme");
+  });
+
+  it("dismisses the structured launch failure notification", async () => {
+    const dismissNotification = vi.fn();
+    vi.mocked(useDismissNotification).mockReturnValue({
+      mutate: dismissNotification,
+      isPending: false,
+    } as never);
+    renderBench({
+      ...baseBench,
+      notifications: [
+        {
+          id: "launch-failed-1",
+          type: "agent-launch-failed",
+          priority: "action-needed",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          launchFailure: {
+            class: "missing-binary",
+            message: 'Acme Agent could not start: the "acme" CLI was not found.',
+            actions: [],
+          },
+        },
+      ],
+    } as never);
+
+    await userEvent.click(screen.getByTestId("agent-launch-failure-dismiss"));
+
+    expect(dismissNotification).toHaveBeenCalledWith({
+      projectId: "proj-1",
+      benchId: 1,
+      notificationId: "launch-failed-1",
+    });
+  });
+
+  it("renders a plain message and dismiss control for a launch failure with no structured detail", async () => {
+    const dismissNotification = vi.fn();
+    vi.mocked(useDismissNotification).mockReturnValue({
+      mutate: dismissNotification,
+      isPending: false,
+    } as never);
+    renderBench({
+      ...baseBench,
+      notifications: [
+        {
+          id: "launch-failed-2",
+          type: "agent-launch-failed",
+          priority: "action-needed",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          metadata: { message: "No AI coding agent is available to launch." },
+        },
+      ],
+    } as never);
+
+    expect(screen.getByText("No AI coding agent is available to launch.")).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-launch-failure-inline")).toBeNull();
+
+    await userEvent.click(screen.getByTestId("agent-launch-failed-dismiss"));
+
+    expect(dismissNotification).toHaveBeenCalledWith({
+      projectId: "proj-1",
+      benchId: 1,
+      notificationId: "launch-failed-2",
+    });
+  });
+
+  it("renders nothing extra when the bench has no agent-launch-failed notification", () => {
+    renderBench();
+    expect(screen.queryByTestId("agent-launch-failure-inline")).toBeNull();
+    expect(screen.queryByTestId("agent-launch-failed-dismiss")).toBeNull();
   });
 
   it("recollapses when the error string changes after being expanded", async () => {
