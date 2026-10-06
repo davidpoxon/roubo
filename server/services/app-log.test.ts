@@ -93,6 +93,18 @@ describe("installAppLogging", () => {
     expect(currentLog()).toContain("fresh line after rotation");
   });
 
+  it("counts an existing current.log from an earlier run toward rotation", () => {
+    // A previous launch left the log just under the threshold; a fresh process
+    // must rotate on its first write past it rather than start counting at zero.
+    fs.writeFileSync(path.join(dir, "current.log"), "x".repeat(5 * 1024 * 1024 - 10));
+    installAppLogging();
+
+    console.warn("first line of a new run");
+
+    expect(fs.existsSync(path.join(dir, "previous.log"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "current.log"))).toBe(false);
+  });
+
   it("observes an uncaught exception without changing crash behaviour", () => {
     installAppLogging();
     const err = new Error("simulated crash");

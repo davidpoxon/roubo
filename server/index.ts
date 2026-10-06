@@ -51,8 +51,8 @@ import { resolveClientDist } from "./clientDist.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Re-exported so electron/src/bootstrap.ts can install logging as soon as it
-// imports this module, before startServer runs (the bootstrap failure path
-// never reaches startServer at all).
+// imports this module, before startServer runs, so a startServer failure is
+// logged to the file too.
 export { installAppLogging } from "./services/app-log.js";
 
 export interface StartOptions {

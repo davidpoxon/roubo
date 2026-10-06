@@ -20,11 +20,13 @@ export const WAITING_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set
 ]);
 
 // Bench-level notification types that survive dismissBenchLevelForBench (AP-NFR-003,
-// TODO: cite tracking issue once filed). A failed auto-launch has to stay visible until
-// the user explicitly dismisses it; opening the bench must not clear it the way an
+// TODO: cite tracking issue once filed). A failed auto-launch, and a launch that fell
+// back to an agent other than the configured default, have to stay visible until the
+// user explicitly dismisses them; opening the bench must not clear them the way an
 // ordinary bench-level notice is cleared.
 const STICKY_BENCH_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
   "agent-launch-failed",
+  "agent-fallback",
 ]);
 
 function derivePriority(type: NotificationType): NotificationPriority {
@@ -50,26 +52,11 @@ function persistBench(bench: Bench): void {
   // `updateBench` is a no-op for an absent record anyway; this just avoids the
   // pointless load/save.
   if (!benchManager.isBenchLive(bench.projectId, bench.id)) return;
-  stateService.updateBench({
-    id: bench.id,
-    projectId: bench.projectId,
-    branch: bench.branch,
-    workspacePath: bench.workspacePath,
-    ports: bench.ports,
-    createdAt: bench.createdAt,
-    assignedContainers: bench.assignedContainers,
-    assignedIssue: bench.assignedIssue,
-    notifications: bench.notifications,
-    baseBranch: bench.baseBranch,
-    baseCommit: bench.baseCommit,
-    injectedJigId: bench.injectedJigId,
-    injectedJigSource: bench.injectedJigSource,
-    // updateBench replaces the whole record, so an omitted flag is erased from
-    // state.json and hydrates back as `true` (#997). A bench-error notification
-    // fires on exactly the failed-setup path that has to stay retryable, so
-    // dropping it here would make a failed `benches.setup` look complete.
-    benchSetupComplete: bench.benchSetupComplete,
-  });
+  // updateBench replaces the whole record, so persist through the one complete
+  // projection: a hand-listed subset here erased every field it forgot (variant,
+  // focusedSpecPath, componentSetupState, componentUrls, and before #997
+  // benchSetupComplete) on the next notification write.
+  stateService.updateBench(stateService.toPersistedBench(bench));
 }
 
 export function createNotification(
@@ -90,20 +77,17 @@ export function createNotification(
     (n) => n.type === type && n.sourceSessionId === sourceSessionId,
   );
   if (existing) {
-    let changed = false;
-    if (metadata) {
-      existing.metadata = metadata;
-      changed = true;
-    }
-    if (redactedFailure) {
-      existing.launchFailure = redactedFailure;
-      changed = true;
-    }
-    // A repeat launch failure on the same bench must overwrite the stale guidance
-    // and paths tried, not just return the first one silently. Without this the
-    // dedupe branch below updated the in-memory record but never persisted or
-    // broadcast it, so a second failure's detail never reached state.json or an
-    // already-open dashboard.
+    // A repeat that carries a payload replaces the whole payload, so a later
+    // failure with only a message does not keep showing an earlier failure's
+    // structured guidance. It persists and broadcasts only when the payload
+    // actually differs: agent-waiting repeats on every idle tick with the same
+    // label, and must not turn each tick into a state.json write.
+    if (metadata === undefined && redactedFailure === undefined) return existing;
+    const changed =
+      JSON.stringify(existing.metadata) !== JSON.stringify(metadata) ||
+      JSON.stringify(existing.launchFailure) !== JSON.stringify(redactedFailure);
+    existing.metadata = metadata;
+    existing.launchFailure = redactedFailure;
     if (changed) {
       persistBench(bench);
       sseService.broadcast({

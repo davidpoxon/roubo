@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("./state.js", () => ({
+vi.mock("./state.js", async (importOriginal) => ({
   updateBench: vi.fn(),
+  toPersistedBench: (await importOriginal<typeof import("./state.js")>()).toPersistedBench,
 }));
 
 vi.mock("./sse.js", () => ({
@@ -306,6 +307,51 @@ describe("createNotification", () => {
     );
     expect(mockBroadcast).toHaveBeenCalled();
   });
+
+  it("clears a stale launchFailure when a repeat carries only a message", () => {
+    const bench = makeBench();
+    createNotification(bench, "agent-launch-failed", undefined, undefined, {
+      class: "missing-binary" as const,
+      message: "structured failure",
+      actions: [] as const,
+    });
+
+    createNotification(bench, "agent-launch-failed", undefined, { message: "no agent resolved" });
+
+    expect(bench.notifications).toHaveLength(1);
+    expect(bench.notifications[0].launchFailure).toBeUndefined();
+    expect(bench.notifications[0].metadata).toEqual({ message: "no agent resolved" });
+  });
+
+  it("does not persist or broadcast a repeat whose payload is unchanged", () => {
+    // terminal.ts repeats agent-waiting with the same label on every idle tick.
+    const bench = makeBench();
+    createNotification(bench, "agent-waiting", "s1", { label: "Claude" });
+    vi.clearAllMocks();
+
+    createNotification(bench, "agent-waiting", "s1", { label: "Claude" });
+
+    expect(mockUpdateBench).not.toHaveBeenCalled();
+    expect(mockBroadcast).not.toHaveBeenCalled();
+  });
+
+  it("persists the full bench record on a repeat, not a hand-listed subset", () => {
+    // updateBench replaces the whole record, so any field left out of the write
+    // is erased from state.json.
+    const bench = makeBench({ variant: "testbench", focusedSpecPath: "specs/a" });
+    createNotification(bench, "agent-waiting", "s1", { label: "first" });
+    vi.clearAllMocks();
+
+    createNotification(bench, "agent-waiting", "s1", { label: "second" });
+
+    expect(mockUpdateBench).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: "testbench",
+        focusedSpecPath: "specs/a",
+        componentSetupState: { backend: true },
+      }),
+    );
+  });
 });
 
 describe("dismissBenchLevelForBench", () => {
@@ -406,7 +452,7 @@ describe("dismissBenchLevelForBench", () => {
     expect(bench.notifications[0].id).toBe("n2");
   });
 
-  it("clears an agent-fallback notification like any other bench-level notice", () => {
+  it("keeps an agent-fallback notification, which is sticky until dismissed explicitly", () => {
     const bench = makeBench();
     bench.notifications = [
       { id: "n1", type: "agent-fallback", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
@@ -414,7 +460,7 @@ describe("dismissBenchLevelForBench", () => {
 
     dismissBenchLevelForBench(bench);
 
-    expect(bench.notifications).toHaveLength(0);
+    expect(bench.notifications.map((n) => n.id)).toEqual(["n1"]);
   });
 });
 describe("dismissOne", () => {

@@ -561,6 +561,16 @@ export default function BenchDetail() {
       ? launchFailedNotification.metadata.message
       : undefined;
 
+  // Equally sticky: the launch ran a different agent than the configured default.
+  const fallbackNotification = bench?.notifications.find((n) => n.type === "agent-fallback");
+  const fallbackMeta = fallbackNotification?.metadata;
+  const fallbackMessage = fallbackNotification
+    ? typeof fallbackMeta?.from === "string" && typeof fallbackMeta.to === "string"
+      ? `Started ${fallbackMeta.to} instead of the default agent ${fallbackMeta.from}` +
+        (typeof fallbackMeta.reason === "string" ? `: ${fallbackMeta.reason}` : ".")
+      : "Started a different agent than the configured default."
+    : undefined;
+
   // Detect if this project has a database component
   const databaseComponentName = project?.config
     ? (Object.entries(project.config.components).find(
@@ -769,8 +779,9 @@ export default function BenchDetail() {
         </div>
       )}
 
-      {!headerCollapsed &&
-        launchFailedNotification &&
+      {/* Sticky notices stay visible with the header collapsed: each must be
+          dismissed explicitly, so hiding it would hide the only record. */}
+      {launchFailedNotification &&
         (launchFailedNotification.launchFailure ? (
           <AgentLaunchFailurePanel
             variant="inline"
@@ -804,6 +815,29 @@ export default function BenchDetail() {
             </Button>
           </div>
         ))}
+
+      {fallbackNotification && (
+        <div
+          data-testid="agent-fallback-notice"
+          className="mb-6 flex items-start gap-2.5 rounded-lg border border-accent-border bg-accent-muted px-4 py-3.5"
+        >
+          <p className="min-w-0 flex-1 text-13 text-accent-text">{fallbackMessage}</p>
+          <Button
+            onPress={() =>
+              dismissNotification({
+                projectId,
+                benchId,
+                notificationId: fallbackNotification.id,
+              })
+            }
+            aria-label="Dismiss"
+            data-testid="agent-fallback-dismiss"
+            className="shrink-0 p-1 rounded-control text-accent-text hover:bg-bg-surface active:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          >
+            <X size={16} aria-hidden="true" />
+          </Button>
+        </div>
+      )}
 
       {/* Collapsing the header hides only the detail metadata above the tabs (gated
           on `!headerCollapsed` further up); the Tabs always stay visible so the

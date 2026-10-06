@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, renameSync } from "node:fs";
+import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 import { getRouboDir } from "./state.js";
 import { redactSecrets } from "./log-redaction.js";
@@ -79,11 +79,22 @@ function rotateIfNeeded(addedBytes: number): void {
   }
 }
 
+function existingLogBytes(): number {
+  try {
+    return statSync(currentLogPath()).size;
+  } catch {
+    return 0;
+  }
+}
+
 function writeLine(line: string): void {
   try {
     if (!dirEnsured) {
       mkdirSync(logDir(), { recursive: true });
       dirEnsured = true;
+      // Count what earlier runs already wrote, or a log that each run leaves
+      // under the threshold would grow across restarts without ever rotating.
+      logBytes = existingLogBytes();
     }
     appendFileSync(currentLogPath(), line);
     rotateIfNeeded(Buffer.byteLength(line, "utf8"));

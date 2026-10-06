@@ -463,6 +463,65 @@ describe("BenchDetail", () => {
     expect(screen.queryByTestId("agent-launch-failed-dismiss")).toBeNull();
   });
 
+  it("announces an agent fallback with its from, to and reason, and dismisses it", async () => {
+    const dismissNotification = vi.fn();
+    vi.mocked(useDismissNotification).mockReturnValue({
+      mutate: dismissNotification,
+      isPending: false,
+    } as never);
+    renderBench({
+      ...baseBench,
+      notifications: [
+        {
+          id: "fallback-1",
+          type: "agent-fallback",
+          priority: "info",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          metadata: { from: "codex", to: "claude-code", reason: "codex is not installed" },
+        },
+      ],
+    } as never);
+
+    expect(screen.getByTestId("agent-fallback-notice")).toHaveTextContent(
+      "Started claude-code instead of the default agent codex: codex is not installed",
+    );
+
+    await userEvent.click(screen.getByTestId("agent-fallback-dismiss"));
+
+    expect(dismissNotification).toHaveBeenCalledWith({
+      projectId: "proj-1",
+      benchId: 1,
+      notificationId: "fallback-1",
+    });
+  });
+
+  it("keeps sticky launch notices visible when the header is collapsed", async () => {
+    renderBench({
+      ...baseBench,
+      notifications: [
+        {
+          id: "launch-failed-3",
+          type: "agent-launch-failed",
+          priority: "action-needed",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          metadata: { message: "No AI coding agent is available to launch." },
+        },
+        {
+          id: "fallback-2",
+          type: "agent-fallback",
+          priority: "info",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          metadata: { from: "codex", to: "claude-code" },
+        },
+      ],
+    } as never);
+
+    await userEvent.click(screen.getByRole("button", { name: /collapse bench header/i }));
+
+    expect(screen.getByText("No AI coding agent is available to launch.")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-fallback-notice")).toBeInTheDocument();
+  });
+
   it("recollapses when the error string changes after being expanded", async () => {
     const firstError = "x".repeat(500);
     const secondError = "y".repeat(500);

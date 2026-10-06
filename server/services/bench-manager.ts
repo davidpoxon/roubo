@@ -1571,10 +1571,9 @@ async function runTeardownBackground(
       leftoverBranch,
       retryable: true,
     });
-    // createNotification short-circuits on an existing bench-error of the same
-    // type, so on a repeat failure it updates the metadata in memory but neither
-    // persists nor broadcasts. Do both explicitly so a retry's refreshed leftover
-    // report still reaches state.json and the client.
+    // createNotification persists and broadcasts a repeat bench-error only when
+    // its metadata changed, and never broadcasts the bench status. Write and
+    // broadcast explicitly so a retry always reaches state.json and the client.
     stateService.updateBench(stateService.toPersistedBench(bench));
     sseService.broadcastBenchStatus(bench);
   }
