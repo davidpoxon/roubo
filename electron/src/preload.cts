@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld("roubo", {
   setBadgeCount: (count: number): void => {
     ipcRenderer.send("set-badge-count", count);
   },
+  writeClipboard: (text: string): Promise<boolean> =>
+    ipcRenderer.invoke("clipboard-write-text", text) as Promise<boolean>,
   showNotification: (req: { title: string; body: string; routeTo?: string }): void => {
     ipcRenderer.send("show-notification", req);
   },

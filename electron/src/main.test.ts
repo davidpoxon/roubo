@@ -47,6 +47,7 @@ vi.mock("electron", () => ({
     setApplicationMenu: vi.fn(),
   },
   shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
+  clipboard: { writeText: vi.fn() },
 }));
 
 vi.mock("update-electron-app", () => ({ updateElectronApp: vi.fn() }));
@@ -54,7 +55,7 @@ vi.mock("./bootstrap.js", () => ({ resolveBootstrap: vi.fn() }));
 vi.mock("./menu.js", () => ({ installApplicationMenu: vi.fn() }));
 vi.mock("./shutdown.js", () => ({ shutdownWithTimeout: vi.fn() }));
 
-import { app, dialog, shell, Notification } from "electron";
+import { app, clipboard, dialog, shell, Notification } from "electron";
 import {
   windowOpenHandler,
   handleDeepLink,
@@ -63,6 +64,8 @@ import {
   setIsReady,
   handleSetBadgeCount,
   handleShowNotification,
+  handleClipboardWriteText,
+  CLIPBOARD_WRITE_LIMIT,
   PRELOAD_FILENAME,
 } from "./main.js";
 
@@ -359,6 +362,42 @@ describe("handleSetBadgeCount", () => {
     });
     setWin(null);
     expect(() => handleSetBadgeCount(1)).not.toThrow();
+  });
+});
+
+describe("handleClipboardWriteText", () => {
+  beforeEach(() => {
+    vi.mocked(clipboard.writeText).mockClear();
+  });
+
+  it("writes a non-empty string and returns true", () => {
+    const result = handleClipboardWriteText("hello");
+    expect(result).toBe(true);
+    expect(clipboard.writeText).toHaveBeenCalledWith("hello");
+  });
+
+  it("returns false without writing for a non-string", () => {
+    expect(handleClipboardWriteText(42)).toBe(false);
+    expect(handleClipboardWriteText(null)).toBe(false);
+    expect(handleClipboardWriteText(undefined)).toBe(false);
+    expect(clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it("returns false without writing for an empty string", () => {
+    expect(handleClipboardWriteText("")).toBe(false);
+    expect(clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it("returns false without writing for text over the size limit", () => {
+    const tooLong = "x".repeat(CLIPBOARD_WRITE_LIMIT + 1);
+    expect(handleClipboardWriteText(tooLong)).toBe(false);
+    expect(clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  it("writes text exactly at the size limit", () => {
+    const atLimit = "x".repeat(CLIPBOARD_WRITE_LIMIT);
+    expect(handleClipboardWriteText(atLimit)).toBe(true);
+    expect(clipboard.writeText).toHaveBeenCalledWith(atLimit);
   });
 });
 

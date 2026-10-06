@@ -133,6 +133,26 @@ There is no exception. Roubo removed its own built-in agent launch path in #1114
 
 Waiting notifications are transient by design and clear themselves as soon as the premise stops holding: fresh PTY output dismisses them (the session resumed work), as does typing into the session (you engaged with it). Exited notifications are sticky and stay until dismissed, because a process does not un-exit.
 
+## Terminal clipboard and links
+
+A bench terminal is xterm.js, bridged over a WebSocket to a PTY on the server; the byte path between
+them does not inspect or filter anything a process writes. Two features need the Electron host to
+honour sequences xterm itself only parses:
+
+An agent copies by writing an `OSC 52` clipboard sequence. Roubo registers a write-only handler for
+it, routed through Electron's main process so a write still reaches the clipboard when the window is
+in the background (`navigator.clipboard.writeText` otherwise rejects on an unfocused document). A
+read query (`OSC 52 ; c ; ?`) is recognised and never answered, so a bench cannot read back whatever
+the user last copied on the host; in the browser-served client, where there is no Electron bridge,
+writes fall back to `navigator.clipboard` and reads are equally unimplemented.
+
+An agent TUI that enables mouse reporting makes xterm route click-drag to the program instead of
+selecting. The modifier that overrides this is Shift off macOS and Option on macOS; once a selection
+exists, the platform copy shortcut (`Cmd+C` or the Electron Edit menu) copies it as normal.
+
+Links render from plain text matching a URL pattern, opened in the system browser rather than a new
+Electron window.
+
 ## API
 
 Roubo's UI is a React frontend that calls the same REST API any external tool can use. This is intentional: AI coding agents (see [Supported AI coding tools](../README.md#supported-ai-coding-tools)) can self-serve benches by hitting the API directly.

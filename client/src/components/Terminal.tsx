@@ -8,6 +8,8 @@ import { useTerminalConnection } from "../hooks/useTerminalConnection";
 import ReconnectBanner from "./ReconnectBanner";
 import WaitingBanner from "./WaitingBanner";
 import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
+import { parseOsc52 } from "../lib/osc52";
+import { writeClipboard } from "../lib/clipboard";
 
 // Every colour is a DESIGN.md terminal role. design-tokens/semantic-dark.css
 // switches each variable under `.dark`, but xterm parses its theme colours
@@ -122,14 +124,44 @@ export default function Terminal({
       minimumContrastRatio: 4.5,
       scrollback: 5000,
       allowProposedApi: true,
+      // An agent TUI turns on mouse reporting (DECSET ?1000/?1002/?1006),
+      // after which xterm routes click-drag to the program instead of
+      // selecting. Off macOS, Shift-drag always overrides that; on macOS the
+      // override is Option-drag, and xterm gates it behind this option, which
+      // defaults to false. Left at the default there is no modifier at all
+      // that selects text in such a pane.
+      macOptionClickForcesSelection: true,
     });
 
     const fit = new FitAddon();
-    const webLinks = new WebLinksAddon();
+    // The default handler calls `window.open()` with no arguments, then
+    // assigns `location.href`. Electron's windowOpenHandler only resolves
+    // `about:blank` (what a no-arg window.open produces) to a deny, so the
+    // new window never navigates: links render but are never clickable.
+    // Passing the real URL up front lets the host route it to the system
+    // browser instead.
+    const webLinks = new WebLinksAddon((_event, uri) => {
+      window.open(uri, "_blank", "noopener,noreferrer");
+    });
     term.loadAddon(fit);
     term.loadAddon(webLinks);
 
     term.open(containerRef.current);
+
+    // xterm's core registers OSC handlers for 0, 1, 2, 4, 8, 10-12, 104 and
+    // 110-112, but not 52, so an agent's `OSC 52 ; c ; <base64>` clipboard
+    // write was consumed by the OSC state machine and dropped: the agent
+    // reported a successful copy and nothing ever reached the clipboard.
+    //
+    // The callback is deliberately synchronous. xterm honours a returned
+    // promise by suspending its parser until the promise settles, so awaiting
+    // the clipboard round trip here would stall every following byte of PTY
+    // output behind an IPC call.
+    const oscDisposable = term.parser.registerOscHandler(52, (payload) => {
+      const parsed = parseOsc52(payload);
+      if (parsed.kind === "write") void writeClipboard(parsed.text);
+      return parsed.kind !== "unhandled";
+    });
 
     const safeFit = () => {
       const el = containerRef.current;
@@ -163,6 +195,7 @@ export default function Terminal({
     });
 
     return () => {
+      oscDisposable.dispose();
       observer.disconnect();
       themeObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
