@@ -6,6 +6,7 @@ import type { AddressInfo } from "node:net";
 import type * as http from "node:http";
 
 import { WebSocketServer } from "ws";
+import { installAppLogging } from "./services/app-log.js";
 import { loadEnvFile, importLoginShellEnv } from "./services/env.js";
 import { describeSpawnHelperProblem } from "./services/pty-preflight.js";
 import { checkForUpdate } from "./services/version-check.js";
@@ -49,6 +50,11 @@ import { resolveClientDist } from "./clientDist.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Re-exported so electron/src/bootstrap.ts can install logging as soon as it
+// imports this module, before startServer runs, so a startServer failure is
+// logged to the file too.
+export { installAppLogging } from "./services/app-log.js";
+
 export interface StartOptions {
   port?: number;
 }
@@ -69,6 +75,10 @@ let initialEnvPort: string | undefined;
 
 export async function startServer(options: StartOptions = {}): Promise<ServerHandle> {
   if (!envInitialized) {
+    // Idempotent, so calling it again from electron/src/bootstrap.ts right
+    // after this module is imported (the CLI and dev-server entry points never
+    // go through bootstrap.ts) is a no-op.
+    installAppLogging();
     loadEnvFile();
     importLoginShellEnv();
     initialEnvPort = process.env.ROUBO_PORT;

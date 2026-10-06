@@ -6,6 +6,7 @@ export interface BootstrapDeps {
   env: NodeJS.ProcessEnv;
   importServer: () => Promise<{
     startServer: (opts: { port: number }) => Promise<ServerHandleLike>;
+    installAppLogging: () => void;
   }>;
 }
 
@@ -20,7 +21,15 @@ export async function resolveBootstrap(deps: BootstrapDeps): Promise<BootstrapRe
   }
 
   deps.env.ROUBO_PRODUCTION = "1";
-  const { startServer } = await deps.importServer();
+  const { startServer, installAppLogging } = await deps.importServer();
+  // Installed as soon as the server module has loaded and before startServer
+  // can throw, so a startServer failure (main.ts's own catch logs "bootstrap
+  // failed") lands in the log file too: installAppLogging patches the global
+  // console object, so main.ts's later console.error call is teed
+  // automatically. A failure to import the server module itself happens before
+  // this line and is not logged to the file (AP-NFR-003-adjacent, TODO: cite
+  // tracking issue once filed).
+  installAppLogging();
   const handle = await startServer({ port: 0 });
   return { url: `http://127.0.0.1:${handle.port}`, serverHandle: handle };
 }
