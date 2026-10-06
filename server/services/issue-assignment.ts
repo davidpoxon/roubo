@@ -43,25 +43,6 @@ function persistBenchIfLive(persisted: PersistedBench): void {
   }
 }
 
-function toPersisted(bench: Bench): PersistedBench {
-  return {
-    id: bench.id,
-    projectId: bench.projectId,
-    branch: bench.branch,
-    workspacePath: bench.workspacePath,
-    ports: bench.ports,
-    createdAt: bench.createdAt,
-    assignedContainers: bench.assignedContainers,
-    assignedIssue: bench.assignedIssue,
-    notifications: bench.notifications,
-    baseBranch: bench.baseBranch,
-    baseCommit: bench.baseCommit,
-    injectedJigId: bench.injectedJigId,
-    injectedJigSource: bench.injectedJigSource,
-    benchSetupComplete: bench.benchSetupComplete,
-  };
-}
-
 /**
  * Shared tail for the create-and-assign flows once the bench exists and its
  * `assignedIssue` is set: persist, wait for the worktree to be provisioned,
@@ -86,7 +67,7 @@ async function finalizeAssignedBench(
   appTheme: ResolvedTheme | undefined,
 ): Promise<CreateBenchWithIssueResponse> {
   // Persist before the network/session work so a failure can't orphan the bench.
-  persistBenchIfLive(toPersisted(bench));
+  persistBenchIfLive(stateService.toPersistedBench(bench));
 
   // The bench was just created by benchManager.createBench and its worktree may
   // still be provisioning: `git worktree add` has to have created
@@ -123,7 +104,7 @@ async function finalizeAssignedBench(
   if (jigId) {
     bench.injectedJigId = jigId;
     bench.injectedJigSource = jigSource;
-    persistBenchIfLive(toPersisted(bench));
+    persistBenchIfLive(stateService.toPersistedBench(bench));
   }
 
   return {

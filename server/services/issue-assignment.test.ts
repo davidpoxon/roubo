@@ -29,8 +29,9 @@ vi.mock("node:fs", async (importOriginal) => {
   };
 });
 
-vi.mock("./state.js", () => ({
+vi.mock("./state.js", async (importOriginal) => ({
   updateBench: vi.fn(),
+  toPersistedBench: (await importOriginal<typeof import("./state.js")>()).toPersistedBench,
   getWorkspacePath: vi.fn().mockReturnValue("/workspaces/project/bench-0-issue-42-fix-login-bug"),
   getPersistedBenches: vi.fn().mockReturnValue([]),
   getProjectPermissions: vi.fn().mockReturnValue({ allow: [], deny: [], ask: [] }),
@@ -1398,6 +1399,7 @@ describe("createBenchAndAssignFromIssue", () => {
         ports: { backend: 5000 },
         createdAt: "2026-01-01",
         assignedContainers: {},
+        components: {},
         notifications: [],
       } as any;
     }
@@ -1490,6 +1492,7 @@ describe("createBenchAndAssignFromIssue", () => {
         ports: { backend: 5000 },
         createdAt: "2026-01-01",
         assignedContainers: {},
+        components: {},
         notifications: [],
       } as any;
     }
@@ -1794,6 +1797,26 @@ describe("default jig hierarchy injection", () => {
     const calls = vi.mocked(stateService.updateBench).mock.calls;
     const callWithJig = calls.find(([arg]) => arg.injectedJigId === "proj-jig");
     expect(callWithJig).toBeDefined();
+  });
+
+  it("keeps component setup state in the injected-jig write", async () => {
+    // updateBench replaces the whole record; a write without componentSetupState
+    // hydrates as a legacy bench whose components all look set up.
+    setupHappyPath();
+    vi.mocked(benchManager.createBench).mockReturnValue({
+      ...createdBench,
+      components: { backend: { name: "backend", status: "stopped", setupComplete: false } },
+    } as never);
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "proj-jig",
+      source: "project",
+    });
+
+    await createBenchAndAssignFromIssue("project1", githubIssue({ body: "Broken" }), []);
+
+    const calls = vi.mocked(stateService.updateBench).mock.calls;
+    const callWithJig = calls.find(([arg]) => arg.injectedJigId === "proj-jig");
+    expect(callWithJig?.[0].componentSetupState).toEqual({ backend: false });
   });
 
   it("skips jig resolution and injection when autoInject is false", async () => {
