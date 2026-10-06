@@ -3340,9 +3340,9 @@ describe("teardownBench", () => {
     benchManager.teardownBench("test-project", 1, true);
     await flushBackground();
 
-    // notificationService.createNotification short-circuits on a repeat
-    // bench-error of the same type, so the retry's refreshed leftover report
-    // only reaches the client because teardown persists and broadcasts itself.
+    // notificationService.createNotification persists a repeat bench-error only
+    // when its metadata changed, so teardown persists and broadcasts itself to
+    // make every retry reach the client.
     vi.mocked(stateService.updateBench).mockClear();
     vi.mocked(sseService.broadcastBenchStatus).mockClear();
 

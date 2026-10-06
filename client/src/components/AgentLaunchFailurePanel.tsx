@@ -1,6 +1,6 @@
 import { Button } from "react-aria-components";
 import { Link } from "react-router";
-import { OctagonAlert } from "lucide-react";
+import { OctagonAlert, X } from "lucide-react";
 import type { AgentLaunchFailure } from "@roubo/shared";
 import CliRemedy from "./CliRemedy";
 
@@ -10,7 +10,16 @@ const STRINGS = {
   openSettings: "Open plugin settings",
   retry: "Retry",
   capturedLabel: "Captured agent output",
+  dismiss: "Dismiss",
 };
+
+/**
+ * `overlay` is the original xterm overlay (absolute, pointer-events-none frame),
+ * used by an interactive launch. `inline` sits in normal document flow for the
+ * bench detail view, where an auto-launch failure is recorded on the bench
+ * rather than a live session (AP-NFR-003, TODO: cite tracking issue once filed).
+ */
+export type AgentLaunchFailurePanelVariant = "overlay" | "inline";
 
 const ACTION_CLASS =
   "px-2.5 py-1 text-11 font-medium rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
@@ -30,23 +39,37 @@ const ACTION_CLASS =
 export default function AgentLaunchFailurePanel({
   failure,
   onRetry,
+  variant = "overlay",
+  onDismiss,
 }: {
   failure: AgentLaunchFailure;
   onRetry?: () => void;
+  variant?: AgentLaunchFailurePanelVariant;
+  /** Inline-only: lets the bench detail view dismiss the notification backing this panel. */
+  onDismiss?: () => void;
 }) {
   const showSettings = failure.actions.includes("open-plugin-settings");
   const showRetry = failure.actions.includes("retry") && onRetry !== undefined;
+  const testId = variant === "inline" ? "agent-launch-failure-inline" : "agent-launch-failure";
 
   return (
     <div
       role="alert"
-      data-testid="agent-launch-failure"
+      data-testid={testId}
       data-failure-class={failure.class}
-      className="absolute inset-x-0 top-0 z-10 p-4 pointer-events-none"
+      className={
+        variant === "overlay" ? "absolute inset-x-0 top-0 z-10 p-4 pointer-events-none" : "mb-6"
+      }
     >
-      <div className="pointer-events-auto max-w-xl flex items-start gap-2.5 rounded-lg border border-danger-border bg-danger-surface px-4 py-3.5">
+      <div
+        className={
+          variant === "overlay"
+            ? "pointer-events-auto max-w-xl flex items-start gap-2.5 rounded-lg border border-danger-border bg-danger-surface px-4 py-3.5"
+            : "flex items-start gap-2.5 rounded-lg border border-danger-border bg-danger-surface px-4 py-3.5"
+        }
+      >
         <OctagonAlert size={16} className="shrink-0 mt-0.5 text-danger-text" aria-hidden="true" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-13 text-danger-text">{failure.message}</p>
           {failure.guidance && (
             <p className="mt-1 text-12 text-text-body leading-relaxed">{failure.guidance}</p>
@@ -90,6 +113,16 @@ export default function AgentLaunchFailurePanel({
             </div>
           )}
         </div>
+        {onDismiss && (
+          <Button
+            onPress={onDismiss}
+            aria-label={STRINGS.dismiss}
+            data-testid="agent-launch-failure-dismiss"
+            className="shrink-0 p-1 rounded-control text-danger-text hover:bg-bg-surface active:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          >
+            <X size={16} aria-hidden="true" />
+          </Button>
+        )}
       </div>
     </div>
   );

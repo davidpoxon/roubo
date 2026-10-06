@@ -39,7 +39,9 @@ import {
   useStartComponent,
   useStopComponent,
   useDismissBenchNotifications,
+  useDismissNotification,
 } from "../hooks/useBenches";
+import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
 import type {
   Bench,
   ProvisioningStep,
@@ -509,6 +511,7 @@ export default function BenchDetail() {
   const { register: registerTeardown } = useTeardownTracker();
   const { addToast } = useToast();
   const { mutate: dismissBenchNotifications } = useDismissBenchNotifications();
+  const { mutate: dismissNotification } = useDismissNotification();
 
   const [showTeardown, setShowTeardown] = useState(false);
   const [removeWorkspace, setRemoveWorkspace] = useState(true);
@@ -546,6 +549,27 @@ export default function BenchDetail() {
 
   const errorExpanded = bench?.error != null && expandedErrorKey === bench.error;
   const isLongError = !!bench?.error && (bench.error.length > 200 || bench.error.includes("\n"));
+
+  // The sticky record of a failed auto-launch (AP-NFR-003, TODO: cite tracking
+  // issue once filed): survives dismissBenchNotifications above (notification.ts
+  // exempts "agent-launch-failed"), so it has to be dismissed explicitly here.
+  const launchFailedNotification = bench?.notifications.find(
+    (n) => n.type === "agent-launch-failed",
+  );
+  const launchFailedMessage =
+    typeof launchFailedNotification?.metadata?.message === "string"
+      ? launchFailedNotification.metadata.message
+      : undefined;
+
+  // Equally sticky: the launch ran a different agent than the configured default.
+  const fallbackNotification = bench?.notifications.find((n) => n.type === "agent-fallback");
+  const fallbackMeta = fallbackNotification?.metadata;
+  const fallbackMessage = fallbackNotification
+    ? typeof fallbackMeta?.from === "string" && typeof fallbackMeta.to === "string"
+      ? `Started ${fallbackMeta.to} instead of the default agent ${fallbackMeta.from}` +
+        (typeof fallbackMeta.reason === "string" ? `: ${fallbackMeta.reason}` : ".")
+      : "Started a different agent than the configured default."
+    : undefined;
 
   // Detect if this project has a database component
   const databaseComponentName = project?.config
@@ -751,6 +775,66 @@ export default function BenchDetail() {
           >
             <RotateCcw size={12} className={cleanupAndRetry.isPending ? "animate-spin" : ""} />
             {cleanupAndRetry.isPending ? "Cleaning up..." : "Cleanup & Retry"}
+          </Button>
+        </div>
+      )}
+
+      {/* Sticky notices stay visible with the header collapsed: each must be
+          dismissed explicitly, so hiding it would hide the only record. */}
+      {launchFailedNotification &&
+        (launchFailedNotification.launchFailure ? (
+          <AgentLaunchFailurePanel
+            variant="inline"
+            failure={launchFailedNotification.launchFailure}
+            onDismiss={() =>
+              dismissNotification({
+                projectId,
+                benchId,
+                notificationId: launchFailedNotification.id,
+              })
+            }
+          />
+        ) : (
+          <div className="mb-6 flex items-start gap-2.5 rounded-lg border border-danger-border bg-danger-surface px-4 py-3.5">
+            <p className="min-w-0 flex-1 text-13 text-danger-text">
+              {launchFailedMessage ?? "Agent did not start."}
+            </p>
+            <Button
+              onPress={() =>
+                dismissNotification({
+                  projectId,
+                  benchId,
+                  notificationId: launchFailedNotification.id,
+                })
+              }
+              aria-label="Dismiss"
+              data-testid="agent-launch-failed-dismiss"
+              className="shrink-0 p-1 rounded-control text-danger-text hover:bg-bg-surface active:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            >
+              <X size={16} aria-hidden="true" />
+            </Button>
+          </div>
+        ))}
+
+      {fallbackNotification && (
+        <div
+          data-testid="agent-fallback-notice"
+          className="mb-6 flex items-start gap-2.5 rounded-lg border border-accent-border bg-accent-muted px-4 py-3.5"
+        >
+          <p className="min-w-0 flex-1 text-13 text-accent-text">{fallbackMessage}</p>
+          <Button
+            onPress={() =>
+              dismissNotification({
+                projectId,
+                benchId,
+                notificationId: fallbackNotification.id,
+              })
+            }
+            aria-label="Dismiss"
+            data-testid="agent-fallback-dismiss"
+            className="shrink-0 p-1 rounded-control text-accent-text hover:bg-bg-surface active:bg-bg-pressed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          >
+            <X size={16} aria-hidden="true" />
           </Button>
         </div>
       )}

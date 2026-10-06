@@ -105,6 +105,23 @@ export function resolveEffectiveAgentConfig(
 }
 
 /**
+ * The outcome of resolving which agent a jig-driven launch runs, including
+ * whether that meant silently overriding a configured default (AP-NFR-003,
+ * TODO: cite tracking issue once filed).
+ */
+export interface LaunchAgentResolution {
+  agentPluginId?: string;
+  /**
+   * Present only when `defaultAgentPluginId` was configured but unavailable and
+   * resolution proceeded with a different agent instead. Absent whenever the
+   * jig's own binding resolved (that is ordinary precedence, not a fallback),
+   * and absent whenever no default was ever configured (there was nothing to
+   * fall back from).
+   */
+  fallback?: { from: string; to: string; reason: string };
+}
+
+/**
  * Which agent a jig-driven launch runs (AP-FR-006, #1051).
  *
  * The order is the whole contract: a jig's own binding wins, the app-level
@@ -120,21 +137,21 @@ export function resolveEffectiveAgentConfig(
  * stored value is ever rewritten, so re-installing the plugin makes it take
  * effect again.
  *
- * Returns `undefined` when no layer names an agent that resolves, which is the
- * signal to stay on the built-in command path.
+ * `agentPluginId` is `undefined` when no layer names an agent that resolves,
+ * which is the signal to stay on the built-in command path.
  */
-export function resolveLaunchAgentId({
+export function resolveLaunchAgent({
   jigAgentPluginId,
   defaultAgentPluginId,
 }: {
   jigAgentPluginId?: string;
   defaultAgentPluginId?: string;
-}): string | undefined {
+}): LaunchAgentResolution {
   if (jigAgentPluginId && !isAgentNotAvailable(resolveAgent(jigAgentPluginId))) {
-    return jigAgentPluginId;
+    return { agentPluginId: jigAgentPluginId };
   }
   if (defaultAgentPluginId && !isAgentNotAvailable(resolveAgent(defaultAgentPluginId))) {
-    return defaultAgentPluginId;
+    return { agentPluginId: defaultAgentPluginId };
   }
   // With exactly one agent actually available there is nothing to choose
   // between, so it is the default whether or not anything was ever persisted.
@@ -144,7 +161,32 @@ export function resolveLaunchAgentId({
   const available = listAgents().filter(
     (manifest) => !isAgentNotAvailable(resolveAgent(manifest.id)),
   );
-  return available.length === 1 ? available[0].id : undefined;
+  const agentPluginId = available.length === 1 ? available[0].id : undefined;
+  if (agentPluginId === undefined || defaultAgentPluginId === undefined) {
+    return { agentPluginId };
+  }
+
+  // Reached only when a default was configured and the early check above did
+  // not return, so it must have been unavailable. Recomputed once, on this
+  // cold path only, to report why.
+  const notAvailable = resolveAgent(defaultAgentPluginId);
+  if (!isAgentNotAvailable(notAvailable)) return { agentPluginId };
+  return {
+    agentPluginId,
+    fallback: {
+      from: defaultAgentPluginId,
+      to: agentPluginId,
+      reason: describeAgentNotAvailable(notAvailable),
+    },
+  };
+}
+
+/** `resolveLaunchAgent(...).agentPluginId`, for callers that never report a fallback. */
+export function resolveLaunchAgentId(params: {
+  jigAgentPluginId?: string;
+  defaultAgentPluginId?: string;
+}): string | undefined {
+  return resolveLaunchAgent(params).agentPluginId;
 }
 
 /**
