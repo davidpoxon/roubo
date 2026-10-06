@@ -94,7 +94,7 @@ The palette only reaches programs that print through those sixteen roles. An age
 
 ## Components
 
-Twenty-seven components. Each spec is the contract; none is anchored to a source line, because the code follows the spec.
+Thirty-one components. Each spec is the contract; none is anchored to a source line, because the code follows the spec.
 
 - **Primary button.** Amber ground, stone-950 label at 9.20:1. At most one per view.
 - **Secondary button.** Surface ground with a `border-strong` outline. The default action style.
@@ -103,7 +103,7 @@ Twenty-seven components. Each spec is the contract; none is anchored to a source
 - **Input field.** `bg-field` with the `border-control` boundary. Focus takes the focus hue on the border plus a tight ring. It carries a fifth state, `invalid`. Paths and commands typed into it are mono.
 - **Tabs.** The selected tab is primary text over a 2px accent indicator; the rest are secondary text. Entering tab content uses `motion.rise-in`.
 - **Nav item.** The selected destination sits on `accent-muted` in `accent-text`, at medium weight.
-- **Bench card.** The border is the bench status, as `docs/brand.md` defines it. The card rests on `bg-surface` and its hover changes the ground only, so nothing shifts. A TestBench or a Spec Bench carries a variant badge in its head, `accent-text` on `accent-muted`; a normal bench carries none.
+- **Bench card.** The border is the bench status, as `docs/brand.md` defines it. The card rests on `bg-surface` and its hover changes the ground only, so nothing shifts. A TestBench or a Spec Bench carries a variant badge in its head, `accent-text` on `accent-muted`; a Spec Bench in auto mode adds `auto` to it, as in `Spec Bench · auto`. A normal bench carries none.
 - **Status indicator.** Dot plus label, never the dot alone. Pulses with `motion.status-pulse` while preparing or clearing.
 - **Issue chip.** Tinted with its own tone; the spec shows the `issue-type` tone and the other three swap the two colour bindings.
 - **Callout.** The inline home of `danger-text`: states the cause, then the fix. The success variant swaps the three `success-*` tokens.
@@ -114,14 +114,18 @@ Twenty-seven components. Each spec is the contract; none is anchored to a source
 - **Split separator.** The line between two terminal panes, focusable with `role="separator"`. It steps from `border` to `border-strong` on hover and to `border-control` while dragging.
 - **Facet placeholder.** Surface ground with a hairline border where a torn-off terminal used to be, with one secondary button: Return.
 - **Count badge.** `accent-text` on `accent-muted`, the sidebar's count of waiting benches while the pile is hidden.
-- **Unit node.** One work unit in the delivery graph, the map's default view. Lanes are stacks, columns are layers, and edges drawn between nodes are `depends_on`: `border-strong` by default, `success-text` from a merged unit, `status-error` dashed from a gate to the batch it gates, and the 2px accent for the path of the node under the pointer or focus. The node holds the mono id and pull request, the title, and a meta line with the status dot and its label and the figures. The live unit carries the 2px accent rule at its left edge. A gate node swaps the ground to `danger-surface` and the border to `status-error`. Edges are decorative; the node's detail line names its dependencies for the screen reader.
-- **Unit row.** One work unit in the map's list view, a dense hairline row: stack, layer, mono id, title, status dot with label, pull request, gate badge, cases and cost in tabular figures. The live unit carries the 2px accent rule at its left edge; every other row omits the rule. Enter opens the unit drill-in.
+- **Unit node.** One work unit in the delivery graph, the map's default view. Lanes are stacks, columns are layers, and edges drawn between nodes are `depends_on`: `border-strong` by default, `success-text` from a merged unit, `status-error` dashed from a gate to the batch it gates, and the 2px accent for the path of the node under the pointer or focus. The node holds the mono id and pull request, the title, and a meta line with the status dot and its label and the figures. The live unit carries the 2px accent rule at its left edge. A gate node swaps the ground to `danger-surface` and the border to `status-error`. Edges are decorative; the node's detail line names its dependencies for the screen reader. A gate with unconfirmed agent marks is provisional: it keeps the base ground and the default border, takes the `status-preparing` dot with the label `provisional` and the count still to confirm, and each unit above it reads `draft · held` on its pull request.
+- **Unit row.** One work unit in the map's list view, a dense hairline row: stack, layer, mono id, title, status dot with label, pull request, gate badge, cases and cost in tabular figures. The live unit carries the 2px accent rule at its left edge; every other row omits the rule. Enter opens the unit drill-in. A provisional gate's badge reads the count still to confirm, in `accent-text` on `accent-muted`.
 - **Delivery stat.** One figure in the burn and health strip: a mono eyebrow, a value at `type.scale.4`, a note, and an optional meter whose fill is the only accent on the strip.
 - **Health chip.** The shell header's one-word health: fresh, stale, disconnected or blocked. The dot names the state and the label always carries the word; stale takes `status-preparing`, disconnected and blocked take `status-error`. Pressing it opens the reason.
 - **Timeline event.** One event in a unit's drill-in timeline, newest first: mono time, a kind badge, the text, and a mono detail line naming the role, attempt and turn. An event that names an artifact is pressable and opens it. The newest event carries the 2px accent rule; every other row omits it.
 - **Generation seam.** A hairline rule with a mono label across the timeline where a fresh session or a compaction took over. Events above and below it did not share a context.
 - **Decision item.** One question from the delivery session, piled like the needs-response pile: the oldest pending decision is the live top card under the 2px accent rule, with its state badge, a mono origin line naming where it was raised and what it holds, the question, and the options as buttons with the recorded default as the primary. A lower card shows only its title bar (badge and origin) and raises on click or Enter. A new decision arrives with `motion.slide-under`; an answered one leaves with `motion.drop-away` and the next card rises. A default in force is a card too, marked in its badge, and stays until overturned or applied.
+- **Review card.** One decision the agent made in auto mode, on the same pile as the decision items. The oldest unreviewed card is the live top card under the 2px accent rule, with its state badge, a mono origin line naming where it was decided and what it affects, the question, the choice, the rationale, and its actions: Accept as the primary, one Overturn for each other option, and Discuss. A lower card shows only its title bar. An action taken during a run, or with no live session, shows as a queued badge and dims the actions until the session applies it. A reviewed card leaves with `motion.drop-away` and the next card rises. The card of a provisional gate lists its provisional marks in place of the choice and the rationale, and its one action is Open sitting.
+- **Discussion thread.** The conversation about one review card, shown on that card once Discuss is pressed. The operator's messages sit on the card ground; the session's replies sit on the inset `bg-base` ground, as plain text only. Each message carries a mono author and time. While the session answers, a waiting line shows the `status-preparing` dot with its label. The composer is a multi-line field and a Send button. Outside a review, or with no live session, the composer dims and a notice names the reason. After the outcome the messages go and the summary stays.
 - **Steering note.** One queued operator note: a state badge (queued, read back, applied), a mono line naming the boundary it lands at, the note, and the session's read-back once it exists. A queued note opens for edit on Enter; an applied note dims and keeps its read-back.
+- **Provisional mark.** The agent's unconfirmed mark on one gate case: the mono case id, a neutral badge that reads the mark and the word provisional, the mono author, and the evidence as plain text. The badge is neutral on purpose, because green and red belong to a mark the operator made. In a sitting it carries one secondary control, Confirm; the case's own mark controls change it. Once the operator acts, the badge takes the set of the mark it now holds, `success-*` for Met and `danger-*` for Not met, and reads confirmed or changed. On a gate's review card the control is omitted.
+- **Mode switch.** Chooses who decides in a delivery: two segments, Attended and Auto, in one group. The selected segment sits on `accent-muted` in `accent-text`, as a selected nav item does. A note below states what the selected mode does. It appears in the set-up dialog, where Attended is selected by default, and beside the role matrix, where a switch writes a control and shows the pending badge until the session's read-back. The shell header names the current mode in a mono label, and a bench card in auto mode adds it to its variant badge.
 - **Role matrix row.** One role in the delivery: the mono role name, its model and effort as two menus on the field ground, its spend so far, and an `accent-text` on `accent-muted` badge while a change waits for the next unit boundary. Changing a value writes a control; the badge clears on the session's read-back.
 
 **Which token when.** A ground is always a `bg-*` token and text on it is always one of the three text tones or a paired `*-text`. `accent` is never text. `danger` is never decoration. A `status-*` colour never appears without its label. A categorical hue never carries text.
@@ -482,7 +486,7 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
     },
     {
       "name": "Bench card",
-      "role": "container surface for one bench; its border is the bench status, and a variant badge names a TestBench or a Spec Bench",
+      "role": "container surface for one bench; its border is the bench status, and a variant badge names a TestBench or a Spec Bench, with the decision mode added for a Spec Bench in auto mode",
       "states": {"focus": "two-pixel focus ring at a two-pixel offset around the card", "hover": "ground moves to bg-hover; the status border is unchanged", "active": "the hover ground holds while the bench opens", "disabled": "the whole card drops to the disabled opacity while the bench clears"},
       "motion_refs": ["motion.colors", "motion.status-pulse"],
       "parts": [
@@ -955,6 +959,107 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
           {"name": "effort", "archetype": "control", "label": "medium", "bindings": {"background": "color.bg-field", "color": "color.text-body", "border": "color.border-control", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}},
           {"name": "spent", "archetype": "text", "sample": "17.60 · 43 percent", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.1", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}},
           {"name": "pending", "archetype": "badge", "label": "pending · next boundary", "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.0", "padding": "space.2"}}
+        ]}
+      ]
+    },
+    {
+      "name": "Review card",
+      "role": "one decision the agent made, piled with the decision items for review: the oldest unreviewed card is the live top card with the choice, the rationale and the review actions, and a lower card shows only its title bar",
+      "states": {"focus": "the title bar takes the focus ring; Enter raises a lower card, and Tab moves through the top card's actions, each with its own ring", "hover": "a lower card's title bar takes the bg-hover wash; on the top card only the action under the pointer changes ground", "active": "the pressed title bar or action takes its pressed ground", "disabled": "a card with a queued action drops its actions to the disabled opacity and keeps the choice and the rationale readable; a reviewed card leaves the pile with motion.drop-away"},
+      "motion_refs": ["motion.slide-under", "motion.drop-away", "motion.rise-in", "motion.colors"],
+      "parts": [
+        {"name": "frame", "archetype": "container", "bindings": {"background": "color.bg-surface", "border": "color.border", "border_width": "border_width.hairline", "radius": "radius.0", "padding": "space.5"}, "arrangement": {"kind": "column", "gap": "space.3", "align": "stretch"}, "children": [
+          {"name": "rule", "archetype": "divider", "bindings": {"color": "color.accent", "thickness": "border_width.thick"}},
+          {"name": "title-bar", "archetype": "control", "arrangement": {"kind": "row", "gap": "space.5", "align": "center"}, "label": "Raise this review card", "bindings": {"background": "color.bg-surface", "padding": "space.3", "radius": "radius.2", "color": "color.text-body"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}}, "children": [
+            {"name": "state", "archetype": "badge", "label": "D-007 · to review", "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.0", "padding": "space.2"}},
+            {"name": "origin", "archetype": "text", "sample": "agent decided at SB-WU-006 · affects SB-WU-011, SB-WU-012", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+          ]},
+          {"name": "question", "archetype": "text", "sample": "Keep the zod root refine for unique unit ids, or move uniqueness into the runtime validator only?", "bindings": {"color": "color.text-primary", "font_size": "type.scale.2", "font_weight": "type.weights.1"}},
+          {"name": "choice", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.4", "align": "center"}, "children": [
+            {"name": "eyebrow", "archetype": "text", "sample": "chose", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+            {"name": "value", "archetype": "text", "sample": "Validator only", "bindings": {"color": "color.text-primary", "font_size": "type.scale.2", "font_weight": "type.weights.1"}}
+          ]},
+          {"name": "rationale", "archetype": "text", "sample": "The loader already validates at runtime, and the refine made the generated schema reject a legal fixture.", "bindings": {"color": "color.text-body", "font_size": "type.scale.2", "font_weight": "type.weights.0"}},
+          {"name": "actions", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.3", "align": "center"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [
+            {"name": "accept", "archetype": "control", "label": "Accept", "bindings": {"background": "color.accent", "color": "color.on-accent", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.accent-hover"}, "active": {"background": "color.accent-active"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}},
+            {"name": "overturn", "archetype": "control", "label": "Overturn: keep zod refine", "bindings": {"background": "color.bg-surface", "color": "color.text-body", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}},
+            {"name": "discuss", "archetype": "control", "label": "Discuss", "bindings": {"background": "color.bg-surface", "color": "color.text-body", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}}
+          ]},
+          {"name": "queued", "archetype": "badge", "label": "accept queued · next boundary", "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.0", "padding": "space.2"}}
+        ]}
+      ]
+    },
+    {
+      "name": "Discussion thread",
+      "role": "the conversation about one review card, shown on that card once Discuss is pressed: the operator's messages, the session's replies as plain text on an inset ground, a waiting line, and a composer; after the outcome only the summary stays",
+      "states": {"focus": "the message field takes the focus hue on its border and a tight two-pixel ring; Send takes its own ring", "hover": "Send moves to the bg-hover ground; messages do not react to the pointer", "active": "Send takes the bg-pressed ground while the message is sent", "disabled": "outside a review, or with no live session, the composer drops to the disabled opacity and a notice names the reason"},
+      "motion_refs": ["motion.rise-in", "motion.status-pulse", "motion.colors"],
+      "parts": [
+        {"name": "frame", "archetype": "container", "arrangement": {"kind": "column", "gap": "space.4", "align": "stretch"}, "children": [
+          {"name": "rule", "archetype": "divider", "bindings": {"color": "color.border", "thickness": "border_width.hairline"}},
+          {"name": "message", "archetype": "container", "arrangement": {"kind": "column", "gap": "space.2", "align": "stretch"}, "children": [
+            {"name": "head", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.4", "align": "center"}, "children": [
+              {"name": "author", "archetype": "text", "sample": "you", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+              {"name": "time", "archetype": "text", "sample": "08:41", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+            ]},
+            {"name": "text", "archetype": "text", "sample": "Why not keep the refine and fix the fixture?", "bindings": {"color": "color.text-body", "font_size": "type.scale.2", "font_weight": "type.weights.0"}}
+          ]},
+          {"name": "reply", "archetype": "container", "bindings": {"background": "color.bg-base", "radius": "radius.0", "padding": "space.4"}, "arrangement": {"kind": "column", "gap": "space.2", "align": "stretch"}, "children": [
+            {"name": "head", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.4", "align": "center"}, "children": [
+              {"name": "author", "archetype": "text", "sample": "session", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+              {"name": "time", "archetype": "text", "sample": "08:41", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+            ]},
+            {"name": "text", "archetype": "text", "sample": "The fixture is legal by the contract. The refine rejected it because it ran before the ids were normalised.", "bindings": {"color": "color.text-body", "font_size": "type.scale.2", "font_weight": "type.weights.0"}}
+          ]},
+          {"name": "waiting", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.3", "align": "center"}, "children": [
+            {"name": "dot", "archetype": "custom", "label": "replying", "bindings": {"background": "color.status-preparing", "radius": "radius.3"}},
+            {"name": "label", "archetype": "text", "sample": "session is replying", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1"}}
+          ]},
+          {"name": "composer", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.3", "align": "end"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [
+            {"name": "textarea", "archetype": "control", "label": "Ask about this decision", "bindings": {"background": "color.bg-field", "color": "color.text-primary", "border": "color.border-control", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.4"}, "state_deltas": {"focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "border": "color.focus-ring"}}},
+            {"name": "send", "archetype": "control", "label": "Send", "bindings": {"background": "color.bg-surface", "color": "color.text-body", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}}
+          ]},
+          {"name": "notice", "archetype": "text", "sample": "Discussion opens at a review, with a live session.", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0"}},
+          {"name": "summary", "archetype": "container", "arrangement": {"kind": "column", "gap": "space.2", "align": "stretch"}, "children": [
+            {"name": "eyebrow", "archetype": "text", "sample": "discussion summary", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+            {"name": "text", "archetype": "text", "sample": "The operator asked why the refine was dropped. The session kept the choice: the runtime validator covers the same rule.", "bindings": {"color": "color.text-body", "font_size": "type.scale.2", "font_weight": "type.weights.0"}}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "name": "Mode switch",
+      "role": "chooses who decides in a delivery, attended or auto: two segments in one group, a note that states what the selected mode does, and a pending badge while a switch waits for the next unit boundary",
+      "states": {"focus": "the focused segment takes a tight two-pixel focus ring; arrow keys move between the two segments", "hover": "the unselected segment takes the bg-hover wash; the selected one is unchanged", "active": "the pressed segment takes the bg-pressed wash while the switch is written as a control", "disabled": "the group drops to the disabled opacity while the delivery is ended or the record is nonconformant"},
+      "motion_refs": ["motion.colors"],
+      "parts": [
+        {"name": "field", "archetype": "container", "arrangement": {"kind": "column", "gap": "space.3", "align": "start"}, "children": [
+          {"name": "head", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.5", "align": "center"}, "children": [
+            {"name": "label", "archetype": "text", "sample": "Decisions", "bindings": {"color": "color.text-primary", "font_size": "type.scale.2", "font_weight": "type.weights.1"}},
+            {"name": "pending", "archetype": "badge", "label": "pending · next boundary", "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.0", "padding": "space.2"}}
+          ]},
+          {"name": "group", "archetype": "container", "bindings": {"background": "color.bg-surface", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.1"}, "arrangement": {"kind": "row", "gap": "space.1", "align": "center"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [
+            {"name": "segment-selected", "archetype": "control", "label": "Attended", "bindings": {"background": "color.accent-muted", "color": "color.accent-text", "radius": "radius.0", "padding": "space.3"}, "state_deltas": {"focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}}},
+            {"name": "segment", "archetype": "control", "label": "Auto", "bindings": {"color": "color.text-body", "radius": "radius.0", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}}}
+          ]},
+          {"name": "note", "archetype": "text", "sample": "You decide. The session asks, continues on a recorded default, and waits where it must.", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0"}}
+        ]}
+      ]
+    },
+    {
+      "name": "Provisional mark",
+      "role": "the agent's unconfirmed mark on one gate case, with its evidence: shown on the gate's review card and on the case in a sitting, where the operator confirms or changes it",
+      "states": {"focus": "the Confirm control takes the focus ring at a two-pixel offset", "hover": "the Confirm control moves to the bg-hover ground", "active": "the Confirm control takes the bg-pressed ground while the mark is written", "disabled": "the frame drops to the disabled opacity while a blocking disagreement stops the sitting"},
+      "motion_refs": ["motion.colors", "motion.rise-in"],
+      "parts": [
+        {"name": "frame", "archetype": "container", "bindings": {"background": "color.bg-base", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.4"}, "arrangement": {"kind": "column", "gap": "space.3", "align": "start"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [
+          {"name": "head", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.4", "align": "center"}, "children": [
+            {"name": "case", "archetype": "text", "sample": "SB-TC-018", "bindings": {"color": "color.text-body", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+            {"name": "mark", "archetype": "badge", "label": "Met · provisional", "bindings": {"background": "color.bg-hover", "color": "color.text-secondary", "radius": "radius.0", "padding": "space.2"}},
+            {"name": "author", "archetype": "text", "sample": "agent mark", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.0", "font_family": "type.fonts.mono"}}
+          ]},
+          {"name": "evidence", "archetype": "text", "sample": "The suite drives the set-up dialog and the bench appears with the variant badge. No run covers the badge at the narrow width.", "bindings": {"color": "color.text-body", "font_size": "type.scale.2", "font_weight": "type.weights.0"}},
+          {"name": "confirm", "archetype": "control", "label": "Confirm Met", "bindings": {"background": "color.bg-surface", "color": "color.text-body", "border": "color.border-strong", "border_width": "border_width.hairline", "radius": "radius.1", "padding": "space.3"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1", "ring_offset": "space.1"}}}
         ]}
       ]
     }
