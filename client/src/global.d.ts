@@ -6,6 +6,7 @@ interface Window {
     platform: string;
     setTitleBarOverlayTheme: (theme: "light" | "dark") => void;
     setBadgeCount: (count: number) => void;
+    writeClipboard: (text: string) => Promise<boolean>;
     showNotification: (req: { title: string; body: string; routeTo?: string }) => void;
   };
 }

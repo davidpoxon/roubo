@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { updateElectronApp } from "update-electron-app";
@@ -66,6 +66,21 @@ export function handleShowNotification(req: unknown): void {
     if (routeTo) win?.webContents.send("deep-link", routeTo);
   });
   notification.show();
+}
+
+/**
+ * Characters accepted in one clipboard write. The renderer already caps the
+ * OSC 52 decode (client/src/lib/osc52.ts), so this is the IPC boundary
+ * refusing to trust that cap rather than the primary bound.
+ */
+export const CLIPBOARD_WRITE_LIMIT = 256 * 1024;
+
+export function handleClipboardWriteText(text: unknown): boolean {
+  if (typeof text !== "string" || text.length === 0 || text.length > CLIPBOARD_WRITE_LIMIT) {
+    return false;
+  }
+  clipboard.writeText(text);
+  return true;
 }
 
 export function handleSetBadgeCount(count: unknown): void {
@@ -188,6 +203,8 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.on("show-notification", (_event, req: unknown) => {
     handleShowNotification(req);
   });
+
+  ipcMain.handle("clipboard-write-text", (_event, text: unknown) => handleClipboardWriteText(text));
 
   function createWindow(url: string, retryUntilReady = false): void {
     const macOS = process.platform === "darwin";

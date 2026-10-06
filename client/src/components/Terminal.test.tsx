@@ -3,12 +3,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import Terminal from "./Terminal";
 
-type XTermOptions = { theme?: Record<string, string>; minimumContrastRatio?: number };
+type XTermOptions = {
+  theme?: Record<string, string>;
+  minimumContrastRatio?: number;
+  macOptionClickForcesSelection?: boolean;
+};
 
 const xtermOptions = vi.hoisted(() => [] as XTermOptions[]);
+const webLinksHandlers = vi.hoisted(() => [] as Array<(event: MouseEvent, uri: string) => void>);
 
+const mockOscHandlerDisposable = { dispose: vi.fn() };
 const mockTerminalInstance = {
   options: {} as { theme?: Record<string, string> },
+  parser: {
+    registerOscHandler: vi.fn(
+      (_ident: number, _callback: (payload: string) => boolean | Promise<boolean>) =>
+        mockOscHandlerDisposable,
+    ),
+  },
   loadAddon: vi.fn(),
   open: vi.fn(),
   onData: vi.fn(() => ({ dispose: vi.fn() })),
@@ -37,7 +49,8 @@ vi.mock("@xterm/addon-fit", () => ({
   },
 }));
 vi.mock("@xterm/addon-web-links", () => ({
-  WebLinksAddon: function MockWebLinks() {
+  WebLinksAddon: function MockWebLinks(handler?: (event: MouseEvent, uri: string) => void) {
+    if (handler) webLinksHandlers.push(handler);
     return { dispose: vi.fn() };
   },
 }));
@@ -48,10 +61,13 @@ vi.mock("./ReconnectBanner", () => ({
   default: ({ state }: { state: string }) =>
     state === "reconnecting" || state === "ended" ? <div data-testid="reconnect-banner" /> : null,
 }));
+vi.mock("../lib/clipboard", () => ({ writeClipboard: vi.fn().mockResolvedValue(true) }));
 
 import { useTerminalConnection } from "../hooks/useTerminalConnection";
+import { writeClipboard } from "../lib/clipboard";
 
 const mockUseTerminalConnection = vi.mocked(useTerminalConnection);
+const mockedWriteClipboard = vi.mocked(writeClipboard);
 
 // Stub offsetWidth/offsetHeight so safeFit allows fit() to proceed.
 function stubDimensions(width = 200, height = 400) {
@@ -67,7 +83,10 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
   xtermOptions.length = 0;
+  webLinksHandlers.length = 0;
   mockTerminalInstance.options = {};
+  mockTerminalInstance.parser.registerOscHandler.mockReturnValue(mockOscHandlerDisposable);
+  mockedWriteClipboard.mockResolvedValue(true);
   mockTerminalInstance.onData.mockReturnValue({ dispose: vi.fn() });
   mockTerminalInstance.onResize.mockReturnValue({ dispose: vi.fn() });
   mockFitAddonInstance.proposeDimensions.mockReturnValue({ cols: 80, rows: 24 });
@@ -452,5 +471,67 @@ describe("Terminal: contrast floor on program output (#1382)", () => {
   it("asks xterm for the 4.5:1 floor the ANSI roles are held to", () => {
     render(<Terminal sessionId="sess-1" active />);
     expect(xtermOptions[0]?.minimumContrastRatio).toBe(4.5);
+  });
+});
+
+describe("Terminal: selection under mouse reporting", () => {
+  // Off macOS, Shift-drag already overrides mouse reporting. On macOS the
+  // override is Option-drag, gated behind this option, which xterm defaults
+  // to false: left unset, no modifier selects text in a pane an agent TUI
+  // has put into mouse-reporting mode.
+  it("enables macOptionClickForcesSelection so Option-drag selects under mouse reporting", () => {
+    render(<Terminal sessionId="sess-1" active />);
+    expect(xtermOptions[0]?.macOptionClickForcesSelection).toBe(true);
+  });
+});
+
+describe("Terminal: clickable links", () => {
+  it("passes an activate handler that opens the real URL via window.open", () => {
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+    render(<Terminal sessionId="sess-1" active />);
+    expect(webLinksHandlers).toHaveLength(1);
+
+    webLinksHandlers[0](new MouseEvent("click"), "https://example.com");
+
+    expect(openSpy).toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer");
+  });
+});
+
+describe("Terminal: inbound OSC 52 clipboard writes", () => {
+  function captureOscHandler(): (payload: string) => boolean | Promise<boolean> {
+    render(<Terminal sessionId="sess-1" active />);
+    expect(mockTerminalInstance.parser.registerOscHandler).toHaveBeenCalledWith(
+      52,
+      expect.any(Function),
+    );
+    const [, handler] = mockTerminalInstance.parser.registerOscHandler.mock.calls[0];
+    return handler;
+  }
+
+  it("writes the decoded text to the clipboard and reports the sequence handled", async () => {
+    const handler = captureOscHandler();
+    const result = handler(`c;${btoa("hi")}`);
+    expect(result).toBe(true);
+    await vi.waitFor(() => expect(mockedWriteClipboard).toHaveBeenCalledWith("hi"));
+  });
+
+  it("reports a read query handled without writing to the clipboard", () => {
+    const handler = captureOscHandler();
+    const result = handler("c;?");
+    expect(result).toBe(true);
+    expect(mockedWriteClipboard).not.toHaveBeenCalled();
+  });
+
+  it("reports invalid base64 unhandled without writing to the clipboard", () => {
+    const handler = captureOscHandler();
+    const result = handler("c;not*valid*base64!");
+    expect(result).toBe(false);
+    expect(mockedWriteClipboard).not.toHaveBeenCalled();
+  });
+
+  it("disposes the OSC handler on unmount", () => {
+    const { unmount } = render(<Terminal sessionId="sess-1" active />);
+    unmount();
+    expect(mockOscHandlerDisposable.dispose).toHaveBeenCalled();
   });
 });
