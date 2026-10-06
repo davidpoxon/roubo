@@ -6,6 +6,7 @@ const makeImportServer = (port: number) =>
     startServer: vi
       .fn()
       .mockResolvedValue({ port, shutdown: vi.fn().mockResolvedValue(undefined) }),
+    installAppLogging: vi.fn(),
   });
 
 describe("resolveBootstrap", () => {
@@ -36,6 +37,7 @@ describe("resolveBootstrap", () => {
         startServer: vi
           .fn()
           .mockResolvedValue({ port: 9999, shutdown: vi.fn().mockResolvedValue(undefined) }),
+        installAppLogging: vi.fn(),
       });
     });
     await resolveBootstrap({ env, importServer });
@@ -60,6 +62,7 @@ describe("resolveBootstrap", () => {
   it("propagates startServer rejection", async () => {
     const importServer = vi.fn().mockResolvedValue({
       startServer: vi.fn().mockRejectedValue(new Error("port in use")),
+      installAppLogging: vi.fn(),
     });
     await expect(resolveBootstrap({ env: {}, importServer })).rejects.toThrow("port in use");
   });
@@ -67,5 +70,33 @@ describe("resolveBootstrap", () => {
   it("propagates importServer rejection", async () => {
     const importServer = vi.fn().mockRejectedValue(new Error("module not found"));
     await expect(resolveBootstrap({ env: {}, importServer })).rejects.toThrow("module not found");
+  });
+
+  it("installs app logging after the server module is imported and before startServer is called", async () => {
+    const calls: string[] = [];
+    const importServer = vi.fn().mockImplementation(() => {
+      calls.push("imported");
+      return Promise.resolve({
+        startServer: vi.fn().mockImplementation(() => {
+          calls.push("startServer");
+          return Promise.resolve({ port: 1, shutdown: vi.fn().mockResolvedValue(undefined) });
+        }),
+        installAppLogging: vi.fn().mockImplementation(() => {
+          calls.push("installAppLogging");
+        }),
+      });
+    });
+    await resolveBootstrap({ env: {}, importServer });
+    expect(calls).toEqual(["imported", "installAppLogging", "startServer"]);
+  });
+
+  it("installs app logging even when startServer goes on to reject", async () => {
+    const installAppLogging = vi.fn();
+    const importServer = vi.fn().mockResolvedValue({
+      startServer: vi.fn().mockRejectedValue(new Error("port in use")),
+      installAppLogging,
+    });
+    await expect(resolveBootstrap({ env: {}, importServer })).rejects.toThrow("port in use");
+    expect(installAppLogging).toHaveBeenCalledTimes(1);
   });
 });

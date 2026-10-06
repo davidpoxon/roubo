@@ -1742,7 +1742,9 @@ export type NotificationType =
   | "terminal-waiting"
   | "bench-ready"
   | "bench-error"
-  | "component-error";
+  | "component-error"
+  | "agent-launch-failed"
+  | "agent-fallback";
 
 export type NotificationPriority = "info" | "action-needed";
 
@@ -1753,6 +1755,12 @@ export interface BenchNotification {
   sourceSessionId?: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
+  /**
+   * Present only on `agent-launch-failed`: the structured failure an auto-launch
+   * produced, carried whole so the bench detail view can render the same panel
+   * the terminal route shows for an interactive launch (AP-FR-015, AP-NFR-003).
+   */
+  launchFailure?: AgentLaunchFailure;
 }
 
 // ── Resolved tool types ──

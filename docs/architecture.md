@@ -26,6 +26,10 @@ Roubo keeps all of its state under `~/.roubo/`:
 ├── projects.json                  # Registered projects: path → metadata
 ├── state.json                     # All benches: ports, branches, statuses
 ├── auth.json                      # GitHub OAuth token (mode 0600)
+├── logs/
+│   ├── current.log                # Main-process console.warn/console.error, since the
+│   │                               # packaged app has no attached terminal
+│   └── previous.log               # Rotated out once current.log passes 5MB
 └── workspaces/
     └── <projectName>/
         └── bench-<N>/             # Git worktree for bench N

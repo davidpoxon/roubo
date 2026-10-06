@@ -29,8 +29,9 @@ vi.mock("node:fs", async (importOriginal) => {
   };
 });
 
-vi.mock("./state.js", () => ({
+vi.mock("./state.js", async (importOriginal) => ({
   updateBench: vi.fn(),
+  toPersistedBench: (await importOriginal<typeof import("./state.js")>()).toPersistedBench,
   getWorkspacePath: vi.fn().mockReturnValue("/workspaces/project/bench-0-issue-42-fix-login-bug"),
   getPersistedBenches: vi.fn().mockReturnValue([]),
   getProjectPermissions: vi.fn().mockReturnValue({ allow: [], deny: [], ask: [] }),
@@ -58,7 +59,7 @@ vi.mock("./terminal.js", () => ({
 // #1114: create-and-assign resolves an agent plugin and launches through the
 // plugin runtime. There is no built-in path left to fall through to.
 vi.mock("./agent-launch-pipeline.js", () => ({
-  resolveLaunchAgentId: vi.fn().mockReturnValue("acme-agent"),
+  resolveLaunchAgent: vi.fn().mockReturnValue({ agentPluginId: "acme-agent" }),
 }));
 
 vi.mock("./agent-permissions.js", () => ({
@@ -143,6 +144,7 @@ const LAUNCH_BASE = {
   agentPluginId: "acme-agent",
 };
 import { assignIssue, unassignIssue, createBenchAndAssignFromIssue } from "./issue-assignment.js";
+import { AgentLaunchFailureError, missingBinaryFailure } from "./agent-launch-failure.js";
 
 /** A plain GitHub issue: numeric `#<n>` tail, github-com integration, open. */
 function githubIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
@@ -235,6 +237,7 @@ describe("assignIssue", () => {
     components: {},
     status: "idle" as const,
     provisioningSteps: [],
+    notifications: [],
   };
 
   const project = {
@@ -621,7 +624,7 @@ describe("assignIssue", () => {
   });
 
   it("creates no session at all when no agent plugin resolves (#1114)", async () => {
-    vi.mocked(pipeline.resolveLaunchAgentId).mockReturnValueOnce(undefined);
+    vi.mocked(pipeline.resolveLaunchAgent).mockReturnValueOnce({ agentPluginId: undefined });
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
     vi.mocked(runCommand).mockResolvedValue({
@@ -830,6 +833,7 @@ describe("createBenchAndAssignFromIssue", () => {
     components: {},
     status: "preparing" as const,
     provisioningSteps: [],
+    notifications: [],
   };
 
   function setupHappyPath() {
@@ -985,6 +989,86 @@ describe("createBenchAndAssignFromIssue", () => {
     // (AP-NFR-003), not just logged server-side.
     expect(result.launchWarning).toContain("no agent session opened");
     expect(result.launchWarning).toContain("Failed to spawn terminal");
+  });
+
+  // TODO: cite tracking issue once filed. A failed auto-launch used to be
+  // flattened to err.message (AgentLaunchFailureError's own message, which
+  // never includes "Tried: ..."), so the paths the resolver attempted, the
+  // install remedy, and any captured output were silently dropped and the
+  // bench carried no trace of the failure once the toast expired.
+  it("records the structured launch failure, including every path tried, on the bench (AP-NFR-003)", async () => {
+    setupHappyPath();
+    const failure = missingBinaryFailure(
+      { agentPluginId: "acme-agent", agentName: "Acme Agent", command: "acme" },
+      "The process exited immediately with no output, which is what an unrunnable binary looks like. Tried: /usr/bin/acme, /opt/acme/bin/acme.",
+    );
+    vi.mocked(terminalService.createAgentSession).mockRejectedValue(
+      new AgentLaunchFailureError(failure),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
+
+    expect(result.status).toBe("success");
+    if (result.status !== "success") throw new Error("expected success");
+    const notification = result.bench.notifications.find((n) => n.type === "agent-launch-failed");
+    expect(notification).toBeDefined();
+    expect(notification?.launchFailure?.guidance).toContain(
+      "Tried: /usr/bin/acme, /opt/acme/bin/acme",
+    );
+    expect(notification?.launchFailure?.class).toBe("missing-binary");
+    warnSpy.mockRestore();
+  });
+
+  it("persists the launch failure so it survives a restart", async () => {
+    setupHappyPath();
+    const failure = missingBinaryFailure(
+      { agentPluginId: "acme-agent", agentName: "Acme Agent", command: "acme" },
+      "Tried: /usr/bin/acme.",
+    );
+    vi.mocked(terminalService.createAgentSession).mockRejectedValue(
+      new AgentLaunchFailureError(failure),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await createBenchAndAssignFromIssue("project1", githubIssue(), []);
+
+    expect(stateService.updateBench).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notifications: expect.arrayContaining([
+          expect.objectContaining({
+            type: "agent-launch-failed",
+            launchFailure: expect.objectContaining({ class: "missing-binary" }),
+          }),
+        ]),
+      }),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("announces a fallback to an agent other than the configured default (AP-NFR-003)", async () => {
+    setupHappyPath();
+    vi.mocked(pipeline.resolveLaunchAgent).mockReturnValueOnce({
+      agentPluginId: "acme-agent",
+      fallback: {
+        from: "configured-agent",
+        to: "acme-agent",
+        reason:
+          'Agent plugin "configured-agent" is not installed. Install it from the marketplace.',
+      },
+    });
+
+    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
+
+    expect(result.status).toBe("success");
+    if (result.status !== "success") throw new Error("expected success");
+    const notification = result.bench.notifications.find((n) => n.type === "agent-fallback");
+    expect(notification).toBeDefined();
+    expect(notification?.metadata).toEqual({
+      from: "configured-agent",
+      to: "acme-agent",
+      reason: 'Agent plugin "configured-agent" is not installed. Install it from the marketplace.',
+    });
   });
 
   it("waits for the worktree to be provisioned before starting the agent session", async () => {
@@ -1315,6 +1399,7 @@ describe("createBenchAndAssignFromIssue", () => {
         ports: { backend: 5000 },
         createdAt: "2026-01-01",
         assignedContainers: {},
+        components: {},
         notifications: [],
       } as any;
     }
@@ -1407,6 +1492,7 @@ describe("createBenchAndAssignFromIssue", () => {
         ports: { backend: 5000 },
         createdAt: "2026-01-01",
         assignedContainers: {},
+        components: {},
         notifications: [],
       } as any;
     }
@@ -1711,6 +1797,26 @@ describe("default jig hierarchy injection", () => {
     const calls = vi.mocked(stateService.updateBench).mock.calls;
     const callWithJig = calls.find(([arg]) => arg.injectedJigId === "proj-jig");
     expect(callWithJig).toBeDefined();
+  });
+
+  it("keeps component setup state in the injected-jig write", async () => {
+    // updateBench replaces the whole record; a write without componentSetupState
+    // hydrates as a legacy bench whose components all look set up.
+    setupHappyPath();
+    vi.mocked(benchManager.createBench).mockReturnValue({
+      ...createdBench,
+      components: { backend: { name: "backend", status: "stopped", setupComplete: false } },
+    } as never);
+    vi.mocked(jigManager.resolveJigForIssue).mockReturnValue({
+      jigId: "proj-jig",
+      source: "project",
+    });
+
+    await createBenchAndAssignFromIssue("project1", githubIssue({ body: "Broken" }), []);
+
+    const calls = vi.mocked(stateService.updateBench).mock.calls;
+    const callWithJig = calls.find(([arg]) => arg.injectedJigId === "proj-jig");
+    expect(callWithJig?.[0].componentSetupState).toEqual({ backend: false });
   });
 
   it("skips jig resolution and injection when autoInject is false", async () => {

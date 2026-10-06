@@ -241,11 +241,13 @@ function toComponentUrls(components: Bench["components"]): Record<string, string
  * Extracts the persisted subset of a Bench, stripping runtime-only fields
  * (status, components, error, provisioningSteps, teardownSteps).
  *
- * NFR-004 audit: the only place a plugin-supplied `raw` may live in
- * state.json is `bench.assignedIssue.raw`. It rides through this function
- * with `assignedIssue` (passed by reference) and is removed when the bench
- * is filtered out in `removeBench`. No other persisted field carries
- * plugin-supplied unknowns.
+ * NFR-004 audit: `bench.assignedIssue.raw` is the one place a plugin-supplied
+ * `raw` may live in state.json. It rides through this function with
+ * `assignedIssue` (passed by reference) and is removed when the bench is
+ * filtered out in `removeBench`. `bench.notifications[].launchFailure` is a
+ * second: an agent-launch-failed notice can carry a plugin's declared
+ * `remedy` and the agent's own captured output (redacted before storage in
+ * notification.ts's createNotification, unlike `raw`, which is not).
  */
 export function toPersistedBench(bench: Bench): PersistedBench {
   return {

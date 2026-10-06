@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+  AgentLaunchFailure,
   Bench,
   BenchNotification,
   NotificationPriority,
@@ -8,6 +9,7 @@ import type {
 import * as benchManager from "./bench-manager.js";
 import * as stateService from "./state.js";
 import * as sseService from "./sse.js";
+import { redactSecrets } from "./log-redaction.js";
 
 // Notification types that represent "session is idle, waiting for user input".
 // Cleared on fresh PTY output; the sticky session-scoped `agent-exited` is
@@ -17,6 +19,16 @@ export const WAITING_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set
   "agent-waiting",
 ]);
 
+// Bench-level notification types that survive dismissBenchLevelForBench (AP-NFR-003,
+// TODO: cite tracking issue once filed). A failed auto-launch, and a launch that fell
+// back to an agent other than the configured default, have to stay visible until the
+// user explicitly dismisses them; opening the bench must not clear them the way an
+// ordinary bench-level notice is cleared.
+const STICKY_BENCH_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
+  "agent-launch-failed",
+  "agent-fallback",
+]);
+
 function derivePriority(type: NotificationType): NotificationPriority {
   switch (type) {
     case "agent-waiting":
@@ -24,8 +36,10 @@ function derivePriority(type: NotificationType): NotificationPriority {
     case "bench-error":
     case "component-error":
     case "agent-exited":
+    case "agent-launch-failed":
       return "action-needed";
     case "bench-ready":
+    case "agent-fallback":
       return "info";
   }
 }
@@ -38,26 +52,11 @@ function persistBench(bench: Bench): void {
   // `updateBench` is a no-op for an absent record anyway; this just avoids the
   // pointless load/save.
   if (!benchManager.isBenchLive(bench.projectId, bench.id)) return;
-  stateService.updateBench({
-    id: bench.id,
-    projectId: bench.projectId,
-    branch: bench.branch,
-    workspacePath: bench.workspacePath,
-    ports: bench.ports,
-    createdAt: bench.createdAt,
-    assignedContainers: bench.assignedContainers,
-    assignedIssue: bench.assignedIssue,
-    notifications: bench.notifications,
-    baseBranch: bench.baseBranch,
-    baseCommit: bench.baseCommit,
-    injectedJigId: bench.injectedJigId,
-    injectedJigSource: bench.injectedJigSource,
-    // updateBench replaces the whole record, so an omitted flag is erased from
-    // state.json and hydrates back as `true` (#997). A bench-error notification
-    // fires on exactly the failed-setup path that has to stay retryable, so
-    // dropping it here would make a failed `benches.setup` look complete.
-    benchSetupComplete: bench.benchSetupComplete,
-  });
+  // updateBench replaces the whole record, so persist through the one complete
+  // projection: a hand-listed subset here erased every field it forgot (variant,
+  // focusedSpecPath, componentSetupState, componentUrls, and before #997
+  // benchSetupComplete) on the next notification write.
+  stateService.updateBench(stateService.toPersistedBench(bench));
 }
 
 export function createNotification(
@@ -65,12 +64,39 @@ export function createNotification(
   type: NotificationType,
   sourceSessionId?: string,
   metadata?: Record<string, unknown>,
+  launchFailure?: AgentLaunchFailure,
 ): BenchNotification {
+  // `capturedOutput` is raw PTY bytes about to be persisted to state.json, so it
+  // gets the same redaction plugin logs already apply (log-redaction.ts).
+  const redactedFailure =
+    launchFailure?.capturedOutput !== undefined
+      ? { ...launchFailure, capturedOutput: redactSecrets(launchFailure.capturedOutput) }
+      : launchFailure;
+
   const existing = bench.notifications.find(
     (n) => n.type === type && n.sourceSessionId === sourceSessionId,
   );
   if (existing) {
-    if (metadata) existing.metadata = metadata;
+    // A repeat that carries a payload replaces the whole payload, so a later
+    // failure with only a message does not keep showing an earlier failure's
+    // structured guidance. It persists and broadcasts only when the payload
+    // actually differs: agent-waiting repeats on every idle tick with the same
+    // label, and must not turn each tick into a state.json write.
+    if (metadata === undefined && redactedFailure === undefined) return existing;
+    const changed =
+      JSON.stringify(existing.metadata) !== JSON.stringify(metadata) ||
+      JSON.stringify(existing.launchFailure) !== JSON.stringify(redactedFailure);
+    existing.metadata = metadata;
+    existing.launchFailure = redactedFailure;
+    if (changed) {
+      persistBench(bench);
+      sseService.broadcast({
+        type: "notifications",
+        projectId: bench.projectId,
+        benchId: bench.id,
+        notifications: bench.notifications,
+      });
+    }
     return existing;
   }
 
@@ -81,6 +107,7 @@ export function createNotification(
     sourceSessionId,
     metadata,
     createdAt: new Date().toISOString(),
+    launchFailure: redactedFailure,
   };
   bench.notifications.push(notification);
   persistBench(bench);
@@ -95,7 +122,9 @@ export function createNotification(
 
 export function dismissBenchLevelForBench(bench: Bench): void {
   const before = bench.notifications.length;
-  bench.notifications = bench.notifications.filter((n) => n.sourceSessionId);
+  bench.notifications = bench.notifications.filter(
+    (n) => n.sourceSessionId || STICKY_BENCH_NOTIFICATION_TYPES.has(n.type),
+  );
   if (bench.notifications.length !== before) {
     persistBench(bench);
     sseService.broadcast({
