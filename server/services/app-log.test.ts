@@ -9,6 +9,11 @@ let dir: string;
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-app-log-"));
   process.env.ROUBO_APP_LOG_DIR = dir;
+  // Silence the console underneath before installAppLogging captures it: these
+  // tests assert on the log file, and the rotation test's 6MB line, printed as
+  // CI captures it, stalled the GitHub Actions log stream and hung the job.
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
