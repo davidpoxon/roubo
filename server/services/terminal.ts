@@ -172,7 +172,9 @@ interface InternalSession {
   // Set just before Roubo itself kills this session's PTY (tab closed, bench torn
   // down, app quit). The PTY's exit arrives afterwards, and this is the only thing
   // that tells it apart from the agent dying on its own: the exit handler records,
-  // logs and notifies about nothing for a deliberate end.
+  // logs and raises an unexpected-exit notice for nothing on a deliberate end. The
+  // caller's own exit hook is unaffected, so a closed tab still raises what it
+  // always did.
   deliberateEnd?: boolean;
 }
 
@@ -665,7 +667,6 @@ function registerSession(
       });
     }
     persistSession(id);
-    if (internal.deliberateEnd) return;
     if (internal.session.unexpectedExit) {
       // The specific notice supersedes the caller's plain "agent exited" hook
       // (the only thing `onExit` raises), so the user sees one notice, not two.

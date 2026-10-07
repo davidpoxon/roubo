@@ -1644,7 +1644,7 @@ describe("unexpected exit after launch", () => {
       ["closing the tab", (id: string) => destroySession(id)],
       ["tearing down the bench", () => destroyBenchSessions("roubo", 2)],
       ["quitting the app", () => destroyAllSessions()],
-    ])("records, notifies and logs nothing after %s", async (_name, end) => {
+    ])("records, notifies and logs no unexpected exit after %s", async (_name, end) => {
       prepare({ command: "acme" });
       const onAgentExit = vi.fn();
       const session = await launch({ onAgentExit });
@@ -1654,9 +1654,12 @@ describe("unexpected exit after launch", () => {
       // process finally gets, or a plain nonzero code. Neither was unexpected.
       exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
 
+      expect(getSession(session.id)?.unexpectedExit).toBeUndefined();
       expect(notificationService.createNotification).not.toHaveBeenCalled();
-      expect(onAgentExit).not.toHaveBeenCalled();
       expect(console.warn).not.toHaveBeenCalled();
+      // The caller's own exit hook is not part of this change: a deliberate end
+      // still reaches it, as it always has (an e2e journey ends a session this way).
+      expect(onAgentExit).toHaveBeenCalledWith(session.id);
     });
   });
 });

@@ -142,7 +142,7 @@ There is no exception. Roubo removed its own built-in agent launch path in #1114
 
 An agent that launched fine and later dies on its own is not an ordinary end. Roubo calls an exit unexpected when it comes after the early launch window and is either a nonzero exit code or a signal other than a deliberate stop. A wrapper that supervises the agent reports a killed child as exit code 128 plus the signal number, so `137` is read as `SIGKILL`, which is what an out-of-memory kill looks like. `SIGHUP`, `SIGINT` and `SIGTERM` (codes 129, 130 and 143) count as an ordinary end, as does a clean exit.
 
-An exit inside the early window is judged as a launch failure rather than an unexpected exit, and a signal kill there is reported as one with its signal named. Closing a tab, tearing down a bench and quitting the app never count: Roubo marks the session before it kills the process, so the exit that follows is not classified at all, and raises no notification of its own.
+An exit inside the early window is judged as a launch failure rather than an unexpected exit, and a signal kill there is reported as one with its signal named. Closing a tab, tearing down a bench and quitting the app never count: Roubo marks the session before it kills the process, so the exit that follows is not classified at all and never raises an unexpected-exit notification.
 
 For an unexpected exit Roubo does four things:
 
