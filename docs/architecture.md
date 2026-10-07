@@ -26,6 +26,9 @@ Roubo keeps all of its state under `~/.roubo/`:
 ├── projects.json                  # Registered projects: path → metadata
 ├── state.json                     # All benches: ports, branches, statuses
 ├── auth.json                      # GitHub OAuth token (mode 0600)
+├── terminal-sessions/
+│   └── <sessionId>.json           # One bench terminal session: its record, scrollback and,
+│                                   # for an agent, why it ended if it did not end normally
 ├── logs/
 │   ├── current.log                # Main-process console.warn/console.error, since the
 │   │                               # packaged app has no attached terminal
@@ -36,6 +39,8 @@ Roubo keeps all of its state under `~/.roubo/`:
 ```
 
 `projects.json` and `state.json` are plain JSON. If you need to inspect or surgically edit the system state, that's where to look. The directory layout is stable.
+
+A terminal session file outlives the server. After a restart the session comes back as ended, with its scrollback, and keeps the record of how an agent session ended (a launch failure, or an unexpected exit) so a tab opened later still says why.
 
 ## Project registration
 
@@ -117,7 +122,7 @@ Tools only appear in the UI when their dependencies are running, or have run to 
 
 ## Session notifications
 
-A bench terminal session is either working, waiting on you, or gone. Roubo turns the last two into bench notifications so a tab you are not looking at can still ask for attention: a **waiting** notification while a session sits idle at a prompt, and an **exited** notification when its process ends. Both are session-scoped: they carry the session id, and the terminal tab strip renders an indicator on any inactive tab with a matching notification. A waiting session is surfaced on the pane as well, where the terminal shows a `Waiting for your input` strip, which covers the session you are looking at (the one the tab indicator deliberately skips).
+A bench terminal session is either working, waiting on you, or gone. Roubo turns the last two into bench notifications so a tab you are not looking at can still ask for attention: a **waiting** notification while a session sits idle at a prompt, an **exited** notification when its process ends, and an **unexpected-exit** notification when an agent dies on its own (see below). All three are session-scoped: they carry the session id, and the terminal tab strip renders an indicator on any inactive tab with a matching notification. A waiting session is surfaced on the pane as well, where the terminal shows a `Waiting for your input` strip, which covers the session you are looking at (the one the tab indicator deliberately skips).
 
 ### Two waiting-detection mechanisms
 
@@ -133,9 +138,22 @@ The session id is minted by Roubo before the agent is asked for anything, so the
 
 There is no exception. Roubo removed its own built-in agent launch path in #1114, so a launch descriptor is the only thing that can confer hook eligibility and a command name confers nothing.
 
+### Unexpected exits
+
+An agent that launched fine and later dies on its own is not an ordinary end. Roubo calls an exit unexpected when it comes after the early launch window and is either a nonzero exit code or a signal other than a deliberate stop. A wrapper that supervises the agent reports a killed child as exit code 128 plus the signal number, so `137` is read as `SIGKILL`, which is what an out-of-memory kill looks like. `SIGHUP`, `SIGINT` and `SIGTERM` (codes 129, 130 and 143) count as an ordinary end, as does a clean exit.
+
+An exit inside the early window is judged as a launch failure rather than an unexpected exit, and a signal kill there is reported as one with its signal named. Closing a tab, tearing down a bench and quitting the app never count: Roubo marks the session before it kills the process, so the exit that follows is not classified at all, and raises no notification of its own.
+
+For an unexpected exit Roubo does four things:
+
+- **Records it** on the terminal session (`unexpectedExit`: the exit code, the signal name, how long the session ran, and when it ended), which is persisted with the session.
+- **Logs it** as a warning to `logs/current.log`.
+- **Raises** an `agent-exited-unexpectedly` notification in place of the plain exited one, so there is one notice, not two. It is raised by the session itself, so an agent launched automatically for an assigned issue is covered as well.
+- **Shows it** in three places: an inline notice on the bench view, a panel and a red line in the terminal pane (replayed on reconnect and after a restart), and an alert mark on the session's tab.
+
 ### Dismissal
 
-Waiting notifications are transient by design and clear themselves as soon as the premise stops holding: fresh PTY output dismisses them (the session resumed work), as does typing into the session (you engaged with it). Exited notifications are sticky and stay until dismissed, because a process does not un-exit.
+Waiting notifications are transient by design and clear themselves as soon as the premise stops holding: fresh PTY output dismisses them (the session resumed work), as does typing into the session (you engaged with it). Exited notifications are sticky and stay until dismissed, because a process does not un-exit. An unexpected-exit notification is the one session-scoped notification that opening its tab does not clear: it stays until you dismiss it from the bench view.
 
 ## Terminal clipboard and links
 

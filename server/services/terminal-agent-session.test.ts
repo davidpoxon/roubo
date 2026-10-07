@@ -78,6 +78,8 @@ vi.mock("./agent-launch-pipeline.js", async (importOriginal) => {
 import {
   createAgentSession,
   destroyAllSessions,
+  destroyBenchSessions,
+  destroySession,
   getSession,
   handleWebSocket,
   isHookNotificationEligible,
@@ -100,7 +102,7 @@ function createMockPty() {
       emitter.on("data", fn);
       return { dispose: () => emitter.removeListener("data", fn) };
     },
-    onExit: (fn: (e: { exitCode: number }) => void) => {
+    onExit: (fn: (e: { exitCode: number; signal?: number }) => void) => {
       emitter.on("exit", fn);
       return { dispose: () => emitter.removeListener("exit", fn) };
     },
@@ -1349,6 +1351,7 @@ function fakeSocket() {
   const handlers = new Map<string, (arg: unknown) => void>();
   return {
     frames,
+    handlers,
     ws: {
       OPEN: 1,
       readyState: 1,
@@ -1403,6 +1406,31 @@ describe("post-spawn launch-failure detection (AP-FR-015)", () => {
     expect(failure.class).toBe("missing-binary");
   });
 
+  it("writes the launch failure to disk at exit time, not only on replay", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+    lastPty()._emit("data", "error: unknown option '--nope'");
+    stateMocks.atomicWrite.mockClear();
+
+    lastPty()._emit("exit", { exitCode: 2 });
+
+    const written = JSON.parse(stateMocks.atomicWrite.mock.calls.at(-1)?.[1] as string);
+    expect(written.session.id).toBe(session.id);
+    expect(written.launchFailure.class).toBe("launch-failure");
+  });
+
+  it("names the signal for an agent killed just after it started", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+
+    lastPty()._emit("exit", { exitCode: 0, signal: 9 });
+
+    const failure = replayFor(session.id).launchFailure as Record<string, unknown>;
+    expect(failure.message).toContain("ended by SIGKILL");
+    expect(failure.exitCode).toBeUndefined();
+    expect(getSession(session.id)?.unexpectedExit).toBeUndefined();
+  });
+
   it("does not flag a clean exit as a failure, however fast it was", async () => {
     prepare({ command: "acme" });
     const session = await launch();
@@ -1414,6 +1442,8 @@ describe("post-spawn launch-failure detection (AP-FR-015)", () => {
   });
 
   it("does not flag a session that outlives the early window as a launch failure", async () => {
+    // It is an unexpected exit instead (exit 3), which logs; keep the suite silent.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     prepare({ command: "acme" });
     const session = await launch();
 
@@ -1425,6 +1455,209 @@ describe("post-spawn launch-failure detection (AP-FR-015)", () => {
     vi.mocked(Date.now).mockRestore();
 
     expect(replayFor(session.id).launchFailure).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("ended unexpectedly"),
+      expect.anything(),
+      expect.anything(),
+      expect.stringContaining("exit code 3"),
+    );
+  });
+});
+
+// -- An agent that dies after it launched fine --
+
+/** Emit an exit `ms` after spawn, by moving Date.now (the classifier reads wall time). */
+function exitAfter(ms: number, exit: { exitCode: number; signal?: number }): void {
+  const realNow = Date.now;
+  vi.spyOn(Date, "now").mockImplementation(() => realNow() + ms);
+  lastPty()._emit("exit", exit);
+  vi.mocked(Date.now).mockRestore();
+}
+
+const FORTY_FIVE_MINUTES = 45 * 60 * 1000;
+
+describe("unexpected exit after launch", () => {
+  beforeEach(() => {
+    // The unexpected-exit line is a real console.warn; keep the suite silent.
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("records a late kill on the session with its signal, code and agent", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+
+    exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
+
+    expect(getSession(session.id)?.unexpectedExit).toMatchObject({
+      exitCode: 137,
+      signal: "SIGKILL",
+      agentPluginId: "acme-agent",
+    });
+    expect(getSession(session.id)?.unexpectedExit?.timeToExitMs).toBeGreaterThanOrEqual(
+      FORTY_FIVE_MINUTES,
+    );
+  });
+
+  it("records a child killed directly by a signal, which node-pty reports as exit 0", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+
+    exitAfter(FORTY_FIVE_MINUTES, { exitCode: 0, signal: 9 });
+
+    expect(getSession(session.id)?.unexpectedExit).toMatchObject({
+      exitCode: null,
+      signal: "SIGKILL",
+    });
+  });
+
+  it("persists the record with the session so it survives a restart", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+    stateMocks.atomicWrite.mockClear();
+
+    exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
+
+    const written = JSON.parse(stateMocks.atomicWrite.mock.calls.at(-1)?.[1] as string);
+    expect(written.session.id).toBe(session.id);
+    expect(written.session.unexpectedExit).toMatchObject({ exitCode: 137, signal: "SIGKILL" });
+  });
+
+  it("logs the exit so it reaches the app log", async () => {
+    prepare({ command: "acme" });
+    await launch();
+
+    exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining("ended unexpectedly"),
+      expect.anything(),
+      expect.anything(),
+      expect.stringContaining("SIGKILL"),
+    );
+  });
+
+  it("raises a notice naming the exit, even for a launch that supplied no exit hook", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+
+    exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
+
+    expect(notificationService.createNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      "agent-exited-unexpectedly",
+      session.id,
+      { label: session.label },
+      undefined,
+      expect.objectContaining({ exitCode: 137, signal: "SIGKILL" }),
+    );
+  });
+
+  it("leaves the plain agent-exited notice out, since the specific one supersedes it", async () => {
+    prepare({ command: "acme" });
+    const onAgentExit = vi.fn();
+    await launch({ onAgentExit });
+
+    exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
+
+    expect(onAgentExit).not.toHaveBeenCalled();
+  });
+
+  it("carries the record on the replay frame and on the live exit frame", async () => {
+    prepare({ command: "acme" });
+    const session = await launch();
+    const socket = fakeSocket();
+    handleWebSocket(session.id, socket.ws as never);
+
+    exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
+
+    const exitFrame = socket.frames.find((f) => f.type === "exit");
+    expect(exitFrame?.unexpectedExit).toMatchObject({ signal: "SIGKILL" });
+    expect(replayFor(session.id).unexpectedExit).toMatchObject({ signal: "SIGKILL" });
+  });
+
+  it("is not a launch failure, and a launch failure is not an unexpected exit", async () => {
+    prepare({ command: "acme" });
+    const late = await launch();
+    exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
+    expect(replayFor(late.id).launchFailure).toBeUndefined();
+
+    spawnMock.mockClear().mockImplementation(() => createMockPty());
+    const early = await launch();
+    lastPty()._emit("exit", { exitCode: 137 });
+    expect(getSession(early.id)?.unexpectedExit).toBeUndefined();
+    expect((replayFor(early.id).launchFailure as Record<string, unknown>).class).toBe(
+      "launch-failure",
+    );
+  });
+
+  it.each([
+    ["a clean exit", { exitCode: 0 }],
+    ["a SIGTERM exit code", { exitCode: 143 }],
+    ["a SIGHUP exit code", { exitCode: 129 }],
+    ["a direct SIGTERM", { exitCode: 0, signal: 15 }],
+  ])("records nothing for %s, and still calls the exit hook", async (_name, exit) => {
+    prepare({ command: "acme" });
+    const onAgentExit = vi.fn();
+    const session = await launch({ onAgentExit });
+
+    exitAfter(FORTY_FIVE_MINUTES, exit);
+
+    expect(getSession(session.id)?.unexpectedExit).toBeUndefined();
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+    expect(onAgentExit).toHaveBeenCalledWith(session.id);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  describe("input into a terminal whose process has died", () => {
+    // A module-level mock, so its calls would otherwise carry over between cases.
+    beforeEach(() => vi.mocked(notificationService.dismissBySession).mockClear());
+
+    const typeIntoSocket = (socket: ReturnType<typeof fakeSocket>) =>
+      socket.handlers.get("message")?.(Buffer.from(JSON.stringify({ type: "input", data: "\r" })));
+
+    it("leaves the notices that record how it died in place", async () => {
+      prepare({ command: "acme" });
+      const session = await launch();
+      const socket = fakeSocket();
+      handleWebSocket(session.id, socket.ws as never);
+      exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
+
+      typeIntoSocket(socket);
+
+      expect(notificationService.dismissBySession).not.toHaveBeenCalled();
+    });
+
+    it("still dismisses a live session's notices, which is what the input means there", async () => {
+      prepare({ command: "acme" });
+      const session = await launch();
+      const socket = fakeSocket();
+      handleWebSocket(session.id, socket.ws as never);
+
+      typeIntoSocket(socket);
+
+      expect(notificationService.dismissBySession).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("a deliberate end", () => {
+    it.each([
+      ["closing the tab", (id: string) => destroySession(id)],
+      ["tearing down the bench", () => destroyBenchSessions("roubo", 2)],
+      ["quitting the app", () => destroyAllSessions()],
+    ])("records, notifies and logs nothing after %s", async (_name, end) => {
+      prepare({ command: "acme" });
+      const onAgentExit = vi.fn();
+      const session = await launch({ onAgentExit });
+
+      end(session.id);
+      // The PTY's own exit arrives after the kill, carrying the SIGKILL a stuck
+      // process finally gets, or a plain nonzero code. Neither was unexpected.
+      exitAfter(FORTY_FIVE_MINUTES, { exitCode: 137 });
+
+      expect(notificationService.createNotification).not.toHaveBeenCalled();
+      expect(onAgentExit).not.toHaveBeenCalled();
+      expect(console.warn).not.toHaveBeenCalled();
+    });
   });
 });
 

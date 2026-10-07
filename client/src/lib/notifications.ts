@@ -46,6 +46,10 @@ const notificationMessages: Record<NotificationType, { title: string; body: stri
     title: "Agent exited",
     body: "An agent session has ended",
   },
+  "agent-exited-unexpectedly": {
+    title: "Agent ended unexpectedly",
+    body: "An AI coding agent session was killed or exited with an error",
+  },
   "bench-ready": { title: "Bench ready", body: "A bench is ready to use" },
   "agent-launch-failed": {
     title: "Agent did not start",

@@ -5,6 +5,7 @@ import type {
   BenchNotification,
   NotificationPriority,
   NotificationType,
+  SessionUnexpectedExit,
 } from "@roubo/shared";
 import * as benchManager from "./bench-manager.js";
 import * as stateService from "./state.js";
@@ -36,6 +37,7 @@ function derivePriority(type: NotificationType): NotificationPriority {
     case "bench-error":
     case "component-error":
     case "agent-exited":
+    case "agent-exited-unexpectedly":
     case "agent-launch-failed":
       return "action-needed";
     case "bench-ready":
@@ -65,6 +67,7 @@ export function createNotification(
   sourceSessionId?: string,
   metadata?: Record<string, unknown>,
   launchFailure?: AgentLaunchFailure,
+  unexpectedExit?: SessionUnexpectedExit,
 ): BenchNotification {
   // `capturedOutput` is raw PTY bytes about to be persisted to state.json, so it
   // gets the same redaction plugin logs already apply (log-redaction.ts).
@@ -82,12 +85,16 @@ export function createNotification(
     // structured guidance. It persists and broadcasts only when the payload
     // actually differs: agent-waiting repeats on every idle tick with the same
     // label, and must not turn each tick into a state.json write.
-    if (metadata === undefined && redactedFailure === undefined) return existing;
+    if (metadata === undefined && redactedFailure === undefined && unexpectedExit === undefined) {
+      return existing;
+    }
     const changed =
       JSON.stringify(existing.metadata) !== JSON.stringify(metadata) ||
-      JSON.stringify(existing.launchFailure) !== JSON.stringify(redactedFailure);
+      JSON.stringify(existing.launchFailure) !== JSON.stringify(redactedFailure) ||
+      JSON.stringify(existing.unexpectedExit) !== JSON.stringify(unexpectedExit);
     existing.metadata = metadata;
     existing.launchFailure = redactedFailure;
+    existing.unexpectedExit = unexpectedExit;
     if (changed) {
       persistBench(bench);
       sseService.broadcast({
@@ -108,6 +115,7 @@ export function createNotification(
     metadata,
     createdAt: new Date().toISOString(),
     launchFailure: redactedFailure,
+    unexpectedExit,
   };
   bench.notifications.push(notification);
   persistBench(bench);

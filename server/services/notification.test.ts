@@ -238,6 +238,77 @@ describe("createNotification", () => {
     expect(result.priority).toBe("action-needed");
   });
 
+  it("assigns action-needed priority for agent-exited-unexpectedly", () => {
+    const bench = makeBench();
+    const result = createNotification(bench, "agent-exited-unexpectedly", "session-1");
+    expect(result.priority).toBe("action-needed");
+  });
+
+  it("stores the unexpected exit on the notification, scoped to its session", () => {
+    const bench = makeBench();
+    const exit = {
+      exitCode: 137,
+      signal: "SIGKILL",
+      timeToExitMs: 2_700_000,
+      endedAt: "2026-10-07T09:00:00.000Z",
+    };
+
+    const result = createNotification(
+      bench,
+      "agent-exited-unexpectedly",
+      "session-1",
+      { label: "Session 1" },
+      undefined,
+      exit,
+    );
+
+    expect(result.unexpectedExit).toEqual(exit);
+    expect(result.sourceSessionId).toBe("session-1");
+    expect(mockUpdateBench).toHaveBeenCalled();
+    expect(mockBroadcast).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "notifications", benchId: bench.id }),
+    );
+  });
+
+  it("replaces the unexpected exit on a repeat for the same session and persists it", () => {
+    const bench = makeBench();
+    const base = { timeToExitMs: 60_000, endedAt: "2026-10-07T09:00:00.000Z" };
+    createNotification(bench, "agent-exited-unexpectedly", "session-1", undefined, undefined, {
+      ...base,
+      exitCode: 3,
+      signal: null,
+    });
+    mockUpdateBench.mockClear();
+
+    createNotification(bench, "agent-exited-unexpectedly", "session-1", undefined, undefined, {
+      ...base,
+      exitCode: 137,
+      signal: "SIGKILL",
+    });
+
+    expect(bench.notifications).toHaveLength(1);
+    expect(bench.notifications[0].unexpectedExit?.signal).toBe("SIGKILL");
+    expect(mockUpdateBench).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not persist a repeat that carries the identical unexpected exit", () => {
+    const bench = makeBench();
+    const exit = {
+      exitCode: 137,
+      signal: "SIGKILL",
+      timeToExitMs: 60_000,
+      endedAt: "2026-10-07T09:00:00.000Z",
+    };
+    createNotification(bench, "agent-exited-unexpectedly", "session-1", undefined, undefined, exit);
+    mockUpdateBench.mockClear();
+
+    createNotification(bench, "agent-exited-unexpectedly", "session-1", undefined, undefined, {
+      ...exit,
+    });
+
+    expect(mockUpdateBench).not.toHaveBeenCalled();
+  });
+
   it("assigns info priority for agent-fallback", () => {
     const bench = makeBench();
     const result = createNotification(bench, "agent-fallback");
@@ -450,6 +521,24 @@ describe("dismissBenchLevelForBench", () => {
 
     expect(bench.notifications).toHaveLength(1);
     expect(bench.notifications[0].id).toBe("n2");
+  });
+
+  it("keeps an unexpected-exit notice when the bench is opened, since it is session-scoped", () => {
+    const bench = makeBench();
+    bench.notifications = [
+      { id: "n1", type: "bench-ready", priority: "info", createdAt: "2026-01-01T00:00:00.000Z" },
+      {
+        id: "n2",
+        type: "agent-exited-unexpectedly",
+        priority: "action-needed",
+        sourceSessionId: "session-1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+
+    dismissBenchLevelForBench(bench);
+
+    expect(bench.notifications.map((n) => n.id)).toEqual(["n2"]);
   });
 
   it("keeps an agent-fallback notification, which is sticky until dismissed explicitly", () => {

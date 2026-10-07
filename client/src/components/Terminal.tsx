@@ -3,11 +3,13 @@ import { Terminal as XTerm, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
-import type { AgentLaunchFailure } from "@roubo/shared";
+import type { AgentLaunchFailure, SessionUnexpectedExit } from "@roubo/shared";
 import { useTerminalConnection } from "../hooks/useTerminalConnection";
 import ReconnectBanner from "./ReconnectBanner";
 import WaitingBanner from "./WaitingBanner";
 import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
+import AgentUnexpectedExitPanel from "./AgentUnexpectedExitPanel";
+import { describeExitCause } from "../lib/unexpected-exit";
 import { parseOsc52 } from "../lib/osc52";
 import { writeClipboard } from "../lib/clipboard";
 
@@ -51,6 +53,18 @@ function terminalTheme(): ITheme {
   return theme;
 }
 
+/**
+ * The line written into the scrollback when the process ends. An unexpected exit
+ * names its cause in red, so scrolling back to the end of a session that was
+ * killed says so without the panel; any other end keeps the plain grey code.
+ */
+function exitLine(code: number | undefined, unexpected?: SessionUnexpectedExit): string {
+  if (unexpected) {
+    return `\r\n\x1b[31m[Process ended unexpectedly: ${describeExitCause(unexpected)}]\x1b[0m\r\n`;
+  }
+  return `\r\n\x1b[90m[Process exited with code ${code}]\x1b[0m\r\n`;
+}
+
 export default function Terminal({
   sessionId,
   active,
@@ -84,6 +98,13 @@ export default function Terminal({
 }) {
   const [socketFailure, setSocketFailure] = useState<AgentLaunchFailure | null>(null);
   const launchFailure = socketFailure ?? initialLaunchFailure;
+  // An agent that launched fine and then died on its own. Like the failure above
+  // it arrives on the replay and the exit frame, so a tab opened after the fact
+  // (or after a server restart) still says why the session ended. The panel can
+  // be dismissed locally: it overlays the top of the scrollback, which stays the
+  // thing worth reading on a session that ran a long time.
+  const [unexpectedExit, setUnexpectedExit] = useState<SessionUnexpectedExit | null>(null);
+  const [unexpectedExitDismissed, setUnexpectedExitDismissed] = useState(false);
   // Armed whenever the session's waiting notification CHANGES to a real one
   // (including one waiting notification replacing another), cleared only by the
   // two signals that mean the session is no longer waiting on the user: the
@@ -219,7 +240,12 @@ export default function Terminal({
   // The failure is replayed, not just pushed live, so reattaching to an already
   // dead session still shows the panel rather than a bare exit code.
   const onReplay = useCallback(
-    (lines: string[], exitCode?: number, failure?: AgentLaunchFailure) => {
+    (
+      lines: string[],
+      exitCode?: number,
+      failure?: AgentLaunchFailure,
+      unexpected?: SessionUnexpectedExit,
+    ) => {
       const term = termRef.current;
       if (!term) return;
       for (const line of lines) {
@@ -231,15 +257,22 @@ export default function Terminal({
         // terminal that has gone, but a plain reconnect replay (no exit code)
         // still leaves a legitimate waiting strip alone.
         setWaitingLatched(false);
-        term.write(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`);
+        term.write(exitLine(exitCode, unexpected));
       }
       if (failure) setSocketFailure(failure);
+      if (unexpected) setUnexpectedExit(unexpected);
     },
     [],
   );
 
   const onMessage = useCallback(
-    (msg: { type: string; data?: string; code?: number; launchFailure?: AgentLaunchFailure }) => {
+    (msg: {
+      type: string;
+      data?: string;
+      code?: number;
+      launchFailure?: AgentLaunchFailure;
+      unexpectedExit?: SessionUnexpectedExit;
+    }) => {
       const term = termRef.current;
       if (!term) return;
       if (msg.type === "output" && msg.data) {
@@ -254,8 +287,9 @@ export default function Terminal({
         // reconnect banner never takes the strip's place: without this the
         // waiting strip would stay pinned over a terminal that has gone.
         setWaitingLatched(false);
-        term.write(`\r\n\x1b[90m[Process exited with code ${msg.code}]\x1b[0m\r\n`);
+        term.write(exitLine(msg.code, msg.unexpectedExit));
         if (msg.launchFailure) setSocketFailure(msg.launchFailure);
+        if (msg.unexpectedExit) setUnexpectedExit(msg.unexpectedExit);
       }
     },
     [],
@@ -325,6 +359,12 @@ export default function Terminal({
         className={`h-full w-full ${topStrip ? "pt-8" : ""}`}
         style={{ padding: topStrip ? undefined : "4px" }}
       />
+      {unexpectedExit && !unexpectedExitDismissed && (
+        <AgentUnexpectedExitPanel
+          exit={unexpectedExit}
+          onDismiss={() => setUnexpectedExitDismissed(true)}
+        />
+      )}
       {launchFailure && (
         <AgentLaunchFailurePanel
           failure={launchFailure}

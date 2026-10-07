@@ -457,6 +457,87 @@ describe("BenchDetail", () => {
     });
   });
 
+  describe("an agent that died unexpectedly", () => {
+    const unexpectedNotification = (
+      id: string,
+      label: string,
+      signal: string | null = "SIGKILL",
+    ) => ({
+      id,
+      type: "agent-exited-unexpectedly",
+      priority: "action-needed",
+      sourceSessionId: `session-${id}`,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      metadata: { label },
+      unexpectedExit: {
+        exitCode: signal === null ? 3 : 137,
+        signal,
+        timeToExitMs: 45 * 60 * 1000,
+        endedAt: "2026-01-01T00:45:00.000Z",
+      },
+    });
+
+    it("shows what ended the agent without opening a terminal", () => {
+      renderBench({
+        ...baseBench,
+        notifications: [unexpectedNotification("n1", "Session 1 - demo #1")],
+      } as never);
+
+      const panel = screen.getByTestId("agent-unexpected-exit-inline");
+      expect(panel).toHaveTextContent("SIGKILL (exit 137)");
+      expect(panel).toHaveTextContent("45 minutes");
+      expect(screen.getByTestId("agent-unexpected-exit-label")).toHaveTextContent(
+        "Session 1 - demo #1",
+      );
+    });
+
+    it("shows one notice per session that died", () => {
+      renderBench({
+        ...baseBench,
+        notifications: [
+          unexpectedNotification("n1", "Session 1"),
+          unexpectedNotification("n2", "Session 2", null),
+        ],
+      } as never);
+
+      expect(screen.getAllByTestId("agent-unexpected-exit-inline")).toHaveLength(2);
+    });
+
+    it("dismisses only the notice it belongs to", async () => {
+      const dismissNotification = vi.fn();
+      vi.mocked(useDismissNotification).mockReturnValue({
+        mutate: dismissNotification,
+        isPending: false,
+      } as never);
+      renderBench({
+        ...baseBench,
+        notifications: [
+          unexpectedNotification("n1", "Session 1"),
+          unexpectedNotification("n2", "Session 2"),
+        ],
+      } as never);
+
+      await userEvent.click(screen.getAllByTestId("agent-unexpected-exit-dismiss")[1]);
+
+      expect(dismissNotification).toHaveBeenCalledWith({
+        projectId: "proj-1",
+        benchId: 1,
+        notificationId: "n2",
+      });
+    });
+
+    it("renders nothing for a notice that carries no record of the exit", () => {
+      renderBench({
+        ...baseBench,
+        notifications: [
+          { ...unexpectedNotification("n1", "Session 1"), unexpectedExit: undefined },
+        ],
+      } as never);
+
+      expect(screen.queryByTestId("agent-unexpected-exit-inline")).toBeNull();
+    });
+  });
+
   it("renders nothing extra when the bench has no agent-launch-failed notification", () => {
     renderBench();
     expect(screen.queryByTestId("agent-launch-failure-inline")).toBeNull();

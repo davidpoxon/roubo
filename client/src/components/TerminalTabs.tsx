@@ -8,7 +8,7 @@ import {
   MenuItem,
   Popover,
 } from "react-aria-components";
-import { Plus, Bot, X, ChevronDown } from "lucide-react";
+import { Plus, Bot, X, ChevronDown, OctagonAlert } from "lucide-react";
 import { useTerminalSessions, useCreateTerminal, useDestroyTerminal } from "../hooks/useTerminal";
 import { useJigs, useInjectJig } from "../hooks/useJigs";
 import { useSettings } from "../hooks/useSettings";
@@ -183,8 +183,13 @@ export default function TerminalTabs({
   }, [activeTab]);
   useEffect(() => {
     if (!activeTab) return;
+    // An agent that died unexpectedly is the one notice that must outlive looking
+    // at its tab: the first tab is the active one by default, so dismissing it here
+    // would clear the record within a poll of it being raised. It is dismissed
+    // from the bench view's own notice instead.
     for (const notif of notifications.filter(
-      (n: BenchNotification) => n.sourceSessionId === activeTab,
+      (n: BenchNotification) =>
+        n.sourceSessionId === activeTab && n.type !== "agent-exited-unexpectedly",
     )) {
       if (!dismissedNotifIds.current.has(notif.id)) {
         dismissedNotifIds.current.add(notif.id);
@@ -620,6 +625,15 @@ export default function TerminalTabs({
                 />
               )}
               <span className="whitespace-nowrap">{shortLabel(session.label)}</span>
+              {session.unexpectedExit && (
+                <OctagonAlert
+                  size={12}
+                  role="img"
+                  aria-label="Ended unexpectedly"
+                  data-testid="session-unexpected-exit-icon"
+                  className="shrink-0 text-danger-text"
+                />
+              )}
               {activeTab !== session.id && (
                 <NotificationIndicator
                   notifications={notifications.filter((n) => n.sourceSessionId === session.id)}

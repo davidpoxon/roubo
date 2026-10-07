@@ -112,6 +112,7 @@ describe("formatNotification", () => {
     "bench-error",
     "component-error",
     "agent-exited",
+    "agent-exited-unexpectedly",
   ];
   const infoTypes: NotificationType[] = ["bench-ready"];
 
@@ -130,7 +131,11 @@ describe("formatNotification", () => {
     // Any agent plugin's session raises these, so their copy must stay
     // product-neutral (docs/brand.md). Since #1114 there is no built-in path
     // left to raise a product-specific one.
-    for (const type of ["agent-waiting", "agent-exited"] as NotificationType[]) {
+    for (const type of [
+      "agent-waiting",
+      "agent-exited",
+      "agent-exited-unexpectedly",
+    ] as NotificationType[]) {
       const { title, body } = formatNotification(makeNotification("action-needed", type));
       expect(`${title} ${body}`).not.toMatch(/claude|codex|gemini|copilot/i);
     }

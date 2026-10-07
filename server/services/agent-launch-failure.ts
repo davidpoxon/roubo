@@ -1,8 +1,10 @@
+import { constants as osConstants } from "node:os";
 import type {
   AgentCliStep,
   AgentInstallGuidance,
   AgentLaunchFailure,
   AgentLaunchFailureAction,
+  SessionUnexpectedExit,
 } from "@roubo/shared";
 import type { AgentVersionProbeResult } from "./agent-version-probe.js";
 
@@ -28,10 +30,16 @@ export const EARLY_EXIT_WINDOW_MS = 5000;
 const MAX_CAPTURE_BYTES = 4096;
 
 export type PtyExitClass =
-  "launch-failure" | "missing-binary" | "fast-clean-exit" | "session-ended";
+  "launch-failure" | "missing-binary" | "fast-clean-exit" | "session-ended" | "unexpected-exit";
 
 export interface PtyExitSignals {
   exitCode: number;
+  /**
+   * The signal node-pty reports when the child itself was killed. It is 0 or
+   * absent otherwise, and `exitCode` is then 0 as well, so a SIGKILLed child
+   * looks like a clean exit unless this is read.
+   */
+  signal?: number;
   /** Milliseconds from spawn to exit. */
   timeToExitMs: number;
   /** Bytes captured from the merged PTY stream. */
@@ -40,19 +48,55 @@ export interface PtyExitSignals {
 }
 
 /**
+ * Signals a deliberate stop produces: a closed pty (HUP), Ctrl-C (INT), and
+ * `stop-agent` or a plain `kill` (TERM). An exit by one of these is an ordinary
+ * end, never an unexpected one. Anything else, SIGKILL above all (an OOM kill),
+ * is not something the user asked for.
+ */
+const GRACEFUL_SIGNALS: ReadonlySet<string> = new Set(["SIGHUP", "SIGINT", "SIGTERM"]);
+
+/**
+ * The signal that ended a process, by name, or `undefined` when none did.
+ *
+ * Two shapes carry it. node-pty reports a signalled child as `exitCode: 0` plus a
+ * separate `signal`. A wrapper that supervises the child (a shell, a container
+ * launcher) instead exits 128 + n itself, which arrives as an ordinary exit code
+ * of 129 to 192. The direct field wins when both are present.
+ */
+export function decodeExitSignal(exit: { exitCode: number; signal?: number }): string | undefined {
+  let number: number | undefined;
+  if (exit.signal !== undefined && exit.signal > 0) number = exit.signal;
+  else if (exit.exitCode > 128 && exit.exitCode <= 192) number = exit.exitCode - 128;
+  if (number === undefined) return undefined;
+  const name = Object.entries(osConstants.signals).find(([, value]) => value === number)?.[0];
+  return name ?? `signal ${number}`;
+}
+
+/**
  * Classify a PTY exit against the launch-failure spike's counterexamples.
  *
  * - `claude --version` exits 0 in 48ms: fast-clean-exit, never a failure.
- * - `sh -c 'sleep 6; exit 3'` exits nonzero at 6019ms: session-ended, outlived
+ * - `sh -c 'sleep 6; exit 3'` exits nonzero at 6019ms: unexpected-exit, outlived
  *   the window, so it is a session that died rather than one that never started.
  * - An absent binary exits 1 in 6ms with zero output: missing-binary, where the
  *   right message is about the binary rather than the flags.
  * - `codex --enable-auto-mode` exits 2 in 52ms with 278 bytes: launch-failure,
  *   and those bytes are what the user needs to read.
+ *
+ * After the window, only a clean exit or a deliberate stop (a graceful signal)
+ * is an ordinary `session-ended`; a nonzero code or any other signal is an
+ * `unexpected-exit`, however late it came.
  */
 export function classifyPtyExit(signals: PtyExitSignals): PtyExitClass {
   const windowMs = signals.windowMs ?? EARLY_EXIT_WINDOW_MS;
-  if (signals.timeToExitMs > windowMs) return "session-ended";
+  const signal = decodeExitSignal(signals);
+  if (signal !== undefined && GRACEFUL_SIGNALS.has(signal)) return "session-ended";
+  if (signals.timeToExitMs > windowMs) {
+    return signals.exitCode === 0 && signal === undefined ? "session-ended" : "unexpected-exit";
+  }
+  // A signal kill leaves no output to judge by, so it cannot fall through to the
+  // output-based rules below, which would call a silent one a missing binary.
+  if (signal !== undefined) return "launch-failure";
   if (signals.exitCode === 0) return "fast-clean-exit";
   // 127 is command-not-found. It arrives WITH output ("sh: codex: command not
   // found"), so the three-signal rule alone would read it as a launch failure
@@ -221,9 +265,13 @@ export function belowFloorFailure(
  */
 export function earlyExitFailure(
   ctx: AgentLaunchContextInfo,
-  exit: { exitCode: number; timeToExitMs: number; output: string },
+  exit: { exitCode: number; signal?: number; timeToExitMs: number; output: string },
 ): AgentLaunchFailure {
   const seconds = (exit.timeToExitMs / 1000).toFixed(1);
+  const signal = decodeExitSignal(exit);
+  // A child killed directly by a signal never produced an exit code: node-pty's
+  // 0 is a placeholder, and recording it would read as a clean exit.
+  const directSignal = exit.signal !== undefined && exit.signal > 0;
   const stale =
     ctx.compatibility?.status === "above-tested-ceiling"
       ? ` The ${ctx.agentName} plugin was only tested up to CLI ${ctx.compatibility.testedCeiling} and ${ctx.compatibility.detectedVersion} is installed, so its arguments may be stale.`
@@ -231,8 +279,16 @@ export function earlyExitFailure(
   const captured = captureOutput(exit.output);
   return {
     class: "launch-failure",
-    message: `${ctx.agentName} failed to launch: exited in ${seconds}s.`,
-    guidance: `Check the agent's arguments in its plugin settings, or update the plugin.${stale}`,
+    // A signal says the process was ended from outside, so blaming its arguments
+    // would send the user to the wrong place.
+    message:
+      signal !== undefined
+        ? `${ctx.agentName} failed to launch: ended by ${signal} after ${seconds}s.`
+        : `${ctx.agentName} failed to launch: exited in ${seconds}s.`,
+    guidance:
+      signal !== undefined
+        ? `The process was ended from outside (${signal}), so its arguments are unlikely to be the cause. If it keeps happening, check whether the system is running out of memory.`
+        : `Check the agent's arguments in its plugin settings, or update the plugin.${stale}`,
     ...(captured !== undefined && { capturedOutput: captured }),
     agentPluginId: ctx.agentPluginId,
     agentName: ctx.agentName,
@@ -242,7 +298,7 @@ export function earlyExitFailure(
     ...(ctx.compatibility?.testedCeiling !== undefined && {
       testedCeiling: ctx.compatibility.testedCeiling,
     }),
-    exitCode: exit.exitCode,
+    ...(!directSignal && { exitCode: exit.exitCode }),
     timeToExitMs: exit.timeToExitMs,
     actions: RECOVERY_ACTIONS,
   };
@@ -254,10 +310,17 @@ export function earlyExitFailure(
  */
 export function classifyLaunchExit(
   ctx: AgentLaunchContextInfo,
-  exit: { exitCode: number; timeToExitMs: number; output: string; windowMs?: number },
+  exit: {
+    exitCode: number;
+    signal?: number;
+    timeToExitMs: number;
+    output: string;
+    windowMs?: number;
+  },
 ): AgentLaunchFailure | undefined {
   const cls = classifyPtyExit({
     exitCode: exit.exitCode,
+    ...(exit.signal !== undefined && { signal: exit.signal }),
     timeToExitMs: exit.timeToExitMs,
     outputBytes: Buffer.byteLength(exit.output, "utf8"),
     ...(exit.windowMs !== undefined && { windowMs: exit.windowMs }),
@@ -271,6 +334,42 @@ export function classifyLaunchExit(
     );
   }
   return undefined;
+}
+
+/**
+ * The record for a session that died after it had launched, or `undefined` when
+ * it ended in any ordinary way (a clean exit, a deliberate stop, or an exit
+ * inside the launch window, which `classifyLaunchExit` owns). The single seam
+ * `registerSession` calls on exit alongside `classifyLaunchExit`.
+ */
+export function classifySessionExit(
+  ctx: AgentLaunchContextInfo,
+  exit: {
+    exitCode: number;
+    signal?: number;
+    timeToExitMs: number;
+    endedAt: string;
+    windowMs?: number;
+  },
+): SessionUnexpectedExit | undefined {
+  const cls = classifyPtyExit({
+    exitCode: exit.exitCode,
+    ...(exit.signal !== undefined && { signal: exit.signal }),
+    timeToExitMs: exit.timeToExitMs,
+    // Output only separates the in-window classes; this one is decided by timing.
+    outputBytes: 0,
+    ...(exit.windowMs !== undefined && { windowMs: exit.windowMs }),
+  });
+  if (cls !== "unexpected-exit") return undefined;
+  const signal = decodeExitSignal(exit);
+  return {
+    // A child killed directly never produced an exit code; node-pty's 0 is a placeholder.
+    exitCode: exit.signal !== undefined && exit.signal > 0 ? null : exit.exitCode,
+    signal: signal ?? null,
+    timeToExitMs: exit.timeToExitMs,
+    endedAt: exit.endedAt,
+    ...(ctx.agentPluginId !== undefined && { agentPluginId: ctx.agentPluginId }),
+  };
 }
 
 /**

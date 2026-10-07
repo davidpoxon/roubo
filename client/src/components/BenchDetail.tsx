@@ -42,6 +42,7 @@ import {
   useDismissNotification,
 } from "../hooks/useBenches";
 import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
+import AgentUnexpectedExitPanel from "./AgentUnexpectedExitPanel";
 import type {
   Bench,
   ProvisioningStep,
@@ -571,6 +572,22 @@ export default function BenchDetail() {
       : "Started a different agent than the configured default."
     : undefined;
 
+  // An agent that launched fine and then died on its own. Session-scoped, so
+  // dismissBenchNotifications above leaves it alone, and TerminalTabs exempts it
+  // from its active-tab dismissal: only the dismiss button here clears it. One per
+  // session, since a bench can host several agents.
+  const unexpectedExits = (bench?.notifications ?? []).flatMap((n) =>
+    n.type === "agent-exited-unexpectedly" && n.unexpectedExit !== undefined
+      ? [
+          {
+            id: n.id,
+            exit: n.unexpectedExit,
+            label: typeof n.metadata?.label === "string" ? n.metadata.label : undefined,
+          },
+        ]
+      : [],
+  );
+
   // Detect if this project has a database component
   const databaseComponentName = project?.config
     ? (Object.entries(project.config.components).find(
@@ -815,6 +832,16 @@ export default function BenchDetail() {
             </Button>
           </div>
         ))}
+
+      {unexpectedExits.map(({ id, exit, label }) => (
+        <AgentUnexpectedExitPanel
+          key={id}
+          variant="inline"
+          exit={exit}
+          {...(label !== undefined && { label })}
+          onDismiss={() => dismissNotification({ projectId, benchId, notificationId: id })}
+        />
+      ))}
 
       {fallbackNotification && (
         <div

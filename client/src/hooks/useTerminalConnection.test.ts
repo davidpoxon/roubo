@@ -95,7 +95,7 @@ describe("useTerminalConnection", () => {
       mockInstances[0].simulateMessage({ type: "replay", lines: ["hello\n", "world\n"] });
     });
 
-    expect(onReplay).toHaveBeenCalledWith(["hello\n", "world\n"], undefined, undefined);
+    expect(onReplay).toHaveBeenCalledWith(["hello\n", "world\n"], undefined, undefined, undefined);
   });
 
   it("calls onReplay with exitCode for ended sessions", async () => {
@@ -108,7 +108,7 @@ describe("useTerminalConnection", () => {
       mockInstances[0].simulateMessage({ type: "replay", lines: ["data"], exitCode: 0 });
     });
 
-    expect(onReplay).toHaveBeenCalledWith(["data"], 0, undefined);
+    expect(onReplay).toHaveBeenCalledWith(["data"], 0, undefined, undefined);
   });
 
   it("forwards a replayed launch failure so a reconnect still sees it (#1064)", async () => {
@@ -132,7 +132,31 @@ describe("useTerminalConnection", () => {
       });
     });
 
-    expect(onReplay).toHaveBeenCalledWith(["data"], 2, launchFailure);
+    expect(onReplay).toHaveBeenCalledWith(["data"], 2, launchFailure, undefined);
+  });
+
+  it("forwards a replayed unexpected exit so a tab opened after the fact still sees it", async () => {
+    const { onReplay } = renderConnectionHook();
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+
+    const unexpectedExit = {
+      exitCode: 137,
+      signal: "SIGKILL",
+      timeToExitMs: 2_700_000,
+      endedAt: "2026-10-07T09:00:00.000Z",
+    };
+    act(() => {
+      mockInstances[0].simulateMessage({
+        type: "replay",
+        lines: ["data"],
+        exitCode: 137,
+        unexpectedExit,
+      });
+    });
+
+    expect(onReplay).toHaveBeenCalledWith(["data"], 137, undefined, unexpectedExit);
   });
 
   it("calls onMessage for output messages", async () => {

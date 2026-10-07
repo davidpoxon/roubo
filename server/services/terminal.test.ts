@@ -617,6 +617,54 @@ describe("ghost sessions", () => {
     expect(session?.status).toBe("ended");
   });
 
+  it("restores an unexpected exit and a launch failure, and replays both after a restart", async () => {
+    const unexpectedExit = {
+      exitCode: 137,
+      signal: "SIGKILL",
+      timeToExitMs: 2_700_000,
+      endedAt: "2026-10-07T09:00:00.000Z",
+    };
+    const launchFailure = {
+      class: "launch-failure",
+      message: "Acme Agent failed to launch: exited in 0.4s.",
+      actions: ["retry"],
+    };
+    mockReaddirSync.mockReturnValue(["11111111-2222-4333-8444-555555555555.json"]);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        session: {
+          id: "11111111-2222-4333-8444-555555555555",
+          benchKey: "project1:1",
+          label: "Acme 1",
+          createdAt: "2026-01-01",
+          status: "ended",
+          exitCode: 137,
+          unexpectedExit,
+        },
+        buffer: ["data"],
+        persistedAt: "2026-01-01",
+        launchFailure,
+      }),
+    );
+
+    const { loadPersistedSessions, getSession, handleWebSocket: handleWs } = await loadModule();
+    mockAtomicWrite.mockClear();
+    loadPersistedSessions();
+
+    expect(getSession("11111111-2222-4333-8444-555555555555")?.unexpectedExit).toEqual(
+      unexpectedExit,
+    );
+    const ws = createMockWs();
+    handleWs("11111111-2222-4333-8444-555555555555", ws);
+    const replay = JSON.parse(ws._sent[0]);
+    expect(replay.unexpectedExit).toEqual(unexpectedExit);
+    expect(replay.launchFailure).toEqual(launchFailure);
+    // Re-persisting after load must not drop either one.
+    const rewritten = JSON.parse(mockAtomicWrite.mock.calls.at(-1)?.[1] as string);
+    expect(rewritten.session.unexpectedExit).toEqual(unexpectedExit);
+    expect(rewritten.launchFailure).toEqual(launchFailure);
+  });
+
   it("spends the correlation token of a restored session (AP-TC-084)", async () => {
     // A restart leaves the record addressable so its scrollback survives, but
     // there is no live agent behind it, so a hook POST quoting its id must be
@@ -646,6 +694,18 @@ describe("ghost sessions", () => {
 });
 
 describe("PTY exit", () => {
+  it("records no unexpected exit for a plain shell, whatever killed it", async () => {
+    const pty = createMockPty();
+    mockSpawn.mockReturnValue(pty);
+    const { createSession, getSession } = await loadModule();
+
+    const session = createSession("project1", 1, "/workspace", "My Project");
+    vi.spyOn(Date, "now").mockImplementation(() => Date.parse("2030-01-01T00:00:00Z"));
+    pty._emit("exit", { exitCode: 137 });
+
+    expect(getSession(session.id)?.unexpectedExit).toBeUndefined();
+  });
+
   it("updates session status and persists on exit", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);

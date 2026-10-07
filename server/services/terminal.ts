@@ -8,6 +8,7 @@ import type {
   PersistedTerminalSession,
   AgentLaunchFailure,
   ResolvedTheme,
+  SessionUnexpectedExit,
 } from "@roubo/shared";
 import type {
   AgentPosture,
@@ -34,6 +35,7 @@ import {
 import {
   AgentLaunchFailureError,
   classifyLaunchExit,
+  classifySessionExit,
   compatibilityNotice,
   hostInstallBrokenFailure,
   missingBinaryFailure,
@@ -167,6 +169,11 @@ interface InternalSession {
   // error panel survives a reconnect rather than only reaching whoever happened
   // to be listening at the moment the process died.
   launchFailure?: AgentLaunchFailure;
+  // Set just before Roubo itself kills this session's PTY (tab closed, bench torn
+  // down, app quit). The PTY's exit arrives afterwards, and this is the only thing
+  // that tells it apart from the agent dying on its own: the exit handler records,
+  // logs and notifies about nothing for a deliberate end.
+  deliberateEnd?: boolean;
 }
 
 const sessions = new Map<string, InternalSession>();
@@ -253,6 +260,7 @@ function persistSession(id: string): void {
     session: internal.session,
     buffer: internal.buffer.toArray(),
     persistedAt: new Date().toISOString(),
+    ...(internal.launchFailure !== undefined && { launchFailure: internal.launchFailure }),
   };
   try {
     atomicWrite(sessionFilePath(id), JSON.stringify(data, null, 2));
@@ -501,6 +509,43 @@ interface RegisterSessionOptions {
   notice?: string;
 }
 
+/**
+ * Log an agent's unexpected death and raise the bench notice for it. Done here,
+ * not in the caller's exit hook, so an auto-launched session (which supplies no
+ * hook) is covered too.
+ */
+function announceUnexpectedExit(internal: InternalSession, exit: SessionUnexpectedExit): void {
+  const { session } = internal;
+  const how =
+    exit.signal !== null
+      ? `${exit.signal}${exit.exitCode !== null ? ` (exit ${exit.exitCode})` : ""}`
+      : `exit code ${exit.exitCode}`;
+  console.warn(
+    "[terminal] agent session %s on bench %s ended unexpectedly: %s",
+    session.id,
+    session.benchKey,
+    `${how} after ${Math.round(exit.timeToExitMs / 1000)}s`,
+  );
+
+  const parsed = parseBenchKey(session.benchKey);
+  if (!parsed) return;
+  try {
+    const bench = benchManager.getBench(parsed.projectId, parsed.benchId);
+    if (bench) {
+      notificationService.createNotification(
+        bench,
+        "agent-exited-unexpectedly",
+        session.id,
+        { label: session.label },
+        undefined,
+        exit,
+      );
+    }
+  } catch {
+    // Best-effort: don't break session teardown on notification errors
+  }
+}
+
 function registerSession(
   session: TerminalSession,
   ptyProcess: pty.IPty,
@@ -588,7 +633,7 @@ function registerSession(
   });
 
   // Track exit
-  ptyProcess.onExit(({ exitCode }) => {
+  ptyProcess.onExit(({ exitCode, signal }) => {
     internal.exitCode = exitCode;
     internal.session.status = "ended";
     internal.session.exitCode = exitCode;
@@ -598,14 +643,35 @@ function registerSession(
     // session creation, ahead of handleWebSocket's own onExit listener, and
     // node-pty fires listeners in registration order: by the time the socket
     // sends its exit frame, `internal.launchFailure` is populated.
-    if (opts.launchContext) {
-      internal.launchFailure = classifyLaunchExit(opts.launchContext, {
+    //
+    // A deliberate end is not classified at all: the exit that follows Roubo's
+    // own kill says nothing about the agent, and the session is already gone from
+    // the map, so nobody could see a verdict anyway.
+    if (opts.launchContext && !internal.deliberateEnd) {
+      const exit = {
         exitCode,
+        ...(signal !== undefined && { signal }),
         timeToExitMs: Date.now() - spawnedAt,
+      };
+      internal.launchFailure = classifyLaunchExit(opts.launchContext, {
+        ...exit,
         output: ptyOutput,
+      });
+      // The late counterpart of the launch failure above: the agent started fine
+      // and died on its own. Persisted with the session so it survives a restart.
+      internal.session.unexpectedExit = classifySessionExit(opts.launchContext, {
+        ...exit,
+        endedAt: new Date().toISOString(),
       });
     }
     persistSession(id);
+    if (internal.deliberateEnd) return;
+    if (internal.session.unexpectedExit) {
+      // The specific notice supersedes the caller's plain "agent exited" hook
+      // (the only thing `onExit` raises), so the user sees one notice, not two.
+      announceUnexpectedExit(internal, internal.session.unexpectedExit);
+      return;
+    }
     try {
       onExit?.(id);
     } catch {
@@ -1037,6 +1103,7 @@ export function destroySession(sessionId: string): boolean {
   const internal = sessions.get(sessionId);
   if (!internal) return false;
 
+  internal.deliberateEnd = true;
   clearTimers(internal);
   cancelBufferFlush(sessionId);
 
@@ -1066,6 +1133,7 @@ export function destroyBenchSessions(projectId: string, benchId: number): void {
   const key = benchKey(projectId, benchId);
   for (const [id, internal] of sessions) {
     if (internal.session.benchKey === key) {
+      internal.deliberateEnd = true;
       clearTimers(internal);
       cancelBufferFlush(id);
       if (internal.pty) {
@@ -1092,6 +1160,7 @@ export function destroyBenchSessions(projectId: string, benchId: number): void {
 export function destroyAllSessions(): void {
   // Persist all live sessions before killing (so scrollback survives restart)
   for (const [id, internal] of sessions) {
+    internal.deliberateEnd = true;
     if (internal.pty) {
       internal.session.status = "ended";
       persistSession(id);
@@ -1151,6 +1220,8 @@ export function loadPersistedSessions(): void {
         // (AP-TC-084). Nothing is re-derived from the descriptor here because
         // there is nothing left to notify about.
         hookNotification: false,
+        // So a reconnect after a restart still shows why the session ended.
+        ...(persisted.launchFailure !== undefined && { launchFailure: persisted.launchFailure }),
       };
 
       sessions.set(persisted.session.id, internal);
@@ -1191,6 +1262,8 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
       // opened after the fact) still shows the error panel rather than a bare
       // exit code (AP-NFR-003: never a silent dead terminal).
       launchFailure: internal.launchFailure,
+      // Likewise for an agent that died after launch, which survives a restart.
+      unexpectedExit: internal.session.unexpectedExit,
     }),
   );
 
@@ -1230,7 +1303,12 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
   const exitHandler = internal.pty.onExit(({ exitCode }) => {
     if (ws.readyState === ws.OPEN) {
       ws.send(
-        JSON.stringify({ type: "exit", code: exitCode, launchFailure: internal.launchFailure }),
+        JSON.stringify({
+          type: "exit",
+          code: exitCode,
+          launchFailure: internal.launchFailure,
+          unexpectedExit: internal.session.unexpectedExit,
+        }),
       );
     }
   });
@@ -1263,7 +1341,11 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
         // fire a fresh notification instead of being suppressed by the
         // reconnect/quiescence guards.
         internal.lastNotifiedAt = null;
-        const parsed = parseBenchKey(internal.session.benchKey);
+        // Only a live process can be "engaged with". The socket stays open after the
+        // PTY exits, so a keystroke into a dead terminal would otherwise clear the
+        // notices that record how it died, including an unexpected exit that is
+        // meant to stay until dismissed from the bench view.
+        const parsed = internal.exitCode === null ? parseBenchKey(internal.session.benchKey) : null;
         if (parsed) {
           try {
             const bench = benchManager.getBench(parsed.projectId, parsed.benchId);

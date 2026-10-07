@@ -1744,7 +1744,8 @@ export type NotificationType =
   | "bench-error"
   | "component-error"
   | "agent-launch-failed"
-  | "agent-fallback";
+  | "agent-fallback"
+  | "agent-exited-unexpectedly";
 
 export type NotificationPriority = "info" | "action-needed";
 
@@ -1761,6 +1762,12 @@ export interface BenchNotification {
    * the terminal route shows for an interactive launch (AP-FR-015, AP-NFR-003).
    */
   launchFailure?: AgentLaunchFailure;
+  /**
+   * Present only on `agent-exited-unexpectedly`: what ended the session, carried
+   * whole so the bench detail view can name the signal or exit code without
+   * reading the terminal.
+   */
+  unexpectedExit?: SessionUnexpectedExit;
 }
 
 // ── Resolved tool types ──
@@ -2243,6 +2250,28 @@ export interface CheckConfigResult {
 
 // ── Terminal types ──
 
+/**
+ * An agent session that ended after it had launched fine, by a nonzero exit or a
+ * signal, rather than by the user closing the tab, a stop, or an app quit. It is
+ * the durable counterpart of the early-exit `AgentLaunchFailure`: that one is
+ * about a session that never started, this one about a session that died later.
+ */
+export interface SessionUnexpectedExit {
+  /**
+   * The code the process reported. `null` when the child was killed by a signal
+   * directly, since it then never produced one. A wrapper that reports a killed
+   * child as 128 + n carries that code here and the decoded name in `signal`.
+   */
+  exitCode: number | null;
+  /** Signal name (`SIGKILL`), or `null` for an ordinary nonzero exit. */
+  signal: string | null;
+  /** Milliseconds from spawn to exit. */
+  timeToExitMs: number;
+  /** ISO timestamp of the exit. */
+  endedAt: string;
+  agentPluginId?: string;
+}
+
 export interface TerminalSession {
   id: string;
   benchKey: string;
@@ -2257,12 +2286,23 @@ export interface TerminalSession {
    * identifiable without an agent-specific field per agent.
    */
   agentPluginId?: string;
+  /**
+   * Set when an agent session died unexpectedly after launch. Persisted with the
+   * session, so it survives a server restart and reaches the client through the
+   * ordinary session list.
+   */
+  unexpectedExit?: SessionUnexpectedExit;
 }
 
 export interface PersistedTerminalSession {
   session: TerminalSession;
   buffer: string[];
   persistedAt: string;
+  /**
+   * The launch failure recorded for this session, kept so a restart does not
+   * lose the reason a session that never started is shown as ended.
+   */
+  launchFailure?: AgentLaunchFailure;
 }
 
 export interface TerminalCreateRequest {
