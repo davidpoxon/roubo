@@ -371,6 +371,8 @@ How the jig then reaches that agent is the agent's own declared capability (`ini
 
 The 201 also carries `compatibility` when the pre-launch version probe had something to say: the detected CLI version, the declared window, and a `status` of `above-tested-ceiling` or `probe-failed`. An in-range launch is silent, so the field is absent in the normal case. A launch below the declared floor never reaches a 201 at all: it is refused with a `409` whose body carries a `launchFailure` describing the detected version, the required floor, and the recovery actions. When the agent plugin declares how to update its CLI (the manifest's `agentInstallGuidance`), the failure's `guidance` names that step and `remedy` carries it as `{ command?, url? }`, and a `missing-binary` failure does the same with the declared install step.
 
+A session in the terminal list carries `unexpectedExit` when its agent launched fine and later died on its own, by a nonzero exit or a signal rather than a deliberate stop: `{ exitCode, signal, timeToExitMs, endedAt }`, where `exitCode` is `null` for a child killed directly by a signal. It is absent for every other session.
+
 ### Inject a jig into a bench's workspace
 
 ```

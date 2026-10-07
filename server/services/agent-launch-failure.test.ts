@@ -4,7 +4,9 @@ import {
   captureOutput,
   classifyLaunchExit,
   classifyPtyExit,
+  classifySessionExit,
   compatibilityNotice,
+  decodeExitSignal,
   hostInstallBrokenFailure,
   missingBinaryFailure,
   stripAnsi,
@@ -37,8 +39,10 @@ describe("classifyPtyExit (launch-failure spike AC2)", () => {
   });
 
   it("does NOT classify a session that dies at 6s as a launch failure (S7)", () => {
+    // It outlived the window, so it started fine. It is still not an ordinary end:
+    // the agent died with a nonzero code, which is an unexpected exit.
     expect(classifyPtyExit({ exitCode: 3, timeToExitMs: 6019, outputBytes: 0 })).toBe(
-      "session-ended",
+      "unexpected-exit",
     );
   });
 
@@ -66,7 +70,127 @@ describe("classifyPtyExit (launch-failure spike AC2)", () => {
   it("honours a caller-supplied window", () => {
     expect(
       classifyPtyExit({ exitCode: 1, timeToExitMs: 3000, outputBytes: 10, windowMs: 1000 }),
-    ).toBe("session-ended");
+    ).toBe("unexpected-exit");
+  });
+
+  describe("an exit well after launch", () => {
+    const LATE = 45 * 60 * 1000;
+
+    it("is unexpected when the wrapper reports a kill as exit 137", () => {
+      expect(classifyPtyExit({ exitCode: 137, timeToExitMs: LATE, outputBytes: 900 })).toBe(
+        "unexpected-exit",
+      );
+    });
+
+    it("is unexpected when the child itself was killed by a signal", () => {
+      // node-pty reports a signalled child as exitCode 0 plus a separate signal.
+      expect(
+        classifyPtyExit({ exitCode: 0, signal: 9, timeToExitMs: LATE, outputBytes: 900 }),
+      ).toBe("unexpected-exit");
+    });
+
+    it.each([
+      ["SIGHUP exit 129", { exitCode: 129 }],
+      ["SIGINT exit 130", { exitCode: 130 }],
+      ["SIGTERM exit 143", { exitCode: 143 }],
+      ["direct SIGHUP", { exitCode: 0, signal: 1 }],
+      ["direct SIGINT", { exitCode: 0, signal: 2 }],
+      ["direct SIGTERM", { exitCode: 0, signal: 15 }],
+    ])("is an ordinary end for a graceful stop (%s)", (_name, exit) => {
+      expect(classifyPtyExit({ ...exit, timeToExitMs: LATE, outputBytes: 900 })).toBe(
+        "session-ended",
+      );
+    });
+  });
+
+  it("still reads a signal kill inside the window as a launch failure, even with no output", () => {
+    expect(classifyPtyExit({ exitCode: 0, signal: 9, timeToExitMs: 300, outputBytes: 0 })).toBe(
+      "launch-failure",
+    );
+  });
+
+  it("reads a deliberate stop inside the window as an ordinary end, not a missing binary", () => {
+    expect(classifyPtyExit({ exitCode: 143, timeToExitMs: 300, outputBytes: 0 })).toBe(
+      "session-ended",
+    );
+    expect(classifyPtyExit({ exitCode: 0, signal: 15, timeToExitMs: 300, outputBytes: 0 })).toBe(
+      "session-ended",
+    );
+  });
+});
+
+describe("decodeExitSignal", () => {
+  it("reads 128 + n as the signal n, which is how a wrapper reports a killed child", () => {
+    expect(decodeExitSignal({ exitCode: 137 })).toBe("SIGKILL");
+    expect(decodeExitSignal({ exitCode: 143 })).toBe("SIGTERM");
+  });
+
+  it("reads node-pty's own signal field", () => {
+    expect(decodeExitSignal({ exitCode: 0, signal: 9 })).toBe("SIGKILL");
+  });
+
+  it("prefers the direct signal when both are present", () => {
+    expect(decodeExitSignal({ exitCode: 137, signal: 15 })).toBe("SIGTERM");
+  });
+
+  it("names a clean or ordinary nonzero exit as no signal", () => {
+    expect(decodeExitSignal({ exitCode: 0 })).toBeUndefined();
+    expect(decodeExitSignal({ exitCode: 0, signal: 0 })).toBeUndefined();
+    expect(decodeExitSignal({ exitCode: 1 })).toBeUndefined();
+    expect(decodeExitSignal({ exitCode: 128 })).toBeUndefined();
+    expect(decodeExitSignal({ exitCode: 200 })).toBeUndefined();
+  });
+
+  it("falls back to the number for a signal this platform has no name for", () => {
+    expect(decodeExitSignal({ exitCode: 0, signal: 99 })).toBe("signal 99");
+  });
+});
+
+describe("classifySessionExit", () => {
+  const ENDED_AT = "2026-10-07T09:00:00.000Z";
+  const LATE = 45 * 60 * 1000;
+
+  it("records a late kill with its signal and the exit code the wrapper reported", () => {
+    expect(
+      classifySessionExit(CTX, { exitCode: 137, timeToExitMs: LATE, endedAt: ENDED_AT }),
+    ).toEqual({
+      exitCode: 137,
+      signal: "SIGKILL",
+      timeToExitMs: LATE,
+      endedAt: ENDED_AT,
+      agentPluginId: "claude-code",
+    });
+  });
+
+  it("records a direct signal with no exit code, since the process never produced one", () => {
+    const record = classifySessionExit(CTX, {
+      exitCode: 0,
+      signal: 9,
+      timeToExitMs: LATE,
+      endedAt: ENDED_AT,
+    });
+    expect(record?.exitCode).toBeNull();
+    expect(record?.signal).toBe("SIGKILL");
+  });
+
+  it("records a plain nonzero exit with no signal", () => {
+    const record = classifySessionExit(CTX, {
+      exitCode: 3,
+      timeToExitMs: LATE,
+      endedAt: ENDED_AT,
+    });
+    expect(record?.exitCode).toBe(3);
+    expect(record?.signal).toBeNull();
+  });
+
+  it("returns nothing for a clean end, a graceful stop, or an exit inside the launch window", () => {
+    const base = { timeToExitMs: LATE, endedAt: ENDED_AT };
+    expect(classifySessionExit(CTX, { ...base, exitCode: 0 })).toBeUndefined();
+    expect(classifySessionExit(CTX, { ...base, exitCode: 143 })).toBeUndefined();
+    expect(classifySessionExit(CTX, { ...base, exitCode: 0, signal: 15 })).toBeUndefined();
+    expect(
+      classifySessionExit(CTX, { exitCode: 137, timeToExitMs: 300, endedAt: ENDED_AT }),
+    ).toBeUndefined();
   });
 });
 
@@ -125,6 +249,27 @@ describe("classifyLaunchExit", () => {
     expect(failure?.guidance).toContain("stale");
   });
 
+  it("names the signal for an early kill instead of blaming the agent's arguments", () => {
+    const failure = classifyLaunchExit(CTX, {
+      exitCode: 0,
+      signal: 9,
+      timeToExitMs: 3000,
+      output: "",
+    });
+    expect(failure?.class).toBe("launch-failure");
+    expect(failure?.message).toBe("Claude Code failed to launch: ended by SIGKILL after 3.0s.");
+    expect(failure?.guidance).toContain("unlikely to be the cause");
+    expect(failure?.guidance).not.toContain("Check the agent's arguments");
+    // node-pty's 0 for a signalled child is a placeholder, not a clean exit code.
+    expect(failure?.exitCode).toBeUndefined();
+  });
+
+  it("keeps the reported code when a wrapper turned the kill into exit 137", () => {
+    const failure = classifyLaunchExit(CTX, { exitCode: 137, timeToExitMs: 3000, output: "" });
+    expect(failure?.message).toContain("ended by SIGKILL");
+    expect(failure?.exitCode).toBe(137);
+  });
+
   it("words a zero-output early exit as a missing binary, not as bad flags (AP-TC-058)", () => {
     const failure = classifyLaunchExit(CTX, { exitCode: 1, timeToExitMs: 6, output: "" });
     expect(failure?.class).toBe("missing-binary");
@@ -138,6 +283,10 @@ describe("classifyLaunchExit", () => {
     ).toBeUndefined();
     expect(
       classifyLaunchExit(CTX, { exitCode: 3, timeToExitMs: 6019, output: "" }),
+    ).toBeUndefined();
+    // A late kill is an unexpected exit, not a launch failure.
+    expect(
+      classifyLaunchExit(CTX, { exitCode: 137, timeToExitMs: 2_700_000, output: "x" }),
     ).toBeUndefined();
   });
 });

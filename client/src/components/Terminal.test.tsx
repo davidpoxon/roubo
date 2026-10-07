@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import Terminal from "./Terminal";
 
 type XTermOptions = {
@@ -225,6 +226,84 @@ describe("Terminal", () => {
     expect(mockTerminalInstance.write).toHaveBeenCalledWith(
       expect.stringContaining("[Process exited with code 1]"),
     );
+  });
+
+  describe("an agent that died unexpectedly", () => {
+    const KILLED = {
+      exitCode: 137,
+      signal: "SIGKILL",
+      timeToExitMs: 45 * 60 * 1000,
+      endedAt: "2026-10-07T09:00:00.000Z",
+    };
+
+    type Handlers = {
+      onReplay: (
+        lines: string[],
+        exitCode?: number,
+        failure?: unknown,
+        unexpected?: typeof KILLED,
+      ) => void;
+      onMessage: (msg: { type: string; code?: number; unexpectedExit?: typeof KILLED }) => void;
+    };
+
+    function renderCapturingHandlers(): Handlers {
+      const handlers: Handlers = { onReplay: () => {}, onMessage: () => {} };
+      mockUseTerminalConnection.mockImplementation(((opts: Handlers) => {
+        handlers.onReplay = opts.onReplay;
+        handlers.onMessage = opts.onMessage;
+        return { wsRef: { current: null }, state: "connected", attempt: 0, retry: vi.fn() };
+      }) as never);
+      render(<Terminal sessionId="sess-1" active />);
+      return handlers;
+    }
+
+    it("writes the cause into the scrollback and shows the panel on the live exit frame", () => {
+      const handlers = renderCapturingHandlers();
+
+      act(() => handlers.onMessage({ type: "exit", code: 137, unexpectedExit: KILLED }));
+
+      expect(mockTerminalInstance.write).toHaveBeenCalledWith(
+        expect.stringContaining("[Process ended unexpectedly: SIGKILL (exit 137)]"),
+      );
+      expect(mockTerminalInstance.write).not.toHaveBeenCalledWith(
+        expect.stringContaining("[Process exited with code"),
+      );
+      expect(screen.getByTestId("agent-unexpected-exit")).toHaveTextContent("SIGKILL (exit 137)");
+    });
+
+    it("shows the same on a replay, so a tab opened after the fact still says why", () => {
+      const handlers = renderCapturingHandlers();
+
+      act(() => handlers.onReplay(["scrollback\r\n"], 137, undefined, KILLED));
+
+      expect(mockTerminalInstance.write).toHaveBeenCalledWith(
+        expect.stringContaining("[Process ended unexpectedly: SIGKILL (exit 137)]"),
+      );
+      expect(screen.getByTestId("agent-unexpected-exit")).toBeInTheDocument();
+    });
+
+    it("lets the panel be dismissed, leaving the scrollback line", async () => {
+      const handlers = renderCapturingHandlers();
+      act(() => handlers.onMessage({ type: "exit", code: 137, unexpectedExit: KILLED }));
+
+      await userEvent.click(screen.getByTestId("agent-unexpected-exit-dismiss"));
+
+      expect(screen.queryByTestId("agent-unexpected-exit")).toBeNull();
+      expect(mockTerminalInstance.write).toHaveBeenCalledWith(
+        expect.stringContaining("Process ended unexpectedly"),
+      );
+    });
+
+    it("shows nothing extra for an ordinary exit", () => {
+      const handlers = renderCapturingHandlers();
+
+      act(() => handlers.onMessage({ type: "exit", code: 0 }));
+
+      expect(screen.queryByTestId("agent-unexpected-exit")).toBeNull();
+      expect(mockTerminalInstance.write).toHaveBeenCalledWith(
+        expect.stringContaining("[Process exited with code 0]"),
+      );
+    });
   });
 
   it("sends input via WebSocket when onData fires", () => {

@@ -1409,6 +1409,87 @@ describe("TerminalTabs: tab-switch dismiss behaviour", () => {
     });
   });
 
+  it("never dismisses the notice for an agent that died unexpectedly, though its tab is active", () => {
+    const notifications = [
+      {
+        id: "n-dead",
+        type: "agent-exited-unexpectedly" as const,
+        priority: "action-needed" as const,
+        sourceSessionId: "session-a",
+        createdAt: "2024-01-01T00:00:00Z",
+      },
+      {
+        id: "n-wait",
+        type: "agent-waiting" as const,
+        priority: "action-needed" as const,
+        sourceSessionId: "session-a",
+        createdAt: "2024-01-01T00:00:00Z",
+      },
+    ];
+    renderWithProviders(
+      <TerminalTabs
+        projectId="proj"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+        notifications={notifications}
+      />,
+    );
+
+    // The ordinary notice on the active tab is still cleared; the death notice stays
+    // until the bench view's own dismiss button clears it.
+    expect(mockDismissNotificationMutate).toHaveBeenCalledWith({
+      projectId: "proj",
+      benchId: 1,
+      notificationId: "n-wait",
+    });
+    expect(mockDismissNotificationMutate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: "n-dead" }),
+    );
+  });
+
+  it("marks only the tab whose agent died unexpectedly", () => {
+    vi.mocked(useTerminalSessions).mockReturnValue({
+      data: [
+        {
+          id: "session-a",
+          benchKey: "p:1",
+          label: "Terminal 1",
+          createdAt: "2024-01-01",
+          command: "bash",
+          status: "ended",
+          unexpectedExit: {
+            exitCode: 137,
+            signal: "SIGKILL",
+            timeToExitMs: 60_000,
+            endedAt: "2024-01-01T00:01:00Z",
+          },
+        },
+        {
+          id: "session-b",
+          benchKey: "p:1",
+          label: "Terminal 2",
+          createdAt: "2024-01-01",
+          command: "bash",
+          status: "ended",
+        },
+      ],
+    } as unknown as ReturnType<typeof useTerminalSessions>);
+    renderWithProviders(
+      <TerminalTabs
+        projectId="proj"
+        benchId={1}
+        projectName="Project"
+        hasAssignedIssue={false}
+        notifications={[]}
+      />,
+    );
+
+    const icons = screen.getAllByTestId("session-unexpected-exit-icon");
+    expect(icons).toHaveLength(1);
+    expect(icons[0]).toHaveAccessibleName("Ended unexpectedly");
+  });
+
   it("dismisses notifications for newly-active session when switching tabs", () => {
     const notifications = [
       {
