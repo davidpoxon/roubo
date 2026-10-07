@@ -39,6 +39,10 @@ updates:
         patterns:
           - "codemirror"
           - "@codemirror/*"
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
       dev-dependencies:
         dependency-type: "development"
         update-types:
