@@ -3,7 +3,13 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { canonicalPath, findWorktreeEntry, parseWorktreeList } from "./worktree-registry.js";
+import {
+  canonicalPath,
+  findAdminDir,
+  findWorktreeEntry,
+  listAdminDirs,
+  parseWorktreeList,
+} from "./worktree-registry.js";
 
 // Real git and a real filesystem: the defect (#1433) is the gap between the path
 // Roubo stores and the path git records, which only a real symlink shows.
@@ -77,5 +83,33 @@ describe("worktree-registry", () => {
     expect(canonicalPath(path.join(realRoot, "link", "missing"))).toBe(
       path.join(realRoot, "real", "missing"),
     );
+  });
+
+  it("finds the admin dir from the worktree's .git file, and by scan once the directory is gone", () => {
+    const workspacePath = path.join(realRoot, "bench-1");
+    git(["worktree", "add", "-q", workspacePath, "-b", "bench-1"], repo);
+    const adminDir = path.join(repo, ".git", "worktrees", "bench-1");
+
+    expect(findAdminDir(path.join(repo, ".git"), workspacePath)).toBe(adminDir);
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+    expect(findAdminDir(path.join(repo, ".git"), workspacePath)).toBe(adminDir);
+  });
+
+  it("ignores a .git file that points outside the worktrees dir", () => {
+    const workspacePath = path.join(realRoot, "forged");
+    fs.mkdirSync(workspacePath);
+    fs.writeFileSync(path.join(workspacePath, ".git"), `gitdir: ${path.join(repo, ".git")}\n`);
+
+    expect(findAdminDir(path.join(repo, ".git"), workspacePath)).toBeUndefined();
+  });
+
+  it("lists an admin dir whose gitdir file is missing, which git worktree list omits", () => {
+    const workspacePath = path.join(realRoot, "bench-2");
+    git(["worktree", "add", "-q", workspacePath, "-b", "bench-2"], repo);
+    const adminDir = path.join(repo, ".git", "worktrees", "bench-2");
+    fs.rmSync(path.join(adminDir, "gitdir"));
+
+    expect(git(["worktree", "list", "--porcelain"], repo)).not.toContain("bench-2");
+    expect(listAdminDirs(path.join(repo, ".git"))).toEqual([{ dir: adminDir }]);
   });
 });

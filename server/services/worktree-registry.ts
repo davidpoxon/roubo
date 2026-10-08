@@ -50,3 +50,60 @@ export function findWorktreeEntry(
   const target = canonicalPath(workspacePath);
   return entries.find((e) => e.path === workspacePath || canonicalPath(e.path) === target);
 }
+
+/** Git's admin dir for one linked worktree, under `<common-dir>/worktrees/`. */
+export interface AdminDir {
+  dir: string;
+  /** The worktree path its `gitdir` file records, or undefined when the file is unreadable. */
+  worktreePath?: string;
+}
+
+/**
+ * Every admin dir under `<common-dir>/worktrees/`, read from disk rather than
+ * from `git worktree list`, which omits one whose `gitdir` file is missing.
+ */
+export function listAdminDirs(commonDir: string): AdminDir[] {
+  const worktreesDir = path.join(commonDir, "worktrees");
+  let names: string[];
+  try {
+    names = fs.readdirSync(worktreesDir);
+  } catch {
+    return [];
+  }
+  return names.map((name) => {
+    const dir = path.join(worktreesDir, name);
+    try {
+      // `gitdir` names `<worktree>/.git`, relative to the admin dir when
+      // worktree.useRelativePaths is set.
+      const recorded = fs.readFileSync(path.join(dir, "gitdir"), "utf-8").trim();
+      return recorded ? { dir, worktreePath: path.dirname(path.resolve(dir, recorded)) } : { dir };
+    } catch {
+      return { dir };
+    }
+  });
+}
+
+/**
+ * The admin dir of the worktree at `workspacePath`, for removing it by hand when
+ * git cannot. Read from the worktree's own `.git` file while the directory
+ * exists, else found by a scan of the recorded paths. Only a dir directly under
+ * `<common-dir>/worktrees/` is ever returned, so a forged `.git` file cannot
+ * point the caller at anything else.
+ */
+export function findAdminDir(commonDir: string, workspacePath: string): string | undefined {
+  const worktreesDir = canonicalPath(path.join(commonDir, "worktrees"));
+  try {
+    const gitfile = fs.readFileSync(path.join(workspacePath, ".git"), "utf-8");
+    const match = /^gitdir: (.+)$/m.exec(gitfile);
+    if (match) {
+      const dir = canonicalPath(path.resolve(workspacePath, match[1].trim()));
+      if (path.dirname(dir) === worktreesDir) return dir;
+    }
+  } catch {
+    // No readable gitfile: the directory is gone, or it is not a linked worktree.
+  }
+  const target = canonicalPath(workspacePath);
+  return listAdminDirs(commonDir).find(
+    (a) => a.worktreePath !== undefined && canonicalPath(a.worktreePath) === target,
+  )?.dir;
+}

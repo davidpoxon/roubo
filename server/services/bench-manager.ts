@@ -44,7 +44,13 @@ import {
   type ResolvedTemplateContext,
 } from "./config-parser.js";
 import { resolveSpawn, runCommand } from "./exec.js";
-import { canonicalPath, findWorktreeEntry, parseWorktreeList } from "./worktree-registry.js";
+import {
+  canonicalPath,
+  findAdminDir,
+  findWorktreeEntry,
+  listAdminDirs,
+  parseWorktreeList,
+} from "./worktree-registry.js";
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
@@ -78,9 +84,10 @@ const workspaceReady = new Map<string, Promise<void>>();
 const provisioningAborts = new Map<string, AbortController>();
 
 // How long teardown waits for aborted provisioning to stop. It covers the kill
-// grace in runCommand. A main-checkout command (fetch, pull-latest submodule
-// update) is never killed, so it can outlast this; provisioning still stops
-// before `worktree add` once it returns, so nothing is created behind teardown.
+// grace in runCommand. The pull-latest fast-forward and submodule update run in
+// the main checkout and are never killed, so they can outlast this; provisioning
+// still stops before `worktree add` once they return, so nothing is created
+// behind teardown.
 const PROVISIONING_STOP_WAIT_MS = 15_000;
 
 // Guards the one-warning-per-process-load contract for a corrupt settings.json
@@ -405,6 +412,19 @@ async function sweepLeakedWorktrees(): Promise<void> {
         claimed.add(canonicalPath(bench.workspacePath));
       }
     }
+    // `git worktree list` omits an admin dir whose `gitdir` file is unreadable,
+    // so nothing proves who owns one. Report it rather than remove it.
+    const commonDir = await resolveGitCommonDir(project.repoPath);
+    if (commonDir) {
+      for (const admin of listAdminDirs(commonDir)) {
+        if (admin.worktreePath === undefined) {
+          console.warn(
+            `[bench-manager] Skipped worktree admin dir ${admin.dir} (${project.id}): ` +
+              `its gitdir file is unreadable, so its owner is unknown`,
+          );
+        }
+      }
+    }
     for (const entry of parseWorktreeList(wtList.stdout)) {
       const entryPath = canonicalPath(entry.path);
       if (!entry.prunable || !entryPath.startsWith(root + path.sep)) continue;
@@ -435,10 +455,28 @@ function findNextBenchNumber(projectId: string, maxBenches: number): number | nu
   return null;
 }
 
+/**
+ * Env for a git command run with an abort signal. runCommand starts such a
+ * command in its own process group, which is a background group when the
+ * server has a terminal, so a credential prompt there would stop on SIGTTIN and
+ * hang provisioning. Git fails instead of prompting.
+ */
+const ABORTABLE_GIT_ENV = { GIT_TERMINAL_PROMPT: "0" };
+
 function execGit(args: string[], cwd: string, signal?: AbortSignal) {
   return signal
-    ? runCommand("git", args, cwd, undefined, undefined, undefined, { signal })
+    ? runCommand("git", args, cwd, ABORTABLE_GIT_ENV, undefined, undefined, { signal })
     : runCommand("git", args, cwd);
+}
+
+/** The repository's common git dir as an absolute path, or undefined. */
+async function resolveGitCommonDir(repoPath: string): Promise<string | undefined> {
+  const result = await execGit(
+    ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    repoPath,
+  );
+  const dir = result.stdout.trim();
+  return result.code === 0 && dir ? dir : undefined;
 }
 
 async function execGitChecked(
@@ -469,9 +507,12 @@ async function execGitChecked(
  *
  * `strict` (teardown, Cleanup & Retry) throws when git fails to remove a
  * registered worktree, so the caller can keep the bench and report the leftover.
- * Otherwise (pre-flight, the provisioning failure path) a git failure is logged
- * and the directory is removed anyway. It never runs `git worktree prune`, which
- * is project-wide and would also remove worktrees Roubo does not own.
+ * Otherwise (pre-flight, the provisioning failure path) the bench is being
+ * created again at this path, so a git failure does not stop the removal: a
+ * locked worktree (a killed `worktree add` leaves one) is removed with a second
+ * `--force`, and if git still refuses, the admin dir and the directory are
+ * removed by hand. It never runs `git worktree prune`, which is project-wide and
+ * would also remove worktrees Roubo does not own.
  *
  * Returns the reason when the workspace directory could not be removed.
  */
@@ -488,15 +529,27 @@ async function removeBenchWorktree(
       removedByGit = true;
       return;
     }
-    const result = await execGit(args, repoPath);
+    let result = await execGit(args, repoPath);
+    if (result.code !== 0) {
+      result = await execGit(["worktree", "remove", "--force", "--force", target], repoPath);
+    }
     if (result.code === 0) {
       removedByGit = true;
-    } else {
-      const detail = result.stderr.trim() || `exit code ${result.code}`;
-      console.warn(
-        `[bench-manager] ${ctx.label} worktree remove failed for bench ${ctx.benchId} ` +
-          `at ${workspacePath}: ${detail}, removing the directory instead`,
-      );
+      return;
+    }
+    const detail = result.stderr.trim() || `exit code ${result.code}`;
+    console.warn(
+      `[bench-manager] ${ctx.label} worktree remove failed for bench ${ctx.benchId} ` +
+        `at ${workspacePath}: ${detail}, removing it by hand instead`,
+    );
+    const commonDir = await resolveGitCommonDir(repoPath);
+    const adminDir = commonDir ? findAdminDir(commonDir, workspacePath) : undefined;
+    if (adminDir) {
+      try {
+        fs.rmSync(adminDir, { recursive: true, force: true });
+      } catch (err) {
+        console.warn(`[bench-manager] Could not remove worktree admin dir ${adminDir}: ${err}`);
+      }
     }
   };
 
@@ -730,7 +783,9 @@ export function isBenchLive(projectId: string, benchId: number): boolean {
  * succeeded or failed. Callers that spawn a process or run a git command with
  * `cwd: bench.workspacePath` must await this first: nothing here checks
  * `bench.status`, so a bench that ended in "error" still resolves and the
- * caller must check status itself before touching the directory.
+ * caller must check status itself before touching the directory. A bench
+ * cleared mid-provisioning resolves early with status "clearing", and its
+ * directory may never have been created (#1433).
  *
  * Resolves immediately for a bench this map has no entry for: one whose
  * worktree provisioning already finished and was cleaned up, or one hydrated
@@ -1148,12 +1203,17 @@ async function runWorktreeProvisioning(
         ...existing.slice(insertAt),
       ];
 
+      // The fetch is the one main-checkout command a clear kills: an interrupted
+      // fetch leaves the checkout as it was. The fast-forward and the submodule
+      // update below change the checkout, so they always run to completion.
       const fetchResult = await runCommand(
         "git",
         ["fetch", "origin", pullBranch],
         project.repoPath,
-        undefined,
+        ABORTABLE_GIT_ENV,
         60_000,
+        undefined,
+        { signal },
       );
       if (fetchResult.code !== 0) {
         fetchPhase.status = "error";
