@@ -471,6 +471,33 @@ function execGit(args: string[], cwd: string, signal?: AbortSignal) {
     : runCommand("git", args, cwd);
 }
 
+/**
+ * The git dir that holds the main checkout's clone of the submodule at
+ * `submodulePath`, or undefined when the main checkout has none (#1434). Asked of
+ * the submodule itself, so the answer is right however its git dir is laid out:
+ * absorbed under `.git/modules/`, embedded in the submodule, or under a linked
+ * worktree's own git dir when `repoPath` is one.
+ */
+async function findMainCheckoutSubmoduleStore(
+  repoPath: string,
+  submodulePath: string,
+  signal: AbortSignal,
+): Promise<string | undefined> {
+  const checkout = path.join(repoPath, submodulePath);
+  if (!fs.existsSync(path.join(checkout, ".git"))) return undefined;
+  const result = await execGit(
+    ["rev-parse", "--show-toplevel", "--absolute-git-dir"],
+    checkout,
+    signal,
+  );
+  const [toplevel, gitDir] = result.stdout.trim().split("\n");
+  // A submodule dir that is not a working tree of its own resolves to the
+  // superproject, whose git dir is not the submodule's store.
+  if (result.code !== 0 || !toplevel || !gitDir) return undefined;
+  if (canonicalPath(toplevel) !== canonicalPath(checkout)) return undefined;
+  return gitDir;
+}
+
 /** The repository's common git dir as an absolute path, or undefined. */
 async function resolveGitCommonDir(repoPath: string): Promise<string | undefined> {
   const result = await execGit(
@@ -1362,8 +1389,42 @@ async function runWorktreeProvisioning(
       const subPhase = workspaceStep.phases?.find((p) => p.label === "Initializing submodules");
       if (subPhase) subPhase.status = "running";
 
+      const { reuseMainCheckout, jobs } = config.layout.submoduleInit ?? {};
+      if (reuseMainCheckout) {
+        // Borrow objects from the main checkout's store for each submodule, so the
+        // bench checks out locally instead of downloading it again (#1434). One at
+        // a time: each call writes the shared .git/config. A failure is not fatal:
+        // the recursive update below clones that submodule normally.
+        for (const entry of Object.values(parsedMap)) {
+          const store = await findMainCheckoutSubmoduleStore(project.repoPath, entry.path, signal);
+          if (stopped()) return;
+          if (!store) continue;
+          const refResult = await execGit(
+            ["submodule", "update", "--init", "--reference", store, "--", entry.path],
+            bench.workspacePath,
+            signal,
+          );
+          if (stopped()) return;
+          if (refResult.code !== 0) {
+            console.warn(
+              `[bench-manager] Could not borrow objects for submodule '${entry.path}' ` +
+                `for bench ${bench.id}, cloning it instead: ${refResult.stderr.trim()}`,
+            );
+          }
+        }
+      }
+
+      // Checks out what the loop above initialised, and clones the rest and any
+      // nested submodules.
       const subResult = await execGit(
-        ["submodule", "update", "--init", "--recursive"],
+        [
+          "submodule",
+          "update",
+          "--init",
+          "--recursive",
+          // Passed whenever set, 1 included: unset, git uses submodule.fetchJobs.
+          ...(jobs !== undefined ? ["--jobs", String(jobs)] : []),
+        ],
         bench.workspacePath,
         signal,
       );
