@@ -233,10 +233,27 @@ export function registerProject(repoPath: string): RegisteredProject {
   return project;
 }
 
-export async function unregisterProject(
+// An unregister that is still removing workspaces, by project id (#1435). A
+// second unregister of the same project shares it instead of removing the same
+// worktrees again in parallel.
+const pendingUnregisters = new Map<string, Promise<void>>();
+
+export function unregisterProject(
   projectId: string,
   opts: { force?: boolean } = {},
 ): Promise<void> {
+  const pending = pendingUnregisters.get(projectId);
+  if (pending) return pending;
+  const run = unregisterProjectNow(projectId, opts);
+  pendingUnregisters.set(projectId, run);
+  const settle = () => {
+    if (pendingUnregisters.get(projectId) === run) pendingUnregisters.delete(projectId);
+  };
+  void run.then(settle, settle);
+  return run;
+}
+
+async function unregisterProjectNow(projectId: string, opts: { force?: boolean }): Promise<void> {
   const project = projects.get(projectId);
   if (!project) {
     throw new ProjectRegistryError(`Project '${projectId}' not found`, "NOT_FOUND");

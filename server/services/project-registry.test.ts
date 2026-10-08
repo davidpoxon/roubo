@@ -699,6 +699,36 @@ describe("unregisterProject with a live bench source (#1204)", () => {
     mockedRemoveBench.mockReset();
   });
 
+  it("a second unregister during the removal shares the first instead of removing again (#1435)", async () => {
+    registerTestProject();
+    mockedGetPersistedBenches.mockReturnValue(persisted([1]));
+    let finishRemoval!: () => void;
+    const removeWorkspaces = vi.fn(
+      () =>
+        new Promise<{ leftovers: string[] }>((resolve) => {
+          finishRemoval = () => resolve({ leftovers: [] });
+        }),
+    );
+    registryModule.registerLiveBenchSource({
+      listBenchIds: () => [],
+      dropBenches: () => 0,
+      removeWorkspaces,
+    });
+
+    const first = registryModule.unregisterProject("test-project", { force: true });
+    const second = registryModule.unregisterProject("test-project", { force: true });
+    expect(second).toBe(first);
+    finishRemoval();
+    await Promise.all([first, second]);
+
+    expect(removeWorkspaces).toHaveBeenCalledTimes(1);
+    expect(mockedRemoveProject).toHaveBeenCalledTimes(1);
+    // Once settled, a later call runs on its own and finds nothing.
+    await expect(registryModule.unregisterProject("test-project")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
   it("does not remove workspaces when unregister is refused", async () => {
     registerTestProject();
     mockedGetPersistedBenches.mockReturnValue(persisted([1]));

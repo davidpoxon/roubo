@@ -90,6 +90,11 @@ const provisioningAborts = new Map<string, AbortController>();
 // behind teardown.
 const PROVISIONING_STOP_WAIT_MS = 15_000;
 
+// Projects whose benches a forced unregister is removing (#1435). createBench
+// refuses them: a bench reserved during the wait would be missed by the removal,
+// then dropped with the project, and left on disk with no record.
+const unregisteringProjects = new Set<string>();
+
 // Guards the one-warning-per-process-load contract for a corrupt settings.json
 // when the global bench cap is evaluated (GBL-NFR-004). Reset only on process restart.
 let corruptedSettingsWarned = false;
@@ -875,9 +880,25 @@ export function dropProjectBenches(projectId: string): number {
  * When `repoPath` is missing, nothing is removed: without the repo the worktrees
  * cannot be removed through git. Each workspace path is logged instead.
  *
+ * createBench refuses the project until this returns. The caller drops the
+ * records in the same tick, so no bench can be reserved in between.
+ *
  * Returns the workspace paths that are still on disk.
  */
 export async function removeProjectBenchWorkspaces(
+  projectId: string,
+  repoPath: string,
+  persisted: { id: number; workspacePath: string }[],
+): Promise<{ leftovers: string[] }> {
+  unregisteringProjects.add(projectId);
+  try {
+    return await removeWorkspacesOf(projectId, repoPath, persisted);
+  } finally {
+    unregisteringProjects.delete(projectId);
+  }
+}
+
+async function removeWorkspacesOf(
   projectId: string,
   repoPath: string,
   persisted: { id: number; workspacePath: string }[],
@@ -946,6 +967,9 @@ export function createBench(
       `Project '${projectId}' not found or has invalid config`,
       "PROJECT_NOT_FOUND",
     );
+  }
+  if (unregisteringProjects.has(projectId)) {
+    throw new BenchError(`Project '${projectId}' is being unregistered`, "PROJECT_NOT_FOUND");
   }
 
   // TestBench variant: require + validate the focused spec path before any bench

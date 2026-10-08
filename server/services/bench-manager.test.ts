@@ -3989,6 +3989,57 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
     expect(stateService.addBench).not.toHaveBeenCalled();
   });
 
+  it("a forced unregister reports a workspace it could not remove, and finishes (#1435)", async () => {
+    vi.mocked(fs.default.existsSync).mockReturnValue(true);
+    vi.mocked(fs.default.rmSync).mockImplementation(() => {
+      throw new Error("EACCES: permission denied");
+    });
+    // Git does not track the directory, so only rmSync can remove it.
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { leftovers } = await benchManager.removeProjectBenchWorkspaces(
+      "test-project",
+      "/repos/test-project",
+      [{ id: 1, workspacePath }],
+    );
+    const warnings = warn.mock.calls.map((c) => String(c[0]));
+    warn.mockRestore();
+    vi.mocked(fs.default.rmSync).mockReset();
+
+    expect(leftovers).toEqual([workspacePath]);
+    expect(
+      warnings.some((w) => w.includes(workspacePath) && w.includes("stays on disk: EACCES")),
+    ).toBe(true);
+  });
+
+  it("refuses a new bench while a forced unregister removes workspaces (#1435)", async () => {
+    setupCreateBenchMocks();
+    vi.mocked(fs.default.existsSync).mockImplementation((p) => p === "/repos/test-project");
+    let releaseList!: () => void;
+    vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+      if (args[0] === "worktree" && args[1] === "list") {
+        await new Promise<void>((r) => (releaseList = r));
+      }
+      return ok;
+    });
+
+    const removal = benchManager.removeProjectBenchWorkspaces(
+      "test-project",
+      "/repos/test-project",
+      [{ id: 7, workspacePath: "/home/.roubo/workspaces/test-project/bench-7" }],
+    );
+    await vi.waitFor(() => expect(releaseList).toBeDefined());
+
+    expect(() => benchManager.createBench("test-project")).toThrow(/being unregistered/);
+    expect(benchManager.getLiveBenchIds("test-project")).toEqual([]);
+
+    releaseList();
+    await removal;
+    // The refusal ends with the removal: the caller drops the project in the same tick.
+    expect(benchManager.createBench("test-project").id).toBe(1);
+  });
+
   it("a forced unregister with the repo missing runs no git and reports every workspace (#1435)", async () => {
     setupExistingBench();
     vi.mocked(fs.default.existsSync).mockReturnValue(false);

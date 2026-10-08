@@ -241,7 +241,6 @@ describe.sequential("startServer", () => {
         getLiveBenchIds: vi.fn(() => []),
         dropProjectBenches: vi.fn(() => 0),
         removeProjectBenchWorkspaces: vi.fn(async () => ({ leftovers: [] })),
-        removeProjectBenchWorkspaces: vi.fn(async () => ({ leftovers: [] })),
         refreshComponentStatuses: vi.fn(() => Promise.resolve()),
         sweepOrphanedComposeProjects: vi.fn(() => Promise.resolve()),
         handleComponentPluginPreRestart: vi.fn(() => Promise.resolve()),
