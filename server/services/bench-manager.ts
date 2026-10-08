@@ -85,9 +85,9 @@ const provisioningAborts = new Map<string, AbortController>();
 
 // How long teardown waits for aborted provisioning to stop. It covers the kill
 // grace in runCommand. The pull-latest fast-forward and submodule update run in
-// the main checkout and are never killed, so they can outlast this; provisioning
-// still stops before `worktree add` once they return, so nothing is created
-// behind teardown.
+// the main checkout and a clear does not kill them (the update is stopped only
+// when it makes no progress), so they can outlast this; provisioning still stops
+// before `worktree add` once they return, so nothing is created behind teardown.
 const PROVISIONING_STOP_WAIT_MS = 15_000;
 
 // Guards the one-warning-per-process-load contract for a corrupt settings.json
@@ -635,22 +635,56 @@ function startWorktreeProvisioning(bench: Bench, project: RegisteredProject): Pr
 }
 
 function extractFailingSubmodulePath(stderr: string): string | null {
-  const match = stderr.match(/submodule path '([^']+)'/);
-  return match ? match[1] : null;
+  // An absolute path comes from git's `fatal: clone of '<url>' into submodule
+  // path '<abs>' failed` summary, which names the directory rather than the
+  // submodule.
+  for (const match of stderr.matchAll(/submodule path '([^']+)'/g)) {
+    if (!path.isAbsolute(match[1])) return match[1];
+  }
+  return null;
 }
 
 /**
- * The line of git's stderr that explains a failure: the last `fatal:` or
- * `error:` line, else the last non-empty one. With `--progress` the output is
- * mostly `\r`-separated progress updates and a leading `Cloning into`, neither
- * of which says what went wrong.
+ * The submodule paths recorded in `repoPath`'s index (gitlinks), which is the
+ * set a bare `git submodule update` works through. Not `.gitmodules`: a section
+ * left behind for a removed submodule would fail as a pathspec git does not know
+ * (#1438).
+ */
+async function listSubmodulePaths(repoPath: string): Promise<string[]> {
+  const result = await runCommand("git", ["ls-files", "--stage", "-z"], repoPath);
+  if (result.code !== 0) {
+    throw new Error(
+      `Could not list the submodules in ${repoPath}: ${result.stderr.trim() || "git ls-files exited non-zero"}`,
+    );
+  }
+  const paths = new Set<string>();
+  for (const record of result.stdout.split("\0")) {
+    const tab = record.indexOf("\t");
+    if (tab > 0 && record.startsWith("160000 ")) paths.add(record.slice(tab + 1));
+  }
+  return [...paths];
+}
+
+/** git's own summary lines for a failed submodule clone, printed after the cause. */
+const GIT_CLONE_SUMMARY_RE =
+  /^(fatal: clone of '.*' into submodule path '.*' failed|Failed to clone )/;
+
+/**
+ * The line of git's stderr that explains a failure: the first `fatal:` or
+ * `error:` line that is not one of git's clone summaries, else the last
+ * non-empty line. With `--progress` the output is mostly `\r`-separated
+ * progress updates and a leading `Cloning into`, neither of which says what
+ * went wrong, and a failed submodule clone ends with summaries that repeat the
+ * URL but drop the cause.
  */
 function gitFailureDetail(stderr: string): string | undefined {
   const lines = stderr
     .split(/[\r\n]/)
     .map((l) => l.trim())
     .filter(Boolean);
-  return [...lines].reverse().find((l) => /^(fatal|error):/.test(l)) ?? lines.at(-1);
+  return (
+    lines.find((l) => /^(fatal|error):/.test(l) && !GIT_CLONE_SUMMARY_RE.test(l)) ?? lines.at(-1)
+  );
 }
 
 /**
@@ -1278,7 +1312,7 @@ async function runWorktreeProvisioning(
           );
         }
         throw new Error(
-          `Failed to fetch 'origin/${pullBranch}': ${fetchResult.stderr.trim() || "git fetch exited non-zero"}. ` +
+          `Failed to fetch 'origin/${pullBranch}': ${gitFailureDetail(fetchResult.stderr) ?? "git fetch exited non-zero"}. ` +
             `Check your network connection and origin remote, or disable 'Pull latest' in project settings.`,
         );
       }
@@ -1305,13 +1339,9 @@ async function runWorktreeProvisioning(
         subRemotePhase.status = "running";
         // One submodule at a time, so a stall is pinned to the submodule that
         // stalled and each gets its own idle window (#1438).
-        const mainGitmodulesPath = path.join(project.repoPath, ".gitmodules");
-        const mainSubmodules = fs.existsSync(mainGitmodulesPath)
-          ? Object.values(
-              parseGitmodulesWithBranch(await fs.promises.readFile(mainGitmodulesPath, "utf-8")),
-            )
-          : [];
-        for (const entry of mainSubmodules) {
+        for (const submodulePath of await listSubmodulePaths(project.repoPath)) {
+          // A clear does not kill the update, but it need not start the next one.
+          if (stopped()) return;
           const subResult = await runCommand(
             "git",
             [
@@ -1322,7 +1352,7 @@ async function runWorktreeProvisioning(
               "--recursive",
               "--progress",
               "--",
-              entry.path,
+              submodulePath,
             ],
             project.repoPath,
             ABORTABLE_GIT_ENV,
@@ -1334,14 +1364,14 @@ async function runWorktreeProvisioning(
           subRemotePhase.status = "error";
           if (subResult.idleTimedOut) {
             throw new Error(
-              `Submodule '${entry.path}' made no progress for ${SUBMODULE_UPDATE_IDLE_TIMEOUT_MS / 60_000} minutes ` +
+              `Submodule '${submodulePath}' made no progress for ${SUBMODULE_UPDATE_IDLE_TIMEOUT_MS / 60_000} minutes ` +
                 `while updating to latest, so Roubo stopped it. Check your network connection and the ` +
                 `submodule's remote, or disable 'Pull latest' in project settings.`,
             );
           }
           // A nested submodule's failure names the nested path, which is more
           // specific than the top-level one.
-          const failingSubmodule = extractFailingSubmodulePath(subResult.stderr) ?? entry.path;
+          const failingSubmodule = extractFailingSubmodulePath(subResult.stderr) ?? submodulePath;
           const detail = gitFailureDetail(subResult.stderr) ?? `exit code ${subResult.code}`;
           throw new Error(
             `Failed to update submodule '${failingSubmodule}' to latest: ${detail}. ` +

@@ -3,6 +3,7 @@ import type { BenchNotification, RouboConfig, ComponentConfig } from "@roubo/sha
 import { COMPONENT_STEP_PREFIX, FIRST_PARTY_SOURCE_ID } from "@roubo/shared";
 import { makeConfig, makeProject, makePersistedBench } from "../test/fixtures.js";
 import { DEFAULT_BRANCH_RESOLUTION_ERROR } from "./git-helpers.js";
+import type { RunCommandResult } from "./exec.js";
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { RESOLVE_DEFAULT_BRANCH_PHASE } from "./bench-manager.js";
 import type { ResolvedTemplateContext } from "./config-parser.js";
@@ -444,6 +445,17 @@ function setupMetaRepoGitmodulesMocks(submodules: Record<string, string>) {
   );
   vi.mocked(gitHelpers.parseGitmodulesWithBranch).mockReturnValue(gitmodulesMap);
   vi.mocked(gitHelpers.resolveSubmoduleBranch).mockResolvedValue("feature/sub-branch");
+}
+
+/** `git ls-files --stage -z` output whose gitlinks are `paths`, as the main checkout's index lists them. */
+function gitlinks(...paths: string[]) {
+  return {
+    code: 0,
+    stdout:
+      paths.map((p) => `160000 ${"a".repeat(40)} 0\t${p}\0`).join("") +
+      `100644 ${"b".repeat(40)} 0\t.gitmodules\0`,
+    stderr: "",
+  };
 }
 
 /** Set up a pre-existing bench via initialize() for tests that don't need to test creation */
@@ -2795,6 +2807,7 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
           stderr: "",
         });
       }
+      if (args[0] === "ls-files") return Promise.resolve(gitlinks("path/to/sub1"));
       return Promise.resolve({ code: 0, stdout: "", stderr: "" });
     });
 
@@ -2946,8 +2959,8 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
     setupCreateBenchMocks({
       project: makeProject({ config, settings: SETTINGS_R1_ON_R2_ON }),
     });
-    setupMetaRepoGitmodulesMocks({ sub1: "path/to/sub1" });
     vi.mocked(execModule.runCommand).mockImplementation((_cmd, args) => {
+      if (args[0] === "ls-files") return Promise.resolve(gitlinks("libs/foo"));
       if (
         Array.isArray(args) &&
         args[0] === "symbolic-ref" &&
@@ -3022,9 +3035,16 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
   });
 
   describe("main-checkout submodule update stalls (#1438)", () => {
-    /** Mocks a resolved `main` and the given result for each --remote update, by path. */
-    function mockRemoteUpdates(results: Record<string, execModule.RunCommandResult>) {
+    /**
+     * Mocks a resolved `main`, an index whose gitlinks are `indexed`, and the
+     * given result for each --remote update, by path.
+     */
+    function mockRemoteUpdates(
+      results: Record<string, RunCommandResult>,
+      indexed = ["vendor/big", "libs/small"],
+    ) {
       vi.mocked(execModule.runCommand).mockImplementation((_cmd, args) => {
+        if (args[0] === "ls-files") return Promise.resolve(gitlinks(...indexed));
         if (args[0] === "symbolic-ref" && args[1] === "refs/remotes/origin/HEAD") {
           return Promise.resolve({ code: 0, stdout: "refs/remotes/origin/main\n", stderr: "" });
         }
@@ -3056,7 +3076,7 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       return benchManager.getBench("test-project", 1)?.error;
     }
 
-    it("updates each submodule on its own, in .gitmodules order", async () => {
+    it("updates each submodule on its own, in index order", async () => {
       setupTwoSubmodules();
       mockRemoteUpdates({});
 
@@ -3068,6 +3088,24 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
         .mock.calls.filter((c) => c[1][0] === "submodule" && c[1].includes("--remote"))
         .map((c) => c[1][c[1].length - 1]);
       expect(remotePaths).toEqual(["vendor/big", "libs/small"]);
+    });
+
+    it("skips a .gitmodules section with no submodule in the index", async () => {
+      // A section left behind for a removed submodule: a bare update ignores
+      // it, and naming it as a pathspec would fail the bench.
+      setupTwoSubmodules();
+      mockRemoteUpdates({}, ["vendor/big"]);
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
+
+      const calls = vi.mocked(execModule.runCommand).mock.calls;
+      expect(calls.some((c) => c[1].includes("--remote") && c[1].includes("libs/small"))).toBe(
+        false,
+      );
+      expect(calls.some((c) => c[1].includes("--remote") && c[1].includes("vendor/big"))).toBe(
+        true,
+      );
     });
 
     it("a stalled update fails the bench, names the submodule, and stops there", async () => {
@@ -3098,18 +3136,53 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
         "libs/small": {
           code: 128,
           stdout: "",
+          // git 2.54's output for a submodule whose remote is missing.
           stderr:
             "Cloning into '/repos/test-project/libs/small'...\n" +
-            "Receiving objects:  12% (3/25)\r" +
-            "fatal: repository 'https://example.test/small.git/' not found\n",
+            "fatal: repository 'https://example.test/small.git/' not found\n" +
+            "fatal: clone of 'https://example.test/small.git' into submodule path " +
+            "'/repos/test-project/libs/small' failed\n" +
+            "Failed to clone 'libs/small'. Retry scheduled\n" +
+            "Cloning into '/repos/test-project/libs/small'...\n" +
+            "fatal: repository 'https://example.test/small.git/' not found\n" +
+            "fatal: clone of 'https://example.test/small.git' into submodule path " +
+            "'/repos/test-project/libs/small' failed\n" +
+            "Failed to clone 'libs/small' a second time, aborting\n",
         },
       });
 
       const error = await benchError();
 
-      expect(error).toContain("submodule 'libs/small'");
+      expect(error).toContain("Failed to update submodule 'libs/small' to latest");
       expect(error).toContain("fatal: repository 'https://example.test/small.git/' not found");
       expect(error).not.toContain("Cloning into");
+      expect(error).not.toContain("clone of");
+    });
+
+    it("a failed pull-latest fetch reports git's fatal line, not its progress", async () => {
+      setupCreateBenchMocks({ project: makeProject({ settings: SETTINGS_R1_ON_R2_ON }) });
+      setupProcessMocks();
+      vi.mocked(gitHelpers.resolveDefaultBranch).mockResolvedValue("main");
+      vi.mocked(execModule.runCommand).mockImplementation((_cmd, args) =>
+        Promise.resolve(
+          args[0] === "fetch"
+            ? {
+                code: 128,
+                stdout: "",
+                stderr:
+                  "remote: Counting objects:  50% (1/2)\rremote: Counting objects: 100% (2/2), done.\n" +
+                  "fatal: unable to access 'https://example.test/repo.git/': Could not resolve host\n",
+              }
+            : { code: 0, stdout: "", stderr: "" },
+        ),
+      );
+
+      const error = await benchError();
+
+      expect(error).toContain(
+        "Failed to fetch 'origin/main': fatal: unable to access 'https://example.test/repo.git/': Could not resolve host.",
+      );
+      expect(error).not.toContain("Counting objects");
     });
 
     it("a stalled pull-latest fetch fails the bench and says it stalled", async () => {
@@ -4084,8 +4157,8 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
   });
 
   it("a main-checkout command that outlasts the wait: teardown goes on, provisioning still stops", async () => {
-    // The pull-latest submodule update runs in the main checkout and is never
-    // killed. Teardown stops waiting after its cap; when the update returns,
+    // The pull-latest submodule update runs in the main checkout and a clear
+    // does not kill it. Teardown stops waiting after its cap; when the update returns,
     // provisioning must still stop before `worktree add`.
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
@@ -4102,6 +4175,7 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
       setupMetaRepoGitmodulesMocks({ sub1: "path/to/sub1" });
       let releaseUpdate: (() => void) | undefined;
       vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+        if (args[0] === "ls-files") return gitlinks("path/to/sub1");
         if (args[0] === "submodule" && args.includes("--remote")) {
           return new Promise((resolve) => (releaseUpdate = () => resolve(ok)));
         }
