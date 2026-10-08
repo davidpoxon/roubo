@@ -4151,6 +4151,214 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
     expect(stateService.addBench).not.toHaveBeenCalled();
   });
 
+  it("a forced unregister during submodule init stops the clone before the worktree is removed (#1435)", async () => {
+    const config = makeConfig({
+      layout: { type: "meta-repo", submodules: { sub1: "path/to/sub1" } },
+    });
+    setupCreateBenchMocks({
+      project: makeProject({
+        config,
+        settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+      }),
+    });
+    setupProcessMocks();
+    setupMetaRepoGitmodulesMocks({ sub1: "path/to/sub1" });
+    // The repository is present, alongside whatever the gitmodules mocks model.
+    const existsSync = vi.mocked(fs.default.existsSync);
+    const modelled = existsSync.getMockImplementation();
+    existsSync.mockImplementation((p) => p === "/repos/test-project" || !!modelled?.(p));
+
+    const order: string[] = [];
+    let cloneSignal: AbortSignal | undefined;
+    vi.mocked(execModule.runCommand).mockImplementation(
+      async (_cmd, args, _cwd, _env, _timeout, _stdin, options) => {
+        order.push(args.slice(0, 2).join(" "));
+        if (args[0] === "submodule") {
+          cloneSignal = options?.signal;
+          return new Promise((resolve) => {
+            options?.signal?.addEventListener("abort", () => {
+              order.push("clone exited");
+              resolve({ ...ok, code: 1, aborted: true });
+            });
+          });
+        }
+        if (args[0] === "worktree" && args[1] === "list") {
+          return { code: 0, stdout: `worktree ${workspacePath}\n`, stderr: "" };
+        }
+        return ok;
+      },
+    );
+
+    benchManager.createBench("test-project");
+    await vi.waitFor(() => expect(order).toContain("submodule update"));
+
+    // The bench has no persisted record yet: the in-memory map alone names it.
+    const { leftovers } = await benchManager.removeProjectBenchWorkspaces(
+      "test-project",
+      "/repos/test-project",
+      [],
+    );
+
+    expect(leftovers).toEqual([]);
+    expect(cloneSignal?.aborted).toBe(true);
+    expect(order.indexOf("worktree remove")).toBeGreaterThan(order.indexOf("clone exited"));
+    expect(execModule.runCommand).toHaveBeenCalledWith(
+      "git",
+      ["worktree", "remove", "--force", workspacePath],
+      "/repos/test-project",
+    );
+    // Branches are kept, and nothing project-wide runs.
+    expect(order).not.toContain("branch -D");
+    expect(order).not.toContain("worktree prune");
+    expect(stateService.addBench).not.toHaveBeenCalled();
+  });
+
+  it("a forced unregister reports a workspace it could not remove, and finishes (#1435)", async () => {
+    vi.mocked(fs.default.existsSync).mockReturnValue(true);
+    vi.mocked(fs.default.rmSync).mockImplementation(() => {
+      throw new Error("EACCES: permission denied");
+    });
+    // Git does not track the directory, so only rmSync can remove it.
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { leftovers } = await benchManager.removeProjectBenchWorkspaces(
+      "test-project",
+      "/repos/test-project",
+      [{ id: 1, workspacePath }],
+    );
+    const warnings = warn.mock.calls.map((c) => String(c[0]));
+    warn.mockRestore();
+    vi.mocked(fs.default.rmSync).mockReset();
+
+    expect(leftovers).toEqual([workspacePath]);
+    expect(
+      warnings.some((w) => w.includes(workspacePath) && w.includes("stays on disk: EACCES")),
+    ).toBe(true);
+  });
+
+  it("refuses a new bench while a forced unregister removes workspaces (#1435)", async () => {
+    setupCreateBenchMocks();
+    vi.mocked(fs.default.existsSync).mockImplementation((p) => p === "/repos/test-project");
+    let releaseList!: () => void;
+    vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+      if (args[0] === "worktree" && args[1] === "list") {
+        await new Promise<void>((r) => (releaseList = r));
+      }
+      return ok;
+    });
+
+    const removal = benchManager.removeProjectBenchWorkspaces(
+      "test-project",
+      "/repos/test-project",
+      [{ id: 7, workspacePath: "/home/.roubo/workspaces/test-project/bench-7" }],
+    );
+    await vi.waitFor(() => expect(releaseList).toBeDefined());
+
+    expect(() => benchManager.createBench("test-project")).toThrow(/being unregistered/);
+    expect(benchManager.getLiveBenchIds("test-project")).toEqual([]);
+
+    releaseList();
+    await removal;
+    // The refusal ends with the removal: the caller drops the project in the same tick.
+    expect(benchManager.createBench("test-project").id).toBe(1);
+  });
+
+  describe("Cleanup & Retry during a forced unregister (#1435)", () => {
+    // Holds the first `git worktree list` until released; later calls answer at once.
+    function holdFirstWorktreeList(): { released: () => boolean; release: () => void } {
+      let release: (() => void) | undefined;
+      let held = false;
+      vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+        if (args[0] === "worktree" && args[1] === "list" && !held) {
+          held = true;
+          await new Promise<void>((r) => (release = r));
+        }
+        return ok;
+      });
+      return { released: () => release !== undefined, release: () => release?.() };
+    }
+
+    function erroredBench() {
+      setupExistingBench();
+      setupProcessMocks();
+      vi.mocked(fs.default.existsSync).mockImplementation((p) => p === "/repos/test-project");
+      const bench = benchManager.getBench("test-project", 1);
+      if (!bench) throw new Error("expected bench");
+      bench.status = "error";
+      bench.error = "workspace error";
+    }
+
+    const worktreeAdds = () =>
+      vi
+        .mocked(execModule.runCommand)
+        .mock.calls.filter((c) => c[1][0] === "worktree" && c[1][1] === "add");
+
+    it("refuses a retry that starts while the removal runs", async () => {
+      erroredBench();
+      const hold = holdFirstWorktreeList();
+
+      const removal = benchManager.removeProjectBenchWorkspaces(
+        "test-project",
+        "/repos/test-project",
+        [],
+      );
+      await vi.waitFor(() => expect(hold.released()).toBe(true));
+
+      await expect(benchManager.cleanupAndRetryBench("test-project", 1)).rejects.toThrow(
+        /being unregistered/,
+      );
+      hold.release();
+      await removal;
+      await flushBackground();
+
+      expect(worktreeAdds()).toHaveLength(0);
+    });
+
+    it("stops a retry that was already running when the removal started", async () => {
+      erroredBench();
+      const hold = holdFirstWorktreeList();
+
+      // The retry's own worktree removal is the held call.
+      const retry = benchManager.cleanupAndRetryBench("test-project", 1);
+      await vi.waitFor(() => expect(hold.released()).toBe(true));
+      const removal = benchManager.removeProjectBenchWorkspaces(
+        "test-project",
+        "/repos/test-project",
+        [],
+      );
+      hold.release();
+
+      await expect(retry).rejects.toThrow(/being unregistered/);
+      await removal;
+      await flushBackground();
+
+      expect(worktreeAdds()).toHaveLength(0);
+    });
+  });
+
+  it("a forced unregister with the repo missing runs no git and reports every workspace (#1435)", async () => {
+    setupExistingBench();
+    vi.mocked(fs.default.existsSync).mockReturnValue(false);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { leftovers } = await benchManager.removeProjectBenchWorkspaces(
+      "test-project",
+      "/repos/test-project",
+      [
+        { id: 1, workspacePath },
+        { id: 7, workspacePath: "/home/.roubo/workspaces/test-project/bench-7" },
+      ],
+    );
+    const warnings = warn.mock.calls.map((c) => String(c[0]));
+    warn.mockRestore();
+
+    expect(leftovers).toEqual([workspacePath, "/home/.roubo/workspaces/test-project/bench-7"]);
+    expect(warnings.filter((w) => w.includes("stay on disk"))).toHaveLength(2);
+    expect(execModule.runCommand).not.toHaveBeenCalled();
+    expect(fs.default.rmSync).not.toHaveBeenCalled();
+  });
+
   it("clearing during the pull-latest fetch kills it, and no worktree is created", async () => {
     setupCreateBenchMocks({
       project: makeProject({

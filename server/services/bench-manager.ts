@@ -90,6 +90,18 @@ const provisioningAborts = new Map<string, AbortController>();
 // before `worktree add` once they return, so nothing is created behind teardown.
 const PROVISIONING_STOP_WAIT_MS = 15_000;
 
+// Projects whose benches a forced unregister is removing (#1435). Every path that
+// starts worktree provisioning (createBench, Cleanup & Retry) refuses them: a
+// worktree added during the wait would be missed by the removal, then dropped with
+// the project, and left on disk with no record.
+const unregisteringProjects = new Set<string>();
+
+function assertNotUnregistering(projectId: string): void {
+  if (unregisteringProjects.has(projectId)) {
+    throw new BenchError(`Project '${projectId}' is being unregistered`, "PROJECT_NOT_FOUND");
+  }
+}
+
 // Guards the one-warning-per-process-load contract for a corrupt settings.json
 // when the global bench cap is evaluated (GBL-NFR-004). Reset only on process restart.
 let corruptedSettingsWarned = false;
@@ -976,8 +988,9 @@ export function getLiveBenchIds(projectId: string): number[] {
  * Drop every in-memory bench entry for a project and return how many were removed.
  * Called on `unregisterProject`'s force path: the map is what `readGlobalBenchCap`
  * measures (`benches.size`), so entries left behind keep consuming global-cap slots
- * until the app restarts (#1204). Map-entry removal only, matching the force
- * path's existing no-filesystem-cleanup contract; it does not tear down components.
+ * until the app restarts (#1204). Map-entry removal only: the force path removes
+ * the workspaces first, through removeProjectBenchWorkspaces. It does not tear
+ * down components (#1441).
  */
 export function dropProjectBenches(projectId: string): number {
   let removed = 0;
@@ -989,6 +1002,87 @@ export function dropProjectBenches(projectId: string): number {
     }
   }
   return removed;
+}
+
+/**
+ * Removes the workspace and git's admin dir of every bench of a project that is
+ * being force-unregistered (#1435). Called before the bench records are dropped,
+ * because afterwards Roubo no longer knows the project and nothing would remove
+ * them. The targets are the union of the in-memory benches and `persisted`, by id.
+ *
+ * In-flight provisioning is aborted and awaited first, as in teardown, so a
+ * `worktree add` or `submodule update` cannot recreate what is removed. Removal is
+ * not strict: the project is going away, so a worktree git refuses to remove is
+ * removed by hand. A dirty workspace is removed too. Bench branches are kept, so
+ * committed work survives.
+ *
+ * When `repoPath` is missing, nothing is removed: without the repo the worktrees
+ * cannot be removed through git. Each workspace path is logged instead.
+ *
+ * createBench refuses the project until this returns. The caller drops the
+ * records in the same tick, so no bench can be reserved in between.
+ *
+ * Returns the workspace paths that are still on disk.
+ */
+export async function removeProjectBenchWorkspaces(
+  projectId: string,
+  repoPath: string,
+  persisted: { id: number; workspacePath: string }[],
+): Promise<{ leftovers: string[] }> {
+  unregisteringProjects.add(projectId);
+  try {
+    return await removeWorkspacesOf(projectId, repoPath, persisted);
+  } finally {
+    unregisteringProjects.delete(projectId);
+  }
+}
+
+async function removeWorkspacesOf(
+  projectId: string,
+  repoPath: string,
+  persisted: { id: number; workspacePath: string }[],
+): Promise<{ leftovers: string[] }> {
+  const targets = new Map<number, string>();
+  for (const record of persisted) targets.set(record.id, record.workspacePath);
+  const provisioning: Promise<void>[] = [];
+  for (const [key, bench] of benches) {
+    if (bench.projectId !== projectId) continue;
+    targets.set(bench.id, bench.workspacePath);
+    provisioningAborts.get(key)?.abort();
+    const ready = workspaceReady.get(key);
+    if (ready) provisioning.push(settleWithin(ready, PROVISIONING_STOP_WAIT_MS));
+  }
+  await Promise.all(provisioning);
+
+  const leftovers: string[] = [];
+  if (!fs.existsSync(repoPath)) {
+    for (const [benchId, workspacePath] of targets) {
+      console.warn(
+        `[bench-manager] Force unregister of '${projectId}': repository ${repoPath} is ` +
+          `missing, so bench ${benchId}'s workspace ${workspacePath} and its git admin ` +
+          `dir stay on disk`,
+      );
+      leftovers.push(workspacePath);
+    }
+    return { leftovers };
+  }
+
+  // One at a time: every removal takes the same repository's git lock.
+  for (const [benchId, workspacePath] of targets) {
+    const { leftoverReason } = await removeBenchWorktree(repoPath, workspacePath, {
+      benchId,
+      strict: false,
+      label: "Force unregister",
+    });
+    if (leftoverReason !== undefined) {
+      console.warn(
+        `[bench-manager] Force unregister of '${projectId}': bench ${benchId}'s ` +
+          `workspace ${workspacePath} stays on disk: ${leftoverReason}`,
+      );
+      leftovers.push(workspacePath);
+    }
+  }
+  return { leftovers };
 }
 
 export interface CreateBenchOptions {
@@ -1013,6 +1107,7 @@ export function createBench(
       "PROJECT_NOT_FOUND",
     );
   }
+  assertNotUnregistering(projectId);
 
   // TestBench variant: require + validate the focused spec path before any bench
   // slot is reserved, so a bad path fails fast with no side effects. The resolved
@@ -2232,6 +2327,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     );
   }
   const config = project.config;
+  assertNotUnregistering(projectId);
 
   // Clean up stale resources
   terminalService.destroyBenchSessions(projectId, benchId);
@@ -2270,6 +2366,9 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     label: "Cleanup & Retry",
   });
   stateService.removeBench(projectId, benchId);
+  // A forced unregister may have started during the awaits above. Its removal
+  // would not see the worktree this retry is about to add (#1435).
+  assertNotUnregistering(projectId);
 
   // Reset bench state for re-provisioning
   const isMetaRepo = config.layout.type === "meta-repo" && !!config.layout.submodules;

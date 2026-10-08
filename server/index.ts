@@ -183,6 +183,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   projectRegistry.registerLiveBenchSource({
     listBenchIds: benchManager.getLiveBenchIds,
     dropBenches: benchManager.dropProjectBenches,
+    removeWorkspaces: benchManager.removeProjectBenchWorkspaces,
   });
 
   console.log("Running migration check...");

@@ -41,6 +41,9 @@ export default function DangerZoneTile({ projectId }: Props) {
   const displayName = project.config?.project.displayName ?? project.repoPath;
   const benchCount = benches?.length ?? 0;
   const needsForce = !project.configValid && benchCount > 0;
+  // A forced unregister deletes each bench's workspace (#1435), so the dialog
+  // stops listing workspaces and git state as untouched.
+  const forcing = needsForce || persistedBenchCount !== null;
   const canConfirm = typedName === displayName && !unregister.isPending;
 
   const reset = () => {
@@ -89,7 +92,7 @@ export default function DangerZoneTile({ projectId }: Props) {
         <div>
           <div className="text-13 font-medium text-text-primary">Unregister project</div>
           <div className="text-11 text-text-secondary mt-0.5">
-            Removes from Roubo. Does not touch the repository, benches, or git state.
+            Removes from Roubo. Does not touch the repository or its branches.
           </div>
         </div>
         <Button
@@ -123,7 +126,9 @@ export default function DangerZoneTile({ projectId }: Props) {
                 <div className="px-5 py-4 space-y-4">
                   <div>
                     <p className="text-13 text-text-body mb-2">
-                      This only removes the project from Roubo. The following will not be touched:
+                      {forcing
+                        ? "This removes the project from Roubo. The following will not be touched:"
+                        : "This only removes the project from Roubo. The following will not be touched:"}
                     </p>
                     <ul className="list-disc pl-5 space-y-1 text-13 text-text-secondary">
                       <li>
@@ -133,8 +138,12 @@ export default function DangerZoneTile({ projectId }: Props) {
                         </code>
                       </li>
                       <li>Branches</li>
-                      <li>Existing worktrees (benches)</li>
-                      <li>Git state</li>
+                      {!forcing && (
+                        <>
+                          <li>Existing worktrees (benches)</li>
+                          <li>Git state</li>
+                        </>
+                      )}
                     </ul>
                   </div>
                   {benchCount > 0 && !needsForce && (
@@ -156,7 +165,9 @@ export default function DangerZoneTile({ projectId }: Props) {
                       <p className="text-13 text-text-body">
                         This project&apos;s configuration can&apos;t be loaded. Forcing unregister
                         will drop {benchCount} tracked bench{benchCount === 1 ? "" : "es"} from
-                        Roubo&apos;s state but leave any worktree files on disk alone.
+                        Roubo&apos;s state and delete {benchCount === 1 ? "its" : "each"} workspace,
+                        uncommitted changes included. If the repository is missing, the workspaces
+                        stay on disk.
                       </p>
                     </div>
                   )}
@@ -169,8 +180,9 @@ export default function DangerZoneTile({ projectId }: Props) {
                       <p className="text-13 text-text-body">
                         Roubo still has {persistedBenchCount} persisted bench record
                         {persistedBenchCount === 1 ? "" : "s"} for this project that the Benches
-                        view is not showing. Remove {persistedBenchCount === 1 ? "it" : "them"} and
-                        unregister?
+                        view is not showing. Remove {persistedBenchCount === 1 ? "it" : "them"},
+                        delete {persistedBenchCount === 1 ? "its workspace" : "their workspaces"}{" "}
+                        with any uncommitted changes, and unregister?
                       </p>
                     </div>
                   )}
@@ -192,12 +204,12 @@ export default function DangerZoneTile({ projectId }: Props) {
                   </Button>
                   <Button
                     isDisabled={!canConfirm}
-                    onPress={() => handleConfirm(needsForce || persistedBenchCount !== null)}
+                    onPress={() => handleConfirm(forcing)}
                     className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer not-disabled:active:bg-danger-active"
                   >
                     {unregister.isPending
                       ? "Unregistering…"
-                      : needsForce || persistedBenchCount !== null
+                      : forcing
                         ? "Force unregister"
                         : "Unregister"}
                   </Button>
