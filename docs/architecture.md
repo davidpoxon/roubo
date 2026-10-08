@@ -77,7 +77,7 @@ When a bench is set up, Roubo creates a git worktree at:
 
 This is a real git worktree, not a copy. You can `cd` into it, edit files, run `git status`, push, and pull as normal. Roubo just owns its lifecycle: it creates the worktree on **Set up bench** and removes it on **Clear bench**.
 
-For meta-repos (a parent repo that holds submodules pointing at sub-repos), Roubo also initialises the submodules during setup. The `layout` section of `roubo.yaml` controls this.
+For meta-repos (a parent repo that holds submodules pointing at sub-repos), Roubo also initialises the submodules during setup. The `layout` section of `roubo.yaml` controls this. When you assign an issue to a bench and its branch already exists, Roubo switches the bench to that branch and then updates the submodules to the commits that the branch pins.
 
 ### Setup sequence
 

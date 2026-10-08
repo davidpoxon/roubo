@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import type {
   AssignIssueResponse,
   CreateBenchWithIssueResponse,
@@ -20,6 +21,7 @@ import * as terminalService from "./terminal.js";
 import * as jigManager from "./jig-manager.js";
 import { buildTemplateContext } from "./config-parser.js";
 import { runCommand } from "./exec.js";
+import { parseGitmodulesWithBranch } from "./git-helpers.js";
 import { formatIssueBody, formatComments } from "./issue-formatting.js";
 import { ServiceError } from "./service-error.js";
 import { assertBenchOperable } from "./bench-operability.js";
@@ -515,6 +517,32 @@ export async function assignIssue(
     const switchResult = await runCommand("git", ["checkout", branchName], bench.workspacePath);
     if (switchResult.code !== 0) {
       throw new ServiceError(422, `Failed to create/checkout branch: ${switchResult.stderr}`);
+    }
+    // `git checkout` leaves submodules where they were, and an existing branch
+    // can pin other commits (#1437). A new branch starts from HEAD, so its
+    // gitlinks already match. A failure is logged and not fatal, as at
+    // provisioning.
+    const { layout } = project.config;
+    if (layout.type === "meta-repo" && layout.submodules) {
+      const gitmodulesPath = path.join(bench.workspacePath, ".gitmodules");
+      const submodulePaths = fs.existsSync(gitmodulesPath)
+        ? Object.values(
+            parseGitmodulesWithBranch(await fs.promises.readFile(gitmodulesPath, "utf-8")),
+          ).map((entry) => entry.path)
+        : [];
+      const subResult = await benchManager.updateWorkspaceSubmodules(
+        project.repoPath,
+        bench.workspacePath,
+        submodulePaths,
+        layout.submoduleInit,
+        { benchId },
+      );
+      if (subResult && !subResult.ok) {
+        console.warn(
+          `[issue-assignment] Could not update submodules for bench ${benchId} ` +
+            `on branch ${branchName}: ${subResult.stderr.trim()}`,
+        );
+      }
     }
   }
 
