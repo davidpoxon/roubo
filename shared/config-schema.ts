@@ -35,10 +35,31 @@ export const ProjectConfigSchema = z
   .strict();
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
 
+/**
+ * How a meta-repo bench initialises its submodules (#1434). Only valid with
+ * `type: meta-repo`, which RouboConfigSchema enforces.
+ */
+export const SubmoduleInitConfigSchema = z
+  .object({
+    /**
+     * Borrow objects from the main checkout's submodule stores with
+     * `git submodule update --reference`, so a bench checks out locally instead
+     * of downloading each submodule again. The bench then depends on those
+     * stores: the main checkout must not be deleted or re-cloned while benches
+     * exist. Defaults to false.
+     */
+    reuseMainCheckout: z.boolean().optional(),
+    /** `--jobs` for the recursive submodule update. Defaults to 1. */
+    jobs: z.int().min(1).max(16).optional(),
+  })
+  .strict();
+export type SubmoduleInitConfig = z.infer<typeof SubmoduleInitConfigSchema>;
+
 export const LayoutConfigSchema = z
   .object({
     type: z.enum(["meta-repo", "monorepo", "single-repo"]),
     submodules: z.record(z.string(), z.string()).optional(),
+    submoduleInit: SubmoduleInitConfigSchema.optional(),
   })
   .strict();
 export type LayoutConfig = z.infer<typeof LayoutConfigSchema>;
@@ -505,6 +526,13 @@ export const RouboConfigSchema = z
         path: ["layout", "submodules"],
         message:
           'submodule key "." is reserved for the meta-repo root work unit and cannot be declared in roubo.yaml',
+      });
+    }
+    if (val.layout?.submoduleInit && val.layout.type !== "meta-repo") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["layout", "submoduleInit"],
+        message: "submoduleInit is only valid when layout.type is meta-repo",
       });
     }
   });

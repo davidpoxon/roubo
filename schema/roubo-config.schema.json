@@ -31,7 +31,25 @@
         "type": { "type": "string", "enum": ["meta-repo", "monorepo", "single-repo"] },
         "submodules": {
           "type": "object",
+          "description": "Map of .gitmodules section name to the submodule's path in the repository.",
           "additionalProperties": { "type": "string" }
+        },
+        "submoduleInit": {
+          "type": "object",
+          "description": "How a bench initialises its submodules. Valid only when type is meta-repo.",
+          "additionalProperties": false,
+          "properties": {
+            "reuseMainCheckout": {
+              "type": "boolean",
+              "description": "Borrow objects from the main checkout's submodule stores (git submodule update --reference), so a bench downloads no objects the main checkout already has. Defaults to false."
+            },
+            "jobs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16,
+              "description": "--jobs for the recursive submodule update. Defaults to 1."
+            }
+          }
         }
       }
     },

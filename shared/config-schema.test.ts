@@ -1151,3 +1151,36 @@ describe("zodIssuesToFieldMap", () => {
     expect("" in map).toBe(false);
   });
 });
+
+describe("layout.submoduleInit (#1434)", () => {
+  const metaLayout = { type: "meta-repo" as const, submodules: { backend: "services/backend" } };
+
+  it("accepts reuseMainCheckout and jobs on a meta-repo layout", () => {
+    const config = makeConfig({
+      layout: { ...metaLayout, submoduleInit: { reuseMainCheckout: true, jobs: 4 } },
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it("rejects submoduleInit on a layout that is not a meta-repo", () => {
+    const config = makeConfig({
+      layout: { type: "monorepo", submoduleInit: { reuseMainCheckout: true } },
+    });
+    const result = RouboConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues.map((i) => i.path.join("."))).toContain("layout.submoduleInit");
+  });
+
+  it.each([0, 17, 1.5])("rejects jobs: %s", (jobs) => {
+    const config = makeConfig({ layout: { ...metaLayout, submoduleInit: { jobs } } });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+
+  it("rejects an unknown submoduleInit key", () => {
+    const config = makeConfig({
+      layout: { ...metaLayout, submoduleInit: { dissociate: true } as never },
+    });
+    expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+});

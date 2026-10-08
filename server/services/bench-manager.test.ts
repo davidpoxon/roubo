@@ -1361,6 +1361,136 @@ describe("background provisioning", () => {
     });
   });
 
+  describe("submodule object reuse (#1434)", () => {
+    const workspace = "/home/.roubo/workspaces/test-project/bench-1";
+    const mainSub = "/repos/test-project/path/to/sub1";
+    const store = "/repos/test-project/.git/modules/sub1";
+    const ok = { code: 0, stdout: "", stderr: "" };
+
+    function setupReuse(
+      submoduleInit: { reuseMainCheckout?: boolean; jobs?: number } | undefined,
+      opts: { storeOnDisk?: boolean; toplevel?: string; referenceFails?: boolean } = {},
+    ) {
+      const config = makeConfig({
+        layout: {
+          type: "meta-repo",
+          submodules: { sub1: "path/to/sub1" },
+          ...(submoduleInit ? { submoduleInit } : {}),
+        },
+      });
+      setupCreateBenchMocks({
+        project: makeProject({
+          config,
+          settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+        }),
+      });
+      setupProcessMocks();
+      setupMetaRepoGitmodulesMocks({ sub1: "path/to/sub1" });
+      const storeOnDisk = opts.storeOnDisk ?? true;
+      vi.mocked(fs.default.existsSync).mockImplementation(
+        (p: unknown) =>
+          typeof p === "string" &&
+          (p.endsWith(".gitmodules") || (storeOnDisk && p === `${mainSub}/.git`)),
+      );
+      vi.mocked(execModule.runCommand).mockImplementation(
+        async (_cmd: string, args: string[], cwd: string) => {
+          if (args[0] === "rev-parse" && cwd === mainSub) {
+            return { ...ok, stdout: `${opts.toplevel ?? mainSub}\n${store}\n` };
+          }
+          if (args.includes("--reference") && opts.referenceFails) {
+            return { code: 128, stdout: "", stderr: "fatal: reference repository is shallow" };
+          }
+          return ok;
+        },
+      );
+    }
+
+    const gitCalls = () =>
+      vi.mocked(execModule.runCommand).mock.calls.map((c) => ({ args: c[1], cwd: c[2] }));
+    const finalUpdate = (extra: string[] = []) => [
+      "git",
+      ["submodule", "update", "--init", "--recursive", ...extra],
+      workspace,
+      ...ABORTABLE,
+    ];
+
+    it("borrows from the main checkout's store, then runs the recursive update", async () => {
+      setupReuse({ reuseMainCheckout: true });
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
+
+      const calls = vi.mocked(execModule.runCommand).mock.calls;
+      const refIdx = calls.findIndex((c) => c[1].includes("--reference"));
+      // The .gitmodules name finds the store; the path is the pathspec.
+      expect(calls[refIdx]).toEqual([
+        "git",
+        ["submodule", "update", "--init", "--reference", store, "--", "path/to/sub1"],
+        workspace,
+        ...ABORTABLE,
+      ]);
+      const finalIdx = calls.findIndex(
+        (c) => c[1].includes("--recursive") && !c[1].includes("--remote"),
+      );
+      expect(calls[finalIdx]).toEqual(finalUpdate());
+      expect(finalIdx).toBeGreaterThan(refIdx);
+    });
+
+    it("runs today's commands when the block is absent", async () => {
+      setupReuse(undefined);
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
+
+      expect(gitCalls().some((c) => c.cwd === mainSub)).toBe(false);
+      expect(gitCalls().some((c) => c.args.includes("--reference"))).toBe(false);
+      expect(execModule.runCommand).toHaveBeenCalledWith(...finalUpdate());
+    });
+
+    it("clones normally when the main checkout has no store for the submodule", async () => {
+      setupReuse({ reuseMainCheckout: true }, { storeOnDisk: false });
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
+
+      expect(gitCalls().some((c) => c.args.includes("--reference"))).toBe(false);
+      expect(execModule.runCommand).toHaveBeenCalledWith(...finalUpdate());
+    });
+
+    it("rejects a store lookup that resolved to the superproject", async () => {
+      // An uninitialised submodule dir makes git walk up to the superproject.
+      setupReuse({ reuseMainCheckout: true }, { toplevel: "/repos/test-project" });
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
+
+      expect(gitCalls().some((c) => c.args.includes("--reference"))).toBe(false);
+    });
+
+    it("falls through to the recursive update when a --reference call fails", async () => {
+      setupReuse({ reuseMainCheckout: true }, { referenceFails: true });
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
+
+      expect(execModule.runCommand).toHaveBeenCalledWith(...finalUpdate());
+      const bench = benchManager.getBench("test-project", 1);
+      const phase = bench?.provisioningSteps[0].phases?.find(
+        (p) => p.label === "Initializing submodules",
+      );
+      expect(phase?.status).toBe("done");
+    });
+
+    it("passes jobs to the recursive update", async () => {
+      setupReuse({ jobs: 4 });
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
+
+      expect(execModule.runCommand).toHaveBeenCalledWith(...finalUpdate(["--jobs", "4"]));
+    });
+  });
+
   it("sets error status when workspace creation fails", async () => {
     setupCreateBenchMocks();
     vi.mocked(execModule.runCommand).mockResolvedValue({
