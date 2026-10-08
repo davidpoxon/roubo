@@ -12,8 +12,13 @@ import type { ResolvedTemplateContext } from "./config-parser.js";
 // way production does rather than hardcoding, since it varies by $SHELL (#996).
 const [LOGIN_SHELL_FLAGS] = loginShellScriptArgs("");
 
+// The trailing runCommand arguments of a bench-scoped provisioning git command:
+// no env, timeout or stdin, and the bench's provisioning abort signal (#1433).
+const ABORTABLE = [undefined, undefined, undefined, { signal: expect.any(AbortSignal) }] as const;
+
 vi.mock("./project-registry.js", () => ({
   getProject: vi.fn(),
+  getProjects: vi.fn(() => []),
 }));
 
 vi.mock("./state.js", async (importOriginal) => {
@@ -23,6 +28,7 @@ vi.mock("./state.js", async (importOriginal) => {
     addBench: vi.fn(),
     removeBench: vi.fn(),
     getWorkspacePath: vi.fn(),
+    getProjectWorkspacesDir: vi.fn((name: string) => `/home/.roubo/workspaces/${name}`),
     updateBench: vi.fn(),
     getProjectPermissions: vi.fn(() => ({ allow: [], deny: [] })),
     setProjectPermissions: vi.fn(),
@@ -130,6 +136,8 @@ vi.mock("node:fs", () => ({
   default: {
     mkdirSync: vi.fn(),
     existsSync: vi.fn(() => false),
+    // Identity by default: no symlinks unless a test models one (#1433).
+    realpathSync: vi.fn((p: string) => p),
     rmSync: vi.fn(),
     writeFileSync: vi.fn(),
     readFileSync: vi.fn(),
@@ -800,7 +808,7 @@ describe("reconcile", () => {
     vi.mocked(fs.default.existsSync).mockReturnValue(true);
     vi.mocked(execModule.runCommand).mockResolvedValue({
       code: 0,
-      stdout: `workspace /home/.roubo/workspaces/test-project/bench-1\nHEAD abc123\nbranch refs/heads/bench-1\n\n`,
+      stdout: `worktree /home/.roubo/workspaces/test-project/bench-1\nHEAD abc123\nbranch refs/heads/bench-1\n\n`,
       stderr: "",
     });
     vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
@@ -1143,28 +1151,28 @@ describe("background provisioning", () => {
     setupCreateBenchMocks();
     setupProcessMocks();
 
-    let releaseWorktreeAdd!: () => void;
+    // `worktree add` runs until teardown's abort kills it (#1433), and teardown
+    // waits for that before it drops the bench.
     const worktreeAddReached = new Promise<void>((resolveReached) => {
-      const gate = new Promise<void>((release) => {
-        releaseWorktreeAdd = () => release();
-      });
-      vi.mocked(execModule.runCommand).mockImplementation(async (_cmd, args) => {
-        if (Array.isArray(args) && args[0] === "worktree" && args[1] === "add") {
-          resolveReached();
-          await gate;
-        }
-        return { code: 0, stdout: "", stderr: "" };
-      });
+      vi.mocked(execModule.runCommand).mockImplementation(
+        async (_cmd, args, _cwd, _env, _timeout, _stdin, options) => {
+          if (Array.isArray(args) && args[0] === "worktree" && args[1] === "add") {
+            resolveReached();
+            await new Promise<void>((killed) =>
+              options?.signal?.addEventListener("abort", () => killed()),
+            );
+            return { code: 1, stdout: "", stderr: "", aborted: true };
+          }
+          return { code: 0, stdout: "", stderr: "" };
+        },
+      );
     });
 
     benchManager.createBench("test-project", "my-branch");
     await worktreeAddReached;
 
     benchManager.teardownBench("test-project", 1);
-    await new Promise((r) => setTimeout(r, 0));
-    expect(benchManager.isBenchLive("test-project", 1)).toBe(false);
-
-    releaseWorktreeAdd();
+    await vi.waitFor(() => expect(benchManager.isBenchLive("test-project", 1)).toBe(false));
     await new Promise((r) => setTimeout(r, 0));
 
     expect(stateService.addBench).not.toHaveBeenCalled();
@@ -1305,11 +1313,13 @@ describe("background provisioning", () => {
       "git",
       ["worktree", "add", "/home/.roubo/workspaces/test-project/bench-1", "-b", "existing-branch"],
       "/repos/test-project",
+      ...ABORTABLE,
     ]);
     expect(calls[1]).toEqual([
       "git",
       ["worktree", "add", "/home/.roubo/workspaces/test-project/bench-1", "existing-branch"],
       "/repos/test-project",
+      ...ABORTABLE,
     ]);
   });
 
@@ -1335,6 +1345,7 @@ describe("background provisioning", () => {
         "git",
         ["submodule", "update", "--init", "--recursive"],
         "/home/.roubo/workspaces/test-project/bench-1",
+        ...ABORTABLE,
       );
     });
   });
@@ -1451,9 +1462,10 @@ describe("background provisioning", () => {
   it("cleans up stale worktree directory before creation when path already exists", async () => {
     setupCreateBenchMocks();
     setupProcessMocks();
-    // Only the pre-flight existsSync call should return true; subsequent calls
-    // (e.g. error-cleanup path) use the default false from setupCreateBenchMocks.
-    vi.mocked(fs.default.existsSync).mockReturnValueOnce(true);
+    // Only the pre-flight checks (the gate, then the removal's own check) see the
+    // directory; later calls (e.g. error-cleanup path) use the default false from
+    // setupCreateBenchMocks.
+    vi.mocked(fs.default.existsSync).mockReturnValueOnce(true).mockReturnValueOnce(true);
 
     benchManager.createBench("test-project");
 
@@ -1462,13 +1474,11 @@ describe("background provisioning", () => {
     });
 
     const calls = vi.mocked(execModule.runCommand).mock.calls;
-    // Pre-flight cleanup: worktree remove --force (no prune: prune is project-wide
-    // and can race against concurrent bench creation)
-    expect(calls[0]).toEqual([
-      "git",
-      ["worktree", "remove", "--force", "/home/.roubo/workspaces/test-project/bench-1"],
-      "/repos/test-project",
-    ]);
+    // Pre-flight cleanup looks the path up in git's registry first (no prune:
+    // prune is project-wide and can race against concurrent bench creation).
+    // Unregistered here, so the stale directory is removed directly.
+    expect(calls[0]).toEqual(["git", ["worktree", "list", "--porcelain"], "/repos/test-project"]);
+    expect(calls.some((c) => c[1][0] === "worktree" && c[1][1] === "remove")).toBe(false);
     expect(fs.default.rmSync).toHaveBeenCalledWith("/home/.roubo/workspaces/test-project/bench-1", {
       recursive: true,
       force: true,
@@ -1478,17 +1488,19 @@ describe("background provisioning", () => {
     expect(bench?.status).toBe("idle");
   });
 
-  it("continues pre-flight cleanup via rmSync when worktree remove fails (orphaned directory)", async () => {
-    const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+  it("continues pre-flight cleanup via rmSync when worktree remove fails", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     setupCreateBenchMocks();
     setupProcessMocks();
-    vi.mocked(fs.default.existsSync).mockReturnValueOnce(true);
-    // First runCommand call: worktree remove --force fails (path not registered as a worktree)
-    vi.mocked(execModule.runCommand).mockResolvedValueOnce({
-      code: 128,
-      stdout: "",
-      stderr: "fatal: '/home/.roubo/workspaces/test-project/bench-1' is not a working tree",
-    });
+    vi.mocked(fs.default.existsSync).mockReturnValueOnce(true).mockReturnValueOnce(true);
+    // The stale worktree is registered, but git cannot remove it (e.g. locked).
+    vi.mocked(execModule.runCommand)
+      .mockResolvedValueOnce({
+        code: 0,
+        stdout: "worktree /home/.roubo/workspaces/test-project/bench-1\n",
+        stderr: "",
+      })
+      .mockResolvedValueOnce({ code: 128, stdout: "", stderr: "fatal: worktree is locked" });
 
     benchManager.createBench("test-project");
 
@@ -1501,13 +1513,13 @@ describe("background provisioning", () => {
       recursive: true,
       force: true,
     });
-    expect(debugSpy).toHaveBeenCalledWith(
+    expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("Pre-flight worktree remove failed"),
     );
     // Bench should end up idle despite the failed remove (worktree-only create)
     const bench = benchManager.getBench("test-project", 1);
     expect(bench?.status).toBe("idle");
-    debugSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it("continues after submodule failure with error phase", async () => {
@@ -2142,6 +2154,7 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       "git",
       ["worktree", "add", "/home/.roubo/workspaces/test-project/bench-1", "-b", "bench-1"],
       "/repos/test-project",
+      ...ABORTABLE,
     ]);
   });
 
@@ -2199,6 +2212,7 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       "git",
       ["worktree", "add", "/home/.roubo/workspaces/test-project/bench-1", "-b", "bench-1", "main"],
       "/repos/test-project",
+      ...ABORTABLE,
     ]);
   });
 
@@ -2321,6 +2335,7 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       "git",
       ["worktree", "add", "/home/.roubo/workspaces/test-project/bench-1", "-b", "bench-1", "main"],
       "/repos/test-project",
+      ...ABORTABLE,
     ]);
   });
 
@@ -3542,6 +3557,204 @@ describe("teardownBench", () => {
     // Branch deletion must still run even when the list check fails
     const branchCalls = calls.filter((c) => c[1][0] === "branch" && c[1][1] === "-D");
     expect(branchCalls).toHaveLength(1);
+  });
+});
+
+describe("a cleared bench leaves nothing behind (#1433)", () => {
+  const flushBackground = () => new Promise((r) => setTimeout(r, 0));
+  const workspacePath = "/home/.roubo/workspaces/test-project/bench-1";
+  // The state dir sits behind a symlink: git records the real path.
+  const realWorkspacePath = "/Volumes/data/roubo/workspaces/test-project/bench-1";
+  const ok = { code: 0, stdout: "", stderr: "" };
+
+  function modelSymlinkedStateDir() {
+    vi.mocked(fs.default.realpathSync).mockImplementation(((p: string) =>
+      p.replace("/home/.roubo", "/Volumes/data/roubo")) as typeof fs.default.realpathSync);
+  }
+
+  it("teardown removes a worktree git recorded under its real path, through git", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    modelSymlinkedStateDir();
+    vi.mocked(fs.default.existsSync).mockReturnValue(true);
+    vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+      if (args[0] === "worktree" && args[1] === "list") {
+        return { code: 0, stdout: `worktree ${realWorkspacePath}\n`, stderr: "" };
+      }
+      return ok;
+    });
+
+    const bench = benchManager.teardownBench("test-project", 1, true);
+    await flushBackground();
+
+    expect(bench.status).not.toBe("error");
+    expect(execModule.runCommand).toHaveBeenCalledWith(
+      "git",
+      ["worktree", "remove", "--force", realWorkspacePath],
+      "/repos/test-project",
+    );
+    // An rmSync of the directory alone is what left the admin dir behind.
+    expect(fs.default.rmSync).not.toHaveBeenCalledWith(workspacePath, expect.anything());
+  });
+
+  it("pre-flight removes a stale worktree recorded under its real path, through git", async () => {
+    setupCreateBenchMocks();
+    modelSymlinkedStateDir();
+    vi.mocked(fs.default.existsSync).mockImplementation((p) => p === workspacePath);
+    vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+      if (args[0] === "worktree" && args[1] === "list") {
+        return { code: 0, stdout: `worktree ${realWorkspacePath}\n`, stderr: "" };
+      }
+      return ok;
+    });
+
+    benchManager.createBench("test-project");
+
+    await vi.waitFor(() => {
+      expect(execModule.runCommand).toHaveBeenCalledWith(
+        "git",
+        ["worktree", "remove", "--force", realWorkspacePath],
+        "/repos/test-project",
+      );
+    });
+  });
+
+  it("clearing during submodule init stops the clone before the worktree is removed", async () => {
+    const config = makeConfig({
+      layout: { type: "meta-repo", submodules: { sub1: "path/to/sub1" } },
+    });
+    setupCreateBenchMocks({
+      project: makeProject({
+        config,
+        settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+      }),
+    });
+    setupProcessMocks();
+    setupMetaRepoGitmodulesMocks({ sub1: "path/to/sub1" });
+
+    const order: string[] = [];
+    let cloneSignal: AbortSignal | undefined;
+    vi.mocked(execModule.runCommand).mockImplementation(
+      async (_cmd, args, _cwd, _env, _timeout, _stdin, options) => {
+        order.push(args.slice(0, 2).join(" "));
+        if (args[0] === "submodule") {
+          cloneSignal = options?.signal;
+          // A clone that runs until something kills it.
+          return new Promise((resolve) => {
+            options?.signal?.addEventListener("abort", () => {
+              order.push("clone exited");
+              resolve({ ...ok, code: 1, aborted: true });
+            });
+          });
+        }
+        if (args[0] === "worktree" && args[1] === "list") {
+          return { code: 0, stdout: `worktree ${workspacePath}\n`, stderr: "" };
+        }
+        return ok;
+      },
+    );
+
+    benchManager.createBench("test-project");
+    await vi.waitFor(() => expect(order).toContain("submodule update"));
+
+    benchManager.teardownBench("test-project", 1, true);
+    await vi.waitFor(() => expect(benchManager.getBench("test-project", 1)).toBeUndefined());
+
+    expect(cloneSignal?.aborted).toBe(true);
+    expect(order.indexOf("worktree remove")).toBeGreaterThan(order.indexOf("clone exited"));
+    // Provisioning stopped where it was: no record for a bench that is gone.
+    expect(stateService.addBench).not.toHaveBeenCalled();
+  });
+
+  it("clearing before worktree add stops provisioning from creating the worktree", async () => {
+    const project = setupCreateBenchMocks({
+      project: makeProject({
+        settings: { worktreeSource: { branchFromDefault: false, pullLatest: true } },
+      }),
+    });
+    void project;
+    let releaseFetch!: () => void;
+    vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+      if (args[0] === "fetch") {
+        // The main-checkout fetch is not killed; it finishes after the clear.
+        return new Promise((resolve) => (releaseFetch = () => resolve(ok)));
+      }
+      return ok;
+    });
+
+    benchManager.createBench("test-project");
+    await vi.waitFor(() => expect(releaseFetch).toBeDefined());
+
+    benchManager.teardownBench("test-project", 1, true);
+    releaseFetch();
+    await vi.waitFor(() => expect(benchManager.getBench("test-project", 1)).toBeUndefined());
+    await flushBackground();
+
+    const calls = vi.mocked(execModule.runCommand).mock.calls;
+    expect(calls.some((c) => c[1][0] === "worktree" && c[1][1] === "add")).toBe(false);
+  });
+
+  it("no removal path runs a project-wide worktree prune", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+    vi.mocked(fs.default.existsSync).mockReturnValue(false);
+    vi.mocked(execModule.runCommand).mockResolvedValue(ok);
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "error";
+    bench.error = "workspace error";
+
+    await benchManager.cleanupAndRetryBench("test-project", 1);
+    await flushBackground();
+
+    const calls = vi.mocked(execModule.runCommand).mock.calls;
+    expect(calls.filter((c) => c[1][0] === "worktree" && c[1][1] === "prune")).toHaveLength(0);
+  });
+
+  describe("startup sweep", () => {
+    const root = "/home/.roubo/workspaces/test-project";
+    const listing = [
+      "worktree /repos/test-project",
+      "HEAD abc",
+      "branch refs/heads/main",
+      "",
+      // Leaked by an earlier clear: under Roubo's root, gone, no bench.
+      `worktree ${root}/bench-3-old`,
+      "HEAD abc",
+      "prunable gitdir file points to non-existent location",
+      "",
+      // Not Roubo's: outside the project's workspaces root.
+      "worktree /tmp/someone-elses-worktree",
+      "HEAD abc",
+      "prunable gitdir file points to non-existent location",
+      "",
+      // Still owned by a bench record, whose own error state reports it.
+      `worktree ${root}/bench-1`,
+      "HEAD abc",
+      "prunable gitdir file points to non-existent location",
+      "",
+    ].join("\n");
+
+    it("removes only prunable worktrees under the project root that no bench owns", async () => {
+      setupExistingBench();
+      const project = vi.mocked(projectRegistry.getProject)("test-project");
+      vi.mocked(projectRegistry.getProjects).mockReturnValue(project ? [project] : []);
+      vi.mocked(fs.default.existsSync).mockReturnValue(false);
+      vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+        if (args[0] === "worktree" && args[1] === "list") {
+          return { code: 0, stdout: listing, stderr: "" };
+        }
+        return ok;
+      });
+
+      await benchManager.reconcile();
+
+      const removes = vi
+        .mocked(execModule.runCommand)
+        .mock.calls.filter((c) => c[1][0] === "worktree" && c[1][1] === "remove")
+        .map((c) => c[1][3]);
+      expect(removes).toEqual([`${root}/bench-3-old`]);
+    });
   });
 });
 
@@ -5433,7 +5646,7 @@ describe("startAllComponents / stopAllComponents", () => {
     vi.mocked(execModule.runCommand).mockResolvedValue({
       code: 0,
       stdout:
-        "workspace /home/.roubo/workspaces/test-project/bench-1\nHEAD abc123\nbranch refs/heads/bench-1\n\n",
+        "worktree /home/.roubo/workspaces/test-project/bench-1\nHEAD abc123\nbranch refs/heads/bench-1\n\n",
       stderr: "",
     });
 
@@ -6306,7 +6519,8 @@ describe("cleanupAndRetryBench", () => {
       ["worktree", "remove", "--force", workspacePath],
       "/repos/test-project",
     );
-    expect(execModule.runCommand).toHaveBeenCalledWith(
+    // Never project-wide (#1433): prune would also drop worktrees Roubo does not own.
+    expect(execModule.runCommand).not.toHaveBeenCalledWith(
       "git",
       ["worktree", "prune"],
       "/repos/test-project",
@@ -6434,44 +6648,6 @@ describe("cleanupAndRetryBench", () => {
     errorSpy.mockRestore();
   });
 
-  it("warns but succeeds when worktree prune fails during retry", async () => {
-    setupExistingBench();
-    setupProcessMocks();
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.mocked(fs.default.existsSync).mockReturnValue(false);
-    vi.mocked(execModule.runCommand)
-      .mockResolvedValueOnce({
-        // worktree list: workspace not registered
-        code: 0,
-        stdout: "worktree /repos/test-project\nHEAD abc\nbranch refs/heads/main\n",
-        stderr: "",
-      })
-      .mockResolvedValueOnce({
-        code: 128,
-        stdout: "",
-        stderr: "error: worktree prune failed",
-      }) // worktree prune fails
-      .mockResolvedValue({ code: 0, stdout: "", stderr: "" }); // provisioning commands
-
-    const bench = benchManager.getBench("test-project", 1);
-    if (!bench) throw new Error("expected bench");
-    bench.status = "error";
-    bench.error = "workspace error";
-
-    const result = await benchManager.cleanupAndRetryBench("test-project", 1);
-
-    expect(result.status).not.toBe("error");
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`worktree prune for bench 1`));
-    expect(stateService.removeBench).toHaveBeenCalledWith("test-project", 1);
-    // worktree remove should NOT have been called (workspace was not registered)
-    expect(execModule.runCommand).not.toHaveBeenCalledWith(
-      "git",
-      expect.arrayContaining(["worktree", "remove"]),
-      expect.any(String),
-    );
-    warnSpy.mockRestore();
-  });
-
   it("succeeds when workspace was never created (fast-forward failure scenario)", async () => {
     setupExistingBench();
     setupProcessMocks();
@@ -6484,7 +6660,7 @@ describe("cleanupAndRetryBench", () => {
         stdout: "worktree /repos/test-project\nHEAD abc123\nbranch refs/heads/main\n",
         stderr: "",
       })
-      .mockResolvedValue({ code: 0, stdout: "", stderr: "" }); // prune + provisioning
+      .mockResolvedValue({ code: 0, stdout: "", stderr: "" }); // provisioning
 
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");
@@ -6519,7 +6695,7 @@ describe("cleanupAndRetryBench", () => {
         stdout: "worktree /repos/test-project\nHEAD abc123\nbranch refs/heads/main\n",
         stderr: "",
       })
-      .mockResolvedValue({ code: 0, stdout: "", stderr: "" }); // prune + provisioning
+      .mockResolvedValue({ code: 0, stdout: "", stderr: "" }); // provisioning
 
     const bench = benchManager.getBench("test-project", 1);
     if (!bench) throw new Error("expected bench");

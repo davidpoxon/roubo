@@ -44,6 +44,7 @@ import {
   type ResolvedTemplateContext,
 } from "./config-parser.js";
 import { resolveSpawn, runCommand } from "./exec.js";
+import { canonicalPath, findWorktreeEntry, parseWorktreeList } from "./worktree-registry.js";
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
@@ -67,6 +68,20 @@ const benches = new Map<string, Bench>();
 // bench is torn down. Absent entry means "nothing to wait for": either the
 // bench predates this map (persisted/hydrated) or was never tracked.
 const workspaceReady = new Map<string, Promise<void>>();
+
+// Abort handle for each in-flight worktree provisioning (#1433). Teardown aborts
+// it, which kills the bench-scoped git commands (`worktree add`, `submodule
+// update`) and stops provisioning at its next checkpoint, then waits on
+// workspaceReady before it removes anything. That makes teardown the only remover
+// of a bench's worktree: without it, a clear during a long submodule clone removed
+// the worktree while the clone went on writing into git's admin dir for it.
+const provisioningAborts = new Map<string, AbortController>();
+
+// How long teardown waits for aborted provisioning to stop. It covers the kill
+// grace in runCommand. A main-checkout command (fetch, pull-latest submodule
+// update) is never killed, so it can outlast this; provisioning still stops
+// before `worktree add` once it returns, so nothing is created behind teardown.
+const PROVISIONING_STOP_WAIT_MS = 15_000;
 
 // Guards the one-warning-per-process-load contract for a corrupt settings.json
 // when the global bench cap is evaluated (GBL-NFR-004). Reset only on process restart.
@@ -280,7 +295,9 @@ export async function reconcile() {
       workspaceCache.set(project.repoPath, wtCheck.code === 0 ? wtCheck.stdout : "");
     }
     const wtOutput = workspaceCache.get(project.repoPath) ?? "";
-    if (wtOutput && !wtOutput.includes(bench.workspacePath)) {
+    // Compared by canonical path: git records the real path, so a symlink above
+    // the workspace made a tracked worktree look untracked (#1433).
+    if (wtOutput && !findWorktreeEntry(parseWorktreeList(wtOutput), bench.workspacePath)) {
       bench.status = "error";
       bench.error =
         "Worktree directory exists but is not tracked by git: use Cleanup & Retry to fix";
@@ -359,6 +376,50 @@ export async function reconcile() {
 
     updateBenchStatus(bench);
   }
+
+  await sweepLeakedWorktrees();
+}
+
+/**
+ * Removes worktrees that an earlier clear left behind (#1433): git still lists
+ * them as `prunable` because their admin dir under `.git/worktrees/` survived
+ * the directory. For a meta-repo bench that admin dir holds every submodule
+ * clone, so each one can cost gigabytes.
+ *
+ * Only worktrees Roubo provably owns are removed: prunable (the directory is
+ * gone), recorded under the project's workspaces dir, and claimed by no bench.
+ * A bench that still claims its path keeps it, since reconcile reports that
+ * bench's missing workspace on its own. Removal goes through `git worktree
+ * remove` one entry at a time, never `git worktree prune`, which would also
+ * remove prunable worktrees the user made outside Roubo.
+ */
+async function sweepLeakedWorktrees(): Promise<void> {
+  for (const project of projectRegistry.getProjects()) {
+    if (!project.config) continue;
+    const wtList = await execGit(["worktree", "list", "--porcelain"], project.repoPath);
+    if (wtList.code !== 0) continue;
+    const root = canonicalPath(stateService.getProjectWorkspacesDir(project.config.project.name));
+    const claimed = new Set<string>();
+    for (const bench of benches.values()) {
+      if (bench.projectId === project.id && bench.workspacePath) {
+        claimed.add(canonicalPath(bench.workspacePath));
+      }
+    }
+    for (const entry of parseWorktreeList(wtList.stdout)) {
+      const entryPath = canonicalPath(entry.path);
+      if (!entry.prunable || !entryPath.startsWith(root + path.sep)) continue;
+      if (claimed.has(entryPath)) continue;
+      const result = await execGit(["worktree", "remove", "--force", entry.path], project.repoPath);
+      if (result.code === 0) {
+        console.info(`[bench-manager] Removed leaked worktree ${entry.path} (${project.id})`);
+      } else {
+        console.warn(
+          `[bench-manager] Could not remove leaked worktree ${entry.path} (${project.id}): ` +
+            `${result.stderr.trim() || `exit code ${result.code}`}`,
+        );
+      }
+    }
+  }
 }
 
 function findNextBenchNumber(projectId: string, maxBenches: number): number | null {
@@ -374,8 +435,10 @@ function findNextBenchNumber(projectId: string, maxBenches: number): number | nu
   return null;
 }
 
-function execGit(args: string[], cwd: string) {
-  return runCommand("git", args, cwd);
+function execGit(args: string[], cwd: string, signal?: AbortSignal) {
+  return signal
+    ? runCommand("git", args, cwd, undefined, undefined, undefined, { signal })
+    : runCommand("git", args, cwd);
 }
 
 async function execGitChecked(
@@ -392,6 +455,101 @@ async function execGitChecked(
     );
     throw new Error(`git ${args.join(" ")} failed: ${detail}`);
   }
+}
+
+/**
+ * Removes a bench's worktree so that nothing of it is left: neither the
+ * workspace directory nor git's admin dir for it under `.git/worktrees/` (#1433).
+ *
+ * The worktree is looked up in `git worktree list` by canonical path and removed
+ * through git at the path git recorded. Git records the real path, so with a
+ * symlink above the workspace an exact string match missed a registered
+ * worktree, and the directory was then removed with rmSync alone, which leaves
+ * the admin dir (and, for a meta-repo, every submodule clone in it) behind.
+ *
+ * `strict` (teardown, Cleanup & Retry) throws when git fails to remove a
+ * registered worktree, so the caller can keep the bench and report the leftover.
+ * Otherwise (pre-flight, the provisioning failure path) a git failure is logged
+ * and the directory is removed anyway. It never runs `git worktree prune`, which
+ * is project-wide and would also remove worktrees Roubo does not own.
+ *
+ * Returns the reason when the workspace directory could not be removed.
+ */
+async function removeBenchWorktree(
+  repoPath: string,
+  workspacePath: string,
+  ctx: { benchId: number; strict: boolean; label: string },
+): Promise<{ leftoverReason?: string }> {
+  let removedByGit = false;
+  const removeThroughGit = async (target: string) => {
+    const args = ["worktree", "remove", "--force", target];
+    if (ctx.strict) {
+      await execGitChecked(args, repoPath, { benchId: ctx.benchId, workspacePath });
+      removedByGit = true;
+      return;
+    }
+    const result = await execGit(args, repoPath);
+    if (result.code === 0) {
+      removedByGit = true;
+    } else {
+      const detail = result.stderr.trim() || `exit code ${result.code}`;
+      console.warn(
+        `[bench-manager] ${ctx.label} worktree remove failed for bench ${ctx.benchId} ` +
+          `at ${workspacePath}: ${detail}, removing the directory instead`,
+      );
+    }
+  };
+
+  const wtList = await execGit(["worktree", "list", "--porcelain"], repoPath);
+  if (wtList.code !== 0) {
+    // Can't determine worktree state: fall back to the forceful path so we
+    // don't risk leaving a registered worktree behind.
+    await removeThroughGit(workspacePath);
+  } else {
+    const entry = findWorktreeEntry(parseWorktreeList(wtList.stdout), workspacePath);
+    // Registered: 'remove --force' whether or not the directory is present. Git
+    // >= 2.39 handles the missing-directory case and touches only this entry.
+    if (entry) await removeThroughGit(entry.path);
+  }
+
+  // An orphaned directory git does not track, or one a best-effort git remove
+  // could not clear.
+  if (!removedByGit && fs.existsSync(workspacePath)) {
+    try {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    } catch (err) {
+      console.warn(
+        `[bench-manager] Could not remove workspace directory ` +
+          `${workspacePath} for bench ${ctx.benchId}: ${err}`,
+      );
+      return { leftoverReason: (err as Error).message };
+    }
+  }
+  return {};
+}
+
+/** Resolves when `promise` settles or after `ms`, whichever is first. */
+async function settleWithin(promise: Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([promise, new Promise<void>((r) => (timer = setTimeout(r, ms)))]);
+  if (timer) clearTimeout(timer);
+}
+
+/**
+ * Starts worktree provisioning for `bench` with its own abort handle and
+ * registers it in workspaceReady, so a caller awaiting whenWorkspaceProvisioned
+ * and a teardown that aborts it both see this round.
+ */
+function startWorktreeProvisioning(bench: Bench, project: RegisteredProject): Promise<void> {
+  const key = benchKey(bench.projectId, bench.id);
+  const controller = new AbortController();
+  provisioningAborts.set(key, controller);
+  const provisioningPromise = runWorktreeProvisioning(bench, project, controller.signal);
+  workspaceReady.set(key, provisioningPromise);
+  void provisioningPromise.then(() => {
+    if (provisioningAborts.get(key) === controller) provisioningAborts.delete(key);
+  });
+  return provisioningPromise;
 }
 
 function extractFailingSubmodulePath(stderr: string): string | null {
@@ -729,8 +887,7 @@ export function createBench(
   // workspaceReady before createBench returns: a caller synchronously
   // following up with whenWorkspaceProvisioned must never observe a gap where
   // the bench is tracked but nothing to await yet.
-  const provisioningPromise = runWorktreeProvisioning(bench, project);
-  workspaceReady.set(key, provisioningPromise);
+  const provisioningPromise = startWorktreeProvisioning(bench, project);
   void runCreateBenchBackground(bench, project, provisioningPromise);
   return bench;
 }
@@ -903,13 +1060,20 @@ async function runComponentsInOrder(
   updateBenchStatus(bench);
 }
 
-async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject): Promise<void> {
+async function runWorktreeProvisioning(
+  bench: Bench,
+  project: RegisteredProject,
+  signal: AbortSignal,
+): Promise<void> {
   const config = project.config;
   if (!config) return;
   const isMetaRepo = config.layout.type === "meta-repo" && !!config.layout.submodules;
+  // Teardown aborts `signal` before it touches the bench (#1433), so every
+  // checkpoint below reads it as well as liveness.
+  const stopped = () => signal.aborted || !isBenchLive(bench.projectId, bench.id);
 
   try {
-    if (!isBenchLive(bench.projectId, bench.id)) return;
+    if (stopped()) return;
     updateStep(bench.provisioningSteps, "workspace", "running");
 
     // workspace step is always present: makeWorktreeProvisioningSteps guarantees it as steps[0]
@@ -949,7 +1113,7 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       }
     }
     bench.baseBranch = headBranch;
-    if (!isBenchLive(bench.projectId, bench.id) || bench.status === "clearing") return;
+    if (stopped() || bench.status === "clearing") return;
 
     // R2: fetch + fast-forward before creating the worktree
     if (pullLatest) {
@@ -1046,24 +1210,23 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
       }
     }
 
+    // The pull-latest commands above run in the main checkout and are not killed
+    // by an abort, so a clear can land while they run. Stop here, before anything
+    // is created for the bench, or the worktree would appear after teardown has
+    // already looked for it (#1433).
+    if (stopped()) return;
+
     fs.mkdirSync(path.dirname(bench.workspacePath), { recursive: true });
 
     // Pre-flight: clean up any stale worktree directory left behind by a previous
     // failed or interrupted teardown. Without this, `git worktree add` fails with
     // "fatal: '<path>' already exists" even on a clean repo.
     if (fs.existsSync(bench.workspacePath)) {
-      const removeResult = await execGit(
-        ["worktree", "remove", "--force", bench.workspacePath],
-        project.repoPath,
-      );
-      if (removeResult.code !== 0) {
-        const detail = removeResult.stderr.trim() || `exit code ${removeResult.code}`;
-        console.debug(
-          `[bench-manager] Pre-flight worktree remove failed for bench ${bench.id} ` +
-            `at ${bench.workspacePath}: ${detail}, will attempt rmSync fallback`,
-        );
-      }
-      fs.rmSync(bench.workspacePath, { recursive: true, force: true });
+      await removeBenchWorktree(project.repoPath, bench.workspacePath, {
+        benchId: bench.id,
+        strict: false,
+        label: "Pre-flight",
+      });
     }
 
     // R1: pass the resolved branch as the base for the new worktree branch so
@@ -1073,12 +1236,15 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     const wtArgs = sourceBranch
       ? ["worktree", "add", bench.workspacePath, "-b", bench.branch, sourceBranch]
       : ["worktree", "add", bench.workspacePath, "-b", bench.branch];
-    const wtResult = await execGit(wtArgs, project.repoPath);
+    const wtResult = await execGit(wtArgs, project.repoPath, signal);
+    if (stopped()) return;
     if (wtResult.code !== 0) {
       const wtRetry = await execGit(
         ["worktree", "add", bench.workspacePath, bench.branch],
         project.repoPath,
+        signal,
       );
+      if (stopped()) return;
       if (wtRetry.code !== 0) {
         throw new Error(`Failed to create workspace: ${wtRetry.stderr}`);
       }
@@ -1130,14 +1296,16 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
         }
       }
 
-      if (!isBenchLive(bench.projectId, bench.id)) return;
+      if (stopped()) return;
       const subPhase = workspaceStep.phases?.find((p) => p.label === "Initializing submodules");
       if (subPhase) subPhase.status = "running";
 
       const subResult = await execGit(
         ["submodule", "update", "--init", "--recursive"],
         bench.workspacePath,
+        signal,
       );
+      if (stopped()) return;
       if (subResult.code !== 0) {
         console.warn(`Submodule init warning: ${subResult.stderr}`);
         if (subPhase) subPhase.status = "error";
@@ -1172,7 +1340,9 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     // write a record with no bench behind it: invisible in the Benches view,
     // counted by the unregister guard, and hydrated back on the next launch.
     // That is the #1191 phantom, arriving through creation instead of update.
-    if (!isBenchLive(bench.projectId, bench.id)) return;
+    // Returning leaves the worktree on disk: teardown waits for provisioning to
+    // stop and then removes it (#1433).
+    if (stopped()) return;
     stateService.addBench(stateService.toPersistedBench(bench));
 
     // Inject project-level permissions into the workspace before any sessions start.
@@ -1197,21 +1367,16 @@ async function runWorktreeProvisioning(bench: Bench, project: RegisteredProject)
     updateBenchStatus(bench);
     sseService.broadcastBenchStatus(bench);
   } catch (err) {
+    // A bench being cleared is teardown's to remove and report, not ours.
+    if (signal.aborted) return;
     markBackgroundError(bench, err as Error);
 
     if (fs.existsSync(bench.workspacePath)) {
-      const removeResult = await execGit(
-        ["worktree", "remove", "--force", bench.workspacePath],
-        project.repoPath,
-      );
-      if (removeResult.code !== 0) {
-        const detail = removeResult.stderr.trim() || `exit code ${removeResult.code}`;
-        console.error(
-          `[bench-manager] Git command failed for bench ${bench.id} ` +
-            `at ${bench.workspacePath}: git worktree remove --force: ${detail}`,
-        );
-      }
-      fs.rmSync(bench.workspacePath, { recursive: true, force: true });
+      await removeBenchWorktree(project.repoPath, bench.workspacePath, {
+        benchId: bench.id,
+        strict: false,
+        label: "Failed-provisioning",
+      });
     }
   }
 
@@ -1335,6 +1500,9 @@ export function teardownBench(projectId: string, benchId: number, removeWorkspac
 
   bench.status = "clearing";
   bench.teardownSteps = makeTeardownSteps(components, hasDockerComponents, removeWorkspace);
+  // Stop in-flight worktree provisioning now; runTeardownBackground waits for it
+  // to settle before removing anything (#1433).
+  provisioningAborts.get(key)?.abort();
 
   // Mark any in-flight provisioning steps as cancelled for UI feedback
   for (const step of bench.provisioningSteps) {
@@ -1365,6 +1533,12 @@ async function runTeardownBackground(
   let leftoverWorkspacePath: string | undefined;
   let leftoverBranch: string | undefined;
   let leftoverWorkspaceReason: string | undefined;
+
+  // teardownBench aborted any in-flight provisioning. Wait for it to stop, so
+  // that a git command it started is not still writing into the worktree, or
+  // creating it, while the steps below remove it (#1433).
+  const provisioning = workspaceReady.get(key);
+  if (provisioning) await settleWithin(provisioning, PROVISIONING_STOP_WAIT_MS);
 
   try {
     // Step 1: Close terminals
@@ -1459,49 +1633,15 @@ async function runTeardownBackground(
       leftoverWorkspacePath = bench.workspacePath;
       leftoverBranch = bench.branch;
 
-      const wtList = await execGit(["worktree", "list", "--porcelain"], project.repoPath);
-
-      if (wtList.code !== 0) {
-        // Can't determine worktree state: fall back to the original forceful path
-        // so we don't risk deleting a valid workspace based on stale assumptions.
-        await execGitChecked(
-          ["worktree", "remove", "--force", bench.workspacePath],
-          project.repoPath,
-          { benchId, workspacePath: bench.workspacePath },
-        );
+      const { leftoverReason } = await removeBenchWorktree(project.repoPath, bench.workspacePath, {
+        benchId,
+        strict: true,
+        label: "Teardown",
+      });
+      if (leftoverReason === undefined) {
         leftoverWorkspacePath = undefined;
       } else {
-        const isRegistered = wtList.stdout
-          .split("\n")
-          .some((line) => line === `worktree ${bench.workspacePath}`);
-        const existsOnDisk = fs.existsSync(bench.workspacePath);
-
-        if (isRegistered) {
-          // Worktree is registered: use 'remove --force' whether or not the directory
-          // is present. Git ≥ 2.39 handles the missing-directory case cleanly and only
-          // touches this entry (unlike 'prune', which is project-wide).
-          await execGitChecked(
-            ["worktree", "remove", "--force", bench.workspacePath],
-            project.repoPath,
-            { benchId, workspacePath: bench.workspacePath },
-          );
-          leftoverWorkspacePath = undefined;
-        } else if (existsOnDisk) {
-          // Orphaned directory: not tracked as a worktree but still on disk
-          try {
-            fs.rmSync(bench.workspacePath, { recursive: true, force: true });
-            leftoverWorkspacePath = undefined;
-          } catch (err) {
-            console.warn(
-              `[bench-manager] Could not remove orphaned workspace directory ` +
-                `${bench.workspacePath} for bench ${benchId}: ${err}`,
-            );
-            leftoverWorkspaceReason = (err as Error).message;
-          }
-        } else {
-          // Neither on disk nor registered: nothing to remove, nothing left over.
-          leftoverWorkspacePath = undefined;
-        }
+        leftoverWorkspaceReason = leftoverReason;
       }
 
       // Best-effort branch delete: tolerate "branch not found" in case the
@@ -1873,45 +2013,13 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
 
   extractWorkspacePermissions(projectId, bench.workspacePath);
 
-  const wtList = await execGit(["worktree", "list", "--porcelain"], project.repoPath);
-  if (wtList.code !== 0) {
-    // Can't determine worktree state: fall back to the forceful path so we
-    // don't risk leaving a registered worktree behind.
-    await execGitChecked(["worktree", "remove", "--force", bench.workspacePath], project.repoPath, {
-      benchId,
-      workspacePath: bench.workspacePath,
-    });
-  } else {
-    const isRegistered = wtList.stdout
-      .split("\n")
-      .some((line) => line === `worktree ${bench.workspacePath}`);
-    const existsOnDisk = fs.existsSync(bench.workspacePath);
-    if (isRegistered) {
-      await execGitChecked(
-        ["worktree", "remove", "--force", bench.workspacePath],
-        project.repoPath,
-        { benchId, workspacePath: bench.workspacePath },
-      );
-    } else if (existsOnDisk) {
-      try {
-        fs.rmSync(bench.workspacePath, { recursive: true, force: true });
-      } catch (err) {
-        console.warn(
-          `[bench-manager] Could not remove orphaned workspace directory ` +
-            `${bench.workspacePath} for bench ${benchId}: ${err}`,
-        );
-      }
-    }
-    // else: neither registered nor on disk: nothing to remove
-  }
-
-  const pruneResult = await execGit(["worktree", "prune"], project.repoPath);
-  if (pruneResult.code !== 0) {
-    console.warn(
-      `[bench-manager] git worktree prune for bench ${benchId}: ` +
-        `${pruneResult.stderr.trim() || `exit code ${pruneResult.code}`}`,
-    );
-  }
+  // A directory rmSync cannot remove is logged by the helper; the re-provision's
+  // own pre-flight then retries it, so it is not fatal here.
+  await removeBenchWorktree(project.repoPath, bench.workspacePath, {
+    benchId,
+    strict: true,
+    label: "Cleanup & Retry",
+  });
   stateService.removeBench(projectId, benchId);
 
   // Reset bench state for re-provisioning
@@ -1941,8 +2049,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
   // whenWorkspaceProvisioned for this bench must see this retry round, not the
   // (already-settled) one from the original create.
   const retryKey = benchKey(projectId, benchId);
-  const retryProvisioningPromise = runWorktreeProvisioning(bench, project);
-  workspaceReady.set(retryKey, retryProvisioningPromise);
+  const retryProvisioningPromise = startWorktreeProvisioning(bench, project);
   // Only drop the entry if it's still ours: a second retry started before this
   // one settles will have already overwritten it with its own promise.
   void retryProvisioningPromise.then(() => {
