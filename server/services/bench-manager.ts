@@ -481,10 +481,15 @@ function execGit(args: string[], cwd: string, signal?: AbortSignal) {
 async function findMainCheckoutSubmoduleStore(
   repoPath: string,
   submodulePath: string,
+  signal: AbortSignal,
 ): Promise<string | undefined> {
   const checkout = path.join(repoPath, submodulePath);
   if (!fs.existsSync(path.join(checkout, ".git"))) return undefined;
-  const result = await execGit(["rev-parse", "--show-toplevel", "--absolute-git-dir"], checkout);
+  const result = await execGit(
+    ["rev-parse", "--show-toplevel", "--absolute-git-dir"],
+    checkout,
+    signal,
+  );
   const [toplevel, gitDir] = result.stdout.trim().split("\n");
   // A submodule dir that is not a working tree of its own resolves to the
   // superproject, whose git dir is not the submodule's store.
@@ -1391,7 +1396,7 @@ async function runWorktreeProvisioning(
         // a time: each call writes the shared .git/config. A failure is not fatal:
         // the recursive update below clones that submodule normally.
         for (const entry of Object.values(parsedMap)) {
-          const store = await findMainCheckoutSubmoduleStore(project.repoPath, entry.path);
+          const store = await findMainCheckoutSubmoduleStore(project.repoPath, entry.path, signal);
           if (stopped()) return;
           if (!store) continue;
           const refResult = await execGit(
@@ -1417,7 +1422,8 @@ async function runWorktreeProvisioning(
           "update",
           "--init",
           "--recursive",
-          ...(jobs && jobs > 1 ? ["--jobs", String(jobs)] : []),
+          // Passed whenever set, 1 included: unset, git uses submodule.fetchJobs.
+          ...(jobs !== undefined ? ["--jobs", String(jobs)] : []),
         ],
         bench.workspacePath,
         signal,

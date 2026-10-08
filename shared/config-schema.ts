@@ -49,7 +49,10 @@ export const SubmoduleInitConfigSchema = z
      * exist. Defaults to false.
      */
     reuseMainCheckout: z.boolean().optional(),
-    /** `--jobs` for the recursive submodule update. Defaults to 1. */
+    /**
+     * `--jobs` for the recursive submodule update. When unset, git uses its
+     * `submodule.fetchJobs` setting, which is 1 unless configured.
+     */
     jobs: z.int().min(1).max(16).optional(),
   })
   .strict();

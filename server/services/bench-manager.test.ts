@@ -1422,7 +1422,7 @@ describe("background provisioning", () => {
 
       const calls = vi.mocked(execModule.runCommand).mock.calls;
       const refIdx = calls.findIndex((c) => c[1].includes("--reference"));
-      // The .gitmodules name finds the store; the path is the pathspec.
+      // The path, not the .gitmodules name, finds the store and is the pathspec.
       expect(calls[refIdx]).toEqual([
         "git",
         ["submodule", "update", "--init", "--reference", store, "--", "path/to/sub1"],
@@ -1481,13 +1481,77 @@ describe("background provisioning", () => {
       expect(phase?.status).toBe("done");
     });
 
-    it("passes jobs to the recursive update", async () => {
-      setupReuse({ jobs: 4 });
+    it.each([4, 1])("passes jobs: %s to the recursive update", async (jobs) => {
+      // 1 too: unset, git would use the user's submodule.fetchJobs instead.
+      setupReuse({ jobs });
 
       benchManager.createBench("test-project");
       await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
 
-      expect(execModule.runCommand).toHaveBeenCalledWith(...finalUpdate(["--jobs", "4"]));
+      expect(execModule.runCommand).toHaveBeenCalledWith(...finalUpdate(["--jobs", String(jobs)]));
+    });
+
+    it("borrows only for submodules the main checkout has, then clones the rest", async () => {
+      setupReuse({ reuseMainCheckout: true });
+      setupMetaRepoGitmodulesMocks({ sub1: "path/to/sub1", sub2: "path/to/sub2" });
+      // Only sub1 has a store in the main checkout.
+      vi.mocked(fs.default.existsSync).mockImplementation(
+        (p: unknown) =>
+          typeof p === "string" && (p.endsWith(".gitmodules") || p === `${mainSub}/.git`),
+      );
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
+
+      const refCalls = gitCalls().filter((c) => c.args.includes("--reference"));
+      expect(refCalls.map((c) => c.args.at(-1))).toEqual(["path/to/sub1"]);
+      expect(execModule.runCommand).toHaveBeenCalledWith(...finalUpdate());
+    });
+
+    it("a clear during the borrow loop stops it before the recursive update", async () => {
+      setupReuse({ reuseMainCheckout: true });
+      setupMetaRepoGitmodulesMocks({ sub1: "path/to/sub1", sub2: "path/to/sub2" });
+      vi.mocked(fs.default.existsSync).mockImplementation(
+        (p: unknown) =>
+          typeof p === "string" &&
+          (p.endsWith(".gitmodules") || p === `${mainSub}/.git` || p.endsWith("sub2/.git")),
+      );
+      let lookupSignal: AbortSignal | undefined;
+      vi.mocked(execModule.runCommand).mockImplementation(
+        async (_cmd, args, cwd, _env, _timeout, _stdin, options) => {
+          if (args[0] === "rev-parse" && cwd === mainSub) {
+            return { ...ok, stdout: `${mainSub}\n${store}\n` };
+          }
+          if (args.includes("--reference")) {
+            // The first borrow runs until the clear kills it.
+            lookupSignal = options?.signal;
+            return new Promise((resolve) =>
+              options?.signal?.addEventListener("abort", () =>
+                resolve({ ...ok, code: 1, aborted: true }),
+              ),
+            );
+          }
+          return ok;
+        },
+      );
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(lookupSignal).toBeDefined());
+      benchManager.teardownBench("test-project", 1, true);
+      await vi.waitFor(() => expect(benchManager.getBench("test-project", 1)).toBeUndefined());
+
+      expect(lookupSignal?.aborted).toBe(true);
+      const calls = gitCalls();
+      // The store lookup carries the signal too.
+      const lookup = vi
+        .mocked(execModule.runCommand)
+        .mock.calls.find((c) => c[1][0] === "rev-parse" && c[2] === mainSub);
+      expect(lookup?.slice(3)).toEqual([...ABORTABLE]);
+      expect(calls.filter((c) => c.args.includes("--reference"))).toHaveLength(1);
+      expect(
+        calls.some((c) => c.args.includes("--recursive") && !c.args.includes("--remote")),
+      ).toBe(false);
+      expect(stateService.addBench).not.toHaveBeenCalled();
     });
   });
 

@@ -47,7 +47,7 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 16,
-              "description": "--jobs for the recursive submodule update. Defaults to 1."
+              "description": "--jobs for the recursive submodule update. When unset, git uses its submodule.fetchJobs setting, which is 1 unless configured."
             }
           }
         }

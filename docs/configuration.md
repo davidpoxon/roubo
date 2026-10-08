@@ -82,16 +82,16 @@ layout:
     jobs: 4
 ```
 
-| Field               | Required | Type    | Description                                                                                                                                                |
-| ------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `reuseMainCheckout` | no       | boolean | When `true`, a bench borrows objects from the main checkout's clone of each submodule (`git submodule update --reference`). Default `false`.               |
-| `jobs`              | no       | integer | `--jobs` for the recursive submodule update, from 1 to 16. It sets how many submodules a bench clones in parallel when it cannot borrow them. Default `1`. |
+| Field               | Required | Type    | Description                                                                                                                                  |
+| ------------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reuseMainCheckout` | no       | boolean | When `true`, a bench borrows objects from the main checkout's clone of each submodule (`git submodule update --reference`). Default `false`. |
+| `jobs`              | no       | integer | Submodules a bench clones in parallel (`--jobs`), 1 to 16. When unset, git uses `submodule.fetchJobs` (1 unless configured).                 |
 
 With `reuseMainCheckout`, a bench downloads no objects that the main checkout already has. Git still asks each remote for its list of refs, so the remotes must be reachable. A submodule that the main checkout has not cloned, and every nested submodule, is cloned from its remote as before. With **Pull latest** on (the default), Roubo updates the main checkout's submodules before it creates a bench. The bench then usually finds the commits it needs there.
 
 Borrowed objects stay in the main checkout. A bench reads them from there for as long as the bench exists:
 
-- Do not delete or clone again the main checkout, or its `.git/modules/` directory, while benches exist. Their submodules break.
+- Do not delete or clone again the main checkout, or its submodule git dirs (usually under `.git/modules/`), while benches exist. Their submodules break.
 - Commits and fetches made in a bench go into the bench's own clone. A normal `git gc` in the main checkout is therefore safe for benches that live for a short time. A `git gc --prune=now` after a force-push can remove objects that an older bench still needs.
 
 ---
