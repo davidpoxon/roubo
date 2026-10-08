@@ -2960,7 +2960,7 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       project: makeProject({ config, settings: SETTINGS_R1_ON_R2_ON }),
     });
     vi.mocked(execModule.runCommand).mockImplementation((_cmd, args) => {
-      if (args[0] === "ls-files") return Promise.resolve(gitlinks("libs/foo"));
+      if (args[0] === "ls-files") return Promise.resolve(gitlinks("path/to/sub1"));
       if (
         Array.isArray(args) &&
         args[0] === "symbolic-ref" &&
@@ -2976,7 +2976,10 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
         return Promise.resolve({
           code: 1,
           stdout: "",
-          stderr: "fatal: Unable to fetch in submodule path 'libs/foo'\nfatal: could not fetch",
+          // A nested submodule's failure names the nested path, which beats the
+          // top-level one the update was run for.
+          stderr:
+            "fatal: Unable to fetch in submodule path 'path/to/sub1/libs/foo'\nfatal: could not fetch",
         });
       }
       return Promise.resolve({ code: 0, stdout: "", stderr: "" });
@@ -2993,7 +2996,7 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
     if (!bench) throw new Error("expected bench");
 
     // bench.error names the failing submodule and is actionable
-    expect(bench.error).toContain("libs/foo");
+    expect(bench.error).toContain("submodule 'path/to/sub1/libs/foo'");
     expect(bench.error).toContain("Pull latest");
 
     // workspace step is error
@@ -3106,6 +3109,32 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       expect(calls.some((c) => c[1].includes("--remote") && c[1].includes("vendor/big"))).toBe(
         true,
       );
+    });
+
+    it("a clear during one update starts no further update", async () => {
+      setupTwoSubmodules();
+      vi.mocked(gitHelpers.resolveDefaultBranch).mockResolvedValue("main");
+      const ok = { code: 0, stdout: "", stderr: "" };
+      let releaseFirst: (() => void) | undefined;
+      vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+        if (args[0] === "ls-files") return gitlinks("vendor/big", "libs/small");
+        if (args[0] === "submodule" && args.includes("--remote") && args.includes("vendor/big")) {
+          return new Promise((resolve) => (releaseFirst = () => resolve(ok)));
+        }
+        return ok;
+      });
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(releaseFirst).toBeDefined());
+      benchManager.teardownBench("test-project", 1, true);
+      releaseFirst?.();
+      await vi.waitFor(() => expect(benchManager.getBench("test-project", 1)).toBeUndefined());
+
+      const calls = vi.mocked(execModule.runCommand).mock.calls;
+      expect(calls.some((c) => c[1].includes("--remote") && c[1].includes("libs/small"))).toBe(
+        false,
+      );
+      expect(calls.some((c) => c[1][0] === "worktree" && c[1][1] === "add")).toBe(false);
     });
 
     it("a stalled update fails the bench, names the submodule, and stops there", async () => {

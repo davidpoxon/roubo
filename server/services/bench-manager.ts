@@ -1293,7 +1293,9 @@ async function runWorktreeProvisioning(
 
       // The fetch is the one main-checkout command a clear kills: an interrupted
       // fetch leaves the checkout as it was. The fast-forward and the submodule
-      // update below change the checkout, so they always run to completion.
+      // update below change the checkout, so a clear lets them finish. The update
+      // is stopped only when it makes no progress, and a clear starts no further
+      // submodule.
       const fetchResult = await runCommand(
         "git",
         ["fetch", "--progress", "origin", pullBranch],
