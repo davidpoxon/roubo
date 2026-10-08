@@ -104,6 +104,29 @@ export function shellHintForCommand(command: string): string | undefined {
   );
 }
 
+/** Time an aborted command gets to exit on SIGTERM before it is sent SIGKILL. */
+const ABORT_KILL_GRACE_MS = 5000;
+
+export interface RunCommandOptions {
+  /**
+   * Aborting kills the command and everything it spawned (#1433). A command
+   * such as `git submodule update` runs its work in child processes (`git
+   * clone`, `index-pack`), so on POSIX the command is started in its own
+   * process group and the whole group is signalled. The returned promise still
+   * resolves only once the command has exited, so a caller that awaits it can
+   * remove the command's working directory without racing a live writer.
+   */
+  signal?: AbortSignal;
+}
+
+export interface RunCommandResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+  /** Present and `true` only when the command was stopped by its abort signal. */
+  aborted?: boolean;
+}
+
 export function runCommand(
   cmd: string,
   args: string[],
@@ -111,18 +134,49 @@ export function runCommand(
   env?: Record<string, string>,
   timeoutMs?: number,
   stdin?: string,
-): Promise<{ code: number; stdout: string; stderr: string }> {
+  options: RunCommandOptions = {},
+): Promise<RunCommandResult> {
+  const { signal } = options;
+  if (signal?.aborted) {
+    return Promise.resolve({ code: 1, stdout: "", stderr: "Aborted", aborted: true });
+  }
   // Callers are responsible for passing a sanitised cwd (via
   // state.getWorkspacePath / resolveWithin / project registry paths). We
   // intentionally avoid path.resolve(cwd) here: it would turn a tainted
   // value into a new path expression that CodeQL flags at the spawn site
   // (js/path-injection) without actually narrowing the trust boundary.
   return new Promise((resolve) => {
+    // A new process group lets an abort reach the command's own children. Only
+    // when abortable, so every other caller's spawn stays exactly as before.
+    const ownGroup = signal !== undefined && process.platform !== "win32";
     const proc = spawn(cmd, args, {
       cwd,
       env: { ...cleanEnv(), ...env },
       stdio: [stdin !== undefined ? "pipe" : "ignore", "pipe", "pipe"],
+      ...(signal !== undefined ? { detached: ownGroup } : {}),
     });
+
+    let aborted = false;
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+    const signalGroup = (sig: NodeJS.Signals) => {
+      try {
+        if (ownGroup && proc.pid !== undefined) process.kill(-proc.pid, sig);
+        else proc.kill(sig);
+      } catch {
+        // The group already exited between the abort and the kill.
+      }
+    };
+    const onAbort = () => {
+      aborted = true;
+      signalGroup("SIGTERM");
+      killTimer = setTimeout(() => signalGroup("SIGKILL"), ABORT_KILL_GRACE_MS);
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    const settle = (result: RunCommandResult) => {
+      if (killTimer) clearTimeout(killTimer);
+      signal?.removeEventListener("abort", onAbort);
+      resolve(aborted ? { ...result, aborted: true } : result);
+    };
 
     if (stdin !== undefined && proc.stdin) {
       proc.stdin.write(stdin);
@@ -137,13 +191,15 @@ export function runCommand(
     if (timeoutMs && timeoutMs > 0) {
       timer = setTimeout(() => {
         timedOut = true;
-        proc.kill("SIGTERM");
+        // The whole group, as for an abort: a child that holds the output pipes
+        // open would otherwise keep 'close' from ever firing.
+        signalGroup("SIGTERM");
       }, timeoutMs);
     }
 
     proc.on("error", (err) => {
       if (timer) clearTimeout(timer);
-      resolve({ code: 1, stdout, stderr: stderr + err.message });
+      settle({ code: 1, stdout, stderr: stderr + err.message });
     });
     proc.stdout?.on("data", (d) => {
       stdout += d.toString();
@@ -156,7 +212,7 @@ export function runCommand(
       if (timedOut) {
         stderr += `\nProcess timed out after ${timeoutMs}ms`;
       }
-      resolve({ code: code ?? 1, stdout, stderr });
+      settle({ code: code ?? 1, stdout, stderr });
     });
   });
 }

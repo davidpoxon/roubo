@@ -178,6 +178,94 @@ describe("runCommand", () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("ENOENT");
   });
+
+  describe("abort signal (#1433)", () => {
+    const posix = process.platform !== "win32";
+
+    it("spawns detached on POSIX only when a signal is passed", async () => {
+      const proc = createMockChild();
+      vi.mocked(spawn).mockReturnValue(proc);
+
+      const promise = runCommand("git", ["clone"], "/repo", undefined, undefined, undefined, {
+        signal: new AbortController().signal,
+      });
+      proc.emit("close", 0);
+      await promise;
+
+      expect(spawn).toHaveBeenCalledWith(
+        "git",
+        ["clone"],
+        expect.objectContaining({ detached: posix }),
+      );
+    });
+
+    it("kills the whole process group on abort and resolves on close", async () => {
+      const proc = createMockChild(4321);
+      vi.mocked(spawn).mockReturnValue(proc);
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+      const controller = new AbortController();
+
+      const promise = runCommand("git", ["clone"], "/repo", undefined, undefined, undefined, {
+        signal: controller.signal,
+      });
+      controller.abort();
+
+      if (posix) {
+        expect(killSpy).toHaveBeenCalledWith(-4321, "SIGTERM");
+      } else {
+        expect(proc.kill).toHaveBeenCalledWith("SIGTERM");
+      }
+
+      // The promise resolves only once the child has actually exited, so a
+      // caller that awaits it never races a process still writing to disk.
+      let settled = false;
+      void promise.then(() => (settled = true));
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      proc.emit("close", null);
+      const result = await promise;
+      expect(result.code).toBe(1);
+      expect(result.aborted).toBe(true);
+      killSpy.mockRestore();
+    });
+
+    it("escalates to SIGKILL when the group outlives the grace period", async () => {
+      vi.useFakeTimers();
+      const proc = createMockChild(4321);
+      vi.mocked(spawn).mockReturnValue(proc);
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+      const controller = new AbortController();
+
+      const promise = runCommand("git", ["clone"], "/repo", undefined, undefined, undefined, {
+        signal: controller.signal,
+      });
+      controller.abort();
+      vi.advanceTimersByTime(5000);
+
+      if (posix) {
+        expect(killSpy).toHaveBeenCalledWith(-4321, "SIGKILL");
+      } else {
+        expect(proc.kill).toHaveBeenCalledWith("SIGKILL");
+      }
+      proc.emit("close", null);
+      await promise;
+      killSpy.mockRestore();
+      vi.useRealTimers();
+    });
+
+    it("does not spawn at all when the signal is already aborted", async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      const result = await runCommand("git", ["clone"], "/repo", undefined, undefined, undefined, {
+        signal: controller.signal,
+      });
+
+      expect(spawn).not.toHaveBeenCalled();
+      expect(result).toEqual({ code: 1, stdout: "", stderr: "Aborted", aborted: true });
+    });
+  });
 });
 
 describe("parseCommand", () => {
