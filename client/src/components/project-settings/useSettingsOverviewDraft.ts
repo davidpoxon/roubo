@@ -58,7 +58,7 @@ export function useSettingsOverviewDraft(projectId: string, project: RegisteredP
 
   // Initialize worktreeSource draft once settings first loads.
   // Reset all drafts when projectId changes so the new project's values re-seed.
-  // serverJig/serverAutoClear etc. are in deps so the effect reads current values;
+  // serverJig/serverEnforceIssueDependencies are in deps so the effect reads current values;
   // the prevProjectIdRef guard ensures re-seeding only runs on projectId changes.
   const settingsLoadedRef = useRef(false);
   const issueTypeMappingsLoadedRef = useRef(false);

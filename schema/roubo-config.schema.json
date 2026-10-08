@@ -198,7 +198,7 @@
           "oneOf": [{ "type": "boolean" }, { "type": "string", "minLength": 1 }],
           "description": "Overrides the shell `setup` runs through. Omitted, setup keeps the login-shell default (interactive on zsh). true runs it through /bin/sh -c, which sources no rc file. A string is the shell invocation setup is appended to as -c, for example 'bash -lc' or 'zsh -i'. false opts out of a shell entirely and runs setup as argv, so shell syntax becomes literal arguments again."
         },
-        "autoClear": { "type": "boolean", "description": "Automatically clear benches when their assigned issue moves to Done or is closed. Defaults to true." }
+        "enforceIssueDependencies": { "type": "boolean", "description": "Refuse to create a bench for an issue, or assign an issue to a bench, while the integration reports unresolved issues blocking it. Fails closed when the blocking state cannot be read. Omitted, the application-level setting applies, which is off by default." }
       }
     },
     "jigs": {
