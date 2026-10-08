@@ -191,7 +191,9 @@ export function runCommand(
     if (timeoutMs && timeoutMs > 0) {
       timer = setTimeout(() => {
         timedOut = true;
-        proc.kill("SIGTERM");
+        // The whole group, as for an abort: a child that holds the output pipes
+        // open would otherwise keep 'close' from ever firing.
+        signalGroup("SIGTERM");
       }, timeoutMs);
     }
 

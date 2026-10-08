@@ -86,24 +86,29 @@ export function listAdminDirs(commonDir: string): AdminDir[] {
 /**
  * The admin dir of the worktree at `workspacePath`, for removing it by hand when
  * git cannot. Read from the worktree's own `.git` file while the directory
- * exists, else found by a scan of the recorded paths. Only a dir directly under
- * `<common-dir>/worktrees/` is ever returned, so a forged `.git` file cannot
- * point the caller at anything else.
+ * exists, else found by a scan of the recorded paths. An admin dir is returned
+ * only when it sits directly under `<common-dir>/worktrees/` and its own
+ * `gitdir` records `workspacePath`. A `.git` file that names another worktree's
+ * admin dir (the one state in which git refuses `remove --force --force` with
+ * a readable gitfile) must never lead the caller to delete that other dir.
  */
 export function findAdminDir(commonDir: string, workspacePath: string): string | undefined {
   const worktreesDir = canonicalPath(path.join(commonDir, "worktrees"));
+  const target = canonicalPath(workspacePath);
+  const recordsTarget = (admin: AdminDir) =>
+    admin.worktreePath !== undefined && canonicalPath(admin.worktreePath) === target;
   try {
     const gitfile = fs.readFileSync(path.join(workspacePath, ".git"), "utf-8");
     const match = /^gitdir: (.+)$/m.exec(gitfile);
     if (match) {
       const dir = canonicalPath(path.resolve(workspacePath, match[1].trim()));
-      if (path.dirname(dir) === worktreesDir) return dir;
+      if (path.dirname(dir) === worktreesDir) {
+        const candidate = listAdminDirs(commonDir).find((a) => canonicalPath(a.dir) === dir);
+        if (candidate && recordsTarget(candidate)) return candidate.dir;
+      }
     }
   } catch {
     // No readable gitfile: the directory is gone, or it is not a linked worktree.
   }
-  const target = canonicalPath(workspacePath);
-  return listAdminDirs(commonDir).find(
-    (a) => a.worktreePath !== undefined && canonicalPath(a.worktreePath) === target,
-  )?.dir;
+  return listAdminDirs(commonDir).find(recordsTarget)?.dir;
 }

@@ -255,6 +255,10 @@ beforeEach(async () => {
   claudeSettingsLocal = await import("./claude-settings-local.js");
   gitHelpers = await import("./git-helpers.js");
   fs = await import("node:fs");
+  // clearAllMocks keeps implementations, so restore the ones the worktree
+  // removal tests (#1433) override: no files to read, no admin dirs to list.
+  vi.mocked(fs.default.readFileSync).mockReset();
+  vi.mocked(fs.default.readdirSync).mockImplementation((() => []) as never);
   pluginManager = await import("./plugin-manager.js");
   componentRegistry = await import("./component-plugin-registry.js");
   marketplace = await import("./marketplace.js");
@@ -1528,11 +1532,23 @@ describe("background provisioning", () => {
     setupCreateBenchMocks();
     setupProcessMocks();
     vi.mocked(fs.default.existsSync).mockReturnValueOnce(true).mockReturnValueOnce(true);
-    // The worktree's .git file names its admin dir.
-    vi.mocked(fs.default.readFileSync).mockReturnValueOnce(
-      "gitdir: /repos/test-project/.git/worktrees/bench-1\n",
-    );
-    const refused = { code: 128, stdout: "", stderr: "fatal: validation failed" };
+    // The worktree's .git file names its admin dir, whose gitdir records it back.
+    const files: Record<string, string> = {
+      "/home/.roubo/workspaces/test-project/bench-1/.git":
+        "gitdir: /repos/test-project/.git/worktrees/bench-1\n",
+      "/repos/test-project/.git/worktrees/bench-1/gitdir":
+        "/home/.roubo/workspaces/test-project/bench-1/.git\n",
+    };
+    vi.mocked(fs.default.readFileSync).mockImplementation(((p: string) => {
+      if (p in files) return files[p];
+      throw new Error("ENOENT");
+    }) as typeof fs.default.readFileSync);
+    vi.mocked(fs.default.readdirSync).mockReturnValue(["bench-1"] as never);
+    const refused = {
+      code: 128,
+      stdout: "",
+      stderr: "error: failed to delete '.git/worktrees/bench-1': Permission denied",
+    };
     vi.mocked(execModule.runCommand)
       .mockResolvedValueOnce({
         code: 0,

@@ -95,6 +95,20 @@ describe("worktree-registry", () => {
     expect(findAdminDir(path.join(repo, ".git"), workspacePath)).toBe(adminDir);
   });
 
+  it("never returns another worktree's admin dir that a .git file names", () => {
+    const benchPath = path.join(realRoot, "bench-1");
+    const userPath = path.join(realRoot, "user-wt");
+    git(["worktree", "add", "-q", benchPath, "-b", "bench-1"], repo);
+    git(["worktree", "add", "-q", userPath, "-b", "user-wt"], repo);
+    // The bench's .git file now names the user's admin dir, so git refuses
+    // `remove --force --force` ("does not point back").
+    fs.copyFileSync(path.join(userPath, ".git"), path.join(benchPath, ".git"));
+
+    expect(findAdminDir(path.join(repo, ".git"), benchPath)).toBe(
+      path.join(repo, ".git", "worktrees", "bench-1"),
+    );
+  });
+
   it("ignores a .git file that points outside the worktrees dir", () => {
     const workspacePath = path.join(realRoot, "forged");
     fs.mkdirSync(workspacePath);

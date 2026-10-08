@@ -459,7 +459,9 @@ function findNextBenchNumber(projectId: string, maxBenches: number): number | nu
  * Env for a git command run with an abort signal. runCommand starts such a
  * command in its own process group, which is a background group when the
  * server has a terminal, so a credential prompt there would stop on SIGTTIN and
- * hang provisioning. Git fails instead of prompting.
+ * hang provisioning. This makes git fail instead of showing its own credential
+ * prompt. It does not reach ssh: a passphrase or host-key prompt from ssh can
+ * still stop, until the command's timeout or an abort kills its group.
  */
 const ABORTABLE_GIT_ENV = { GIT_TERMINAL_PROMPT: "0" };
 
@@ -1270,8 +1272,8 @@ async function runWorktreeProvisioning(
       }
     }
 
-    // The pull-latest commands above run in the main checkout and are not killed
-    // by an abort, so a clear can land while they run. Stop here, before anything
+    // The pull-latest fast-forward and submodule update above run in the main
+    // checkout and are not killed by an abort, so a clear can land while they run. Stop here, before anything
     // is created for the bench, or the worktree would appear after teardown has
     // already looked for it (#1433).
     if (stopped()) return;
