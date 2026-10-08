@@ -1516,7 +1516,7 @@ describe("background provisioning", () => {
           typeof p === "string" &&
           (p.endsWith(".gitmodules") || p === `${mainSub}/.git` || p.endsWith("sub2/.git")),
       );
-      let lookupSignal: AbortSignal | undefined;
+      let borrowSignal: AbortSignal | undefined;
       vi.mocked(execModule.runCommand).mockImplementation(
         async (_cmd, args, cwd, _env, _timeout, _stdin, options) => {
           if (args[0] === "rev-parse" && cwd === mainSub) {
@@ -1524,7 +1524,7 @@ describe("background provisioning", () => {
           }
           if (args.includes("--reference")) {
             // The first borrow runs until the clear kills it.
-            lookupSignal = options?.signal;
+            borrowSignal = options?.signal;
             return new Promise((resolve) =>
               options?.signal?.addEventListener("abort", () =>
                 resolve({ ...ok, code: 1, aborted: true }),
@@ -1536,11 +1536,11 @@ describe("background provisioning", () => {
       );
 
       benchManager.createBench("test-project");
-      await vi.waitFor(() => expect(lookupSignal).toBeDefined());
+      await vi.waitFor(() => expect(borrowSignal).toBeDefined());
       benchManager.teardownBench("test-project", 1, true);
       await vi.waitFor(() => expect(benchManager.getBench("test-project", 1)).toBeUndefined());
 
-      expect(lookupSignal?.aborted).toBe(true);
+      expect(borrowSignal?.aborted).toBe(true);
       const calls = gitCalls();
       // The store lookup carries the signal too.
       const lookup = vi
