@@ -49,3 +49,48 @@ describe.skipIf(process.platform === "win32")("runCommand abort on a real proces
     }
   });
 });
+
+// A no-output timeout for a long network transfer such as a first submodule
+// clone (#1438): a command that keeps writing runs as long as it needs, and one
+// that goes quiet is killed with its children, with no abort signal involved.
+describe.skipIf(process.platform === "win32")("runCommand idle timeout on a real process", () => {
+  it("does not kill a command that keeps writing past the idle window", async () => {
+    const result = await runCommand(
+      "sh",
+      ["-c", "for i in 1 2 3 4 5 6 7; do echo tick >&2; sleep 0.2; done"],
+      os.tmpdir(),
+      undefined,
+      undefined,
+      undefined,
+      { idleTimeoutMs: 600 },
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.idleTimedOut).toBeUndefined();
+  });
+
+  it("kills a quiet command and its children, and says so", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-idle-"));
+    const pidFile = path.join(dir, "child.pid");
+
+    try {
+      const result = await runCommand(
+        "sh",
+        ["-c", 'echo start; sleep 30 & echo $! > "$1"; wait', "sh", pidFile],
+        dir,
+        undefined,
+        undefined,
+        undefined,
+        { idleTimeoutMs: 300 },
+      );
+      const childPid = Number(fs.readFileSync(pidFile, "utf-8").trim());
+
+      expect(result.idleTimedOut).toBe(true);
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain("Process produced no output for 300ms");
+      expect(isAlive(childPid)).toBe(false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -85,9 +85,9 @@ const provisioningAborts = new Map<string, AbortController>();
 
 // How long teardown waits for aborted provisioning to stop. It covers the kill
 // grace in runCommand. The pull-latest fast-forward and submodule update run in
-// the main checkout and are never killed, so they can outlast this; provisioning
-// still stops before `worktree add` once they return, so nothing is created
-// behind teardown.
+// the main checkout and a clear does not kill them (the update is stopped only
+// when it makes no progress), so they can outlast this; provisioning still stops
+// before `worktree add` once they return, so nothing is created behind teardown.
 const PROVISIONING_STOP_WAIT_MS = 15_000;
 
 // Guards the one-warning-per-process-load contract for a corrupt settings.json
@@ -456,10 +456,10 @@ function findNextBenchNumber(projectId: string, maxBenches: number): number | nu
 }
 
 /**
- * Env for a git command run with an abort signal. runCommand starts such a
- * command in its own process group, which is a background group when the
- * server has a terminal, so a credential prompt there would stop on SIGTTIN and
- * hang provisioning. This makes git fail instead of showing its own credential
+ * Env for a git command run with an abort signal or an idle timeout. runCommand
+ * starts such a command in its own process group, which is a background group
+ * when the server has a terminal, so a credential prompt there would stop on
+ * SIGTTIN and hang provisioning. This makes git fail instead of showing its own credential
  * prompt. It does not reach ssh: a passphrase or host-key prompt from ssh can
  * still stop, until the command's timeout or an abort kills its group.
  */
@@ -635,9 +635,68 @@ function startWorktreeProvisioning(bench: Bench, project: RegisteredProject): Pr
 }
 
 function extractFailingSubmodulePath(stderr: string): string | null {
-  const match = stderr.match(/submodule path '([^']+)'/);
-  return match ? match[1] : null;
+  // An absolute path comes from git's `fatal: clone of '<url>' into submodule
+  // path '<abs>' failed` summary, which names the directory rather than the
+  // submodule.
+  for (const match of stderr.matchAll(/submodule path '([^']+)'/g)) {
+    if (!path.isAbsolute(match[1])) return match[1];
+  }
+  return null;
 }
+
+/**
+ * The submodule paths recorded in `repoPath`'s index (gitlinks), which is the
+ * set a bare `git submodule update` works through. Not `.gitmodules`: a section
+ * left behind for a removed submodule would fail as a pathspec git does not know
+ * (#1438).
+ */
+async function listSubmodulePaths(repoPath: string): Promise<string[]> {
+  const result = await runCommand("git", ["ls-files", "--stage", "-z"], repoPath);
+  if (result.code !== 0) {
+    throw new Error(
+      `Could not list the submodules in ${repoPath}: ${result.stderr.trim() || "git ls-files exited non-zero"}`,
+    );
+  }
+  const paths = new Set<string>();
+  for (const record of result.stdout.split("\0")) {
+    const tab = record.indexOf("\t");
+    if (tab > 0 && record.startsWith("160000 ")) paths.add(record.slice(tab + 1));
+  }
+  return [...paths];
+}
+
+/** git's own summary lines for a failed submodule clone, printed after the cause. */
+const GIT_CLONE_SUMMARY_RE =
+  /^(fatal: clone of '.*' into submodule path '.*' failed|Failed to clone )/;
+
+/**
+ * The line of git's stderr that explains a failure: the first `fatal:` or
+ * `error:` line that is not one of git's clone summaries, else the last
+ * non-empty line. With `--progress` the output is mostly `\r`-separated
+ * progress updates and a leading `Cloning into`, neither of which says what
+ * went wrong, and a failed submodule clone ends with summaries that repeat the
+ * URL but drop the cause.
+ */
+function gitFailureDetail(stderr: string): string | undefined {
+  const lines = stderr
+    .split(/[\r\n]/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return (
+    lines.find((l) => /^(fatal|error):/.test(l) && !GIT_CLONE_SUMMARY_RE.test(l)) ?? lines.at(-1)
+  );
+}
+
+/**
+ * How long the pull-latest fetch, and each main-checkout submodule update, may
+ * write nothing before Roubo stops it (#1438). They run with `--progress`, so a
+ * transfer that is moving writes at least once a second and runs for as long
+ * as it needs; a fixed limit killed a large first clone that was still making
+ * progress. A step git runs silently, such as the `--remote` fetch inside an
+ * already-cloned submodule, still gets the whole window.
+ */
+const FETCH_IDLE_TIMEOUT_MS = 60_000;
+const SUBMODULE_UPDATE_IDLE_TIMEOUT_MS = 300_000;
 
 function makeComponentOnlyProvisioningSteps(componentOrder: string[]): ProvisioningStep[] {
   return componentOrder.map((name) => ({
@@ -1234,20 +1293,28 @@ async function runWorktreeProvisioning(
 
       // The fetch is the one main-checkout command a clear kills: an interrupted
       // fetch leaves the checkout as it was. The fast-forward and the submodule
-      // update below change the checkout, so they always run to completion.
+      // update below change the checkout, so a clear lets them finish. The update
+      // is stopped only when it makes no progress, and a clear starts no further
+      // submodule.
       const fetchResult = await runCommand(
         "git",
-        ["fetch", "origin", pullBranch],
+        ["fetch", "--progress", "origin", pullBranch],
         project.repoPath,
         ABORTABLE_GIT_ENV,
-        60_000,
         undefined,
-        { signal },
+        undefined,
+        { signal, idleTimeoutMs: FETCH_IDLE_TIMEOUT_MS },
       );
       if (fetchResult.code !== 0) {
         fetchPhase.status = "error";
+        if (fetchResult.idleTimedOut) {
+          throw new Error(
+            `Fetching 'origin/${pullBranch}' made no progress for ${FETCH_IDLE_TIMEOUT_MS / 1000} seconds, so Roubo stopped it. ` +
+              `Check your network connection and origin remote, or disable 'Pull latest' in project settings.`,
+          );
+        }
         throw new Error(
-          `Failed to fetch 'origin/${pullBranch}': ${fetchResult.stderr.trim() || "git fetch exited non-zero"}. ` +
+          `Failed to fetch 'origin/${pullBranch}': ${gitFailureDetail(fetchResult.stderr) ?? "git fetch exited non-zero"}. ` +
             `Check your network connection and origin remote, or disable 'Pull latest' in project settings.`,
         );
       }
@@ -1272,26 +1339,44 @@ async function runWorktreeProvisioning(
 
       if (subRemotePhase) {
         subRemotePhase.status = "running";
-        const subResult = await runCommand(
-          "git",
-          ["submodule", "update", "--init", "--remote", "--recursive"],
-          project.repoPath,
-          undefined,
-          300_000,
-        );
-        if (subResult.code !== 0) {
+        // One submodule at a time, so a stall is pinned to the submodule that
+        // stalled and each gets its own idle window (#1438).
+        for (const submodulePath of await listSubmodulePaths(project.repoPath)) {
+          // A clear does not kill the update, but it need not start the next one.
+          if (stopped()) return;
+          const subResult = await runCommand(
+            "git",
+            [
+              "submodule",
+              "update",
+              "--init",
+              "--remote",
+              "--recursive",
+              "--progress",
+              "--",
+              submodulePath,
+            ],
+            project.repoPath,
+            ABORTABLE_GIT_ENV,
+            undefined,
+            undefined,
+            { idleTimeoutMs: SUBMODULE_UPDATE_IDLE_TIMEOUT_MS },
+          );
+          if (subResult.code === 0) continue;
           subRemotePhase.status = "error";
-          const failingSubmodule = extractFailingSubmodulePath(subResult.stderr);
-          const detail =
-            subResult.stderr
-              .split("\n")
-              .map((l) => l.trim())
-              .find(Boolean) ?? `exit code ${subResult.code}`;
-          const subjectClause = failingSubmodule
-            ? `submodule '${failingSubmodule}'`
-            : "a submodule";
+          if (subResult.idleTimedOut) {
+            throw new Error(
+              `Submodule '${submodulePath}' made no progress for ${SUBMODULE_UPDATE_IDLE_TIMEOUT_MS / 60_000} minutes ` +
+                `while updating to latest, so Roubo stopped it. Check your network connection and the ` +
+                `submodule's remote, or disable 'Pull latest' in project settings.`,
+            );
+          }
+          // A nested submodule's failure names the nested path, which is more
+          // specific than the top-level one.
+          const failingSubmodule = extractFailingSubmodulePath(subResult.stderr) ?? submodulePath;
+          const detail = gitFailureDetail(subResult.stderr) ?? `exit code ${subResult.code}`;
           throw new Error(
-            `Failed to update ${subjectClause} to latest: ${detail}. ` +
+            `Failed to update submodule '${failingSubmodule}' to latest: ${detail}. ` +
               `Resolve manually in the source repo, or disable 'Pull latest' in project settings.`,
           );
         }

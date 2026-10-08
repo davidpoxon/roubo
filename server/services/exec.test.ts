@@ -135,6 +135,90 @@ describe("runCommand", () => {
     expect(proc.kill).not.toHaveBeenCalled();
   });
 
+  describe("idleTimeoutMs (#1438)", () => {
+    let killSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      // The command runs in its own group, so the kill goes to process.kill(-pid).
+      killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+      killSpy.mockRestore();
+      vi.useRealTimers();
+    });
+
+    it("starts the command in its own process group", () => {
+      const proc = createMockChild();
+      vi.mocked(spawn).mockReturnValue(proc);
+
+      void runCommand("git", [], "/tmp", undefined, undefined, undefined, { idleTimeoutMs: 1000 });
+
+      expect(vi.mocked(spawn).mock.calls[0][2]).toMatchObject({
+        detached: process.platform !== "win32",
+      });
+      proc.emit("close", 0);
+    });
+
+    it("restarts the window on each stdout and stderr chunk", async () => {
+      const proc = createMockChild();
+      vi.mocked(spawn).mockReturnValue(proc);
+      if (!proc.stdout || !proc.stderr) throw new Error("expected output streams");
+
+      const promise = runCommand("git", [], "/tmp", undefined, undefined, undefined, {
+        idleTimeoutMs: 1000,
+      });
+      vi.advanceTimersByTime(900);
+      proc.stderr.emit("data", Buffer.from("Receiving objects:  10%\r"));
+      vi.advanceTimersByTime(900);
+      proc.stdout.emit("data", Buffer.from("Submodule path 'a': checked out\n"));
+      vi.advanceTimersByTime(900);
+      proc.emit("close", 0);
+
+      const result = await promise;
+      expect(killSpy).not.toHaveBeenCalled();
+      expect(proc.kill).not.toHaveBeenCalled();
+      expect(result.code).toBe(0);
+      expect(result.idleTimedOut).toBeUndefined();
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "kills the group once the command is quiet for the whole window",
+      async () => {
+        const proc = createMockChild(4321);
+        vi.mocked(spawn).mockReturnValue(proc);
+
+        const promise = runCommand("git", [], "/tmp", undefined, undefined, undefined, {
+          idleTimeoutMs: 1000,
+        });
+        vi.advanceTimersByTime(1000);
+        expect(killSpy).toHaveBeenCalledWith(-4321, "SIGTERM");
+
+        proc.emit("close", null);
+        const result = await promise;
+        expect(result.idleTimedOut).toBe(true);
+        expect(result.code).toBe(1);
+        expect(result.stderr).toContain("Process produced no output for 1000ms");
+      },
+    );
+
+    it("clears the window when the command exits", async () => {
+      const proc = createMockChild();
+      vi.mocked(spawn).mockReturnValue(proc);
+
+      const promise = runCommand("git", [], "/tmp", undefined, undefined, undefined, {
+        idleTimeoutMs: 1000,
+      });
+      proc.emit("close", 0);
+      await promise;
+      vi.advanceTimersByTime(5000);
+
+      expect(killSpy).not.toHaveBeenCalled();
+      expect(proc.kill).not.toHaveBeenCalled();
+    });
+  });
+
   it("pipes stdin into the spawned process when provided", async () => {
     const proc = createMockChild(1234, { withStdin: true });
     vi.mocked(spawn).mockReturnValue(proc);
