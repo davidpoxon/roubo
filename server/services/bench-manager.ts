@@ -90,10 +90,17 @@ const provisioningAborts = new Map<string, AbortController>();
 // behind teardown.
 const PROVISIONING_STOP_WAIT_MS = 15_000;
 
-// Projects whose benches a forced unregister is removing (#1435). createBench
-// refuses them: a bench reserved during the wait would be missed by the removal,
-// then dropped with the project, and left on disk with no record.
+// Projects whose benches a forced unregister is removing (#1435). Every path that
+// starts worktree provisioning (createBench, Cleanup & Retry) refuses them: a
+// worktree added during the wait would be missed by the removal, then dropped with
+// the project, and left on disk with no record.
 const unregisteringProjects = new Set<string>();
+
+function assertNotUnregistering(projectId: string): void {
+  if (unregisteringProjects.has(projectId)) {
+    throw new BenchError(`Project '${projectId}' is being unregistered`, "PROJECT_NOT_FOUND");
+  }
+}
 
 // Guards the one-warning-per-process-load contract for a corrupt settings.json
 // when the global bench cap is evaluated (GBL-NFR-004). Reset only on process restart.
@@ -968,9 +975,7 @@ export function createBench(
       "PROJECT_NOT_FOUND",
     );
   }
-  if (unregisteringProjects.has(projectId)) {
-    throw new BenchError(`Project '${projectId}' is being unregistered`, "PROJECT_NOT_FOUND");
-  }
+  assertNotUnregistering(projectId);
 
   // TestBench variant: require + validate the focused spec path before any bench
   // slot is reserved, so a bad path fails fast with no side effects. The resolved
@@ -2196,6 +2201,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     );
   }
   const config = project.config;
+  assertNotUnregistering(projectId);
 
   // Clean up stale resources
   terminalService.destroyBenchSessions(projectId, benchId);
@@ -2234,6 +2240,9 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     label: "Cleanup & Retry",
   });
   stateService.removeBench(projectId, benchId);
+  // A forced unregister may have started during the awaits above. Its removal
+  // would not see the worktree this retry is about to add (#1435).
+  assertNotUnregistering(projectId);
 
   // Reset bench state for re-provisioning
   const isMetaRepo = config.layout.type === "meta-repo" && !!config.layout.submodules;
