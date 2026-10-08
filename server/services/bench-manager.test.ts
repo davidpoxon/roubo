@@ -2509,12 +2509,12 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
     const fetchCall = calls.find((c) => Array.isArray(c[1]) && c[1][0] === "fetch");
     expect(fetchCall).toEqual([
       "git",
-      ["fetch", "origin", "feature/x"],
+      ["fetch", "--progress", "origin", "feature/x"],
       "/repos/test-project",
       { GIT_TERMINAL_PROMPT: "0" },
-      60_000,
       undefined,
-      { signal: expect.any(AbortSignal) },
+      undefined,
+      { signal: expect.any(AbortSignal), idleTimeoutMs: 60_000 },
     ]);
     const mergeCall = calls.find((c) => Array.isArray(c[1]) && c[1][0] === "merge");
     expect(mergeCall).toEqual([
@@ -2570,12 +2570,12 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
     const fetchCall = calls.find((c) => Array.isArray(c[1]) && c[1][0] === "fetch");
     expect(fetchCall).toEqual([
       "git",
-      ["fetch", "origin", "main"],
+      ["fetch", "--progress", "origin", "main"],
       "/repos/test-project",
       { GIT_TERMINAL_PROMPT: "0" },
-      60_000,
       undefined,
-      { signal: expect.any(AbortSignal) },
+      undefined,
+      { signal: expect.any(AbortSignal), idleTimeoutMs: 60_000 },
     ]);
     const mergeCall = calls.find((c) => Array.isArray(c[1]) && c[1][0] === "merge");
     expect(mergeCall).toEqual([
@@ -2804,13 +2804,25 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       expect(stateService.addBench).toHaveBeenCalled();
     });
 
-    // The --remote submodule update must be called in the source repo with the correct args and timeout
+    // The --remote submodule update runs in the source repo, one submodule at a
+    // time with progress on, and is stopped only when it goes quiet (#1438).
     expect(vi.mocked(execModule.runCommand)).toHaveBeenCalledWith(
       "git",
-      ["submodule", "update", "--init", "--remote", "--recursive"],
+      [
+        "submodule",
+        "update",
+        "--init",
+        "--remote",
+        "--recursive",
+        "--progress",
+        "--",
+        "path/to/sub1",
+      ],
       "/repos/test-project",
+      { GIT_TERMINAL_PROMPT: "0" },
       undefined,
-      300_000,
+      undefined,
+      { idleTimeoutMs: 300_000 },
     );
 
     const bench = benchManager.getBench("test-project", 1);
@@ -2916,9 +2928,9 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       expect.arrayContaining(["fetch"]),
       "/repos/test-project",
       { GIT_TERMINAL_PROMPT: "0" },
-      60_000,
       undefined,
-      { signal: expect.any(AbortSignal) },
+      undefined,
+      { signal: expect.any(AbortSignal), idleTimeoutMs: 60_000 },
     );
 
     // --remote flag must NOT appear in any call
@@ -2934,6 +2946,7 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
     setupCreateBenchMocks({
       project: makeProject({ config, settings: SETTINGS_R1_ON_R2_ON }),
     });
+    setupMetaRepoGitmodulesMocks({ sub1: "path/to/sub1" });
     vi.mocked(execModule.runCommand).mockImplementation((_cmd, args) => {
       if (
         Array.isArray(args) &&
@@ -3006,6 +3019,115 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
 
     // Workspace directory was never created
     expect(vi.mocked(fs.default.mkdirSync)).not.toHaveBeenCalled();
+  });
+
+  describe("main-checkout submodule update stalls (#1438)", () => {
+    /** Mocks a resolved `main` and the given result for each --remote update, by path. */
+    function mockRemoteUpdates(results: Record<string, execModule.RunCommandResult>) {
+      vi.mocked(execModule.runCommand).mockImplementation((_cmd, args) => {
+        if (args[0] === "symbolic-ref" && args[1] === "refs/remotes/origin/HEAD") {
+          return Promise.resolve({ code: 0, stdout: "refs/remotes/origin/main\n", stderr: "" });
+        }
+        if (args[0] === "submodule" && args.includes("--remote")) {
+          const result = results[args[args.length - 1]];
+          if (result) return Promise.resolve(result);
+        }
+        return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+      });
+    }
+
+    function setupTwoSubmodules() {
+      const submodules = { big: "vendor/big", small: "libs/small" };
+      setupCreateBenchMocks({
+        project: makeProject({
+          config: makeConfig({ layout: { type: "meta-repo", submodules } }),
+          settings: SETTINGS_R1_ON_R2_ON,
+        }),
+      });
+      setupProcessMocks();
+      setupMetaRepoGitmodulesMocks(submodules);
+    }
+
+    async function benchError(): Promise<string | undefined> {
+      benchManager.createBench("test-project");
+      await vi.waitFor(() =>
+        expect(benchManager.getBench("test-project", 1)?.status).toBe("error"),
+      );
+      return benchManager.getBench("test-project", 1)?.error;
+    }
+
+    it("updates each submodule on its own, in .gitmodules order", async () => {
+      setupTwoSubmodules();
+      mockRemoteUpdates({});
+
+      benchManager.createBench("test-project");
+      await vi.waitFor(() => expect(stateService.addBench).toHaveBeenCalled());
+
+      const remotePaths = vi
+        .mocked(execModule.runCommand)
+        .mock.calls.filter((c) => c[1][0] === "submodule" && c[1].includes("--remote"))
+        .map((c) => c[1][c[1].length - 1]);
+      expect(remotePaths).toEqual(["vendor/big", "libs/small"]);
+    });
+
+    it("a stalled update fails the bench, names the submodule, and stops there", async () => {
+      setupTwoSubmodules();
+      mockRemoteUpdates({
+        "vendor/big": {
+          code: 1,
+          stdout: "",
+          stderr: "Receiving objects:  41%\nProcess produced no output for 300000ms",
+          idleTimedOut: true,
+        },
+      });
+
+      const error = await benchError();
+
+      expect(error).toContain("Submodule 'vendor/big' made no progress for 5 minutes");
+      expect(error).toContain("Pull latest");
+      const calls = vi.mocked(execModule.runCommand).mock.calls;
+      expect(calls.some((c) => c[1].includes("libs/small") && c[1].includes("--remote"))).toBe(
+        false,
+      );
+      expect(calls.some((c) => c[1][0] === "worktree" && c[1][1] === "add")).toBe(false);
+    });
+
+    it("a failed update names the submodule and reports git's fatal line", async () => {
+      setupTwoSubmodules();
+      mockRemoteUpdates({
+        "libs/small": {
+          code: 128,
+          stdout: "",
+          stderr:
+            "Cloning into '/repos/test-project/libs/small'...\n" +
+            "Receiving objects:  12% (3/25)\r" +
+            "fatal: repository 'https://example.test/small.git/' not found\n",
+        },
+      });
+
+      const error = await benchError();
+
+      expect(error).toContain("submodule 'libs/small'");
+      expect(error).toContain("fatal: repository 'https://example.test/small.git/' not found");
+      expect(error).not.toContain("Cloning into");
+    });
+
+    it("a stalled pull-latest fetch fails the bench and says it stalled", async () => {
+      setupCreateBenchMocks({ project: makeProject({ settings: SETTINGS_R1_ON_R2_ON }) });
+      setupProcessMocks();
+      vi.mocked(gitHelpers.resolveDefaultBranch).mockResolvedValue("main");
+      vi.mocked(execModule.runCommand).mockImplementation((_cmd, args) =>
+        Promise.resolve(
+          args[0] === "fetch"
+            ? { code: 1, stdout: "", stderr: "", idleTimedOut: true }
+            : { code: 0, stdout: "", stderr: "" },
+        ),
+      );
+
+      const error = await benchError();
+
+      expect(error).toContain("Fetching 'origin/main' made no progress for 60 seconds");
+    });
   });
 
   it("symbolic-ref failure when R1=on: marks sub-phase + workspace step error, no worktree left behind", async () => {

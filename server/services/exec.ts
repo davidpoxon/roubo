@@ -117,6 +117,14 @@ export interface RunCommandOptions {
    * remove the command's working directory without racing a live writer.
    */
   signal?: AbortSignal;
+  /**
+   * Kills the command, and everything it spawned, once it has written nothing
+   * to stdout or stderr for this long (#1438). Unlike `timeoutMs`, a command
+   * that keeps reporting progress runs for as long as it needs, so a long
+   * network transfer is stopped only when it stalls. Like an abort, this starts
+   * the command in its own process group on POSIX.
+   */
+  idleTimeoutMs?: number;
 }
 
 export interface RunCommandResult {
@@ -125,6 +133,8 @@ export interface RunCommandResult {
   stderr: string;
   /** Present and `true` only when the command was stopped by its abort signal. */
   aborted?: boolean;
+  /** Present and `true` only when the command was stopped by `idleTimeoutMs`. */
+  idleTimedOut?: boolean;
 }
 
 export function runCommand(
@@ -136,7 +146,8 @@ export function runCommand(
   stdin?: string,
   options: RunCommandOptions = {},
 ): Promise<RunCommandResult> {
-  const { signal } = options;
+  const { signal, idleTimeoutMs } = options;
+  const idleLimited = idleTimeoutMs !== undefined && idleTimeoutMs > 0;
   if (signal?.aborted) {
     return Promise.resolve({ code: 1, stdout: "", stderr: "Aborted", aborted: true });
   }
@@ -146,14 +157,14 @@ export function runCommand(
   // value into a new path expression that CodeQL flags at the spawn site
   // (js/path-injection) without actually narrowing the trust boundary.
   return new Promise((resolve) => {
-    // A new process group lets an abort reach the command's own children. Only
-    // when abortable, so every other caller's spawn stays exactly as before.
-    const ownGroup = signal !== undefined && process.platform !== "win32";
+    // A new process group lets an abort or an idle kill reach the command's own
+    // children. Only then, so every other caller's spawn stays exactly as before.
+    const ownGroup = (signal !== undefined || idleLimited) && process.platform !== "win32";
     const proc = spawn(cmd, args, {
       cwd,
       env: { ...cleanEnv(), ...env },
       stdio: [stdin !== undefined ? "pipe" : "ignore", "pipe", "pipe"],
-      ...(signal !== undefined ? { detached: ownGroup } : {}),
+      ...(signal !== undefined || idleLimited ? { detached: ownGroup } : {}),
     });
 
     let aborted = false;
@@ -166,16 +177,37 @@ export function runCommand(
         // The group already exited between the abort and the kill.
       }
     };
+    const stopGroup = () => {
+      signalGroup("SIGTERM");
+      killTimer ??= setTimeout(() => signalGroup("SIGKILL"), ABORT_KILL_GRACE_MS);
+    };
     const onAbort = () => {
       aborted = true;
-      signalGroup("SIGTERM");
-      killTimer = setTimeout(() => signalGroup("SIGKILL"), ABORT_KILL_GRACE_MS);
+      stopGroup();
     };
     signal?.addEventListener("abort", onAbort, { once: true });
+
+    let idleTimedOut = false;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    const armIdleTimer = () => {
+      if (!idleLimited || idleTimedOut) return;
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        idleTimedOut = true;
+        stopGroup();
+      }, idleTimeoutMs);
+    };
+    armIdleTimer();
+
     const settle = (result: RunCommandResult) => {
       if (killTimer) clearTimeout(killTimer);
+      if (idleTimer) clearTimeout(idleTimer);
       signal?.removeEventListener("abort", onAbort);
-      resolve(aborted ? { ...result, aborted: true } : result);
+      resolve({
+        ...result,
+        ...(aborted ? { aborted: true } : {}),
+        ...(idleTimedOut ? { idleTimedOut: true } : {}),
+      });
     };
 
     if (stdin !== undefined && proc.stdin) {
@@ -203,14 +235,19 @@ export function runCommand(
     });
     proc.stdout?.on("data", (d) => {
       stdout += d.toString();
+      armIdleTimer();
     });
     proc.stderr?.on("data", (d) => {
       stderr += d.toString();
+      armIdleTimer();
     });
     proc.on("close", (code) => {
       if (timer) clearTimeout(timer);
       if (timedOut) {
         stderr += `\nProcess timed out after ${timeoutMs}ms`;
+      }
+      if (idleTimedOut) {
+        stderr += `\nProcess produced no output for ${idleTimeoutMs}ms`;
       }
       settle({ code: code ?? 1, stdout, stderr });
     });
