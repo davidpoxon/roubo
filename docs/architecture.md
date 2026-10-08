@@ -47,7 +47,7 @@ A terminal session file outlives the server. After a restart the session comes b
 When you register a project by pointing Roubo at its repo path, Roubo:
 
 1. Reads `.roubo/roubo.yaml` from the repo.
-2. Validates it against [`schema/roubo-config.schema.json`](../schema/roubo-config.schema.json) using AJV.
+2. Validates it against the zod `RouboConfigSchema` in `shared/config-schema.ts`. [`schema/roubo-config.schema.json`](../schema/roubo-config.schema.json) is the JSON Schema mirror for editors.
 3. Checks the project's port bases against every other registered project. If a base conflicts, registration fails with a clear error showing the conflict.
 4. Writes the project into `~/.roubo/projects.json`.
 

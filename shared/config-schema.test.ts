@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
+import * as YAML from "yaml";
 import {
   RouboConfigSchema,
+  BenchesConfigSchema,
   ProjectConfigSchema,
   IntegrationOverrideSchema,
   SourceEntrySchema,
@@ -1182,5 +1185,44 @@ describe("layout.submoduleInit (#1434)", () => {
       layout: { ...metaLayout, submoduleInit: { dissociate: true } as never },
     });
     expect(RouboConfigSchema.safeParse(config).success).toBe(false);
+  });
+});
+
+// #1436: docs/configuration.md and the hand-authored JSON Schema kept
+// `benches.autoClear` after #498 removed it from the zod schema, so a
+// roubo.yaml copied from the docs failed validation. These pin all three
+// sources of the `benches` section to the same key set.
+describe("benches section agreement (#1436)", () => {
+  const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
+  const zodKeys = Object.keys(BenchesConfigSchema.shape).sort();
+
+  // The docs section runs from its heading to the next horizontal rule.
+  const docsSection = (() => {
+    const docs = read("../docs/configuration.md");
+    const start = docs.indexOf("## `benches` (required)");
+    expect(start).toBeGreaterThan(-1);
+    const end = docs.indexOf("\n---\n", start);
+    return docs.slice(start, end === -1 ? undefined : end);
+  })();
+
+  it("the JSON Schema declares exactly the zod keys", () => {
+    const schema = JSON.parse(read("../schema/roubo-config.schema.json"));
+    expect(Object.keys(schema.properties.benches.properties).sort()).toEqual(zodKeys);
+  });
+
+  it("the docs field table lists exactly the zod keys", () => {
+    const rows = [...docsSection.matchAll(/^\| `([A-Za-z]+)` +\|/gm)].map((m) => m[1]);
+    expect(rows.sort()).toEqual(zodKeys);
+  });
+
+  it("the docs example parses", () => {
+    const example = /```yaml\n([\s\S]*?)```/.exec(docsSection)?.[1];
+    expect(example).toBeDefined();
+    const parsed = YAML.parse(example ?? "") as { benches: unknown };
+    expect(BenchesConfigSchema.safeParse(parsed.benches).error).toBeUndefined();
+  });
+
+  it("rejects the removed autoClear key", () => {
+    expect(BenchesConfigSchema.safeParse({ max: 1, autoClear: true }).success).toBe(false);
   });
 });
