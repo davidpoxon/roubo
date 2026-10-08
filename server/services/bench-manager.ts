@@ -504,16 +504,30 @@ async function findMainCheckoutSubmoduleStore(
  * assignment switches a bench to a branch that already exists (#1437), whose
  * gitlinks can differ from the ones checked out. `submodulePaths` are the
  * workspace's `.gitmodules` paths. Returns undefined when `signal` aborted the
- * update part way; a failed update is reported, not thrown.
+ * update part way, or `stopped` reported the bench gone; a failed update is
+ * reported, not thrown. Git's own credential prompt is always off, with or
+ * without a signal: a prompt from a server process would wait for input
+ * nobody can give.
  */
 export async function updateWorkspaceSubmodules(
   repoPath: string,
   workspacePath: string,
   submodulePaths: string[],
   submoduleInit: RouboConfig["layout"]["submoduleInit"],
-  ctx: { benchId: number; signal?: AbortSignal },
+  ctx: { benchId: number; signal?: AbortSignal; stopped?: () => boolean },
 ): Promise<{ ok: boolean; stderr: string } | undefined> {
   const { signal } = ctx;
+  const halted = () => signal?.aborted === true || ctx.stopped?.() === true;
+  const git = (args: string[]) =>
+    runCommand(
+      "git",
+      args,
+      workspacePath,
+      ABORTABLE_GIT_ENV,
+      undefined,
+      undefined,
+      signal ? { signal } : {},
+    );
   const { reuseMainCheckout, jobs } = submoduleInit ?? {};
   if (reuseMainCheckout) {
     // Borrow objects from the main checkout's store for each submodule, so the
@@ -522,14 +536,18 @@ export async function updateWorkspaceSubmodules(
     // the recursive update below clones that submodule normally.
     for (const submodulePath of submodulePaths) {
       const store = await findMainCheckoutSubmoduleStore(repoPath, submodulePath, signal);
-      if (signal?.aborted) return undefined;
+      if (halted()) return undefined;
       if (!store) continue;
-      const refResult = await execGit(
-        ["submodule", "update", "--init", "--reference", store, "--", submodulePath],
-        workspacePath,
-        signal,
-      );
-      if (signal?.aborted) return undefined;
+      const refResult = await git([
+        "submodule",
+        "update",
+        "--init",
+        "--reference",
+        store,
+        "--",
+        submodulePath,
+      ]);
+      if (halted()) return undefined;
       if (refResult.code !== 0) {
         console.warn(
           `[bench-manager] Could not borrow objects for submodule '${submodulePath}' ` +
@@ -541,19 +559,15 @@ export async function updateWorkspaceSubmodules(
 
   // Checks out what the loop above initialised, and clones the rest and any
   // nested submodules.
-  const subResult = await execGit(
-    [
-      "submodule",
-      "update",
-      "--init",
-      "--recursive",
-      // Passed whenever set, 1 included: unset, git uses submodule.fetchJobs.
-      ...(jobs !== undefined ? ["--jobs", String(jobs)] : []),
-    ],
-    workspacePath,
-    signal,
-  );
-  if (signal?.aborted) return undefined;
+  const subResult = await git([
+    "submodule",
+    "update",
+    "--init",
+    "--recursive",
+    // Passed whenever set, 1 included: unset, git uses submodule.fetchJobs.
+    ...(jobs !== undefined ? ["--jobs", String(jobs)] : []),
+  ]);
+  if (halted()) return undefined;
   return { ok: subResult.code === 0, stderr: subResult.stderr };
 }
 
@@ -1453,7 +1467,7 @@ async function runWorktreeProvisioning(
         bench.workspacePath,
         Object.values(parsedMap).map((entry) => entry.path),
         config.layout.submoduleInit,
-        { benchId: bench.id, signal },
+        { benchId: bench.id, signal, stopped },
       );
       if (!subResult || stopped()) return;
       if (!subResult.ok) {

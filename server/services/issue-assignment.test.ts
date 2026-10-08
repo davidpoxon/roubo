@@ -333,11 +333,20 @@ describe("assignIssue", () => {
         },
       },
     };
-    const branchExists = () =>
-      vi
-        .mocked(runCommand)
-        .mockResolvedValueOnce({ code: 1, stdout: "", stderr: "already exists" })
-        .mockResolvedValueOnce({ code: 0, stdout: "", stderr: "" });
+    // The branch already exists, so `checkout -b` fails and `checkout` switches.
+    // Each `rev-parse HEAD` answers with the next of `heads`.
+    const branchExists = (heads: string[] = ["aaa111", "bbb222"]) => {
+      const queue = [...heads];
+      vi.mocked(runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse") return { code: 0, stdout: `${queue.shift()}\n`, stderr: "" };
+        if (args[1] === "-b") return { code: 1, stdout: "", stderr: "already exists" };
+        return { code: 0, stdout: "", stderr: "" };
+      });
+    };
+
+    afterEach(() => {
+      vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    });
 
     it("updates a meta-repo's submodules from the switched-to branch's .gitmodules", async () => {
       vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
@@ -367,6 +376,17 @@ describe("assignIssue", () => {
         { reuseMainCheckout: true, jobs: 2 },
         { benchId: 1 },
       );
+    });
+
+    it("leaves the submodules alone when the bench is already on the branch", async () => {
+      vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+      vi.mocked(projectRegistry.getProject).mockReturnValue(metaProject as any);
+      branchExists(["aaa111", "aaa111"]);
+      mockAgentSession("term-same");
+
+      await assignIssue("project1", 1, githubIssue(), []);
+
+      expect(benchManager.updateWorkspaceSubmodules).not.toHaveBeenCalled();
     });
 
     it("runs no submodule update on a new branch, whose gitlinks match HEAD", async () => {
