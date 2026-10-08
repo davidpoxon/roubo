@@ -844,8 +844,9 @@ export function getLiveBenchIds(projectId: string): number[] {
  * Drop every in-memory bench entry for a project and return how many were removed.
  * Called on `unregisterProject`'s force path: the map is what `readGlobalBenchCap`
  * measures (`benches.size`), so entries left behind keep consuming global-cap slots
- * until the app restarts (#1204). Map-entry removal only, matching the force
- * path's existing no-filesystem-cleanup contract; it does not tear down components.
+ * until the app restarts (#1204). Map-entry removal only: the force path removes
+ * the workspaces first, through removeProjectBenchWorkspaces. It does not tear
+ * down components (#1441).
  */
 export function dropProjectBenches(projectId: string): number {
   let removed = 0;
@@ -857,6 +858,71 @@ export function dropProjectBenches(projectId: string): number {
     }
   }
   return removed;
+}
+
+/**
+ * Removes the workspace and git's admin dir of every bench of a project that is
+ * being force-unregistered (#1435). Called before the bench records are dropped,
+ * because afterwards Roubo no longer knows the project and nothing would remove
+ * them. The targets are the union of the in-memory benches and `persisted`, by id.
+ *
+ * In-flight provisioning is aborted and awaited first, as in teardown, so a
+ * `worktree add` or `submodule update` cannot recreate what is removed. Removal is
+ * not strict: the project is going away, so a worktree git refuses to remove is
+ * removed by hand. A dirty workspace is removed too. Bench branches are kept, so
+ * committed work survives.
+ *
+ * When `repoPath` is missing, nothing is removed: without the repo the worktrees
+ * cannot be removed through git. Each workspace path is logged instead.
+ *
+ * Returns the workspace paths that are still on disk.
+ */
+export async function removeProjectBenchWorkspaces(
+  projectId: string,
+  repoPath: string,
+  persisted: { id: number; workspacePath: string }[],
+): Promise<{ leftovers: string[] }> {
+  const targets = new Map<number, string>();
+  for (const record of persisted) targets.set(record.id, record.workspacePath);
+  const provisioning: Promise<void>[] = [];
+  for (const [key, bench] of benches) {
+    if (bench.projectId !== projectId) continue;
+    targets.set(bench.id, bench.workspacePath);
+    provisioningAborts.get(key)?.abort();
+    const ready = workspaceReady.get(key);
+    if (ready) provisioning.push(settleWithin(ready, PROVISIONING_STOP_WAIT_MS));
+  }
+  await Promise.all(provisioning);
+
+  const leftovers: string[] = [];
+  if (!fs.existsSync(repoPath)) {
+    for (const [benchId, workspacePath] of targets) {
+      console.warn(
+        `[bench-manager] Force unregister of '${projectId}': repository ${repoPath} is ` +
+          `missing, so bench ${benchId}'s workspace ${workspacePath} and its git admin ` +
+          `dir stay on disk`,
+      );
+      leftovers.push(workspacePath);
+    }
+    return { leftovers };
+  }
+
+  // One at a time: every removal takes the same repository's git lock.
+  for (const [benchId, workspacePath] of targets) {
+    const { leftoverReason } = await removeBenchWorktree(repoPath, workspacePath, {
+      benchId,
+      strict: false,
+      label: "Force unregister",
+    });
+    if (leftoverReason !== undefined) {
+      console.warn(
+        `[bench-manager] Force unregister of '${projectId}': bench ${benchId}'s ` +
+          `workspace ${workspacePath} stays on disk: ${leftoverReason}`,
+      );
+      leftovers.push(workspacePath);
+    }
+  }
+  return { leftovers };
 }
 
 export interface CreateBenchOptions {

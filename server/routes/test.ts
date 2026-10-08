@@ -1465,7 +1465,7 @@ function gitInitFixtureRepo(repoPath: string): void {
   run(["commit", "--no-gpg-sign", "-m", "chore: seed e2e fixture repo"]);
 }
 
-router.post("/__register-fixture-project", (req: Request, res: Response) => {
+router.post("/__register-fixture-project", async (req: Request, res: Response) => {
   if (process.env.ROUBO_E2E !== "1") {
     return res.status(404).end();
   }
@@ -1584,7 +1584,7 @@ router.post("/__register-fixture-project", (req: Request, res: Response) => {
     // projects.json row; removeOverride / rmSync are no-ops if the step
     // that would have written them never ran.
     try {
-      projectRegistry.unregisterProject(projectId, { force: true });
+      await projectRegistry.unregisterProject(projectId, { force: true });
     } catch {
       // Either the project was never registered, or it has benches we won't
       // create from this route: either way, nothing to do here.

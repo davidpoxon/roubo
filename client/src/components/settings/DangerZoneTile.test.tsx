@@ -496,6 +496,20 @@ describe("DangerZoneTile", () => {
     expect(screen.queryByText(/will stop being monitored/)).not.toBeInTheDocument();
   });
 
+  it("warns that a forced unregister deletes the workspaces, and stops listing them as untouched (#1435)", async () => {
+    setupErroredProject([makeBench(), makeBench({ id: 2 })]);
+    const user = userEvent.setup();
+    render(<DangerZoneTile projectId="proj-1" />);
+    await user.click(screen.getByRole("button", { name: "Unregister" }));
+    const dialog = screen.getByRole("dialog");
+    expect(screen.getByTestId("force-unregister-note")).toHaveTextContent(
+      /delete each workspace, uncommitted changes included/,
+    );
+    expect(within(dialog).getByText("Branches")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Existing worktrees (benches)")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Git state")).not.toBeInTheDocument();
+  });
+
   it("calls mutate with force=true when confirming an errored project with benches", async () => {
     setupErroredProject([makeBench(), makeBench({ id: 2 })]);
     const user = userEvent.setup();
@@ -561,6 +575,10 @@ describe("DangerZoneTile", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     const note = screen.getByTestId("persisted-bench-force-note");
     expect(note).toHaveTextContent(/1 persisted bench record/);
+    expect(note).toHaveTextContent(/delete its workspace with any uncommitted changes/);
+    expect(
+      within(screen.getByRole("dialog")).queryByText("Existing worktrees (benches)"),
+    ).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Force unregister" }),
     ).toBeInTheDocument();

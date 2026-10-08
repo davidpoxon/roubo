@@ -35,6 +35,15 @@ export function onProjectConfigLoaded(cb: ConfigLoadedListener): void {
 export interface LiveBenchSource {
   listBenchIds(projectId: string): number[];
   dropBenches(projectId: string): number;
+  /**
+   * Removes each bench's workspace and git admin dir on the force path (#1435),
+   * or logs what stays when `repoPath` is missing. Returns the paths still on disk.
+   */
+  removeWorkspaces(
+    projectId: string,
+    repoPath: string,
+    persisted: { id: number; workspacePath: string }[],
+  ): Promise<{ leftovers: string[] }>;
 }
 
 let liveBenchSource: LiveBenchSource | null = null;
@@ -224,7 +233,10 @@ export function registerProject(repoPath: string): RegisteredProject {
   return project;
 }
 
-export function unregisterProject(projectId: string, opts: { force?: boolean } = {}) {
+export async function unregisterProject(
+  projectId: string,
+  opts: { force?: boolean } = {},
+): Promise<void> {
   const project = projects.get(projectId);
   if (!project) {
     throw new ProjectRegistryError(`Project '${projectId}' not found`, "NOT_FOUND");
@@ -247,9 +259,12 @@ export function unregisterProject(projectId: string, opts: { force?: boolean } =
         { benchCount: activeIds.length, benchIds: activeIds },
       );
     }
-    // Force path: drop bench records from state.json. No filesystem cleanup:
-    // worktree dirs may not exist (folder was deleted) and we can't safely act
-    // on a missing repo.
+    // Force path. Remove each bench's workspace and git admin dir first, while
+    // the records still say where they are: once they are dropped, Roubo no
+    // longer knows the project and nothing removes them (#1435). When the repo
+    // is missing nothing can be removed through git, so the paths are logged and
+    // stay on disk. Then drop the bench records from state.json.
+    await liveBenchSource?.removeWorkspaces(projectId, project.repoPath, benches);
     for (const bench of benches) {
       state.removeBench(projectId, bench.id);
     }

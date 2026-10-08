@@ -355,10 +355,10 @@ router.post("/:projectId/reload-config", (req, res) => {
   }
 });
 
-router.delete("/:projectId", (req, res) => {
+router.delete("/:projectId", async (req, res) => {
   try {
     const force = req.query.force === "true" || req.query.force === "1";
-    projectRegistry.unregisterProject(req.params.projectId, { force });
+    await projectRegistry.unregisterProject(req.params.projectId, { force });
     res.status(204).send();
   } catch (err) {
     if (err instanceof ProjectRegistryError) {
