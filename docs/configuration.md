@@ -89,6 +89,8 @@ layout:
 
 With `reuseMainCheckout`, a bench downloads no objects that the main checkout already has. Git still asks each remote for its list of refs, so the remotes must be reachable. A submodule that the main checkout has not cloned, and every nested submodule, is cloned from its remote as before. With **Pull latest** on (the default), Roubo updates the main checkout's submodules before it creates a bench. The bench then usually finds the commits it needs there. Roubo stops that update only when a submodule makes no progress for 5 minutes, and the error names the submodule, so a large first clone runs for as long as it needs.
 
+These settings also apply when you assign an issue to a bench whose branch already exists. Roubo switches the bench to that branch, and then updates its submodules in the same way, because that branch can pin different submodule commits.
+
 Borrowed objects stay in the main checkout. A bench reads them from there for as long as the bench exists:
 
 - Do not delete or clone again the main checkout, or its submodule git dirs (usually under `.git/modules/`), while benches exist. Their submodules break.

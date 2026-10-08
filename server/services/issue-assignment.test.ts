@@ -14,6 +14,7 @@ vi.mock("./bench-manager.js", () => ({
   // primitives directly: those live behind createBench's background path.
   startAllComponents: vi.fn(),
   runComponentsInOrder: vi.fn(),
+  updateWorkspaceSubmodules: vi.fn().mockResolvedValue({ ok: true, stderr: "" }),
 }));
 
 vi.mock("./project-registry.js", () => ({
@@ -318,6 +319,130 @@ describe("assignIssue", () => {
       [],
     );
     expect(result.bench.branch).toBe("issue-10-test");
+  });
+
+  describe("submodules after a switch to an existing branch (#1437)", () => {
+    const metaProject = {
+      ...project,
+      config: {
+        ...project.config,
+        layout: {
+          type: "meta-repo" as const,
+          submodules: { api: "services/api" },
+          submoduleInit: { reuseMainCheckout: true, jobs: 2 },
+        },
+      },
+    };
+    // The branch already exists, so `checkout -b` fails and `checkout` switches.
+    // Each `rev-parse HEAD` answers with the next of `heads`.
+    const branchExists = (heads: string[] = ["aaa111", "bbb222"]) => {
+      const queue = [...heads];
+      vi.mocked(runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse") return { code: 0, stdout: `${queue.shift()}\n`, stderr: "" };
+        if (args[1] === "-b") return { code: 1, stdout: "", stderr: "already exists" };
+        return { code: 0, stdout: "", stderr: "" };
+      });
+    };
+
+    afterEach(() => {
+      vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    });
+
+    it("updates a meta-repo's submodules from the switched-to branch's .gitmodules", async () => {
+      vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+      vi.mocked(projectRegistry.getProject).mockReturnValue(metaProject as any);
+      branchExists();
+      vi.mocked(fs.existsSync).mockImplementation((p: unknown) => p === "/workspace/.gitmodules");
+      const readFile = vi
+        .spyOn(fs.promises, "readFile")
+        .mockResolvedValue(
+          '[submodule "api"]\n\tpath = services/api\n\turl = ../api\n' +
+            '[submodule "web"]\n\tpath = services/web\n\turl = ../web\n',
+        );
+      mockAgentSession("term-sub");
+
+      try {
+        await assignIssue("project1", 1, githubIssue(), []);
+        expect(readFile).toHaveBeenCalledWith("/workspace/.gitmodules", "utf-8");
+      } finally {
+        readFile.mockRestore();
+        vi.mocked(fs.existsSync).mockReturnValue(false);
+      }
+
+      expect(benchManager.updateWorkspaceSubmodules).toHaveBeenCalledWith(
+        "/repos/project",
+        "/workspace",
+        ["services/api", "services/web"],
+        { reuseMainCheckout: true, jobs: 2 },
+        { benchId: 1 },
+      );
+    });
+
+    it("leaves the submodules alone when the bench is already on the branch", async () => {
+      vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+      vi.mocked(projectRegistry.getProject).mockReturnValue(metaProject as any);
+      branchExists(["aaa111", "aaa111"]);
+      mockAgentSession("term-same");
+
+      await assignIssue("project1", 1, githubIssue(), []);
+
+      expect(benchManager.updateWorkspaceSubmodules).not.toHaveBeenCalled();
+    });
+
+    it("runs no submodule update on a new branch, whose gitlinks match HEAD", async () => {
+      vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+      vi.mocked(projectRegistry.getProject).mockReturnValue(metaProject as any);
+      vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+      mockAgentSession("term-new");
+
+      await assignIssue("project1", 1, githubIssue(), []);
+
+      expect(benchManager.updateWorkspaceSubmodules).not.toHaveBeenCalled();
+    });
+
+    it.each(["single-repo", "monorepo"] as const)(
+      "runs no extra command for a %s project",
+      async (type) => {
+        vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+        vi.mocked(projectRegistry.getProject).mockReturnValue({
+          ...project,
+          config: { ...project.config, layout: { type } },
+        } as any);
+        branchExists();
+        mockAgentSession("term-plain");
+
+        await assignIssue("project1", 1, githubIssue(), []);
+
+        expect(benchManager.updateWorkspaceSubmodules).not.toHaveBeenCalled();
+        expect(vi.mocked(runCommand).mock.calls.map((c) => c[1])).toEqual([
+          ["checkout", "-b", "issue-42-fix-login-bug"],
+          ["checkout", "issue-42-fix-login-bug"],
+        ]);
+      },
+    );
+
+    it("logs a failed submodule update and still assigns the issue", async () => {
+      vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
+      vi.mocked(projectRegistry.getProject).mockReturnValue(metaProject as any);
+      branchExists();
+      vi.mocked(benchManager.updateWorkspaceSubmodules).mockResolvedValueOnce({
+        ok: false,
+        stderr: "fatal: unable to fetch\n",
+      });
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockAgentSession("term-fail");
+
+      try {
+        const result = await assignIssue("project1", 1, githubIssue(), []);
+        expect(result.bench.branch).toBe("issue-42-fix-login-bug");
+        expect(result.terminalSessionId).toBe("term-fail");
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining("Could not update submodules for bench 1"),
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 
   it("throws when bench not found", async () => {

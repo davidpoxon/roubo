@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import type {
   AssignIssueResponse,
   CreateBenchWithIssueResponse,
@@ -20,6 +21,7 @@ import * as terminalService from "./terminal.js";
 import * as jigManager from "./jig-manager.js";
 import { buildTemplateContext } from "./config-parser.js";
 import { runCommand } from "./exec.js";
+import { parseGitmodulesWithBranch } from "./git-helpers.js";
 import { formatIssueBody, formatComments } from "./issue-formatting.js";
 import { ServiceError } from "./service-error.js";
 import { assertBenchOperable } from "./bench-operability.js";
@@ -265,6 +267,13 @@ async function buildAndStartAgentSession(
   return { sessionId: session.id };
 }
 
+/** The workspace's HEAD commit, or undefined when git cannot resolve it. */
+async function revParseHead(workspacePath: string): Promise<string | undefined> {
+  const result = await runCommand("git", ["rev-parse", "HEAD"], workspacePath);
+  const sha = result.stdout.trim();
+  return result.code === 0 && sha ? sha : undefined;
+}
+
 function slugify(text: string, maxLength = 40): string {
   return text
     .toLowerCase()
@@ -504,6 +513,13 @@ export async function assignIssue(
   // Branch name from the issue (preserves per-integration naming).
   const branchName = branchBaseForIssue(issue);
 
+  // `git checkout` leaves submodules where they were, and an existing branch
+  // can pin other commits (#1437), so a meta-repo notes HEAD to tell whether
+  // the checkout below moved it.
+  const { layout } = project.config;
+  const isMetaRepo = layout.type === "meta-repo" && !!layout.submodules;
+  const headBefore = isMetaRepo ? await revParseHead(bench.workspacePath) : undefined;
+
   // Create and checkout branch in worktree
   const checkoutResult = await runCommand(
     "git",
@@ -515,6 +531,34 @@ export async function assignIssue(
     const switchResult = await runCommand("git", ["checkout", branchName], bench.workspacePath);
     if (switchResult.code !== 0) {
       throw new ServiceError(422, `Failed to create/checkout branch: ${switchResult.stderr}`);
+    }
+    // A new branch starts from HEAD, so its gitlinks already match, and a
+    // bench already on this branch keeps its submodules where they are. Only a
+    // switch that moved HEAD updates them. A failure is logged and not fatal,
+    // as at provisioning.
+    const moved =
+      isMetaRepo &&
+      (headBefore === undefined || headBefore !== (await revParseHead(bench.workspacePath)));
+    if (moved) {
+      const gitmodulesPath = path.join(bench.workspacePath, ".gitmodules");
+      const submodulePaths = fs.existsSync(gitmodulesPath)
+        ? Object.values(
+            parseGitmodulesWithBranch(await fs.promises.readFile(gitmodulesPath, "utf-8")),
+          ).map((entry) => entry.path)
+        : [];
+      const subResult = await benchManager.updateWorkspaceSubmodules(
+        project.repoPath,
+        bench.workspacePath,
+        submodulePaths,
+        layout.submoduleInit,
+        { benchId },
+      );
+      if (subResult && !subResult.ok) {
+        console.warn(
+          `[issue-assignment] Could not update submodules for bench ${benchId} ` +
+            `on branch ${branchName}: ${subResult.stderr.trim()}`,
+        );
+      }
     }
   }
 
