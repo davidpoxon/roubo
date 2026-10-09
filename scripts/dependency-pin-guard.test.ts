@@ -269,3 +269,47 @@ describe("scanPins overrides (DependencyPinGuard)", () => {
     expect(findings[0].dependency).toBe("bar");
   });
 });
+
+describe("scanPins lockstep overrides (DependencyPinGuard)", () => {
+  // The electron workspace as Dependabot leaves it after a Forge bump: the
+  // declared pins moved, and the lock agrees with them.
+  function forgeTree(override: string, cli = "8.0.2") {
+    return scanPins(
+      { packages: { "": {}, electron: { devDependencies: { "@electron-forge/cli": cli } } } },
+      {
+        "": {
+          name: "roubo",
+          workspaces: ["electron"],
+          overrides: { "@electron-forge/maker-base": override },
+        },
+        electron: { name: "@roubo/electron", devDependencies: { "@electron-forge/cli": cli } },
+      },
+    );
+  }
+
+  it("accepts a Forge override that matches the declared Forge pins", () => {
+    expect(forgeTree("8.0.2")).toEqual([]);
+  });
+
+  it("flags a Forge override left behind by a pin bump", () => {
+    const findings = forgeTree("8.0.1");
+    expect(findings).toHaveLength(1);
+    expect(findings[0].dependency).toBe("@electron-forge/maker-base");
+    expect(findings[0].kind).toBe("overrides");
+    expect(findings[0].reason).toMatch(/'@electron-forge\/cli@8\.0\.2' in electron\/package\.json/);
+  });
+
+  it("leaves overrides outside a lockstep family alone", () => {
+    const findings = scanPins(
+      { packages: { "": {}, electron: { devDependencies: { "@electron-forge/cli": "8.0.2" } } } },
+      {
+        "": { name: "roubo", workspaces: ["electron"], overrides: { tmp: "0.2.7" } },
+        electron: {
+          name: "@roubo/electron",
+          devDependencies: { "@electron-forge/cli": "8.0.2" },
+        },
+      },
+    );
+    expect(findings).toEqual([]);
+  });
+});

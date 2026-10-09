@@ -180,7 +180,7 @@ npm ls --package-lock-only @electron-forge/maker-base --all
 # ├── @electron-forge/maker-base@8.0.1 invalid: "^6.0.0 || ^7.0.0" from node_modules/@reforged/maker-appimage
 ```
 
-**When you bump Forge, change the override in the same commit.** Remove it once `@reforged/maker-appimage` declares a range that admits the Forge version in use.
+**When you bump Forge, change the override in the same commit.** Dependabot moves the `@electron-forge/*` pins but never `overrides`, so `npm run lint:dep-pins` fails while the two differ. Remove the override once `@reforged/maker-appimage` declares a range that admits the Forge version in use.
 
 npm honours this override when it resolves a tree from scratch, but not always when it updates an existing lockfile. If an install leaves `node_modules/@reforged/maker-appimage/node_modules/@electron-forge/` in `package-lock.json`, delete the `node_modules/@reforged/` entries from the lockfile and run `npm install` again.
 

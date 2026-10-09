@@ -15,7 +15,7 @@
 // A guard that reads the two files and compares them is the only thing that
 // sees it.
 //
-// Two rules:
+// Three rules:
 //
 //   1. Unpinned spec. A dependency spec in any first-party `package.json`
 //      (root or workspace) that is not an exact `x.y.z`, directly or through
@@ -27,7 +27,12 @@
 //      dependency the lock omits, or one the lock carries that the manifest
 //      dropped. This is the Dependabot defect above.
 //
-// Both rules skip the repo's OWN workspace packages (`@roubo/shared`,
+//   3. Lockstep override skew. A root override on a package from a family
+//      that releases in lockstep (`@electron-forge/*`) carries a different
+//      version from the family's declared pins. Dependabot moves the pins and
+//      never the override.
+//
+// Rules 1 and 2 skip the repo's OWN workspace packages (`@roubo/shared`,
 // `@roubo/plugin-sdk`). Those are linked, not resolved from the registry, so
 // they are declared as `*` or `file:./shared` by design and can carry no
 // meaningful version pin. The exempt set is derived by reading each
@@ -55,6 +60,10 @@ const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 // `npm:@scope/pkg@1.2.3` passes, `npm:@scope/pkg@^1.2.3` and a bare
 // `npm:pkg` do not.
 const NPM_ALIAS = /^npm:((?:@[^/@]+\/)?[^/@]+)@(.+)$/;
+
+// Package families that publish every member at one version. An override on a
+// member must match the version the workspaces declare for the family (rule 3).
+const LOCKSTEP_FAMILIES = ["@electron-forge/"];
 
 /**
  * Whether a spec pins exactly one version, directly or through an npm alias.
@@ -202,6 +211,32 @@ export function scanPins(lock, manifests) {
         `override '${spec}' is not an exact version. An override is a pin like ` +
         "any other, and a range here defeats the point of overriding.",
     });
+  });
+
+  // Rule 3: an override on a package from a lockstep family must carry the
+  // version the workspaces declare for that family. Dependabot bumps the
+  // declared pins but never edits `overrides`, so without this the override
+  // keeps forcing the old version under the new one and nothing flags it.
+  walkOverrides(manifests[""]?.overrides ?? {}, [], (path, dependency, spec) => {
+    const family = LOCKSTEP_FAMILIES.find((prefix) => dependency.startsWith(prefix));
+    if (!family) return;
+    for (const [workspace, manifest] of Object.entries(manifests)) {
+      for (const kind of DEP_KINDS) {
+        for (const [declared, declaredSpec] of Object.entries(manifest[kind] ?? {})) {
+          if (!declared.startsWith(family) || declaredSpec === spec) continue;
+          findings.push({
+            file: "package.json",
+            dependency,
+            kind: path.length > 0 ? `overrides.${path.join(".")}` : "overrides",
+            reason:
+              `override '${spec}' differs from '${declared}@${declaredSpec}' in ` +
+              `${manifestPathFor(workspace)}. ${family}* packages release in ` +
+              "lockstep, so bump the override in the same commit as the pins.",
+          });
+          return;
+        }
+      }
+    }
   });
 
   return findings;
