@@ -218,7 +218,10 @@ export function scanPins(lock, manifests) {
   // declared pins but never edits `overrides`, so without this the override
   // keeps forcing the old version under the new one and nothing flags it.
   walkOverrides(manifests[""]?.overrides ?? {}, [], (path, dependency, spec) => {
-    const family = LOCKSTEP_FAMILIES.find((prefix) => dependency.startsWith(prefix));
+    // npm's self-override form (`{ name: { ".": "1.2.3" } }`) keys the
+    // version as ".", so the package is the enclosing override name.
+    const overridden = dependency === "." ? (path.at(-1) ?? "") : dependency;
+    const family = LOCKSTEP_FAMILIES.find((prefix) => overridden.startsWith(prefix));
     if (!family) return;
     for (const [workspace, manifest] of Object.entries(manifests)) {
       for (const kind of DEP_KINDS) {

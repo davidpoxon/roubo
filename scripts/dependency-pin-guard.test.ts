@@ -299,6 +299,25 @@ describe("scanPins lockstep overrides (DependencyPinGuard)", () => {
     expect(findings[0].reason).toMatch(/'@electron-forge\/cli@8\.0\.2' in electron\/package\.json/);
   });
 
+  it("flags a stale Forge override written in npm's self-override form", () => {
+    const findings = scanPins(
+      { packages: { "": {}, electron: { devDependencies: { "@electron-forge/cli": "8.0.2" } } } },
+      {
+        "": {
+          name: "roubo",
+          workspaces: ["electron"],
+          overrides: { "@electron-forge/maker-base": { ".": "8.0.1" } },
+        },
+        electron: {
+          name: "@roubo/electron",
+          devDependencies: { "@electron-forge/cli": "8.0.2" },
+        },
+      },
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].kind).toBe("overrides.@electron-forge/maker-base");
+  });
+
   it("leaves overrides outside a lockstep family alone", () => {
     const findings = scanPins(
       { packages: { "": {}, electron: { devDependencies: { "@electron-forge/cli": "8.0.2" } } } },
