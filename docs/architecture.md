@@ -77,7 +77,7 @@ When a bench is set up, Roubo creates a git worktree at:
 
 This is a real git worktree, not a copy. You can `cd` into it, edit files, run `git status`, push, and pull as normal. Roubo just owns its lifecycle: it creates the worktree on **Set up bench** and removes it on **Clear bench**.
 
-For meta-repos (a parent repo that holds submodules pointing at sub-repos), Roubo also initialises the submodules during setup. The `layout` section of `roubo.yaml` controls this. When you assign an issue to a bench and its branch already exists, Roubo switches the bench to that branch and then updates the submodules to the commits that the branch pins.
+For meta-repos (a parent repo that holds submodules pointing at sub-repos), Roubo also initialises the submodules during setup. The `layout` section of `roubo.yaml` controls this. With **Pull latest** on, Roubo first updates the main checkout's submodules, and stops that update only when a submodule makes no progress for 5 minutes. When you assign an issue to a bench and its branch already exists, Roubo switches the bench to that branch. Roubo then updates the submodules to the commits that the branch pins.
 
 ### Setup sequence
 
@@ -86,7 +86,7 @@ When you click **Set up bench**, Roubo runs the following in order:
 1. Claim the next bench number.
 2. Compute and allocate ports for every component.
 3. Create the git worktree.
-4. Initialise submodules (meta-repos only).
+4. Initialise submodules (meta-repos only). By default, a bench clones each submodule from its remote. With [`layout.submoduleInit`](./configuration.md#layoutsubmoduleinit-optional-meta-repo-only), a bench borrows objects from the main checkout instead.
 5. Run `benches.setup` if defined (typically `npm ci` or similar workspace-wide setup). The command is executed through the user's login shell, so `&&` chaining, redirection, and pipes all work. On zsh the shell is started interactively as well, so `~/.zshrc` loads and version managers such as `nvm`, `fnm`, and `asdf` resolve. On bash and other shells only the login profile files load (`~/.bash_profile`, `~/.profile`, not `~/.bashrc`), so a version-manager snippet installed into `~/.bashrc` must be moved into the profile file to resolve here.
 
 When you click **Start**, Roubo starts each component in dependency order (declared via `dependsOn`):
