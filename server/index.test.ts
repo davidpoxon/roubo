@@ -87,7 +87,7 @@ vi.mock("./services/github.js", () => ({
 import * as benchManager from "./services/bench-manager.js";
 import { startServer } from "./index.js";
 
-describe.sequential("startServer", () => {
+describe("startServer", () => {
   beforeEach(() => {
     // startServer's bootstrap log/warn/error lines are noise during tests.
     vi.spyOn(console, "log").mockImplementation(() => {});
