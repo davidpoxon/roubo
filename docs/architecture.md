@@ -86,7 +86,7 @@ When you click **Set up bench**, Roubo runs the following in order:
 1. Claim the next bench number.
 2. Compute and allocate ports for every component.
 3. Create the git worktree.
-4. Initialise submodules (meta-repos only). By default, a bench clones each submodule from its remote. With [`layout.submoduleInit`](./configuration.md#layoutsubmoduleinit-optional-meta-repo-only), a bench borrows objects from the main checkout instead.
+4. Initialise submodules (meta-repos only). By default, a bench clones each submodule from its remote. With [`layout.submoduleInit.reuseMainCheckout`](./configuration.md#layoutsubmoduleinit-optional-meta-repo-only), a bench borrows objects from the main checkout's clone of each submodule.
 5. Run `benches.setup` if defined (typically `npm ci` or similar workspace-wide setup). The command is executed through the user's login shell, so `&&` chaining, redirection, and pipes all work. On zsh the shell is started interactively as well, so `~/.zshrc` loads and version managers such as `nvm`, `fnm`, and `asdf` resolve. On bash and other shells only the login profile files load (`~/.bash_profile`, `~/.profile`, not `~/.bashrc`), so a version-manager snippet installed into `~/.bashrc` must be moved into the profile file to resolve here.
 
 When you click **Start**, Roubo starts each component in dependency order (declared via `dependsOn`):
