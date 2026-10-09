@@ -90,7 +90,7 @@
     "@vitejs/plugin-react": "6.1.1",
     "@vitest/coverage-v8": "5.0.0",
     "axe-core": "4.13.0",
-    "concurrently": "10.0.5",
+    "concurrently": "10.0.6",
     "cross-env": "10.1.0",
     "eslint": "10.10.0",
     "eslint-config-prettier": "10.1.8",
@@ -108,10 +108,8 @@
     "vitest-axe": "0.1.0"
   },
   "overrides": {
-    "tar": "7.5.22",
     "tmp": "0.2.7",
-    "extract-zip": "npm:@electron-internal/extract-zip@1.0.5",
-    "@electron/rebuild": "4.2.0",
+    "@electron-forge/maker-base": "8.0.1",
     "protobufjs": "7.6.5",
     "esbuild": "0.28.1",
     "postcss": "8.5.25",

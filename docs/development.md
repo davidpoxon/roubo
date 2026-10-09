@@ -138,7 +138,7 @@ This is an npm-workspaces monorepo. The `shared/` workspace exports types as `@r
 | Server           | Express 5, TypeScript, dockerode, tsx                 |
 | Client           | React 19, Vite, Tailwind CSS 4, React Aria Components |
 | Data fetching    | TanStack React Query (5s polling for live state)      |
-| Desktop wrapper  | Electron 38 + electron-forge                          |
+| Desktop wrapper  | Electron 44 + Electron Forge 8                        |
 | Persistent state | `~/.roubo/` (JSON files)                              |
 | Project config   | `roubo.yaml`, validated with JSON Schema + AJV        |
 | Tests            | Vitest, Testing Library, supertest, jsdom             |
@@ -169,39 +169,26 @@ Internally, `electron:make` performs a nested `npm install` inside `electron/` b
 
 For **signed, notarized release builds** and the full release checklist (including the GitHub Actions workflow, code signing certificates, and notarization), see [releasing.md](./releasing.md).
 
-### `@electron/rebuild` is pinned twice, deliberately
+### `@electron-forge/maker-base` is overridden for the AppImage maker
 
-`@electron/rebuild` is pinned in two places that must always carry the **same exact version**: the root `package.json` `overrides` block and `electron/package.json` `devDependencies`.
+The root `package.json` `overrides` block pins `@electron-forge/maker-base` to the same exact version as the `@electron-forge/*` packages in `electron/package.json`. `@reforged/maker-appimage@5.3.1`, its latest release, still declares `@electron-forge/maker-base: ^6.0.0 || ^7.0.0`. Without the override, npm nests a second, Forge 7 copy of `maker-base` under it, and that copy brings back `@electron/packager@18`, `@electron/get@3`, `extract-zip@2`, and `@electron/rebuild@3` with their open advisories. The maker is ESM and only imports `{ MakerBase }`, which Forge 8 still exports.
 
-The override exists to keep `@electron/rebuild` 3.x out of the tree. `@electron-forge/core`, `core-utils`, and `shared-types` (all 7.11.2) declare `@electron/rebuild: ^3.7.0`, and 3.7.x drags in `got@^11`, `ora@^5`, `fs-extra@^10`, `tar@^6.0.5`, and `@electron/node-gyp` from a raw git URL. Silencing that npm warning noise is why the override was added (#306, alongside `.npmrc`'s `engine-strict` and `strict-peer-deps`). It also keeps a real conflict hypothetical: the same `overrides` block pins `tar: "7.5.22"`, which would be forced into a package declaring `tar@^6`. Version 4.x carries none of that: its dependencies are `@malept/cross-spawn-promise`, `debug`, `node-abi`, `node-api-version`, `node-gyp`, and `read-binary-file-arch`, with no `tar` and no git-URL dependency.
-
-Forge 7.11.2 works against 4.x despite its `^3.7.0` range. Forge touches exactly one entry point, `rebuild(options)` in `@electron-forge/core-utils/dist/remote-rebuild.js`, and reads `.lifecycle` off the returned promise; 4.2.0 still provides both. 4.x is ESM-only, so the `require()` in that file resolves only on Node 22.12 or newer, which the repo's `engines` pin (>= 24.14.0) guarantees. Upstream is moving the same way: `@electron-forge/core-utils@8.0.0-alpha.10` declares `@electron/rebuild: ^4.0.1`.
-
-So one warning is a known, accepted state and must not be "fixed":
+So one warning is a known, accepted state:
 
 ```bash
-npm ls --package-lock-only @electron/rebuild --all
-# └── @electron/rebuild@4.2.0 invalid: "^3.7.0" from node_modules/@electron-forge/shared-types
-# npm error code ELSPROBLEMS
+npm ls --package-lock-only @electron-forge/maker-base --all
+# ├── @electron-forge/maker-base@8.0.1 invalid: "^6.0.0 || ^7.0.0" from node_modules/@reforged/maker-appimage
 ```
 
-A single installed copy at the pinned version is the correct tree. The `invalid` line is forge 7.11.2's stale range and clears only when forge 8 ships.
+**When you bump Forge, change the override in the same commit.** Dependabot moves the `@electron-forge/*` pins but never `overrides`, so `npm run lint:dep-pins` fails while the two differ. Remove the override once `@reforged/maker-appimage` declares a range that admits the Forge version in use.
 
-**If you bump `@electron/rebuild` by hand, change both files in the same commit.** Dependabot moved them together through #1129, then #1168 raised only `electron/package.json` to 4.2.0 and left the root override at 4.1.0, which is what put two copies of the package in the lockfile (#1180).
+npm honours this override when it resolves a tree from scratch, but not always when it updates an existing lockfile. If an install leaves `node_modules/@reforged/maker-appimage/node_modules/@electron-forge/` in `package-lock.json`, delete the `node_modules/@reforged/` entries from the lockfile and run `npm install` again.
 
-Nothing currently catches a repeat. `.github/workflows/dependabot-auto-merge.yml` approves and auto-merges every `dependabot[bot]` PR with no human gate, and no CI check compares the two declarations, so the next automated bump can reintroduce the split without anyone seeing it.
+### `image-size` stays on 0.7.5
 
-### `extract-zip` stays on 2.0.1 until Forge 8
+`image-size@0.7.5` sits in the dev tree and carries GHSA-w3rx-r6r6-pgpr, a denial of service in the ICNS parser (high). It reaches the tree through one edge: `@electron-forge/maker-dmg` to `electron-installer-dmg@5.0.1` (optional) to `appdmg@0.6.6`, which declares `image-size@^0.7.4`. The first patched release is 2.0.3, but 2.x drops the `sizeOf(path, callback)` call that `appdmg` makes on the DMG background image, and `electron-installer-dmg` always supplies a background. An `overrides` entry would therefore break `.dmg` packaging.
 
-`extract-zip@2.0.1` sits in the dev tree and carries GHSA-jmr9-qjv8-65gv, an unvalidated symlink path traversal (Dependabot alert 81, high, #1208). It has no fixed release, so the only route out is the dependent. It reaches the tree through exactly one edge: the `electron` workspace, via `@electron-forge/{cli,shared-types}@7.11.2` to `@electron/packager@18.4.4`, which declares `extract-zip@^2.0.0`. `@electron/packager@20.0.1` replaced it with `@electron-internal/extract-zip`, the maintained Electron fork already in the tree for `electron` itself.
-
-**Do not add an `overrides` entry forcing `@electron/packager` to 20.x.** It resolves cleanly, `forge.config.ts` typechecks against the 20.x types, and every PR check passes, but it breaks `electron-forge make`. Packager 20 changed `HookFunction` to take a single `HookFunctionArgs` object and dropped callback-style hooks, so `dist/hooks.js` calls `hook(opts)`. `@electron-forge/core@7.11.2` still emits the positional form `(buildPath, electronVersion, platform, arch, done)` from `sequentialHooks` in `dist/api/package.js`, and its own source marks that shim `@deprecated Only use until @electron/packager publishes a new major version with promise based hooks`. Under the override `buildPath` binds to the options object. The chain's first hook only signals progress, but the second calls `path.join(buildPath, '**/.bin/**/*')` and throws `ERR_INVALID_ARG_TYPE`, and `sequentialHooks` abandons the chain on the first hook that throws. Everything after it is skipped: the `packageAfterCopy` Forge hooks, `listrCompatibleRebuildHook`, which is what rebuilds `node-pty` against the Electron ABI, and the mutation of the copied `package.json`.
-
-Nothing in PR CI catches this. `.github/workflows/pr-check.yml` never packages; `.github/workflows/release.yml` is the first place it would surface, which is the worst possible place to find it.
-
-Aliasing the fork in place does not work either. `"extract-zip": "npm:@electron-internal/extract-zip@1.0.5"` swaps an ESM-only package into a slot that packager 18 reaches by `require()`, and the fork ships no CommonJS entry point.
-
-The risk is accepted in the meantime. `extract-zip` is dev-scope and build-time only, never present in the packaged app, and packager feeds it archives fetched from the Electron release feed rather than untrusted input. `@electron-forge/core@8.0.0-alpha.10` declares `@electron/packager: ^20.0.1`, so the fix arrives with the Forge 8 line. Removing `extract-zip` for real is tracked in #1212.
+The risk is accepted. The package is dev-scope, optional, darwin-only, and runs at build time over images in this repository, so no untrusted input reaches the parser.
 
 ## Pre-push checklist
 
