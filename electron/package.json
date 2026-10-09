@@ -25,7 +25,7 @@
     "prepackage:deps": "npm install --prefix . --omit=dev --no-save --package-lock=false --workspaces=false --install-strategy=nested",
     "build:icons": "node scripts/build-icons.mjs",
     "make": "tsc && node scripts/copy-resources.mjs && npm run build:icons && npm run prepackage:deps && electron-forge make",
-    "publish": "tsc && node scripts/copy-resources.mjs && npm run build:icons && npm run prepackage:deps && electron-forge publish"
+    "publish": "tsc && node scripts/copy-resources.mjs && npm run build:icons && npm run prepackage:deps && electron-forge release"
   },
   "ts-node": {
     "esm": true
@@ -35,16 +35,16 @@
     "update-electron-app": "3.3.0"
   },
   "devDependencies": {
-    "@electron-forge/cli": "7.11.2",
+    "@electron-forge/cli": "8.0.1",
     "png2icons": "2.0.1",
     "sharp": "0.35.5",
-    "@electron-forge/maker-deb": "7.11.2",
+    "@electron-forge/maker-deb": "8.0.1",
     "@reforged/maker-appimage": "5.3.1",
-    "@electron-forge/maker-dmg": "7.11.2",
-    "@electron-forge/maker-zip": "7.11.2",
-    "@electron-forge/plugin-auto-unpack-natives": "7.11.2",
-    "@electron-forge/publisher-github": "7.11.2",
-    "@electron-forge/shared-types": "7.11.2",
+    "@electron-forge/maker-dmg": "8.0.1",
+    "@electron-forge/maker-zip": "8.0.1",
+    "@electron-forge/plugin-auto-unpack-natives": "8.0.1",
+    "@electron-forge/publisher-github": "8.0.1",
+    "@electron-forge/shared-types": "8.0.1",
     "@electron/rebuild": "4.2.0",
     "@types/node": "26.5.0",
     "electron": "44.2.0",

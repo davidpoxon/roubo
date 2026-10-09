@@ -50,8 +50,8 @@ const DEP_KINDS = ["dependencies", "devDependencies", "optionalDependencies", "p
 // range or an alternate protocol, and is not an exact pin.
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
-// An npm alias (`npm:<name>@<version>`) swaps in a different package, as the
-// `extract-zip` override does. It is a pin when its version part is exact:
+// An npm alias (`npm:<name>@<version>`) swaps in a different package, as an
+// override can. It is a pin when its version part is exact:
 // `npm:@scope/pkg@1.2.3` passes, `npm:@scope/pkg@^1.2.3` and a bare
 // `npm:pkg` do not.
 const NPM_ALIAS = /^npm:((?:@[^/@]+\/)?[^/@]+)@(.+)$/;
@@ -189,11 +189,9 @@ export function scanPins(lock, manifests) {
   }
 
   // Rule 1 again, over the root `overrides` block. An override is a pin like
-  // any other, and the one on `@electron/rebuild` is load-bearing: forge
-  // declares `^3.7.0` against a tree pinned to 4.x, and CLAUDE.md requires the
-  // root override and `electron/package.json` to carry the same exact version.
-  // A range here would let that pair drift apart silently. The lockfile does
-  // not mirror `overrides`, so only the exact-pin rule applies.
+  // any other: it forces one version past every declared range, so a range
+  // here would let the forced version drift silently. The lockfile does not
+  // mirror `overrides`, so only the exact-pin rule applies.
   walkOverrides(manifests[""]?.overrides ?? {}, [], (path, dependency, spec) => {
     if (isExactPin(spec)) return;
     findings.push({
