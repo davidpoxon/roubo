@@ -21,9 +21,19 @@ import { expect } from "vitest";
 import { toHaveNoViolations } from "vitest-axe/dist/matchers.js";
 import type { AxeCore } from "vitest-axe";
 
+// Augment `Matchers`, vitest's extension point for custom matchers. Its type
+// parameters must match vitest's own declaration exactly or the merge fails.
+// `T` is the received value's type, so a concretely typed non-axe value does
+// not get the matcher. vitest also reads `Matchers` with `T` left at
+// `unknown` or `any` (`expect.extend`, `ExpectStatic`), where it must stay a
+// function or `expect.extend` stops checking the matcher's parameters.
 declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations: () => void;
+  interface Matchers<R extends void | Promise<void> = void | Promise<void>, T = unknown> {
+    toHaveNoViolations: unknown extends T
+      ? () => R
+      : T extends AxeCore.AxeResults
+        ? () => R
+        : never;
   }
 }
 
