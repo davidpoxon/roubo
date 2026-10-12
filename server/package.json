@@ -35,7 +35,7 @@
     "undici": "8.11.2",
     "vscode-jsonrpc": "9.0.2",
     "ws": "8.21.3",
-    "yaml": "2.9.0"
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@types/cors": "2.8.19",
