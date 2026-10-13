@@ -46,16 +46,30 @@ function pruneExpiredFlows(now: number): void {
   }
 }
 
+class GitHubHttpError extends Error {
+  constructor(readonly status: number) {
+    super(`GitHub request failed: ${status}`);
+  }
+}
+
+// GitHub reports OAuth errors as a JSON body with an `error` field, and the
+// status varies by endpoint: the device-code endpoint answers 4xx (for example
+// 400 for `device_flow_disabled`), the token endpoint answers 200. Return any
+// such body whatever its status, so callers can map the error by name.
 async function postGitHub(url: string, body: Record<string, string>): Promise<unknown> {
   const res = await fetch(url, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    throw new Error(`GitHub request failed: ${res.status}`);
+  const data: unknown = await res.json().catch(() => null);
+  if (data && typeof data === "object" && typeof (data as { error?: unknown }).error === "string") {
+    return data;
   }
-  return res.json();
+  if (!res.ok || data === null) {
+    throw new GitHubHttpError(res.status);
+  }
+  return data;
 }
 
 interface DeviceCodeResponse {
@@ -153,6 +167,13 @@ export async function pollDeviceFlow(flowId: string): Promise<DeviceFlowPoll> {
       grant_type: DEVICE_GRANT_TYPE,
     })) as AccessTokenResponse;
   } catch (err) {
+    // A network failure or a GitHub 5xx is transient: the device code is still
+    // valid, so keep the flow and let the caller poll again rather than make a
+    // user who already entered the code start over. Expiry still bounds it.
+    if (!(err instanceof GitHubHttpError) || err.status >= 500) {
+      flow.nextPollAt = Date.now() + flow.intervalS * 1000;
+      return { status: "pending", interval: flow.intervalS };
+    }
     pendingFlows.delete(flowId);
     throw err;
   }

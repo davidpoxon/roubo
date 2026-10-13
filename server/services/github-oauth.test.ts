@@ -81,22 +81,42 @@ describe("startDeviceFlow", () => {
     expect(a.flowId).not.toBe(b.flowId);
   });
 
+  // The device-code endpoint sends its OAuth errors with HTTP 400 (observed
+  // live for device_flow_disabled), so the stubs carry that status.
+  function stubErrorReply(status: number, body: unknown): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: status < 400, status, json: async () => body })),
+    );
+  }
+
   it("explains a device flow that is not enabled on the OAuth App", async () => {
-    stubFetch({ error: "device_flow_disabled", error_description: "must be enabled" });
+    stubErrorReply(400, { error: "device_flow_disabled", error_description: "must be enabled" });
     await expect(mod.startDeviceFlow()).rejects.toThrow(/device flow is not enabled/);
   });
 
-  it("throws on any other error response", async () => {
-    stubFetch({ error: "unauthorized_client", error_description: "bad client" });
+  it("throws the error description on any other error response", async () => {
+    stubErrorReply(400, { error: "unauthorized_client", error_description: "bad client" });
     await expect(mod.startDeviceFlow()).rejects.toThrow(/bad client/);
   });
 
-  it("throws when GitHub returns a non-2xx status", async () => {
+  it("throws the status when a non-2xx reply carries no OAuth error", async () => {
+    stubErrorReply(502, {});
+    await expect(mod.startDeviceFlow()).rejects.toThrow(/502/);
+  });
+
+  it("throws the status when the reply body is not JSON", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({ ok: false, status: 502, json: async () => ({}) })),
+      vi.fn(async () => ({
+        ok: false,
+        status: 503,
+        json: async () => {
+          throw new SyntaxError("Unexpected token <");
+        },
+      })),
     );
-    await expect(mod.startDeviceFlow()).rejects.toThrow(/502/);
+    await expect(mod.startDeviceFlow()).rejects.toThrow(/503/);
   });
 });
 
@@ -195,14 +215,49 @@ describe("pollDeviceFlow", () => {
     expect(mod.__test.getFlow("f")).toBeUndefined();
   });
 
-  it("throws and forgets the flow when GitHub returns a non-2xx status", async () => {
+  it("keeps the flow and reports pending when GitHub returns a 5xx", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({ ok: false, status: 502, json: async () => ({}) })),
     );
     mod.__test.seedFlow("f");
-    await expect(mod.pollDeviceFlow("f")).rejects.toThrow(/502/);
+    await expect(mod.pollDeviceFlow("f")).resolves.toEqual({ status: "pending", interval: 5 });
+    expect(mod.__test.getFlow("f")).toBeDefined();
+  });
+
+  it("keeps the flow and reports pending when the request fails on the network", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+    mod.__test.seedFlow("f");
+    await expect(mod.pollDeviceFlow("f")).resolves.toEqual({ status: "pending", interval: 5 });
+    expect(mod.__test.getFlow("f")).toBeDefined();
+  });
+
+  it("throws and forgets the flow on a 4xx that carries no OAuth error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    );
+    mod.__test.seedFlow("f");
+    await expect(mod.pollDeviceFlow("f")).rejects.toThrow(/404/);
     expect(mod.__test.getFlow("f")).toBeUndefined();
+  });
+
+  it("maps a token-endpoint error sent with a 4xx status by name", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "expired_token" }),
+      })),
+    );
+    mod.__test.seedFlow("f");
+    await expect(mod.pollDeviceFlow("f")).resolves.toEqual({ status: "expired" });
   });
 });
 

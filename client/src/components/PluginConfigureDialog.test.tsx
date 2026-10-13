@@ -143,16 +143,22 @@ function makePlugin(overrides: Partial<Plugin["manifest"]> = {}): Plugin {
   };
 }
 
-function renderDialog({
-  plugin = makePlugin(),
-  effective = { plugin: "ghe" } as IntegrationConfig,
-  onClose = vi.fn(),
-}: {
+interface DialogProps {
   plugin?: Plugin;
   effective?: IntegrationConfig;
   onClose?: () => void;
-} = {}) {
-  return renderWithProviders(
+}
+
+function renderDialog(props: DialogProps = {}) {
+  return renderWithProviders(dialogTree(props));
+}
+
+function dialogTree({
+  plugin = makePlugin(),
+  effective = { plugin: "ghe" } as IntegrationConfig,
+  onClose = vi.fn(),
+}: DialogProps = {}) {
+  return (
     <DialogTrigger
       isOpen
       onOpenChange={(open) => {
@@ -166,7 +172,7 @@ function renderDialog({
         plugin={plugin}
         effective={effective}
       />
-    </DialogTrigger>,
+    </DialogTrigger>
   );
 }
 
@@ -1222,7 +1228,7 @@ describe("PluginConfigureDialog (global scope)", () => {
       mockPollGithubDeviceFlow.mockReset();
       mockWriteClipboard.mockReset().mockResolvedValue(true);
       mockInvalidateGithubConnectionQueries.mockReset();
-      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+      return renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
     }
 
     it("shows the device code after Connect is clicked", async () => {
@@ -1269,6 +1275,41 @@ describe("PluginConfigureDialog (global scope)", () => {
       expect(within(section).getByText("octocat")).toBeInTheDocument();
       expect(screen.getByTestId("github-disconnect")).toBeInTheDocument();
       expect(screen.queryByTestId("github-device-flow")).not.toBeInTheDocument();
+    });
+
+    it("hands the account label to the live status once it reports connected", async () => {
+      const view = startDisconnected();
+      mockPollGithubDeviceFlow.mockResolvedValue({ status: "complete", username: "octocat" });
+
+      await userEvent.click(screen.getByTestId("github-connect"));
+      await waitFor(() => expect(mockInvalidateGithubConnectionQueries).toHaveBeenCalled());
+
+      installMocks({ test: vi.fn(), save: vi.fn(), account: { login: "live-login" } });
+      view.rerender(dialogTree({ plugin: githubPlugin(), effective: { plugin: "github-com" } }));
+
+      const section = screen.getByTestId("github-oauth-section");
+      expect(within(section).getByText("live-login")).toBeInTheDocument();
+      expect(within(section).queryByText("octocat")).not.toBeInTheDocument();
+
+      // The live status now owns the state: if it later loses the credential,
+      // the section must not fall back to the stale sign-in label.
+      installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "auth-problem" });
+      view.rerender(dialogTree({ plugin: githubPlugin(), effective: { plugin: "github-com" } }));
+
+      expect(screen.getByTestId("github-connect")).toBeInTheDocument();
+      expect(screen.queryByTestId("github-disconnect")).not.toBeInTheDocument();
+    });
+
+    it("returns to Connect GitHub when a just-completed sign-in is disconnected", async () => {
+      startDisconnected();
+      mockPollGithubDeviceFlow.mockResolvedValue({ status: "complete", username: "octocat" });
+      mockDisconnectGithubPluginOauth.mockResolvedValue({ ok: true });
+
+      await userEvent.click(screen.getByTestId("github-connect"));
+      await userEvent.click(await screen.findByTestId("github-disconnect"));
+
+      expect(await screen.findByTestId("github-connect")).toBeInTheDocument();
+      expect(screen.queryByText("octocat")).not.toBeInTheDocument();
     });
 
     it.each([
