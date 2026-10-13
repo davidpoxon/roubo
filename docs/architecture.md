@@ -189,7 +189,7 @@ Roubo runs as a single Electron app that bundles three things:
 
 1. **The Express server**, which exposes the API, owns the state, manages worktrees, supervises processes, and talks to Docker.
 2. **The static client**, a React SPA served by the same Express process.
-3. **Electron**, which wraps the above in a desktop window and handles deep links (`roubo://`) for OAuth callbacks.
+3. **Electron**, which wraps the above in a desktop window and handles `roubo://` deep links that open a project's bench.
 
 In dev mode the client runs separately on Vite's dev server and proxies API calls to the Express process. In production, the SPA is built once and served directly.
 

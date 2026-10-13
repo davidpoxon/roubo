@@ -1,14 +1,13 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import {
-  buildAuthorizationUrl,
-  exchangeCodeForToken,
   fetchGitHubUsername,
   GITHUB_PLUGIN_ID,
   GITHUB_TOKEN_SLOT,
+  pollDeviceFlow,
   REQUIRED_SCOPES,
   saveToken,
-  validateState,
+  startDeviceFlow,
 } from "../services/github-oauth.js";
 import { refreshAuth } from "../services/github.js";
 import { invalidateConnectionStatus, invoke } from "../services/plugin-manager.js";
@@ -18,8 +17,9 @@ const router = Router();
 
 // Defence-in-depth rate limit on the OAuth surface. Roubo runs as a
 // localhost-only service, but these routes touch the credential store and
-// the GitHub OAuth exchange endpoint, so we cap requests per minute per IP
-// to prevent runaway loops or a misbehaving caller from hammering GitHub.
+// the GitHub OAuth endpoints, so we cap requests per minute per IP to prevent
+// runaway loops or a misbehaving caller from hammering GitHub. A device-flow
+// poll every 5 seconds is 12 requests a minute, well inside the cap.
 const oauthRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 30,
@@ -30,7 +30,7 @@ const oauthRateLimiter = rateLimit({
 router.use(oauthRateLimiter);
 
 // IP-WU-036: maps the granted `security_events` scope back to the alert
-// categories it unlocks. The host emits this on /exchange success so a
+// categories it unlocks. The host emits this when a device flow completes so a
 // "Connection upgraded" UI flip can be correlated with a structured log line
 // (architecture addendum line 952).
 const SECURITY_EVENTS_CATEGORIES = ["code-scanning", "secret-scanning", "dependabot"] as const;
@@ -57,12 +57,13 @@ async function resetGithubPluginAuthCache(): Promise<void> {
   }
 }
 
-router.post("/authorize", (_req, res) => {
+// Starts a device flow. The response carries the user code and the URL where
+// the user enters it; the device code stays in the server, keyed by flowId.
+router.post("/device", async (_req, res) => {
   try {
-    const result = buildAuthorizationUrl();
-    // IP-WU-036: surface the scope set without logging the authorize URL itself.
-    // The URL embeds a single-use `state` nonce and must not appear in any
-    // host log surface (github-oauth.ts:34–36).
+    const result = await startDeviceFlow();
+    // IP-WU-036: surface the scope set without logging the user code, which
+    // approves the sign-in for whoever holds it (github-oauth.ts).
     console.info(
       JSON.stringify({
         kind: "oauth-authorize",
@@ -75,23 +76,23 @@ router.post("/authorize", (_req, res) => {
   }
 });
 
-// Called by the Electron main process after receiving a roubo://oauth/github/callback deep-link.
-router.post("/exchange", async (req, res) => {
-  const code = typeof req.body.code === "string" ? req.body.code : undefined;
-  const state = typeof req.body.state === "string" ? req.body.state : undefined;
-
-  if (!code || !state) {
+// Polled by the renderer at the interval the flow returned. One GitHub request
+// per call at most; on approval the token is saved here and never returned.
+router.post("/device/poll", async (req, res) => {
+  const flowId = typeof req.body?.flowId === "string" ? req.body.flowId : undefined;
+  if (!flowId) {
     res.status(400).json({ error: "Missing required parameters" });
     return;
   }
 
-  if (!validateState(state)) {
-    res.status(400).json({ error: "Invalid or expired OAuth state" });
-    return;
-  }
-
   try {
-    const { token, scopes } = await exchangeCodeForToken(code);
+    const result = await pollDeviceFlow(flowId);
+    if (result.status !== "complete") {
+      res.json(result);
+      return;
+    }
+
+    const { token, scopes } = result;
     const username = await fetchGitHubUsername(token);
     await saveToken(token);
     await refreshAuth();
@@ -113,7 +114,7 @@ router.post("/exchange", async (req, res) => {
         reconsentForCategories,
       }),
     );
-    res.json({ ok: true, username });
+    res.json({ status: "complete", username });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

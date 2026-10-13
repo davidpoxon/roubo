@@ -1392,9 +1392,32 @@ export async function fetchInstalledPlugins(): Promise<InstalledPluginSummary[]>
   });
 }
 
-// github-com plugin OAuth: returns the URL to open in a browser.
-export function startGithubPluginOauth(): Promise<{ url: string }> {
-  return request("/plugins/github-com/oauth/authorize", { method: "POST" });
+// github-com plugin sign-in uses GitHub's OAuth device flow. Starting a flow
+// returns the code the user enters at `verificationUri`; the device code stays
+// on the server, which the renderer polls by `flowId` every `interval` seconds.
+export interface GithubDeviceFlow {
+  flowId: string;
+  userCode: string;
+  verificationUri: string;
+  expiresIn: number;
+  interval: number;
+}
+
+export type GithubDeviceFlowPoll =
+  | { status: "pending"; interval: number }
+  | { status: "expired" }
+  | { status: "denied" }
+  | { status: "complete"; username: string };
+
+export function startGithubDeviceFlow(): Promise<GithubDeviceFlow> {
+  return request("/plugins/github-com/oauth/device", { method: "POST" });
+}
+
+export function pollGithubDeviceFlow(flowId: string): Promise<GithubDeviceFlowPoll> {
+  return request("/plugins/github-com/oauth/device/poll", {
+    method: "POST",
+    body: JSON.stringify({ flowId }),
+  });
 }
 
 // Clears the persisted github-com OAuth token. The server-side handler is

@@ -6,17 +6,27 @@ Roubo integrates with external services to support issue assignment, pull reques
 
 ### Overview
 
-Roubo uses GitHub OAuth to authenticate users and access repository data (issues, PRs, project boards). The OAuth flow uses a `roubo://` custom-protocol deep link as the callback: the authorization page opens in the user's default browser, GitHub redirects to `roubo://oauth/github/callback`, the OS hands the URL to the Roubo Electron app, and the app exchanges the code for a token persisted via the github-com plugin's keychain slot (`credentialStore.set("github-com", "github-token", …)` in `server/services/github-oauth.ts`). Any pre-existing `~/.roubo/auth.json` from an earlier Roubo version is migrated into the keychain and then deleted by `server/services/migrate.ts`.
+Roubo uses GitHub OAuth to authenticate users and access repository data (issues, PRs, project boards). Sign-in uses GitHub's [OAuth device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow), which needs only the OAuth App's client ID. Roubo has no client secret: a desktop app cannot keep one, because anything shipped in the app can be extracted from it.
+
+1. **Connect GitHub** asks the server to start a flow (`POST /api/plugins/github-com/oauth/device`). The server requests a device code from GitHub and keeps it in memory. The Configure dialog receives only a short user code and the URL to enter it at.
+2. You enter the code at `https://github.com/login/device` in your browser and approve access.
+3. Meanwhile the dialog polls the server (`POST /api/plugins/github-com/oauth/device/poll`) at the interval GitHub sets. Each poll makes at most one token request to GitHub. On approval the server saves the token to the github-com plugin's keychain slot (`credentialStore.set("github-com", "github-token", …)` in `server/services/github-oauth.ts`) and the dialog shows the connected account.
+
+Any pre-existing `~/.roubo/auth.json` from an earlier Roubo version is migrated into the keychain and then deleted by `server/services/migrate.ts`.
+
+### The bundled OAuth App
+
+Packaged releases and source runs both use the bundled OAuth App (client ID `Ov23li8FytWzZPHmc7fm`). **Device Flow is enabled on the bundled OAuth App**, which is what lets it sign in without a client secret. Nothing else needs to be configured: **Connect GitHub** works from a source checkout as is.
 
 ### When you need your own OAuth App
 
-Packaged releases ship with a default bundled OAuth App (client ID `Ov23li8FytWzZPHmc7fm`); its client secret is inlined at release build time and is not in source. Running from source therefore needs a client secret in `GITHUB_CLIENT_SECRET` before **Connect GitHub** works. Without one, the server refuses to start the flow. Use your own OAuth App if you are:
+Use your own OAuth App if you are:
 
-- Running Roubo from source, or developing or testing OAuth-related changes
 - Forking Roubo for your own distribution
 - Running a private build where you control the credentials
+- Testing changes to the OAuth App's settings without touching the bundled one
 
-### Step 1. Create the OAuth App
+#### Step 1. Create the OAuth App
 
 1. Go to **GitHub → Settings → Developer settings → OAuth Apps → New OAuth App**  
    (For an org-owned app: **GitHub → Your org → Settings → Developer settings → OAuth Apps**.)
@@ -27,19 +37,15 @@ Packaged releases ship with a default bundled OAuth App (client ID `Ov23li8FytWz
    | ------------------------------ | -------------------------------------------------------- |
    | **Application name**           | `Roubo (dev)` or any name                                |
    | **Homepage URL**               | Any valid URL, e.g. `https://github.com/<you>/roubo-dev` |
-   | **Authorization callback URL** | `roubo://oauth/github/callback`                          |
+   | **Authorization callback URL** | Any valid URL; the device flow does not use it           |
 
-   The **Authorization callback URL** is the critical field: it must be exactly `roubo://oauth/github/callback`.
+3. Tick **Enable Device Flow**, then click **Register application**.
 
-3. Click **Register application**.
+4. Copy the **Client ID** shown at the top of the page. Do not generate a client secret; Roubo does not use one.
 
-4. On the next screen, click **Generate a new client secret** and copy it immediately; it is only shown once.
+#### Step 2. Required scopes
 
-5. Also copy the **Client ID** shown at the top of the page.
-
-### Step 2. Required scopes
-
-Roubo requests the following scopes at authorize-time (configured in [`server/services/github-oauth.ts`](../server/services/github-oauth.ts)):
+Roubo requests the following scopes when it starts a flow (configured in [`server/services/github-oauth.ts`](../server/services/github-oauth.ts)):
 
 | Scope             | Purpose                                            |
 | ----------------- | -------------------------------------------------- |
@@ -50,42 +56,37 @@ Roubo requests the following scopes at authorize-time (configured in [`server/se
 
 No action is needed to configure scopes on the OAuth App itself; they are requested during the authorization flow. If `REQUIRED_SCOPES` is ever changed, connected users will be prompted to re-authorize.
 
-### Step 3. Wire credentials into Roubo
+#### Step 3. Point Roubo at your OAuth App
 
-Set these environment variables before starting the server:
+Set the client ID before starting the server:
 
 ```bash
 export GITHUB_CLIENT_ID=<your client id>
-export GITHUB_CLIENT_SECRET=<your client secret>
-
-# Optional; defaults to roubo://oauth/github/callback.
-# Must match the Authorization callback URL on the OAuth App exactly if overridden.
-export GITHUB_REDIRECT_URI=roubo://oauth/github/callback
 ```
 
-These are read in `server/services/github-oauth.ts`: the client ID and redirect URI at startup, the client secret each time the flow runs. A `GITHUB_CLIENT_SECRET` set at runtime takes precedence over one inlined at build time.
+It is read once at startup in `server/services/github-oauth.ts`. No other credential is needed.
 
-### Step 4. Verify the flow
+### Verify the flow
 
 1. Start Roubo (`npm run dev` or launch the packaged Electron app).
 2. Open **Settings → Plugins**, click **Configure** on the github-com plugin, then click **Connect GitHub** in the Configure dialog.
-3. The GitHub authorization page opens in your default browser. This is intentional; Roubo does not embed the OAuth flow in the Electron window (see `windowOpenHandler` in [`electron/src/main.ts`](../electron/src/main.ts)).
-4. Approve access. Your browser will show a prompt to open `roubo://…`; allow it.
-5. The Roubo window comes to the foreground and the Configure dialog displays your connected GitHub username after a successful **Test connection**.
+3. The dialog shows a code such as `ABCD-1234`. Click **Copy code and open GitHub**: the code goes to the clipboard and `https://github.com/login/device` opens in your default browser. Roubo does not embed the GitHub page in the Electron window (see `windowOpenHandler` in [`electron/src/main.ts`](../electron/src/main.ts)).
+4. Paste the code and approve access.
+5. Return to Roubo. The Configure dialog shows your connected GitHub username within a few seconds, with no further clicks.
 
 ### Troubleshooting
 
-**`redirect_uri_mismatch` from GitHub**  
-The Authorization callback URL on the OAuth App does not exactly match `roubo://oauth/github/callback` (or the value of `GITHUB_REDIRECT_URI`). Fix the callback URL on the GitHub OAuth App settings page and retry.
+**"the device flow is not enabled on the OAuth App"**  
+GitHub answered `device_flow_disabled`. Open the OAuth App's settings page, tick **Enable Device Flow**, save, and click **Connect GitHub** again.
 
-**Browser cannot open `roubo://` links**  
-The `roubo://` protocol handler is not registered with the OS. In development, it is registered at runtime via `app.setAsDefaultProtocolClient('roubo')` in `electron/src/main.ts`. In a packaged build it is declared in [`electron/forge.config.ts`](../electron/forge.config.ts). Rebuild or reinstall the packaged app to refresh the OS registration.
+**"The code expired before it was approved"**  
+Device codes expire after the time GitHub sets, 15 minutes today. A server restart also discards the flow in progress. Click **Connect GitHub** again for a new code.
 
-**Nothing happens after GitHub redirects**  
-Check the Electron main-process logs for errors in `handleDeepLink`. The single-instance lock (`requestSingleInstanceLock` in `electron/src/main.ts`) ensures a second Roubo launch forwards the URL to the running instance. If Roubo was not running when the redirect happened, the OS should have launched it and replayed the URL via the `pendingDeepLinkUrl` buffer.
+**"Access was denied on GitHub"**  
+You clicked **Cancel** on the GitHub approval page. Click **Connect GitHub** again to retry.
 
-**"State mismatch" error dialog**  
-OAuth `state` tokens expire after 10 minutes (`STATE_TTL_MS` in `server/services/github-oauth.ts`). Start the authorization flow again from the github-com plugin's Configure dialog.
+**The dialog keeps waiting after you approved**  
+Polling runs only while the Configure dialog is open, and it stops when you click **Cancel** or close the dialog. Reopen the dialog and connect again. If GitHub is unreachable or returns server errors, Roubo keeps polling quietly until the code expires, then reports it as expired; connect again once GitHub responds.
 
 ## Plugin permissions
 

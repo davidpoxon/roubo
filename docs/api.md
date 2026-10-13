@@ -21,7 +21,7 @@ CORS is open (`Access-Control-Allow-Origin: *`); any browser-based tool on the s
 
 There is **no authentication on bench, project, component, or tool routes**. The security model is "localhost is trusted." If you are running Roubo on a multi-user machine, treat the API as you would any other unauthenticated local service.
 
-The only endpoints that involve a credential are GitHub-backed routes (issues, GitHub Projects, PR sync). These read a `GITHUB_TOKEN` from the environment or a token persisted by the in-app OAuth flow at `~/.roubo/auth.json` (mode `0600`). External callers using `curl` typically do not need to touch these.
+The only endpoints that involve a credential are GitHub-backed routes (issues, GitHub Projects, PR sync). These read a `GITHUB_TOKEN` from the environment or the token that **Connect GitHub** saves in the OS keychain (see [Integrations](./integrations.md#github)). External callers using `curl` typically do not need to touch these.
 
 ## Error model
 

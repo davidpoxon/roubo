@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, shell } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, Notification, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { updateElectronApp } from "update-electron-app";
@@ -94,54 +94,14 @@ export function handleSetBadgeCount(count: unknown): void {
   // TODO: Windows — use win.setOverlayIcon() for taskbar badge
 }
 
-export async function handleDeepLink(url: string): Promise<void> {
+// GitHub sign-in uses the device flow, so no OAuth callback arrives here; any
+// roubo:// URL other than a project link is ignored.
+export function handleDeepLink(url: string): void {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "roubo:") return;
 
-    if (parsed.hostname === "oauth" && parsed.pathname === "/github/callback") {
-      const error = parsed.searchParams.get("error");
-      if (error) {
-        const errorMessages: Record<string, string> = {
-          access_denied: "Access was denied. Please try connecting again.",
-          application_suspended: "The GitHub application is suspended.",
-        };
-        dialog.showErrorBox(
-          "GitHub Connection Failed",
-          errorMessages[error] ?? `GitHub reported: ${error}. Please try again.`,
-        );
-        return;
-      }
-
-      const code = parsed.searchParams.get("code");
-      const state = parsed.searchParams.get("state");
-      if (!code || !state) return;
-
-      const baseUrl = serverHandle
-        ? `http://127.0.0.1:${serverHandle.port}`
-        : "http://localhost:3335";
-
-      const res = await fetch(`${baseUrl}/api/plugins/github-com/oauth/exchange`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, state }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({ error: `HTTP ${res.status}` }))) as {
-          error?: string;
-        };
-        dialog.showErrorBox("GitHub Connection Failed", body.error ?? `HTTP ${res.status}`);
-        return;
-      }
-      // Notify the renderer so React Query can invalidate stale integration
-      // state and the Configure dialog can flip to "connected" without
-      // requiring the user to click Test connection first.
-      if (win) {
-        win.restore();
-        win.focus();
-        win.webContents.send("deep-link", url);
-      }
-    } else if (parsed.hostname === "project") {
+    if (parsed.hostname === "project") {
       if (win) {
         win.restore();
         win.focus();
@@ -149,13 +109,13 @@ export async function handleDeepLink(url: string): Promise<void> {
       }
     }
   } catch {
-    // Silently ignore — invalid URL or transient network error
+    // Silently ignore an invalid URL
   }
 }
 
 export function dispatchDeepLink(url: string): void {
   if (isReady) {
-    void handleDeepLink(url);
+    handleDeepLink(url);
   } else {
     pendingDeepLinkUrl = url;
   }
@@ -254,7 +214,7 @@ if (!app.requestSingleInstanceLock()) {
 
       isReady = true;
       if (pendingDeepLinkUrl) {
-        void handleDeepLink(pendingDeepLinkUrl);
+        handleDeepLink(pendingDeepLinkUrl);
         pendingDeepLinkUrl = null;
       }
     })

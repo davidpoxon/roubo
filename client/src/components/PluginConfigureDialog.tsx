@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Checkbox,
@@ -31,7 +31,15 @@ import type {
   ProjectIntegrationState,
   SourceSelection,
 } from "@roubo/shared";
-import { ApiError, disconnectGithubPluginOauth, startGithubPluginOauth } from "../lib/api";
+import {
+  ApiError,
+  disconnectGithubPluginOauth,
+  pollGithubDeviceFlow,
+  startGithubDeviceFlow,
+  type GithubDeviceFlow,
+} from "../lib/api";
+import { writeClipboard } from "../lib/clipboard";
+import { invalidateGithubConnectionQueries } from "../lib/github-connection";
 import { stampAriaModal } from "../lib/aria-modal";
 import {
   useSaveIntegrationConfig,
@@ -133,9 +141,12 @@ const STRINGS = {
   disconnect: "Disconnect",
   disconnecting: "Disconnecting…",
   connectGithub: "Connect GitHub",
-  postOauthHintPrefix: "After authorizing in the browser, click ",
-  postOauthHintCta: "Verify",
-  postOauthHintSuffix: " to confirm the credential.",
+  deviceCodePrompt: "Enter this code on GitHub to authorize Roubo:",
+  copyCodeAndOpenGithub: "Copy code and open GitHub",
+  codeCopied: "Code copied.",
+  awaitingApproval: "Waiting for you to approve on GitHub…",
+  deviceCodeExpired: "The code expired before it was approved. Connect again for a new code.",
+  deviceAccessDenied: "Access was denied on GitHub. Connect again to retry.",
   derivedSourcesLoading: "Looking up what Roubo will pull from your repo…",
   derivedSourcesNoRepo:
     "Set a repository above so Roubo knows where to pull issues, projects, and alerts from.",
@@ -1005,19 +1016,79 @@ function GithubOauthSection({
   const [pending, setPending] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The device flow in progress: the code the user enters on GitHub, and the
+  // flowId this section polls by. Null when no sign-in is under way.
+  const [flow, setFlow] = useState<GithubDeviceFlow | null>(null);
+  const [copied, setCopied] = useState(false);
+  // The login a just-completed sign-in reported, shown until the
+  // connection-status refetch catches up and `connected` flips.
+  const [signedInAs, setSignedInAs] = useState<string | null>(null);
+  const [prevConnected, setPrevConnected] = useState(connected);
+  if (connected !== prevConnected) {
+    // Once the live status reports connected, it owns the label from then on.
+    setPrevConnected(connected);
+    if (connected) setSignedInAs(null);
+  }
   const queryClient = useQueryClient();
   // The connection-status hook caches per-plugin under
   // ["plugin-connection-status", pluginId]; this id matches the GitHub plugin
   // and lets us invalidate after a disconnect so the pill flips immediately
   // instead of waiting for its next poll cycle.
   const GITHUB_PLUGIN_ID = "github-com";
+  const isConnected = connected || signedInAs !== null;
+
+  // Poll the server at the interval GitHub asked for until the user approves,
+  // denies, or the code expires. Clearing `flow` (Cancel, completion, unmount)
+  // stops the loop; the server forgets the flow when its code expires.
+  useEffect(() => {
+    if (!flow) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = (seconds: number) => {
+      timer = setTimeout(() => void poll(), seconds * 1000);
+    };
+    async function poll() {
+      if (!flow) return;
+      try {
+        const result = await pollGithubDeviceFlow(flow.flowId);
+        if (cancelled) return;
+        switch (result.status) {
+          case "pending":
+            schedule(result.interval);
+            return;
+          case "complete":
+            setSignedInAs(result.username);
+            setFlow(null);
+            invalidateGithubConnectionQueries(queryClient);
+            return;
+          case "expired":
+            setError(STRINGS.deviceCodeExpired);
+            setFlow(null);
+            return;
+          case "denied":
+            setError(STRINGS.deviceAccessDenied);
+            setFlow(null);
+            return;
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof ApiError ? err.message : (err as Error).message);
+        setFlow(null);
+      }
+    }
+    schedule(flow.interval);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [flow, queryClient]);
 
   async function handleConnect() {
     setPending(true);
     setError(null);
+    setCopied(false);
     try {
-      const { url } = await startGithubPluginOauth();
-      window.open(url, "_blank", "noopener,noreferrer");
+      setFlow(await startGithubDeviceFlow());
     } catch (err) {
       setError(err instanceof ApiError ? err.message : (err as Error).message);
     } finally {
@@ -1025,11 +1096,20 @@ function GithubOauthSection({
     }
   }
 
+  async function handleCopyAndOpen(current: GithubDeviceFlow) {
+    // Start the clipboard write while the window still has focus, then open
+    // GitHub, which moves focus to the browser.
+    const write = writeClipboard(current.userCode);
+    window.open(current.verificationUri, "_blank", "noopener,noreferrer");
+    setCopied(await write);
+  }
+
   async function handleDisconnect() {
     setDisconnecting(true);
     setError(null);
     try {
       await disconnectGithubPluginOauth();
+      setSignedInAs(null);
       void queryClient.invalidateQueries({
         queryKey: ["plugin-connection-status", GITHUB_PLUGIN_ID],
       });
@@ -1051,20 +1131,20 @@ function GithubOauthSection({
           <p className="text-11 font-semibold uppercase tracking-label text-text-secondary">
             {STRINGS.githubAccountHeading}
           </p>
-          {connected ? (
+          {isConnected ? (
             <p className="text-12 text-text-body mt-1">
               {STRINGS.connectedAsPrefix}
               <span className="font-mono text-text-primary">
-                {accountLogin ?? STRINGS.connectedAccountFallback}
+                {accountLogin ?? signedInAs ?? STRINGS.connectedAccountFallback}
               </span>
             </p>
           ) : (
             <p className="text-12 text-text-secondary mt-1 leading-relaxed">
-              {STRINGS.connectPrompt}
+              {flow ? STRINGS.deviceCodePrompt : STRINGS.connectPrompt}
             </p>
           )}
         </div>
-        {connected ? (
+        {isConnected ? (
           <Button
             isDisabled={disconnecting}
             onPress={() => void handleDisconnect()}
@@ -1073,6 +1153,14 @@ function GithubOauthSection({
           >
             {disconnecting ? STRINGS.disconnecting : STRINGS.disconnect}
           </Button>
+        ) : flow ? (
+          <Button
+            onPress={() => setFlow(null)}
+            data-testid="github-device-cancel"
+            className="inline-flex items-center px-2 py-1 text-11 font-medium rounded-control text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring shrink-0"
+          >
+            {STRINGS.cancel}
+          </Button>
         ) : (
           <Button
             isDisabled={pending}
@@ -1080,25 +1168,39 @@ function GithubOauthSection({
             data-testid="github-connect"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-control border border-accent bg-accent text-on-accent not-disabled:hover:bg-accent-hover not-disabled:hover:border-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring shrink-0 not-disabled:active:bg-accent-active"
           >
-            {pending ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <ExternalLink size={12} aria-hidden />
-            )}
+            {pending ? <Loader2 size={12} className="animate-spin" /> : null}
             {STRINGS.connectGithub}
           </Button>
         )}
       </div>
+      {flow && !isConnected && (
+        <div className="flex flex-col gap-2" data-testid="github-device-flow">
+          <div className="flex items-center gap-3">
+            <code
+              className="font-mono text-16 font-semibold text-text-primary select-all"
+              data-testid="github-device-code"
+            >
+              {flow.userCode}
+            </code>
+            <Button
+              onPress={() => void handleCopyAndOpen(flow)}
+              data-testid="github-device-open"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium rounded-control border border-accent bg-accent text-on-accent hover:bg-accent-hover hover:border-accent-hover active:bg-accent-active transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring shrink-0"
+            >
+              <ExternalLink size={12} aria-hidden />
+              {STRINGS.copyCodeAndOpenGithub}
+            </Button>
+          </div>
+          <p className="flex items-center gap-1.5 text-11 text-text-secondary" aria-live="polite">
+            <Loader2 size={12} className="animate-spin" aria-hidden />
+            {copied ? `${STRINGS.codeCopied} ` : ""}
+            {STRINGS.awaitingApproval}
+          </p>
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-12 text-danger-text">
           {error}
-        </p>
-      )}
-      {!connected && (
-        <p className="text-11 text-text-secondary leading-relaxed">
-          {STRINGS.postOauthHintPrefix}
-          <span className="font-medium">{STRINGS.postOauthHintCta}</span>
-          {STRINGS.postOauthHintSuffix}
         </p>
       )}
     </div>

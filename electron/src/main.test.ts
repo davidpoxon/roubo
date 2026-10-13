@@ -32,7 +32,6 @@ vi.mock("electron", () => ({
     on: vi.fn(),
     flashFrame: vi.fn(),
   })),
-  dialog: { showErrorBox: vi.fn() },
   ipcMain: { on: vi.fn(), handle: vi.fn() },
   Notification: vi.fn().mockImplementation(function () {
     return {
@@ -55,7 +54,7 @@ vi.mock("./bootstrap.js", () => ({ resolveBootstrap: vi.fn() }));
 vi.mock("./menu.js", () => ({ installApplicationMenu: vi.fn() }));
 vi.mock("./shutdown.js", () => ({ shutdownWithTimeout: vi.fn() }));
 
-import { app, clipboard, dialog, shell, Notification } from "electron";
+import { app, clipboard, shell, Notification } from "electron";
 import {
   windowOpenHandler,
   handleDeepLink,
@@ -88,10 +87,10 @@ describe("windowOpenHandler", () => {
 
   it("opens https URLs in external browser and returns deny", async () => {
     const result = windowOpenHandler({
-      url: "https://github.com/login/oauth/authorize",
+      url: "https://github.com/login/device",
     });
     await vi.waitFor(() =>
-      expect(shell.openExternal).toHaveBeenCalledWith("https://github.com/login/oauth/authorize"),
+      expect(shell.openExternal).toHaveBeenCalledWith("https://github.com/login/device"),
     );
     expect(result).toEqual({ action: "deny" });
   });
@@ -110,123 +109,50 @@ describe("windowOpenHandler", () => {
   });
 });
 
-describe("handleDeepLink", () => {
-  beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
-    vi.mocked(dialog.showErrorBox).mockClear();
-    setWin(null);
-  });
+function mockWindow() {
+  const mockWin = {
+    restore: vi.fn(),
+    focus: vi.fn(),
+    webContents: { send: vi.fn() },
+  };
+  setWin(mockWin as unknown as import("electron").BrowserWindow);
+  return mockWin;
+}
 
+describe("handleDeepLink", () => {
   afterEach(() => {
     setIsReady(false);
     setWin(null);
   });
 
-  it("silently ignores non-roubo URLs", async () => {
-    await handleDeepLink("https://example.com");
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("silently ignores malformed URLs", async () => {
-    await expect(handleDeepLink("not a url")).resolves.toBeUndefined();
-  });
-
-  it("POSTs code and state to /api/plugins/github-com/oauth/exchange for OAuth callback", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
-    await handleDeepLink("roubo://oauth/github/callback?code=abc123&state=xyz789");
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/plugins/github-com/oauth/exchange"),
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ code: "abc123", state: "xyz789" }),
-      }),
-    );
-  });
-
-  it("falls back to localhost:3335 for the exchange URL when serverHandle is null", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
-    await handleDeepLink("roubo://oauth/github/callback?code=abc&state=xyz");
-    expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:3335/api/plugins/github-com/oauth/exchange",
-      expect.anything(),
-    );
-  });
-
-  it("silently ignores OAuth callback with missing code or state", async () => {
-    await handleDeepLink("roubo://oauth/github/callback?code=abc");
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("silently ignores fetch errors during OAuth exchange", async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error("Network error"));
-    await expect(
-      handleDeepLink("roubo://oauth/github/callback?code=abc&state=xyz"),
-    ).resolves.toBeUndefined();
-  });
-
-  it("silently ignores unknown roubo:// paths", async () => {
-    await handleDeepLink("roubo://unknown/path");
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("shows an error dialog when GitHub denies access", async () => {
-    await handleDeepLink("roubo://oauth/github/callback?error=access_denied");
-    expect(dialog.showErrorBox).toHaveBeenCalledWith(
-      "GitHub Connection Failed",
-      "Access was denied. Please try connecting again.",
-    );
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("shows an error dialog when the exchange endpoint returns an error", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 400,
-      json: vi.fn().mockResolvedValue({ error: "Invalid state" }),
-    } as unknown as Response);
-    await handleDeepLink("roubo://oauth/github/callback?code=abc&state=xyz");
-    expect(dialog.showErrorBox).toHaveBeenCalledWith("GitHub Connection Failed", "Invalid state");
-  });
-
-  it("forwards the OAuth callback URL to the renderer after a successful exchange", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
-    const mockWin = {
-      restore: vi.fn(),
-      focus: vi.fn(),
-      webContents: { send: vi.fn() },
-    };
-    setWin(mockWin as unknown as import("electron").BrowserWindow);
-    const callbackUrl = "roubo://oauth/github/callback?code=abc&state=xyz";
-    await handleDeepLink(callbackUrl);
-    expect(mockWin.restore).toHaveBeenCalled();
-    expect(mockWin.focus).toHaveBeenCalled();
-    expect(mockWin.webContents.send).toHaveBeenCalledWith("deep-link", callbackUrl);
-  });
-
-  it("does not send the OAuth callback URL to the renderer when the exchange fails", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 400,
-      json: vi.fn().mockResolvedValue({ error: "Invalid state" }),
-    } as unknown as Response);
-    const mockWin = {
-      restore: vi.fn(),
-      focus: vi.fn(),
-      webContents: { send: vi.fn() },
-    };
-    setWin(mockWin as unknown as import("electron").BrowserWindow);
-    await handleDeepLink("roubo://oauth/github/callback?code=abc&state=xyz");
+  it("silently ignores non-roubo URLs", () => {
+    const mockWin = mockWindow();
+    handleDeepLink("https://example.com");
     expect(mockWin.webContents.send).not.toHaveBeenCalled();
   });
 
-  it("sends deep-link IPC and focuses the window for project navigation", async () => {
-    const mockWin = {
-      restore: vi.fn(),
-      focus: vi.fn(),
-      webContents: { send: vi.fn() },
-    };
-    setWin(mockWin as unknown as import("electron").BrowserWindow);
-    await handleDeepLink("roubo://project/proj-123/bench/bench-456");
+  it("silently ignores malformed URLs", () => {
+    expect(() => handleDeepLink("not a url")).not.toThrow();
+  });
+
+  it("silently ignores unknown roubo:// paths", () => {
+    const mockWin = mockWindow();
+    handleDeepLink("roubo://unknown/path");
+    expect(mockWin.webContents.send).not.toHaveBeenCalled();
+  });
+
+  it("ignores a GitHub OAuth callback: sign-in uses the device flow (#1457)", () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const mockWin = mockWindow();
+    handleDeepLink("roubo://oauth/github/callback?code=abc&state=xyz");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(mockWin.webContents.send).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("sends deep-link IPC and focuses the window for project navigation", () => {
+    const mockWin = mockWindow();
+    handleDeepLink("roubo://project/proj-123/bench/bench-456");
     expect(mockWin.restore).toHaveBeenCalled();
     expect(mockWin.focus).toHaveBeenCalled();
     expect(mockWin.webContents.send).toHaveBeenCalledWith(
@@ -237,25 +163,26 @@ describe("handleDeepLink", () => {
 });
 
 describe("dispatchDeepLink", () => {
-  beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
-  });
-
   afterEach(() => {
     setIsReady(false);
+    setWin(null);
   });
 
   it("buffers the URL and does not call handleDeepLink when not yet ready", () => {
     // isReady is false by default; dispatchDeepLink should store the URL, not dispatch it
-    dispatchDeepLink("roubo://oauth/github/callback?code=abc&state=xyz");
-    expect(fetch).not.toHaveBeenCalled();
+    const mockWin = mockWindow();
+    dispatchDeepLink("roubo://project/p1/bench/1");
+    expect(mockWin.webContents.send).not.toHaveBeenCalled();
   });
 
-  it("calls handleDeepLink immediately when ready", async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
+  it("calls handleDeepLink immediately when ready", () => {
+    const mockWin = mockWindow();
     setIsReady(true);
-    dispatchDeepLink("roubo://oauth/github/callback?code=abc&state=xyz");
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    dispatchDeepLink("roubo://project/p1/bench/1");
+    expect(mockWin.webContents.send).toHaveBeenCalledWith(
+      "deep-link",
+      "roubo://project/p1/bench/1",
+    );
   });
 });
 

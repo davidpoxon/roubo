@@ -47,9 +47,9 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/api/plugins/:id/logs`                                                                    | `server/routes/plugins.ts`              |
 | POST   | `/api/plugins/:id/reinstall-shared`                                                        | `server/routes/plugins.ts`              |
 | POST   | `/api/plugins/:id/restart`                                                                 | `server/routes/plugins.ts`              |
-| POST   | `/api/plugins/github-com/oauth/authorize`                                                  | `server/routes/plugins-github-oauth.ts` |
+| POST   | `/api/plugins/github-com/oauth/device`                                                     | `server/routes/plugins-github-oauth.ts` |
+| POST   | `/api/plugins/github-com/oauth/device/poll`                                                | `server/routes/plugins-github-oauth.ts` |
 | POST   | `/api/plugins/github-com/oauth/disconnect`                                                 | `server/routes/plugins-github-oauth.ts` |
-| POST   | `/api/plugins/github-com/oauth/exchange`                                                   | `server/routes/plugins-github-oauth.ts` |
 | POST   | `/api/plugins/install`                                                                     | `server/routes/plugins.ts`              |
 | POST   | `/api/plugins/install/:token/cancel`                                                       | `server/routes/plugins.ts`              |
 | POST   | `/api/plugins/install/:token/confirm`                                                      | `server/routes/plugins.ts`              |

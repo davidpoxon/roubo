@@ -71,18 +71,32 @@ vi.mock("../hooks/usePlugins", async () => {
   };
 });
 
-const { mockStartGithubPluginOauth, mockDisconnectGithubPluginOauth } = vi.hoisted(() => ({
-  mockStartGithubPluginOauth: vi.fn(),
+const {
+  mockStartGithubDeviceFlow,
+  mockPollGithubDeviceFlow,
+  mockDisconnectGithubPluginOauth,
+  mockWriteClipboard,
+  mockInvalidateGithubConnectionQueries,
+} = vi.hoisted(() => ({
+  mockStartGithubDeviceFlow: vi.fn(),
+  mockPollGithubDeviceFlow: vi.fn(),
   mockDisconnectGithubPluginOauth: vi.fn(),
+  mockWriteClipboard: vi.fn(),
+  mockInvalidateGithubConnectionQueries: vi.fn(),
 }));
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
   return {
     ...actual,
-    startGithubPluginOauth: mockStartGithubPluginOauth,
+    startGithubDeviceFlow: mockStartGithubDeviceFlow,
+    pollGithubDeviceFlow: mockPollGithubDeviceFlow,
     disconnectGithubPluginOauth: mockDisconnectGithubPluginOauth,
   };
 });
+vi.mock("../lib/clipboard", () => ({ writeClipboard: mockWriteClipboard }));
+vi.mock("../lib/github-connection", () => ({
+  invalidateGithubConnectionQueries: mockInvalidateGithubConnectionQueries,
+}));
 
 const mockedUseTest = vi.mocked(useTestIntegrationConnection);
 const mockedUseSave = vi.mocked(useSaveIntegrationConfig);
@@ -129,16 +143,22 @@ function makePlugin(overrides: Partial<Plugin["manifest"]> = {}): Plugin {
   };
 }
 
-function renderDialog({
-  plugin = makePlugin(),
-  effective = { plugin: "ghe" } as IntegrationConfig,
-  onClose = vi.fn(),
-}: {
+interface DialogProps {
   plugin?: Plugin;
   effective?: IntegrationConfig;
   onClose?: () => void;
-} = {}) {
-  return renderWithProviders(
+}
+
+function renderDialog(props: DialogProps = {}) {
+  return renderWithProviders(dialogTree(props));
+}
+
+function dialogTree({
+  plugin = makePlugin(),
+  effective = { plugin: "ghe" } as IntegrationConfig,
+  onClose = vi.fn(),
+}: DialogProps = {}) {
+  return (
     <DialogTrigger
       isOpen
       onOpenChange={(open) => {
@@ -152,7 +172,7 @@ function renderDialog({
         plugin={plugin}
         effective={effective}
       />
-    </DialogTrigger>,
+    </DialogTrigger>
   );
 }
 
@@ -1193,21 +1213,142 @@ describe("PluginConfigureDialog (global scope)", () => {
       expect(screen.queryByTestId("github-disconnect")).not.toBeInTheDocument();
     });
 
-    it("opens the OAuth URL in a new window when Connect is clicked", async () => {
-      installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "auth-problem" });
-      const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-      mockStartGithubPluginOauth.mockResolvedValue({ url: "https://github.com/login/oauth/auth" });
+    // interval 0 keeps the poll loop on real timers without slowing the suite.
+    const DEVICE_FLOW = {
+      flowId: "flow-1",
+      userCode: "ABCD-1234",
+      verificationUri: "https://github.com/login/device",
+      expiresIn: 900,
+      interval: 0,
+    };
 
-      renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+    function startDisconnected() {
+      installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "auth-problem" });
+      mockStartGithubDeviceFlow.mockReset().mockResolvedValue(DEVICE_FLOW);
+      mockPollGithubDeviceFlow.mockReset();
+      mockWriteClipboard.mockReset().mockResolvedValue(true);
+      mockInvalidateGithubConnectionQueries.mockReset();
+      return renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
+    }
+
+    it("shows the device code after Connect is clicked", async () => {
+      startDisconnected();
+      mockPollGithubDeviceFlow.mockResolvedValue({ status: "pending", interval: 60 });
+
       await userEvent.click(screen.getByTestId("github-connect"));
 
-      await waitFor(() => expect(mockStartGithubPluginOauth).toHaveBeenCalled());
+      expect(await screen.findByTestId("github-device-code")).toHaveTextContent("ABCD-1234");
+      expect(screen.queryByTestId("github-connect")).not.toBeInTheDocument();
+      expect(screen.getByText(/Waiting for you to approve on GitHub/)).toBeInTheDocument();
+    });
+
+    it("copies the code and opens the verification URL in the browser", async () => {
+      startDisconnected();
+      mockPollGithubDeviceFlow.mockResolvedValue({ status: "pending", interval: 60 });
+      const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+      await userEvent.click(screen.getByTestId("github-connect"));
+      await userEvent.click(await screen.findByTestId("github-device-open"));
+
+      expect(mockWriteClipboard).toHaveBeenCalledWith("ABCD-1234");
       expect(openSpy).toHaveBeenCalledWith(
-        "https://github.com/login/oauth/auth",
+        "https://github.com/login/device",
         "_blank",
         "noopener,noreferrer",
       );
+      expect(await screen.findByText(/Code copied/)).toBeInTheDocument();
       openSpy.mockRestore();
+    });
+
+    it("polls until approval, then shows the account and refreshes the GitHub queries", async () => {
+      startDisconnected();
+      mockPollGithubDeviceFlow
+        .mockResolvedValueOnce({ status: "pending", interval: 0 })
+        .mockResolvedValueOnce({ status: "complete", username: "octocat" });
+
+      await userEvent.click(screen.getByTestId("github-connect"));
+
+      await waitFor(() => expect(mockInvalidateGithubConnectionQueries).toHaveBeenCalledTimes(1));
+      expect(mockPollGithubDeviceFlow).toHaveBeenCalledTimes(2);
+      expect(mockPollGithubDeviceFlow).toHaveBeenCalledWith("flow-1");
+      const section = screen.getByTestId("github-oauth-section");
+      expect(within(section).getByText("octocat")).toBeInTheDocument();
+      expect(screen.getByTestId("github-disconnect")).toBeInTheDocument();
+      expect(screen.queryByTestId("github-device-flow")).not.toBeInTheDocument();
+    });
+
+    it("hands the account label to the live status once it reports connected", async () => {
+      const view = startDisconnected();
+      mockPollGithubDeviceFlow.mockResolvedValue({ status: "complete", username: "octocat" });
+
+      await userEvent.click(screen.getByTestId("github-connect"));
+      await waitFor(() => expect(mockInvalidateGithubConnectionQueries).toHaveBeenCalled());
+
+      installMocks({ test: vi.fn(), save: vi.fn(), account: { login: "live-login" } });
+      view.rerender(dialogTree({ plugin: githubPlugin(), effective: { plugin: "github-com" } }));
+
+      const section = screen.getByTestId("github-oauth-section");
+      expect(within(section).getByText("live-login")).toBeInTheDocument();
+      expect(within(section).queryByText("octocat")).not.toBeInTheDocument();
+
+      // The live status now owns the state: if it later loses the credential,
+      // the section must not fall back to the stale sign-in label.
+      installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "auth-problem" });
+      view.rerender(dialogTree({ plugin: githubPlugin(), effective: { plugin: "github-com" } }));
+
+      expect(screen.getByTestId("github-connect")).toBeInTheDocument();
+      expect(screen.queryByTestId("github-disconnect")).not.toBeInTheDocument();
+    });
+
+    it("returns to Connect GitHub when a just-completed sign-in is disconnected", async () => {
+      startDisconnected();
+      mockPollGithubDeviceFlow.mockResolvedValue({ status: "complete", username: "octocat" });
+      mockDisconnectGithubPluginOauth.mockResolvedValue({ ok: true });
+
+      await userEvent.click(screen.getByTestId("github-connect"));
+      await userEvent.click(await screen.findByTestId("github-disconnect"));
+
+      expect(await screen.findByTestId("github-connect")).toBeInTheDocument();
+      expect(screen.queryByText("octocat")).not.toBeInTheDocument();
+    });
+
+    it.each([
+      ["expired", /code expired/],
+      ["denied", /Access was denied/],
+    ] as const)("returns to Connect with a message when the flow is %s", async (status, text) => {
+      startDisconnected();
+      mockPollGithubDeviceFlow.mockResolvedValue({ status });
+
+      await userEvent.click(screen.getByTestId("github-connect"));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(text);
+      expect(screen.getByTestId("github-connect")).toBeInTheDocument();
+      expect(mockInvalidateGithubConnectionQueries).not.toHaveBeenCalled();
+    });
+
+    it("surfaces a poll failure and returns to Connect", async () => {
+      startDisconnected();
+      mockPollGithubDeviceFlow.mockRejectedValue(new Error("GitHub request failed: 404"));
+
+      await userEvent.click(screen.getByTestId("github-connect"));
+
+      expect(await screen.findByText("GitHub request failed: 404")).toBeInTheDocument();
+      expect(screen.getByTestId("github-connect")).toBeInTheDocument();
+    });
+
+    it("stops polling when the sign-in is cancelled", async () => {
+      startDisconnected();
+      mockPollGithubDeviceFlow.mockResolvedValue({ status: "pending", interval: 0 });
+
+      await userEvent.click(screen.getByTestId("github-connect"));
+      await waitFor(() => expect(mockPollGithubDeviceFlow).toHaveBeenCalled());
+      await userEvent.click(screen.getByTestId("github-device-cancel"));
+      const callsAtCancel = mockPollGithubDeviceFlow.mock.calls.length;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(mockPollGithubDeviceFlow.mock.calls.length).toBe(callsAtCancel);
+      expect(screen.getByTestId("github-connect")).toBeInTheDocument();
+      expect(screen.queryByTestId("github-device-code")).not.toBeInTheDocument();
     });
 
     it("calls the disconnect endpoint when the Disconnect link is clicked", async () => {
@@ -1220,9 +1361,9 @@ describe("PluginConfigureDialog (global scope)", () => {
       await waitFor(() => expect(mockDisconnectGithubPluginOauth).toHaveBeenCalled());
     });
 
-    it("surfaces an error message if the authorize call fails", async () => {
+    it("surfaces an error message if starting the sign-in fails", async () => {
       installMocks({ test: vi.fn(), save: vi.fn(), connectionState: "auth-problem" });
-      mockStartGithubPluginOauth.mockRejectedValue(new Error("server down"));
+      mockStartGithubDeviceFlow.mockReset().mockRejectedValue(new Error("server down"));
 
       renderDialog({ plugin: githubPlugin(), effective: { plugin: "github-com" } });
       await userEvent.click(screen.getByTestId("github-connect"));
