@@ -218,6 +218,9 @@ These GitHub Actions secrets must be set in the repo (**Settings → Secrets and
 | `APPLE_ID`                    | Apple Developer account email used for notarization  |
 | `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password generated at appleid.apple.com |
 | `APPLE_TEAM_ID`               | 10-character Apple Developer Team ID                 |
+| `GH_OAUTH_CLIENT_SECRET`      | Client secret of the bundled GitHub OAuth App        |
+
+`GH_OAUTH_CLIENT_SECRET` is required: the build step fails without it, because a release built without it cannot sign in to GitHub.
 
 Signing (`CSC_LINK` + `CSC_KEY_PASSWORD`) must be enabled for notarization to run; Apple rejects unsigned binaries. When signing secrets are absent, notarization is automatically skipped.
 
@@ -297,3 +300,11 @@ Copy the full quoted string next to your Developer ID Application entry.
 7. Paste the result as `CSC_LINK`.
 
 Delete the `.p12` file from your machine once the secrets are stored.
+
+#### `GH_OAUTH_CLIENT_SECRET`
+
+The client secret of the bundled GitHub OAuth App (client ID `Ov23li8FytWzZPHmc7fm`). The release build passes it to `server/tsup.config.ts` as `GITHUB_CLIENT_SECRET`, which inlines it into the packaged server. It is never committed to source. GitHub reserves the `GITHUB_` prefix for secret names, hence `GH_`.
+
+1. Open **GitHub → Settings → Developer settings → OAuth Apps** and select the Roubo app.
+2. Click **Generate a new client secret** and copy it; it is only shown once.
+3. Store it as the `GH_OAUTH_CLIENT_SECRET` repository secret, then delete any older client secret on the app.

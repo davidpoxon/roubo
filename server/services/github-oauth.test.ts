@@ -11,8 +11,62 @@ beforeEach(async () => {
   credentialMocks.set.mockReset();
   vi.resetModules();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.stubEnv("GITHUB_CLIENT_SECRET", "test-client-secret");
   mod = await import("./github-oauth.js");
   mod.__test.reset();
+});
+
+describe("client secret", () => {
+  it("refuses to start the flow when no client secret is configured", () => {
+    vi.stubEnv("GITHUB_CLIENT_SECRET", "");
+    expect(() => mod.buildAuthorizationUrl()).toThrow(/GITHUB_CLIENT_SECRET/);
+  });
+
+  it("refuses the exchange when no client secret is configured", async () => {
+    vi.stubEnv("GITHUB_CLIENT_SECRET", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(mod.exchangeCodeForToken("c")).rejects.toThrow(/GITHUB_CLIENT_SECRET/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends the configured client secret to the token endpoint", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => ({
+      ok: true,
+      json: async () => ({ access_token: "ghp_x", scope: "", token_type: "bearer" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await mod.exchangeCodeForToken("c");
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1].body)) as Record<string, string>;
+    expect(body.client_secret).toBe("test-client-secret");
+  });
+
+  it("falls back to the build-time secret when none is set at runtime", async () => {
+    vi.stubEnv("GITHUB_CLIENT_SECRET", "");
+    vi.stubEnv("ROUBO_BUNDLED_GITHUB_CLIENT_SECRET", "bundled-secret");
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => ({
+      ok: true,
+      json: async () => ({ access_token: "ghp_x", scope: "", token_type: "bearer" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(() => mod.buildAuthorizationUrl()).not.toThrow();
+    await mod.exchangeCodeForToken("c");
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1].body)) as Record<string, string>;
+    expect(body.client_secret).toBe("bundled-secret");
+  });
+
+  it("prefers a runtime secret over the build-time one", async () => {
+    vi.stubEnv("ROUBO_BUNDLED_GITHUB_CLIENT_SECRET", "bundled-secret");
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => ({
+      ok: true,
+      json: async () => ({ access_token: "ghp_x", scope: "", token_type: "bearer" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await mod.exchangeCodeForToken("c");
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1].body)) as Record<string, string>;
+    expect(body.client_secret).toBe("test-client-secret");
+  });
 });
 
 describe("buildAuthorizationUrl", () => {

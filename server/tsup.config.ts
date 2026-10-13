@@ -18,6 +18,15 @@ export default defineConfig({
   // with "Identifier '__dirname' has already been declared". Keeping splitting
   // off preserves the single index.js the Electron app already ships.
   splitting: false,
+  // Inline the GitHub OAuth client secret from the build environment so the
+  // packaged app can complete the OAuth exchange without the secret living in
+  // source. Unset at build time means a source-style build: the server then
+  // reads GITHUB_CLIENT_SECRET at runtime, which still takes precedence.
+  define: {
+    "process.env.ROUBO_BUNDLED_GITHUB_CLIENT_SECRET": JSON.stringify(
+      process.env.GITHUB_CLIENT_SECRET ?? "",
+    ),
+  },
   // Inject CJS compatibility shims so bundled CJS packages work correctly in ESM context
   banner: {
     js: "import { createRequire as __cjsRequire } from 'module';\nimport { fileURLToPath as __cjsFileURLToPath } from 'url';\nimport { dirname as __cjsDirname } from 'path';\nconst require = __cjsRequire(import.meta.url);\nconst __filename = __cjsFileURLToPath(import.meta.url);\nconst __dirname = __cjsDirname(__filename);",
