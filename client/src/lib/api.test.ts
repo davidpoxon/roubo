@@ -52,7 +52,8 @@ import {
   fetchSettings,
   updateSettings,
   fetchEnvKeys,
-  startGithubPluginOauth,
+  startGithubDeviceFlow,
+  pollGithubDeviceFlow,
   fetchSourceOptions,
   fetchTestbenchPlan,
   fetchGates,
@@ -620,18 +621,34 @@ describe("fetchProjectGitHubProjects", () => {
   });
 });
 
-describe("startGithubPluginOauth", () => {
-  it("POSTs to /api/plugins/github-com/oauth/authorize and returns the URL", async () => {
-    const authUrl = {
-      url: "https://github.com/login/oauth/authorize?client_id=abc&state=xyz",
+describe("startGithubDeviceFlow", () => {
+  it("POSTs to /api/plugins/github-com/oauth/device and returns the flow", async () => {
+    const flow = {
+      flowId: "abc",
+      userCode: "ABCD-1234",
+      verificationUri: "https://github.com/login/device",
+      expiresIn: 900,
+      interval: 5,
     };
-    mockFetch.mockResolvedValue(jsonResponse(authUrl));
-    const result = await startGithubPluginOauth();
+    mockFetch.mockResolvedValue(jsonResponse(flow));
+    const result = await startGithubDeviceFlow();
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/plugins/github-com/oauth/authorize",
+      "/api/plugins/github-com/oauth/device",
       expect.objectContaining({ method: "POST" }),
     );
-    expect(result).toEqual(authUrl);
+    expect(result).toEqual(flow);
+  });
+});
+
+describe("pollGithubDeviceFlow", () => {
+  it("POSTs the flowId to /api/plugins/github-com/oauth/device/poll", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ status: "pending", interval: 5 }));
+    const result = await pollGithubDeviceFlow("abc");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/plugins/github-com/oauth/device/poll",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ flowId: "abc" }) }),
+    );
+    expect(result).toEqual({ status: "pending", interval: 5 });
   });
 });
 

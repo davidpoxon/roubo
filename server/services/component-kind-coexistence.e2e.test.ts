@@ -13,8 +13,10 @@
  *         HOST_API_VERSION and its spawn path is invoked.
  *   S002  POST /api/projects/:projectId/issues/:externalId/assign drives the
  *         integration plugin's standard RPC flow with no component-kind error.
- *   S003  POST /api/plugins/github-com/oauth/{authorize,exchange} respond
- *         correctly with no component-kind-introduced errors.
+ *   S003  the github-com OAuth flow endpoints respond correctly with no
+ *         component-kind-introduced errors. The spec names /authorize and
+ *         /exchange; #1457 replaced them with the device-flow pair
+ *         /device and /device/poll, which this step now drives.
  *   S004  no component-kind broker surface is injected into the integration
  *         plugin's RPC namespace, asserted against the real wiring: the host
  *         calls component.translate / component.start on the plugin (its true
@@ -370,15 +372,14 @@ describe("CP-TC-029: the component kind coexists with integration plugins (#660)
   });
 
   // --- S003 ----------------------------------------------------------------
-  it("S003: POST /authorize and /exchange respond correctly with no component-kind-introduced errors", async () => {
+  it("S003: POST /device and /device/poll respond correctly with no component-kind-introduced errors", async () => {
     // Reuse the github-oauth route's mock harness shape (see
     // server/routes/plugins-github-oauth.test.ts).
     const githubOauthMocks = {
-      buildAuthorizationUrl: vi.fn(),
-      exchangeCodeForToken: vi.fn(),
+      startDeviceFlow: vi.fn(),
+      pollDeviceFlow: vi.fn(),
       fetchGitHubUsername: vi.fn(),
       saveToken: vi.fn(),
-      validateState: vi.fn(),
       GITHUB_PLUGIN_ID: "github-com",
       GITHUB_TOKEN_SLOT: "github-token",
       REQUIRED_SCOPES: ["repo", "read:org", "read:project", "security_events"],
@@ -402,30 +403,33 @@ describe("CP-TC-029: the component kind coexists with integration plugins (#660)
     app.use(express.json());
     app.use("/", oauthRouter);
 
-    // authorize
-    githubOauthMocks.buildAuthorizationUrl.mockReturnValue({
-      url: "https://github.com/login/oauth/authorize?state=abc",
-    });
-    const authorizeRes = await request(app).post("/authorize");
+    // start the device flow
+    const flow = {
+      flowId: "flow-1",
+      userCode: "ABCD-1234",
+      verificationUri: "https://github.com/login/device",
+      expiresIn: 900,
+      interval: 5,
+    };
+    githubOauthMocks.startDeviceFlow.mockResolvedValue(flow);
+    const startRes = await request(app).post("/device");
 
     expectStep(
       "S003",
-      "POST /authorize returns the authorization URL with no component-kind error",
+      "POST /device returns the device flow with no component-kind error",
       () => {
-        expect(authorizeRes.status).toBe(200);
-        expect(authorizeRes.body).toEqual({
-          url: "https://github.com/login/oauth/authorize?state=abc",
-        });
+        expect(startRes.status).toBe(200);
+        expect(startRes.body).toEqual(flow);
       },
       {
-        expected: { status: 200, hasUrl: true },
-        actual: { status: authorizeRes.status, body: authorizeRes.body },
+        expected: { status: 200, body: flow },
+        actual: { status: startRes.status, body: startRes.body },
       },
     );
 
-    // exchange
-    githubOauthMocks.validateState.mockReturnValue(true);
-    githubOauthMocks.exchangeCodeForToken.mockResolvedValue({
+    // poll to completion
+    githubOauthMocks.pollDeviceFlow.mockResolvedValue({
+      status: "complete",
       token: "ghp_secret",
       scopes: ["repo", "read:org", "read:project"],
     });
@@ -434,18 +438,18 @@ describe("CP-TC-029: the component kind coexists with integration plugins (#660)
     githubMocks.refreshAuth.mockResolvedValue(undefined);
     pluginManagerMocks.invoke.mockResolvedValue(undefined);
 
-    const exchangeRes = await request(app).post("/exchange").send({ code: "abc", state: "good" });
+    const pollRes = await request(app).post("/device/poll").send({ flowId: "flow-1" });
 
     expectStep(
       "S003",
-      "POST /exchange completes the OAuth flow with no component-kind error",
+      "POST /device/poll completes the OAuth flow with no component-kind error",
       () => {
-        expect(exchangeRes.status).toBe(200);
-        expect(exchangeRes.body).toEqual({ ok: true, username: "octocat" });
+        expect(pollRes.status).toBe(200);
+        expect(pollRes.body).toEqual({ status: "complete", username: "octocat" });
       },
       {
-        expected: { status: 200, body: { ok: true, username: "octocat" } },
-        actual: { status: exchangeRes.status, body: exchangeRes.body },
+        expected: { status: 200, body: { status: "complete", username: "octocat" } },
+        actual: { status: pollRes.status, body: pollRes.body },
       },
     );
 
