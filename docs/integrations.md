@@ -10,9 +10,9 @@ Roubo uses GitHub OAuth to authenticate users and access repository data (issues
 
 ### When you need your own OAuth App
 
-Roubo ships with a default bundled OAuth App (client ID `Ov23li8FytWzZPHmc7fm`). You only need your own if you are:
+Packaged releases ship with a default bundled OAuth App (client ID `Ov23li8FytWzZPHmc7fm`); its client secret is inlined at release build time and is not in source. Running from source therefore needs a client secret in `GITHUB_CLIENT_SECRET` before **Connect GitHub** works. Without one, the server refuses to start the flow. Use your own OAuth App if you are:
 
-- Developing or testing OAuth-related changes
+- Running Roubo from source, or developing or testing OAuth-related changes
 - Forking Roubo for your own distribution
 - Running a private build where you control the credentials
 
@@ -63,7 +63,7 @@ export GITHUB_CLIENT_SECRET=<your client secret>
 export GITHUB_REDIRECT_URI=roubo://oauth/github/callback
 ```
 
-These are read at startup in `server/services/github-oauth.ts`.
+These are read in `server/services/github-oauth.ts`: the client ID and redirect URI at startup, the client secret each time the flow runs. A `GITHUB_CLIENT_SECRET` set at runtime takes precedence over one inlined at build time.
 
 ### Step 4. Verify the flow
 

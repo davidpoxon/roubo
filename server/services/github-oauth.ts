@@ -9,8 +9,6 @@ export const GITHUB_PLUGIN_ID = "github-com";
 export const GITHUB_TOKEN_SLOT = "github-token";
 
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID ?? "Ov23li8FytWzZPHmc7fm";
-const GITHUB_CLIENT_SECRET =
-  process.env.GITHUB_CLIENT_SECRET ?? "fea51c04671e04a4c813875bcd437a05c8181d72";
 const REDIRECT_URI = process.env.GITHUB_REDIRECT_URI ?? "roubo://oauth/github/callback";
 // IP-WU-036: exported so the host route can log `scopesRequested` on
 // /authorize without duplicating the scope set. Architecture addendum line 952.
@@ -18,6 +16,18 @@ export const REQUIRED_SCOPES = ["repo", "read:org", "read:project", "security_ev
 const SCOPES = REQUIRED_SCOPES.join(" ");
 
 export const STATE_TTL_MS = 10 * 60 * 1000;
+
+// The client secret never lives in source. A source run reads it from the
+// environment; a packaged release has it inlined at build time from the
+// release workflow's secret (see `define` in server/tsup.config.ts). Dropping
+// the secret from the client entirely, via the device flow, is #1457.
+function getClientSecret(): string {
+  const secret = process.env.GITHUB_CLIENT_SECRET || process.env.ROUBO_BUNDLED_GITHUB_CLIENT_SECRET;
+  if (!secret) {
+    throw new Error("GitHub OAuth is not configured: set GITHUB_CLIENT_SECRET");
+  }
+  return secret;
+}
 
 // In-memory state map. Lost on server restart, which fails any in-flight flow
 // with an "invalid state" error on the next callback. That's the desired
@@ -37,6 +47,8 @@ function pruneExpiredStates(): void {
 // Do NOT log the URL or pass it to any plugin-process log surface. The renderer
 // receives it directly from /authorize and hands it to the system browser.
 export function buildAuthorizationUrl(): { url: string } {
+  // Fail before sending the user to GitHub, not after they approve.
+  getClientSecret();
   pruneExpiredStates();
   const state = crypto.randomBytes(32).toString("hex");
   pendingStates.set(state, Date.now());
@@ -66,12 +78,13 @@ interface TokenResponse {
 export async function exchangeCodeForToken(
   code: string,
 ): Promise<{ token: string; scopes: string[] }> {
+  const clientSecret = getClientSecret();
   const res = await fetch("https://github.com/login/oauth/access_token", {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({
       client_id: GITHUB_CLIENT_ID,
-      client_secret: GITHUB_CLIENT_SECRET,
+      client_secret: clientSecret,
       code,
       redirect_uri: REDIRECT_URI,
     }),

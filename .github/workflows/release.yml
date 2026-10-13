@@ -73,7 +73,18 @@ jobs:
           mv electron/package.json.tmp electron/package.json
           echo "Stamped electron/package.json version to ${version}"
 
-      - run: npm run build
+      # server/tsup.config.ts inlines the GitHub OAuth client secret into the
+      # packaged server; it is never committed to source.
+      - name: Build
+        env:
+          GITHUB_CLIENT_SECRET: ${{ secrets.GH_OAUTH_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GITHUB_CLIENT_SECRET" ]]; then
+            echo "::error::GH_OAUTH_CLIENT_SECRET is not set; the release would ship without GitHub sign-in"
+            exit 1
+          fi
+          npm run build
 
       - name: Import codesigning certificate
         if: runner.os == 'macOS'
