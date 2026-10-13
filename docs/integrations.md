@@ -86,7 +86,7 @@ Device codes expire after the time GitHub sets, 15 minutes today. A server resta
 You clicked **Cancel** on the GitHub approval page. Click **Connect GitHub** again to retry.
 
 **The dialog keeps waiting after you approved**  
-Polling runs only while the Configure dialog is open, and it stops when you click **Cancel** or close the dialog. Reopen the dialog and connect again.
+Polling runs only while the Configure dialog is open, and it stops when you click **Cancel** or close the dialog. Reopen the dialog and connect again. If GitHub is unreachable or returns server errors, Roubo keeps polling quietly until the code expires, then reports it as expired; connect again once GitHub responds.
 
 ## Plugin permissions
 

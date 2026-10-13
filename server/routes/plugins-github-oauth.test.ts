@@ -216,12 +216,12 @@ describe("POST /device/poll", () => {
   });
 
   it("returns 500 and saves nothing when the poll fails", async () => {
-    githubOauthMocks.pollDeviceFlow.mockRejectedValue(new Error("GitHub request failed: 502"));
+    githubOauthMocks.pollDeviceFlow.mockRejectedValue(new Error("GitHub request failed: 404"));
 
     const res = await request(app).post("/device/poll").send({ flowId: "abc" });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: "GitHub request failed: 502" });
+    expect(res.body).toEqual({ error: "GitHub request failed: 404" });
     expect(githubOauthMocks.saveToken).not.toHaveBeenCalled();
     expect(githubMocks.refreshAuth).not.toHaveBeenCalled();
     expect(pluginManagerMocks.invalidateConnectionStatus).not.toHaveBeenCalled();

@@ -1328,11 +1328,11 @@ describe("PluginConfigureDialog (global scope)", () => {
 
     it("surfaces a poll failure and returns to Connect", async () => {
       startDisconnected();
-      mockPollGithubDeviceFlow.mockRejectedValue(new Error("GitHub request failed: 502"));
+      mockPollGithubDeviceFlow.mockRejectedValue(new Error("GitHub request failed: 404"));
 
       await userEvent.click(screen.getByTestId("github-connect"));
 
-      expect(await screen.findByText("GitHub request failed: 502")).toBeInTheDocument();
+      expect(await screen.findByText("GitHub request failed: 404")).toBeInTheDocument();
       expect(screen.getByTestId("github-connect")).toBeInTheDocument();
     });
 
