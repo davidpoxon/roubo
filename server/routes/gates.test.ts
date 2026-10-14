@@ -438,10 +438,9 @@ describe("rate limiting", () => {
 
   // #1473: gate reads are refetched after every mark, so one person working
   // quickly passes 30 a minute. Reads allow 600; writes keep their tighter cap.
-  it("asks for a read limit of at least 600 a minute and keeps the write limit at 20", () => {
-    const limits = requestedLimits.filter((l): l is number => typeof l === "number");
-    expect(Math.max(...limits)).toBeGreaterThanOrEqual(600);
-    expect(limits).toContain(20);
+  it("asks for a read limit of 600 a minute and keeps the write limit at 20", () => {
+    // gates.ts creates the read limiter first, then the write limiter.
+    expect(requestedLimits).toEqual([600, 20]);
   });
 
   it("attaches RateLimit response headers on the list route (limiter is mounted)", async () => {
