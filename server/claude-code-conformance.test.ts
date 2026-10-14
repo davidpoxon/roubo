@@ -211,8 +211,7 @@ vi.mock("./services/config-parser.js", async (importOriginal) => ({
 }));
 
 vi.mock("./services/issue-formatting.js", () => ({
-  fetchIssueContext: () => Promise.resolve({}),
-  buildPluginIssueContext: () => ({}),
+  resolveAssignedIssueContext: () => Promise.resolve({}),
 }));
 
 // ── S3 (agent-plugin variant): the plugin process boundary (AP-TC-096) ──

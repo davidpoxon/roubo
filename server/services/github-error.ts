@@ -85,21 +85,6 @@ function isOwnerNotFoundMessage(msg: string): boolean {
   );
 }
 
-function specificity(code: GitHubErrorCode): number {
-  // Higher index = lower specificity. Auth/permission errors beat operational/generic ones.
-  const order: GitHubErrorCode[] = [
-    "NOT_CONNECTED",
-    "SAML_SSO_REQUIRED",
-    "SCOPES_OUTDATED",
-    "ORG_APPROVAL_REQUIRED",
-    "OWNER_NOT_FOUND",
-    "RATE_LIMITED",
-    "NETWORK",
-    "UNKNOWN",
-  ];
-  return order.length - order.indexOf(code);
-}
-
 function classifyOne(err: unknown, context?: { owner?: string }): GitHubError {
   if (err instanceof GitHubError) return err;
 
@@ -221,18 +206,4 @@ function classifyOne(err: unknown, context?: { owner?: string }): GitHubError {
  */
 export function classifyGitHubError(err: unknown, context?: { owner?: string }): GitHubError {
   return classifyOne(err, context);
-}
-
-/**
- * Classifies two errors (e.g. org-query failure + user-query failure) and returns
- * the more specific classification of the two.
- */
-export function classifyGitHubErrors(
-  err: unknown,
-  err2: unknown,
-  context?: { owner?: string },
-): GitHubError {
-  const primary = classifyOne(err, context);
-  const secondary = classifyOne(err2, context);
-  return specificity(primary.code) >= specificity(secondary.code) ? primary : secondary;
 }

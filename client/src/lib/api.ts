@@ -17,7 +17,6 @@ import type {
   NormalizedComment,
   PaginatedIssues,
   AssignIssueResponse,
-  GitHubProject,
   CreateBenchWithIssueResponse,
   JigMeta,
   JigDetail,
@@ -863,15 +862,6 @@ export function reconcileTestbench(
     method: "POST",
     body: JSON.stringify(body),
   });
-}
-
-// GitHub Projects
-export function fetchGitHubProjects(repo: string): Promise<GitHubProject[]> {
-  return request(`/projects/github-projects?repo=${encodeURIComponent(repo)}`);
-}
-
-export function fetchProjectGitHubProjects(projectId: string): Promise<GitHubProject[]> {
-  return request(`/projects/${projectId}/projects`);
 }
 
 // Issues: paginated through the active integration plugin (IP-WU-016).

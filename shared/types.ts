@@ -2630,16 +2630,6 @@ export interface AssignedIssue {
   // fetch when enforceIssueDependencies is on. Empty/absent means unblocked.
   blockedBy?: string[];
   /**
-   * PRs seeded at assignment time from CrossReferencedEvent timeline items
-   * (e.g. `Closes #123` in PR bodies). Does not include PRs linked via
-   * GitHub's UI sidebar (DevelopmentEvent/ConnectedEvent).
-   */
-  // Optional for backwards compat: state.json persisted before this field was added will lack it.
-  linkedPullRequests?: Array<{
-    repoFullName: string;
-    number: number;
-  }>;
-  /**
    * Frozen snapshot of the issue's type at assignment time (e.g. "bug",
    * "security-dependabot"). Drives blueprint-by-issue-type counting in the
    * source-picker Configure dialog and survives the user toggling the alert

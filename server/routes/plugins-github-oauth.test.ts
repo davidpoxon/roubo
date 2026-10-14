@@ -2,25 +2,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
 
-const { githubOauthMocks, githubMocks, pluginManagerMocks, credentialStoreMocks } = vi.hoisted(
-  () => ({
-    githubOauthMocks: {
-      startDeviceFlow: vi.fn(),
-      pollDeviceFlow: vi.fn(),
-      fetchGitHubUsername: vi.fn(),
-      saveToken: vi.fn(),
-      GITHUB_PLUGIN_ID: "github-com",
-      GITHUB_TOKEN_SLOT: "github-token",
-      // IP-WU-036: REQUIRED_SCOPES is consumed by the route to log `scopesRequested`.
-      REQUIRED_SCOPES: ["repo", "read:org", "read:project", "security_events"],
-    },
-    githubMocks: { refreshAuth: vi.fn() },
-    pluginManagerMocks: { invalidateConnectionStatus: vi.fn(), invoke: vi.fn() },
-    credentialStoreMocks: { deleteSlot: vi.fn(), set: vi.fn(), get: vi.fn() },
-  }),
-);
+const { githubOauthMocks, pluginManagerMocks, credentialStoreMocks } = vi.hoisted(() => ({
+  githubOauthMocks: {
+    startDeviceFlow: vi.fn(),
+    pollDeviceFlow: vi.fn(),
+    fetchGitHubUsername: vi.fn(),
+    saveToken: vi.fn(),
+    GITHUB_PLUGIN_ID: "github-com",
+    GITHUB_TOKEN_SLOT: "github-token",
+    // IP-WU-036: REQUIRED_SCOPES is consumed by the route to log `scopesRequested`.
+    REQUIRED_SCOPES: ["repo", "read:org", "read:project", "security_events"],
+  },
+  pluginManagerMocks: { invalidateConnectionStatus: vi.fn(), invoke: vi.fn() },
+  credentialStoreMocks: { deleteSlot: vi.fn(), set: vi.fn(), get: vi.fn() },
+}));
 vi.mock("../services/github-oauth.js", () => githubOauthMocks);
-vi.mock("../services/github.js", () => githubMocks);
 vi.mock("../services/plugin-manager.js", () => pluginManagerMocks);
 vi.mock("../services/credential-store.js", () => credentialStoreMocks);
 
@@ -36,7 +32,6 @@ beforeEach(() => {
   for (const fn of Object.values(githubOauthMocks)) {
     if (typeof fn === "function" && "mockReset" in fn) fn.mockReset();
   }
-  githubMocks.refreshAuth.mockReset();
   pluginManagerMocks.invalidateConnectionStatus.mockReset();
   pluginManagerMocks.invoke.mockReset();
   pluginManagerMocks.invoke.mockResolvedValue(undefined);
@@ -123,7 +118,6 @@ describe("POST /device/poll", () => {
     });
     githubOauthMocks.fetchGitHubUsername.mockResolvedValue("octocat");
     githubOauthMocks.saveToken.mockResolvedValue(undefined);
-    githubMocks.refreshAuth.mockResolvedValue(undefined);
   }
 
   it("rejects a missing flowId with 400", async () => {
@@ -158,7 +152,6 @@ describe("POST /device/poll", () => {
     expect(res.body).toEqual({ status: "complete", username: "octocat" });
     expect(githubOauthMocks.fetchGitHubUsername).toHaveBeenCalledWith("ghp_secret");
     expect(githubOauthMocks.saveToken).toHaveBeenCalledWith("ghp_secret");
-    expect(githubMocks.refreshAuth).toHaveBeenCalled();
     // IP-WU-031: invalidate the cached connection-status so the next UI poll
     // re-probes under the freshly-saved token (incl. any newly granted scopes).
     expect(pluginManagerMocks.invalidateConnectionStatus).toHaveBeenCalledWith("github-com");
@@ -223,7 +216,6 @@ describe("POST /device/poll", () => {
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: "GitHub request failed: 404" });
     expect(githubOauthMocks.saveToken).not.toHaveBeenCalled();
-    expect(githubMocks.refreshAuth).not.toHaveBeenCalled();
     expect(pluginManagerMocks.invalidateConnectionStatus).not.toHaveBeenCalled();
     expect(infoPayloads().filter((p) => p.kind === "oauth-exchange")).toHaveLength(0);
   });
@@ -232,14 +224,12 @@ describe("POST /device/poll", () => {
 describe("POST /disconnect", () => {
   it("clears the stored token, refreshes legacy auth, and invalidates connection status", async () => {
     credentialStoreMocks.deleteSlot.mockResolvedValue(undefined);
-    githubMocks.refreshAuth.mockResolvedValue(undefined);
 
     const res = await request(app).post("/disconnect");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
     expect(credentialStoreMocks.deleteSlot).toHaveBeenCalledWith("github-com", "github-token");
-    expect(githubMocks.refreshAuth).toHaveBeenCalled();
     expect(pluginManagerMocks.invalidateConnectionStatus).toHaveBeenCalledWith("github-com");
     // Drop the plugin's cached client so source-bound RPCs stop using the
     // now-cleared token immediately.
@@ -250,7 +240,6 @@ describe("POST /disconnect", () => {
 
   it("emits a structured oauth-disconnect log line", async () => {
     credentialStoreMocks.deleteSlot.mockResolvedValue(undefined);
-    githubMocks.refreshAuth.mockResolvedValue(undefined);
 
     await request(app).post("/disconnect");
 
@@ -263,7 +252,6 @@ describe("POST /disconnect", () => {
     // resolve successfully whether or not a slot existed, so the route should
     // never surface a 5xx for a redundant disconnect.
     credentialStoreMocks.deleteSlot.mockResolvedValue(undefined);
-    githubMocks.refreshAuth.mockResolvedValue(undefined);
 
     const first = await request(app).post("/disconnect");
     const second = await request(app).post("/disconnect");
@@ -280,7 +268,6 @@ describe("POST /disconnect", () => {
 
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: "keychain locked" });
-    expect(githubMocks.refreshAuth).not.toHaveBeenCalled();
     expect(pluginManagerMocks.invalidateConnectionStatus).not.toHaveBeenCalled();
   });
 });

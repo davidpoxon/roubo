@@ -4,9 +4,7 @@ import { render, screen } from "@testing-library/react";
 import SectionReview from "./SectionReview";
 import { WIZARD_SECTIONS, type WizardSection, type SectionStatus } from "./wizardReducer";
 
-vi.mock("../../hooks/useSetup", () => ({
-  useGitHubProjects: () => ({ data: [] }),
-}));
+vi.mock("../../hooks/useSetup", () => ({}));
 
 function makeStatus(
   overrides: Partial<Record<WizardSection, SectionStatus>> = {},

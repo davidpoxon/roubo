@@ -42,16 +42,6 @@ export function useSaveConfig() {
   });
 }
 
-export function useGitHubProjects(repo: string) {
-  return useQuery({
-    queryKey: ["github-projects", repo],
-    queryFn: () => api.fetchGitHubProjects(repo),
-    enabled: !!repo && repo.includes("/"),
-    staleTime: 30_000,
-    retry: false,
-  });
-}
-
 export function useRawConfig(projectId: string | undefined) {
   return useQuery({
     queryKey: ["raw-config", projectId],

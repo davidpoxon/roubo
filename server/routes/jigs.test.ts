@@ -52,12 +52,20 @@ vi.mock("../services/state.js", () => ({
   atomicWrite: vi.fn(),
 }));
 
-// Partial mock: only fetchIssueContext (the network call) is stubbed;
-// buildPluginIssueContext stays real so its externalUrl re-hydration is
-// actually exercised, not just assumed.
-vi.mock("../services/issue-formatting.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../services/issue-formatting.js")>();
-  return { ...actual, fetchIssueContext: vi.fn() };
+// The issue-context helper stays real; only the plugin boundary it calls is
+// stubbed. With no active integration plugin (the default) it re-hydrates the
+// issue from the persisted bench state without any RPC.
+vi.mock("../services/active-plugin.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/active-plugin.js")>();
+  return { ...actual, resolveActivePlugin: vi.fn(() => null) };
+});
+vi.mock("../services/plugin-activation.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/plugin-activation.js")>();
+  return { ...actual, ensurePluginActivated: vi.fn(async () => {}) };
+});
+vi.mock("../services/plugin-manager.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/plugin-manager.js")>();
+  return { ...actual, invoke: vi.fn() };
 });
 
 vi.mock("node:fs", async (importOriginal) => {
@@ -82,7 +90,8 @@ import * as benchManager from "../services/bench-manager.js";
 import * as jigManager from "../services/jig-manager.js";
 import * as terminalService from "../services/terminal.js";
 import * as state from "../services/state.js";
-import * as issueFormatting from "../services/issue-formatting.js";
+import * as activePlugin from "../services/active-plugin.js";
+import * as pluginManager from "../services/plugin-manager.js";
 import fs from "node:fs";
 import * as YAML from "yaml";
 
@@ -111,8 +120,34 @@ const MOCK_BENCH = {
 
 const MOCK_BENCH_WITH_ISSUE = {
   ...MOCK_BENCH,
-  assignedIssue: { number: 42, title: "Fix the widget" },
+  assignedIssue: {
+    number: 42,
+    integrationId: "github-com",
+    externalId: "owner/repo#42",
+    title: "Fix the widget",
+  },
 };
+
+// Make github-com the active plugin for one request, answering getIssue with
+// `body` and getComments with one comment, or failing getIssue with `fail`.
+function activateGitHub(opts: { body?: string; fail?: Error } = {}): void {
+  vi.mocked(activePlugin.resolveActivePlugin).mockReturnValueOnce({
+    pluginId: "github-com",
+    integrationId: "github-com",
+    pageSize: 50,
+  });
+  vi.mocked(pluginManager.invoke).mockImplementation(async (_pluginId, method) => {
+    if (opts.fail) throw opts.fail;
+    if (method === "getComments") {
+      return [{ author: { displayName: "octocat" }, body: "formatted" }] as never;
+    }
+    return {
+      title: "Fix the widget",
+      body: opts.body ?? null,
+      externalUrl: "https://github.com/owner/repo/issues/42",
+    } as never;
+  });
+}
 
 const MOCK_PROJECT_WITH_REPO = {
   ...MOCK_PROJECT,
@@ -299,7 +334,7 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
 
     await request(app).post("/project-1/benches/1/inject-jig").send({ jigId: "feature-dev" });
 
-    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
     const ctx = vi.mocked(jigManager.resolveJigContent).mock.calls[0][1];
     expect(ctx).toMatchObject({
       issueNumber: 117,
@@ -506,20 +541,16 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
     vi.mocked(benchManager.getBench).mockReturnValue(
       MOCK_BENCH_WITH_ISSUE as unknown as ReturnType<typeof benchManager.getBench>,
     );
-    vi.mocked(issueFormatting.fetchIssueContext).mockResolvedValue({
-      issueNumber: 42,
-      issueTitle: "Fix the widget",
-      issueBody: "The widget is broken.",
-      issueUrl: "https://github.com/owner/repo/issues/42",
-      comments: "## Comments\nformatted",
-    });
+    activateGitHub({ body: "The widget is broken." });
 
     const res = await request(app)
       .post("/project-1/benches/1/inject-jig")
       .send({ jigId: "feature-dev" });
 
     expect(res.status).toBe(200);
-    expect(issueFormatting.fetchIssueContext).toHaveBeenCalledWith("owner/repo", 42);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "owner/repo#42",
+    });
     expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
       MOCK_JIG_DETAIL.content,
       expect.objectContaining({
@@ -527,19 +558,19 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
         issueTitle: "Fix the widget",
         issueBody: "The widget is broken.",
         issueUrl: "https://github.com/owner/repo/issues/42",
-        comments: "## Comments\nformatted",
+        comments: "## Comments\n\n**octocat:**\nformatted\n",
       }),
     );
   });
 
-  it("falls back to minimal issue data when GitHub fetch fails", async () => {
+  it("falls back to minimal issue data when the plugin fetch fails", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       MOCK_PROJECT_WITH_REPO as unknown as ReturnType<typeof projectRegistry.getProject>,
     );
     vi.mocked(benchManager.getBench).mockReturnValue(
       MOCK_BENCH_WITH_ISSUE as unknown as ReturnType<typeof benchManager.getBench>,
     );
-    vi.mocked(issueFormatting.fetchIssueContext).mockRejectedValue(new Error("GitHub API error"));
+    activateGitHub({ fail: new Error("GitHub API error") });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const res = await request(app)
@@ -547,7 +578,7 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
       .send({ jigId: "feature-dev" });
 
     expect(res.status).toBe(200);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to fetch issue #42"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to fetch owner/repo#42"));
     expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
       MOCK_JIG_DETAIL.content,
       expect.objectContaining({
@@ -566,7 +597,7 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
     warnSpy.mockRestore();
   });
 
-  it("still fills issueUrl from persisted state when the GitHub fetch fails", async () => {
+  it("still fills issueUrl from persisted state when the plugin fetch fails", async () => {
     vi.mocked(projectRegistry.getProject).mockReturnValue(
       MOCK_PROJECT_WITH_REPO as unknown as ReturnType<typeof projectRegistry.getProject>,
     );
@@ -577,7 +608,7 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
         externalUrl: "https://github.com/owner/repo/issues/42",
       },
     } as unknown as ReturnType<typeof benchManager.getBench>);
-    vi.mocked(issueFormatting.fetchIssueContext).mockRejectedValue(new Error("GitHub API error"));
+    activateGitHub({ fail: new Error("GitHub API error") });
     const warnSpy2 = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await request(app).post("/project-1/benches/1/inject-jig").send({ jigId: "feature-dev" });
@@ -609,7 +640,7 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
 
     await request(app).post("/project-1/benches/1/inject-jig").send({ jigId: "feature-dev" });
 
-    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
     expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
       MOCK_JIG_DETAIL.content,
       expect.objectContaining({
@@ -623,17 +654,21 @@ describe("POST /:projectId/benches/:benchId/inject-jig", () => {
   it("does not fetch issue data when bench has no assigned issue", async () => {
     await request(app).post("/project-1/benches/1/inject-jig").send({ jigId: "feature-dev" });
 
-    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
   });
 
-  it("does not fetch issue data when project has no repo configured", async () => {
+  it("uses persisted issue data when the project has no active integration plugin", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue(
       MOCK_BENCH_WITH_ISSUE as unknown as ReturnType<typeof benchManager.getBench>,
     );
 
     await request(app).post("/project-1/benches/1/inject-jig").send({ jigId: "feature-dev" });
 
-    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
+    expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+      MOCK_JIG_DETAIL.content,
+      expect.objectContaining({ issueNumber: 42, issueTitle: "Fix the widget" }),
+    );
   });
 });
 

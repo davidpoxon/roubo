@@ -34,8 +34,6 @@ import {
   createTerminal,
   fetchTerminals,
   destroyTerminal,
-  fetchGitHubProjects,
-  fetchProjectGitHubProjects,
   fetchIssuesPage,
   fetchIssueComments,
   applyTransition,
@@ -592,32 +590,6 @@ describe("fetchRawConfig", () => {
       "/api/projects/p1/config/raw",
       expect.objectContaining({}),
     );
-  });
-});
-
-describe("fetchGitHubProjects", () => {
-  it("sends GET to /api/projects/github-projects with repo query param", async () => {
-    const projects = [{ number: 1, title: "Project Alpha" }];
-    mockFetch.mockResolvedValue(jsonResponse(projects));
-    const result = await fetchGitHubProjects("org/repo");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/github-projects?repo=org%2Frepo",
-      expect.objectContaining({}),
-    );
-    expect(result).toEqual(projects);
-  });
-});
-
-describe("fetchProjectGitHubProjects", () => {
-  it("sends GET to /api/projects/:projectId/projects", async () => {
-    const projects = [{ number: 1, title: "Project Alpha" }];
-    mockFetch.mockResolvedValue(jsonResponse(projects));
-    const result = await fetchProjectGitHubProjects("my-project");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/projects/my-project/projects",
-      expect.objectContaining({}),
-    );
-    expect(result).toEqual(projects);
   });
 });
 

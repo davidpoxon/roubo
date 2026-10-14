@@ -241,8 +241,8 @@ export interface RouterModule {
  * whose environment sets a non-English locale would regenerate a differently
  * ordered file and trip the route-inventory-drift gate with no way to
  * reconcile. Under cs_CZ, for example, Czech treats "ch" as a single element
- * sorting after "h", which moves /api/projects/check-config after
- * /api/projects/github-projects. The gate's whole value rests on this
+ * sorting after "h", which moves /api/projects/check-config after a sibling
+ * such as /api/projects/github-projects. The gate's whole value rests on this
  * generator being a pure function of the source, so the ordering must not
  * depend on the environment.
  */

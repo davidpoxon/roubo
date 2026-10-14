@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { GitHubError, classifyGitHubError, classifyGitHubErrors } from "./github-error.js";
+import { GitHubError, classifyGitHubError } from "./github-error.js";
 import { ServiceError } from "./service-error.js";
 
 function makeHttpError(status: number, message: string, headers: Record<string, string> = {}) {
@@ -205,32 +205,6 @@ describe("classifyGitHubError", () => {
       makeGraphqlError("", "Your token has not been granted the required scopes: read:project"),
     );
     expect(r.code).toBe("SCOPES_OUTDATED");
-  });
-
-  it("two errors: picks most specific classification", () => {
-    const vague = makeHttpError(500, "Internal error");
-    const specific = makeHttpError(401, "Bad credentials");
-    const r = classifyGitHubErrors(vague, specific, { owner: "o" });
-    expect(r.code).toBe("NOT_CONNECTED");
-  });
-
-  it("two errors: both UNKNOWN → returns UNKNOWN", () => {
-    const r = classifyGitHubErrors(new Error("a"), new Error("b"));
-    expect(r.code).toBe("UNKNOWN");
-  });
-
-  it("two errors: same specific code on both → returns that code", () => {
-    const a = makeHttpError(401, "Bad credentials");
-    const b = makeHttpError(401, "Bad credentials again");
-    const r = classifyGitHubErrors(a, b);
-    expect(r.code).toBe("NOT_CONNECTED");
-  });
-
-  it("two errors: first more specific than second → returns first", () => {
-    const moreSpecific = makeHttpError(401, "Bad credentials");
-    const lessSpecific = makeHttpError(503, "Service unavailable");
-    const r = classifyGitHubErrors(moreSpecific, lessSpecific);
-    expect(r.code).toBe("NOT_CONNECTED");
   });
 
   it("owner param is threaded when context is provided", () => {

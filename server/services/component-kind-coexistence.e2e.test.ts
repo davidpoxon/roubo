@@ -173,7 +173,6 @@ describe("CP-TC-029: the component kind coexists with integration plugins (#660)
     vi.doUnmock("./plugin-sort-fields.js");
     vi.doUnmock("./issue-assignment.js");
     vi.doUnmock("./github-oauth.js");
-    vi.doUnmock("./github.js");
     vi.doUnmock("./credential-store.js");
     vi.resetModules();
     vi.restoreAllMocks();
@@ -384,12 +383,10 @@ describe("CP-TC-029: the component kind coexists with integration plugins (#660)
       GITHUB_TOKEN_SLOT: "github-token",
       REQUIRED_SCOPES: ["repo", "read:org", "read:project", "security_events"],
     };
-    const githubMocks = { refreshAuth: vi.fn() };
     const pluginManagerMocks = { invalidateConnectionStatus: vi.fn(), invoke: vi.fn() };
     const credentialStoreMocks = { deleteSlot: vi.fn(), set: vi.fn(), get: vi.fn() };
 
     vi.doMock("./github-oauth.js", () => githubOauthMocks);
-    vi.doMock("./github.js", () => githubMocks);
     vi.doMock("./plugin-manager.js", () => pluginManagerMocks);
     vi.doMock("./credential-store.js", () => credentialStoreMocks);
 
@@ -435,7 +432,6 @@ describe("CP-TC-029: the component kind coexists with integration plugins (#660)
     });
     githubOauthMocks.fetchGitHubUsername.mockResolvedValue("octocat");
     githubOauthMocks.saveToken.mockResolvedValue(undefined);
-    githubMocks.refreshAuth.mockResolvedValue(undefined);
     pluginManagerMocks.invoke.mockResolvedValue(undefined);
 
     const pollRes = await request(app).post("/device/poll").send({ flowId: "flow-1" });

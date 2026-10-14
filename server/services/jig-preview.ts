@@ -4,9 +4,7 @@ import {
   applyContainerOverrides,
   applyComponentUrlOverrides,
 } from "./config-parser.js";
-import { fetchIssueContext, buildPluginIssueContext } from "./issue-formatting.js";
-import { isAlertExternalId } from "./alert-external-id.js";
-import { buildAlertIssueContext } from "./alert-formatting.js";
+import { resolveAssignedIssueContext } from "./issue-formatting.js";
 import type { JigResolveContext } from "./jig-manager.js";
 
 export function getSampleResolveContext(): JigResolveContext {
@@ -36,31 +34,11 @@ export async function buildPreviewContext(
   applyContainerOverrides(templateCtx, bench.assignedContainers);
   applyComponentUrlOverrides(templateCtx, bench.components);
 
-  let issueCtx: Partial<JigResolveContext> = {};
+  const issueCtx: Partial<JigResolveContext> = bench.assignedIssue
+    ? await resolveAssignedIssueContext(project.id, bench.assignedIssue)
+    : {};
 
-  // Alert-backed benches have no GitHub issue to fetch by number, so re-hydrate
-  // from the persisted redacted raw. Plain issues fetch fresh from GitHub.
-  if (bench.assignedIssue) {
-    if (isAlertExternalId(bench.assignedIssue.externalId)) {
-      issueCtx = buildAlertIssueContext(bench.assignedIssue);
-    } else if (bench.assignedIssue.number == null) {
-      // Non-alert integrations with no numeric issue (e.g. Jira): re-hydrate
-      // from persisted bench state, never a GitHub fetch by number.
-      issueCtx = buildPluginIssueContext(bench.assignedIssue);
-    } else if (project.config.project.repo) {
-      try {
-        issueCtx = await fetchIssueContext(project.config.project.repo, bench.assignedIssue.number);
-      } catch {
-        issueCtx = {
-          issueNumber: bench.assignedIssue.number,
-          issueTitle: bench.assignedIssue.title,
-          ...(bench.assignedIssue.externalUrl ? { issueUrl: bench.assignedIssue.externalUrl } : {}),
-        };
-      }
-    }
-  }
-
-  // issueCtx must spread last: GitHub-fetched data is authoritative over
+  // issueCtx must spread last: plugin-fetched data is authoritative over
   // any locally-persisted issue fields that templateCtx may carry.
   return {
     ...templateCtx,

@@ -12,6 +12,8 @@ Roubo uses GitHub OAuth to authenticate users and access repository data (issues
 2. You enter the code at `https://github.com/login/device` in your browser and approve access.
 3. Meanwhile the dialog polls the server (`POST /api/plugins/github-com/oauth/device/poll`) at the interval GitHub sets. Each poll makes at most one token request to GitHub. On approval the server saves the token to the github-com plugin's keychain slot (`credentialStore.set("github-com", "github-token", …)` in `server/services/github-oauth.ts`) and the dialog shows the connected account.
 
+The github-com plugin reads the token from that slot only. Roubo does not read a `GITHUB_TOKEN` environment variable.
+
 Any pre-existing `~/.roubo/auth.json` from an earlier Roubo version is migrated into the keychain and then deleted by `server/services/migrate.ts`.
 
 ### The bundled OAuth App

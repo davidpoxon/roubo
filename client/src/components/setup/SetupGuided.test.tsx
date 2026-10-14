@@ -16,7 +16,6 @@ vi.mock("../../hooks/useBenches", () => ({
 }));
 vi.mock("../../hooks/useSetup", () => ({
   useRawConfig: vi.fn(() => ({ data: undefined })),
-  useGitHubProjects: () => ({ data: [], isLoading: false, error: null }),
   useEnvKeys: () => ({ data: { keys: [] } }),
 }));
 vi.mock("./SetupYaml", () => ({

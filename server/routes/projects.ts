@@ -6,7 +6,6 @@ import * as projectRegistry from "../services/project-registry.js";
 import { ProjectRegistryError } from "../services/project-registry.js";
 import { parseConfig, validateConfigObject } from "../services/config-parser.js";
 import { scanRepo } from "../services/repo-scanner.js";
-import * as githubService from "../services/github.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import { resolveActivePlugin } from "../services/active-plugin.js";
 import { ensurePluginActivated, resolveSources } from "../services/plugin-activation.js";
@@ -218,34 +217,6 @@ router.post("/validate-config", (req, res) => {
     errors,
     portConflicts,
   });
-});
-
-router.get("/github-projects", async (req, res) => {
-  const repo = req.query.repo as string | undefined;
-  if (!repo || typeof repo !== "string") {
-    res.status(400).json({ error: "repo query parameter is required" });
-    return;
-  }
-  try {
-    const projects = await githubService.fetchProjects(repo);
-    res.json(projects);
-  } catch (err) {
-    sendGitHubErrorResponse(res, err);
-  }
-});
-
-router.get("/:projectId/projects", async (req, res) => {
-  const project = projectRegistry.getProject(req.params.projectId);
-  if (!project?.config?.project?.repo) {
-    res.status(404).json({ error: "Project not found or has no repo configured" });
-    return;
-  }
-  try {
-    const projects = await githubService.fetchProjects(project.config.project.repo);
-    res.json(projects);
-  } catch (err) {
-    sendGitHubErrorResponse(res, err);
-  }
 });
 
 router.get("/:projectId/issue-types", async (req, res) => {
