@@ -31,4 +31,26 @@ describe("server tsup bundle dependency coverage", () => {
     const missing = deps.filter((d) => !noExternal.has(d) && !NATIVE_EXTERNAL.has(d));
     expect(missing).toEqual([]);
   });
+
+  // ssh2 (via dockerode) loads two optional native bindings inside try/catch.
+  // Their install scripts exit 0 when node-gyp fails, so they may be absent, and
+  // tsup's native-node-modules plugin fails the bundle on a missing `.node`
+  // file (#1471). Keeping them external makes the build independent of them;
+  // ssh2 then takes its pure-JavaScript fallback at runtime.
+  it.each(["./crypto/build/Release/sshcrypto.node", "cpu-features"])(
+    "keeps ssh2's optional native binding %s external",
+    (specifier) => {
+      const resolved = Array.isArray(tsupConfig) ? tsupConfig[0] : tsupConfig;
+      if (typeof resolved === "function") {
+        throw new Error(
+          "tsup.config default export is a function; expected a static options object.",
+        );
+      }
+      const external = (resolved.external ?? []) as (string | RegExp)[];
+      const matches = external.some((p) =>
+        typeof p === "string" ? p === specifier : p.test(specifier),
+      );
+      expect(matches).toBe(true);
+    },
+  );
 });

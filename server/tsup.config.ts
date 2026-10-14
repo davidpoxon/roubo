@@ -40,4 +40,11 @@ export default defineConfig({
     "vscode-jsonrpc",
     "ws",
   ],
+  // ssh2 (bundled through dockerode) requires two optional native bindings inside
+  // try/catch. Their install scripts exit 0 when node-gyp fails, so either may be
+  // absent, and tsup's native-node-modules plugin fails the whole bundle on a
+  // missing `.node` file (#1471). Leave both unbundled: ssh2 falls back to pure
+  // JavaScript, which is what it already does in Electron, where a binding built
+  // against Node's ABI cannot load.
+  external: [/[\\/]sshcrypto\.node$/, "cpu-features"],
 });
