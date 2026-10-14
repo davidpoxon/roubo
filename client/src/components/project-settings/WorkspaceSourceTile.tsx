@@ -77,11 +77,13 @@ export function WorkspaceSourceTile({
               isSelected={draft.pullLatest}
               onChange={(val) => updateDraft({ pullLatest: val })}
               label="Pull latest before workspace setup"
-              description="Fetch and fast-forward the source branch before creating the new workspace so the bench starts from the latest commit."
+              description="Fetch and fast-forward the local source branch before creating the new workspace so the bench starts from the latest commit. The main checkout stays on whatever branch it is on."
             />
             {draft.pullLatest && (
               <p className="mt-2 text-11 text-text-secondary font-mono leading-relaxed">
-                {`git fetch origin ${draft.branchFromDefault ? (settings?.defaultBranch ?? "<defaultBranch>") : "<currentBranch>"} && git merge --ff-only origin/${draft.branchFromDefault ? (settings?.defaultBranch ?? "<defaultBranch>") : "<currentBranch>"}`}
+                {draft.branchFromDefault
+                  ? `git fetch origin ${settings?.defaultBranch ?? "<defaultBranch>"}, then fast-forward local ${settings?.defaultBranch ?? "<defaultBranch>"} without switching branches`
+                  : "git fetch origin <currentBranch> && git merge --ff-only origin/<currentBranch>"}
               </p>
             )}
           </div>

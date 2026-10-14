@@ -14,6 +14,7 @@ const {
   parseGitmodulesWithBranch,
   resolveSubmoduleBranch,
   resolveGitIdentity,
+  fastForwardLocalBranch,
   SENTINEL_AUTHOR_NAME,
   SENTINEL_AUTHOR_EMAIL,
 } = await import("./git-helpers.js");
@@ -309,5 +310,99 @@ describe("resolveGitIdentity", () => {
       email: SENTINEL_AUTHOR_EMAIL,
       isSentinel: true,
     });
+  });
+});
+
+// The real-git cases live in git-helpers.fast-forward.git.test.ts. These cover
+// a second bench moving the branch between the read and the write, which a
+// real repository cannot be made to interleave on demand.
+describe("fastForwardLocalBranch: a concurrent write to the branch", () => {
+  const OLD = "1111111";
+  const REMOTE = "2222222";
+
+  /**
+   * Scripts git for a main checkout on `feature` with `main` behind origin.
+   * The branch reads as `first` (default OLD), then as `after` once the write has failed;
+   * `contains` lists the [ancestor, descendant] pairs merge-base accepts.
+   */
+  function scriptGit(opts: {
+    first?: string | null;
+    after: string | null;
+    contains: [string, string][];
+  }) {
+    let reads = 0;
+    vi.mocked(execModule.runCommand).mockImplementation(async (_cmd, args) => {
+      const ok = (stdout = "") => ({ code: 0, stdout, stderr: "" });
+      if (args[0] === "worktree")
+        return ok(`worktree ${REPO}\nHEAD ${OLD}\nbranch refs/heads/feature\n`);
+      if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return ok(`${REPO}\n`);
+      if (args[0] === "rev-parse") {
+        reads += 1;
+        const value = reads === 1 ? (opts.first === undefined ? OLD : opts.first) : opts.after;
+        return value === null ? { code: 1, stdout: "", stderr: "" } : ok(`${value}\n`);
+      }
+      if (args[0] === "merge-base") {
+        const [anc, desc] = [args[2], args[3]].map((r) =>
+          r === "refs/remotes/origin/main" ? REMOTE : r,
+        );
+        return {
+          code: opts.contains.some(([a, d]) => a === anc && d === desc) ? 0 : 1,
+          stdout: "",
+          stderr: "",
+        };
+      }
+      if (args[0] === "update-ref" || args[0] === "branch") {
+        return { code: 128, stdout: "", stderr: "fatal: cannot lock ref 'refs/heads/main'" };
+      }
+      throw new Error(`unexpected git ${args.join(" ")}`);
+    });
+  }
+
+  it("writes by compare-and-swap, and succeeds when the failed write finds the branch caught up", async () => {
+    scriptGit({
+      after: REMOTE,
+      contains: [
+        [OLD, REMOTE],
+        [REMOTE, REMOTE],
+      ],
+    });
+
+    await expect(fastForwardLocalBranch(REPO, "main")).resolves.toBeUndefined();
+    expect(execModule.runCommand).toHaveBeenCalledWith(
+      "git",
+      [
+        "update-ref",
+        "-m",
+        "roubo: pull latest from origin/main",
+        "refs/heads/main",
+        "refs/remotes/origin/main",
+        OLD,
+      ],
+      REPO,
+      undefined,
+      10_000,
+    );
+  });
+
+  it("fails when the failed write finds the branch moved somewhere origin is not", async () => {
+    scriptGit({ after: "3333333", contains: [[OLD, REMOTE]] });
+
+    await expect(fastForwardLocalBranch(REPO, "main")).rejects.toThrow(
+      "Could not fast-forward 'main': fatal: cannot lock ref 'refs/heads/main'.",
+    );
+  });
+
+  it("succeeds when another bench created the missing branch first", async () => {
+    // The first read finds no branch, the second finds the one the other bench made.
+    scriptGit({ first: null, after: REMOTE, contains: [[REMOTE, REMOTE]] });
+
+    await expect(fastForwardLocalBranch(REPO, "main")).resolves.toBeUndefined();
+    expect(execModule.runCommand).toHaveBeenCalledWith(
+      "git",
+      ["branch", "--track", "main", "origin/main"],
+      REPO,
+      undefined,
+      10_000,
+    );
   });
 });

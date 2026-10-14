@@ -1,4 +1,5 @@
 import { runCommand } from "./exec.js";
+import { canonicalPath, parseWorktreeList } from "./worktree-registry.js";
 
 export interface GitmoduleEntry {
   path: string;
@@ -194,4 +195,153 @@ export async function resolveDefaultBranch(repoPath: string): Promise<string> {
   const branch = ref.slice(prefix.length);
   if (!branch) throw new DefaultBranchResolutionError();
   return branch;
+}
+
+/** The fast-forward itself can move a large working tree, so it gets the longer limit. */
+const FAST_FORWARD_TIMEOUT_MS = 60_000;
+const REF_COMMAND_TIMEOUT_MS = 10_000;
+
+function divergedError(branch: string): Error {
+  return new Error(
+    `Could not fast-forward '${branch}': your local branch has diverged from origin/${branch}. ` +
+      `Resolve manually in the source repo, or disable 'Pull latest' in project settings.`,
+  );
+}
+
+function refUpdateError(branch: string, stderr: string, fallback: string): Error {
+  return new Error(
+    `Could not fast-forward '${branch}': ${stderr.trim() || fallback}. ` +
+      `Resolve manually in the source repo, or disable 'Pull latest' in project settings.`,
+  );
+}
+
+/** Whether `ancestor` is reachable from `descendant`. Throws when git cannot tell. */
+async function isAncestor(
+  repoPath: string,
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
+  const result = await runCommand(
+    "git",
+    ["merge-base", "--is-ancestor", ancestor, descendant],
+    repoPath,
+    undefined,
+    REF_COMMAND_TIMEOUT_MS,
+  );
+  if (result.code === 0) return true;
+  if (result.code === 1) return false;
+  throw new Error(
+    `Could not compare ${ancestor} with ${descendant}: ${result.stderr.trim() || `git merge-base exited ${result.code}`}.`,
+  );
+}
+
+/**
+ * Brings the local `branch` up to `origin/<branch>` for Pull latest, without
+ * switching the branch the main checkout at `repoPath` has checked out. The
+ * caller fetches `origin/<branch>` first.
+ *
+ * - Checked out in `repoPath`: `git merge --ff-only`, which also updates the
+ *   working tree.
+ * - Checked out in another worktree: throws. Moving the ref from here would
+ *   leave that worktree's index and files behind its branch.
+ * - Not checked out anywhere: the ref alone moves, by compare-and-swap so a
+ *   concurrent change to it is not overwritten. A missing local branch is
+ *   created to track origin, and one that is already ahead is left alone.
+ *
+ * Throws the diverged message when neither side contains the other.
+ */
+export async function fastForwardLocalBranch(repoPath: string, branch: string): Promise<void> {
+  const localRef = `refs/heads/${branch}`;
+  const remoteRef = `refs/remotes/origin/${branch}`;
+
+  const [list, toplevel] = await Promise.all([
+    runCommand(
+      "git",
+      ["worktree", "list", "--porcelain"],
+      repoPath,
+      undefined,
+      REF_COMMAND_TIMEOUT_MS,
+    ),
+    runCommand(
+      "git",
+      ["rev-parse", "--show-toplevel"],
+      repoPath,
+      undefined,
+      REF_COMMAND_TIMEOUT_MS,
+    ),
+  ]);
+  if (list.code !== 0) throw refUpdateError(branch, list.stderr, "git worktree list failed");
+  if (toplevel.code !== 0) throw refUpdateError(branch, toplevel.stderr, "git rev-parse failed");
+  const holder = parseWorktreeList(list.stdout).find((e) => e.branch === branch);
+
+  // Another bench provisioning at the same time can move the branch between
+  // the read and the write. Its write is the same fast-forward, so a failed
+  // write that finds the branch already containing origin is not an error.
+  const caughtUpMeanwhile = async (): Promise<boolean> => {
+    const now = await runCommand(
+      "git",
+      ["rev-parse", "--verify", "--quiet", localRef],
+      repoPath,
+      undefined,
+      REF_COMMAND_TIMEOUT_MS,
+    );
+    return now.code === 0 && (await isAncestor(repoPath, remoteRef, now.stdout.trim()));
+  };
+
+  if (holder) {
+    // Compared with the repository's top level, since a project may be
+    // registered at a subdirectory of it.
+    if (canonicalPath(holder.path) !== canonicalPath(toplevel.stdout.trim())) {
+      throw new Error(
+        `Could not fast-forward '${branch}': it is checked out in ${holder.path}. ` +
+          `Update it there, or disable 'Pull latest' in project settings.`,
+      );
+    }
+    const ff = await runCommand(
+      "git",
+      ["merge", "--ff-only", `origin/${branch}`],
+      repoPath,
+      undefined,
+      FAST_FORWARD_TIMEOUT_MS,
+    );
+    if (ff.code !== 0) throw divergedError(branch);
+    return;
+  }
+
+  const local = await runCommand(
+    "git",
+    ["rev-parse", "--verify", "--quiet", localRef],
+    repoPath,
+    undefined,
+    REF_COMMAND_TIMEOUT_MS,
+  );
+  if (local.code !== 0) {
+    const created = await runCommand(
+      "git",
+      ["branch", "--track", branch, `origin/${branch}`],
+      repoPath,
+      undefined,
+      REF_COMMAND_TIMEOUT_MS,
+    );
+    if (created.code !== 0 && !(await caughtUpMeanwhile())) {
+      throw refUpdateError(branch, created.stderr, "git branch failed");
+    }
+    return;
+  }
+
+  const oldSha = local.stdout.trim();
+  // Up to date, or ahead with commits origin does not have yet.
+  if (await isAncestor(repoPath, remoteRef, oldSha)) return;
+  if (!(await isAncestor(repoPath, oldSha, remoteRef))) throw divergedError(branch);
+
+  const updated = await runCommand(
+    "git",
+    ["update-ref", "-m", `roubo: pull latest from origin/${branch}`, localRef, remoteRef, oldSha],
+    repoPath,
+    undefined,
+    REF_COMMAND_TIMEOUT_MS,
+  );
+  if (updated.code !== 0 && !(await caughtUpMeanwhile())) {
+    throw refUpdateError(branch, updated.stderr, "git update-ref failed");
+  }
 }

@@ -7,6 +7,8 @@ export interface WorktreeEntry {
   path: string;
   /** Git marks a worktree prunable when its directory is gone but its admin dir remains. */
   prunable: boolean;
+  /** The branch checked out there, without `refs/heads/`. Absent when HEAD is detached or the entry is bare. */
+  branch?: string;
 }
 
 /**
@@ -37,6 +39,8 @@ export function parseWorktreeList(porcelain: string): WorktreeEntry[] {
       entries.push(current);
     } else if (current && (line === "prunable" || line.startsWith("prunable "))) {
       current.prunable = true;
+    } else if (current && line.startsWith("branch refs/heads/")) {
+      current.branch = line.slice("branch refs/heads/".length);
     }
   }
   return entries;

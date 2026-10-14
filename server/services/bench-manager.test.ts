@@ -169,6 +169,7 @@ vi.mock("./git-helpers.js", () => ({
   resolveDefaultBranch: vi.fn(),
   parseGitmodulesWithBranch: vi.fn(),
   resolveSubmoduleBranch: vi.fn(),
+  fastForwardLocalBranch: vi.fn(),
   DefaultBranchResolutionError: class DefaultBranchResolutionError extends Error {},
   DEFAULT_BRANCH_RESOLUTION_ERROR: "Could not determine the default branch",
 }));
@@ -2528,14 +2529,10 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       undefined,
       { signal: expect.any(AbortSignal), idleTimeoutMs: 60_000 },
     ]);
-    const mergeCall = calls.find((c) => Array.isArray(c[1]) && c[1][0] === "merge");
-    expect(mergeCall).toEqual([
-      "git",
-      ["merge", "--ff-only", "origin/feature/x"],
+    expect(gitHelpers.fastForwardLocalBranch).toHaveBeenCalledWith(
       "/repos/test-project",
-      undefined,
-      60_000,
-    ]);
+      "feature/x",
+    );
   });
 
   it("R1=on R2=on: fetches and fast-forwards resolved default branch", async () => {
@@ -2589,14 +2586,16 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       undefined,
       { signal: expect.any(AbortSignal), idleTimeoutMs: 60_000 },
     ]);
-    const mergeCall = calls.find((c) => Array.isArray(c[1]) && c[1][0] === "merge");
-    expect(mergeCall).toEqual([
-      "git",
-      ["merge", "--ff-only", "origin/main"],
-      "/repos/test-project",
-      undefined,
-      60_000,
-    ]);
+    // The local default branch is fast-forwarded, not whatever branch the main
+    // checkout is on, and only after the fetch has finished.
+    expect(gitHelpers.fastForwardLocalBranch).toHaveBeenCalledWith("/repos/test-project", "main");
+    const fetchOrder = vi.mocked(execModule.runCommand).mock.invocationCallOrder[
+      calls.findIndex((c) => Array.isArray(c[1]) && c[1][0] === "fetch")
+    ];
+    expect(
+      vi.mocked(gitHelpers.fastForwardLocalBranch).mock.invocationCallOrder[0],
+    ).toBeGreaterThan(fetchOrder);
+    expect(calls.find((c) => Array.isArray(c[1]) && c[1][0] === "merge")).toBeUndefined();
 
     // Worktree add must pass the resolved default branch as the base arg
     const worktreeCall = calls.find(
@@ -2653,8 +2652,7 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       (c) => Array.isArray(c[1]) && c[1][0] === "worktree" && c[1][1] === "add",
     );
     expect(worktreeCall).toBeUndefined();
-    const mergeCall = calls.find((c) => Array.isArray(c[1]) && c[1][0] === "merge");
-    expect(mergeCall).toBeUndefined();
+    expect(gitHelpers.fastForwardLocalBranch).not.toHaveBeenCalled();
 
     // workspace was never persisted
     expect(stateService.addBench).not.toHaveBeenCalled();
@@ -2665,16 +2663,14 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
       project: makeProject({ settings: SETTINGS_R1_ON_R2_ON }),
     });
     vi.mocked(gitHelpers.resolveDefaultBranch).mockResolvedValue("main");
-    vi.mocked(execModule.runCommand).mockImplementation((_cmd, args) => {
-      if (Array.isArray(args) && args[0] === "merge") {
-        return Promise.resolve({
-          code: 1,
-          stdout: "",
-          stderr: "Not possible to fast-forward",
-        });
-      }
-      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
-    });
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    // The message itself is fastForwardLocalBranch's; provisioning must surface it unchanged.
+    vi.mocked(gitHelpers.fastForwardLocalBranch).mockRejectedValueOnce(
+      new Error(
+        "Could not fast-forward 'main': your local branch has diverged from origin/main. " +
+          "Resolve manually in the source repo, or disable 'Pull latest' in project settings.",
+      ),
+    );
 
     benchManager.createBench("test-project");
 
@@ -2862,18 +2858,19 @@ describe("background provisioning: worktreeSource R3 combinations", () => {
     expect(ffIdx).toBeLessThan(newRemoteIdx);
     expect(newRemoteIdx).toBeLessThan(subInitIdx);
 
-    // Ordering of actual calls: merge --ff-only before submodule update --remote before worktree add
-    const calls = vi.mocked(execModule.runCommand).mock.calls;
-    const mergeCallIdx = calls.findIndex((c) => Array.isArray(c[1]) && c[1][0] === "merge");
-    const subRemoteCallIdx = calls.findIndex(
-      (c) => Array.isArray(c[1]) && c[1].includes("--remote"),
-    );
-    const worktreeCallIdx = calls.findIndex(
-      (c) => Array.isArray(c[1]) && c[1][0] === "worktree" && c[1][1] === "add",
-    );
+    // Ordering of actual calls: fast-forward before submodule update --remote before worktree add
+    const run = vi.mocked(execModule.runCommand).mock;
+    const orderOf = (match: (args: string[]) => boolean) => {
+      const idx = run.calls.findIndex((c) => Array.isArray(c[1]) && match(c[1]));
+      expect(idx).toBeGreaterThanOrEqual(0);
+      return run.invocationCallOrder[idx];
+    };
+    const ffOrder = vi.mocked(gitHelpers.fastForwardLocalBranch).mock.invocationCallOrder[0];
+    const subRemoteOrder = orderOf((a) => a.includes("--remote"));
+    const worktreeOrder = orderOf((a) => a[0] === "worktree" && a[1] === "add");
 
-    expect(mergeCallIdx).toBeLessThan(subRemoteCallIdx);
-    expect(subRemoteCallIdx).toBeLessThan(worktreeCallIdx);
+    expect(ffOrder).toBeLessThan(subRemoteOrder);
+    expect(subRemoteOrder).toBeLessThan(worktreeOrder);
   });
 
   it("meta-repo + R2=off: skips submodule remote update even for meta-repo", async () => {
