@@ -85,7 +85,10 @@ function isOwnerNotFoundMessage(msg: string): boolean {
   );
 }
 
-function classifyOne(err: unknown, context?: { owner?: string }): GitHubError {
+/**
+ * Classifies a GitHub-related error into a canonical GitHubError with a stable code.
+ */
+export function classifyGitHubError(err: unknown, context?: { owner?: string }): GitHubError {
   if (err instanceof GitHubError) return err;
 
   const owner = context?.owner ?? "";
@@ -199,11 +202,4 @@ function classifyOne(err: unknown, context?: { owner?: string }): GitHubError {
   }
 
   return new GitHubError("UNKNOWN", msg, 500);
-}
-
-/**
- * Classifies a GitHub-related error into a canonical GitHubError with a stable code.
- */
-export function classifyGitHubError(err: unknown, context?: { owner?: string }): GitHubError {
-  return classifyOne(err, context);
 }

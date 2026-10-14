@@ -6,8 +6,7 @@
 #
 # The plugin sources live in the roubo-plugins repository, not here (#1461).
 # <plugins-root> is that checkout's plugins/ directory; it defaults to
-# $PLUGINS_ROOT, then to ../roubo-plugins/plugins beside this checkout, which is
-# where the meta-repo puts it.
+# $PLUGINS_ROOT, then to ../roubo-plugins/plugins beside this checkout.
 #
 # Assembles the named plugin's build inputs in a fresh workdir OUTSIDE both
 # checkouts, so nothing can resolve through workspace symlinks and only the

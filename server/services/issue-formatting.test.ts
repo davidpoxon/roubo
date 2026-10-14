@@ -10,6 +10,9 @@ vi.mock("./active-plugin.js", () => ({
 }));
 vi.mock("./plugin-activation.js", () => ({ ensurePluginActivated: vi.fn(async () => {}) }));
 vi.mock("./plugin-manager.js", () => ({ invoke: vi.fn() }));
+vi.mock("./project-registry.js", () => ({
+  getProject: vi.fn(() => ({ config: { project: { repo: "org/root" } } })),
+}));
 
 import {
   formatIssueBody,
@@ -154,6 +157,30 @@ beforeEach(() => {
 });
 
 describe("assigned issue context (#1461)", () => {
+  it("qualifies a pre-plugin bench's bare number with the project repo before fetching", async () => {
+    // migrateAssignedIssue gives a pre-plugin bench `externalId: String(number)`.
+    // The GitHub plugins reject a bare id, as they do here.
+    vi.mocked(pluginManager.invoke).mockImplementation(async (_pluginId, method, params) => {
+      const { externalId } = params as { externalId: string };
+      if (!externalId.includes("#")) throw new Error(`externalId "${externalId}" missing "#"`);
+      return (method === "getIssue" ? issue(externalId) : [comment]) as never;
+    });
+
+    const ctx = await resolveAssignedIssueContext("demo", {
+      number: 123,
+      integrationId: "github-com",
+      externalId: "123",
+      title: "t",
+    } as AssignedIssue);
+
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "org/root#123",
+    });
+    expect(ctx.issueBody).toBe("body of org/root#123");
+    expect(ctx.issueNumber).toBe(123);
+    expect(ctx.comments).toContain("a comment");
+  });
+
   it("fetches a submodule-source issue by its own externalId, not by number from the root repo", async () => {
     const ctx = await resolveAssignedIssueContext("demo", {
       number: 12,
