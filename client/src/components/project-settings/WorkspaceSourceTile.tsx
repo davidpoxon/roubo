@@ -82,7 +82,7 @@ export function WorkspaceSourceTile({
             {draft.pullLatest && (
               <p className="mt-2 text-11 text-text-secondary font-mono leading-relaxed">
                 {draft.branchFromDefault
-                  ? `git fetch origin ${settings?.defaultBranch ?? "<defaultBranch>"}:${settings?.defaultBranch ?? "<defaultBranch>"}`
+                  ? `git fetch origin ${settings?.defaultBranch ?? "<defaultBranch>"}, then fast-forward local ${settings?.defaultBranch ?? "<defaultBranch>"} without switching branches`
                   : "git fetch origin <currentBranch> && git merge --ff-only origin/<currentBranch>"}
               </p>
             )}
