@@ -222,7 +222,7 @@ describe("WorkspaceSourceTile", () => {
     );
     renderTile({ branchFromDefault: true, pullLatest: true });
     expect(
-      screen.getByText(/git fetch origin main && git merge --ff-only origin\/main/),
+      screen.getByText(/git fetch origin main && git update-ref refs\/heads\/main origin\/main/),
     ).toBeInTheDocument();
   });
 

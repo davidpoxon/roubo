@@ -76,6 +76,18 @@ describe("worktree-registry", () => {
     expect(findWorktreeEntry(entries, path.join(realRoot, "bench-1"))).toBeUndefined();
   });
 
+  it("records the checked-out branch, and none for a detached worktree", () => {
+    const detached = path.join(realRoot, "detached");
+    git(["worktree", "add", "-q", "--detach", detached], repo);
+
+    const entries = parseWorktreeList(git(["worktree", "list", "--porcelain"], repo));
+
+    expect(entries.map((e) => [e.path, e.branch])).toEqual([
+      [repo, "main"],
+      [detached, undefined],
+    ]);
+  });
+
   it("canonicalPath resolves a missing leaf against its real parent", () => {
     fs.mkdirSync(path.join(realRoot, "real"));
     fs.symlinkSync(path.join(realRoot, "real"), path.join(realRoot, "link"));

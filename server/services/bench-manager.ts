@@ -61,6 +61,7 @@ import {
   resolveDefaultBranch,
   resolveHeadBranch,
   parseGitmodulesWithBranch,
+  fastForwardLocalBranch,
 } from "./git-helpers.js";
 
 export const RESOLVE_DEFAULT_BRANCH_PHASE = "Resolving default branch";
@@ -1488,20 +1489,14 @@ async function runWorktreeProvisioning(
       }
       fetchPhase.status = "done";
 
+      // Moves the local branch the bench is cut from, not whatever branch the
+      // main checkout happens to be on.
       ffPhase.status = "running";
-      const ffResult = await runCommand(
-        "git",
-        ["merge", "--ff-only", `origin/${pullBranch}`],
-        project.repoPath,
-        undefined,
-        60_000,
-      );
-      if (ffResult.code !== 0) {
+      try {
+        await fastForwardLocalBranch(project.repoPath, pullBranch);
+      } catch (err) {
         ffPhase.status = "error";
-        throw new Error(
-          `Could not fast-forward '${pullBranch}': your local branch has diverged from origin/${pullBranch}. ` +
-            `Resolve manually in the source repo, or disable 'Pull latest' in project settings.`,
-        );
+        throw err;
       }
       ffPhase.status = "done";
 
