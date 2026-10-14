@@ -1,5 +1,7 @@
+import fs from "node:fs";
 import os from "node:os";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import path from "node:path";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import type { IsolationCapabilities, PluginManifest } from "@roubo/shared";
 import {
   buildEgressSetupScript,
@@ -618,21 +620,50 @@ describe("plugin-isolation-sandbox: ensureEgressImage (#744)", () => {
 });
 
 describe("plugin-isolation-sandbox: defaultIsolationProbes (#684 real runtime detection)", () => {
+  // The docker probe looks the CLI up on PATH. Point PATH at a scratch dir the
+  // test controls so the outcome never depends on whether the machine running
+  // the suite has Docker installed.
+  const prevPath = process.env.PATH;
+  let binDir: string;
+
+  const installFakeDockerCli = (): void => {
+    const cli = path.join(binDir, "docker");
+    fs.writeFileSync(cli, "#!/bin/sh\nexit 0\n");
+    fs.chmodSync(cli, 0o755);
+  };
+
+  beforeEach(() => {
+    binDir = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-probe-bin-"));
+    process.env.PATH = binDir;
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     pingMock = () => Promise.resolve("OK");
+    process.env.PATH = prevPath;
+    fs.rmSync(binDir, { recursive: true, force: true });
   });
 
   it("vzVm is conservatively false (no VM backend ships in this slice)", async () => {
     expect(await defaultIsolationProbes().vzVm()).toBe(false);
   });
 
-  it("docker probe is true when the daemon ping resolves", async () => {
+  it("docker probe is true when the CLI is on PATH and the daemon ping resolves", async () => {
+    installFakeDockerCli();
     pingMock = () => Promise.resolve("OK");
     expect(await defaultIsolationProbes().docker()).toBe(true);
   });
 
+  it("docker probe is false when the daemon answers but the CLI is not on PATH", async () => {
+    // A GUI launch can inherit a PATH without the docker CLI while the daemon
+    // socket still answers. The rung spawns `docker run`, so it must not be
+    // selected: the spawn would fail with ENOENT.
+    pingMock = () => Promise.resolve("OK");
+    expect(await defaultIsolationProbes().docker()).toBe(false);
+  });
+
   it("docker probe rejects (treated as unavailable) when the daemon ping fails", async () => {
+    installFakeDockerCli();
     pingMock = () => Promise.reject(new Error("daemon unreachable"));
     // The probe propagates the rejection; detectIsolationCapabilities swallows
     // it into a false capability (degrade one rung, NFR-005).
