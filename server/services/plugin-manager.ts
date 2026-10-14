@@ -1288,23 +1288,39 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
 
   if (!proc) return;
 
-  entry.process = proc;
-  entry.record.pid = proc.pid ?? null;
+  const child = proc;
+  entry.process = child;
+  entry.record.pid = child.pid ?? null;
   entry.record.status = "enabled";
   entry.record.lastError = null;
-  attachStdioLogging(entry, proc);
+  // Listen for exit before the first await below. The child is already
+  // published as running, so a crash during the RPC wiring must still reach
+  // handleChildExit; an exit emitted before the listener exists is lost, and
+  // the record would stay "enabled" with a dead pid and no restart scheduled.
+  child.on("exit", (code) => {
+    handleChildExit(entry, code);
+  });
+  attachStdioLogging(entry, child);
 
+  let closed = false;
   try {
-    entry.connection = createConnection(proc);
-    entry.connection.onError((error) => {
+    const connection = createConnection(child);
+    entry.connection = connection;
+    connection.onError((error) => {
       writeLog(entry, "host", `rpc error: ${error.message}`, "warn").catch(() => {});
     });
-    entry.connection.onClose(() => {
-      // connection closed; the 'exit' handler below drives state transitions
+    connection.onClose(() => {
+      // The 'exit' listener above drives state transitions. This only notes
+      // that the wiring below may now fail because the child went away.
+      closed = true;
     });
-    await registerHostHandlers(entry.connection, entry.record, (level, text) => {
+    await registerHostHandlers(connection, entry.record, (level, text) => {
       writeLog(entry, "host", text, level).catch(() => {});
     });
+    // The child exited while the handlers were wiring. handleChildExit has
+    // already recorded the crash and decided restart or errored; leave its
+    // state alone.
+    if (entry.process !== child) return;
     // HostComponentBroker wiring (F2.1, #686). Register the broker's privileged
     // host.process.* / host.docker.* / host.ports.* / host.component.* handlers
     // ONCE on a component plugin's connection. They resolve their per-bench
@@ -1314,19 +1330,15 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     // expose the broker surface, so they keep the v1 host handlers only.
     if (isComponentPlugin(entry)) {
       const pluginId = entry.record.id;
-      registerBrokerHandlers(
-        entry.connection,
-        (benchId) => resolveBrokerContext(pluginId, benchId),
-        {
-          // Wire the real ResourceOwnershipLedger so a process the broker spawns
-          // on this plugin's behalf is tracked and reaped by crash cleanup / the
-          // startup sweep (#887, AC4).
-          ledger,
-          log: (level, text) => {
-            writeLog(entry, "host", text, level).catch(() => {});
-          },
+      registerBrokerHandlers(connection, (benchId) => resolveBrokerContext(pluginId, benchId), {
+        // Wire the real ResourceOwnershipLedger so a process the broker spawns
+        // on this plugin's behalf is tracked and reaped by crash cleanup / the
+        // startup sweep (#887, AC4).
+        ledger,
+        log: (level, text) => {
+          writeLog(entry, "host", text, level).catch(() => {});
         },
-      );
+      });
     }
     // Agent plugins (#1026) deliberately register NOTHING here. An agent plugin
     // is spawned-and-RPC like an integration plugin: it answers
@@ -1340,18 +1352,34 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     // S003-O02). Do not add a broker registration for `agent` here without
     // re-deriving that guarantee.
   } catch (err) {
+    // A child that died mid-wiring makes the wiring throw on its closed
+    // connection. That is a crash, not an RPC init failure. Either
+    // handleChildExit has already handled it, or the connection's close was
+    // processed before the child's 'exit' and the listener has yet to run. In
+    // the second case leave the stop unintentional so the listener charges the
+    // budget and schedules the restart. Kill the child anyway, in case only
+    // its stdio closed and it is still running, then wait for its exit so
+    // spawnPlugin never resolves "enabled" for a dead child: a restart's
+    // re-provision is gated on that status. entry.process is still this child,
+    // so handleChildExit has not run and the exit event is still to come.
+    if (entry.process !== child) return;
+    if (closed) {
+      const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+      child.kill("SIGKILL");
+      await exited;
+      return;
+    }
     entry.record.status = "errored";
     entry.record.lastError = {
       code: "rpc-init-failed",
       message: (err as Error).message,
     };
-    proc.kill("SIGKILL");
+    // The host kills this child itself, so the exit listener must not charge
+    // it to the restart budget or schedule a respawn.
+    entry.intentionalStop = true;
+    child.kill("SIGKILL");
     return;
   }
-
-  proc.on("exit", (code) => {
-    handleChildExit(entry, code);
-  });
 }
 
 function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
@@ -1812,10 +1840,13 @@ export async function enable(pluginId: string): Promise<void> {
   // persist enabled state for a process that's about to die. The restart
   // logic in handleChildExit also fires for this exit and would eventually
   // mark the record as "errored" via restart-budget, but the UI needs the
-  // failure surfaced now.
+  // failure surfaced now. A child that exited while spawnPlugin was still
+  // wiring it has already been through handleChildExit, which cleared
+  // entry.process, so a null process here is an early exit too.
   const proc = entry.process as ChildProcess | null;
-  if (proc) {
-    const exitedEarly = await new Promise<boolean>((resolve) => {
+  const exitedEarly =
+    !proc ||
+    (await new Promise<boolean>((resolve) => {
       if (proc.exitCode !== null || proc.signalCode !== null) {
         resolve(true);
         return;
@@ -1834,26 +1865,25 @@ export async function enable(pluginId: string): Promise<void> {
       }, ENABLE_SPAWN_SETTLE_MS);
       if (typeof timer.unref === "function") timer.unref();
       proc.once("exit", onExit);
-    });
-    if (exitedEarly) {
-      // Roll the runtime back so plugins-state.json (still "disabled") and
-      // the in-memory record agree. Cancel any pending restart timer that
-      // handleChildExit may have scheduled and clear the restart history so
-      // a later manual retry starts from a clean budget.
-      if (entry.restartTimer) {
-        clearTimeout(entry.restartTimer);
-        entry.restartTimer = null;
-      }
-      const lastExit = entry.record.restartHistory.at(-1);
-      entry.record.restartHistory = [];
-      entry.record.status = "disabled";
-      entry.record.lastError = null;
-      const detail =
-        lastExit && lastExit.exitCode !== null
-          ? `exited with code ${lastExit.exitCode}`
-          : "process exited before host could connect";
-      throw new Error(`Plugin "${pluginId}" failed to start: ${detail}`);
+    }));
+  if (exitedEarly) {
+    // Roll the runtime back so plugins-state.json (still "disabled") and
+    // the in-memory record agree. Cancel any pending restart timer that
+    // handleChildExit may have scheduled and clear the restart history so
+    // a later manual retry starts from a clean budget.
+    if (entry.restartTimer) {
+      clearTimeout(entry.restartTimer);
+      entry.restartTimer = null;
     }
+    const lastExit = entry.record.restartHistory.at(-1);
+    entry.record.restartHistory = [];
+    entry.record.status = "disabled";
+    entry.record.lastError = null;
+    const detail =
+      lastExit && lastExit.exitCode !== null
+        ? `exited with code ${lastExit.exitCode}`
+        : "process exited before host could connect";
+    throw new Error(`Plugin "${pluginId}" failed to start: ${detail}`);
   }
 
   try {
