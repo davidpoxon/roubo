@@ -10,7 +10,9 @@ import tsupConfig from "./tsup.config.js";
 // server dependency MUST be bundled (listed in noExternal), because the packaged
 // Electron app ships no server-side node_modules, so any non-native dependency
 // left external becomes an ERR_MODULE_NOT_FOUND at boot (the `tar` regression
-// that crashed v0.2.0-rc.fd62927).
+// that crashed v0.2.0-rc.fd62927). The one deliberate exception is ssh2's
+// optional bindings, external and unshipped because ssh2 loads them inside
+// try/catch (#1471, tested below).
 const NATIVE_EXTERNAL = new Set<string>(["node-pty"]);
 
 describe("server tsup bundle dependency coverage", () => {
@@ -36,7 +38,7 @@ describe("server tsup bundle dependency coverage", () => {
   // Their install scripts exit 0 when node-gyp fails, so they may be absent, and
   // tsup's native-node-modules plugin fails the bundle on a missing `.node`
   // file (#1471). Keeping them external makes the build independent of them;
-  // ssh2 then takes its pure-JavaScript fallback at runtime.
+  // at runtime ssh2 then uses its JavaScript ciphers and default cipher order.
   it.each(["./crypto/build/Release/sshcrypto.node", "cpu-features"])(
     "keeps ssh2's optional native binding %s external",
     (specifier) => {
