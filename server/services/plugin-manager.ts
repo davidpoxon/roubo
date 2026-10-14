@@ -1302,6 +1302,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   });
   attachStdioLogging(entry, child);
 
+  let closed = false;
   try {
     const connection = createConnection(child);
     entry.connection = connection;
@@ -1309,7 +1310,9 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
       writeLog(entry, "host", `rpc error: ${error.message}`, "warn").catch(() => {});
     });
     connection.onClose(() => {
-      // connection closed; the 'exit' handler above drives state transitions
+      // The 'exit' listener above drives state transitions. This only notes
+      // that the wiring below may now fail because the child went away.
+      closed = true;
     });
     await registerHostHandlers(connection, entry.record, (level, text) => {
       writeLog(entry, "host", text, level).catch(() => {});
@@ -1350,9 +1353,17 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     // re-deriving that guarantee.
   } catch (err) {
     // A child that died mid-wiring makes the wiring throw on its closed
-    // connection. That is a crash handleChildExit has already handled, not an
-    // RPC init failure.
+    // connection. That is a crash, not an RPC init failure. Either
+    // handleChildExit has already handled it, or the connection's close was
+    // processed before the child's 'exit' and the listener has yet to run. In
+    // the second case leave the stop unintentional so the listener charges the
+    // budget and schedules the restart. Kill the child anyway, in case only
+    // its stdio closed and it is still running.
     if (entry.process !== child) return;
+    if (closed) {
+      child.kill("SIGKILL");
+      return;
+    }
     entry.record.status = "errored";
     entry.record.lastError = {
       code: "rpc-init-failed",

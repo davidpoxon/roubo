@@ -131,17 +131,27 @@ vi.mock("node:child_process", async (importOriginal) => {
 
 // registerHostHandlers is the first await in spawnPlugin after the child is
 // live. Gate it so a test can crash the child inside that wiring window, or
-// fail the wiring outright. `gate` is null by default, so every other test sees
-// the real function.
+// fail the wiring outright. `failOnClose` instead fails the wiring the moment
+// the connection closes, as the real wiring does when the child dies, which can
+// run before the child's `exit` event. Both are one-shot, so a respawn is never
+// held, and off by default, so every other test sees the real function.
 const hostHandlersControl = vi.hoisted(() => ({
   gate: null as Promise<void> | null,
+  failOnClose: false,
 }));
 vi.mock("./plugin-host-api.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./plugin-host-api.js")>();
   return {
     ...actual,
     registerHostHandlers: async (...args: Parameters<typeof actual.registerHostHandlers>) => {
-      if (hostHandlersControl.gate) await hostHandlersControl.gate;
+      const gate = hostHandlersControl.gate;
+      hostHandlersControl.gate = null;
+      if (gate) await gate;
+      if (hostHandlersControl.failOnClose) {
+        hostHandlersControl.failOnClose = false;
+        await new Promise<void>((resolve) => args[0].onClose(() => resolve()));
+        throw new Error("Connection is closed.");
+      }
       return actual.registerHostHandlers(...args);
     },
   };
@@ -195,6 +205,7 @@ beforeEach(() => {
   cutListMocks.evictProject.mockReset();
   childProcessControl.override = null;
   hostHandlersControl.gate = null;
+  hostHandlersControl.failOnClose = false;
 });
 
 import * as pluginManager from "./plugin-manager.js";
@@ -1810,7 +1821,6 @@ describe("restart budget (IP-TC-015)", () => {
     const pid = need(findRecord(mgr.listInstalled(), "echo").pid, "pid");
     process.kill(pid, "SIGKILL");
     await waitForProcessGone(pid);
-    hostHandlersControl.gate = null;
     release();
     await init;
 
@@ -1842,7 +1852,6 @@ describe("restart budget (IP-TC-015)", () => {
     const pid = need(findRecord(mgr.listInstalled(), "echo").pid, "pid");
     process.kill(pid, "SIGKILL");
     await waitForProcessGone(pid);
-    hostHandlersControl.gate = null;
     release();
 
     await expect(enabling).rejects.toThrow(/failed to start/i);
@@ -1852,6 +1861,37 @@ describe("restart budget (IP-TC-015)", () => {
     expect(rec.pid).toBeNull();
     expect(rec.restartHistory).toHaveLength(0);
     expect(mgr.__test.getEntry("echo")?.restartTimer ?? null).toBeNull();
+  }, 30_000);
+
+  // A child that dies mid-wiring closes its connection, and the wiring then
+  // throws on it. The close is processed before the child's `exit` event, so
+  // the throw can reach spawnPlugin while the child still looks live. That is
+  // still a crash: it must be charged to the budget and respawned, not filed
+  // as an RPC init failure the host stopped on purpose.
+  it("treats wiring that fails on a connection closed by a crash as a crash", async () => {
+    hostHandlersControl.failOnClose = true;
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    const init = mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "echo");
+      return !!r && r.pid !== null;
+    }, 8_000);
+    const pid = need(findRecord(mgr.listInstalled(), "echo").pid, "pid");
+    process.kill(pid, "SIGKILL");
+    await init;
+
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "echo");
+      return !!r && r.status === "enabled" && r.pid !== null && r.pid !== pid;
+    }, 8_000);
+    const rec = findRecord(mgr.listInstalled(), "echo");
+    expect(rec.restartHistory.map((e) => e.reason)).toEqual(["unexpected-exit"]);
+    expect(rec.lastError).toBeNull();
   }, 30_000);
 
   // The rpc-init-failed path kills its own child. That kill is the host's
