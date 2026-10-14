@@ -87,11 +87,33 @@ const cardRef = (page: Page, ref: string): Locator => page.getByText(ref, { exac
 
 // Read the vertical position of a cut card's ref so two refs can be ordered
 // without a "before"/"after" matcher. The frozen scenario + flat (un-grouped)
-// list make the y-positions deterministic.
+// list make the settled y-positions deterministic; after a sort change, compare
+// them through expectAbove, which waits for the re-sorted page.
 async function refY(page: Page, ref: string): Promise<number> {
   const box = await cardRef(page, ref).boundingBox();
   if (!box) throw new Error(`cut card ${ref} has no bounding box (not visible?)`);
   return box.y;
+}
+
+// Poll until `upper` renders above `lower`. A sort change updates the trigger
+// label at once, but the list keeps the previous page on screen until the
+// re-sorted fetch lands, so a one-shot read races that fetch (#1462).
+async function expectAbove(page: Page, upper: string, lower: string, message: string) {
+  await expect
+    .poll(
+      async () => {
+        // expect.poll does not retry a throw, so report a card that cannot be
+        // measured yet as a non-matching sample instead.
+        try {
+          const [upperY, lowerY] = [await refY(page, upper), await refY(page, lower)];
+          return `${upper} at y ${upperY} ${upperY < lowerY ? "above" : "level with or below"} ${lower} at y ${lowerY}`;
+        } catch (err) {
+          return `${upper}/${lower} not measurable: ${(err as Error).message}`;
+        }
+      },
+      { message },
+    )
+    .toMatch(/ above /);
 }
 
 test.beforeEach(async ({ request }) => {
@@ -165,12 +187,15 @@ test("TC-062: per-project sort and status tunables persist and are plugin-scoped
     page.getByRole("button", { name: "Sort cut list by Backlog rank, descending" }),
     `S001 (TC-062, slice ${SORT_SLICE}): after selecting "Backlog rank" the sort trigger aria-label must read "Sort cut list by Backlog rank, descending"`,
   ).toBeVisible();
-  const descNewestY = await refY(page, REF_NEWEST);
-  const descEarliestY = await refY(page, REF_EARLIEST);
-  expect(
-    descNewestY,
-    `S001 (TC-062, slice ${SORT_SLICE}): backlog-rank descending must order the list newest-first, so ${REF_NEWEST} (06-10) should render above ${REF_EARLIEST} (06-01) (y ${descNewestY} < ${descEarliestY})`,
-  ).toBeLessThan(descEarliestY);
+  // Project A's persisted sort is already newest-first, so this check can pass
+  // on the page kept from before the selection; the ascending toggle below is the
+  // step that proves a live reorder.
+  await expectAbove(
+    page,
+    REF_NEWEST,
+    REF_EARLIEST,
+    `S001 (TC-062, slice ${SORT_SLICE}): backlog-rank descending must order the list newest-first, so ${REF_NEWEST} (06-10) should render above ${REF_EARLIEST} (06-01)`,
+  );
 
   // Re-select the active field (popover still open) to toggle the direction to
   // ascending; the list reorders oldest-first under the live selection.
@@ -179,12 +204,12 @@ test("TC-062: per-project sort and status tunables persist and are plugin-scoped
     page.getByRole("button", { name: "Sort cut list by Backlog rank, ascending" }),
     `S001 (TC-062, slice ${SORT_SLICE}): re-selecting "Backlog rank" must toggle the direction to ascending and the trigger aria-label must read "Sort cut list by Backlog rank, ascending"`,
   ).toBeVisible();
-  const ascEarliestY = await refY(page, REF_EARLIEST);
-  const ascNewestY = await refY(page, REF_NEWEST);
-  expect(
-    ascEarliestY,
-    `S001 (TC-062, slice ${SORT_SLICE}): toggling to backlog-rank ascending must reorder the list oldest-first, so ${REF_EARLIEST} (06-01) should render above ${REF_NEWEST} (06-10) (y ${ascEarliestY} < ${ascNewestY})`,
-  ).toBeLessThan(ascNewestY);
+  await expectAbove(
+    page,
+    REF_EARLIEST,
+    REF_NEWEST,
+    `S001 (TC-062, slice ${SORT_SLICE}): toggling to backlog-rank ascending must reorder the list oldest-first, so ${REF_EARLIEST} (06-01) should render above ${REF_NEWEST} (06-10)`,
+  );
 
   // ---- S002: Configure, exclude "In Progress", Save ----
   // Divergence note (see header): there is no "Status filter saved"
