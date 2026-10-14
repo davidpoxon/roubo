@@ -129,6 +129,24 @@ vi.mock("node:child_process", async (importOriginal) => {
   };
 });
 
+// registerHostHandlers is the first await in spawnPlugin after the child is
+// live. Gate it so a test can crash the child inside that wiring window, or
+// fail the wiring outright. `gate` is null by default, so every other test sees
+// the real function.
+const hostHandlersControl = vi.hoisted(() => ({
+  gate: null as Promise<void> | null,
+}));
+vi.mock("./plugin-host-api.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./plugin-host-api.js")>();
+  return {
+    ...actual,
+    registerHostHandlers: async (...args: Parameters<typeof actual.registerHostHandlers>) => {
+      if (hostHandlersControl.gate) await hostHandlersControl.gate;
+      return actual.registerHostHandlers(...args);
+    },
+  };
+});
+
 // #1269 (APCC-TC-009), #1345 and APCC-NFR-003: simulate a host that predates a manifest
 // key. The switch swaps the strict manifest schema for the same strict schema
 // with the named keys removed, which is the schema the older host shipped, so a
@@ -176,6 +194,7 @@ beforeEach(() => {
   cutListMocks.evictPlugin.mockReset();
   cutListMocks.evictProject.mockReset();
   childProcessControl.override = null;
+  hostHandlersControl.gate = null;
 });
 
 import * as pluginManager from "./plugin-manager.js";
@@ -233,6 +252,17 @@ async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<vo
     await new Promise((r) => setTimeout(r, 25));
   }
   throw new Error(`waitFor timed out after ${timeoutMs}ms`);
+}
+
+async function waitForProcessGone(pid: number): Promise<void> {
+  await waitFor(() => {
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch {
+      return true;
+    }
+  }, 5_000);
 }
 
 function need<T>(value: T | undefined | null, label: string): T {
@@ -1756,6 +1786,93 @@ describe("restart budget (IP-TC-015)", () => {
     const m = need(mgr, "manager");
     expect(() => m.__test.crashRunningPlugin("echo")).toThrow(/ROUBO_E2E=1/);
   });
+
+  // spawnPlugin publishes the child (pid set, status "enabled") before it awaits
+  // registerHostHandlers. A child that dies inside that window must still reach
+  // handleChildExit, or the supervisor never sees the crash: the record stays
+  // "enabled" with a dead pid and no restart is scheduled. This window is what
+  // made IP-TC-163 flake on CI, where its crash could land before the exit
+  // listener existed.
+  it("supervises a child that dies while its host handlers are still wiring", async () => {
+    let release!: () => void;
+    hostHandlersControl.gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    const init = mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "echo");
+      return !!r && r.pid !== null;
+    }, 8_000);
+    const pid = need(findRecord(mgr.listInstalled(), "echo").pid, "pid");
+    process.kill(pid, "SIGKILL");
+    await waitForProcessGone(pid);
+    hostHandlersControl.gate = null;
+    release();
+    await init;
+
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "echo");
+      return !!r && r.status === "enabled" && r.pid !== null && r.pid !== pid;
+    }, 8_000);
+    const rec = findRecord(mgr.listInstalled(), "echo");
+    expect(rec.restartHistory.map((e) => e.reason)).toEqual(["unexpected-exit"]);
+  }, 30_000);
+
+  it("rolls enable() back when the child dies while its host handlers are still wiring", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "disabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    let release!: () => void;
+    hostHandlersControl.gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const enabling = mgr.enable("echo");
+    await waitFor(() => findRecord(getManager().listInstalled(), "echo").pid !== null, 8_000);
+    const pid = need(findRecord(mgr.listInstalled(), "echo").pid, "pid");
+    process.kill(pid, "SIGKILL");
+    await waitForProcessGone(pid);
+    hostHandlersControl.gate = null;
+    release();
+
+    await expect(enabling).rejects.toThrow(/failed to start/i);
+    expect(enableStateMocks.setPluginEnabled).not.toHaveBeenCalled();
+    const rec = findRecord(mgr.listInstalled(), "echo");
+    expect(rec.status).toBe("disabled");
+    expect(rec.pid).toBeNull();
+    expect(rec.restartHistory).toHaveLength(0);
+    expect(mgr.__test.getEntry("echo")?.restartTimer ?? null).toBeNull();
+  }, 30_000);
+
+  // The rpc-init-failed path kills its own child. That kill is the host's
+  // doing, so it must not be charged to the restart budget or respawned.
+  it("does not count the host's own kill after an RPC init failure as a crash", async () => {
+    const failure = Promise.reject(new Error("host handler wiring failed"));
+    failure.catch(() => {});
+    hostHandlersControl.gate = failure;
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    await waitFor(() => findRecord(getManager().listInstalled(), "echo").pid === null, 8_000);
+    // Outlast the first restart backoff so a wrongly scheduled respawn shows.
+    await new Promise((r) => setTimeout(r, pluginManager.BACKOFF_SCHEDULE_MS[0] + 250));
+    const rec = findRecord(mgr.listInstalled(), "echo");
+    expect(rec.status).toBe("errored");
+    expect(rec.lastError?.code).toBe("rpc-init-failed");
+    expect(rec.restartHistory).toHaveLength(0);
+    expect(rec.pid).toBeNull();
+  }, 30_000);
 
   it("crashRunningPlugin throws when the plugin is unknown or not running", async () => {
     const originalE2E = process.env.ROUBO_E2E;
