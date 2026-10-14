@@ -69,8 +69,9 @@ const scanRateLimiter = rateLimit({
 });
 
 /**
- * Bundled github.com / GHE plugins emit alerts as NormalizedIssue with these
- * issueType strings (see plugins/github-com/src/shared/mapper.ts). They are not
+ * The github.com / GHE plugins emit alerts as NormalizedIssue with these
+ * issueType strings (see roubo-plugins plugins/github-com/src/shared/
+ * mapper.ts). They are not
  * GitHub-native Issue Types, so they never appear in the plugin's
  * listIssueTypes response; we append them here so the blueprint-by-issue-type
  * mapping UI can target alert categories.

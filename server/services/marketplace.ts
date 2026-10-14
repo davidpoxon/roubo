@@ -159,7 +159,7 @@ export function isNewerVersion(catalogVersion: string, installedVersion: string)
 }
 
 // Repo root relative to this service file (server/services/ -> repo root), used
-// to locate a bundled plugin's `plugins/<id>` source manifest for PRE-INSTALL
+// to locate the manifest a git+directory catalog entry points at for PRE-INSTALL
 // enrichment (#883).
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -169,11 +169,11 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
  * into the signed catalog payload (which would need the out-of-band signing key
  * and would trip the marketplace drift guard). Prefer the installed record's
  * manifest (authoritative for what is on the machine, always present in
- * production for a seeded / installed plugin); otherwise read the bundled
- * `plugins/<id>` source manifest the git+directory catalog entry points at
- * (available in the source tree and in dev). Returns null when neither is
- * available (a packaged app with an uninstalled, non-bundled entry), so the
- * drawer simply omits the provenance rather than failing.
+ * production for an installed plugin); otherwise read the manifest the
+ * git+directory catalog entry points at, resolved against the source tree (the
+ * e2e fixture catalog points at `e2e/fixtures/first-party-manifests/<id>`).
+ * Returns null when neither is available (a packaged app with an uninstalled
+ * entry), so the drawer simply omits the provenance rather than failing.
  */
 function readEntryManifest(
   entry: MarketplaceCatalogEntry,

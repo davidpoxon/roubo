@@ -26,7 +26,6 @@ export default defineConfig({
       "shared/**/*.test.ts",
       "electron/**/*.test.ts",
       "plugin-sdk/src/**/*.test.ts",
-      "plugins/**/src/**/*.test.ts",
       "e2e/fixtures/stubbed-plugin/src/**/*.test.ts",
       "e2e/fixtures/clasp-deploy-stub/src/**/*.test.ts",
     ],
@@ -40,7 +39,6 @@ export default defineConfig({
         "shared/**/*.ts",
         "electron/src/**/*.ts",
         "plugin-sdk/src/**/*.ts",
-        "plugins/**/src/**/*.ts",
       ],
       exclude: [
         "**/*.test.{ts,tsx}",

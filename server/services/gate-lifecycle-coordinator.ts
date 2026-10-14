@@ -99,7 +99,7 @@ export function isDone(issue: NormalizedIssue): boolean {
 /**
  * Pick a done-bound transition from an issue's `allowedTransitions` (VG-FR-007
  * AC-2). The GitHub / GHE plugins expose exactly `["close"]` for an open issue
- * (`plugins/github-com/src/normalize.ts`), so the common case is direct. The
+ * (roubo-plugins `plugins/github-com/src/normalize.ts`), so the common case is direct. The
  * selection is tolerant of casing and of trackers (e.g. Jira) whose transition
  * names embed a done-ish verb. When no transition can be determined, the caller
  * surfaces a clear error rather than guessing (#721 open question 1).
@@ -127,7 +127,7 @@ export function pickDoneTransition(issue: NormalizedIssue): string | undefined {
 /**
  * Pick a reopen-bound transition from a done issue's `allowedTransitions` (issue
  * #833). The GitHub / GHE plugins expose exactly `["reopen"]` for a closed issue
- * (`plugins/github-com/src/normalize.ts`), so the common case is direct. The
+ * (roubo-plugins `plugins/github-com/src/normalize.ts`), so the common case is direct. The
  * selection mirrors `pickDoneTransition`: tolerant of casing and of trackers
  * whose transition names embed a reopen-ish verb. When no transition can be
  * determined, the caller surfaces a clear error rather than guessing.

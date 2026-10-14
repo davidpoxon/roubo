@@ -7,8 +7,6 @@ client/node_modules
 server/dist
 electron/dist
 plugin-sdk/dist
-plugins/*/dist
-plugins/*/node_modules
 e2e/fixtures/stubbed-plugin/dist
 e2e/fixtures/stubbed-plugin/node_modules
 e2e/fixtures/clasp-deploy-stub/dist

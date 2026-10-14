@@ -17,7 +17,7 @@ nvm use
 npm install
 ```
 
-`npm install` resolves every npm workspace in a single pass: `shared`, `plugin-sdk`, `server`, `client`, `electron`, the first-party plugins under `plugins/`, and the e2e fixtures. The authoritative list is the `workspaces` array in the root [`package.json`](../package.json).
+`npm install` resolves every npm workspace in a single pass: `shared`, `plugin-sdk`, `server`, `client`, `electron`, and the e2e fixtures. The first-party plugins are not here; their sources live in the roubo-plugins repository. The authoritative list is the `workspaces` array in the root [`package.json`](../package.json).
 
 ## Running the dev stack
 
@@ -120,7 +120,6 @@ roubo/
 │       └── lib/             # API client
 ├── electron/                # Electron wrapper (forge config, main process)
 ├── plugin-sdk/              # @roubo/plugin-sdk, published independently
-├── plugins/                 # First-party bundled plugins (github-com, process, database)
 ├── schema/                  # JSON Schema for roubo.yaml and plugin manifests
 ├── scripts/                 # Lint guards, schema generation, git hooks, release tooling
 ├── e2e/                     # Playwright specs and their fixture workspaces

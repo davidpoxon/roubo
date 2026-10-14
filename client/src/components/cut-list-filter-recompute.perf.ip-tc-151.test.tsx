@@ -12,7 +12,7 @@
  *   - p95 recompute + re-render latency < 50ms (IP-NFR-021)
  *   - No additional server fetches triggered by toggle (IP-FR-065)
  *
- * Pattern mirrors IP-TC-098 in plugins/github-com/src/__tests__/list-issues.perf.ip-tc-098.test.ts:
+ * Pattern mirrors IP-TC-098 in roubo-plugins plugins/github-com/src/__tests__/list-issues.perf.ip-tc-098.test.ts:
  * RUN_PERF_HARNESS=1 gating for the latency assertion, inline p95 helper,
  * warmup + measured iterations, structured perf-evidence JSON log, and a
  * sentinel test so the file always contributes one passing assertion under

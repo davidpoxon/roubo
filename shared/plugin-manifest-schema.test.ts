@@ -951,7 +951,7 @@ describe("PluginManifestSchema: choiceProbes (#1263, APCC-TC-001)", () => {
 
 describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-013, AP-NFR-004)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
-  const pluginsDir = resolve(here, "..", "plugins");
+  const pluginsDir = resolve(here, "..", "e2e", "fixtures", "first-party-manifests");
 
   async function loadManifest(pluginId: string): Promise<PluginManifest> {
     const { parseManifest } = await import("./plugin-manifest.js");
@@ -993,7 +993,7 @@ describe("PluginManifestSchema: published manifests validate unchanged (AP-TC-01
 // key to do so.
 describe("PluginManifestSchema: every shipped manifest validates unchanged (#1269, APCC-TC-007)", () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  const MANIFEST_ROOTS = ["plugins", "e2e/fixtures/bundled-overlays"];
+  const MANIFEST_ROOTS = ["e2e/fixtures/first-party-manifests", "e2e/fixtures/bundled-overlays"];
 
   const manifests = MANIFEST_ROOTS.flatMap((root) =>
     readdirSync(resolve(repoRoot, root), { withFileTypes: true })
@@ -1005,9 +1005,9 @@ describe("PluginManifestSchema: every shipped manifest validates unchanged (#126
   it("finds the first-party plugins and the agent overlays", () => {
     expect(manifests).toEqual(
       expect.arrayContaining([
-        "plugins/github-com/roubo-plugin.yaml",
-        "plugins/process/roubo-plugin.yaml",
-        "plugins/database/roubo-plugin.yaml",
+        "e2e/fixtures/first-party-manifests/github-com/roubo-plugin.yaml",
+        "e2e/fixtures/first-party-manifests/process/roubo-plugin.yaml",
+        "e2e/fixtures/first-party-manifests/database/roubo-plugin.yaml",
         "e2e/fixtures/bundled-overlays/claude-code/roubo-plugin.yaml",
         "e2e/fixtures/bundled-overlays/codex-cli/roubo-plugin.yaml",
       ]),
@@ -1216,7 +1216,7 @@ describe("PluginManifestSchema: forward-compat passthrough", () => {
 
 describe("Bundled plugin manifests ship default excludedStatuses (IP-TC-124, IP-FR-064)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
-  const pluginsDir = resolve(here, "..", "plugins");
+  const pluginsDir = resolve(here, "..", "e2e", "fixtures", "first-party-manifests");
 
   async function loadManifest(pluginId: string): Promise<PluginManifest> {
     const { parseManifest } = await import("./plugin-manifest.js");
@@ -1258,7 +1258,7 @@ describe("PluginDefaultIntegrationConfigSchema excludedStatusCategories (JSS-FR-
 
 describe("Bundled github.com plugin manifest declares per-source alert booleans (IP-TC-135, IP-FR-074)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
-  const pluginsDir = resolve(here, "..", "plugins");
+  const pluginsDir = resolve(here, "..", "e2e", "fixtures", "first-party-manifests");
 
   async function loadManifest(pluginId: string): Promise<PluginManifest> {
     const { parseManifest } = await import("./plugin-manifest.js");

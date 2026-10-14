@@ -52,7 +52,14 @@ import { parseManifest } from "@roubo/shared";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_ROOT = path.join(here, "__fixtures__", "plugins");
 const REPO_ROOT = path.resolve(here, "..", "..");
-const BUNDLED_GITHUB_MANIFEST = path.join(REPO_ROOT, "plugins", "github-com", "roubo-plugin.yaml");
+const BUNDLED_GITHUB_MANIFEST = path.join(
+  REPO_ROOT,
+  "e2e",
+  "fixtures",
+  "first-party-manifests",
+  "github-com",
+  "roubo-plugin.yaml",
+);
 
 // --- FR-020 failure-output helper ------------------------------------------
 //

@@ -83,7 +83,11 @@ const ENTRIES: MarketplaceCatalogEntry[] = [
     kind: "component",
     version: "0.1.0",
     summary: "Docker-backed databases",
-    source: { type: "git", url: "https://example.invalid/r.git", directory: "plugins/database" },
+    source: {
+      type: "git",
+      url: "https://example.invalid/r.git",
+      directory: "e2e/fixtures/first-party-manifests/database",
+    },
     provenance: "roubo/plugins@database",
     integrity: "sha256-db",
     verified: true,
@@ -94,7 +98,11 @@ const ENTRIES: MarketplaceCatalogEntry[] = [
     kind: "integration",
     version: "0.2.0",
     summary: "Connect GitHub issues",
-    source: { type: "git", url: "https://example.invalid/r.git", directory: "plugins/github-com" },
+    source: {
+      type: "git",
+      url: "https://example.invalid/r.git",
+      directory: "e2e/fixtures/first-party-manifests/github-com",
+    },
     provenance: "roubo/plugins@github-com",
     integrity: "sha256-gh",
     verified: true,
@@ -346,8 +354,8 @@ describe("listCatalog", () => {
 // #883: annotate() enriches each listing with PRE-INSTALL provenance the
 // detail drawer renders: the plugin's declared permissions and, for components,
 // its lifecycle. These are derived (not part of the signed catalog payload):
-// preferred from the installed record's manifest, else read from the bundled
-// plugins/<id> source manifest the git+directory entry points at.
+// preferred from the installed record's manifest, else read from the manifest
+// the git+directory entry points at in the source tree.
 describe("annotate enrichment: declared permissions + lifecycle (#883)", () => {
   const richPermissions: PluginPermissions = {
     network: { hosts: ["api.example.com"] },
@@ -375,13 +383,13 @@ describe("annotate enrichment: declared permissions + lifecycle (#883)", () => {
     expect(annotated.lifecycle).toBe("long-running");
   });
 
-  it("enriches a NOT-installed bundled component from its plugins/<id> source manifest", async () => {
+  it("enriches a NOT-installed component from the manifest its catalog directory points at", async () => {
     listInstalled.mockReturnValue([]);
     const annotated = await annotatedById("database");
-    // Read pre-install from the real plugins/database manifest (declares docker).
+    // Read pre-install from the first-party database manifest fixture (declares docker).
     expect(annotated.declaredPermissions).not.toBeNull();
     expect(annotated.declaredPermissions?.docker).toBeDefined();
-    // The bundled manifest declares no lifecycle field, so it defaults to long-running.
+    // That manifest declares no lifecycle field, so it defaults to long-running.
     expect(annotated.lifecycle).toBe("long-running");
   });
 

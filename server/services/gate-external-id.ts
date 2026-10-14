@@ -3,8 +3,8 @@
 //
 // Per the work-units contract (`shared/work-units-contract.ts`, TrackerSchema),
 // `tracker.ref` is a BARE tracker id: an issue number for GitHub / GHE, an issue
-// key for Jira. The bundled GitHub plugins (`plugins/github-com/src/shared/
-// external-id.ts`, `parseGithubExternalId`) require a qualified `owner/repo#<n>`
+// key for Jira. The GitHub plugins (roubo-plugins `plugins/github-com/src/
+// shared/external-id.ts`, `parseGithubExternalId`) require a qualified `owner/repo#<n>`
 // externalId and correctly reject a bare id. The host must therefore qualify a
 // bare github/ghe ref with the `owner/repo` carried in `tracker.url` before
 // invoking `getIssue` / `applyTransition`, rather than passing `tracker.ref`
