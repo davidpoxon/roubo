@@ -22,7 +22,8 @@ export default defineConfig({
   banner: {
     js: "import { createRequire as __cjsRequire } from 'module';\nimport { fileURLToPath as __cjsFileURLToPath } from 'url';\nimport { dirname as __cjsDirname } from 'path';\nconst require = __cjsRequire(import.meta.url);\nconst __filename = __cjsFileURLToPath(import.meta.url);\nconst __dirname = __cjsDirname(__filename);",
   },
-  // node-pty has native .node binaries (handled by AutoUnpackNativesPlugin); bundle everything else.
+  // node-pty has native .node binaries (handled by AutoUnpackNativesPlugin); bundle everything else
+  // except ssh2's optional bindings, left external and unshipped on purpose (see `external` below).
   // The packaged Electron app ships no server-side node_modules, so any dep omitted here becomes an
   // ERR_MODULE_NOT_FOUND at boot. Keep this list in sync with server/package.json dependencies.
   noExternal: [
@@ -40,4 +41,15 @@ export default defineConfig({
     "vscode-jsonrpc",
     "ws",
   ],
+  // ssh2 (bundled through dockerode) requires two optional native bindings inside
+  // try/catch. Their install scripts exit 0 when node-gyp fails, so either may be
+  // absent, and tsup's native-node-modules plugin fails the whole bundle on a
+  // missing `.node` file (#1471). Leave both unbundled and unshipped: without
+  // sshcrypto ssh2 encrypts through Node's crypto module, without the binding's
+  // per-packet speed-up, and cpu-features only reorders ciphers when sshcrypto is
+  // loaded. Electron already gets that behaviour, since a binding built against
+  // Node's ABI cannot load there. Under plain Node (npm start, e2e) the relative
+  // sshcrypto require now misses from server/dist too, so SSH Docker hosts lose
+  // the speed-up there as well.
+  external: [/[\\/]sshcrypto\.node$/, "cpu-features"],
 });
