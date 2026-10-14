@@ -2,7 +2,7 @@
 
 # Route inventory
 
-Every HTTP route the Roubo server registers: 162 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
+Every HTTP route the Roubo server registers: 160 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
 
 This file is generated. Run `npm run generate:routes` after adding, removing, or renaming a route; the `route-inventory-drift` job in `pr-check` fails when the committed inventory does not match the source.
 
@@ -139,7 +139,6 @@ Request and response shapes are not derivable from the route registrations, so t
 | PUT    | `/api/projects/:projectId/permissions`                                                     | `server/routes/permissions.ts`          |
 | GET    | `/api/projects/:projectId/permissions/capabilities`                                        | `server/routes/permissions.ts`          |
 | POST   | `/api/projects/:projectId/permissions/resync`                                              | `server/routes/permissions.ts`          |
-| GET    | `/api/projects/:projectId/projects`                                                        | `server/routes/projects.ts`             |
 | POST   | `/api/projects/:projectId/reload-config`                                                   | `server/routes/projects.ts`             |
 | GET    | `/api/projects/:projectId/settings`                                                        | `server/routes/project-settings.ts`     |
 | PUT    | `/api/projects/:projectId/settings`                                                        | `server/routes/project-settings.ts`     |
@@ -147,7 +146,6 @@ Request and response shapes are not derivable from the route registrations, so t
 | PUT    | `/api/projects/:projectId/testbench/specs/:slug/lifecycle`                                 | `server/routes/testbench.ts`            |
 | POST   | `/api/projects/:projectId/testbench/specs/validate`                                        | `server/routes/testbench.ts`            |
 | POST   | `/api/projects/check-config`                                                               | `server/routes/projects.ts`             |
-| GET    | `/api/projects/github-projects`                                                            | `server/routes/projects.ts`             |
 | POST   | `/api/projects/save-config`                                                                | `server/routes/projects.ts`             |
 | POST   | `/api/projects/scan`                                                                       | `server/routes/projects.ts`             |
 | POST   | `/api/projects/validate-config`                                                            | `server/routes/projects.ts`             |

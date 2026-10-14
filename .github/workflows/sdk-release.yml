@@ -85,10 +85,11 @@ jobs:
   # SDK. `fail-fast: false` runs every leg so the run names ALL the plugins a
   # breaking SDK change broke, not just the first (AP-TC-124 S002-O02).
   #
-  # AP-TC-123 names five plugins (github-com, ghe, jira-self-hosted, process,
-  # database). Only three exist in this repo today; `ghe` and `jira-self-hosted`
-  # appear as plugin ids in e2e fixtures but have no source anywhere. Add them to
-  # the matrix when their source lands.
+  # The plugin sources live in davidpoxon/roubo-plugins, so each leg checks that
+  # repository out at its default branch and builds what ships, not a copy
+  # (#1461). AP-TC-123 names five plugins (github-com, ghe, jira-self-hosted,
+  # process, database); `ghe` and `jira-self-hosted` have no source in either
+  # repository. Add them to the matrix when their source lands.
   smoke:
     name: smoke (${{ matrix.plugin }})
     needs: publish
@@ -107,11 +108,17 @@ jobs:
           - process
           - github-com
     steps:
-      # Check out only to source the plugin's build inputs (src + tsup.config.ts);
-      # the build itself runs in a fresh dir outside this tree.
+      # This checkout supplies the smoke scripts; the roubo-plugins checkout
+      # supplies the plugin's build inputs (src + tsup.config.ts). The build
+      # itself runs in a fresh dir outside both trees.
       - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.inputs.tag_name || github.ref }}
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: davidpoxon/roubo-plugins
+          path: roubo-plugins
 
       - uses: actions/setup-node@v7.0.0
         with:
@@ -129,4 +136,4 @@ jobs:
             exit 1
           fi
           # Lockstep tag version, identical to the publish job's version-match step.
-          scripts/sdk-smoke.sh "${PLUGIN}" "${RELEASE_TAG#sdk-v}"
+          scripts/sdk-smoke.sh "${PLUGIN}" "${RELEASE_TAG#sdk-v}" "${GITHUB_WORKSPACE}/roubo-plugins/plugins"

@@ -40,12 +40,20 @@ vi.mock("../services/state.js", () => ({
   }),
   getProjectPermissions: vi.fn().mockReturnValue({ allow: [], deny: [] }),
 }));
-// Partial mock: only fetchIssueContext (the network call) is stubbed;
-// buildPluginIssueContext stays real so its externalUrl re-hydration is
-// actually exercised, not just assumed.
-vi.mock("../services/issue-formatting.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../services/issue-formatting.js")>();
-  return { ...actual, fetchIssueContext: vi.fn() };
+// The issue-context helper stays real; only the plugin boundary it calls is
+// stubbed. With no active integration plugin (the default) it re-hydrates the
+// issue from the persisted bench state without any RPC.
+vi.mock("../services/active-plugin.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/active-plugin.js")>();
+  return { ...actual, resolveActivePlugin: vi.fn(() => null) };
+});
+vi.mock("../services/plugin-activation.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/plugin-activation.js")>();
+  return { ...actual, ensurePluginActivated: vi.fn(async () => {}) };
+});
+vi.mock("../services/plugin-manager.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/plugin-manager.js")>();
+  return { ...actual, invoke: vi.fn() };
 });
 // Partial mock: the error classes stay real (the route matches on them with
 // `instanceof`), only the launch-agent resolution is stubbed. Its own order
@@ -70,7 +78,8 @@ import * as notificationService from "../services/notification.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as jigManager from "../services/jig-manager.js";
 import * as state from "../services/state.js";
-import * as issueFormatting from "../services/issue-formatting.js";
+import * as activePlugin from "../services/active-plugin.js";
+import * as pluginManager from "../services/plugin-manager.js";
 import { AgentUnavailableError } from "../services/agent-launch-pipeline.js";
 import { AgentDescriptorError } from "../services/agent-launch-executor.js";
 import { AgentLaunchFailureError } from "../services/agent-launch-failure.js";
@@ -89,8 +98,34 @@ const MOCK_BENCH = {
 
 const MOCK_BENCH_WITH_ISSUE = {
   ...MOCK_BENCH,
-  assignedIssue: { number: 42, title: "Fix the widget" },
+  assignedIssue: {
+    number: 42,
+    integrationId: "github-com",
+    externalId: "owner/repo#42",
+    title: "Fix the widget",
+  },
 };
+
+// Make github-com the active plugin for one request, answering getIssue with
+// `body` and getComments with one comment, or failing getIssue with `fail`.
+function activateGitHub(opts: { body?: string; fail?: Error } = {}): void {
+  vi.mocked(activePlugin.resolveActivePlugin).mockReturnValueOnce({
+    pluginId: "github-com",
+    integrationId: "github-com",
+    pageSize: 50,
+  });
+  vi.mocked(pluginManager.invoke).mockImplementation(async (_pluginId, method) => {
+    if (opts.fail) throw opts.fail;
+    if (method === "getComments") {
+      return [{ author: { displayName: "octocat" }, body: "formatted" }] as never;
+    }
+    return {
+      title: "Fix the widget",
+      body: opts.body ?? null,
+      externalUrl: "https://github.com/owner/repo/issues/42",
+    } as never;
+  });
+}
 
 const MOCK_PROJECT = {
   config: {
@@ -362,7 +397,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
 
     await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
-    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
     const ctx = vi.mocked(jigManager.resolveJigContent).mock.calls[0][1];
     expect(ctx).toMatchObject({
       issueNumber: 117,
@@ -412,18 +447,14 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
     vi.mocked(jigManager.resolveJigContent).mockReturnValue("Resolved");
-    vi.mocked(issueFormatting.fetchIssueContext).mockResolvedValue({
-      issueNumber: 42,
-      issueTitle: "Fix the widget",
-      issueBody: "It is broken.",
-      issueUrl: "https://github.com/owner/repo/issues/42",
-      comments: "",
-    });
+    activateGitHub({ body: "It is broken." });
 
     const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
-    expect(issueFormatting.fetchIssueContext).toHaveBeenCalledWith("owner/repo", 42);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "owner/repo#42",
+    });
     expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
       MOCK_JIG.content,
       expect.objectContaining({
@@ -456,7 +487,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
 
     await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
-    expect(issueFormatting.fetchIssueContext).not.toHaveBeenCalled();
+    expect(pluginManager.invoke).not.toHaveBeenCalled();
     expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
       "Action {{issueUrl}}",
       expect.objectContaining({
@@ -497,7 +528,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     expect(res.body.sizeWarning).toBe(true);
   });
 
-  it("falls back to minimal issue data when GitHub fetch fails", async () => {
+  it("falls back to minimal issue data when the plugin fetch fails", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue(
       MOCK_BENCH_WITH_ISSUE as unknown as ReturnType<typeof benchManager.getBench>,
     );
@@ -505,13 +536,13 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
     vi.mocked(jigManager.resolveJigContent).mockReturnValue("Resolved");
-    vi.mocked(issueFormatting.fetchIssueContext).mockRejectedValue(new Error("GitHub API error"));
+    activateGitHub({ fail: new Error("GitHub API error") });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const res = await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });
 
     expect(res.status).toBe(201);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to fetch issue #42"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to fetch owner/repo#42"));
     expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
       MOCK_JIG.content,
       expect.objectContaining({
@@ -522,7 +553,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
     warnSpy.mockRestore();
   });
 
-  it("still fills issueUrl from persisted state when the GitHub fetch fails", async () => {
+  it("still fills issueUrl from persisted state when the plugin fetch fails", async () => {
     vi.mocked(benchManager.getBench).mockReturnValue({
       ...MOCK_BENCH_WITH_ISSUE,
       assignedIssue: {
@@ -534,7 +565,7 @@ describe("POST /:projectId/benches/:id/terminals", () => {
       MOCK_JIG as unknown as ReturnType<typeof jigManager.getJig>,
     );
     vi.mocked(jigManager.resolveJigContent).mockReturnValue("Resolved");
-    vi.mocked(issueFormatting.fetchIssueContext).mockRejectedValue(new Error("GitHub API error"));
+    activateGitHub({ fail: new Error("GitHub API error") });
     const warnSpy2 = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await request(app).post("/project1/benches/1/terminals").send({ jigId: "push" });

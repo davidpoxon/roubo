@@ -1182,7 +1182,7 @@ What this means in practice:
 
 - The **install-time contract** is the manifest. The user reviews `network.hosts`, `credentials.slots`, and the source URL before enabling the plugin.
 - The **runtime enforcement** is at the host RPC boundary. `host.fetch` honours the network allowlist; `host.credentials.*` honours the slot scopes. Denials are logged with the `<pluginId>.<methodName>` identifier so the user can trace what happened.
-- The user vets the source. Bundled plugins are part of Roubo's release; third-party plugins are something the user chose to install from a URL they recognised.
+- The user vets the source. First-party plugins come from Roubo's own catalog; third-party plugins are something the user chose to install from a URL they recognised.
 
 When you build a plugin, treat the manifest as the documented surface area. Anything you do via the SDK is what the user accepted; anything you do behind the SDK's back is on you.
 

@@ -4,11 +4,11 @@ import { defineConfig, devices } from "@playwright/test";
 import { AGENT_ARGV_LOG_PATH } from "./e2e/agent-plugins/_support/argv-log.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// The stubbed plugin (IP-WU-060) lives outside the bundled `plugins/` tree; the
+// The stubbed plugin (IP-WU-060) is not in any plugins root by default; the
 // e2e-harness and e2e-flow specs need it discoverable so they can drive it
 // per-scenario via /test/__reset. Pointing ROUBO_USER_PLUGINS_DIR at
 // `e2e/fixtures/` lets the plugin-manager walk into `stubbed-plugin/` and
-// register it as the `e2e-stub` plugin alongside the real bundled ones.
+// register it as the `e2e-stub` plugin alongside the bundled overlays.
 const E2E_USER_PLUGINS_DIR = path.resolve(__dirname, "e2e", "fixtures");
 // IP-WU-068: the project-settings specs need the github-com / ghe /
 // jira-self-hosted plugin slots to surface scenario-pinned data instead of

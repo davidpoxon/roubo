@@ -1,4 +1,10 @@
-import * as githubService from "./github.js";
+import type { AssignedIssue, NormalizedComment, NormalizedIssue } from "@roubo/shared";
+import { resolveActivePlugin } from "./active-plugin.js";
+import * as projectRegistry from "./project-registry.js";
+import { ensurePluginActivated } from "./plugin-activation.js";
+import * as pluginManager from "./plugin-manager.js";
+import { isAlertExternalId } from "./alert-external-id.js";
+import { buildAlertIssueContext } from "./alert-formatting.js";
 
 export interface IssueContext {
   // Absent for integrations whose issues have no numeric form (e.g. Jira); those
@@ -14,17 +20,21 @@ export interface IssueContext {
 }
 
 /**
- * Build jig issue context for a non-alert, non-GitHub assigned issue (e.g. a
- * Jira key) from the persisted bench state, without any network call. The
- * integration plugin owns the live issue; at re-injection time we re-hydrate
- * the minimal title + key + URL the bench was assigned with. Mirrors
- * `buildAlertIssueContext` for alerts.
+ * Build jig issue context from the persisted bench state alone, without any
+ * network call: the title, identifier and URL the bench was assigned with.
+ * GitHub issues and alerts keep `issueNumber`; issues with no numeric form
+ * (e.g. a Jira key) carry the externalId as `issueKey`.
  */
-export function buildPluginIssueContext(assignedIssue: {
-  externalId: string;
-  title: string;
-  externalUrl?: string;
-}): IssueContext {
+export function buildPersistedIssueContext(
+  assignedIssue: Pick<AssignedIssue, "number" | "externalId" | "title" | "externalUrl">,
+): Partial<IssueContext> {
+  if (assignedIssue.number != null) {
+    return {
+      issueNumber: assignedIssue.number,
+      issueTitle: assignedIssue.title,
+      ...(assignedIssue.externalUrl ? { issueUrl: assignedIssue.externalUrl } : {}),
+    };
+  }
   return {
     issueKey: assignedIssue.externalId,
     issueTitle: assignedIssue.title,
@@ -34,17 +44,76 @@ export function buildPluginIssueContext(assignedIssue: {
   };
 }
 
-export async function fetchIssueContext(repo: string, issueNumber: number): Promise<IssueContext> {
-  const [issue, comments] = await Promise.all([
-    githubService.fetchIssueDetail(repo, issueNumber),
-    githubService.fetchIssueComments(repo, issueNumber),
-  ]);
+/**
+ * The externalId to fetch an assigned issue by. A pre-plugin bench carries
+ * `integrationId: "github-com"` and `externalId: String(number)` (see
+ * `migrateAssignedIssue`), which the GitHub plugins reject because it names no
+ * repo. Those benches were assigned from the project's own repo, so qualify
+ * the bare number with it.
+ */
+export function assignedIssueFetchId(projectId: string, assignedIssue: AssignedIssue): string {
+  const { externalId, number, integrationId } = assignedIssue;
+  if (integrationId !== "github-com" || number == null || externalId !== String(number)) {
+    return externalId;
+  }
+  const repo = projectRegistry.getProject(projectId)?.config?.project?.repo;
+  return repo ? `${repo}#${number}` : externalId;
+}
+
+/**
+ * Build jig issue context for a bench's assigned issue. Alerts re-hydrate from
+ * the persisted redacted raw. Every other issue is fetched through the
+ * project's active integration plugin by its own externalId, so an issue from
+ * a submodule or another source repo resolves against that repo, not the
+ * project's root repo. When there is no active plugin, the active plugin is
+ * not the one the issue came from, or `getIssue` fails, the context falls back
+ * to the persisted state. A `getComments` failure only drops the comments.
+ */
+export async function resolveAssignedIssueContext(
+  projectId: string,
+  assignedIssue: AssignedIssue,
+): Promise<Partial<IssueContext>> {
+  if (isAlertExternalId(assignedIssue.externalId)) return buildAlertIssueContext(assignedIssue);
+
+  const active = resolveActivePlugin(projectId);
+  if (!active || active.pluginId !== assignedIssue.integrationId) {
+    return buildPersistedIssueContext(assignedIssue);
+  }
+  const externalId = assignedIssueFetchId(projectId, assignedIssue);
+
+  let issue: NormalizedIssue;
+  let comments: NormalizedComment[] = [];
+  try {
+    await ensurePluginActivated(projectId, active.pluginId);
+    // Fetched together so a slow tracker costs one round trip, not two.
+    const [issueResult, commentsResult] = await Promise.allSettled([
+      pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", { externalId }),
+      pluginManager.invoke<NormalizedComment[]>(active.pluginId, "getComments", { externalId }),
+    ]);
+    if (issueResult.status === "rejected") throw issueResult.reason;
+    issue = issueResult.value;
+    if (commentsResult.status === "fulfilled") {
+      comments = commentsResult.value;
+    } else {
+      console.warn(
+        `[issue-context] Failed to fetch comments for ${externalId}: ${(commentsResult.reason as Error).message}`,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[issue-context] Failed to fetch ${externalId} for jig context, using persisted data: ${(err as Error).message}`,
+    );
+    return buildPersistedIssueContext(assignedIssue);
+  }
+
   return {
-    issueNumber: issue.number,
+    ...(assignedIssue.number != null
+      ? { issueNumber: assignedIssue.number }
+      : { issueKey: externalId }),
     issueTitle: issue.title,
     issueBody: formatIssueBody(issue.body),
-    issueUrl: issue.htmlUrl,
-    comments: formatComments(comments),
+    issueUrl: issue.externalUrl,
+    comments: formatComments(comments.map((c) => ({ user: c.author.displayName, body: c.body }))),
   };
 }
 

@@ -23,9 +23,6 @@
     "server",
     "client",
     "electron",
-    "plugins/github-com",
-    "plugins/process",
-    "plugins/database",
     "e2e/fixtures/stubbed-plugin",
     "e2e/fixtures/clasp-deploy-stub"
   ],
@@ -35,7 +32,7 @@
     "dev": "npm run dev --prefix server & npm run dev --prefix client",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
-    "build": "npm run build --prefix plugin-sdk && npm run build --prefix client && npm run build --prefix server && npm run build --prefix plugins/github-com && npm run build --prefix plugins/process && npm run build --prefix plugins/database && npm run build --prefix e2e/fixtures/stubbed-plugin && npm run build --prefix e2e/fixtures/clasp-deploy-stub",
+    "build": "npm run build --prefix plugin-sdk && npm run build --prefix client && npm run build --prefix server && npm run build --prefix e2e/fixtures/stubbed-plugin && npm run build --prefix e2e/fixtures/clasp-deploy-stub",
     "test": "vitest run",
     "test:perf": "RUN_PERF_HARNESS=1 vitest run --disableConsoleIntercept --no-file-parallelism .perf. .scale.",
     "coverage": "vitest run --coverage",
@@ -60,7 +57,7 @@
     "generate:routes": "tsx scripts/generate-route-inventory.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit && tsc --build tsconfig.build.json && npx -w plugins/process tsc --noEmit && npx -w plugins/database tsc --noEmit && npx -w e2e/fixtures/stubbed-plugin tsc --noEmit && npx -w e2e/fixtures/clasp-deploy-stub tsc --noEmit"
+    "typecheck": "npx -w plugin-sdk tsc --noEmit && npx -w client tsc --noEmit && npx -w server tsc --noEmit && npx -w e2e/fixtures/stubbed-plugin tsc --noEmit && npx -w e2e/fixtures/clasp-deploy-stub tsc --noEmit"
   },
   "dependencies": {
     "@roubo/shared": "file:./shared",
@@ -69,7 +66,6 @@
     "dockerode": "5.0.1",
     "express": "5.2.1",
     "node-pty": "1.1.0",
-    "octokit": "5.0.5",
     "semver": "7.8.5",
     "tree-kill": "1.2.2",
     "undici": "8.11.2",

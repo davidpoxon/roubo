@@ -80,9 +80,6 @@ vi.mock("./services/catalog-client.js", () => ({
 vi.mock("./services/migrate.js", () => ({
   run: vi.fn(() => Promise.resolve({ status: "noop" as const })),
 }));
-vi.mock("./services/github.js", () => ({
-  refreshAuth: vi.fn(() => Promise.resolve()),
-}));
 
 import * as benchManager from "./services/bench-manager.js";
 import { startServer } from "./index.js";
@@ -278,9 +275,6 @@ describe("startServer", { concurrent: false }, () => {
       vi.doMock("./services/migrate.js", () => ({
         run: vi.fn(() => Promise.resolve({ status: "noop" as const })),
       }));
-      vi.doMock("./services/github.js", () => ({
-        refreshAuth: vi.fn(() => Promise.resolve()),
-      }));
 
       delete process.env.ROUBO_PORT;
       const fresh = (await import("./index.js")) as typeof import("./index.js");
@@ -299,7 +293,6 @@ describe("startServer", { concurrent: false }, () => {
       vi.doUnmock("./services/plugin-manager.js");
       vi.doUnmock("./services/catalog-client.js");
       vi.doUnmock("./services/migrate.js");
-      vi.doUnmock("./services/github.js");
       vi.resetModules();
       if (originalPort !== undefined) {
         process.env.ROUBO_PORT = originalPort;

@@ -1,7 +1,7 @@
-// Host-side recognition of the bundled GitHub plugins' alert externalId form,
+// Host-side recognition of the GitHub plugins' alert externalId form,
 // `<owner>/<repo>#<category>-<positive-int>` (e.g. `owner/repo#code-scanning-117`).
-// The plugin owns the canonical parser (`plugins/github-com/src/shared/
-// external-id.ts`); the host keeps its own minimal copy so it never has to reach
+// The plugin owns the canonical parser (roubo-plugins
+// `plugins/github-com/src/shared/external-id.ts`); the host keeps its own minimal copy so it never has to reach
 // into plugin-internal source. The category prefix guarantees an alert id can
 // never collide with a plain issue number on the same repo.
 

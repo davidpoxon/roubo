@@ -20,7 +20,6 @@ vi.mock("../services/project-registry.js", async (importOriginal) => {
 vi.mock("../services/config-parser.js");
 vi.mock("../services/repo-scanner.js");
 vi.mock("../services/state.js");
-vi.mock("../services/github.js");
 vi.mock("../services/plugin-manager.js", () => ({ invoke: vi.fn() }));
 vi.mock("../services/active-plugin.js", () => ({ resolveActivePlugin: vi.fn() }));
 vi.mock("../services/plugin-activation.js", () => ({
@@ -43,7 +42,6 @@ import { ProjectRegistryError } from "../services/project-registry.js";
 import { parseConfig, validateConfigObject } from "../services/config-parser.js";
 import { scanRepo } from "../services/repo-scanner.js";
 import { atomicWrite } from "../services/state.js";
-import * as githubService from "../services/github.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as activePlugin from "../services/active-plugin.js";
 import * as pluginActivation from "../services/plugin-activation.js";
@@ -722,53 +720,6 @@ describe("GET /:projectId/config/raw", () => {
     expect(res.status).toBe(200);
     expect(res.headers["ratelimit"]).toBeDefined();
     expect(res.headers["ratelimit-policy"]).toBeDefined();
-  });
-});
-
-describe("GET /github-projects", () => {
-  it("returns 400 when repo query param is missing", async () => {
-    const res = await request(app).get("/github-projects");
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("repo query parameter is required");
-  });
-
-  it("returns 200 with projects array on success", async () => {
-    const projects = [{ number: 1, title: "Project Alpha" }];
-    vi.mocked(githubService.fetchProjects).mockResolvedValue(projects);
-
-    const res = await request(app).get("/github-projects?repo=org/repo");
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual(projects);
-  });
-
-  it("returns 500 when service throws", async () => {
-    vi.mocked(githubService.fetchProjects).mockRejectedValue(new Error("GITHUB_TOKEN not set"));
-
-    const res = await request(app).get("/github-projects?repo=org/repo");
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe("GITHUB_TOKEN not set");
-  });
-});
-
-describe("GET /:projectId/projects", () => {
-  it("returns 404 when project not found", async () => {
-    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
-
-    const res = await request(app).get("/project/projects");
-    expect(res.status).toBe(404);
-  });
-
-  it("returns projects for registered project", async () => {
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      config: { project: { repo: "org/repo" } },
-    } as any);
-    const projects = [{ number: 1, title: "Project Alpha" }];
-    vi.mocked(githubService.fetchProjects).mockResolvedValue(projects);
-
-    const res = await request(app).get("/project/projects");
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual(projects);
-    expect(githubService.fetchProjects).toHaveBeenCalledWith("org/repo");
   });
 });
 

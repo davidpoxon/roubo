@@ -9,7 +9,6 @@ import {
   saveToken,
   startDeviceFlow,
 } from "../services/github-oauth.js";
-import { refreshAuth } from "../services/github.js";
 import { invalidateConnectionStatus, invoke } from "../services/plugin-manager.js";
 import * as credentialStore from "../services/credential-store.js";
 
@@ -95,7 +94,6 @@ router.post("/device/poll", async (req, res) => {
     const { token, scopes } = result;
     const username = await fetchGitHubUsername(token);
     await saveToken(token);
-    await refreshAuth();
     // IP-WU-031: drop the cached connection-status for github-com so the next UI
     // poll re-probes under the freshly-saved token (incl. its new scopes).
     invalidateConnectionStatus(GITHUB_PLUGIN_ID);
@@ -127,7 +125,6 @@ router.post("/device/poll", async (req, res) => {
 router.post("/disconnect", async (_req, res) => {
   try {
     await credentialStore.deleteSlot(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT);
-    await refreshAuth();
     invalidateConnectionStatus(GITHUB_PLUGIN_ID);
     await resetGithubPluginAuthCache();
     console.info(

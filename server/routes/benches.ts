@@ -19,6 +19,7 @@ import {
 import { sendPluginRpcError } from "./plugin-rpc-error.js";
 import { ServiceError } from "../services/service-error.js";
 import { isAlertExternalId } from "../services/alert-external-id.js";
+import { assignedIssueFetchId } from "../services/issue-formatting.js";
 import type {
   CreateBenchRequest,
   AssignContainerRequest,
@@ -248,7 +249,7 @@ router.get("/:projectId/benches/:id", async (req, res) => {
       if (active) {
         try {
           const issue = await pluginManager.invoke<NormalizedIssue>(active.pluginId, "getIssue", {
-            externalId: bench.assignedIssue.externalId,
+            externalId: assignedIssueFetchId(req.params.projectId, bench.assignedIssue),
           });
           if (issue.blockedBy.length > 0) {
             enrichedBench = {

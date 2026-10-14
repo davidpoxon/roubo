@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 #
-# Standalone SDK compatibility smoke for ONE bundled plugin (#1026, AP-NFR-004).
+# Standalone SDK compatibility smoke for ONE first-party plugin (#1026, AP-NFR-004).
 #
-# Usage: scripts/sdk-smoke.sh <plugin> <version>
+# Usage: scripts/sdk-smoke.sh <plugin> <version> [plugins-root]
 #
-# Assembles the named plugin's build inputs in a workdir OUTSIDE the monorepo
-# checkout, so nothing can resolve through the workspace symlinks and only the
+# The plugin sources live in the roubo-plugins repository, not here (#1461).
+# <plugins-root> is that checkout's plugins/ directory; it defaults to
+# $PLUGINS_ROOT, then to ../roubo-plugins/plugins beside this checkout.
+#
+# Assembles the named plugin's build inputs in a fresh workdir OUTSIDE both
+# checkouts, so nothing can resolve through workspace symlinks and only the
 # live npm registry can satisfy the @roubo/* dependencies at <version>. Then:
 #
 #   1. waits until both packages resolve from the registry at <version> and
@@ -22,33 +26,31 @@
 # source no longer compiles against the published types fails here, and because
 # the caller runs one matrix leg per plugin, the failing leg names the plugin.
 #
-# Not every test file in a plugin's src/ is standalone-runnable: the component
-# plugins' `parity.test.ts` imports the host's own lifecycle-engine through a
-# monorepo-relative path, which is deliberately NOT part of the published SDK
-# surface. Those files stay in the monorepo test run (pr-check `npm run
-# coverage`) and are excluded here via SMOKE_TEST_FILTER, which is scoped to the
-# tests that actually exercise the published surface. The filter is a vitest
-# positional path filter (a substring match), not a shell glob; vitest exits
-# non-zero when it matches no files, so a mis-scoped filter fails loudly.
+# SMOKE_TEST_FILTER scopes step 4 to the tests that exercise the published
+# surface; the perf and scale harnesses skip themselves without
+# RUN_PERF_HARNESS. The filter is a vitest positional path filter (a substring
+# match), not a shell glob; vitest exits non-zero when it matches no files, so a
+# mis-scoped filter fails loudly.
 
 set -euo pipefail
 
-PLUGIN="${1:?usage: sdk-smoke.sh <plugin> <version>}"
-VERSION="${2:?usage: sdk-smoke.sh <plugin> <version>}"
+PLUGIN="${1:?usage: sdk-smoke.sh <plugin> <version> [plugins-root]}"
+VERSION="${2:?usage: sdk-smoke.sh <plugin> <version> [plugins-root]}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PLUGIN_DIR="${REPO_ROOT}/plugins/${PLUGIN}"
+PLUGINS_ROOT="${3:-${PLUGINS_ROOT:-${REPO_ROOT}/../roubo-plugins/plugins}}"
+PLUGIN_DIR="${PLUGINS_ROOT}/${PLUGIN}"
 
 if [[ ! -d "${PLUGIN_DIR}" ]]; then
   echo "::error::Unknown plugin '${PLUGIN}' (no ${PLUGIN_DIR})"
   exit 1
 fi
 
-# Tooling versions mirror the monorepo root and the plugin workspaces.
+# Tooling versions mirror the roubo-plugins root and its plugin workspaces.
 TSUP_VERSION="8.5.1"
-TYPESCRIPT_VERSION="6.0.3"
-TYPES_NODE_VERSION="26.0.1"
-VITEST_VERSION="4.1.9"
+TYPESCRIPT_VERSION="7.0.2"
+TYPES_NODE_VERSION="26.5.1"
+VITEST_VERSION="5.0.0"
 
 case "${PLUGIN}" in
   github-com)
@@ -63,7 +65,7 @@ case "${PLUGIN}" in
 esac
 
 SMOKE_DIR="$(mktemp -d)"
-echo "Smoke-testing plugins/${PLUGIN} against published @roubo/* ${VERSION} in ${SMOKE_DIR}"
+echo "Smoke-testing ${PLUGIN_DIR} against published @roubo/* ${VERSION} in ${SMOKE_DIR}"
 
 cp -R "${PLUGIN_DIR}/src" "${SMOKE_DIR}/src"
 cp "${PLUGIN_DIR}/tsup.config.ts" "${SMOKE_DIR}/tsup.config.ts"
@@ -71,11 +73,10 @@ if [[ -f "${PLUGIN_DIR}/roubo-plugin.yaml" ]]; then
   cp "${PLUGIN_DIR}/roubo-plugin.yaml" "${SMOKE_DIR}/roubo-plugin.yaml"
 fi
 
-# Self-contained tsconfig: the in-repo plugin tsconfigs extend
+# Self-contained tsconfig: the roubo-plugins tsconfigs extend
 # ../../tsconfig.json, which does not exist standalone, so inline the merged
-# compiler options here (root + plugin, plugin wins on conflict). Project
-# references are dropped: every helper the plugin needs now lives under its own
-# src/, so there is nothing left to reference.
+# compiler options here (root + plugin, plugin wins on conflict). Every helper a
+# plugin needs lives under its own src/, so there is nothing to reference.
 write_tsconfig() {
   cat > "$1/tsconfig.json" <<'JSON'
 {

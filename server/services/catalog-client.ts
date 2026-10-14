@@ -683,7 +683,7 @@ const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
     source: {
       type: "git",
       url: "https://github.com/davidpoxon/roubo.git",
-      directory: "plugins/github-com",
+      directory: "e2e/fixtures/first-party-manifests/github-com",
     },
     provenance: "roubo/plugins@github-com",
     integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
@@ -699,7 +699,7 @@ const E2E_FIXTURE_ENTRIES: MarketplaceCatalogEntry[] = [
     source: {
       type: "git",
       url: "https://github.com/davidpoxon/roubo.git",
-      directory: "plugins/database",
+      directory: "e2e/fixtures/first-party-manifests/database",
     },
     provenance: "roubo/plugins@database",
     integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",

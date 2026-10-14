@@ -10,13 +10,7 @@ import {
   applyContainerOverrides,
   applyComponentUrlOverrides,
 } from "../services/config-parser.js";
-import {
-  fetchIssueContext,
-  buildPluginIssueContext,
-  type IssueContext,
-} from "../services/issue-formatting.js";
-import { isAlertExternalId } from "../services/alert-external-id.js";
-import { buildAlertIssueContext } from "../services/alert-formatting.js";
+import { resolveAssignedIssueContext, type IssueContext } from "../services/issue-formatting.js";
 import { loadSettings, getProjectPermissions } from "../services/state.js";
 import { AgentUnavailableError, resolveLaunchAgentId } from "../services/agent-launch-pipeline.js";
 import { AgentDescriptorError } from "../services/agent-launch-executor.js";
@@ -160,36 +154,9 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
     applyContainerOverrides(templateCtx, bench.assignedContainers);
     applyComponentUrlOverrides(templateCtx, bench.components);
 
-    let issueCtx: Partial<IssueContext> = {};
-    // Alert-backed benches have no GitHub issue to fetch by number, so re-hydrate
-    // from the persisted redacted raw. Plain issues fetch fresh from GitHub.
-    if (bench.assignedIssue) {
-      if (isAlertExternalId(bench.assignedIssue.externalId)) {
-        issueCtx = buildAlertIssueContext(bench.assignedIssue);
-      } else if (bench.assignedIssue.number == null) {
-        // Non-alert integrations with no numeric issue (e.g. Jira): re-hydrate
-        // from persisted bench state, never a GitHub fetch by number.
-        issueCtx = buildPluginIssueContext(bench.assignedIssue);
-      } else if (project.config.project.repo) {
-        try {
-          issueCtx = await fetchIssueContext(
-            project.config.project.repo,
-            bench.assignedIssue.number,
-          );
-        } catch (err) {
-          console.warn(
-            `[terminal] Failed to fetch issue #${bench.assignedIssue.number} for jig injection: ${(err as Error).message}`,
-          );
-          issueCtx = {
-            issueNumber: bench.assignedIssue.number,
-            issueTitle: bench.assignedIssue.title,
-            ...(bench.assignedIssue.externalUrl
-              ? { issueUrl: bench.assignedIssue.externalUrl }
-              : {}),
-          };
-        }
-      }
-    }
+    const issueCtx: Partial<IssueContext> = bench.assignedIssue
+      ? await resolveAssignedIssueContext(projectId, bench.assignedIssue)
+      : {};
 
     const resolved = jigManager.resolveJigContent(jig.content, {
       ...templateCtx,

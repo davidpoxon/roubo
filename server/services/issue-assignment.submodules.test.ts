@@ -27,11 +27,6 @@ vi.mock("./state.js", async (importOriginal) => ({
   loadSettings: vi.fn().mockReturnValue({ jigs: { autoInject: false } }),
 }));
 
-vi.mock("./github.js", () => ({
-  getGithubToken: vi.fn().mockReturnValue(null),
-  fetchLinkedPullRequests: vi.fn(),
-}));
-
 vi.mock("./agent-launch-pipeline.js", () => ({
   resolveLaunchAgent: vi.fn().mockReturnValue({ agentPluginId: undefined }),
 }));

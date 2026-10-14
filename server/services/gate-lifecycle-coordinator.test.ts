@@ -131,7 +131,7 @@ describe("onGatePassed: closes a passed gate via the plugin transition (VG-FR-00
 // `missing "#"`). ──
 
 // Mirrors the bundled GitHub plugin's TRANSITION_TO_STATE guard
-// (plugins/github-com/src/methods/apply-transition.ts). The plugin reads
+// (roubo-plugins plugins/github-com/src/methods/apply-transition.ts). The plugin reads
 // `params.transition` and throws this exact message when the lookup misses, which
 // is what a host passing the param under any other name produces (#1047).
 const PLUGIN_TRANSITION_TO_STATE: Record<string, "closed" | "open"> = {

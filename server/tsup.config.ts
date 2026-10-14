@@ -33,7 +33,6 @@ export default defineConfig({
     "express",
     "express-rate-limit",
     "yaml",
-    "octokit",
     "semver",
     "tar",
     "tree-kill",

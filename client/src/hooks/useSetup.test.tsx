@@ -8,7 +8,6 @@ import {
   useRawConfig,
   useValidateConfig,
   useEnvKeys,
-  useGitHubProjects,
 } from "./useSetup";
 
 vi.mock("../lib/api");
@@ -72,30 +71,6 @@ describe("useEnvKeys", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.fetchEnvKeys).toHaveBeenCalled();
     expect(result.current.data).toEqual({ keys: ["DB_URL", "API_KEY"] });
-  });
-});
-
-describe("useGitHubProjects", () => {
-  it("is disabled when repo is empty", () => {
-    mockedApi.fetchGitHubProjects.mockResolvedValue([]);
-    const { result } = renderHookWithProviders(() => useGitHubProjects(""));
-    expect(result.current.fetchStatus).toBe("idle");
-    expect(mockedApi.fetchGitHubProjects).not.toHaveBeenCalled();
-  });
-
-  it("is disabled when repo has no slash (not owner/repo format)", () => {
-    mockedApi.fetchGitHubProjects.mockResolvedValue([]);
-    const { result } = renderHookWithProviders(() => useGitHubProjects("myrepo"));
-    expect(result.current.fetchStatus).toBe("idle");
-    expect(mockedApi.fetchGitHubProjects).not.toHaveBeenCalled();
-  });
-
-  it("calls fetchGitHubProjects when repo is owner/repo format", async () => {
-    const projects = [{ number: 1, title: "My Project" }];
-    mockedApi.fetchGitHubProjects.mockResolvedValue(projects as never);
-    const { result } = renderHookWithProviders(() => useGitHubProjects("owner/repo"));
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockedApi.fetchGitHubProjects).toHaveBeenCalledWith("owner/repo");
   });
 });
 

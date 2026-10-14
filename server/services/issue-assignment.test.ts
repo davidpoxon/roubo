@@ -45,13 +45,6 @@ vi.mock("./state.js", async (importOriginal) => ({
   }),
 }));
 
-vi.mock("./github.js", () => ({
-  // Linked-PR seeding is now gated on the GitHub token; default truthy so the
-  // github-issue paths exercise fetchLinkedPullRequests.
-  getGithubToken: vi.fn().mockReturnValue("gh-token"),
-  fetchLinkedPullRequests: vi.fn().mockResolvedValue([]),
-}));
-
 vi.mock("./terminal.js", () => ({
   createAgentSession: vi.fn(),
   writeToSession: vi.fn(),
@@ -109,7 +102,6 @@ vi.mock("./issue-formatting.js", () => ({
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
-import * as githubService from "./github.js";
 import * as terminalService from "./terminal.js";
 import * as jigManager from "./jig-manager.js";
 import * as pipeline from "./agent-launch-pipeline.js";
@@ -219,8 +211,6 @@ beforeEach(() => {
   // clearAllMocks resets call history but not implementations, so restore the
   // github-token gate to truthy (some tests flip it to null) and the default
   // empty linked-PR list after each clear.
-  vi.mocked(githubService.getGithubToken).mockReturnValue("gh-token");
-  vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -273,7 +263,6 @@ describe("assignIssue", () => {
       integrationId: "github-com",
       externalId: "owner/repo#42",
       title: "Fix login bug",
-      linkedPullRequests: [],
       issueType: null,
       externalUrl: "https://github.com/org/repo/issues/42",
     });
@@ -558,7 +547,6 @@ describe("assignIssue", () => {
       integrationId: "github-com",
       externalId: "owner/repo#42",
       title: "New issue",
-      linkedPullRequests: [],
       issueType: null,
       externalUrl: "https://github.com/org/repo/issues/42",
     });
@@ -840,70 +828,9 @@ describe("assignIssue", () => {
       integrationId: "github-com",
       externalId: "owner/repo#42",
       title: "Fix login bug",
-      linkedPullRequests: [],
       issueType: null,
       externalUrl: "https://github.com/org/repo/issues/42",
     });
-  });
-
-  it("populates linkedPullRequests when GitHub returns linked PRs", async () => {
-    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
-    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([
-      { repoFullName: "org/repo", number: 99 },
-    ]);
-    vi.mocked(runCommand).mockResolvedValue({
-      code: 0,
-      stdout: "",
-      stderr: "",
-    });
-    mockAgentSession("term-1");
-
-    const result = await assignIssue("project1", 1, githubIssue({ body: null }), []);
-
-    expect(result.bench.assignedIssue).toEqual({
-      number: 42,
-      integrationId: "github-com",
-      externalId: "owner/repo#42",
-      title: "Fix login bug",
-      linkedPullRequests: [{ repoFullName: "org/repo", number: 99 }],
-      issueType: null,
-      externalUrl: "https://github.com/org/repo/issues/42",
-    });
-    expect(githubService.fetchLinkedPullRequests).toHaveBeenCalledWith("org/repo", 42);
-  });
-
-  it("succeeds with empty linkedPullRequests when no linked PRs exist", async () => {
-    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
-    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
-    vi.mocked(runCommand).mockResolvedValue({
-      code: 0,
-      stdout: "",
-      stderr: "",
-    });
-    mockAgentSession("term-1");
-
-    const result = await assignIssue("project1", 1, githubIssue({ body: null }), []);
-
-    expect(result.bench.assignedIssue?.linkedPullRequests).toEqual([]);
-  });
-
-  it("does not seed linkedPullRequests when no GitHub token is present", async () => {
-    vi.mocked(githubService.getGithubToken).mockReturnValue(null as any);
-    vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
-    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(runCommand).mockResolvedValue({
-      code: 0,
-      stdout: "",
-      stderr: "",
-    });
-    mockAgentSession("term-1");
-
-    const result = await assignIssue("project1", 1, githubIssue({ body: null }), []);
-
-    expect(result.bench.assignedIssue?.linkedPullRequests).toBeUndefined();
-    expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
   });
 
   it("assigns a key-based (Jira) issue with no number and persists raw", async () => {
@@ -928,7 +855,6 @@ describe("assignIssue", () => {
       externalUrl: "https://jira.example.com/browse/PROJ-45",
     });
     expect(result.bench.assignedIssue?.number).toBeUndefined();
-    expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
   });
 });
 
@@ -989,7 +915,6 @@ describe("createBenchAndAssignFromIssue", () => {
       integrationId: "github-com",
       externalId: "owner/repo#42",
       title: "Fix login bug",
-      linkedPullRequests: [],
       issueType: null,
       externalUrl: "https://github.com/org/repo/issues/42",
     });
@@ -1043,7 +968,6 @@ describe("createBenchAndAssignFromIssue", () => {
       integrationId: "github-com",
       externalId: "owner/repo#42",
       title: "Fix login bug",
-      linkedPullRequests: [],
       issueType: null,
       externalUrl: "https://github.com/org/repo/issues/42",
     });
@@ -1082,7 +1006,6 @@ describe("createBenchAndAssignFromIssue", () => {
       integrationId: "github-com",
       externalId: "owner/repo#42",
       title: "Fix login bug",
-      linkedPullRequests: [],
       issueType: null,
       externalUrl: "https://github.com/org/repo/issues/42",
     });
@@ -1459,59 +1382,9 @@ describe("createBenchAndAssignFromIssue", () => {
       integrationId: "github-com",
       externalId: "owner/repo#42",
       title: "Fix login bug",
-      linkedPullRequests: [],
       issueType: null,
       externalUrl: "https://github.com/org/repo/issues/42",
     });
-  });
-
-  it("populates linkedPullRequests when GitHub returns linked PRs", async () => {
-    setupHappyPath();
-    vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([
-      { repoFullName: "org/repo", number: 55 },
-      { repoFullName: "org/other", number: 12 },
-    ]);
-
-    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
-
-    expect(result.status).toBe("success");
-    expect(result.status === "success" && result.bench.assignedIssue).toEqual({
-      number: 42,
-      integrationId: "github-com",
-      externalId: "owner/repo#42",
-      title: "Fix login bug",
-      linkedPullRequests: [
-        { repoFullName: "org/repo", number: 55 },
-        { repoFullName: "org/other", number: 12 },
-      ],
-      issueType: null,
-      externalUrl: "https://github.com/org/repo/issues/42",
-    });
-    expect(githubService.fetchLinkedPullRequests).toHaveBeenCalledWith("org/repo", 42);
-  });
-
-  it("succeeds with empty linkedPullRequests when no linked PRs exist", async () => {
-    setupHappyPath();
-    vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
-
-    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
-
-    expect(result.status).toBe("success");
-    expect(result.status === "success" && result.bench.assignedIssue?.linkedPullRequests).toEqual(
-      [],
-    );
-  });
-
-  it("does not seed linkedPullRequests when no GitHub token is present", async () => {
-    vi.mocked(githubService.getGithubToken).mockReturnValue(null as any);
-    setupHappyPath();
-
-    const result = await createBenchAndAssignFromIssue("project1", githubIssue(), []);
-
-    expect(result.status).toBe("success");
-    if (result.status !== "success") throw new Error("expected success");
-    expect(result.bench.assignedIssue?.linkedPullRequests).toBeUndefined();
-    expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
   });
 
   describe("security alert", () => {
@@ -1559,15 +1432,15 @@ describe("createBenchAndAssignFromIssue", () => {
       expect(bench.assignedIssue.raw).toEqual(codeScanningAlert().raw);
     });
 
-    it("does not run the open-check or seed linked PRs for an alert", async () => {
+    it("does not run the open-check for an alert", async () => {
       setup();
       // Even a done-ish state must not reject an alert (alerts are exempt).
-      await createBenchAndAssignFromIssue(
+      const result = await createBenchAndAssignFromIssue(
         "project1",
         codeScanningAlert({ currentState: "closed" }),
         [],
       );
-      expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
+      expect(result.status).toBe("success");
     });
 
     it("resolves the jig from the alert issueType", async () => {
@@ -1653,12 +1526,6 @@ describe("createBenchAndAssignFromIssue", () => {
       expect(bench.assignedIssue.number).toBeUndefined();
       // Non-github-com integrations persist raw (re-injection re-hydrates).
       expect(bench.assignedIssue.raw).toEqual({ key: "PROJ-45" });
-    });
-
-    it("never seeds linked PRs (not a github-com numeric issue)", async () => {
-      setup();
-      await createBenchAndAssignFromIssue("project1", jiraIssue(), []);
-      expect(githubService.fetchLinkedPullRequests).not.toHaveBeenCalled();
     });
 
     it("injects the issue key, title, body, url and comments into the session jig", async () => {
@@ -2011,7 +1878,6 @@ describe("default jig hierarchy injection", () => {
     };
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",
@@ -2201,7 +2067,6 @@ describe("issue-type-to-jig mapping resolution (assignIssue)", () => {
   function setupHappyPath() {
     vi.mocked(benchManager.getBench).mockReturnValue({ ...bench });
     vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
-    vi.mocked(githubService.fetchLinkedPullRequests).mockResolvedValue([]);
     vi.mocked(runCommand).mockResolvedValue({
       code: 0,
       stdout: "",

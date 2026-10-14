@@ -16,7 +16,6 @@ import { formatAlertBody } from "./alert-formatting.js";
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
-import * as githubService from "./github.js";
 import * as terminalService from "./terminal.js";
 import * as jigManager from "./jig-manager.js";
 import { buildTemplateContext } from "./config-parser.js";
@@ -376,7 +375,7 @@ function branchBaseForIssue(issue: NormalizedIssue): string {
  * redacted) by the active plugin's `getIssue`, so the host never reaches into a
  * specific integration's API. Derives the bench's `number` (GitHub issue or
  * alert number; absent for key-based integrations like Jira) and branch name
- * from the issue, and seeds GitHub linked PRs best-effort when applicable.
+ * from the issue.
  */
 export async function createBenchAndAssignFromIssue(
   projectId: string,
@@ -417,22 +416,6 @@ export async function createBenchAndAssignFromIssue(
 
   const bench = benchManager.createBench(projectId, branchResult.branchName);
 
-  // Linked PRs are a GitHub repo-domain concept (not in the plugin contract).
-  // Seed best-effort for real GitHub issues only, gated on the GitHub token.
-  let linkedPullRequests: Array<{ repoFullName: string; number: number }> | undefined;
-  if (
-    !isAlert &&
-    number !== undefined &&
-    issue.integrationId === "github-com" &&
-    githubService.getGithubToken() &&
-    project.config.project.repo
-  ) {
-    linkedPullRequests = await githubService.fetchLinkedPullRequests(
-      project.config.project.repo,
-      number,
-    );
-  }
-
   // Persist the redacted alert raw (re-injection re-hydrates from it) and any
   // non-GitHub plugin's raw; a plain GitHub issue's REST raw is not persisted.
   const persistRaw = isAlert || issue.integrationId !== "github-com";
@@ -443,7 +426,6 @@ export async function createBenchAndAssignFromIssue(
     externalId: issue.externalId,
     title: issue.title,
     issueType,
-    ...(linkedPullRequests ? { linkedPullRequests } : {}),
     ...(persistRaw ? { raw: issue.raw } : {}),
     ...(issue.externalUrl ? { externalUrl: issue.externalUrl } : {}),
   };
@@ -562,20 +544,6 @@ export async function assignIssue(
     }
   }
 
-  // Linked PRs are GitHub repo-domain; seed best-effort for real GitHub issues.
-  let linkedPullRequests: Array<{ repoFullName: string; number: number }> | undefined;
-  if (
-    !isAlert &&
-    number !== undefined &&
-    issue.integrationId === "github-com" &&
-    githubService.getGithubToken()
-  ) {
-    linkedPullRequests = await githubService.fetchLinkedPullRequests(
-      project.config.project.repo,
-      number,
-    );
-  }
-
   const persistRaw = isAlert || issue.integrationId !== "github-com";
 
   // Update bench
@@ -586,7 +554,6 @@ export async function assignIssue(
     externalId: issue.externalId,
     title: issue.title,
     issueType,
-    ...(linkedPullRequests ? { linkedPullRequests } : {}),
     ...(persistRaw ? { raw: issue.raw } : {}),
     ...(issue.externalUrl ? { externalUrl: issue.externalUrl } : {}),
   };

@@ -12,13 +12,9 @@ vi.mock("./config-parser.js", () => ({
   applyComponentUrlOverrides: vi.fn(),
 }));
 
-// Partial mock: only fetchIssueContext (the network call) is stubbed;
-// buildPluginIssueContext stays real so its externalUrl re-hydration is
-// actually exercised, not just assumed.
-vi.mock("./issue-formatting.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./issue-formatting.js")>();
-  return { ...actual, fetchIssueContext: vi.fn() };
-});
+// The issue context itself (plugin fetch, alert and persisted fallbacks) is
+// covered in issue-formatting.test.ts; here only its wiring matters.
+vi.mock("./issue-formatting.js", () => ({ resolveAssignedIssueContext: vi.fn() }));
 
 import {
   getSampleResolveContext,
@@ -26,7 +22,7 @@ import {
   findUnresolvedVariables,
 } from "./jig-preview.js";
 import { buildTemplateContext, applyContainerOverrides } from "./config-parser.js";
-import { fetchIssueContext } from "./issue-formatting.js";
+import { resolveAssignedIssueContext } from "./issue-formatting.js";
 
 const MOCK_PROJECT: RegisteredProject = {
   id: "proj-1",
@@ -52,7 +48,12 @@ const MOCK_BENCH: Bench = {
   provisioningSteps: [],
   teardownSteps: [],
   notifications: [],
-  assignedIssue: { number: 99, title: "Real issue" },
+  assignedIssue: {
+    number: 99,
+    integrationId: "github-com",
+    externalId: "org/repo#99",
+    title: "Real issue",
+  },
 };
 
 beforeEach(() => {
@@ -90,7 +91,7 @@ describe("buildPreviewContext", () => {
   });
 
   it("builds real context from bench data", async () => {
-    vi.mocked(fetchIssueContext).mockResolvedValue({
+    vi.mocked(resolveAssignedIssueContext).mockResolvedValue({
       issueNumber: 99,
       issueTitle: "Real issue",
       issueBody: "Body text",
@@ -100,6 +101,7 @@ describe("buildPreviewContext", () => {
 
     const ctx = await buildPreviewContext(MOCK_PROJECT, MOCK_BENCH);
 
+    expect(resolveAssignedIssueContext).toHaveBeenCalledWith("proj-1", MOCK_BENCH.assignedIssue);
     expect(buildTemplateContext).toHaveBeenCalledWith(MOCK_PROJECT.config, 2, "/real/workspace");
     expect(applyContainerOverrides).toHaveBeenCalledWith(
       expect.objectContaining({ ports: { server: 4000 } }),
@@ -114,92 +116,10 @@ describe("buildPreviewContext", () => {
     expect(ctx.workspace).toBe("/real/workspace");
   });
 
-  it("falls back to persisted issue stub when fetchIssueContext fails", async () => {
-    vi.mocked(fetchIssueContext).mockRejectedValue(new Error("GitHub unavailable"));
-
-    const ctx = await buildPreviewContext(MOCK_PROJECT, MOCK_BENCH);
-
-    expect(ctx.issueNumber).toBe(99);
-    expect(ctx.issueTitle).toBe("Real issue");
-    expect(ctx.issueBody).toBeUndefined();
-  });
-
-  it("still fills issueUrl from persisted state when fetchIssueContext fails", async () => {
-    vi.mocked(fetchIssueContext).mockRejectedValue(new Error("GitHub unavailable"));
-    const benchWithUrl: Bench = {
-      ...MOCK_BENCH,
-      assignedIssue: {
-        ...MOCK_BENCH.assignedIssue,
-        externalUrl: "https://github.com/org/repo/issues/99",
-      } as Bench["assignedIssue"],
-    };
-
-    const ctx = await buildPreviewContext(MOCK_PROJECT, benchWithUrl);
-
-    expect(ctx.issueUrl).toBe("https://github.com/org/repo/issues/99");
-  });
-
-  it("resolves issueUrl from persisted state on a Jira-assigned bench", async () => {
-    const jiraBench: Bench = {
-      ...MOCK_BENCH,
-      assignedIssue: {
-        integrationId: "jira-self-hosted",
-        externalId: "PROJ-45",
-        title: "Add billing dashboard",
-        externalUrl: "https://jira.example.com/browse/PROJ-45",
-      } as Bench["assignedIssue"],
-    };
-
-    const ctx = await buildPreviewContext(MOCK_PROJECT, jiraBench);
-
-    expect(fetchIssueContext).not.toHaveBeenCalled();
-    expect(ctx.issueKey).toBe("PROJ-45");
-    expect(ctx.issueTitle).toBe("Add billing dashboard");
-    expect(ctx.issueUrl).toBe("https://jira.example.com/browse/PROJ-45");
-  });
-
-  it("re-hydrates alert-backed benches from persisted raw without fetching", async () => {
-    const alertBench: Bench = {
-      ...MOCK_BENCH,
-      assignedIssue: {
-        number: 117,
-        integrationId: "github-com",
-        externalId: "org/repo#code-scanning-117",
-        title: "SQL injection",
-        issueType: "security-code-scanning",
-        raw: {
-          html_url: "https://github.com/org/repo/security/code-scanning/117",
-          rule: { description: "SQL injection", security_severity_level: "high" },
-          most_recent_instance: { location: { path: "src/db.ts", start_line: 12 } },
-        },
-      },
-    };
-
-    const ctx = await buildPreviewContext(MOCK_PROJECT, alertBench);
-
-    expect(fetchIssueContext).not.toHaveBeenCalled();
-    expect(ctx.issueNumber).toBe(117);
-    expect(ctx.issueTitle).toBe("SQL injection");
-    expect(ctx.issueBody).toContain("**Location:** src/db.ts:12");
-    expect(ctx.issueUrl).toBe("https://github.com/org/repo/security/code-scanning/117");
-  });
-
   it("skips issue fetch when bench has no assigned issue", async () => {
     const benchNoIssue: Bench = { ...MOCK_BENCH, assignedIssue: undefined };
     await buildPreviewContext(MOCK_PROJECT, benchNoIssue);
-    expect(fetchIssueContext).not.toHaveBeenCalled();
-  });
-
-  it("skips issue fetch when project config has no repo", async () => {
-    const projectNoRepo: RegisteredProject = {
-      ...MOCK_PROJECT,
-      config: {
-        ...(MOCK_PROJECT.config ?? {}),
-        project: { displayName: "No Repo Project" },
-      } as RegisteredProject["config"],
-    };
-    await buildPreviewContext(projectNoRepo, MOCK_BENCH);
-    expect(fetchIssueContext).not.toHaveBeenCalled();
+    expect(resolveAssignedIssueContext).not.toHaveBeenCalled();
   });
 });
 

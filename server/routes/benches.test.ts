@@ -629,6 +629,35 @@ describe("GET /:projectId/benches/:id", () => {
     });
   });
 
+  it("qualifies a pre-plugin bench's bare number with the project repo before re-fetching (#1461)", async () => {
+    const bench = {
+      id: 1,
+      projectId: "my-project",
+      branch: "main",
+      // migrateAssignedIssue gives a pre-plugin bench `externalId: String(number)`.
+      assignedIssue: {
+        number: 42,
+        integrationId: "github-com",
+        externalId: "42",
+        title: "Fix bug",
+      },
+    };
+    vi.mocked(benchManager.getBench).mockReturnValue(bench as any);
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      config: { project: { repo: "owner/repo" } },
+    } as any);
+    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(true);
+    vi.mocked(resolveActivePluginQuiet).mockResolvedValue({ pluginId: "github-com" } as any);
+    vi.mocked(pluginManager.invoke).mockResolvedValue({ blockedBy: ["owner/repo#5"] } as any);
+
+    const res = await request(app).get("/my-project/benches/1");
+    expect(res.status).toBe(200);
+    expect(pluginManager.invoke).toHaveBeenCalledWith("github-com", "getIssue", {
+      externalId: "owner/repo#42",
+    });
+    expect(res.body.assignedIssue.blockedBy).toEqual(["owner/repo#5"]);
+  });
+
   it("returns bench without blockedBy when the plugin reports no blockers", async () => {
     const bench = {
       id: 1,

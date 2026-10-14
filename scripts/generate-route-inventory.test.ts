@@ -157,7 +157,8 @@ describe("assembleRoutes", () => {
     // source. localeCompare is not: under cs_CZ, Czech collation treats "ch"
     // as a single element sorting after "h", which puts check-config AFTER
     // github-projects and makes a Czech contributor's regeneration differ from
-    // everyone else's. Both real paths, both really mounted at /api/projects.
+    // everyone else's. check-config is a real /api/projects path; the other is
+    // a fixture (the real /github-projects route was removed in #1461).
     const routes = assembleRoutes({ mounts: registrations.mounts, inlineRoutes: [] }, [
       {
         source: "server/routes/a.ts",

@@ -44,7 +44,6 @@ import testRouter from "./routes/test.js";
 import * as jigManager from "./services/jig-manager.js";
 import * as pluginManager from "./services/plugin-manager.js";
 import * as catalogClient from "./services/catalog-client.js";
-import * as githubService from "./services/github.js";
 import * as migrate from "./services/migrate.js";
 import { resolveClientDist } from "./clientDist.js";
 
@@ -231,15 +230,6 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   // ready plugin manager. Subscribes for later registerProject/reloadConfig
   // calls too.
   initializeIntegrationMigrations();
-
-  // Prime the legacy github service's in-memory token cache from the github-com
-  // plugin's keychain slot. The cache backs the synchronous getOctokit() path
-  // used by projects, benches, etc., which are not yet plugin-driven.
-  try {
-    await githubService.refreshAuth();
-  } catch (err) {
-    console.warn("Failed to load GitHub credentials from keychain:", (err as Error).message);
-  }
 
   let server: http.Server;
   try {
