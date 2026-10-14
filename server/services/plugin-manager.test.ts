@@ -3462,6 +3462,44 @@ describe("PluginIsolationSandbox wiring (#676)", () => {
       expect(fallbackEvents).toHaveLength(1);
     });
 
+    it("does not raise an uncaught exception when the docker CLI is absent from PATH", async () => {
+      // A real ENOENT does not throw from spawn(): Node returns a child with no
+      // pid and emits 'error' on a later tick. With no listener on that child,
+      // the emit became an uncaught exception, which the Electron main process
+      // surfaced as a "spawn docker ENOENT" dialog. Reproduce with the real
+      // spawn against a binary that does not exist, not with a thrown error.
+      dockerPingMock = () => Promise.resolve("OK");
+      dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+      process.env.NODE_ENV = "production";
+      delete process.env.ROUBO_E2E;
+
+      const realSpawn = childProcessControl.real as (
+        ...a: Parameters<SpawnFn>
+      ) => ReturnType<SpawnFn>;
+      let missingDocker: ReturnType<SpawnFn> | null = null;
+      childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+        if (args[0] === "docker" && missingDocker === null) {
+          missingDocker = realSpawn("roubo-test-no-such-docker-cli", args[1], args[2]);
+          return missingDocker;
+        }
+        return realSpawn(...args);
+      }) as SpawnFn;
+
+      sandbox = await makeSandbox({ bundled: ["echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+
+      expect(missingDocker).not.toBeNull();
+      const failed = missingDocker as unknown as ReturnType<SpawnFn>;
+      expect(failed.pid).toBeUndefined();
+      expect(failed.listenerCount("error")).toBeGreaterThan(0);
+      const rec = findRecord(mgr.listInstalled(), "echo");
+      expect(rec.status).toBe("enabled");
+      expect(typeof rec.pid).toBe("number");
+      const fallbackEvents = rec.restartHistory.filter((e) => e.reason === "sandbox-fallback");
+      expect(fallbackEvents).toHaveLength(1);
+    });
+
     it("does NOT put a host credential on the docker spawn's argv, only in its env (#1377)", async () => {
       // A live credential the launching shell holds must never appear on the
       // `docker` process argv (readable host-wide via ps/docker inspect

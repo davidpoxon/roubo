@@ -82,14 +82,16 @@ export const EGRESS_RERESOLVE_INTERVAL_SECONDS = 60;
 /**
  * Probe whether an executable is resolvable on the host's PATH, returning false
  * on any error (missing binary, spawn failure, timeout). Used by the
- * apple-container probe to confirm the `container` CLI is actually present, not
- * merely that the platform could host it. Exception-safe so a probe never
- * crashes capability detection (NFR-005).
+ * apple-container and docker probes to confirm the `container` or `docker` CLI
+ * is actually present, not merely that the platform could host it or the daemon
+ * answers. Exception-safe so a probe never crashes capability detection
+ * (NFR-005).
  */
 function isExecutableOnPath(binary: string): Promise<boolean> {
   return new Promise((resolve) => {
-    // `command -v` is a POSIX shell builtin; the apple-container rung is
-    // macOS-only so a Unix lookup is sufficient. Resolve false on any failure.
+    // `command -v` is a POSIX shell builtin. On a host without /bin/sh the
+    // spawn fails and the probe resolves false, degrading that rung rather
+    // than guessing. Resolve false on any failure.
     let settled = false;
     const done = (value: boolean): void => {
       if (settled) return;
@@ -116,9 +118,13 @@ function isExecutableOnPath(binary: string): Promise<boolean> {
  * degrading the host one rung rather than crashing detection. The probes are
  * injected so this is deterministic in tests without a live daemon.
  *
- * - `docker`: the Docker daemon is reachable, probed via dockerode's `ping()`
- *   (mirroring docker.ts), so a host with the CLI installed but the daemon down
- *   reports false rather than selecting a rung it cannot drive.
+ * - `docker`: the `docker` CLI is resolvable on PATH and the Docker daemon is
+ *   reachable, probed via dockerode's `ping()` (mirroring docker.ts). Both are
+ *   required because the rung drives each plugin through the CLI (`docker run`)
+ *   while dockerode talks to the daemon socket directly: a host with the CLI
+ *   installed but the daemon down, or a GUI launch whose PATH lacks the CLI
+ *   while the socket still answers, reports false rather than selecting a rung
+ *   it cannot drive.
  * - `appleContainer`: the macOS 15+ / Apple-silicon `container` framework is
  *   present, gated on platform + arch and confirmed by the `container` CLI being
  *   resolvable on PATH.
@@ -136,6 +142,7 @@ export function defaultIsolationProbes(): IsolationProbes {
       return isExecutableOnPath("container");
     },
     docker: async () => {
+      if (!(await isExecutableOnPath("docker"))) return false;
       // Lazy-import dockerode so capability detection has no module-load cost on
       // hosts that never reach this probe, and a load failure degrades the rung
       // rather than crashing. `ping()` confirms the daemon is reachable, not

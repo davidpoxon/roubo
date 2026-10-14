@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { createWriteStream, existsSync, realpathSync, statSync, type WriteStream } from "node:fs";
 import { cp, mkdir, readdir, readFile, rename, rm, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -989,6 +989,25 @@ function missingEntryMessage(
     : `${base} check its build output exists.`;
 }
 
+// A failed launch such as ENOENT (a `docker` CLI missing from the GUI app's
+// PATH) does not throw from spawn(): Node returns a child with no pid and emits
+// 'error' on a later tick. An 'error' emit with no listener is an uncaught
+// exception, which the Electron main process shows as a crash dialog. Attach
+// the listener here, before any caller checks the pid, so every child the
+// plugin start path creates has one, including a child that never started.
+function spawnPluginChild(
+  entry: PluginEntry,
+  command: string,
+  args: string[],
+  options: SpawnOptions,
+): ChildProcess {
+  const child = spawn(command, args, options);
+  child.on("error", (err) => {
+    writeLog(entry, "host", `process error: ${err.message}`, "error").catch(() => {});
+  });
+  return child;
+}
+
 async function spawnPlugin(entry: PluginEntry): Promise<void> {
   const manifest = entry.record.manifest;
   if (!manifest) return;
@@ -1180,7 +1199,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   let primaryFailed = false;
   let primaryFailReason = "";
   try {
-    proc = spawn(spawnCommand, finalArgs, {
+    proc = spawnPluginChild(entry, spawnCommand, finalArgs, {
       cwd: entry.record.pluginDir,
       // #1377: a sandboxed (docker) spawn gets sandboxed.env (the docker CLI's
       // own env, plus the container env it resolves the name-only -e flags
@@ -1223,7 +1242,7 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     let fallbackFailed = false;
     let fallbackFailReason = "";
     try {
-      proc = spawn(process.execPath, spawnArgs, {
+      proc = spawnPluginChild(entry, process.execPath, spawnArgs, {
         cwd: entry.record.pluginDir,
         env: spawnEnv,
         stdio: ["pipe", "pipe", "pipe"],
@@ -1332,9 +1351,6 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
 
   proc.on("exit", (code) => {
     handleChildExit(entry, code);
-  });
-  proc.on("error", (err) => {
-    writeLog(entry, "host", `process error: ${err.message}`, "error").catch(() => {});
   });
 }
 
