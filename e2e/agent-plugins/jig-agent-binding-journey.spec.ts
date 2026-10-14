@@ -431,6 +431,13 @@ test("AP-TC-020: a bound jig launches its agent and an unbound jig launches the 
   // the label, so the tile covering it is both what a user presses and the only
   // thing a click can land on.
   if ((await claudeTile.count()) === 1) await claudeTile.click();
+  // The tile is a controlled radio fed by the settings query cache, and the
+  // mutation's optimistic update re-renders on a later task than the click, so
+  // reading straight away races it (#1463). Tolerated like the waits above: a
+  // tile that never selects is reported by S001-O01 below, not by a timeout.
+  await expect(claudeTile)
+    .toHaveAttribute("data-selected", "true", { timeout: 15_000 })
+    .catch(() => {});
 
   // Read the selection once, so the boolean and the reported actual can never
   // disagree. `data-selected` mirrors the same `isSelected` that drives the
@@ -473,11 +480,19 @@ test("AP-TC-020: a bound jig launches its agent and an unbound jig launches the 
   // The persisted record, not the form's optimistic state: S005 falls back to
   // THIS value, so a selection that never reached settings.json would otherwise
   // only surface two steps later as a mystery.
-  const settingsRes = await request.get("/api/settings");
-  expect(settingsRes.status(), "GET /api/settings").toBe(200);
-  const persistedDefault = (
-    (await settingsRes.json()) as { jigs?: { defaultAgentPluginId?: string } }
-  ).jigs?.defaultAgentPluginId;
+  // The browser's PUT can still be in flight, so poll until it lands; a value
+  // that never arrives is still reported by the observation below.
+  const readPersistedDefault = async (): Promise<string | undefined> => {
+    const settingsRes = await request.get("/api/settings");
+    expect(settingsRes.status(), "GET /api/settings").toBe(200);
+    return ((await settingsRes.json()) as { jigs?: { defaultAgentPluginId?: string } }).jigs
+      ?.defaultAgentPluginId;
+  };
+  await expect
+    .poll(readPersistedDefault, { timeout: 15_000 })
+    .toBe(CLAUDE_PLUGIN_ID)
+    .catch(() => {});
+  const persistedDefault = await readPersistedDefault();
   observe(
     STEPS.S001,
     "S001-O01",
