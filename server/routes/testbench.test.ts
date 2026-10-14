@@ -520,6 +520,27 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
     expect(res.headers["ratelimit"]).toBeDefined();
     expect(res.headers["ratelimit-policy"]).toBeDefined();
   });
+
+  // #1473: the client refetches the plan after every mark, note and reconcile,
+  // so one person working quickly passes 30 reads a minute. The limiter stays
+  // mounted but must not answer that use with a 429.
+  it("serves more than 30 plan reads a minute", async () => {
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
+      plan: { cases: [] } as never,
+      results: null,
+      stale: false,
+      planHash: "abc",
+      recovered: true,
+    });
+    const statuses: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      statuses.push((await request(app).get("/p1/benches/1/testbench/plan")).status);
+    }
+    expect(statuses.filter((s) => s !== 200)).toEqual([]);
+    const res = await request(app).get("/p1/benches/1/testbench/plan");
+    const policyLimit = Number.parseInt(String(res.headers["ratelimit-policy"]), 10);
+    expect(policyLimit).toBeGreaterThanOrEqual(600);
+  });
 });
 
 describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {

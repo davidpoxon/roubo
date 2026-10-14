@@ -77,11 +77,13 @@ const router = Router();
 
 // The read handlers resolve a project and read plan/results files from disk per
 // gate, so they are rate-limited to mitigate denial-of-service (CodeQL
-// js/missing-rate-limiting, alerts 186/187). Mirrors the limiter used by the
-// sibling routers (benches-settings.ts, projects.ts).
+// js/missing-rate-limiting, alerts 186/187). The client refetches gates after
+// every mark, so the cap sits well above what one person can trigger through the
+// UI; at 30 a quick marking session got 429s (#1473). Same read cap as
+// testbench.ts.
 const gateReadRateLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 30,
+  limit: 600,
   standardHeaders: "draft-7",
   legacyHeaders: false,
 });
