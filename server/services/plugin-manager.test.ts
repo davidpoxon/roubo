@@ -105,6 +105,11 @@ vi.mock("dockerode", () => ({
 // unaffected. `override` is null by default, so the file-wide behaviour is the
 // real spawn; a test sets `override` to intercept and resets it in afterEach.
 // #742: exercises the sandbox-fallback retry-on-floor branch.
+//
+// The docker probe also asks `/bin/sh -c "command -v docker"` whether the CLI
+// is on PATH. That lookup is answered as found here, so a test that selects the
+// docker rung through a mocked daemon ping does not depend on whether the
+// machine running the suite has Docker installed.
 type SpawnFn = (typeof import("node:child_process"))["spawn"];
 const childProcessControl = vi.hoisted(() => ({
   override: null as SpawnFn | null,
@@ -113,10 +118,14 @@ const childProcessControl = vi.hoisted(() => ({
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
   childProcessControl.real = actual.spawn;
+  const isDockerCliLookup = (args: Parameters<SpawnFn>): boolean =>
+    args[0] === "/bin/sh" && Array.isArray(args[1]) && args[1][1] === "command -v docker";
   return {
     ...actual,
-    spawn: ((...args: Parameters<SpawnFn>) =>
-      (childProcessControl.override ?? actual.spawn)(...args)) as SpawnFn,
+    spawn: ((...args: Parameters<SpawnFn>) => {
+      if (isDockerCliLookup(args)) return actual.spawn("/bin/sh", ["-c", "exit 0"], args[2]);
+      return (childProcessControl.override ?? actual.spawn)(...args);
+    }) as SpawnFn,
   };
 });
 
@@ -3424,8 +3433,8 @@ describe("PluginIsolationSandbox wiring (#676)", () => {
 
     it("retries once on the floor and records a sandbox-fallback event when the docker spawn fails (#742)", async () => {
       // The docker tier is selected and ensureImage succeeds, but the `docker`
-      // spawn itself fails (e.g. the docker CLI is absent, or the bind-mount
-      // path is not shared on macOS Docker Desktop). The host must retry ONCE on
+      // spawn itself fails (e.g. the bind-mount path is not shared on macOS
+      // Docker Desktop, or the CLI went missing after the probe ran). The host must retry ONCE on
       // the broker-only floor, record a `sandbox-fallback` restart event, and
       // start the plugin: the #742 crash-loop must not occur.
       dockerPingMock = () => Promise.resolve("OK");
@@ -3462,12 +3471,14 @@ describe("PluginIsolationSandbox wiring (#676)", () => {
       expect(fallbackEvents).toHaveLength(1);
     });
 
-    it("does not raise an uncaught exception when the docker CLI is absent from PATH", async () => {
+    it("does not raise an uncaught exception when the selected docker rung's spawn fails with ENOENT", async () => {
       // A real ENOENT does not throw from spawn(): Node returns a child with no
       // pid and emits 'error' on a later tick. With no listener on that child,
       // the emit became an uncaught exception, which the Electron main process
       // surfaced as a "spawn docker ENOENT" dialog. Reproduce with the real
       // spawn against a binary that does not exist, not with a thrown error.
+      // The probe now keeps the rung off when the CLI is missing at probe time,
+      // so this covers a launch that still fails after the rung was selected.
       dockerPingMock = () => Promise.resolve("OK");
       dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
       process.env.NODE_ENV = "production";

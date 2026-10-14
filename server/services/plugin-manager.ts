@@ -1219,9 +1219,9 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   }
 
   if (primaryFailed && attemptedSandbox) {
-    // Sandboxed spawn threw or returned no pid (e.g. docker CLI absent,
-    // bind-mount not shared on macOS Docker Desktop). Retry ONCE on the
-    // broker-only floor before charging the restart budget (#742).
+    // Sandboxed spawn threw or returned no pid (e.g. bind-mount not shared on
+    // macOS Docker Desktop, or a docker CLI removed after the probe ran). Retry
+    // ONCE on the broker-only floor before charging the restart budget (#742).
     await writeLog(
       entry,
       "host",
