@@ -1882,6 +1882,11 @@ describe("restart budget (IP-TC-015)", () => {
     const pid = need(findRecord(mgr.listInstalled(), "echo").pid, "pid");
     process.kill(pid, "SIGKILL");
     await init;
+    // spawnPlugin resolves only once the crash is handled, never "enabled"
+    // for the dead child.
+    const settled = findRecord(mgr.listInstalled(), "echo");
+    expect(settled.pid).toBeNull();
+    expect(settled.restartHistory).toHaveLength(1);
 
     await waitFor(() => {
       const r = getManager()

@@ -1358,10 +1358,15 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     // processed before the child's 'exit' and the listener has yet to run. In
     // the second case leave the stop unintentional so the listener charges the
     // budget and schedules the restart. Kill the child anyway, in case only
-    // its stdio closed and it is still running.
+    // its stdio closed and it is still running, then wait for its exit so
+    // spawnPlugin never resolves "enabled" for a dead child: a restart's
+    // re-provision is gated on that status. entry.process is still this child,
+    // so handleChildExit has not run and the exit event is still to come.
     if (entry.process !== child) return;
     if (closed) {
+      const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
       child.kill("SIGKILL");
+      await exited;
       return;
     }
     entry.record.status = "errored";
