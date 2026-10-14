@@ -1386,6 +1386,191 @@ describe("createBenchAndAssignFromIssue", () => {
       externalUrl: "https://github.com/org/repo/issues/42",
     });
   });
+
+  describe("security alert", () => {
+    function makeBench() {
+      return {
+        id: 3,
+        projectId: "project1",
+        branch: "",
+        workspacePath: "/workspace",
+        ports: { backend: 5000 },
+        createdAt: "2026-01-01",
+        assignedContainers: {},
+        components: {},
+        notifications: [],
+      } as any;
+    }
+
+    function setup() {
+      const bench = makeBench();
+      vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+      vi.mocked(benchManager.createBench).mockReturnValue(bench);
+      // Branch does not yet exist -> rev-parse --verify fails (non-zero).
+      vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
+      mockAgentSession("term-9");
+      return bench;
+    }
+
+    it("creates a bench on a category-prefixed branch and persists the alert number + redacted raw", async () => {
+      const bench = setup();
+
+      const result = await createBenchAndAssignFromIssue("project1", codeScanningAlert(), []);
+
+      expect(result.status).toBe("success");
+      expect(benchManager.createBench).toHaveBeenCalledWith(
+        "project1",
+        "code-scanning-117-bad-thing",
+      );
+      expect(bench.assignedIssue).toMatchObject({
+        number: 117,
+        integrationId: "github-com",
+        externalId: "org/repo#code-scanning-117",
+        issueType: "security-code-scanning",
+      });
+      // The persisted raw is the redacted clone passed in (never re-fetched).
+      expect(bench.assignedIssue.raw).toEqual(codeScanningAlert().raw);
+    });
+
+    it("does not run the open-check for an alert", async () => {
+      setup();
+      // Even a done-ish state must not reject an alert (alerts are exempt).
+      const result = await createBenchAndAssignFromIssue(
+        "project1",
+        codeScanningAlert({ currentState: "closed" }),
+        [],
+      );
+      expect(result.status).toBe("success");
+    });
+
+    it("resolves the jig from the alert issueType", async () => {
+      setup();
+      await createBenchAndAssignFromIssue("project1", codeScanningAlert(), []);
+      expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
+        "project1",
+        "security-code-scanning",
+        expect.anything(),
+      );
+    });
+
+    it("falls back to a bare category-number branch when the title slugifies to empty", async () => {
+      setup();
+      await createBenchAndAssignFromIssue(
+        "project1",
+        codeScanningAlert({
+          externalId: "org/repo#secret-scanning-42",
+          title: "!!!",
+          issueType: "security-secret-scanning",
+          raw: { number: 42, secret_type_display_name: "GitHub PAT" },
+        }),
+        [],
+      );
+      expect(benchManager.createBench).toHaveBeenCalledWith("project1", "secret-scanning-42");
+    });
+
+    it("returns a conflict when the branch exists and no resolution is given", async () => {
+      setup();
+      vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+      const result = await createBenchAndAssignFromIssue("project1", codeScanningAlert(), []);
+      expect(result.status).toBe("conflict");
+      if (result.status === "conflict") {
+        expect(result.branchConflict.branchName).toBe("code-scanning-117-bad-thing");
+      }
+      expect(benchManager.createBench).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("key-based plugin issue (e.g. Jira)", () => {
+    function makeBench() {
+      return {
+        id: 4,
+        projectId: "project1",
+        branch: "",
+        workspacePath: "/workspace",
+        ports: { backend: 5000 },
+        createdAt: "2026-01-01",
+        assignedContainers: {},
+        components: {},
+        notifications: [],
+      } as any;
+    }
+
+    function setup() {
+      const bench = makeBench();
+      vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+      vi.mocked(benchManager.createBench).mockReturnValue(bench);
+      // Branch does not yet exist -> rev-parse --verify fails (non-zero).
+      vi.mocked(runCommand).mockResolvedValue({ code: 1, stdout: "", stderr: "" });
+      mockAgentSession("term-10");
+      return bench;
+    }
+
+    it("creates a bench from the externalId key + title and assigns it with no number", async () => {
+      const bench = setup();
+
+      const result = await createBenchAndAssignFromIssue("project1", jiraIssue(), []);
+
+      expect(result.status).toBe("success");
+      expect(benchManager.createBench).toHaveBeenCalledWith(
+        "project1",
+        "proj-45-add-billing-dashboard",
+      );
+      expect(bench.assignedIssue).toMatchObject({
+        integrationId: "jira-self-hosted",
+        externalId: "PROJ-45",
+        title: "Add billing dashboard",
+        issueType: "Story",
+        externalUrl: "https://jira.example.com/browse/PROJ-45",
+      });
+      // No GitHub-style number for a Jira key.
+      expect(bench.assignedIssue.number).toBeUndefined();
+      // Non-github-com integrations persist raw (re-injection re-hydrates).
+      expect(bench.assignedIssue.raw).toEqual({ key: "PROJ-45" });
+    });
+
+    it("injects the issue key, title, body, url and comments into the session jig", async () => {
+      setup();
+      await createBenchAndAssignFromIssue("project1", jiraIssue(), [
+        { user: "alice", body: "looks good" },
+      ]);
+      expect(jigManager.resolveJigContent).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          issueKey: "PROJ-45",
+          issueNumber: undefined,
+          issueTitle: "Add billing dashboard",
+          issueUrl: "https://jira.example.com/browse/PROJ-45",
+        }),
+      );
+    });
+
+    it("resolves the jig from the issue issueType", async () => {
+      setup();
+      await createBenchAndAssignFromIssue("project1", jiraIssue(), []);
+      expect(jigManager.resolveJigForIssue).toHaveBeenCalledWith(
+        "project1",
+        "Story",
+        expect.anything(),
+      );
+    });
+
+    it("falls back to a bare key branch when the title slugifies to empty", async () => {
+      setup();
+      await createBenchAndAssignFromIssue("project1", jiraIssue({ title: "!!!" }), []);
+      expect(benchManager.createBench).toHaveBeenCalledWith("project1", "proj-45");
+    });
+
+    it("returns a conflict when the branch exists and no resolution is given", async () => {
+      setup();
+      vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+      const result = await createBenchAndAssignFromIssue("project1", jiraIssue(), []);
+      expect(result.status).toBe("conflict");
+      if (result.status === "conflict") {
+        expect(result.branchConflict.branchName).toBe("proj-45-add-billing-dashboard");
+      }
+      expect(benchManager.createBench).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("unassignIssue", () => {
