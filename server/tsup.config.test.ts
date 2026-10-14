@@ -38,7 +38,7 @@ describe("server tsup bundle dependency coverage", () => {
   // Their install scripts exit 0 when node-gyp fails, so they may be absent, and
   // tsup's native-node-modules plugin fails the bundle on a missing `.node`
   // file (#1471). Keeping them external makes the build independent of them;
-  // at runtime ssh2 then uses its JavaScript ciphers and default cipher order.
+  // at runtime ssh2 then encrypts through Node's crypto module without them.
   it.each(["./crypto/build/Release/sshcrypto.node", "cpu-features"])(
     "keeps ssh2's optional native binding %s external",
     (specifier) => {

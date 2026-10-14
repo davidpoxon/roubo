@@ -45,10 +45,11 @@ export default defineConfig({
   // try/catch. Their install scripts exit 0 when node-gyp fails, so either may be
   // absent, and tsup's native-node-modules plugin fails the whole bundle on a
   // missing `.node` file (#1471). Leave both unbundled and unshipped: without
-  // sshcrypto ssh2 uses its pure-JavaScript ciphers, and without cpu-features it
-  // skips CPU-based cipher ordering. Electron already gets that behaviour, since a
-  // binding built against Node's ABI cannot load there. Under plain Node (npm
-  // start, e2e) the relative sshcrypto require now misses from server/dist too, so
-  // SSH Docker hosts use the slower JavaScript ciphers there as well.
+  // sshcrypto ssh2 encrypts through Node's crypto module, without the binding's
+  // per-packet speed-up, and cpu-features only reorders ciphers when sshcrypto is
+  // loaded. Electron already gets that behaviour, since a binding built against
+  // Node's ABI cannot load there. Under plain Node (npm start, e2e) the relative
+  // sshcrypto require now misses from server/dist too, so SSH Docker hosts lose
+  // the speed-up there as well.
   external: [/[\\/]sshcrypto\.node$/, "cpu-features"],
 });
