@@ -221,9 +221,7 @@ describe("WorkspaceSourceTile", () => {
       }) as unknown as ReturnType<typeof useProjectSettings>,
     );
     renderTile({ branchFromDefault: true, pullLatest: true });
-    expect(
-      screen.getByText(/git fetch origin main && git update-ref refs\/heads\/main origin\/main/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/git fetch origin main:main/)).toBeInTheDocument();
   });
 
   it("shows Default branch label with value when defaultBranch is resolved", () => {

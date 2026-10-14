@@ -84,6 +84,26 @@ describe("fastForwardLocalBranch", () => {
     expect(git(repo, "status", "--porcelain")).toBe("");
   });
 
+  it("recognises the main checkout through a symlinked repo path", async () => {
+    const link = path.join(tmp, "link");
+    fs.symlinkSync(repo, link);
+    const target = advanceOrigin();
+
+    await fastForwardLocalBranch(link, "main");
+
+    expect(git(repo, "rev-parse", "HEAD")).toBe(target);
+  });
+
+  it("recognises the main checkout when the project is a subdirectory of the repository", async () => {
+    const sub = path.join(repo, "app");
+    fs.mkdirSync(sub);
+    const target = advanceOrigin();
+
+    await fastForwardLocalBranch(sub, "main");
+
+    expect(git(repo, "rev-parse", "HEAD")).toBe(target);
+  });
+
   it("creates the local branch from origin when it does not exist", async () => {
     git(repo, "switch", "-q", "-c", "feature");
     git(repo, "branch", "-q", "-D", "main");

@@ -254,18 +254,44 @@ export async function fastForwardLocalBranch(repoPath: string, branch: string): 
   const localRef = `refs/heads/${branch}`;
   const remoteRef = `refs/remotes/origin/${branch}`;
 
-  const list = await runCommand(
-    "git",
-    ["worktree", "list", "--porcelain"],
-    repoPath,
-    undefined,
-    REF_COMMAND_TIMEOUT_MS,
-  );
+  const [list, toplevel] = await Promise.all([
+    runCommand(
+      "git",
+      ["worktree", "list", "--porcelain"],
+      repoPath,
+      undefined,
+      REF_COMMAND_TIMEOUT_MS,
+    ),
+    runCommand(
+      "git",
+      ["rev-parse", "--show-toplevel"],
+      repoPath,
+      undefined,
+      REF_COMMAND_TIMEOUT_MS,
+    ),
+  ]);
   if (list.code !== 0) throw refUpdateError(branch, list.stderr, "git worktree list failed");
+  if (toplevel.code !== 0) throw refUpdateError(branch, toplevel.stderr, "git rev-parse failed");
   const holder = parseWorktreeList(list.stdout).find((e) => e.branch === branch);
 
+  // Another bench provisioning at the same time can move the branch between
+  // the read and the write. Its write is the same fast-forward, so a failed
+  // write that finds the branch already containing origin is not an error.
+  const caughtUpMeanwhile = async (): Promise<boolean> => {
+    const now = await runCommand(
+      "git",
+      ["rev-parse", "--verify", "--quiet", localRef],
+      repoPath,
+      undefined,
+      REF_COMMAND_TIMEOUT_MS,
+    );
+    return now.code === 0 && (await isAncestor(repoPath, remoteRef, now.stdout.trim()));
+  };
+
   if (holder) {
-    if (canonicalPath(holder.path) !== canonicalPath(repoPath)) {
+    // Compared with the repository's top level, since a project may be
+    // registered at a subdirectory of it.
+    if (canonicalPath(holder.path) !== canonicalPath(toplevel.stdout.trim())) {
       throw new Error(
         `Could not fast-forward '${branch}': it is checked out in ${holder.path}. ` +
           `Update it there, or disable 'Pull latest' in project settings.`,
@@ -297,7 +323,9 @@ export async function fastForwardLocalBranch(repoPath: string, branch: string): 
       undefined,
       REF_COMMAND_TIMEOUT_MS,
     );
-    if (created.code !== 0) throw refUpdateError(branch, created.stderr, "git branch failed");
+    if (created.code !== 0 && !(await caughtUpMeanwhile())) {
+      throw refUpdateError(branch, created.stderr, "git branch failed");
+    }
     return;
   }
 
@@ -313,5 +341,7 @@ export async function fastForwardLocalBranch(repoPath: string, branch: string): 
     undefined,
     REF_COMMAND_TIMEOUT_MS,
   );
-  if (updated.code !== 0) throw refUpdateError(branch, updated.stderr, "git update-ref failed");
+  if (updated.code !== 0 && !(await caughtUpMeanwhile())) {
+    throw refUpdateError(branch, updated.stderr, "git update-ref failed");
+  }
 }
