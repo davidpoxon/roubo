@@ -137,6 +137,15 @@ test("AP-TC-018: selecting the Codex CLI tile moves the default agent (S001)", a
     .catch(() => {});
   const toastTexts = (await toast.allTextContents()).map((text) => text.trim());
 
+  // The tile is a controlled radio fed by the settings query cache, and the
+  // mutation's optimistic update re-renders on a later task than the click, so
+  // reading straight away races it (#1463). Waited for only after the toast is
+  // captured, and tolerated: a tile that never selects is reported by S001-O01
+  // below, not by a timeout.
+  await expect(codexTile)
+    .toHaveAttribute("data-selected", "true", { timeout: 15_000 })
+    .catch(() => {});
+
   // Read the selection once, so the boolean and the reported actual can never
   // disagree. `data-selected` mirrors the same `isSelected` that drives the
   // highlight and the filled check indicator, so it is the visual state, not a
