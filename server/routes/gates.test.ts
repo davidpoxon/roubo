@@ -13,13 +13,17 @@ import path from "node:path";
 // limiter with a high cap so the draft-7 RateLimit headers are still attached
 // (the "rate limiting" describe asserts only that the limiter is mounted) while
 // removing the shared-budget fragility. No test asserts a 429.
+// The limits the router asked for, before the override, for the #1473 test.
+const requestedLimits = vi.hoisted(() => [] as unknown[]);
 vi.mock("express-rate-limit", async () => {
   const actual = await vi.importActual<typeof import("express-rate-limit")>("express-rate-limit");
   const realRateLimit = actual.default;
   return {
     ...actual,
-    default: (options: Parameters<typeof realRateLimit>[0]) =>
-      realRateLimit({ ...options, limit: 100_000 }),
+    default: (options: Parameters<typeof realRateLimit>[0]) => {
+      requestedLimits.push(options?.limit);
+      return realRateLimit({ ...options, limit: 100_000 });
+    },
   };
 });
 
@@ -430,6 +434,14 @@ describe("GET /:projectId/gates/:gateId", () => {
 describe("rate limiting", () => {
   beforeEach(() => {
     vi.mocked(workUnitLoader.loadVerifyUnits).mockReturnValue([]);
+  });
+
+  // #1473: gate reads are refetched after every mark, so one person working
+  // quickly passes 30 a minute. Reads allow 600; writes keep their tighter cap.
+  it("asks for a read limit of at least 600 a minute and keeps the write limit at 20", () => {
+    const limits = requestedLimits.filter((l): l is number => typeof l === "number");
+    expect(Math.max(...limits)).toBeGreaterThanOrEqual(600);
+    expect(limits).toContain(20);
   });
 
   it("attaches RateLimit response headers on the list route (limiter is mounted)", async () => {

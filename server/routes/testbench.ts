@@ -65,11 +65,13 @@ const router = Router();
 // The plan endpoint resolves a project/bench (authorization) and then reads the
 // plan + results from disk, and on a ?gateIds= filter also loads the bench's
 // work-units, so it is rate-limited to mitigate denial-of-service (CodeQL
-// js/missing-rate-limiting, alert 188). Mirrors the limiter used by the sibling
-// routers (gates.ts, benches-settings.ts, projects.ts).
+// js/missing-rate-limiting, alert 188). The client refetches the plan after
+// every mark, note and reconcile, so the cap sits well above what one person can
+// trigger through the UI; at 30 a quick marking session got 429s (#1473). Same
+// read cap as gates.ts.
 const planReadRateLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 30,
+  limit: 600,
   standardHeaders: "draft-7",
   legacyHeaders: false,
 });
