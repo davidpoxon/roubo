@@ -46,13 +46,16 @@ export function buildPersistedIssueContext(
 
 /**
  * The externalId to fetch an assigned issue by. A pre-plugin bench carries
- * `externalId: String(number)` (see `migrateAssignedIssue`), which the GitHub
- * plugins reject because it names no repo. Those benches were assigned from
- * the project's own repo, so qualify the bare number with it.
+ * `integrationId: "github-com"` and `externalId: String(number)` (see
+ * `migrateAssignedIssue`), which the GitHub plugins reject because it names no
+ * repo. Those benches were assigned from the project's own repo, so qualify
+ * the bare number with it.
  */
 export function assignedIssueFetchId(projectId: string, assignedIssue: AssignedIssue): string {
-  const { externalId, number } = assignedIssue;
-  if (number == null || externalId !== String(number)) return externalId;
+  const { externalId, number, integrationId } = assignedIssue;
+  if (integrationId !== "github-com" || number == null || externalId !== String(number)) {
+    return externalId;
+  }
   const repo = projectRegistry.getProject(projectId)?.config?.project?.repo;
   return repo ? `${repo}#${number}` : externalId;
 }

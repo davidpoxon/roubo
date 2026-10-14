@@ -198,6 +198,22 @@ describe("assigned issue context (#1461)", () => {
     });
   });
 
+  it("leaves a bare numeric externalId alone for an integration other than github-com", async () => {
+    vi.mocked(resolveActivePlugin).mockReturnValueOnce({
+      pluginId: "acme",
+      integrationId: "acme",
+      pageSize: 50,
+    });
+    await resolveAssignedIssueContext("demo", {
+      number: 123,
+      integrationId: "acme",
+      externalId: "123",
+      title: "t",
+    } as AssignedIssue);
+
+    expect(pluginManager.invoke).toHaveBeenCalledWith("acme", "getIssue", { externalId: "123" });
+  });
+
   it("gives an issue with no number its body and comments, keyed by externalId", async () => {
     vi.mocked(resolveActivePlugin).mockReturnValueOnce({
       pluginId: "jira",
