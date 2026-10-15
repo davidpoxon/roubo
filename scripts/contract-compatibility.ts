@@ -10,10 +10,12 @@
 //   breaking  the live MAJOR is higher
 //
 // Additive: a new optional property, or an `additionalProperties` that went from
-// closed to open, or an enum that gained a value. Breaking: a removed property,
-// a new required property, a property whose requiredness changed, a closed
-// `additionalProperties` that was open, a changed type, const or format, or an
-// enum that lost a value. `title` and `description` are prose and never count.
+// closed to open, or an enum that gained a value, or an `anyOf` / `oneOf` that
+// gained an option (a union's options are compared in order). Breaking: a
+// removed property, a new required property, a property whose requiredness
+// changed, a closed `additionalProperties` that was open, a changed type, const
+// or format, an enum that lost a value, or a union that lost an option. `title`
+// and `description` are prose and never count.
 // The root `$id` and the `$schema` / `schemaVersion` constants carry the version
 // itself, so they are compared through the version rule, not as a change.
 //
@@ -114,6 +116,10 @@ function diffNode(base: JsonSchema, live: JsonSchema, path: string, out: Collect
       case "enum":
         diffEnum(b, l, path, out);
         break;
+      case "anyOf":
+      case "oneOf":
+        diffOptions(key, b, l, path, out);
+        break;
       default:
         if (!sameJson(b, l)) {
           out.breaking.push(
@@ -177,6 +183,27 @@ function diffAdditionalProperties(b: unknown, l: unknown, path: string, out: Col
     return;
   }
   out.breaking.push(`${where}: additionalProperties changed`);
+}
+
+// A union (a discriminated union renders as `anyOf`, one option per kind) is
+// compared option by option, in order: a kind's options are stable in position
+// because a producer adds a new one at the end. A new option is additive, as an
+// enum gaining a value is; a lost option is breaking.
+function diffOptions(key: string, b: unknown, l: unknown, path: string, out: Collector): void {
+  const where = path || "<root>";
+  if (sameJson(b, l)) return;
+  if (!Array.isArray(b) || !Array.isArray(l)) {
+    out.breaking.push(`${where}: ${key} changed`);
+    return;
+  }
+  const shared = Math.min(b.length, l.length);
+  for (let i = 0; i < shared; i++) {
+    const option = `${where}.${key}.${i}`;
+    if (isSchema(b[i]) && isSchema(l[i])) diffNode(b[i], l[i], option, out);
+    else if (!sameJson(b[i], l[i])) out.breaking.push(`${option}: option changed`);
+  }
+  if (l.length > b.length) out.additive.push(`${where}: ${key} gained an option`);
+  if (b.length > l.length) out.breaking.push(`${where}: ${key} lost an option`);
 }
 
 function diffEnum(b: unknown, l: unknown, path: string, out: Collector): void {
