@@ -5,6 +5,10 @@ import { TESTBENCH_TARGETING_SCHEMA_ID } from "../shared/testbench-targeting-sch
 import { WORK_UNITS_SCHEMA_ID } from "../shared/work-units-contract.js";
 import { GATE_OVERRIDES_SCHEMA_ID } from "../shared/gate-overrides-contract.js";
 import { SPEC_LIFECYCLE_SCHEMA_ID } from "../shared/spec-lifecycle-schema.js";
+import {
+  DELIVERY_EVENT_SCHEMA_ID,
+  DELIVERY_RECORD_SCHEMA_ID,
+} from "../shared/delivery-observation-contract.js";
 import { artifacts, renderSchema, generate } from "./generate-schema.js";
 
 // The generated artifacts and their expected versioned $id. Each entry's
@@ -16,6 +20,8 @@ const expected = [
   { name: "work-units.schema.json", id: WORK_UNITS_SCHEMA_ID },
   { name: "gate-overrides.schema.json", id: GATE_OVERRIDES_SCHEMA_ID },
   { name: "spec-lifecycle.schema.json", id: SPEC_LIFECYCLE_SCHEMA_ID },
+  { name: "delivery-record.schema.json", id: DELIVERY_RECORD_SCHEMA_ID },
+  { name: "delivery-event.schema.json", id: DELIVERY_EVENT_SCHEMA_ID },
 ];
 
 describe("generate-schema artifacts list", () => {

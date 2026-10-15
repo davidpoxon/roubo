@@ -27,6 +27,7 @@
     "./work-units-contract": "./work-units-contract.ts",
     "./gate-overrides-contract": "./gate-overrides-contract.ts",
     "./spec-lifecycle-schema": "./spec-lifecycle-schema.ts",
+    "./delivery-observation-contract": "./delivery-observation-contract.ts",
     "./lifecycle-resolver": "./lifecycle-resolver.ts"
   },
   "files": [
