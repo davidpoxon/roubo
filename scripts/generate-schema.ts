@@ -8,8 +8,10 @@
 //
 // Scope (#449): this drives the real authored TestBench contracts
 // (schema/test-cases.schema.json, schema/test-results.schema.json) plus the
-// retained #431 spike artifact. Retrofitting generation onto the
-// roubo-config/roubo-plugin schemas is out of scope.
+// retained #431 spike artifact, and every contract added to `artifacts` since
+// (work units, gate overrides, spec lifecycle, delivery record and event).
+// Retrofitting generation onto the roubo-config/roubo-plugin schemas is out of
+// scope.
 //
 // Run with: npm run generate:schema  (executes via tsx, the repo's TS runner)
 
@@ -23,6 +25,10 @@ import { TestCasesPlanSchema, TestResultsFileSchema } from "../shared/testbench-
 import { WorkUnitsFileSchema } from "../shared/work-units-contract.ts";
 import { GateOverridesFileSchema } from "../shared/gate-overrides-contract.ts";
 import { SpecLifecycleRecordSchema } from "../shared/spec-lifecycle-schema.ts";
+import {
+  DeliveryEventSchema,
+  DeliveryRecordSchema,
+} from "../shared/delivery-observation-contract.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(here, "..");
@@ -53,6 +59,14 @@ export const artifacts = [
   {
     schema: SpecLifecycleRecordSchema,
     outPath: resolve(repoRoot, "schema", "spec-lifecycle.schema.json"),
+  },
+  {
+    schema: DeliveryRecordSchema,
+    outPath: resolve(repoRoot, "schema", "delivery-record.schema.json"),
+  },
+  {
+    schema: DeliveryEventSchema,
+    outPath: resolve(repoRoot, "schema", "delivery-event.schema.json"),
   },
 ] as const;
 
