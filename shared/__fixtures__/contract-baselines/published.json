@@ -6,5 +6,13 @@
   "delivery-event.schema.json": {
     "version": "1.0.0",
     "sha256": "edd516dab061cf5e3864728d0928f4f30b0b09deab2a2caf1a869b25db7d563c"
+  },
+  "delivery-control.schema.json": {
+    "version": "1.0.0",
+    "sha256": "1a4a14c5887975a7bf72985c8b38f7d1b5557da2b890adbbba0a8a47776e9da8"
+  },
+  "state-recipe.schema.json": {
+    "version": "1.0.0",
+    "sha256": "fd91adc9a456eb94a0e95711be64cede5ad02a984047ea1038e292784826e617"
   }
 }
