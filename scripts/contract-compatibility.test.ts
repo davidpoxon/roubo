@@ -128,6 +128,69 @@ describe("classifySchemaChange", () => {
     );
   });
 
+  it("compares a union option by option: a new option or a field on one is additive, a lost option breaking", () => {
+    const withUnion = clone(base);
+    (withUnion.properties as Record<string, JsonSchema>).steps = {
+      type: "array",
+      items: {
+        anyOf: [
+          {
+            type: "object",
+            properties: { kind: { type: "string", const: "command" }, command: { type: "string" } },
+            required: ["kind", "command"],
+            additionalProperties: {},
+          },
+          {
+            type: "object",
+            properties: { kind: { type: "string", const: "open-url" }, url: { type: "string" } },
+            required: ["kind", "url"],
+            additionalProperties: {},
+          },
+        ],
+      },
+    };
+    expect(classifySchemaChange(withUnion, clone(withUnion))).toEqual({
+      change: "none",
+      reasons: [],
+    });
+
+    const grown = clone(withUnion);
+    const items = (grown.properties as Record<string, JsonSchema>).steps.items as JsonSchema;
+    const options = items.anyOf as JsonSchema[];
+    (options[0].properties as JsonSchema).timeout_ms = { type: "integer" };
+    options.push({
+      type: "object",
+      properties: { kind: { type: "string", const: "wait" } },
+      required: ["kind"],
+      additionalProperties: {},
+    });
+    expect(classifySchemaChange(withUnion, grown)).toEqual({
+      change: "additive",
+      reasons: [
+        "steps[].anyOf.0.timeout_ms: new optional property",
+        "steps[]: anyOf gained an option",
+      ],
+    });
+
+    const lost = clone(withUnion);
+    const lostItems = (lost.properties as Record<string, JsonSchema>).steps.items as JsonSchema;
+    lostItems.anyOf = (lostItems.anyOf as JsonSchema[]).slice(0, 1);
+    expect(classifySchemaChange(withUnion, lost)).toEqual({
+      change: "breaking",
+      reasons: ["steps[]: anyOf lost an option"],
+    });
+
+    const retyped = clone(withUnion);
+    const retypedOptions = (
+      (retyped.properties as Record<string, JsonSchema>).steps.items as JsonSchema
+    ).anyOf as JsonSchema[];
+    (retypedOptions[1].properties as Record<string, JsonSchema>).url.type = "integer";
+    expect(classifySchemaChange(withUnion, retyped)).toEqual({
+      change: "breaking",
+      reasons: ['steps[].anyOf.1.url: type changed from "string" to "integer"'],
+    });
+  });
+
   it("ranks breaking above additive when both are present", () => {
     const live = clone(base);
     const props = live.properties as Record<string, JsonSchema>;
