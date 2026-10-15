@@ -23,8 +23,12 @@
 // an unknown value as "other", and the vocabulary can grow inside one major.
 // Removing or renaming a field, or making an optional field required, is a
 // breaking change and bumps the major. scripts/contract-compatibility.ts
-// classifies a change against the committed baseline and the suite enforces
-// the bump rule.
+// classifies a change against the committed baseline (the render of the last
+// published version, pinned by version and sha256 in
+// shared/__fixtures__/contract-baselines/published.json) and the suite enforces
+// the bump rule: an additive change needs at least a minor bump, a breaking one
+// a major bump. Publishing a version regenerates schema/, copies the render
+// over the baseline and re-pins it.
 
 import { z } from "zod";
 

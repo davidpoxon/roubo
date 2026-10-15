@@ -1,0 +1,10 @@
+{
+  "delivery-record.schema.json": {
+    "version": "1.0.0",
+    "sha256": "0ea4a7a954175e3b1c4aef4d6ddb9731bdf322832376ec3c5ceaa3e053cd17b0"
+  },
+  "delivery-event.schema.json": {
+    "version": "1.0.0",
+    "sha256": "edd516dab061cf5e3864728d0928f4f30b0b09deab2a2caf1a869b25db7d563c"
+  }
+}

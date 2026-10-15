@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -6,6 +7,7 @@ import { artifacts, renderSchema, repoRoot } from "../scripts/generate-schema.js
 import {
   checkContractCompatibility,
   classifySchemaChange,
+  parseSchemaVersion,
   type JsonSchema,
 } from "../scripts/contract-compatibility.js";
 import {
@@ -37,16 +39,49 @@ async function liveSchema(name: string): Promise<JsonSchema> {
   return JSON.parse(await renderSchema(artifact.schema, artifact.outPath));
 }
 
-// The committed baseline is the last published shape of each contract. It is
-// refreshed by hand when a version ships, which is what lets the suite tell an
-// unversioned edit from a released one.
-function baselineSchema(name: string): JsonSchema {
-  const file = name.replace(".schema.json", ".baseline.schema.json");
-  return JSON.parse(readFileSync(join(baselineDir, file), "utf8"));
+// The committed baseline is the render of each contract at its last published
+// version, and published.json pins that version and the sha256 of the baseline
+// bytes. The gate below enforces three things: the baseline is still the pinned
+// render (so a baseline cannot be refreshed in place to hide an edit: a refresh
+// is a publication, which moves the pinned version and digest together), the
+// baseline carries the pinned version, and the live render obeys the semver
+// rule against it (no change: same version; additive: at least a minor bump;
+// breaking: a major bump). To publish a version: regenerate schema/, copy the
+// render over the baseline, and re-pin version and sha256 in published.json.
+interface PublishedPin {
+  version: string;
+  sha256: string;
 }
 
-function withId(schema: JsonSchema, version: string): JsonSchema {
-  const id = String(schema.$id).replace(/v\d+\.\d+\.\d+\.json$/, `v${version}.json`);
+function publishedPin(name: string): PublishedPin {
+  const pins: Record<string, PublishedPin> = JSON.parse(
+    readFileSync(join(baselineDir, "published.json"), "utf8"),
+  );
+  const pin = pins[name];
+  if (!pin) throw new Error(`published.json pins no baseline for ${name}`);
+  return pin;
+}
+
+function baselineBytes(name: string): string {
+  const file = name.replace(".schema.json", ".baseline.schema.json");
+  return readFileSync(join(baselineDir, file), "utf8");
+}
+
+function baselineSchema(name: string): JsonSchema {
+  return JSON.parse(baselineBytes(name));
+}
+
+function sha256(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+// The schema with its `$id` moved one semver step above its current version.
+function bumped(schema: JsonSchema, step: "patch" | "minor" | "major"): JsonSchema {
+  const v = parseSchemaVersion(schema.$id);
+  let next = `${v.major}.${v.minor}.${v.patch + 1}`;
+  if (step === "major") next = `${v.major + 1}.0.0`;
+  if (step === "minor") next = `${v.major}.${v.minor + 1}.0`;
+  const id = String(schema.$id).replace(/v\d+\.\d+\.\d+\.json$/, `v${next}.json`);
   return { ...schema, $id: id };
 }
 
@@ -304,70 +339,90 @@ describe("delivery observation contract: guards", () => {
 
 describe("delivery observation contract: compatibility", () => {
   it.each(contracts)(
-    "SB-TC-019: the live $file stays compatible with its committed baseline",
-    async ({ file }) => {
-      const report = checkContractCompatibility(baselineSchema(file), await liveSchema(file));
-      expect(report.reasons).toEqual([]);
-      expect(report).toEqual(expect.objectContaining({ ok: true, change: "none" }));
+    "SB-TC-019: the committed baseline of $file is the pinned published render",
+    ({ file }) => {
+      const pin = publishedPin(file);
+      const digest = sha256(baselineBytes(file));
+      // A baseline refreshed in place without a publication fails here: the
+      // pin still names the old bytes. Publishing re-pins version and digest.
+      expect(
+        digest,
+        `the baseline of ${file} is not the pinned render of ${pin.version}: a baseline refresh publishes a version, so bump the contract version and re-pin version and sha256 in published.json`,
+      ).toBe(pin.sha256);
+      const [major, minor, patch] = pin.version.split(".").map(Number);
+      expect(parseSchemaVersion(baselineSchema(file).$id)).toEqual({ major, minor, patch });
     },
   );
 
-  it("SB-TC-019: adding an optional field to the record passes once the minor is bumped", async () => {
-    const file = "delivery-record.schema.json";
-    const baseline = baselineSchema(file);
-    const live = await liveSchema(file);
+  it.each(contracts)(
+    "SB-TC-019: the live $file obeys the semver rule against its published baseline",
+    async ({ file }) => {
+      // `ok` is the version rule: an unchanged shape holds the version, an
+      // additive one has bumped the minor, a breaking one the major. A correctly
+      // versioned change passes; an unversioned one fails with the step it needs.
+      const report = checkContractCompatibility(baselineSchema(file), await liveSchema(file));
+      expect(report.ok, `${report.message}\n${report.reasons.join("\n")}`).toBe(true);
+    },
+  );
+
+  // The edits below start from the published baseline, not the live render, so
+  // they hold while a new version is in flight (live already differs then).
+  it("SB-TC-019: adding an optional field to the record passes once the minor is bumped", () => {
+    const baseline = baselineSchema("delivery-record.schema.json");
     const added = {
-      ...live,
-      properties: { ...(live.properties as JsonSchema), mode: { type: "string" } },
+      ...baseline,
+      properties: { ...(baseline.properties as JsonSchema), mode: { type: "string" } },
     };
     expect(classifySchemaChange(baseline, added)).toEqual({
       change: "additive",
       reasons: ["mode: new optional property"],
     });
-    // Same version: the test fails until the version moves.
-    expect(checkContractCompatibility(baseline, added).ok).toBe(false);
+    // Same version, or a patch bump: the test fails until the minor moves.
+    const same = checkContractCompatibility(baseline, added);
+    expect(same.ok).toBe(false);
+    expect(same.message).toMatch(/at least a minor bump/);
+    expect(checkContractCompatibility(baseline, bumped(added, "patch")).ok).toBe(false);
     // Minor bump: the test passes.
-    const bumped = checkContractCompatibility(baseline, withId(added, "1.1.0"));
-    expect(bumped.ok).toBe(true);
-    expect(bumped.change).toBe("additive");
+    const minor = checkContractCompatibility(baseline, bumped(added, "minor"));
+    expect(minor.ok).toBe(true);
+    expect(minor.change).toBe("additive");
   });
 
-  it("SB-TC-019: removing a required record field fails until the major is bumped", async () => {
-    const file = "delivery-record.schema.json";
-    const baseline = baselineSchema(file);
-    const live = await liveSchema(file);
-    const props = { ...(live.properties as JsonSchema) };
+  it("SB-TC-019: removing a required record field fails until the major is bumped", () => {
+    const baseline = baselineSchema("delivery-record.schema.json");
+    const props = { ...(baseline.properties as JsonSchema) };
     delete props.seams;
     const removed = {
-      ...live,
+      ...baseline,
       properties: props,
-      required: (live.required as string[]).filter((k) => k !== "seams"),
+      required: (baseline.required as string[]).filter((k) => k !== "seams"),
     };
     expect(classifySchemaChange(baseline, removed)).toEqual({
       change: "breaking",
       reasons: ["seams: property removed"],
     });
     expect(checkContractCompatibility(baseline, removed).ok).toBe(false);
-    expect(checkContractCompatibility(baseline, withId(removed, "1.1.0")).ok).toBe(false);
-    const major = checkContractCompatibility(baseline, withId(removed, "2.0.0"));
+    const minor = checkContractCompatibility(baseline, bumped(removed, "minor"));
+    expect(minor.ok).toBe(false);
+    expect(minor.message).toMatch(/needs a major bump/);
+    const major = checkContractCompatibility(baseline, bumped(removed, "major"));
     expect(major.ok).toBe(true);
     expect(major.change).toBe("breaking");
   });
 
-  it("SB-TC-019: requiring an optional envelope field is breaking, a new optional one is additive", async () => {
-    const file = "delivery-event.schema.json";
-    const baseline = baselineSchema(file);
-    const live = await liveSchema(file);
-    const required = live.required as string[];
-    const nowRequired = { ...live, required: [...required, "unit_id"] };
+  it("SB-TC-019: requiring an optional envelope field is breaking, a new optional one is additive", () => {
+    const baseline = baselineSchema("delivery-event.schema.json");
+    const required = baseline.required as string[];
+    const nowRequired = { ...baseline, required: [...required, "unit_id"] };
     expect(classifySchemaChange(baseline, nowRequired).change).toBe("breaking");
-    expect(checkContractCompatibility(baseline, withId(nowRequired, "1.1.0")).ok).toBe(false);
-    expect(checkContractCompatibility(baseline, withId(nowRequired, "2.0.0")).ok).toBe(true);
+    expect(checkContractCompatibility(baseline, bumped(nowRequired, "minor")).ok).toBe(false);
+    expect(checkContractCompatibility(baseline, bumped(nowRequired, "major")).ok).toBe(true);
 
     const withActor = {
-      ...live,
-      properties: { ...(live.properties as JsonSchema), actor: { type: "string" } },
+      ...baseline,
+      properties: { ...(baseline.properties as JsonSchema), actor: { type: "string" } },
     };
-    expect(checkContractCompatibility(baseline, withId(withActor, "1.1.0")).ok).toBe(true);
+    expect(checkContractCompatibility(baseline, bumped(withActor, "patch")).ok).toBe(false);
+    expect(checkContractCompatibility(baseline, bumped(withActor, "minor")).ok).toBe(true);
   });
 });
