@@ -185,10 +185,12 @@ function diffAdditionalProperties(b: unknown, l: unknown, path: string, out: Col
   out.breaking.push(`${where}: additionalProperties changed`);
 }
 
-// A union (a discriminated union renders as `anyOf`, one option per kind) is
-// compared option by option, in order: a kind's options are stable in position
-// because a producer adds a new one at the end. A new option is additive, as an
-// enum gaining a value is; a lost option is breaking.
+// A union is compared option by option, in order: a kind's options are stable
+// in position because a producer adds a new one at the end. zod renders a
+// discriminated union as `oneOf`, one option per kind (see
+// schema/state-recipe.schema.json); a plain `anyOf` union is handled the same
+// way. A new option is additive, as an enum gaining a value is; a lost option
+// is breaking.
 function diffOptions(key: string, b: unknown, l: unknown, path: string, out: Collector): void {
   const where = path || "<root>";
   if (sameJson(b, l)) return;
