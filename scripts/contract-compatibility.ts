@@ -6,7 +6,7 @@
 // against the rule a published contract follows:
 //
 //   none      the live version equals the baseline version
-//   additive  the live version is higher (a minor bump suffices)
+//   additive  the live MINOR or MAJOR is higher (a patch bump is not enough)
 //   breaking  the live MAJOR is higher
 //
 // Additive: a new optional property, or an `additionalProperties` that went from
@@ -234,7 +234,12 @@ export function checkContractCompatibility(
         );
   }
   if (change === "additive") {
-    return cmp > 0
+    // At least a minor bump: a higher major, or the same major with a higher
+    // minor. A patch bump alone (1.0.0 to 1.0.1) does not announce a new field.
+    const minorOrMajorBumped =
+      liveVersion.major > baselineVersion.major ||
+      (liveVersion.major === baselineVersion.major && liveVersion.minor > baselineVersion.minor);
+    return minorOrMajorBumped
       ? verdict(true, `additive change, version ${show(baselineVersion)} to ${show(liveVersion)}`)
       : verdict(
           false,

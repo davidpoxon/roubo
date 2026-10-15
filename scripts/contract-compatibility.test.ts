@@ -152,9 +152,15 @@ describe("checkContractCompatibility", () => {
   it("asks at least a minor bump for an additive change", () => {
     const live = clone(base);
     (live.properties as Record<string, JsonSchema>).note = { type: "string" };
-    expect(checkContractCompatibility(base, live).ok).toBe(false);
-    expect(checkContractCompatibility(base, bump(live, "1.2.4")).ok).toBe(true);
+    const same = checkContractCompatibility(base, live);
+    expect(same.ok).toBe(false);
+    expect(same.message).toMatch(/at least a minor bump above 1\.2\.3/);
+    // A patch bump does not announce a new field: 1.2.3 to 1.2.4 still fails.
+    const patch = checkContractCompatibility(base, bump(live, "1.2.4"));
+    expect(patch.ok).toBe(false);
+    expect(patch.message).toMatch(/at least a minor bump above 1\.2\.3 \(live is 1\.2\.4\)/);
     expect(checkContractCompatibility(base, bump(live, "1.3.0")).ok).toBe(true);
+    // A higher major with a lower minor (2.0.0 over 1.2.3) is above the baseline too.
     expect(checkContractCompatibility(base, bump(live, "2.0.0")).ok).toBe(true);
   });
 
