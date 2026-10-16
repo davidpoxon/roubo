@@ -9,7 +9,7 @@
   },
   "delivery-control.schema.json": {
     "version": "1.0.0",
-    "sha256": "1a4a14c5887975a7bf72985c8b38f7d1b5557da2b890adbbba0a8a47776e9da8"
+    "sha256": "5f10dfcc3ff64e5a754110daa901b776b857569000f607f9214918b0ebeba793"
   },
   "state-recipe.schema.json": {
     "version": "1.0.0",
