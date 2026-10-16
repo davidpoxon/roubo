@@ -11,11 +11,14 @@
 //
 // Additive: a new optional property, or an `additionalProperties` that went from
 // closed to open, or an enum that gained a value, or an `anyOf` / `oneOf` that
-// gained an option (a union's options are compared in order). Breaking: a
-// removed property, a new required property, a property whose requiredness
-// changed, a closed `additionalProperties` that was open, a changed type, const
-// or format, an enum that lost a value, or a union that lost an option. `title`
-// and `description` are prose and never count.
+// gained an option. Breaking: a removed property, a new required property, a
+// property whose requiredness changed, a closed `additionalProperties` that was
+// open, a changed type, const or format, an enum that lost a value, or a union
+// that lost an option. `title` and `description` are prose and never count.
+// A union's options are matched by their discriminator: the property that every
+// option pins with a `const` (`type` or `kind` in the contracts here), so an
+// option inserted in the middle is additive, not a shift of every option after
+// it; see diffOptions. A union with no such property is compared in order.
 // The root `$id` and the `$schema` / `schemaVersion` constants carry the version
 // itself, so they are compared through the version rule, not as a change. A
 // contract whose root is a union carries those constants in each root option,
@@ -46,8 +49,12 @@ const PROSE_KEYS = new Set(["title", "description"]);
 const VERSION_CONST_PROPERTIES = new Set(["$schema", "schemaVersion"]);
 // A contract whose root is a union (see schema/delivery-control.schema.json)
 // carries its `$schema` / `schemaVersion` consts in each root option, not at
-// the root itself.
-const ROOT_OPTION = /^<root>\.(?:anyOf|oneOf)\.\d+$/;
+// the root itself. An option's path segment is its discriminator value, or its
+// index when the union has no discriminator (see diffOptions).
+const ROOT_OPTION = /^<root>\.(?:anyOf|oneOf)\.[^.]+$/;
+// When more than one property could discriminate a union, prefer these, in
+// this order, as the contracts in shared/ spell their discriminators.
+const PREFERRED_DISCRIMINATORS = ["type", "kind"];
 
 function carriesVersionConsts(path: string): boolean {
   return path === "" || ROOT_OPTION.test(path);
@@ -200,12 +207,57 @@ function diffAdditionalProperties(b: unknown, l: unknown, path: string, out: Col
   out.breaking.push(`${where}: additionalProperties changed`);
 }
 
-// A union is compared option by option, in order: a kind's options are stable
-// in position because a producer adds a new one at the end. zod renders a
-// discriminated union as `oneOf`, one option per kind (see
-// schema/state-recipe.schema.json); a plain `anyOf` union is handled the same
-// way. A new option is additive, as an enum gaining a value is; a lost option
-// is breaking.
+// The `const` an option pins on `name`, when it pins one.
+function pinnedConst(option: unknown, name: string): unknown {
+  if (!isSchema(option)) return undefined;
+  const property = properties(option)[name];
+  return isSchema(property) && "const" in property ? property.const : undefined;
+}
+
+// The properties that every option of `options` pins with a `const`, each to a
+// value no other option of the same union pins: a property that two options
+// share a value on cannot tell them apart.
+function discriminatorCandidates(options: unknown[]): Set<string> {
+  const out = new Set<string>();
+  const first = options[0];
+  if (!isSchema(first)) return out;
+  for (const name of Object.keys(properties(first))) {
+    const values = options.map((option) => pinnedConst(option, name));
+    if (values.some((value) => value === undefined)) continue;
+    if (new Set(values.map(stableStringify)).size !== values.length) continue;
+    out.add(name);
+  }
+  return out;
+}
+
+// The discriminator of a union: a property that qualifies in both the baseline
+// and the live options. `type` wins, then `kind`, then the first in schema
+// order. Null when none qualifies, so diffOptions falls back to position.
+function discriminatorOf(base: unknown[], live: unknown[]): string | null {
+  const liveCandidates = discriminatorCandidates(live);
+  const shared = [...discriminatorCandidates(base)].filter((name) => liveCandidates.has(name));
+  if (shared.length === 0) return null;
+  return PREFERRED_DISCRIMINATORS.find((name) => shared.includes(name)) ?? shared[0];
+}
+
+// An option's path segment: its discriminator value, bare when a string.
+function optionSegment(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+// A union is compared option by option. zod renders a discriminated union as
+// `oneOf`, one option per kind (see schema/state-recipe.schema.json); a plain
+// `anyOf` union is handled the same way. Each live option is matched to the
+// baseline option that pins the same `const` on the union's discriminator, so
+// an option inserted in the middle shifts nothing. The operator chose this over
+// comparing options by position, which read an inserted option as a change to
+// every option after it. An option present only in the live union is additive,
+// as an enum gaining a value is; a baseline option with no live match is
+// breaking, which also covers an option whose discriminator value changed (the
+// old value is lost, the new one gained); a matched option is compared node by
+// node under a path that names its discriminator value. A union whose options
+// pin no common discriminator is compared in order, with the index in the
+// path.
 function diffOptions(key: string, b: unknown, l: unknown, path: string, out: Collector): void {
   const where = path || "<root>";
   if (sameJson(b, l)) return;
@@ -213,6 +265,43 @@ function diffOptions(key: string, b: unknown, l: unknown, path: string, out: Col
     out.breaking.push(`${where}: ${key} changed`);
     return;
   }
+  const discriminator = discriminatorOf(b, l);
+  if (discriminator === null) {
+    diffOptionsByPosition(key, b, l, where, out);
+    return;
+  }
+  // Every option of both unions is a schema that pins the discriminator:
+  // discriminatorOf checked so. Key each option by its pinned value.
+  const valueOf = (option: unknown) => pinnedConst(option, discriminator);
+  const label = (value: unknown) => `${discriminator}=${JSON.stringify(value)}`;
+  const liveByValue = new Map<string, JsonSchema>();
+  for (const option of l) liveByValue.set(stableStringify(valueOf(option)), option as JsonSchema);
+  const baseValues = new Set(b.map((option) => stableStringify(valueOf(option))));
+  for (const option of b) {
+    const value = valueOf(option);
+    const live = liveByValue.get(stableStringify(value));
+    if (live === undefined) {
+      out.breaking.push(`${where}: ${key} lost the option ${label(value)}`);
+      continue;
+    }
+    diffNode(option as JsonSchema, live, `${where}.${key}.${optionSegment(value)}`, out);
+  }
+  for (const option of l) {
+    const value = valueOf(option);
+    if (baseValues.has(stableStringify(value))) continue;
+    out.additive.push(`${where}: ${key} gained the option ${label(value)}`);
+  }
+}
+
+// The fallback for a union with no discriminator: options are compared in
+// order, and a longer live union has gained an option, a shorter one lost one.
+function diffOptionsByPosition(
+  key: string,
+  b: unknown[],
+  l: unknown[],
+  where: string,
+  out: Collector,
+): void {
   const shared = Math.min(b.length, l.length);
   for (let i = 0; i < shared; i++) {
     const option = `${where}.${key}.${i}`;
