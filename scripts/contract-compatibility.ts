@@ -17,7 +17,9 @@
 // or format, an enum that lost a value, or a union that lost an option. `title`
 // and `description` are prose and never count.
 // The root `$id` and the `$schema` / `schemaVersion` constants carry the version
-// itself, so they are compared through the version rule, not as a change.
+// itself, so they are compared through the version rule, not as a change. A
+// contract whose root is a union carries those constants in each root option,
+// which the rule covers the same way.
 //
 // Pure: no IO. The suite feeds it the committed baseline and the live render.
 
@@ -42,6 +44,14 @@ export interface CompatibilityReport {
 const VERSION_IN_ID = /\/v(\d+)\.(\d+)\.(\d+)\.json$/;
 const PROSE_KEYS = new Set(["title", "description"]);
 const VERSION_CONST_PROPERTIES = new Set(["$schema", "schemaVersion"]);
+// A contract whose root is a union (see schema/delivery-control.schema.json)
+// carries its `$schema` / `schemaVersion` consts in each root option, not at
+// the root itself.
+const ROOT_OPTION = /^<root>\.(?:anyOf|oneOf)\.\d+$/;
+
+function carriesVersionConsts(path: string): boolean {
+  return path === "" || ROOT_OPTION.test(path);
+}
 
 export function parseSchemaVersion(id: unknown): SchemaVersion {
   const match = typeof id === "string" ? VERSION_IN_ID.exec(id) : null;
@@ -151,7 +161,12 @@ function diffProperties(base: JsonSchema, live: JsonSchema, path: string, out: C
     const l = liveProps[name];
     // A root `$schema` / `schemaVersion` const names the version: the version
     // rule covers it.
-    if (path === "" && VERSION_CONST_PROPERTIES.has(name) && isSchema(b) && isSchema(l)) {
+    if (
+      carriesVersionConsts(path) &&
+      VERSION_CONST_PROPERTIES.has(name) &&
+      isSchema(b) &&
+      isSchema(l)
+    ) {
       diffNode(withoutConst(b), withoutConst(l), at(name), out);
       continue;
     }

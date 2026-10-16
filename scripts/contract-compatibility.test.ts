@@ -191,6 +191,69 @@ describe("classifySchemaChange", () => {
     });
   });
 
+  it("compares a root union the same way, and reads the version constants out of each root option", () => {
+    const option = (kind: string, body: JsonSchema): JsonSchema => ({
+      type: "object",
+      properties: {
+        $schema: { type: "string", const: "https://roubo.dev/schema/demo/v1.2.3.json" },
+        schemaVersion: { type: "string", const: "1.2.3" },
+        kind: { type: "string", const: kind },
+        body,
+      },
+      required: ["$schema", "schemaVersion", "kind", "body"],
+      additionalProperties: {},
+    });
+    const rootUnion: JsonSchema = {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $id: "https://roubo.dev/schema/demo/v1.2.3.json",
+      oneOf: [
+        option("pause", { type: "object", properties: {}, additionalProperties: {} }),
+        option("resume", { type: "object", properties: {}, additionalProperties: {} }),
+      ],
+    };
+    expect(classifySchemaChange(rootUnion, clone(rootUnion))).toEqual({
+      change: "none",
+      reasons: [],
+    });
+
+    // A version bump rewrites the `$schema` / `schemaVersion` const in every
+    // option: that is the version, not a change.
+    const rebumped = clone(rootUnion);
+    rebumped.$id = "https://roubo.dev/schema/demo/v1.3.0.json";
+    for (const o of rebumped.oneOf as JsonSchema[]) {
+      const props = o.properties as Record<string, JsonSchema>;
+      props.$schema.const = rebumped.$id;
+      props.schemaVersion.const = "1.3.0";
+    }
+    expect(classifySchemaChange(rootUnion, rebumped)).toEqual({ change: "none", reasons: [] });
+    expect(checkContractCompatibility(rootUnion, rebumped).ok).toBe(false);
+
+    const grown = clone(rootUnion);
+    (grown.oneOf as JsonSchema[]).push(
+      option("approval", { type: "object", properties: {}, additionalProperties: {} }),
+    );
+    expect(classifySchemaChange(rootUnion, grown)).toEqual({
+      change: "additive",
+      reasons: ["<root>: oneOf gained an option"],
+    });
+
+    const lost = clone(rootUnion);
+    lost.oneOf = (lost.oneOf as JsonSchema[]).slice(0, 1);
+    expect(classifySchemaChange(rootUnion, lost)).toEqual({
+      change: "breaking",
+      reasons: ["<root>: oneOf lost an option"],
+    });
+
+    const grownBody = clone(rootUnion);
+    const body = ((grownBody.oneOf as JsonSchema[])[1].properties as Record<string, JsonSchema>)
+      .body as JsonSchema;
+    (body.properties as JsonSchema).reason = { type: "string" };
+    expect(classifySchemaChange(rootUnion, grownBody)).toEqual({
+      change: "additive",
+      reasons: ["<root>.oneOf.1.body.reason: new optional property"],
+    });
+  });
+
   it("ranks breaking above additive when both are present", () => {
     const live = clone(base);
     const props = live.properties as Record<string, JsonSchema>;
