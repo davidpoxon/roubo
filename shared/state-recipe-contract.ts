@@ -35,39 +35,61 @@ export const STATE_RECIPE_SCHEMA_VERSION = "1.0.0";
 const IdSchema = z.string().min(1);
 // A non-empty string: a path, a command line, a URL.
 const TextSchema = z.string().min(1);
+// A step's time budget in whole milliseconds; the replayer fails the step when
+// it runs past it. Absent means the replayer's own default.
+const TimeoutMsSchema = z.number().int().positive();
 
 // ── steps[] ──
 //
-// The four step kinds of 1.0.0. Each carries the least a replayer needs to run
-// it; a path is relative to the checkout unless absolute, and every object is
-// loose so a later version can add a field (a timeout, an expected exit code,
-// a header map) as a minor bump.
+// The four step kinds of 1.0.0. The operator chose richer step fields at 1.0.0
+// rather than the least a replayer needs: a command step carries a time budget
+// and the exit code it expects, an http step a time budget and the status it
+// expects, and a copy-file step an overwrite policy. Every added field is
+// optional, so a recipe that spells only the required fields still validates,
+// and every object is loose so a later version can add a field (a header map,
+// a retry count) as a minor bump. Field names are camelCase, as the recipe root
+// spells `caseId` and `unitId`. A path is relative to the checkout unless
+// absolute.
 export const STATE_RECIPE_STEP_KINDS = ["command", "copy-file", "http", "open-url"] as const;
 export type StateRecipeStepKind = (typeof STATE_RECIPE_STEP_KINDS)[number];
 
-// Run one command line in the checkout, or in `cwd` under it.
+// Run one command line in the checkout, or in `cwd` under it. The step passes
+// when the command exits with `expectedExitCode` (0 when absent) within
+// `timeoutMs`.
 export const CommandStepSchema = z
   .object({
     kind: z.literal("command"),
     command: TextSchema,
     cwd: z.string().optional(),
     env: z.record(z.string(), z.string()).optional(),
+    timeoutMs: TimeoutMsSchema.optional(),
+    expectedExitCode: z.number().int().min(0).max(255).optional(),
   })
   .loose();
 export type CommandStep = z.infer<typeof CommandStepSchema>;
 
-// Copy one file from `from` to `to`.
+// What a copy-file step does when `to` already exists: `overwrite` replaces it
+// (the default when absent), `create-only` fails the step. A closed enum, as
+// `kind` is; a new policy is an additive change that bumps the minor.
+export const COPY_FILE_MODES = ["overwrite", "create-only"] as const;
+export const CopyFileModeSchema = z.enum(COPY_FILE_MODES);
+export type CopyFileMode = z.infer<typeof CopyFileModeSchema>;
+
+// Copy one file from `from` to `to`, under the overwrite policy `mode` names.
 export const CopyFileStepSchema = z
   .object({
     kind: z.literal("copy-file"),
     from: TextSchema,
     to: TextSchema,
+    mode: CopyFileModeSchema.optional(),
   })
   .loose();
 export type CopyFileStep = z.infer<typeof CopyFileStepSchema>;
 
 // Send one HTTP request. `method` is an open string, as HTTP's own method
-// registry is. `body` is text; a JSON body is serialised by the producer.
+// registry is. `body` is text; a JSON body is serialised by the producer. The
+// step passes when the response carries `expectedStatus` (any 2xx when absent)
+// within `timeoutMs`.
 export const HttpStepSchema = z
   .object({
     kind: z.literal("http"),
@@ -75,6 +97,8 @@ export const HttpStepSchema = z
     url: z.url(),
     headers: z.record(z.string(), z.string()).optional(),
     body: z.string().optional(),
+    timeoutMs: TimeoutMsSchema.optional(),
+    expectedStatus: z.number().int().min(100).max(599).optional(),
   })
   .loose();
 export type HttpStep = z.infer<typeof HttpStepSchema>;
@@ -102,10 +126,16 @@ export type StateRecipeStep = z.infer<typeof StateRecipeStepSchema>;
 // ── observation ──
 //
 // What the operator looks at once the steps have run: a sentence, and where to
-// look. 1.0.0 fixes the sentence and leaves the rest to a later minor version.
+// look. The operator chose a structured object at 1.0.0: `description` is the
+// sentence, and `url` (a page to open), `path` (a file in the checkout) and
+// `selector` (an element on the page, in CSS selector form) say where to look.
+// Each location is optional, so a recipe gives the ones that apply.
 export const StateRecipeObservationSchema = z
   .object({
     description: TextSchema,
+    url: z.url().optional(),
+    path: TextSchema.optional(),
+    selector: TextSchema.optional(),
   })
   .loose();
 export type StateRecipeObservation = z.infer<typeof StateRecipeObservationSchema>;
