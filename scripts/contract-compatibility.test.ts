@@ -141,6 +141,114 @@ describe("classifySchemaChange", () => {
   });
 });
 
+// A root union of envelopes: one typed member and a catch-all whose `type`
+// carries no const, each with the version constants inside.
+function member(type: string | null, payload: JsonSchema): JsonSchema {
+  return {
+    type: "object",
+    properties: {
+      $schema: { type: "string", const: "https://roubo.dev/schema/demo/v1.2.3.json" },
+      schemaVersion: { type: "string", const: "1.2.3" },
+      type: type === null ? { type: "string", minLength: 1 } : { type: "string", const: type },
+      payload,
+    },
+    required: ["$schema", "schemaVersion", "type", "payload"],
+    additionalProperties: {},
+  };
+}
+
+const union: JsonSchema = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "https://roubo.dev/schema/demo/v1.2.3.json",
+  anyOf: [
+    member("a.changed", {
+      type: "object",
+      properties: { n: { type: "integer" } },
+      required: ["n"],
+    }),
+    member(null, { type: "object", additionalProperties: {} }),
+  ],
+};
+
+function bumpUnion(schema: JsonSchema, version: string): JsonSchema {
+  const out = clone(schema);
+  out.$id = `https://roubo.dev/schema/demo/v${version}.json`;
+  for (const m of out.anyOf as JsonSchema[]) {
+    const props = m.properties as Record<string, JsonSchema>;
+    props.$schema.const = out.$id;
+    props.schemaVersion.const = version;
+  }
+  return out;
+}
+
+describe("classifySchemaChange on a root anyOf", () => {
+  it("ignores the version constants inside each member", () => {
+    expect(classifySchemaChange(union, bumpUnion(union, "1.3.0"))).toEqual({
+      change: "none",
+      reasons: [],
+    });
+  });
+
+  it("calls a new member and a new optional field inside a member additive", () => {
+    const live = clone(union);
+    const members = live.anyOf as JsonSchema[];
+    (members[0].properties as Record<string, JsonSchema>).actor = { type: "string" };
+    members.splice(1, 0, member("b.changed", { type: "object" }));
+    const result = classifySchemaChange(union, live);
+    expect(result.change).toBe("additive");
+    expect(result.reasons).toEqual([
+      "anyOf[a.changed].actor: new optional property",
+      "anyOf[b.changed]: member added",
+    ]);
+  });
+
+  it("matches the catch-all by position, so a change inside it is seen", () => {
+    const live = clone(union);
+    const catchAll = (live.anyOf as JsonSchema[])[1];
+    const payload = (catchAll.properties as Record<string, JsonSchema>).payload;
+    payload.properties = { note: { type: "string" } };
+    expect(classifySchemaChange(union, live)).toEqual({
+      change: "additive",
+      reasons: ["anyOf[*].payload.note: new optional property"],
+    });
+    const second = clone(union);
+    (second.anyOf as JsonSchema[]).push(member(null, { type: "object" }));
+    expect(classifySchemaChange(union, second).reasons).toEqual(["anyOf[*#2]: member added"]);
+  });
+
+  it("calls a removed member, a changed member and a lost anyOf breaking", () => {
+    const removed = clone(union);
+    (removed.anyOf as JsonSchema[]).pop();
+    expect(classifySchemaChange(union, removed)).toEqual({
+      change: "breaking",
+      reasons: ["anyOf[*]: member removed"],
+    });
+    const changed = clone(union);
+    const payload = (changed.anyOf as JsonSchema[])[0].properties as Record<string, JsonSchema>;
+    (payload.payload.properties as Record<string, JsonSchema>).n.type = "string";
+    expect(classifySchemaChange(union, changed)).toEqual({
+      change: "breaking",
+      reasons: ['anyOf[a.changed].payload.n: type changed from "integer" to "string"'],
+    });
+    const flat = { ...union, anyOf: undefined, type: "object" };
+    expect(classifySchemaChange(union, flat).change).toBe("breaking");
+  });
+
+  it("exempts the version constants only at the root and in a root member", () => {
+    const nested = clone(base);
+    const props = nested.properties as Record<string, JsonSchema>;
+    props.event = { anyOf: [member("a.changed", {})] };
+    const live = clone(nested);
+    const inner = (live.properties as Record<string, JsonSchema>).event.anyOf as JsonSchema[];
+    (inner[0].properties as Record<string, JsonSchema>).schemaVersion.const = "9.9.9";
+    const result = classifySchemaChange(nested, live);
+    expect(result.change).toBe("breaking");
+    expect(result.reasons).toEqual([
+      'event.anyOf[a.changed].schemaVersion: const changed from "1.2.3" to "9.9.9"',
+    ]);
+  });
+});
+
 describe("checkContractCompatibility", () => {
   it("holds the version still when nothing changed", () => {
     expect(checkContractCompatibility(base, clone(base)).ok).toBe(true);

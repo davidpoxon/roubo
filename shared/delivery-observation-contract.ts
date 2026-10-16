@@ -301,9 +301,10 @@ export type DeliveryRecord = z.infer<typeof DeliveryRecordSchema>;
 // type reaches the catch-all. Readers that need the typed check call
 // validateDeliveryEvent, not a generic JSON Schema library.
 //
-// The compatibility classifier compares the `anyOf` list as one value, so a
-// change inside any member, a new member included, counts as breaking against
-// the baseline until the classifier learns to diff union members.
+// The compatibility classifier matches the `anyOf` members by their `type`
+// const (the catch-all by position), so a new typed member is additive and
+// needs a minor bump, while a removed or changed member is breaking
+// (SB-NFR-007).
 
 function envelope<TType extends z.ZodType, TPayload extends z.ZodType>(
   type: TType,

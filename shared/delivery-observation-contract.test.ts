@@ -84,14 +84,30 @@ function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
-// The schema with its `$id` moved one semver step above its current version.
+// The schema moved one semver step above its current version, as a publication
+// would move it: the root `$id`, and the `$schema` / `schemaVersion` constants
+// at the root (the record) or inside every union member (the event).
 function bumped(schema: JsonSchema, step: "patch" | "minor" | "major"): JsonSchema {
   const v = parseSchemaVersion(schema.$id);
   let next = `${v.major}.${v.minor}.${v.patch + 1}`;
   if (step === "major") next = `${v.major + 1}.0.0`;
   if (step === "minor") next = `${v.major}.${v.minor + 1}.0`;
   const id = String(schema.$id).replace(/v\d+\.\d+\.\d+\.json$/, `v${next}.json`);
-  return { ...schema, $id: id };
+  const withConsts = (node: JsonSchema): JsonSchema => {
+    const props = node.properties as Record<string, JsonSchema> | undefined;
+    if (!props?.$schema || !props.schemaVersion) return node;
+    return {
+      ...node,
+      properties: {
+        ...props,
+        $schema: { ...props.$schema, const: id },
+        schemaVersion: { ...props.schemaVersion, const: next },
+      },
+    };
+  };
+  const out = withConsts({ ...schema, $id: id });
+  if (Array.isArray(out.anyOf)) out.anyOf = (out.anyOf as JsonSchema[]).map(withConsts);
+  return out;
 }
 
 function runGuard(script: string) {
@@ -358,7 +374,10 @@ describe("delivery observation contract: record fixture", () => {
       const result = validateDeliveryRecord(record);
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.errors.some((e) => e.startsWith(prefix)), prefix).toBe(true);
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          prefix,
+        ).toBe(true);
       }
     }
   });
@@ -567,6 +586,122 @@ describe("delivery observation contract: compatibility", () => {
     expect(major.change).toBe("breaking");
   });
 
+  // The event tests below start from a real render of the event schema, so the
+  // version constants inside every member are the ones the generator emits.
+  it("SB-TC-019: bumping the event contract with no shape change is not a change: the version must hold", async () => {
+    const live = await liveSchema("delivery-event.schema.json");
+    const minor = bumped(live, "minor");
+    expect(eventMembers(minor).every((m) => m.properties !== undefined)).toBe(true);
+    expect(classifySchemaChange(live, minor)).toEqual({ change: "none", reasons: [] });
+    const report = checkContractCompatibility(live, minor);
+    expect(report.ok).toBe(false);
+    expect(report.message).toMatch(/must stay at 1\.0\.0/);
+  });
+
+  it("SB-TC-019: adding an optional field to an event member passes once the minor is bumped", async () => {
+    const live = await liveSchema("delivery-event.schema.json");
+    const members = eventMembers(live);
+    const [unitChanged, ...rest] = members;
+    const withActor = {
+      ...live,
+      anyOf: [
+        {
+          ...unitChanged,
+          properties: { ...(unitChanged.properties as JsonSchema), actor: { type: "string" } },
+        },
+        ...rest,
+      ],
+    };
+    expect(classifySchemaChange(live, withActor)).toEqual({
+      change: "additive",
+      reasons: ["anyOf[unit.changed].actor: new optional property"],
+    });
+    expect(checkContractCompatibility(live, withActor).ok).toBe(false);
+    expect(checkContractCompatibility(live, bumped(withActor, "patch")).ok).toBe(false);
+    const minor = checkContractCompatibility(live, bumped(withActor, "minor"));
+    expect(minor.ok, minor.message).toBe(true);
+    expect(minor.change).toBe("additive");
+  });
+
+  it("SB-TC-019: appending a typed event member passes once the minor is bumped", async () => {
+    const live = await liveSchema("delivery-event.schema.json");
+    const members = eventMembers(live);
+    const catchAll = members.at(-1) as JsonSchema;
+    const catchAllProps = catchAll.properties as Record<string, JsonSchema>;
+    // A new typed member before the catch-all, shaped like the others.
+    const reviewChanged = {
+      ...catchAll,
+      properties: {
+        ...catchAllProps,
+        type: { type: "string", const: "review.changed" },
+        payload: {
+          type: "object",
+          properties: { status: { type: "string" } },
+          required: ["status"],
+          additionalProperties: {},
+        },
+      },
+    };
+    const wider = { ...live, anyOf: [...members.slice(0, -1), reviewChanged, catchAll] };
+    expect(classifySchemaChange(live, wider)).toEqual({
+      change: "additive",
+      reasons: ["anyOf[review.changed]: member added"],
+    });
+    expect(checkContractCompatibility(live, wider).ok).toBe(false);
+    const minor = checkContractCompatibility(live, bumped(wider, "minor"));
+    expect(minor.ok, minor.message).toBe(true);
+    expect(minor.change).toBe("additive");
+    // The wider union still parses at runtime through the same validator path:
+    // an unknown type goes to the catch-all today, to its member tomorrow.
+    expect(validateDeliveryEvent({ ...minimalEvent, type: "review.changed" }).ok).toBe(true);
+  });
+
+  it("SB-TC-019: removing or changing an event member is breaking until the major is bumped", async () => {
+    const live = await liveSchema("delivery-event.schema.json");
+    const members = eventMembers(live);
+    const key = (m: JsonSchema) => (m.properties as Record<string, JsonSchema>).type.const;
+
+    const removed = { ...live, anyOf: members.filter((m) => key(m) !== "gate.changed") };
+    expect(classifySchemaChange(live, removed)).toEqual({
+      change: "breaking",
+      reasons: ["anyOf[gate.changed]: member removed"],
+    });
+    expect(checkContractCompatibility(live, bumped(removed, "minor")).ok).toBe(false);
+    expect(checkContractCompatibility(live, bumped(removed, "major")).ok).toBe(true);
+
+    // A changed member: the payload of `unit.changed` loses its `layer` field.
+    const unitChanged = members[0];
+    const unitProps = unitChanged.properties as Record<string, JsonSchema>;
+    const payload = unitProps.payload;
+    const payloadProps = { ...(payload.properties as JsonSchema) };
+    delete payloadProps.layer;
+    const changed = {
+      ...live,
+      anyOf: [
+        {
+          ...unitChanged,
+          properties: {
+            ...unitProps,
+            payload: {
+              ...payload,
+              properties: payloadProps,
+              required: (payload.required as string[]).filter((k) => k !== "layer"),
+            },
+          },
+        },
+        ...members.slice(1),
+      ],
+    };
+    expect(classifySchemaChange(live, changed)).toEqual({
+      change: "breaking",
+      reasons: ["anyOf[unit.changed].payload.layer: property removed"],
+    });
+    const minor = checkContractCompatibility(live, bumped(changed, "minor"));
+    expect(minor.ok).toBe(false);
+    expect(minor.message).toMatch(/needs a major bump/);
+    expect(checkContractCompatibility(live, bumped(changed, "major")).ok).toBe(true);
+  });
+
   it("SB-TC-019: requiring an optional field of the event catch-all is breaking until the major is bumped", () => {
     const baseline = baselineSchema("delivery-event.schema.json");
     const members = eventMembers(baseline);
@@ -577,9 +712,11 @@ describe("delivery observation contract: compatibility", () => {
       ...baseline,
       anyOf: [...members.slice(0, -1), { ...catchAll, required: [...required, "unit_id"] }],
     };
-    // The classifier compares the anyOf list as one value, so any change to a
-    // member is breaking against the baseline (a wider union included).
-    expect(classifySchemaChange(baseline, nowRequired).change).toBe("breaking");
+    // The catch-all carries no type const, so it is matched by position.
+    expect(classifySchemaChange(baseline, nowRequired)).toEqual({
+      change: "breaking",
+      reasons: ["anyOf[*].unit_id: requiredness changed (optional to required)"],
+    });
     expect(checkContractCompatibility(baseline, bumped(nowRequired, "minor")).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(nowRequired, "major")).ok).toBe(true);
   });

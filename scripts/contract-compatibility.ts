@@ -10,12 +10,20 @@
 //   breaking  the live MAJOR is higher
 //
 // Additive: a new optional property, or an `additionalProperties` that went from
-// closed to open, or an enum that gained a value. Breaking: a removed property,
-// a new required property, a property whose requiredness changed, a closed
-// `additionalProperties` that was open, a changed type, const or format, or an
-// enum that lost a value. `title` and `description` are prose and never count.
+// closed to open, or an enum that gained a value, or a new `anyOf` member.
+// Breaking: a removed property, a new required property, a property whose
+// requiredness changed, a closed `additionalProperties` that was open, a changed
+// type, const or format, an enum that lost a value, or an `anyOf` member that
+// was removed or changed. `title` and `description` are prose and never count.
 // The root `$id` and the `$schema` / `schemaVersion` constants carry the version
 // itself, so they are compared through the version rule, not as a change.
+//
+// An `anyOf` is a union of members, each a full envelope. Members are matched
+// by the `const` of their `type` property, so a member keeps its identity when
+// the union grows around it; a member whose `type` carries no const (the
+// catch-all, an open string) is matched by position among such members. The
+// version constants live inside each member of a root union, so the exemption
+// above applies inside a top-level member as well as at the root.
 //
 // Pure: no IO. The suite feeds it the committed baseline and the live render.
 
@@ -40,6 +48,9 @@ export interface CompatibilityReport {
 const VERSION_IN_ID = /\/v(\d+)\.(\d+)\.(\d+)\.json$/;
 const PROSE_KEYS = new Set(["title", "description"]);
 const VERSION_CONST_PROPERTIES = new Set(["$schema", "schemaVersion"]);
+// The path of a member of a root `anyOf`: `anyOf[unit.changed]`, `anyOf[*]`.
+const ROOT_MEMBER_PATH = /^anyOf\[[^\]]*\]$/;
+const CATCH_ALL_KEY = "*";
 
 export function parseSchemaVersion(id: unknown): SchemaVersion {
   const match = typeof id === "string" ? VERSION_IN_ID.exec(id) : null;
@@ -89,6 +100,32 @@ function required(node: JsonSchema): Set<string> {
   return new Set(Array.isArray(value) ? value.filter((v) => typeof v === "string") : []);
 }
 
+// The root, or a member of a root union: where the version constants live.
+function isEnvelopeRoot(path: string): boolean {
+  return path === "" || ROOT_MEMBER_PATH.test(path);
+}
+
+// The identity of a union member: the const of its `type` property, or the
+// catch-all key when `type` carries no const.
+function memberKey(member: unknown): string {
+  if (!isSchema(member)) return CATCH_ALL_KEY;
+  const type = properties(member).type;
+  if (isSchema(type) && typeof type.const === "string") return type.const;
+  return CATCH_ALL_KEY;
+}
+
+// Members grouped by key, in order of first appearance.
+function membersByKey(members: unknown[]): Map<string, unknown[]> {
+  const groups = new Map<string, unknown[]>();
+  for (const member of members) {
+    const key = memberKey(member);
+    const group = groups.get(key);
+    if (group) group.push(member);
+    else groups.set(key, [member]);
+  }
+  return groups;
+}
+
 function diffNode(base: JsonSchema, live: JsonSchema, path: string, out: Collector): void {
   const keys = new Set([...Object.keys(base), ...Object.keys(live)]);
   for (const key of keys) {
@@ -113,6 +150,9 @@ function diffNode(base: JsonSchema, live: JsonSchema, path: string, out: Collect
         break;
       case "enum":
         diffEnum(b, l, path, out);
+        break;
+      case "anyOf":
+        diffAnyOf(b, l, path, out);
         break;
       default:
         if (!sameJson(b, l)) {
@@ -143,9 +183,10 @@ function diffProperties(base: JsonSchema, live: JsonSchema, path: string, out: C
     }
     const b = baseProps[name];
     const l = liveProps[name];
-    // A root `$schema` / `schemaVersion` const names the version: the version
-    // rule covers it.
-    if (path === "" && VERSION_CONST_PROPERTIES.has(name) && isSchema(b) && isSchema(l)) {
+    // A `$schema` / `schemaVersion` const at the root, or in a member of a root
+    // union, names the version: the version rule covers it.
+    const versionConst = isEnvelopeRoot(path) && VERSION_CONST_PROPERTIES.has(name);
+    if (versionConst && isSchema(b) && isSchema(l)) {
       diffNode(withoutConst(b), withoutConst(l), at(name), out);
       continue;
     }
@@ -177,6 +218,46 @@ function diffAdditionalProperties(b: unknown, l: unknown, path: string, out: Col
     return;
   }
   out.breaking.push(`${where}: additionalProperties changed`);
+}
+
+// Union members are matched by key (see memberKey); members that share a key
+// are matched by position within that key. A member the baseline lacks is
+// additive: a reader at the baseline version routes its type to the catch-all.
+// A member the live schema lacks is breaking, and so is any breaking change
+// inside a member.
+function diffAnyOf(b: unknown, l: unknown, path: string, out: Collector): void {
+  const where = path || "<root>";
+  if (sameJson(b, l)) return;
+  if (!Array.isArray(b) || !Array.isArray(l)) {
+    out.breaking.push(`${where}: anyOf changed`);
+    return;
+  }
+  const baseGroups = membersByKey(b);
+  const liveGroups = membersByKey(l);
+  const at = (key: string, index: number) => {
+    const member = `anyOf[${key}${index > 0 ? `#${index + 1}` : ""}]`;
+    return path ? `${path}.${member}` : member;
+  };
+
+  for (const [key, baseMembers] of baseGroups) {
+    const liveMembers = liveGroups.get(key) ?? [];
+    baseMembers.forEach((bm, index) => {
+      const lm = liveMembers[index];
+      if (lm === undefined) {
+        out.breaking.push(`${at(key, index)}: member removed`);
+        return;
+      }
+      if (isSchema(bm) && isSchema(lm)) diffNode(bm, lm, at(key, index), out);
+      else if (!sameJson(bm, lm)) out.breaking.push(`${at(key, index)}: member changed`);
+    });
+    for (let index = baseMembers.length; index < liveMembers.length; index++) {
+      out.additive.push(`${at(key, index)}: member added`);
+    }
+  }
+  for (const [key, liveMembers] of liveGroups) {
+    if (baseGroups.has(key)) continue;
+    liveMembers.forEach((_, index) => out.additive.push(`${at(key, index)}: member added`));
+  }
 }
 
 function diffEnum(b: unknown, l: unknown, path: string, out: Collector): void {
