@@ -17,18 +17,26 @@
 // Compatibility posture (SB-NFR-007). Additive change is the normal change:
 // every object in both schemas is `.loose()`, so an unknown key is kept, never
 // rejected, and a later minor version can add a field (the architecture
-// amendment adds `mode`, a `review` section, decision review fields, a gate
-// status and new event types) without a major bump. Status vocabularies are
-// open strings for the same reason: a reader that switches on a status treats
-// an unknown value as "other", and the vocabulary can grow inside one major.
-// Removing or renaming a field, or making an optional field required, is a
-// breaking change and bumps the major. scripts/contract-compatibility.ts
-// classifies a change against the committed baseline (the render of the last
-// published version, pinned by version and sha256 in
+// amendment adds `mode`, a `review` section and decision review fields) without
+// a major bump. Status vocabularies are CLOSED enums, one per field, and the
+// 1.0.0 vocabularies already name the states the amendment adds (gate
+// `provisional`, unit `skipped`, lifecycle `armed`), so the amendment needs no
+// bump for them inside this major. A value added to a vocabulary later is an
+// additive change under the classifier (an enum that gained a value), so it
+// moves the minor, not the major. Removing or renaming a field, making an
+// optional field required, or dropping an enum value is a breaking change and
+// bumps the major. scripts/contract-compatibility.ts classifies a change
+// against the committed baseline (the render of the last published version,
+// pinned by version and sha256 in
 // shared/__fixtures__/contract-baselines/published.json) and the suite enforces
 // the bump rule: an additive change needs at least a minor bump, a breaking one
 // a major bump. Publishing a version regenerates schema/, copies the render
 // over the baseline and re-pins it.
+//
+// Version history. 1.0.0 was republished once, before any consumer read it: the
+// first render had a flat event envelope with an open `type` and open status
+// strings, and the event union and the closed vocabularies below replaced it at
+// the same version. From here on, a baseline refresh moves the version.
 
 import { z } from "zod";
 
@@ -49,8 +57,49 @@ export const DELIVERY_EVENT_SCHEMA_VERSION = "1.0.0";
 const TimestampSchema = z.iso.datetime({ offset: true });
 // A non-empty identifier: a unit id, a gate id, a decision id, a stack name.
 const IdSchema = z.string().min(1);
-// An open status word. See the compatibility posture above.
-const StatusSchema = z.string().min(1);
+
+// ── Status vocabularies ──
+//
+// Closed, one per field. Each already carries the states the architecture
+// amendment adds (`provisional`, `skipped`, `armed`); see the compatibility
+// posture above for how a vocabulary grows.
+
+export const DELIVERY_UNIT_STATUSES = ["pending", "running", "done", "failed", "skipped"] as const;
+export const DeliveryUnitStatusSchema = z.enum(DELIVERY_UNIT_STATUSES);
+export type DeliveryUnitStatus = z.infer<typeof DeliveryUnitStatusSchema>;
+
+export const DELIVERY_GATE_STATUSES = [
+  "pending",
+  "running",
+  "passed",
+  "failed",
+  "provisional",
+] as const;
+export const DeliveryGateStatusSchema = z.enum(DELIVERY_GATE_STATUSES);
+export type DeliveryGateStatus = z.infer<typeof DeliveryGateStatusSchema>;
+
+export const DELIVERY_LIFECYCLE_STATES = [
+  "planned",
+  "armed",
+  "running",
+  "paused",
+  "done",
+  "failed",
+] as const;
+export const DeliveryLifecycleStateSchema = z.enum(DELIVERY_LIFECYCLE_STATES);
+export type DeliveryLifecycleState = z.infer<typeof DeliveryLifecycleStateSchema>;
+
+export const DELIVERY_DECISION_STATUSES = ["open", "answered"] as const;
+export const DeliveryDecisionStatusSchema = z.enum(DELIVERY_DECISION_STATUSES);
+export type DeliveryDecisionStatus = z.infer<typeof DeliveryDecisionStatusSchema>;
+
+export const DELIVERY_HEALTH_STATUSES = ["ok", "degraded", "failed"] as const;
+export const DeliveryHealthStatusSchema = z.enum(DELIVERY_HEALTH_STATUSES);
+export type DeliveryHealthStatus = z.infer<typeof DeliveryHealthStatusSchema>;
+
+export const DELIVERY_SEAM_STATUSES = ["idle", "running", "ok", "failed"] as const;
+export const DeliverySeamStatusSchema = z.enum(DELIVERY_SEAM_STATUSES);
+export type DeliverySeamStatus = z.infer<typeof DeliverySeamStatusSchema>;
 
 // ── units[] ──
 //
@@ -61,7 +110,7 @@ export const DeliveryUnitSchema = z
   .object({
     id: IdSchema,
     title: z.string(),
-    status: StatusSchema,
+    status: DeliveryUnitStatusSchema,
     stack: IdSchema,
     layer: z.number().int().min(0),
     depends_on: z.array(IdSchema),
@@ -81,7 +130,7 @@ export const DeliveryGateSchema = z
   .object({
     id: IdSchema,
     after: z.array(IdSchema).min(1),
-    status: StatusSchema,
+    status: DeliveryGateStatusSchema,
     cases: z.array(IdSchema),
   })
   .loose();
@@ -105,7 +154,7 @@ export const DeliveryDecisionSchema = z
     question: z.string().min(1),
     options: z.array(z.string().min(1)).min(2),
     default: z.string().min(1),
-    status: StatusSchema,
+    status: DeliveryDecisionStatusSchema,
     unit_id: IdSchema.optional(),
     raised_at: TimestampSchema,
   })
@@ -150,7 +199,7 @@ export type DeliveryRole = z.infer<typeof DeliveryRoleSchema>;
 // ── health ──
 export const DeliveryHealthSchema = z
   .object({
-    status: StatusSchema,
+    status: DeliveryHealthStatusSchema,
     checked_at: TimestampSchema,
     detail: z.string().optional(),
   })
@@ -177,7 +226,7 @@ export type DeliveryDrift = z.infer<typeof DeliveryDriftSchema>;
 // bench (plan, merge results, gate status, and so on), with its last outcome.
 export const DeliverySeamSchema = z
   .object({
-    status: StatusSchema,
+    status: DeliverySeamStatusSchema,
     last_run_at: TimestampSchema.optional(),
     detail: z.string().optional(),
   })
@@ -187,7 +236,7 @@ export type DeliverySeam = z.infer<typeof DeliverySeamSchema>;
 // ── lifecycle ──
 export const DeliveryLifecycleSchema = z
   .object({
-    state: StatusSchema,
+    state: DeliveryLifecycleStateSchema,
     armed: z.boolean(),
     started_at: TimestampSchema,
     ended_at: TimestampSchema.nullable().optional(),
@@ -237,31 +286,102 @@ export type DeliveryRecord = z.infer<typeof DeliveryRecordSchema>;
 
 // ── The delivery event envelope ──
 //
-// Payload decision for 1.0.0: the payload is OPEN, a JSON object with any keys,
-// and `type` is an open string. A typed payload per event type would freeze the
-// event vocabulary into the envelope, and the architecture amendment already
-// adds seven event types inside this major; an open payload lets a producer add
-// a type and a reader ignore the ones it does not know. A reader that wants a
-// typed view layers a discriminated union over `type` on its own side, which
-// changes nothing here. Revisit at 2.0.0 if the vocabulary settles.
+// The event schema is a union of full envelopes. One typed member per record
+// section carries a literal `type` and reuses that section's schema as its
+// payload, so a reader gets the section shape straight from the event. The
+// LAST member is the catch-all: an open `type` and an open payload, so a
+// reader at an older minor accepts an event type it does not know and ignores
+// it, instead of rejecting the stream.
+//
+// Routing. A JSON Schema `anyOf` validator cannot exclude a known type from
+// the catch-all: a `unit.changed` event with a malformed payload still matches
+// the last member, so a plain JSON Schema check accepts it. The runtime
+// validator below is what routes by `type`: a known type is parsed by its
+// typed member and reports field-named payload errors, and only an unknown
+// type reaches the catch-all. Readers that need the typed check call
+// validateDeliveryEvent, not a generic JSON Schema library.
+//
+// The compatibility classifier matches the `anyOf` members by their `type`
+// const (the catch-all by position), so a new typed member is additive and
+// needs a minor bump, while a removed or changed member is breaking
+// (SB-NFR-007).
+
+function envelope<TType extends z.ZodType, TPayload extends z.ZodType>(
+  type: TType,
+  payload: TPayload,
+) {
+  return z
+    .object({
+      $schema: z.literal(DELIVERY_EVENT_SCHEMA_ID),
+      schemaVersion: z.literal(DELIVERY_EVENT_SCHEMA_VERSION),
+      delivery_id: IdSchema,
+      // Dense, 1-based, strictly increasing per delivery.
+      seq: z.number().int().min(1),
+      ts: TimestampSchema,
+      unit_id: IdSchema.optional(),
+      type,
+      payload,
+    })
+    .loose();
+}
+
+// A role or seam event names its record key, which the record's map form
+// carries only as the key.
+export const DeliveryRoleEventPayloadSchema = DeliveryRoleSchema.extend({ name: IdSchema });
+export const DeliverySeamEventPayloadSchema = DeliverySeamSchema.extend({ name: IdSchema });
+
+export const DELIVERY_EVENT_TYPES = [
+  "unit.changed",
+  "gate.changed",
+  "decision.changed",
+  "steering.added",
+  "budget.changed",
+  "role.changed",
+  "health.changed",
+  "drift.detected",
+  "seam.changed",
+  "lifecycle.changed",
+] as const;
+export type DeliveryEventType = (typeof DELIVERY_EVENT_TYPES)[number];
+
+const typedEventMembers = {
+  "unit.changed": envelope(z.literal("unit.changed"), DeliveryUnitSchema),
+  "gate.changed": envelope(z.literal("gate.changed"), DeliveryGateSchema),
+  "decision.changed": envelope(z.literal("decision.changed"), DeliveryDecisionSchema),
+  "steering.added": envelope(z.literal("steering.added"), DeliverySteeringSchema),
+  "budget.changed": envelope(z.literal("budget.changed"), DeliveryBudgetSchema),
+  "role.changed": envelope(z.literal("role.changed"), DeliveryRoleEventPayloadSchema),
+  "health.changed": envelope(z.literal("health.changed"), DeliveryHealthSchema),
+  "drift.detected": envelope(z.literal("drift.detected"), DeliveryDriftSchema),
+  "seam.changed": envelope(z.literal("seam.changed"), DeliverySeamEventPayloadSchema),
+  "lifecycle.changed": envelope(z.literal("lifecycle.changed"), DeliveryLifecycleSchema),
+} satisfies Record<DeliveryEventType, z.ZodType>;
+
+// The catch-all member: any non-empty `type`, any JSON object as payload.
+export const DeliveryEventCatchAllSchema = envelope(
+  z.string().min(1),
+  z.record(z.string(), z.unknown()),
+);
+
 export const DeliveryEventSchema = z
-  .object({
-    $schema: z.literal(DELIVERY_EVENT_SCHEMA_ID),
-    schemaVersion: z.literal(DELIVERY_EVENT_SCHEMA_VERSION),
-    delivery_id: IdSchema,
-    type: z.string().min(1),
-    // Dense, 1-based, strictly increasing per delivery.
-    seq: z.number().int().min(1),
-    ts: TimestampSchema,
-    unit_id: IdSchema.optional(),
-    payload: z.record(z.string(), z.unknown()),
-  })
-  .loose()
+  .union([
+    typedEventMembers["unit.changed"],
+    typedEventMembers["gate.changed"],
+    typedEventMembers["decision.changed"],
+    typedEventMembers["steering.added"],
+    typedEventMembers["budget.changed"],
+    typedEventMembers["role.changed"],
+    typedEventMembers["health.changed"],
+    typedEventMembers["drift.detected"],
+    typedEventMembers["seam.changed"],
+    typedEventMembers["lifecycle.changed"],
+    DeliveryEventCatchAllSchema,
+  ])
   .meta({
     $id: DELIVERY_EVENT_SCHEMA_ID,
     title: "Delivery event",
     description:
-      "One event of a spec delivery's stream (SB-FR-006). The payload is an open object; `type` names the event.",
+      "One event of a spec delivery's stream (SB-FR-006). A known `type` carries its record section as the payload; the last member accepts any other type with an open payload.",
   });
 export type DeliveryEvent = z.infer<typeof DeliveryEventSchema>;
 
@@ -322,8 +442,22 @@ export function validateDeliveryRecord(raw: unknown): ValidationResult<DeliveryR
   return { ok: true, data: parsed.data };
 }
 
+function isKnownEventType(type: unknown): type is DeliveryEventType {
+  return typeof type === "string" && (DELIVERY_EVENT_TYPES as readonly string[]).includes(type);
+}
+
+// Routes by `type` (see "Routing" above): a known type is parsed by its typed
+// member, so a malformed payload fails with a `payload.<field>` error instead
+// of slipping through the catch-all; anything else is parsed by the catch-all.
 export function validateDeliveryEvent(raw: unknown): ValidationResult<DeliveryEvent> {
-  const parsed = DeliveryEventSchema.safeParse(raw);
+  const type =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>).type
+      : undefined;
+  const member: z.ZodType<DeliveryEvent> = isKnownEventType(type)
+    ? typedEventMembers[type]
+    : DeliveryEventCatchAllSchema;
+  const parsed = member.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, errors: zodIssuesToFieldErrors(parsed.error.issues) };
   }

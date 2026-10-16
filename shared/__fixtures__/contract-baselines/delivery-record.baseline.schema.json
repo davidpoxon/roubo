@@ -59,7 +59,7 @@
               },
               "status": {
                 "type": "string",
-                "minLength": 1
+                "enum": ["pending", "running", "passed", "failed", "provisional"]
               },
               "cases": {
                 "type": "array",
@@ -91,7 +91,7 @@
           },
           "status": {
             "type": "string",
-            "minLength": 1
+            "enum": ["pending", "running", "done", "failed", "skipped"]
           },
           "stack": {
             "type": "string",
@@ -151,7 +151,7 @@
           },
           "status": {
             "type": "string",
-            "minLength": 1
+            "enum": ["open", "answered"]
           },
           "unit_id": {
             "type": "string",
@@ -239,7 +239,7 @@
       "properties": {
         "status": {
           "type": "string",
-          "minLength": 1
+          "enum": ["ok", "degraded", "failed"]
         },
         "checked_at": {
           "type": "string",
@@ -291,7 +291,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "minLength": 1
+            "enum": ["idle", "running", "ok", "failed"]
           },
           "last_run_at": {
             "type": "string",
@@ -311,7 +311,7 @@
       "properties": {
         "state": {
           "type": "string",
-          "minLength": 1
+          "enum": ["planned", "armed", "running", "paused", "done", "failed"]
         },
         "armed": {
           "type": "boolean"

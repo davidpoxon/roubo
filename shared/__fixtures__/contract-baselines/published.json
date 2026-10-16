@@ -1,10 +1,10 @@
 {
   "delivery-record.schema.json": {
     "version": "1.0.0",
-    "sha256": "0ea4a7a954175e3b1c4aef4d6ddb9731bdf322832376ec3c5ceaa3e053cd17b0"
+    "sha256": "54bbe29c2a7ddcec49549ed95273da1edf551c27c93da203a6d26e21c3284bb3"
   },
   "delivery-event.schema.json": {
     "version": "1.0.0",
-    "sha256": "edd516dab061cf5e3864728d0928f4f30b0b09deab2a2caf1a869b25db7d563c"
+    "sha256": "c02be9f9d4ae028acac6931ba1697cc99973eda696660386020a646876722daf"
   }
 }

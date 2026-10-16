@@ -13,8 +13,13 @@ import {
 import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,
+  DELIVERY_EVENT_TYPES,
+  DELIVERY_GATE_STATUSES,
+  DELIVERY_LIFECYCLE_STATES,
   DELIVERY_RECORD_SCHEMA_ID,
   DELIVERY_RECORD_SCHEMA_VERSION,
+  DELIVERY_UNIT_STATUSES,
+  DeliveryEventCatchAllSchema,
   DeliveryEventSchema,
   DeliveryRecordSchema,
   validateDeliveryEvent,
@@ -48,6 +53,10 @@ async function liveSchema(name: string): Promise<JsonSchema> {
 // rule against it (no change: same version; additive: at least a minor bump;
 // breaking: a major bump). To publish a version: regenerate schema/, copy the
 // render over the baseline, and re-pin version and sha256 in published.json.
+//
+// 1.0.0 was republished once at the same version, before any consumer read it,
+// when the event union and the closed status vocabularies replaced the first
+// render. From here on, a baseline refresh moves the version.
 interface PublishedPin {
   version: string;
   sha256: string;
@@ -75,14 +84,30 @@ function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
-// The schema with its `$id` moved one semver step above its current version.
+// The schema moved one semver step above its current version, as a publication
+// would move it: the root `$id`, and the `$schema` / `schemaVersion` constants
+// at the root (the record) or inside every union member (the event).
 function bumped(schema: JsonSchema, step: "patch" | "minor" | "major"): JsonSchema {
   const v = parseSchemaVersion(schema.$id);
   let next = `${v.major}.${v.minor}.${v.patch + 1}`;
   if (step === "major") next = `${v.major + 1}.0.0`;
   if (step === "minor") next = `${v.major}.${v.minor + 1}.0`;
   const id = String(schema.$id).replace(/v\d+\.\d+\.\d+\.json$/, `v${next}.json`);
-  return { ...schema, $id: id };
+  const withConsts = (node: JsonSchema): JsonSchema => {
+    const props = node.properties as Record<string, JsonSchema> | undefined;
+    if (!props?.$schema || !props.schemaVersion) return node;
+    return {
+      ...node,
+      properties: {
+        ...props,
+        $schema: { ...props.$schema, const: id },
+        schemaVersion: { ...props.schemaVersion, const: next },
+      },
+    };
+  };
+  const out = withConsts({ ...schema, $id: id });
+  if (Array.isArray(out.anyOf)) out.anyOf = (out.anyOf as JsonSchema[]).map(withConsts);
+  return out;
 }
 
 function runGuard(script: string) {
@@ -120,6 +145,8 @@ const REQUIRED_SECTIONS = [
   "last_event_seq",
 ];
 
+// `unit.started` is not a known type, so this envelope goes through the
+// catch-all member.
 const minimalEvent = {
   $schema: DELIVERY_EVENT_SCHEMA_ID,
   schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
@@ -130,6 +157,19 @@ const minimalEvent = {
   unit_id: "A",
   payload: { branch: "demo/0-base" },
 };
+
+// A well-formed `unit.changed` event: the payload is the fixture's unit A.
+function unitChangedEvent(status: string) {
+  const unit = (loadFixture().units as Record<string, unknown>[])[0];
+  return { ...minimalEvent, type: "unit.changed", payload: { ...unit, status } };
+}
+
+// The anyOf members of the rendered event schema, the catch-all last.
+function eventMembers(live: JsonSchema): JsonSchema[] {
+  const members = live.anyOf;
+  if (!Array.isArray(members)) throw new Error("the event schema is not an anyOf");
+  return members as JsonSchema[];
+}
 
 describe("delivery observation contract: generated schema", () => {
   it.each(contracts)(
@@ -149,13 +189,30 @@ describe("delivery observation contract: generated schema", () => {
     },
   );
 
-  it("SB-TC-010: the record and event $schema constants match their $id", async () => {
-    for (const { file, id, version } of contracts) {
-      const live = await liveSchema(file);
-      const props = live.properties as Record<string, JsonSchema>;
-      expect(props.$schema.const).toBe(id);
-      expect(props.schemaVersion.const).toBe(version);
+  it("SB-TC-010: the record root and every event member carry $schema and schemaVersion constants matching the $id", async () => {
+    const record = await liveSchema("delivery-record.schema.json");
+    const recordProps = record.properties as Record<string, JsonSchema>;
+    expect(recordProps.$schema.const).toBe(DELIVERY_RECORD_SCHEMA_ID);
+    expect(recordProps.schemaVersion.const).toBe(DELIVERY_RECORD_SCHEMA_VERSION);
+
+    const event = await liveSchema("delivery-event.schema.json");
+    expect(event.$id).toBe(DELIVERY_EVENT_SCHEMA_ID);
+    const members = eventMembers(event);
+    // One typed member per known type, then the catch-all.
+    expect(members).toHaveLength(DELIVERY_EVENT_TYPES.length + 1);
+    for (const member of members) {
+      const props = member.properties as Record<string, JsonSchema>;
+      expect(props.$schema.const).toBe(DELIVERY_EVENT_SCHEMA_ID);
+      expect(props.schemaVersion.const).toBe(DELIVERY_EVENT_SCHEMA_VERSION);
     }
+    const typed = members
+      .slice(0, -1)
+      .map((m) => (m.properties as Record<string, JsonSchema>).type.const);
+    expect(typed).toEqual([...DELIVERY_EVENT_TYPES]);
+    const catchAll = (members.at(-1) as JsonSchema).properties as Record<string, JsonSchema>;
+    expect(catchAll.type).toEqual({ type: "string", minLength: 1 });
+    expect(catchAll.type.const).toBeUndefined();
+    expect(catchAll.payload.type).toBe("object");
   });
 });
 
@@ -270,6 +327,60 @@ describe("delivery observation contract: record fixture", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors.some((e) => e.startsWith("updated_at:"))).toBe(true);
   });
+
+  it("SB-TC-011: the 1.0.0 vocabularies already name the amended states (unit skipped, gate provisional, lifecycle armed)", () => {
+    expect(DELIVERY_UNIT_STATUSES).toContain("skipped");
+    expect(DELIVERY_GATE_STATUSES).toContain("provisional");
+    expect(DELIVERY_LIFECYCLE_STATES).toContain("armed");
+    const fixture = loadFixture();
+    const units = fixture.units as Record<string, unknown>[];
+    const stack = fixture.stack as { stacks: unknown; gates: Record<string, unknown>[] };
+    const amended = {
+      ...fixture,
+      units: [{ ...units[0], status: "skipped" }, ...units.slice(1)],
+      stack: { ...stack, gates: [{ ...stack.gates[0], status: "provisional" }, stack.gates[1]] },
+      lifecycle: { ...(fixture.lifecycle as object), state: "armed" },
+    };
+    expect(validateDeliveryRecord(amended).ok).toBe(true);
+  });
+
+  it("rejects a status outside its closed vocabulary with a field-named error", () => {
+    const fixture = loadFixture();
+    const units = fixture.units as Record<string, unknown>[];
+    const stack = fixture.stack as { stacks: unknown; gates: Record<string, unknown>[] };
+    const decisions = fixture.decisions as Record<string, unknown>[];
+    const seams = fixture.seams as Record<string, Record<string, unknown>>;
+    const cases: [Record<string, unknown>, string][] = [
+      [
+        { ...fixture, units: [{ ...units[0], status: "started" }, ...units.slice(1)] },
+        "units.0.status:",
+      ],
+      [
+        { ...fixture, stack: { ...stack, gates: [{ ...stack.gates[0], status: "green" }] } },
+        "stack.gates.0.status:",
+      ],
+      [{ ...fixture, decisions: [{ ...decisions[0], status: "closed" }] }, "decisions.0.status:"],
+      [{ ...fixture, health: { ...(fixture.health as object), status: "fine" } }, "health.status:"],
+      [
+        { ...fixture, seams: { ...seams, plan: { ...seams.plan, status: "green" } } },
+        "seams.plan.status:",
+      ],
+      [
+        { ...fixture, lifecycle: { ...(fixture.lifecycle as object), state: "finished" } },
+        "lifecycle.state:",
+      ],
+    ];
+    for (const [record, prefix] of cases) {
+      const result = validateDeliveryRecord(record);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          prefix,
+        ).toBe(true);
+      }
+    }
+  });
 });
 
 describe("delivery observation contract: event envelope", () => {
@@ -289,8 +400,8 @@ describe("delivery observation contract: event envelope", () => {
     if (result.ok) expect(result.data.unit_id).toBeUndefined();
   });
 
-  it("accepts any event type and any payload keys (open payload decision for 1.0.0)", () => {
-    for (const type of ["unit.done", "gate.provisional", "decision.raised", "steering.added"]) {
+  it("accepts any unknown event type and any payload keys through the catch-all member", () => {
+    for (const type of ["unit.done", "gate.provisional", "decision.raised", "review.changed"]) {
       const result = validateDeliveryEvent({
         ...minimalEvent,
         type,
@@ -298,6 +409,71 @@ describe("delivery observation contract: event envelope", () => {
       });
       expect(result.ok).toBe(true);
     }
+    // The catch-all alone accepts the same envelopes, and it is the last member.
+    expect(DeliveryEventCatchAllSchema.safeParse(minimalEvent).success).toBe(true);
+    expect(DeliveryEventSchema.def.options.at(-1)).toBe(DeliveryEventCatchAllSchema);
+  });
+
+  it("parses a known type by its typed member and rejects a malformed payload with a payload-named error", () => {
+    expect(validateDeliveryEvent(unitChangedEvent("done")).ok).toBe(true);
+    // The same envelope with the unit's `layer` missing: the catch-all would
+    // accept it, the typed member names the field.
+    const malformed = unitChangedEvent("done");
+    const payload: Record<string, unknown> = { ...malformed.payload };
+    delete payload.layer;
+    const result = validateDeliveryEvent({ ...malformed, payload });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.some((e) => e.startsWith("payload.layer:"))).toBe(true);
+    }
+    // Every known type routes to its member: an empty payload fails each one.
+    for (const type of DELIVERY_EVENT_TYPES) {
+      const empty = validateDeliveryEvent({ ...minimalEvent, type, payload: {} });
+      expect(empty.ok, type).toBe(false);
+      if (!empty.ok) expect(empty.errors.some((e) => e.startsWith("payload."))).toBe(true);
+    }
+  });
+
+  it("accepts the amended states in a typed payload: unit skipped, gate provisional, lifecycle armed", () => {
+    expect(validateDeliveryEvent(unitChangedEvent("skipped")).ok).toBe(true);
+    const fixture = loadFixture();
+    const gate = (fixture.stack as { gates: Record<string, unknown>[] }).gates[0];
+    const gateEvent = validateDeliveryEvent({
+      ...minimalEvent,
+      type: "gate.changed",
+      payload: { ...gate, status: "provisional" },
+    });
+    expect(gateEvent.ok).toBe(true);
+    const lifecycleEvent = validateDeliveryEvent({
+      ...minimalEvent,
+      type: "lifecycle.changed",
+      payload: { ...(fixture.lifecycle as object), state: "armed" },
+    });
+    expect(lifecycleEvent.ok).toBe(true);
+  });
+
+  it("rejects a typed payload whose status is outside its vocabulary with a field-named error", () => {
+    const result = validateDeliveryEvent(unitChangedEvent("started"));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.some((e) => e.startsWith("payload.status:"))).toBe(true);
+    }
+  });
+
+  it("names the record key in a role or seam event payload", () => {
+    const role = validateDeliveryEvent({
+      ...minimalEvent,
+      type: "role.changed",
+      payload: { name: "unit-coder", tier: "fast" },
+    });
+    expect(role.ok).toBe(true);
+    const nameless = validateDeliveryEvent({
+      ...minimalEvent,
+      type: "seam.changed",
+      payload: { status: "ok" },
+    });
+    expect(nameless.ok).toBe(false);
+    if (!nameless.ok) expect(nameless.errors.some((e) => e.startsWith("payload.name:"))).toBe(true);
   });
 
   it("rejects a zero seq, an empty type, a non-object payload and a bad timestamp", () => {
@@ -410,19 +586,167 @@ describe("delivery observation contract: compatibility", () => {
     expect(major.change).toBe("breaking");
   });
 
-  it("SB-TC-019: requiring an optional envelope field is breaking, a new optional one is additive", () => {
+  // The event tests below start from a real render of the event schema, so the
+  // version constants inside every member are the ones the generator emits.
+  it("SB-TC-019: bumping the event contract with no shape change is not a change: the version must hold", async () => {
+    const live = await liveSchema("delivery-event.schema.json");
+    const minor = bumped(live, "minor");
+    expect(eventMembers(minor).every((m) => m.properties !== undefined)).toBe(true);
+    expect(classifySchemaChange(live, minor)).toEqual({ change: "none", reasons: [] });
+    const report = checkContractCompatibility(live, minor);
+    expect(report.ok).toBe(false);
+    expect(report.message).toMatch(/must stay at 1\.0\.0/);
+  });
+
+  it("SB-TC-019: adding an optional field to an event member passes once the minor is bumped", async () => {
+    const live = await liveSchema("delivery-event.schema.json");
+    const members = eventMembers(live);
+    const [unitChanged, ...rest] = members;
+    const withActor = {
+      ...live,
+      anyOf: [
+        {
+          ...unitChanged,
+          properties: { ...(unitChanged.properties as JsonSchema), actor: { type: "string" } },
+        },
+        ...rest,
+      ],
+    };
+    expect(classifySchemaChange(live, withActor)).toEqual({
+      change: "additive",
+      reasons: ["anyOf[unit.changed].actor: new optional property"],
+    });
+    expect(checkContractCompatibility(live, withActor).ok).toBe(false);
+    expect(checkContractCompatibility(live, bumped(withActor, "patch")).ok).toBe(false);
+    const minor = checkContractCompatibility(live, bumped(withActor, "minor"));
+    expect(minor.ok, minor.message).toBe(true);
+    expect(minor.change).toBe("additive");
+  });
+
+  it("SB-TC-019: appending a typed event member passes once the minor is bumped", async () => {
+    const live = await liveSchema("delivery-event.schema.json");
+    const members = eventMembers(live);
+    const catchAll = members.at(-1) as JsonSchema;
+    const catchAllProps = catchAll.properties as Record<string, JsonSchema>;
+    // A new typed member before the catch-all, shaped like the others.
+    const reviewChanged = {
+      ...catchAll,
+      properties: {
+        ...catchAllProps,
+        type: { type: "string", const: "review.changed" },
+        payload: {
+          type: "object",
+          properties: { status: { type: "string" } },
+          required: ["status"],
+          additionalProperties: {},
+        },
+      },
+    };
+    const wider = { ...live, anyOf: [...members.slice(0, -1), reviewChanged, catchAll] };
+    expect(classifySchemaChange(live, wider)).toEqual({
+      change: "additive",
+      reasons: ["anyOf[review.changed]: member added"],
+    });
+    expect(checkContractCompatibility(live, wider).ok).toBe(false);
+    const minor = checkContractCompatibility(live, bumped(wider, "minor"));
+    expect(minor.ok, minor.message).toBe(true);
+    expect(minor.change).toBe("additive");
+    // The wider union still parses at runtime through the same validator path:
+    // an unknown type goes to the catch-all today, to its member tomorrow.
+    expect(validateDeliveryEvent({ ...minimalEvent, type: "review.changed" }).ok).toBe(true);
+  });
+
+  it("SB-TC-019: removing or changing an event member is breaking until the major is bumped", async () => {
+    const live = await liveSchema("delivery-event.schema.json");
+    const members = eventMembers(live);
+    const key = (m: JsonSchema) => (m.properties as Record<string, JsonSchema>).type.const;
+
+    const removed = { ...live, anyOf: members.filter((m) => key(m) !== "gate.changed") };
+    expect(classifySchemaChange(live, removed)).toEqual({
+      change: "breaking",
+      reasons: ["anyOf[gate.changed]: member removed"],
+    });
+    expect(checkContractCompatibility(live, bumped(removed, "minor")).ok).toBe(false);
+    expect(checkContractCompatibility(live, bumped(removed, "major")).ok).toBe(true);
+
+    // A changed member: the payload of `unit.changed` loses its `layer` field.
+    const unitChanged = members[0];
+    const unitProps = unitChanged.properties as Record<string, JsonSchema>;
+    const payload = unitProps.payload;
+    const payloadProps = { ...(payload.properties as JsonSchema) };
+    delete payloadProps.layer;
+    const changed = {
+      ...live,
+      anyOf: [
+        {
+          ...unitChanged,
+          properties: {
+            ...unitProps,
+            payload: {
+              ...payload,
+              properties: payloadProps,
+              required: (payload.required as string[]).filter((k) => k !== "layer"),
+            },
+          },
+        },
+        ...members.slice(1),
+      ],
+    };
+    expect(classifySchemaChange(live, changed)).toEqual({
+      change: "breaking",
+      reasons: ["anyOf[unit.changed].payload.layer: property removed"],
+    });
+    const minor = checkContractCompatibility(live, bumped(changed, "minor"));
+    expect(minor.ok).toBe(false);
+    expect(minor.message).toMatch(/needs a major bump/);
+    expect(checkContractCompatibility(live, bumped(changed, "major")).ok).toBe(true);
+  });
+
+  it("SB-TC-019: requiring an optional field of the event catch-all is breaking until the major is bumped", () => {
     const baseline = baselineSchema("delivery-event.schema.json");
-    const required = baseline.required as string[];
-    const nowRequired = { ...baseline, required: [...required, "unit_id"] };
-    expect(classifySchemaChange(baseline, nowRequired).change).toBe("breaking");
+    const members = eventMembers(baseline);
+    const catchAll = members.at(-1) as JsonSchema;
+    const required = catchAll.required as string[];
+    expect(required).not.toContain("unit_id");
+    const nowRequired = {
+      ...baseline,
+      anyOf: [...members.slice(0, -1), { ...catchAll, required: [...required, "unit_id"] }],
+    };
+    // The catch-all carries no type const, so it is matched by position.
+    expect(classifySchemaChange(baseline, nowRequired)).toEqual({
+      change: "breaking",
+      reasons: ["anyOf[*].unit_id: requiredness changed (optional to required)"],
+    });
     expect(checkContractCompatibility(baseline, bumped(nowRequired, "minor")).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(nowRequired, "major")).ok).toBe(true);
+  });
 
-    const withActor = {
+  it("SB-TC-019: adding a value to a record status vocabulary is additive and needs the minor bumped", () => {
+    const baseline = baselineSchema("delivery-record.schema.json");
+    const props = baseline.properties as Record<string, JsonSchema>;
+    const health = props.health as JsonSchema;
+    const healthProps = health.properties as Record<string, JsonSchema>;
+    const widened = {
       ...baseline,
-      properties: { ...(baseline.properties as JsonSchema), actor: { type: "string" } },
+      properties: {
+        ...props,
+        health: {
+          ...health,
+          properties: {
+            ...healthProps,
+            status: {
+              ...healthProps.status,
+              enum: [...(healthProps.status.enum as string[]), "unknown"],
+            },
+          },
+        },
+      },
     };
-    expect(checkContractCompatibility(baseline, bumped(withActor, "patch")).ok).toBe(false);
-    expect(checkContractCompatibility(baseline, bumped(withActor, "minor")).ok).toBe(true);
+    expect(classifySchemaChange(baseline, widened)).toEqual({
+      change: "additive",
+      reasons: ["health.status: enum gained a value"],
+    });
+    expect(checkContractCompatibility(baseline, widened).ok).toBe(false);
+    expect(checkContractCompatibility(baseline, bumped(widened, "minor")).ok).toBe(true);
   });
 });
