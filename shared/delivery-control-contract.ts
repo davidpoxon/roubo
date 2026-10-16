@@ -44,10 +44,22 @@ const TextSchema = z.string().min(1);
 
 // ── status ──
 //
-// Where the control is in the outbox: written and not yet read (`pending`),
-// read and acted on (`applied`), or read and refused (`rejected`). A closed
+// Where the control is in the outbox, in the order a control moves through:
+//   pending     written by the bench, not yet read by the tooling
+//   delivered   read by the tooling, not yet acted on
+//   applied     acted on
+//   rejected    refused by the tooling
+//   superseded  replaced by a later control, such as an overturn of the answer
+// The operator chose this wider vocabulary over the three-state one so the
+// bench can show a control on its way and one that no longer counts. A closed
 // enum; see the compatibility posture above.
-export const DELIVERY_CONTROL_STATUSES = ["pending", "applied", "rejected"] as const;
+export const DELIVERY_CONTROL_STATUSES = [
+  "pending",
+  "delivered",
+  "applied",
+  "rejected",
+  "superseded",
+] as const;
 export const DeliveryControlStatusSchema = z.enum(DELIVERY_CONTROL_STATUSES);
 export type DeliveryControlStatus = z.infer<typeof DeliveryControlStatusSchema>;
 

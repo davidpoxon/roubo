@@ -47,7 +47,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "applied", "rejected"]
+          "enum": ["pending", "delivered", "applied", "rejected", "superseded"]
         }
       },
       "required": [
@@ -111,7 +111,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "applied", "rejected"]
+          "enum": ["pending", "delivered", "applied", "rejected", "superseded"]
         }
       },
       "required": [
@@ -179,7 +179,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "applied", "rejected"]
+          "enum": ["pending", "delivered", "applied", "rejected", "superseded"]
         }
       },
       "required": [
@@ -240,7 +240,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "applied", "rejected"]
+          "enum": ["pending", "delivered", "applied", "rejected", "superseded"]
         }
       },
       "required": [
@@ -299,7 +299,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "applied", "rejected"]
+          "enum": ["pending", "delivered", "applied", "rejected", "superseded"]
         }
       },
       "required": [
@@ -358,7 +358,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "applied", "rejected"]
+          "enum": ["pending", "delivered", "applied", "rejected", "superseded"]
         }
       },
       "required": [
@@ -417,7 +417,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "applied", "rejected"]
+          "enum": ["pending", "delivered", "applied", "rejected", "superseded"]
         }
       },
       "required": [
@@ -476,7 +476,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "applied", "rejected"]
+          "enum": ["pending", "delivered", "applied", "rejected", "superseded"]
         }
       },
       "required": [

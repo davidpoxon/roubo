@@ -178,7 +178,13 @@ describe("delivery control contract: generated schema", () => {
       expect(props.schemaVersion.const).toBe(DELIVERY_CONTROL_SCHEMA_VERSION);
       expect(option.required).toEqual(REQUIRED_FIELDS);
       expect(Object.keys(props)).toEqual(FIELD_ORDER);
-      expect(props.status.enum).toEqual(["pending", "applied", "rejected"]);
+      expect(props.status.enum).toEqual([
+        "pending",
+        "delivered",
+        "applied",
+        "rejected",
+        "superseded",
+      ]);
       // Loose: the option and its body keep an unknown key.
       expect(option.additionalProperties).toEqual({});
       expect(props.body.additionalProperties).toEqual({});
@@ -301,13 +307,19 @@ describe("delivery control contract: validation", () => {
     }
   });
 
-  it("accepts the three statuses and rejects any other at status", () => {
-    expect(DELIVERY_CONTROL_STATUSES).toEqual(["pending", "applied", "rejected"]);
+  it("accepts the five statuses, in outbox order, and rejects any other at status", () => {
+    expect(DELIVERY_CONTROL_STATUSES).toEqual([
+      "pending",
+      "delivered",
+      "applied",
+      "rejected",
+      "superseded",
+    ]);
     expect(DeliveryControlStatusSchema.options).toEqual(DELIVERY_CONTROL_STATUSES);
     for (const status of DELIVERY_CONTROL_STATUSES) {
       expect(validateDeliveryControl({ ...minimalControl, status }).ok, status).toBe(true);
     }
-    for (const status of ["", "delivered", "Pending", 1]) {
+    for (const status of ["", "expired", "Pending", 1]) {
       const result = validateDeliveryControl({ ...minimalControl, status });
       expect(result.ok, String(status)).toBe(false);
       if (!result.ok) {
@@ -408,11 +420,18 @@ describe("delivery control contract: compatibility", () => {
     const grown = { ...baseline, oneOf: [...options(baseline), ninth] };
     expect(classifySchemaChange(baseline, grown)).toEqual({
       change: "additive",
-      reasons: ["<root>: oneOf gained an option"],
+      reasons: ['<root>: oneOf gained the option kind="nudge"'],
     });
     expect(checkContractCompatibility(baseline, grown).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(grown, "patch")).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(grown, "minor")).ok).toBe(true);
+    // The options are matched by kind, so the same ninth kind in the middle
+    // of the oneOf is the same additive change, not a shift of the kinds after it.
+    const inserted = {
+      ...baseline,
+      oneOf: [...options(baseline).slice(0, 4), ninth, ...options(baseline).slice(4)],
+    };
+    expect(classifySchemaChange(baseline, inserted)).toEqual(classifySchemaChange(baseline, grown));
   });
 
   it("a status gained or an optional body field added is additive and needs a minor bump", () => {
@@ -432,9 +451,11 @@ describe("delivery control contract: compatibility", () => {
     };
     const report = classifySchemaChange(baseline, grown);
     expect(report.change).toBe("additive");
-    expect(report.reasons).toContain("<root>.oneOf.0.body.reason: new optional property");
-    expect(report.reasons).toContain("<root>.oneOf.0.status: enum gained a value");
-    expect(report.reasons).toContain("<root>.oneOf.7.status: enum gained a value");
+    expect(report.reasons).toContain(
+      "<root>.oneOf.decision-answer.body.reason: new optional property",
+    );
+    expect(report.reasons).toContain("<root>.oneOf.decision-answer.status: enum gained a value");
+    expect(report.reasons).toContain("<root>.oneOf.approval.status: enum gained a value");
     expect(checkContractCompatibility(baseline, grown).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(grown, "minor")).ok).toBe(true);
   });
@@ -442,7 +463,10 @@ describe("delivery control contract: compatibility", () => {
   it("losing a kind, a status or requiring target_id is breaking and needs a major bump", () => {
     const baseline = baselineSchema();
     const lost = { ...baseline, oneOf: options(baseline).filter((_, i) => i !== 1) };
-    expect(classifySchemaChange(baseline, lost).change).toBe("breaking");
+    expect(classifySchemaChange(baseline, lost)).toEqual({
+      change: "breaking",
+      reasons: ['<root>: oneOf lost the option kind="overturn"'],
+    });
     expect(checkContractCompatibility(baseline, bumped(lost, "minor")).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(lost, "major")).ok).toBe(true);
 
@@ -455,7 +479,7 @@ describe("delivery control contract: compatibility", () => {
           ...first,
           properties: {
             ...props,
-            status: { ...props.status, enum: ["pending", "applied"] },
+            status: { ...props.status, enum: ["pending", "delivered", "applied", "rejected"] },
           },
         },
         ...rest,
@@ -463,7 +487,7 @@ describe("delivery control contract: compatibility", () => {
     };
     expect(classifySchemaChange(baseline, lostStatus)).toEqual({
       change: "breaking",
-      reasons: ['<root>.oneOf.0.status: enum lost "rejected"'],
+      reasons: ['<root>.oneOf.decision-answer.status: enum lost "superseded"'],
     });
 
     const nowRequired = {
