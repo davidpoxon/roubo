@@ -12,6 +12,7 @@ import {
 } from "../scripts/contract-compatibility.js";
 import { scanFiles } from "../scripts/agent-identifier-guard.mjs";
 import {
+  COPY_FILE_MODES,
   STATE_RECIPE_SCHEMA_ID,
   STATE_RECIPE_SCHEMA_VERSION,
   STATE_RECIPE_STEP_KINDS,
@@ -84,6 +85,8 @@ const REQUIRED_FIELDS = [
   "observation",
 ];
 
+// One step of each kind with only its required fields: a recipe written before
+// the optional fields existed must still validate.
 const commandStep = { kind: "command", command: "npm run build" };
 const copyFileStep = {
   kind: "copy-file",
@@ -98,6 +101,23 @@ const httpStep = {
   body: '{"name":"demo"}',
 };
 const openUrlStep = { kind: "open-url", url: "http://127.0.0.1:4100/benches/demo" };
+
+// The same steps with every optional field of 1.0.0 filled in.
+const richCommandStep = {
+  ...commandStep,
+  cwd: "client",
+  env: { CI: "1" },
+  timeoutMs: 120000,
+  expectedExitCode: 0,
+};
+const richCopyFileStep = { ...copyFileStep, mode: "create-only" };
+const richHttpStep = { ...httpStep, timeoutMs: 5000, expectedStatus: 201 };
+const richObservation = {
+  description: "The bench list shows one bench named demo.",
+  url: "http://127.0.0.1:4100/benches",
+  path: ".roubo/benches/demo.yaml",
+  selector: "[data-bench-name='demo']",
+};
 
 const recipe = {
   $schema: STATE_RECIPE_SCHEMA_ID,
@@ -137,6 +157,48 @@ describe("state recipe contract: generated schema", () => {
     expect(kinds).toEqual(["command", "copy-file", "http", "open-url"]);
     expect(STATE_RECIPE_STEP_KINDS).toEqual(kinds);
   });
+
+  it("renders each step kind's richer fields as optional, and the observation's locations", async () => {
+    const live = await liveSchema();
+    const props = live.properties as Record<string, JsonSchema>;
+    const options = (props.steps.items as JsonSchema).oneOf as JsonSchema[];
+    const fields = (o: JsonSchema) => Object.keys(o.properties as JsonSchema);
+    const [command, copyFile, http, openUrl] = options;
+    expect(fields(command)).toEqual([
+      "kind",
+      "command",
+      "cwd",
+      "env",
+      "timeoutMs",
+      "expectedExitCode",
+    ]);
+    expect(command.required).toEqual(["kind", "command"]);
+    expect(fields(copyFile)).toEqual(["kind", "from", "to", "mode"]);
+    expect(copyFile.required).toEqual(["kind", "from", "to"]);
+    const copyFileProps = copyFile.properties as Record<string, JsonSchema>;
+    expect(copyFileProps.mode.enum).toEqual(COPY_FILE_MODES);
+    expect(fields(http)).toEqual([
+      "kind",
+      "method",
+      "url",
+      "headers",
+      "body",
+      "timeoutMs",
+      "expectedStatus",
+    ]);
+    expect(http.required).toEqual(["kind", "method", "url"]);
+    expect(fields(openUrl)).toEqual(["kind", "url"]);
+    for (const option of options) expect(option.additionalProperties).toEqual({});
+
+    expect(Object.keys(props.observation.properties as JsonSchema)).toEqual([
+      "description",
+      "url",
+      "path",
+      "selector",
+    ]);
+    expect(props.observation.required).toEqual(["description"]);
+    expect(props.observation.additionalProperties).toEqual({});
+  });
 });
 
 describe("state recipe contract: validation", () => {
@@ -157,6 +219,62 @@ describe("state recipe contract: validation", () => {
   it("accepts an empty requires list and an empty steps list", () => {
     const result = validateStateRecipe({ ...recipe, requires: [], steps: [] });
     expect(result.ok).toBe(true);
+  });
+
+  it("accepts the richer optional step fields and the observation's locations", () => {
+    const result = validateStateRecipe({
+      ...recipe,
+      steps: [richCommandStep, richCopyFileStep, richHttpStep, openUrlStep],
+      observation: richObservation,
+    });
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    if (result.ok) {
+      expect(result.data.steps[0]).toEqual(richCommandStep);
+      expect(result.data.steps[1]).toEqual(richCopyFileStep);
+      expect(result.data.steps[2]).toEqual(richHttpStep);
+      expect(result.data.observation).toEqual(richObservation);
+    }
+    for (const mode of COPY_FILE_MODES) {
+      const step = { ...copyFileStep, mode };
+      expect(validateStateRecipe({ ...recipe, steps: [step] }).ok, mode).toBe(true);
+    }
+  });
+
+  it("rejects an out-of-range optional field at the step's index and field", () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [{ ...commandStep, timeoutMs: 0 }, "steps.0.timeoutMs:"],
+      [{ ...commandStep, timeoutMs: 1.5 }, "steps.0.timeoutMs:"],
+      [{ ...commandStep, expectedExitCode: -1 }, "steps.0.expectedExitCode:"],
+      [{ ...commandStep, expectedExitCode: 256 }, "steps.0.expectedExitCode:"],
+      [{ ...copyFileStep, mode: "append" }, "steps.0.mode:"],
+      [{ ...copyFileStep, mode: "" }, "steps.0.mode:"],
+      [{ ...httpStep, timeoutMs: "5s" }, "steps.0.timeoutMs:"],
+      [{ ...httpStep, expectedStatus: 99 }, "steps.0.expectedStatus:"],
+      [{ ...httpStep, expectedStatus: 600 }, "steps.0.expectedStatus:"],
+      [{ ...httpStep, expectedStatus: "201" }, "steps.0.expectedStatus:"],
+    ];
+    for (const [step, prefix] of cases) {
+      const result = validateStateRecipe({ ...recipe, steps: [step] });
+      expect(result.ok, prefix).toBe(false);
+      if (!result.ok) {
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].startsWith(prefix), result.errors[0]).toBe(true);
+      }
+    }
+  });
+
+  it("rejects an observation location that is not a URL or is empty", () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [{ ...richObservation, url: "benches" }, "observation.url:"],
+      [{ ...richObservation, path: "" }, "observation.path:"],
+      [{ ...richObservation, selector: "" }, "observation.selector:"],
+      [{ ...richObservation, selector: 7 }, "observation.selector:"],
+    ];
+    for (const [observation, prefix] of cases) {
+      const result = validateStateRecipe({ ...recipe, observation });
+      expect(result.ok, prefix).toBe(false);
+      if (!result.ok) expect(result.errors).toEqual([expect.stringMatching(`^${prefix}`)]);
+    }
   });
 
   it("requires every field, with a field-named error for each", () => {
@@ -235,14 +353,14 @@ describe("state recipe contract: validation", () => {
     const result = validateStateRecipe({
       ...recipe,
       recorded_at: "2026-10-16T09:00:00Z",
-      steps: [{ ...commandStep, timeout_ms: 5000 }],
-      observation: { ...recipe.observation, url: "http://127.0.0.1:4100/benches" },
+      steps: [{ ...commandStep, retries: 2 }],
+      observation: { ...recipe.observation, note: "Scroll down when the list is long." },
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.recorded_at).toBe("2026-10-16T09:00:00Z");
-      expect(result.data.steps[0].timeout_ms).toBe(5000);
-      expect(result.data.observation.url).toBe("http://127.0.0.1:4100/benches");
+      expect(result.data.steps[0].retries).toBe(2);
+      expect(result.data.observation.note).toBe("Scroll down when the list is long.");
     }
   });
 
@@ -292,41 +410,66 @@ describe("state recipe contract: compatibility", () => {
     expect(report.ok, `${report.message}\n${report.reasons.join("\n")}`).toBe(true);
   });
 
-  it("an optional field on a step is additive and needs a minor bump", () => {
-    const baseline = baselineSchema();
+  // The baseline with its step options replaced.
+  function withSteps(baseline: JsonSchema, oneOf: JsonSchema[]): JsonSchema {
     const props = baseline.properties as Record<string, JsonSchema>;
     const items = props.steps.items as JsonSchema;
-    const options = items.oneOf as JsonSchema[];
-    const [command, ...rest] = options;
-    const grown = {
+    return {
       ...baseline,
-      properties: {
-        ...props,
-        steps: {
-          ...props.steps,
-          items: {
-            ...items,
-            oneOf: [
-              {
-                ...command,
-                properties: {
-                  ...(command.properties as JsonSchema),
-                  timeout_ms: { type: "integer" },
-                },
-              },
-              ...rest,
-            ],
-          },
-        },
-      },
+      properties: { ...props, steps: { ...props.steps, items: { ...items, oneOf } } },
     };
+  }
+  function stepOptions(baseline: JsonSchema): JsonSchema[] {
+    const props = baseline.properties as Record<string, JsonSchema>;
+    return (props.steps.items as JsonSchema).oneOf as JsonSchema[];
+  }
+
+  it("an optional field on a step is additive and needs a minor bump", () => {
+    const baseline = baselineSchema();
+    const [command, ...rest] = stepOptions(baseline);
+    const grown = withSteps(baseline, [
+      {
+        ...command,
+        properties: { ...(command.properties as JsonSchema), retries: { type: "integer" } },
+      },
+      ...rest,
+    ]);
     expect(classifySchemaChange(baseline, grown)).toEqual({
       change: "additive",
-      reasons: ["steps[].oneOf.0.timeout_ms: new optional property"],
+      reasons: ["steps[].oneOf.command.retries: new optional property"],
     });
     expect(checkContractCompatibility(baseline, grown).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(grown, "patch")).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(grown, "minor")).ok).toBe(true);
+  });
+
+  it("a fifth step kind is additive wherever it sits in the oneOf; a lost kind is breaking", () => {
+    const baseline = baselineSchema();
+    const steps = stepOptions(baseline);
+    const wait = {
+      type: "object",
+      properties: { kind: { type: "string", const: "wait" }, seconds: { type: "integer" } },
+      required: ["kind", "seconds"],
+      additionalProperties: {},
+    };
+    const expected = {
+      change: "additive",
+      reasons: ['steps[]: oneOf gained the option kind="wait"'],
+    };
+    expect(classifySchemaChange(baseline, withSteps(baseline, [...steps, wait]))).toEqual(expected);
+    expect(
+      classifySchemaChange(baseline, withSteps(baseline, [steps[0], wait, ...steps.slice(1)])),
+    ).toEqual(expected);
+    const appended = bumped(withSteps(baseline, [...steps, wait]), "minor");
+    expect(checkContractCompatibility(baseline, appended).ok).toBe(true);
+
+    const lost = withSteps(baseline, steps.filter((_, i) => i !== 1));
+    expect(classifySchemaChange(baseline, lost)).toEqual({
+      change: "breaking",
+      reasons: ['steps[]: oneOf lost the option kind="copy-file"'],
+    });
+    expect(checkContractCompatibility(baseline, bumped(lost, "minor")).ok).toBe(false);
+    expect(checkContractCompatibility(baseline, bumped(lost, "major")).ok).toBe(true);
   });
 
   it("removing requires is breaking and needs a major bump", () => {
