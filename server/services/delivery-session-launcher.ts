@@ -4,14 +4,18 @@
 //   launch  Once the bench workspace exists, mint a delivery token, build the
 //           launch descriptor and pass it to the agent launch executor, which
 //           starts the main delivery session in the bench workspace.
-//   attach  Adopt the delivery whose record is already in the spec folder, and
-//           launch nothing. The token of the session that already runs the
-//           delivery is minted on request, by POST /delivery/attach, which
-//           hands that session's operator the descriptor with the plain token.
+//   attach  Adopt the delivery whose record is already in the spec folder of
+//           the bench workspace, and launch nothing. The token of the session
+//           that already runs the delivery is minted on request, by POST
+//           /delivery/attach, which hands that session's operator the
+//           descriptor with the plain token.
 //   resume  Launch again with the record's resume argument, on a fresh token.
+//   launch  again, by POST /delivery/launch: a launch-mode bench with no record
+//           yet launches with no resume argument, so a create-time launch that
+//           failed can be tried again.
 //
 // One main session per bench: the bench keeps the id of the session it last
-// launched as `deliverySessionId`, and neither a resume nor an attach handout
+// launched as `deliverySessionId`, and no launch again, resume or attach handout
 // goes ahead while that session is live, while a launch is in flight, or while
 // the bench is clearing or in error (deliveryLaunchBlock). A new mint revokes
 // the token before it, so going ahead then would cut off the live session.
@@ -238,7 +242,9 @@ const bindings = new Map<string, Promise<void>>();
  * provisioned: launch mode launches, attach mode launches nothing and mints
  * nothing (its token is minted when POST /delivery/attach hands it out). A
  * launch that fails leaves a notification on the bench; it never fails the
- * create, which has already answered.
+ * create, which has already answered. Cleanup & Retry calls it again for the
+ * re-provisioned workspace, and POST /delivery/launch tries a failed launch
+ * again.
  */
 export function bindDeliveryOnCreate(bench: Bench): Promise<void> {
   const k = bindingKey(bench.projectId, bench.id);

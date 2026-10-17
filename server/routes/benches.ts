@@ -378,6 +378,10 @@ router.post("/:projectId/benches/:id/cleanup-and-retry", async (req, res) => {
     const benchId = parseIntParam(req.params.id, "bench id");
     const bench = await benchManager.cleanupAndRetryBench(req.params.projectId, benchId);
     res.json(bench);
+    // The retry re-provisions the workspace from scratch, so a Spec Bench binds
+    // to its delivery again once it exists: launch mode starts the session that
+    // the failed round never started (SB-FR-002).
+    if (bench.variant === "specbench") void bindDeliveryOnCreate(bench);
   } catch (err) {
     if (err instanceof RouteError) {
       res.status(err.statusCode).json({ error: err.message });

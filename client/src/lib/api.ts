@@ -561,6 +561,19 @@ export function resumeDelivery(
   });
 }
 
+// A launch-mode bench with no record yet launches its session again, with no
+// resume argument (the create-time launch failed, or the session ended before
+// it wrote the record).
+export function launchDelivery(
+  projectId: string,
+  benchId: number,
+): Promise<{ sessionId?: string }> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/launch`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 /** The named read error of a delivery record, when an error carries one. */
 export function deliveryReadErrorOf(err: unknown): DeliveryReadError | undefined {
   if (!(err instanceof ApiError)) return undefined;

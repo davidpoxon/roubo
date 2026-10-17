@@ -21,6 +21,7 @@ import {
 //
 //   GET  <base>          the folded snapshot, or a named read error
 //   POST <base>/events   one event from the delivery session (bearer token)
+//   POST <base>/launch   launch a launch-mode bench's session again while it has no record
 //   POST <base>/resume   launch the session again with the record's resume argument
 //   <base>/controls      the control outbox the session reads; its route comes
 //                        with the control outbox, the descriptor names it now
@@ -28,6 +29,7 @@ export interface DeliveryRoutePaths {
   base: string;
   events: string;
   controls: string;
+  launch: string;
   resume: string;
 }
 
@@ -37,6 +39,7 @@ export function deliveryRoutePaths(projectId: string, benchId: number): Delivery
     base,
     events: `${base}/events`,
     controls: `${base}/controls`,
+    launch: `${base}/launch`,
     resume: `${base}/resume`,
   };
 }
@@ -81,7 +84,8 @@ export function buildDeliveryLaunchDescriptor(
 
 // ── Record file ──
 
-// The record's file name inside the spec folder `.specifications/<slug>/`.
+// The record's file name inside the spec folder `.specifications/<slug>/` of the
+// bench workspace.
 export const DELIVERY_RECORD_FILE = "delivery-observation.json";
 
 // The required sections of a record, in the order SB-FR-005 and SB-FR-040 name
@@ -105,7 +109,7 @@ export type DeliveryRecordSection = (typeof DELIVERY_RECORD_SECTIONS)[number];
 
 // ── Read errors ──
 //
-//   DELIVERY_RECORD_MISSING    no record in the spec folder yet
+//   DELIVERY_RECORD_MISSING    no record in the workspace's spec folder yet
 //   DELIVERY_VERSION_MISMATCH  the record is at a contract major this reader does not know
 //   DELIVERY_NONCONFORMANT     a required section is missing (`section` names it)
 //   DELIVERY_INVALID           a field fails the record schema (`field` names the first)
