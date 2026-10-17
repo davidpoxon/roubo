@@ -16,7 +16,10 @@
 // The session writes the delivery record to `.specifications/<slug>/` inside the
 // bench workspace, and the workspace goes when the bench is cleared or retried.
 // So before it goes, the record is copied into the focused spec folder of the
-// project checkout, which keeps it (SB-FR-004). That one file is the only thing
+// project checkout, which keeps it (SB-FR-004). The copy goes only when the
+// workspace record is at least as new as the checkout's, so a newer checkout
+// record (one an attached session wrote) is never overwritten by the workspace
+// copy seeded from it. That one file is the only thing
 // written there, and nothing is ever removed from that folder: test-results.json
 // in it belongs to the checkout and outlives the bench.
 import fs from "node:fs";

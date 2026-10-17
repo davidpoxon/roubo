@@ -7,7 +7,8 @@
 // The checkout's spec folder keeps the durable copy (SB-FR-004): the bench
 // never deletes the record. Before Clear bench or Cleanup & Retry removes the
 // workspace, preserveDeliveryRecord copies the workspace record into the
-// checkout's spec folder; when a workspace is provisioned for attach mode, or
+// checkout's spec folder, unless the checkout's record is newer (an attached
+// session that writes the checkout's record keeps its later writes); when a workspace is provisioned for attach mode, or
 // re-provisioned by Cleanup & Retry, seedWorkspaceDeliveryRecord copies the
 // checkout's record into a workspace that has none. Every read still goes to the
 // workspace.
@@ -154,9 +155,18 @@ function isFile(filePath: string): boolean {
 /**
  * Copies the record from the workspace into the checkout's spec folder, so it
  * outlives the workspace. Copies that one file and removes nothing. Returns
- * true when a record was copied, false when the workspace holds none or a path
- * is unsafe (the loader would never have read that record). A failed copy
- * throws, so the caller keeps the workspace rather than lose the record.
+ * true when a record was copied, false when the workspace holds none, a path
+ * is unsafe (the loader would never have read that record), or the checkout's
+ * record is newer. A failed copy throws, so the caller keeps the workspace
+ * rather than lose the record.
+ *
+ * The copy goes only when the workspace record is at least as new as the
+ * checkout's (by mtime). In attach mode the session that already runs the
+ * delivery keeps writing the checkout's record, while the workspace holds the
+ * copy seeded at create time; copying that stale copy back would destroy the
+ * newer record. A seeded copy gets a fresh mtime from the copy, so it is never
+ * older than the checkout original it came from, and copying it back on
+ * teardown rewrites the same content.
  */
 export function preserveDeliveryRecord(
   bench: Pick<Bench, "workspacePath" | "focusedSpecPath">,
@@ -173,6 +183,7 @@ export function preserveDeliveryRecord(
     if (err instanceof UnsafePathError) return false;
     throw err;
   }
+  if (isFile(target) && fs.statSync(target).mtimeMs > fs.statSync(source).mtimeMs) return false;
   fs.copyFileSync(source, target);
   return true;
 }
