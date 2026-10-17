@@ -567,6 +567,9 @@ const onDeliveryPlanned: EventHandler = (state, event) => {
       gates,
       provisionalAt: provisionalAtForGates(next.provisionalAt, next.gates, gates, event.ts),
     };
+    // The new list can add or drop an unconfirmed provisional gate, which
+    // moves what the review waits on.
+    next.review = settleReview(next, next.review);
   }
   if (isRecord(payload.budget)) {
     next = { ...next, budget: merge(next.budget, pickBudget(payload.budget)) };
@@ -817,23 +820,59 @@ const onDecisionDecided: EventHandler = (state, event) => {
     patch.review = { status: "unreviewed" } satisfies DecisionReview;
   }
   const decision = merge(current, patch as Partial<DeliveryDecision>);
+  if (author !== AGENT_AUTHOR) {
+    // A named author's choice supersedes an earlier agent choice whole: the
+    // agent's review state and rationale no longer describe this decision, so
+    // the decision leaves the review stack and the unreviewed list together.
+    delete decision.review;
+    if (typeof payload.rationale !== "string") delete decision.rationale;
+  }
   const next = { ...state, decisionsById: { ...state.decisionsById } };
   setOwnValue(next.decisionsById, id, decision);
-  if (author === AGENT_AUTHOR && !state.review.unreviewed.includes(id)) {
+  const listed = state.review.unreviewed.includes(id);
+  if (author === AGENT_AUTHOR && !listed) {
     next.review = settleReview(next, {
       ...state.review,
       unreviewed: [...state.review.unreviewed, id],
+    });
+  } else if (author !== AGENT_AUTHOR && listed) {
+    next.review = settleReview(next, {
+      ...state.review,
+      unreviewed: state.review.unreviewed.filter((entry) => entry !== id),
     });
   }
   return next;
 };
 
+// The unreviewed list the review section carries, brought into line with the
+// decisions: the ids of `listed` that name an unreviewed agent decision, in the
+// order given, then every other unreviewed agent decision in snapshot order. An
+// id that names no such decision is dropped, so the list and the review stack
+// (see `selectReviewStack`) always name the same decisions.
+function reconcileUnreviewed(state: FoldState, listed: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const id of listed) {
+    const decision = ownValue(state.decisionsById, id);
+    if (decision !== undefined && isUnreviewedAgentDecision(decision) && !out.includes(id)) {
+      out.push(id);
+    }
+  }
+  for (const decision of Object.values(state.decisionsById)) {
+    if (isUnreviewedAgentDecision(decision) && !out.includes(decision.id)) {
+      out.push(decision.id);
+    }
+  }
+  return out;
+}
+
 const onReviewOpened: EventHandler = (state, event) => {
   const payload = event.payload as ReviewOpenedPayload;
   const review: DeliveryReview = { ...state.review, status: "open" };
   if (isString(payload.trigger)) review.trigger = payload.trigger;
-  if (isStringArray(payload.unreviewed)) review.unreviewed = [...payload.unreviewed];
-  return { ...state, review };
+  const listed = isStringArray(payload.unreviewed) ? payload.unreviewed : state.review.unreviewed;
+  review.unreviewed = reconcileUnreviewed(state, listed);
+  // An opened review with nothing to review settles at once.
+  return { ...state, review: settleReview(state, review) };
 };
 
 const onReviewOutcome: EventHandler = (state, event) => {
