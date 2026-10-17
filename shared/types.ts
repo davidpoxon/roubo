@@ -1645,6 +1645,54 @@ export interface CapabilityQueryResult {
   introducedIn?: string;
 }
 
+/**
+ * The bench variants a create request may name. Absent means a normal bench.
+ * `testbench` binds a focused spec's test plan for review; `specbench` binds a
+ * spec folder for a delivery (SB-FR-001). Any other value is rejected at the
+ * create route with a 400 naming the `variant` field.
+ */
+export const BENCH_VARIANTS = ["testbench", "specbench"] as const;
+export type BenchVariant = (typeof BENCH_VARIANTS)[number];
+
+export function isBenchVariant(value: unknown): value is BenchVariant {
+  return typeof value === "string" && (BENCH_VARIANTS as readonly string[]).includes(value);
+}
+
+/**
+ * How a Spec Bench binds to its delivery: `launch` starts a new delivery for
+ * the focused spec, `attach` joins one that is already running.
+ */
+export const SPEC_BENCH_BIND_MODES = ["launch", "attach"] as const;
+export type SpecBenchBindMode = (typeof SPEC_BENCH_BIND_MODES)[number];
+
+/** The `delivery` body of a Spec Bench create request. */
+export interface SpecBenchDeliveryRequest {
+  mode: SpecBenchBindMode;
+}
+
+/**
+ * The extra worktree a Spec Bench checks out at a gate's stack head while a
+ * gate sitting is open, so its components run against the code under review.
+ * Clear bench removes it before anything else (SB-TC-005).
+ */
+export interface BenchGatePin {
+  /** The gate the pin was opened for. */
+  gateId: string;
+  /** Absolute path of the pin worktree. Vetted by the safe-path allowlist on load. */
+  workspacePath: string;
+  /** The commit the pin checks out, when known. */
+  commit?: string;
+  createdAt: string;
+}
+
+/** The gate sitting a Spec Bench has open, and the session that runs it. */
+export interface BenchDeliverySitting {
+  gateId: string;
+  /** The terminal session of the sitting, stopped by Clear bench after the pin. */
+  sessionId?: string;
+  openedAt: string;
+}
+
 export interface Bench {
   id: number;
   projectId: string;
@@ -1684,17 +1732,32 @@ export interface Bench {
   /**
    * Bench variant discriminator. Absent (`undefined`) means a normal bench;
    * `'testbench'` marks a TestBench variant, which surfaces the TestBench tab
-   * and binds a focused spec. Normal benches never carry this field, so they
-   * are unaffected by TestBench behaviour.
+   * and binds a focused spec; `'specbench'` marks a Spec Bench, which binds a
+   * spec folder for a delivery and surfaces the Delivery tab. Normal benches
+   * never carry this field, so they are unaffected by either variant.
    */
-  variant?: "testbench";
+  variant?: BenchVariant;
   /**
-   * Absolute path to the spec the TestBench is currently focused on. Mutable
-   * and re-pointable: a TestBench can be retargeted at a different spec over
-   * its lifetime. Only meaningful when `variant === 'testbench'`. Re-validated
+   * Absolute path to the spec the bench is focused on. For a TestBench it is
+   * the spec's `test-cases.json`, mutable and re-pointable: a TestBench can be
+   * retargeted at a different spec over its lifetime, and it is re-validated
    * with resolveWithin when loaded (enforcement lives in the testbench store).
+   * For a Spec Bench it is the spec folder `.specifications/<slug>` in the
+   * project checkout. Absent on a normal bench.
    */
   focusedSpecPath?: string;
+  /** Spec Bench only: how the bench binds to its delivery. */
+  deliveryBindMode?: SpecBenchBindMode;
+  /** Spec Bench only: the pin worktree of the open gate sitting, if any. */
+  gatePin?: BenchGatePin;
+  /** Spec Bench only: hash of the token the delivery session presents. */
+  deliveryTokenHash?: string;
+  /** Spec Bench only: the open gate sitting, if any. */
+  deliverySitting?: BenchDeliverySitting;
+  /** Spec Bench only: the last delivery event `seq` the operator viewed. */
+  deliveryLastViewedSeq?: number;
+  /** Spec Bench only: when the delivery was first seen blocking (ISO-8601). */
+  deliveryFirstSeenBlocking?: string;
   /**
    * Whether the bench-level setup command (`benches.setup`) has already run to
    * completion for this bench. `benches.setup` is documented as running once
@@ -1948,16 +2011,20 @@ export interface CreateBenchRequest {
   externalId?: string;
   branchConflictResolution?: "resume" | "new";
   /**
-   * TestBench variant discriminator. When `'testbench'`, the create path ignores
-   * issue/branch coupling and instead binds the bench to `focusedSpecPath`.
+   * Bench variant discriminator. When `'testbench'` or `'specbench'`, the
+   * create path ignores issue/branch coupling and instead binds the bench to
+   * `focusedSpecPath`. Any other value is a 400 naming `variant`.
    */
-  variant?: "testbench";
+  variant?: BenchVariant;
   /**
-   * Absolute (or repo-relative) path to the focused spec's `test-cases.json`.
-   * Required when `variant === 'testbench'`; validated for containment against
-   * the project repo server-side.
+   * Absolute (or repo-relative) path to the focused spec: its `test-cases.json`
+   * for a TestBench, or its folder `.specifications/<slug>` for a Spec Bench.
+   * Required for both variants; validated for containment against the project
+   * repo server-side.
    */
   focusedSpecPath?: string;
+  /** Required when `variant === 'specbench'`: how the bench binds to its delivery. */
+  delivery?: SpecBenchDeliveryRequest;
   /**
    * The app theme the client is showing, with `system` already resolved. With
    * `externalId`, the agent this request starts gets it as a theme hint (#1383).
@@ -1998,15 +2065,27 @@ export interface PersistedBench {
   injectedJigSource?: JigDefaultSource;
   /**
    * Persisted mirror of Bench.variant. Absent means a normal bench;
-   * `'testbench'` marks a TestBench variant.
+   * `'testbench'` marks a TestBench variant and `'specbench'` a Spec Bench.
    */
-  variant?: "testbench";
+  variant?: BenchVariant;
   /**
    * Persisted mirror of Bench.focusedSpecPath: the absolute path to the spec
-   * the TestBench is focused on. Mutable and re-pointable across reboots. Only
-   * meaningful when `variant === 'testbench'`.
+   * the bench is focused on. Mutable and re-pointable across reboots for a
+   * TestBench. Absent on a normal bench.
    */
   focusedSpecPath?: string;
+  /** Persisted mirror of Bench.deliveryBindMode. Spec Bench only. */
+  deliveryBindMode?: SpecBenchBindMode;
+  /** Persisted mirror of Bench.gatePin. Spec Bench only. */
+  gatePin?: BenchGatePin;
+  /** Persisted mirror of Bench.deliveryTokenHash. Spec Bench only. */
+  deliveryTokenHash?: string;
+  /** Persisted mirror of Bench.deliverySitting. Spec Bench only. */
+  deliverySitting?: BenchDeliverySitting;
+  /** Persisted mirror of Bench.deliveryLastViewedSeq. Spec Bench only. */
+  deliveryLastViewedSeq?: number;
+  /** Persisted mirror of Bench.deliveryFirstSeenBlocking. Spec Bench only. */
+  deliveryFirstSeenBlocking?: string;
   /**
    * Persisted mirror of `bench.components[name].setupComplete`, keyed by
    * component name. Components themselves are runtime-only; only this flag
