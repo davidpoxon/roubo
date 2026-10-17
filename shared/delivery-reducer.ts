@@ -332,7 +332,7 @@ function indexById<T extends { id: string }>(items: readonly T[]): Record<string
 // Copy the defined keys of `patch` over `base`, dropping `undefined` so a sparse
 // payload never erases a field.
 function merge<T extends object>(base: T, patch: Partial<T>): T {
-  const out: Record<string, unknown> = { ...base };
+  const out = { ...base } as Record<string, unknown>;
   for (const [key, value] of Object.entries(patch)) {
     if (value !== undefined) {
       out[key] = value;
