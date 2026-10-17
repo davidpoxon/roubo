@@ -46,6 +46,7 @@ import {
   AGENT_AUTHOR,
   DECISION_REVIEW_STATUSES,
   DELIVERY_MODES,
+  GATE_PROVISIONAL_STATUS,
   PROVISIONAL_MARKS,
   type DecisionReview,
   type DeliveryBudget,
@@ -283,11 +284,18 @@ export function isUnreviewedAgentDecision(decision: DeliveryDecision): boolean {
   );
 }
 
-// A provisional gate the operator has not confirmed in full: it is flagged
-// provisional and at least one of its marks is unconfirmed (a provisional gate
+// A gate is provisional when its status word is `provisional`: the session
+// judged it while the operator was away (SB-FR-040). The status is the one key;
+// `provisionalCases` carries the marks but does not make a gate provisional.
+export function isProvisionalGate(gate: DeliveryGate): boolean {
+  return gate.status === GATE_PROVISIONAL_STATUS;
+}
+
+// A provisional gate the operator has not confirmed in full: its status is
+// `provisional` and at least one of its marks is unconfirmed (a provisional gate
 // with no marks listed counts as unconfirmed).
 export function isUnconfirmedProvisionalGate(gate: DeliveryGate): boolean {
-  if (gate.provisional !== true) return false;
+  if (!isProvisionalGate(gate)) return false;
   const cases = gate.provisionalCases ?? [];
   return cases.length === 0 || cases.some((entry) => !entry.confirmed);
 }
@@ -406,7 +414,6 @@ export interface ReviewReplyPayload extends ReadBackPayload {
 export interface GateProvisionalPayload extends ReadBackPayload {
   gate_id?: string;
   cases?: Array<Partial<ProvisionalCase>>;
-  status?: string;
 }
 
 export interface GateConfirmedPayload extends ReadBackPayload {
@@ -429,7 +436,9 @@ interface FoldState {
   unitsById: Record<string, DeliveryUnit>;
   stacks: Record<string, string[]>;
   gates: DeliveryGate[];
-  // Gate id to the time it became provisional (see DeliveryGateView).
+  // Gate id to the time it became provisional (see DeliveryGateView). Holds an
+  // entry for a gate while its status is `provisional` and no longer: every
+  // handler that moves a gate's status passes through `trackProvisionalAt`.
   provisionalAt: Record<string, string>;
   decisionsById: Record<string, DeliveryDecision>;
   threadsByDecisionId: Record<string, DeliveryThreadMessage[]>;
@@ -501,6 +510,47 @@ function looksLikeGate(value: unknown): value is DeliveryGate {
   );
 }
 
+// The `provisionalAt` table after one gate moved from `before` to `after` at
+// `ts`: a gate that became provisional is dated `ts`, a gate that left the
+// provisional status loses its entry, and any other move keeps the table. A
+// `gate.provisional` event re-dates a gate that already was provisional, so it
+// passes `before` as undefined. Returns the same table when nothing changed.
+function trackProvisionalAt(
+  provisionalAt: Record<string, string>,
+  before: DeliveryGate | undefined,
+  after: DeliveryGate,
+  ts: string,
+): Record<string, string> {
+  const wasProvisional = before !== undefined && isProvisionalGate(before);
+  if (isProvisionalGate(after)) {
+    if (wasProvisional) return provisionalAt;
+    const next = { ...provisionalAt };
+    setOwnValue(next, after.id, ts);
+    return next;
+  }
+  if (!Object.hasOwn(provisionalAt, after.id)) return provisionalAt;
+  return Object.fromEntries(Object.entries(provisionalAt).filter(([id]) => id !== after.id));
+}
+
+// The `provisionalAt` table for a gate list that replaced the current one: a
+// gate that stays provisional keeps its time, a gate that is provisional now and
+// was not (or did not exist) is dated `ts`, and every other entry is dropped.
+function provisionalAtForGates(
+  provisionalAt: Record<string, string>,
+  before: readonly DeliveryGate[],
+  after: readonly DeliveryGate[],
+  ts: string,
+): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const gate of after) {
+    if (!isProvisionalGate(gate)) continue;
+    const previous = before.find((entry) => entry.id === gate.id);
+    const kept = previous !== undefined && isProvisionalGate(previous);
+    setOwnValue(next, gate.id, (kept ? ownValue(provisionalAt, gate.id) : undefined) ?? ts);
+  }
+  return next;
+}
+
 const onDeliveryPlanned: EventHandler = (state, event) => {
   const payload = event.payload as DeliveryPlannedPayload;
   let next = state;
@@ -511,7 +561,12 @@ const onDeliveryPlanned: EventHandler = (state, event) => {
     next = { ...next, stacks: { ...(payload.stacks as Record<string, string[]>) } };
   }
   if (Array.isArray(payload.gates) && payload.gates.every(looksLikeGate)) {
-    next = { ...next, gates: [...payload.gates] };
+    const gates = [...payload.gates];
+    next = {
+      ...next,
+      gates,
+      provisionalAt: provisionalAtForGates(next.provisionalAt, next.gates, gates, event.ts),
+    };
   }
   if (isRecord(payload.budget)) {
     next = { ...next, budget: merge(next.budget, pickBudget(payload.budget)) };
@@ -568,9 +623,17 @@ const onGateChanged: EventHandler = (state, event) => {
   if (isStringArray(payload.cases)) patch.cases = payload.cases;
   if (isStringArray(payload.after) && payload.after.length > 0) patch.after = payload.after;
   if (Object.keys(patch).length === 0) return state;
+  const before = state.gates[index];
   const gates = [...state.gates];
-  gates[index] = merge(state.gates[index], patch);
-  return { ...state, gates };
+  gates[index] = merge(before, patch);
+  const next = {
+    ...state,
+    gates,
+    provisionalAt: trackProvisionalAt(state.provisionalAt, before, gates[index], event.ts),
+  };
+  // A status word alone can move a gate into or out of the provisional state.
+  next.review = settleReview(next, state.review);
+  return next;
 };
 
 const onDecisionRaised: EventHandler = (state, event) => {
@@ -780,18 +843,18 @@ const onReviewOutcome: EventHandler = (state, event) => {
   const current = ownValue(state.decisionsById, id);
   if (current === undefined) return state;
   const status = payload.status;
-  if (
-    !isString(status) ||
-    !DECISION_REVIEW_STATUS_VALUES.has(status) ||
-    status === "unreviewed"
-  ) {
+  if (!isString(status) || !DECISION_REVIEW_STATUS_VALUES.has(status) || status === "unreviewed") {
     return state;
   }
   const review: DecisionReview = { status: status as DecisionReview["status"] };
   if (isString(payload.reviewer)) review.reviewer = payload.reviewer;
   if (typeof payload.summary === "string") review.summary = payload.summary;
   const patch: Record<string, unknown> = { review };
-  if (status === "overturned" && isString(payload.chosen) && current.options.includes(payload.chosen)) {
+  if (
+    status === "overturned" &&
+    isString(payload.chosen) &&
+    current.options.includes(payload.chosen)
+  ) {
     patch.chosen = payload.chosen;
   }
   const decision = merge(current, patch as Partial<DeliveryDecision>);
@@ -846,43 +909,48 @@ const onGateProvisional: EventHandler = (state, event) => {
   }));
   const gates = [...state.gates];
   gates[index] = merge(state.gates[index], {
-    status: isString(payload.status) ? payload.status : "provisional",
-    provisional: true,
+    status: GATE_PROVISIONAL_STATUS,
     provisionalCases,
   });
-  const provisionalAt = { ...state.provisionalAt };
-  setOwnValue(provisionalAt, payload.gate_id, event.ts);
-  const next = { ...state, gates, provisionalAt };
+  // A gate judged again is dated from this event, so `before` is left out.
+  const next = {
+    ...state,
+    gates,
+    provisionalAt: trackProvisionalAt(state.provisionalAt, undefined, gates[index], event.ts),
+  };
   next.review = settleReview(next, state.review);
   return next;
 };
 
+// Applies to a gate whose status is `provisional` only: confirming a gate that
+// is not provisional is a no-op. Once every mark is confirmed the gate takes
+// the payload's status, else `confirmed`; while a mark is unconfirmed it stays
+// `provisional` unless the payload moves it.
 const onGateConfirmed: EventHandler = (state, event) => {
   const payload = event.payload as GateConfirmedPayload;
   if (!isString(payload.gate_id)) return state;
   const index = state.gates.findIndex((gate) => gate.id === payload.gate_id);
   if (index < 0) return state;
   const gate = state.gates[index];
-  if (gate.provisional !== true) return state;
+  if (!isProvisionalGate(gate)) return state;
   const named = isStringArray(payload.cases) ? new Set(payload.cases) : null;
   const provisionalCases = (gate.provisionalCases ?? []).map((entry) =>
     named === null || named.has(entry.case) ? { ...entry, confirmed: true } : entry,
   );
   const allConfirmed = provisionalCases.every((entry) => entry.confirmed);
-  const patch: Partial<DeliveryGate> = { provisionalCases, provisional: !allConfirmed };
+  const patch: Partial<DeliveryGate> = { provisionalCases };
   if (isString(payload.status)) {
     patch.status = payload.status;
-  } else if (allConfirmed && gate.status === "provisional") {
+  } else if (allConfirmed) {
     patch.status = "confirmed";
   }
   const gates = [...state.gates];
   gates[index] = merge(gate, patch);
-  const next = { ...state, gates };
-  if (allConfirmed) {
-    const provisionalAt = { ...state.provisionalAt };
-    delete provisionalAt[payload.gate_id];
-    next.provisionalAt = provisionalAt;
-  }
+  const next = {
+    ...state,
+    gates,
+    provisionalAt: trackProvisionalAt(state.provisionalAt, gate, gates[index], event.ts),
+  };
   next.review = settleReview(next, state.review);
   return next;
 };
@@ -920,7 +988,7 @@ function stateFromRecord(record: DeliveryRecord): FoldState {
   // fold applies: the record's `updated_at` is the time the fold knows.
   const provisionalAt: Record<string, string> = {};
   for (const gate of record.stack.gates) {
-    if (gate.provisional === true) setOwnValue(provisionalAt, gate.id, record.updated_at);
+    if (isProvisionalGate(gate)) setOwnValue(provisionalAt, gate.id, record.updated_at);
   }
   return {
     seq: record.last_event_seq,
@@ -1065,7 +1133,9 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
     setOwnValue(gatesById, gate.id, {
       gate,
       state: evaluateGate(verifyUnitOf(gate), gateResults, record.plan_hash, plan, lifecycle),
-      provisionalAt: gate.provisional === true ? (ownValue(state.provisionalAt, gate.id) ?? null) : null,
+      provisionalAt: isProvisionalGate(gate)
+        ? (ownValue(state.provisionalAt, gate.id) ?? null)
+        : null,
     });
   }
   const jams = Object.values(state.unitsById)

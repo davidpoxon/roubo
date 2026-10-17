@@ -18,6 +18,7 @@ import {
   DELIVERY_RECORD_SCHEMA_VERSION,
   DELIVERY_TEXT_MAX_LENGTH,
   DeliveryEventSchema,
+  DeliveryGateSchema,
   DeliveryRecordSchema,
   validateDeliveryEvent,
   validateDeliveryRecord,
@@ -169,7 +170,10 @@ const decisionModePayloads: Record<string, Record<string, unknown>> = {
   "gate.confirmed": { gate_id: "gate-after-c", cases: ["DEMO-TC-003"], control_seq: 5 },
 };
 
-function decisionModeEvent(type: string, payload: Record<string, unknown> = decisionModePayloads[type]) {
+function decisionModeEvent(
+  type: string,
+  payload: Record<string, unknown> = decisionModePayloads[type],
+) {
   return { ...minimalEvent, type, payload };
 }
 
@@ -260,9 +264,12 @@ describe("delivery observation contract: record fixture", () => {
     expect(decided.rationale).toMatch(/strict/);
     expect(decided.affected_units).toEqual(["B", "C"]);
     expect(decided.review).toEqual({ status: "unreviewed" });
+    // The status word is the one key of the provisional state: the fixture
+    // carries no separate flag, and the schema knows none.
     const gate = result.data.stack.gates[1];
     expect(gate.status).toBe("provisional");
-    expect(gate.provisional).toBe(true);
+    expect(Object.keys(gate)).not.toContain("provisional");
+    expect(Object.keys(DeliveryGateSchema.shape)).not.toContain("provisional");
     expect(gate.provisionalCases).toEqual([
       {
         case: "DEMO-TC-003",
@@ -274,7 +281,9 @@ describe("delivery observation contract: record fixture", () => {
   });
 
   it("SB-TC-098: the fixture with the mode section removed fails with a conformance error that names the section", () => {
-    const { mode: _mode, ...withoutMode } = loadFixture();
+    const withoutMode = Object.fromEntries(
+      Object.entries(loadFixture()).filter(([key]) => key !== "mode"),
+    );
     const result = validateDeliveryRecord(withoutMode);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -317,7 +326,11 @@ describe("delivery observation contract: record fixture", () => {
     for (const [record, prefix] of cases) {
       const result = validateDeliveryRecord(record);
       expect(result.ok, prefix).toBe(false);
-      if (!result.ok) expect(result.errors.some((e) => e.startsWith(prefix)), prefix).toBe(true);
+      if (!result.ok)
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          prefix,
+        ).toBe(true);
     }
   });
 
@@ -330,7 +343,9 @@ describe("delivery observation contract: record fixture", () => {
     });
     expect(badChosen.ok).toBe(false);
     if (!badChosen.ok) {
-      expect(badChosen.errors).toContain("decisions.1.chosen: must be one of the decision's options");
+      expect(badChosen.errors).toContain(
+        "decisions.1.chosen: must be one of the decision's options",
+      );
     }
     const badUnreviewed = validateDeliveryRecord({
       ...fixture,
@@ -397,7 +412,65 @@ describe("delivery observation contract: record fixture", () => {
     for (const [record, prefix] of cases) {
       const result = validateDeliveryRecord(record);
       expect(result.ok, prefix).toBe(false);
-      if (!result.ok) expect(result.errors.some((e) => e.startsWith(prefix)), prefix).toBe(true);
+      if (!result.ok)
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          prefix,
+        ).toBe(true);
+    }
+  });
+
+  it("bounds a decision's question, options, default, chosen and author, a reviewer and a review trigger the same way", () => {
+    const fixture = loadFixture();
+    const decisions = fixture.decisions as Record<string, unknown>[];
+    const tooLong = "x".repeat(DELIVERY_TEXT_MAX_LENGTH + 1);
+    const atLimit = "x".repeat(DELIVERY_TEXT_MAX_LENGTH);
+    // At the limit every one of them passes.
+    expect(
+      validateDeliveryRecord({
+        ...fixture,
+        review: { status: "open", trigger: atLimit, unreviewed: ["decision-2"] },
+        decisions: [
+          decisions[0],
+          {
+            ...decisions[1],
+            question: atLimit,
+            options: ["accept it", atLimit],
+            default: atLimit,
+            chosen: atLimit,
+            author: atLimit,
+            review: { status: "accepted", reviewer: atLimit },
+          },
+        ],
+      }).ok,
+    ).toBe(true);
+    const decided = (patch: Record<string, unknown>) => ({
+      ...fixture,
+      decisions: [decisions[0], { ...decisions[1], ...patch }],
+    });
+    const cases: [Record<string, unknown>, string][] = [
+      [decided({ question: tooLong }), "decisions.1.question:"],
+      [decided({ options: ["accept it", "reject it", tooLong] }), "decisions.1.options.2:"],
+      [decided({ options: ["reject it", tooLong], default: tooLong }), "decisions.1.default:"],
+      [decided({ options: ["reject it", tooLong], chosen: tooLong }), "decisions.1.chosen:"],
+      [decided({ author: tooLong }), "decisions.1.author:"],
+      [
+        decided({ review: { status: "accepted", reviewer: tooLong } }),
+        "decisions.1.review.reviewer:",
+      ],
+      [
+        { ...fixture, review: { status: "open", trigger: tooLong, unreviewed: ["decision-2"] } },
+        "review.trigger:",
+      ],
+    ];
+    for (const [record, prefix] of cases) {
+      const result = validateDeliveryRecord(record);
+      expect(result.ok, prefix).toBe(false);
+      if (!result.ok)
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          prefix,
+        ).toBe(true);
     }
   });
 
@@ -549,8 +622,96 @@ describe("delivery observation contract: event envelope", () => {
     }
   });
 
+  it("bounds every session-authored payload string: an over-long question, option, chosen, author, reviewer or trigger fails at its field", () => {
+    const tooLong = "x".repeat(DELIVERY_TEXT_MAX_LENGTH + 1);
+    const atLimit = "x".repeat(DELIVERY_TEXT_MAX_LENGTH);
+    expect(
+      validateDeliveryEvent(
+        decisionModeEvent("decision.decided", {
+          decision_id: "decision-9",
+          question: atLimit,
+          options: [atLimit, "other"],
+          default: atLimit,
+          chosen: atLimit,
+          author: atLimit,
+        }),
+      ).ok,
+    ).toBe(true);
+    const cases: [string, Record<string, unknown>, string][] = [
+      [
+        "decision.decided",
+        {
+          decision_id: "decision-9",
+          chosen: "a",
+          question: tooLong,
+          options: ["a", "b"],
+          default: "a",
+        },
+        "payload.question:",
+      ],
+      [
+        "decision.decided",
+        {
+          decision_id: "decision-9",
+          chosen: "a",
+          question: "q",
+          options: ["a", tooLong],
+          default: "a",
+        },
+        "payload.options.1:",
+      ],
+      [
+        "decision.decided",
+        {
+          decision_id: "decision-9",
+          chosen: "a",
+          question: "q",
+          options: ["a", "b"],
+          default: tooLong,
+        },
+        "payload.default:",
+      ],
+      ["decision.decided", { decision_id: "decision-1", chosen: tooLong }, "payload.chosen:"],
+      [
+        "decision.decided",
+        { decision_id: "decision-1", chosen: "one file per unit", author: tooLong },
+        "payload.author:",
+      ],
+      ["review.opened", { trigger: tooLong }, "payload.trigger:"],
+      [
+        "review.outcome",
+        { decision_id: "decision-2", status: "accepted", reviewer: tooLong },
+        "payload.reviewer:",
+      ],
+      [
+        "review.outcome",
+        { decision_id: "decision-2", status: "overturned", chosen: tooLong },
+        "payload.chosen:",
+      ],
+      [
+        "review.reply",
+        { decision_id: "decision-2", text: "Why?", author: tooLong, control_seq: 1 },
+        "payload.author:",
+      ],
+    ];
+    for (const [type, payload, prefix] of cases) {
+      const result = validateDeliveryEvent(decisionModeEvent(type, payload));
+      expect(result.ok, `${type} ${prefix}`).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          `${type} ${prefix}`,
+        ).toBe(true);
+      }
+    }
+  });
+
   it("SB-TC-099: a review.outcome with no decision id is rejected with an error that names payload.decision_id", () => {
-    const { decision_id: _id, ...payload } = decisionModePayloads["review.outcome"];
+    const payload = Object.fromEntries(
+      Object.entries(decisionModePayloads["review.outcome"]).filter(
+        ([key]) => key !== "decision_id",
+      ),
+    );
     const result = validateDeliveryEvent(decisionModeEvent("review.outcome", payload));
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -577,7 +738,11 @@ describe("delivery observation contract: event envelope", () => {
       ["mode.changed", { value: "manual" }, "payload.value:"],
       ["decision.decided", { chosen: "one file per unit" }, "payload.decision_id:"],
       ["decision.decided", { decision_id: "decision-1" }, "payload.chosen:"],
-      ["decision.decided", { decision_id: "decision-1", chosen: "a", rationale: 7 }, "payload.rationale:"],
+      [
+        "decision.decided",
+        { decision_id: "decision-1", chosen: "a", rationale: 7 },
+        "payload.rationale:",
+      ],
       ["review.opened", { unreviewed: "decision-2" }, "payload.unreviewed:"],
       ["review.outcome", { decision_id: "decision-2" }, "payload.status:"],
       ["review.outcome", { decision_id: "decision-2", status: "unreviewed" }, "payload.status:"],
@@ -585,12 +750,20 @@ describe("delivery observation contract: event envelope", () => {
       ["review.reply", { decision_id: "decision-2", text: "", in_reply_to: "m" }, "payload.text:"],
       [
         "review.reply",
-        { decision_id: "decision-2", text: "x".repeat(DELIVERY_TEXT_MAX_LENGTH + 1), in_reply_to: "m" },
+        {
+          decision_id: "decision-2",
+          text: "x".repeat(DELIVERY_TEXT_MAX_LENGTH + 1),
+          in_reply_to: "m",
+        },
         "payload.text:",
       ],
       ["gate.provisional", { cases: [] }, "payload.gate_id:"],
       ["gate.provisional", { gate_id: "gate-after-b" }, "payload.cases:"],
-      ["gate.provisional", { gate_id: "gate-after-b", cases: [{ mark: "met" }] }, "payload.cases.0.case:"],
+      [
+        "gate.provisional",
+        { gate_id: "gate-after-b", cases: [{ mark: "met" }] },
+        "payload.cases.0.case:",
+      ],
       ["gate.confirmed", { cases: ["DEMO-TC-003"] }, "payload.gate_id:"],
       ["gate.confirmed", { gate_id: "gate-after-c", cases: [""] }, "payload.cases.0:"],
     ];
@@ -598,7 +771,10 @@ describe("delivery observation contract: event envelope", () => {
       const result = validateDeliveryEvent(decisionModeEvent(type, payload));
       expect(result.ok, `${type} ${prefix}`).toBe(false);
       if (!result.ok) {
-        expect(result.errors.some((e) => e.startsWith(prefix)), `${type} ${prefix}`).toBe(true);
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          `${type} ${prefix}`,
+        ).toBe(true);
       }
     }
   });
@@ -668,11 +844,13 @@ describe("delivery observation contract: guards", () => {
       expect.arrayContaining(["author", "chosen", "rationale", "affected_units", "review"]),
     );
     expect(decision.rationale.maxLength).toBe(DELIVERY_TEXT_MAX_LENGTH);
+    expect(decision.question.maxLength).toBe(DELIVERY_TEXT_MAX_LENGTH);
+    expect(decision.chosen.maxLength).toBe(DELIVERY_TEXT_MAX_LENGTH);
     const stackProps = props.stack.properties as Record<string, JsonSchema>;
     const gate = (stackProps.gates.items as JsonSchema).properties as Record<string, JsonSchema>;
-    expect(Object.keys(gate)).toEqual(
-      expect.arrayContaining(["status", "provisional", "provisionalCases"]),
-    );
+    // The status word carries the provisional state: no separate flag is rendered.
+    expect(Object.keys(gate)).toEqual(expect.arrayContaining(["status", "provisionalCases"]));
+    expect(Object.keys(gate)).not.toContain("provisional");
     const provisionalCase = (gate.provisionalCases.items as JsonSchema).properties as Record<
       string,
       JsonSchema

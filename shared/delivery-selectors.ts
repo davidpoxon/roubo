@@ -24,6 +24,7 @@ import type {
 import {
   classifyUnitStatus,
   isDecisionOpen,
+  isProvisionalGate,
   isUnconfirmedProvisionalGate,
   isUnreviewedAgentDecision,
   ownValue,
@@ -37,6 +38,7 @@ import {
 export {
   classifyUnitStatus,
   isDecisionOpen,
+  isProvisionalGate,
   isUnconfirmedProvisionalGate,
   isUnreviewedAgentDecision,
 } from "./delivery-reducer";
@@ -219,12 +221,12 @@ export function selectDecisionThread(
 }
 
 // A gate's provisional marks, one per gating case the session judged; empty for
-// a gate that is not provisional or that the snapshot does not carry.
+// a gate whose status is not `provisional` or that the snapshot does not carry.
 export function selectProvisionalMarks(
   snapshot: DeliverySnapshot,
   gateId: string,
 ): ProvisionalCase[] {
   const view = ownValue(snapshot.gatesById, gateId);
-  if (view === undefined || view.gate.provisional !== true) return [];
+  if (view === undefined || !isProvisionalGate(view.gate)) return [];
   return view.gate.provisionalCases ?? [];
 }
