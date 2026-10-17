@@ -27,6 +27,7 @@ import testbenchRouter from "./routes/testbench.js";
 import gatesRouter from "./routes/gates.js";
 import issuesRouter from "./routes/issues.js";
 import settingsRouter from "./routes/settings.js";
+import systemRouter from "./routes/system.js";
 import jigsRouter from "./routes/jigs.js";
 import appJigsRouter from "./routes/app-jigs.js";
 import permissionsRouter from "./routes/permissions.js";
@@ -129,6 +130,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/containers", containersRouter);
   app.use("/api/filesystem/browse", filesystemRouter);
   app.use("/api/settings", settingsRouter);
+  app.use("/api/system", systemRouter);
   app.use("/api/plugins/github-com/oauth", pluginsGithubOauthRouter);
   app.use("/api/hooks", hooksRouter);
   app.use("/api/notifications", notificationsRouter);

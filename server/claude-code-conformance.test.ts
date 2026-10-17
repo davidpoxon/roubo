@@ -166,6 +166,7 @@ vi.mock("./services/env.js", () => ({
   getContextWindow: () => 200_000,
   loadEnvFile: () => {},
   importLoginShellEnv: () => {},
+  getLoginShellImportStatus: () => ({ state: "ok" }),
   resolveAgentCommand: (command: string) => command,
 }));
 

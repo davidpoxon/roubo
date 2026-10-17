@@ -14,6 +14,7 @@ vi.mock("./services/env.js", () => ({
   },
   loadEnvFile: vi.fn(),
   importLoginShellEnv: vi.fn(),
+  getLoginShellImportStatus: vi.fn(() => ({ state: "ok" })),
   cleanEnv: vi.fn(() => ({})),
   getEnvFileKeys: vi.fn(() => []),
   getContextWindow: vi.fn(() => 200000),
@@ -220,6 +221,7 @@ describe("startServer", { concurrent: false }, () => {
           process.env.ROUBO_PORT = String(freePort);
         }),
         importLoginShellEnv: vi.fn(),
+        getLoginShellImportStatus: vi.fn(() => ({ state: "ok" })),
         cleanEnv: vi.fn(() => ({})),
         getEnvFileKeys: vi.fn(() => []),
         getContextWindow: vi.fn(() => 200000),

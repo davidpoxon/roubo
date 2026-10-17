@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { getRouboDir } from "./state.js";
 import { DEFAULT_CONTEXT_WINDOW } from "@roubo/shared";
+import type { LoginShellImportStatus } from "@roubo/shared";
 
 // process.env.SHELL is externally controlled and is used as the executable in
 // execFileSync/pty.spawn. Restrict it to an absolute path of safe characters
@@ -70,6 +71,22 @@ const WELL_KNOWN_CLI_DIRS_DARWIN: string[] = [
 const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
+ * Per-attempt timeout for the login-shell import. 5 s was too short after a
+ * cold reboot, when nvm loading from ~/.zshrc can take longer (#1487).
+ */
+const LOGIN_SHELL_IMPORT_TIMEOUT_MS = 15_000;
+
+/** The first attempt plus one retry, taken only after a timeout. */
+const LOGIN_SHELL_IMPORT_ATTEMPTS = 2;
+
+let loginShellImportStatus: LoginShellImportStatus = { state: "not-run" };
+
+/** The outcome of the most recent `importLoginShellEnv()` call. */
+export function getLoginShellImportStatus(): LoginShellImportStatus {
+  return loginShellImportStatus;
+}
+
+/**
  * Imports the user's login shell environment into process.env, once at boot.
  *
  * A server launched from the Dock or Finder inherits launchd's minimal
@@ -94,16 +111,58 @@ const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
  * the well-known macOS GUI CLI dirs appended, so tools installed there are found
  * even when the user's profile does not export them.
  *
- * Silently no-ops if the shell cannot be run (CI, containers, headless envs).
+ * Each attempt gets LOGIN_SHELL_IMPORT_TIMEOUT_MS, and a timed-out attempt is
+ * retried once (#1487): after a cold reboot, a profile that loads nvm can take
+ * longer than the old 5 s limit, and the second attempt runs against a warm
+ * disk cache. Any other failure is not retried, since running the profile again
+ * would not change it. The shell is killed with SIGKILL when the timeout fires,
+ * because an interactive zsh ignores the default SIGTERM and spawnSync would
+ * otherwise wait for the profile to finish on its own. The call is synchronous
+ * and runs before the server listens, so a shell that never answers delays boot
+ * by up to the two timeouts combined.
+ *
+ * If every attempt fails, the existing environment is kept, a warning is
+ * logged, and the outcome is recorded for `getLoginShellImportStatus()`, which
+ * `GET /api/system/status` reports so the app can tell the operator. This
+ * function never throws (CI, containers, and headless envs may have no usable
+ * shell).
  */
 export function importLoginShellEnv(): void {
   const shell = getLoginShell();
-  try {
-    const output = execFileSync(shell, loginShellScriptArgs("env -0"), {
-      timeout: 5000,
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
+  let lastError: unknown;
+  let timedOut = false;
+  let output: string | undefined;
+  for (let attempt = 1; attempt <= LOGIN_SHELL_IMPORT_ATTEMPTS; attempt++) {
+    try {
+      output = execFileSync(shell, loginShellScriptArgs("env -0"), {
+        timeout: LOGIN_SHELL_IMPORT_TIMEOUT_MS,
+        killSignal: "SIGKILL",
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      break;
+    } catch (err) {
+      lastError = err;
+      timedOut = (err as { code?: unknown }).code === "ETIMEDOUT";
+      if (!timedOut) break;
+    }
+  }
+
+  if (output === undefined) {
+    // Keep the existing environment if the shell cannot be run.
+    // Log at warn level so failures are visible in normal output.
+    if (!process.env.ROUBO_QUIET) {
+      console.warn("importLoginShellEnv: could not import the login-shell environment:", lastError);
+    }
+    loginShellImportStatus = {
+      state: "failed",
+      reason: timedOut ? "timeout" : "error",
+      shell,
+      timeoutMs: LOGIN_SHELL_IMPORT_TIMEOUT_MS,
+      detail: lastError instanceof Error ? lastError.message : String(lastError),
+    };
+  } else {
+    loginShellImportStatus = { state: "ok" };
     let shellPath: string | undefined;
     for (const entry of output.split("\0")) {
       const eq = entry.indexOf("=");
@@ -128,12 +187,6 @@ export function importLoginShellEnv(): void {
         ...existing,
       ];
       process.env.PATH = merged.join(":");
-    }
-  } catch (err) {
-    // Keep the existing environment if the shell cannot be run.
-    // Log at warn level so failures are visible in normal output.
-    if (!process.env.ROUBO_QUIET) {
-      console.warn("importLoginShellEnv: could not import the login-shell environment:", err);
     }
   }
 

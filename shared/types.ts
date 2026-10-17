@@ -2892,6 +2892,34 @@ export interface SettingsResponse extends UserPreferences {
   contextWindow: number;
 }
 
+// ── System status ──
+
+/**
+ * Outcome of the boot-time import of the login-shell environment (#1487).
+ * `not-run` means the server has not attempted it yet. `failed` means every
+ * attempt failed, so terminals and agent sessions run on the launch
+ * environment's PATH until the server restarts.
+ */
+export type LoginShellImportStatus =
+  | { state: "not-run" }
+  | { state: "ok" }
+  | {
+      state: "failed";
+      /** `timeout` when the shell outlived `timeoutMs`; `error` when it could not be run or exited non-zero. */
+      reason: "timeout" | "error";
+      /** The login shell that was run. */
+      shell: string;
+      /** The per-attempt timeout that applied. */
+      timeoutMs: number;
+      /** The error message of the last attempt. */
+      detail: string;
+    };
+
+/** Response of `GET /api/system/status`: server-level conditions fixed at boot. */
+export interface SystemStatusResponse {
+  loginShellImport: LoginShellImportStatus;
+}
+
 // ── Combined create-and-assign types ──
 
 export interface BranchConflictInfo {
