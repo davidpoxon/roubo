@@ -11,10 +11,12 @@ import {
   type JsonSchema,
 } from "../scripts/contract-compatibility.js";
 import {
+  DECISION_MODE_EVENT_TYPES,
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,
   DELIVERY_RECORD_SCHEMA_ID,
   DELIVERY_RECORD_SCHEMA_VERSION,
+  DELIVERY_TEXT_MAX_LENGTH,
   DeliveryEventSchema,
   DeliveryRecordSchema,
   validateDeliveryEvent,
@@ -108,6 +110,8 @@ const contracts = [
 ];
 
 const REQUIRED_SECTIONS = [
+  "mode",
+  "review",
   "units",
   "decisions",
   "steering",
@@ -130,6 +134,44 @@ const minimalEvent = {
   unit_id: "A",
   payload: { branch: "demo/0-base" },
 };
+
+// One well-formed payload per decision-mode event type (SB-FR-040).
+const decisionModePayloads: Record<string, Record<string, unknown>> = {
+  "mode.changed": { value: "attended", pending: null, control_seq: 3 },
+  "decision.decided": {
+    decision_id: "decision-1",
+    chosen: "one file per unit",
+    author: "agent",
+    rationale: "The default keeps the cache small.",
+    affected_units: ["B"],
+  },
+  "review.opened": { trigger: "boundary", unreviewed: ["decision-2"] },
+  "review.outcome": {
+    decision_id: "decision-2",
+    status: "accepted",
+    reviewer: "Ada",
+    summary: "Strict is right.",
+    control_seq: 4,
+  },
+  "review.reply": {
+    decision_id: "decision-2",
+    text: "Why reject it?",
+    author: "Ada",
+    in_reply_to: "message-1",
+  },
+  "gate.provisional": {
+    gate_id: "gate-after-b",
+    cases: [
+      { case: "DEMO-TC-001", mark: "met", evidence: "The suite row passed.", confirmed: false },
+      { case: "DEMO-TC-002", mark: "not_met", evidence: "No suite row names it." },
+    ],
+  },
+  "gate.confirmed": { gate_id: "gate-after-c", cases: ["DEMO-TC-003"], control_seq: 5 },
+};
+
+function decisionModeEvent(type: string, payload: Record<string, unknown> = decisionModePayloads[type]) {
+  return { ...minimalEvent, type, payload };
+}
 
 describe("delivery observation contract: generated schema", () => {
   it.each(contracts)(
@@ -192,16 +234,170 @@ describe("delivery observation contract: record fixture", () => {
     const fixture = loadFixture();
     const record = {
       ...fixture,
-      mode: "auto",
-      review: { status: "pending" },
+      notes: "free text",
+      review: { ...(fixture.review as object), opened_at: "2026-10-16T09:31:00Z" },
       lifecycle: { ...(fixture.lifecycle as object), paused_at: null },
     };
     const result = validateDeliveryRecord(record);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.data.mode).toBe("auto");
-      expect(result.data.review).toEqual({ status: "pending" });
+      expect(result.data.notes).toBe("free text");
+      expect(result.data.review.opened_at).toBe("2026-10-16T09:31:00Z");
       expect(result.data.lifecycle.paused_at).toBeNull();
+    }
+  });
+
+  it("SB-TC-098: the fixture carries the mode, the review section, the decision review fields and a provisional gate at 1.0.0", () => {
+    const result = validateDeliveryRecord(loadFixture());
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    if (!result.ok) return;
+    expect(result.data.schemaVersion).toBe("1.0.0");
+    expect(result.data.mode).toEqual({ value: "auto", pending: null });
+    expect(result.data.review).toEqual({ status: "pending", unreviewed: ["decision-2"] });
+    const decided = result.data.decisions[1];
+    expect(decided.author).toBe("agent");
+    expect(decided.chosen).toBe("reject it");
+    expect(decided.rationale).toMatch(/strict/);
+    expect(decided.affected_units).toEqual(["B", "C"]);
+    expect(decided.review).toEqual({ status: "unreviewed" });
+    const gate = result.data.stack.gates[1];
+    expect(gate.status).toBe("provisional");
+    expect(gate.provisional).toBe(true);
+    expect(gate.provisionalCases).toEqual([
+      {
+        case: "DEMO-TC-003",
+        mark: "met",
+        evidence: expect.any(String),
+        confirmed: false,
+      },
+    ]);
+  });
+
+  it("SB-TC-098: the fixture with the mode section removed fails with a conformance error that names the section", () => {
+    const { mode: _mode, ...withoutMode } = loadFixture();
+    const result = validateDeliveryRecord(withoutMode);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toMatch(/^mode: /);
+    }
+  });
+
+  it("rejects a mode value, a review status, a decision review status or a mark outside its vocabulary", () => {
+    const fixture = loadFixture();
+    const decisions = fixture.decisions as Record<string, unknown>[];
+    const stack = fixture.stack as { stacks: unknown; gates: Record<string, unknown>[] };
+    const cases: [Record<string, unknown>, string][] = [
+      [{ ...fixture, mode: { value: "manual" } }, "mode.value:"],
+      [{ ...fixture, mode: { value: "auto", pending: "manual" } }, "mode.pending:"],
+      [{ ...fixture, review: { status: "closed", unreviewed: [] } }, "review.status:"],
+      [
+        { ...fixture, decisions: [decisions[0], { ...decisions[1], review: { status: "seen" } }] },
+        "decisions.1.review.status:",
+      ],
+      [
+        {
+          ...fixture,
+          stack: {
+            ...stack,
+            gates: [
+              stack.gates[0],
+              {
+                ...stack.gates[1],
+                provisionalCases: [
+                  { case: "DEMO-TC-003", mark: "passed", evidence: "", confirmed: false },
+                ],
+              },
+            ],
+          },
+        },
+        "stack.gates.1.provisionalCases.0.mark:",
+      ],
+    ];
+    for (const [record, prefix] of cases) {
+      const result = validateDeliveryRecord(record);
+      expect(result.ok, prefix).toBe(false);
+      if (!result.ok) expect(result.errors.some((e) => e.startsWith(prefix)), prefix).toBe(true);
+    }
+  });
+
+  it("rejects a chosen option outside the decision's options and an unreviewed id the record does not carry", () => {
+    const fixture = loadFixture();
+    const decisions = fixture.decisions as Record<string, unknown>[];
+    const badChosen = validateDeliveryRecord({
+      ...fixture,
+      decisions: [decisions[0], { ...decisions[1], chosen: "ignore it" }],
+    });
+    expect(badChosen.ok).toBe(false);
+    if (!badChosen.ok) {
+      expect(badChosen.errors).toContain("decisions.1.chosen: must be one of the decision's options");
+    }
+    const badUnreviewed = validateDeliveryRecord({
+      ...fixture,
+      review: { status: "pending", unreviewed: ["decision-9"] },
+    });
+    expect(badUnreviewed.ok).toBe(false);
+    if (!badUnreviewed.ok) {
+      expect(badUnreviewed.errors).toContain(
+        "review.unreviewed.0: names a decision the record does not carry",
+      );
+    }
+  });
+
+  it("bounds every session-authored text: a rationale, a summary or an evidence over the limit fails at its field", () => {
+    const fixture = loadFixture();
+    const decisions = fixture.decisions as Record<string, unknown>[];
+    const stack = fixture.stack as { stacks: unknown; gates: Record<string, unknown>[] };
+    const tooLong = "x".repeat(DELIVERY_TEXT_MAX_LENGTH + 1);
+    const atLimit = "x".repeat(DELIVERY_TEXT_MAX_LENGTH);
+    expect(
+      validateDeliveryRecord({
+        ...fixture,
+        decisions: [decisions[0], { ...decisions[1], rationale: atLimit }],
+      }).ok,
+    ).toBe(true);
+    const cases: [Record<string, unknown>, string][] = [
+      [
+        { ...fixture, decisions: [decisions[0], { ...decisions[1], rationale: tooLong }] },
+        "decisions.1.rationale:",
+      ],
+      [
+        {
+          ...fixture,
+          decisions: [
+            decisions[0],
+            { ...decisions[1], review: { status: "accepted", summary: tooLong } },
+          ],
+        },
+        "decisions.1.review.summary:",
+      ],
+      [
+        {
+          ...fixture,
+          stack: {
+            ...stack,
+            gates: [
+              stack.gates[0],
+              {
+                ...stack.gates[1],
+                provisionalCases: [
+                  { case: "DEMO-TC-003", mark: "met", evidence: tooLong, confirmed: false },
+                ],
+              },
+            ],
+          },
+        },
+        "stack.gates.1.provisionalCases.0.evidence:",
+      ],
+      [
+        { ...fixture, decisions: [decisions[0], { ...decisions[1], rationale: ["x"] }] },
+        "decisions.1.rationale:",
+      ],
+    ];
+    for (const [record, prefix] of cases) {
+      const result = validateDeliveryRecord(record);
+      expect(result.ok, prefix).toBe(false);
+      if (!result.ok) expect(result.errors.some((e) => e.startsWith(prefix)), prefix).toBe(true);
     }
   });
 
@@ -289,14 +485,121 @@ describe("delivery observation contract: event envelope", () => {
     if (result.ok) expect(result.data.unit_id).toBeUndefined();
   });
 
-  it("accepts any event type and any payload keys (open payload decision for 1.0.0)", () => {
-    for (const type of ["unit.done", "gate.provisional", "decision.raised", "steering.added"]) {
+  it("accepts any event type outside the decision-mode seven with any payload keys (open payload decision for 1.0.0)", () => {
+    for (const type of ["unit.done", "gate.changed", "decision.raised", "steering.added"]) {
       const result = validateDeliveryEvent({
         ...minimalEvent,
         type,
         payload: { anything: [1, 2, 3], nested: { deep: true } },
       });
       expect(result.ok).toBe(true);
+    }
+  });
+
+  it("SB-TC-098: one fixture event of each of the seven decision-mode types validates", () => {
+    expect(DECISION_MODE_EVENT_TYPES).toEqual([
+      "mode.changed",
+      "decision.decided",
+      "review.opened",
+      "review.outcome",
+      "review.reply",
+      "gate.provisional",
+      "gate.confirmed",
+    ]);
+    expect(Object.keys(decisionModePayloads)).toEqual(DECISION_MODE_EVENT_TYPES);
+    for (const type of DECISION_MODE_EVENT_TYPES) {
+      const result = validateDeliveryEvent(decisionModeEvent(type));
+      expect(result, type).toEqual(expect.objectContaining({ ok: true }));
+      if (result.ok) {
+        expect(result.data.type).toBe(type);
+        expect(result.data.payload).toEqual(decisionModePayloads[type]);
+      }
+    }
+  });
+
+  it("keeps an unknown payload key on a decision-mode event (additive posture)", () => {
+    const result = validateDeliveryEvent(
+      decisionModeEvent("mode.changed", { value: "auto", reason: "budget", nested: { a: 1 } }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.payload.reason).toBe("budget");
+  });
+
+  it("a read-back event carries control_seq or in_reply_to: a review.reply with neither fails at payload.in_reply_to", () => {
+    const withControl = decisionModeEvent("review.reply", {
+      decision_id: "decision-2",
+      text: "Because the grammar is strict.",
+      control_seq: 7,
+    });
+    expect(validateDeliveryEvent(withControl).ok).toBe(true);
+    const neither = decisionModeEvent("review.reply", {
+      decision_id: "decision-2",
+      text: "Because the grammar is strict.",
+    });
+    const result = validateDeliveryEvent(neither);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual([expect.stringMatching(/^payload\.in_reply_to: /)]);
+    }
+    const badSeq = decisionModeEvent("mode.changed", { value: "auto", control_seq: 0 });
+    const seqResult = validateDeliveryEvent(badSeq);
+    expect(seqResult.ok).toBe(false);
+    if (!seqResult.ok) {
+      expect(seqResult.errors.some((e) => e.startsWith("payload.control_seq:"))).toBe(true);
+    }
+  });
+
+  it("SB-TC-099: a review.outcome with no decision id is rejected with an error that names payload.decision_id", () => {
+    const { decision_id: _id, ...payload } = decisionModePayloads["review.outcome"];
+    const result = validateDeliveryEvent(decisionModeEvent("review.outcome", payload));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual([expect.stringMatching(/^payload\.decision_id: /)]);
+    }
+  });
+
+  it("SB-TC-099: a gate.provisional with a mark outside met and not_met is rejected with an error that names the field", () => {
+    const result = validateDeliveryEvent(
+      decisionModeEvent("gate.provisional", {
+        gate_id: "gate-after-b",
+        cases: [{ case: "DEMO-TC-001", mark: "passed", evidence: "" }],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual([expect.stringMatching(/^payload\.cases\.0\.mark: /)]);
+    }
+  });
+
+  it("SB-TC-099: each decision-mode event misses its required payload field with an error that names it", () => {
+    const cases: [string, Record<string, unknown>, string][] = [
+      ["mode.changed", { pending: "auto" }, "payload.value:"],
+      ["mode.changed", { value: "manual" }, "payload.value:"],
+      ["decision.decided", { chosen: "one file per unit" }, "payload.decision_id:"],
+      ["decision.decided", { decision_id: "decision-1" }, "payload.chosen:"],
+      ["decision.decided", { decision_id: "decision-1", chosen: "a", rationale: 7 }, "payload.rationale:"],
+      ["review.opened", { unreviewed: "decision-2" }, "payload.unreviewed:"],
+      ["review.outcome", { decision_id: "decision-2" }, "payload.status:"],
+      ["review.outcome", { decision_id: "decision-2", status: "unreviewed" }, "payload.status:"],
+      ["review.reply", { decision_id: "decision-2", in_reply_to: "m" }, "payload.text:"],
+      ["review.reply", { decision_id: "decision-2", text: "", in_reply_to: "m" }, "payload.text:"],
+      [
+        "review.reply",
+        { decision_id: "decision-2", text: "x".repeat(DELIVERY_TEXT_MAX_LENGTH + 1), in_reply_to: "m" },
+        "payload.text:",
+      ],
+      ["gate.provisional", { cases: [] }, "payload.gate_id:"],
+      ["gate.provisional", { gate_id: "gate-after-b" }, "payload.cases:"],
+      ["gate.provisional", { gate_id: "gate-after-b", cases: [{ mark: "met" }] }, "payload.cases.0.case:"],
+      ["gate.confirmed", { cases: ["DEMO-TC-003"] }, "payload.gate_id:"],
+      ["gate.confirmed", { gate_id: "gate-after-c", cases: [""] }, "payload.cases.0:"],
+    ];
+    for (const [type, payload, prefix] of cases) {
+      const result = validateDeliveryEvent(decisionModeEvent(type, payload));
+      expect(result.ok, `${type} ${prefix}`).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.some((e) => e.startsWith(prefix)), `${type} ${prefix}`).toBe(true);
+      }
     }
   });
 
@@ -328,6 +631,54 @@ describe("delivery observation contract: guards", () => {
     const run = runGuard("agent-identifier-guard.mjs");
     expect(run.stderr).toBe("");
     expect(run.status).toBe(0);
+  });
+
+  it("SB-TC-098: the agent-identifier guard passes over server and shared with the decision-mode fields in place", () => {
+    const run = runGuard("agent-identifier-guard.mjs");
+    expect(run.stderr).toBe("");
+    expect(run.stdout).toMatch(/No agent-specific-knowledge violations found/);
+    expect(run.status).toBe(0);
+  });
+
+  it("SB-TC-098: the schema generator produces no difference against the committed delivery schema files", async () => {
+    for (const file of [
+      "delivery-record.schema.json",
+      "delivery-event.schema.json",
+      "delivery-control.schema.json",
+    ]) {
+      const artifact = artifactFor(file);
+      const rendered = await renderSchema(artifact.schema, artifact.outPath);
+      expect(readFileSync(artifact.outPath, "utf8"), file).toBe(rendered);
+    }
+    // The rendered record schema carries the decision-mode fields.
+    const record = await liveSchema("delivery-record.schema.json");
+    const props = record.properties as Record<string, JsonSchema>;
+    expect(record.required).toEqual(expect.arrayContaining(["mode", "review"]));
+    expect((props.mode.properties as Record<string, JsonSchema>).value.enum).toEqual([
+      "attended",
+      "auto",
+    ]);
+    expect((props.review.properties as Record<string, JsonSchema>).status.enum).toEqual([
+      "none",
+      "pending",
+      "open",
+    ]);
+    const decision = (props.decisions.items as JsonSchema).properties as Record<string, JsonSchema>;
+    expect(Object.keys(decision)).toEqual(
+      expect.arrayContaining(["author", "chosen", "rationale", "affected_units", "review"]),
+    );
+    expect(decision.rationale.maxLength).toBe(DELIVERY_TEXT_MAX_LENGTH);
+    const stackProps = props.stack.properties as Record<string, JsonSchema>;
+    const gate = (stackProps.gates.items as JsonSchema).properties as Record<string, JsonSchema>;
+    expect(Object.keys(gate)).toEqual(
+      expect.arrayContaining(["status", "provisional", "provisionalCases"]),
+    );
+    const provisionalCase = (gate.provisionalCases.items as JsonSchema).properties as Record<
+      string,
+      JsonSchema
+    >;
+    expect(provisionalCase.mark.enum).toEqual(["met", "not_met"]);
+    expect(provisionalCase.evidence.maxLength).toBe(DELIVERY_TEXT_MAX_LENGTH);
   });
 
   it("SB-TC-017: the repository-reference guard passes over every tracked file", () => {
@@ -371,11 +722,11 @@ describe("delivery observation contract: compatibility", () => {
     const baseline = baselineSchema("delivery-record.schema.json");
     const added = {
       ...baseline,
-      properties: { ...(baseline.properties as JsonSchema), mode: { type: "string" } },
+      properties: { ...(baseline.properties as JsonSchema), notes: { type: "string" } },
     };
     expect(classifySchemaChange(baseline, added)).toEqual({
       change: "additive",
-      reasons: ["mode: new optional property"],
+      reasons: ["notes: new optional property"],
     });
     // Same version, or a patch bump: the test fails until the minor moves.
     const same = checkContractCompatibility(baseline, added);

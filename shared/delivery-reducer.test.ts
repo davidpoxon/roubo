@@ -147,6 +147,13 @@ describe("foldDelivery", () => {
     ]);
     expect(Object.keys(snapshot.gatesById)).toEqual(["gate-after-b", "gate-after-c"]);
     expect(snapshot.decisionsById["decision-1"]?.status).toBe("open");
+    expect(snapshot.decisionsById["decision-2"]?.review).toEqual({ status: "unreviewed" });
+    expect(snapshot.mode).toEqual({ value: "auto", pending: null });
+    expect(snapshot.review).toEqual({ status: "pending", unreviewed: ["decision-2"] });
+    expect(snapshot.threadsByDecisionId).toEqual({});
+    expect(snapshot.gatesById["gate-after-b"].provisionalAt).toBeNull();
+    // A gate the record carries as provisional dates from the record itself.
+    expect(snapshot.gatesById["gate-after-c"].provisionalAt).toBe("2026-10-16T09:30:00Z");
     expect(snapshot.steeringById["steering-1"]?.note).toBe("Keep the fixture ids neutral.");
     expect(snapshot.budget).toEqual(record.budget);
     expect(snapshot.roles).toEqual(record.roles);
@@ -310,11 +317,286 @@ describe("foldDelivery", () => {
       ["drift.detected", { kind: "spec" }], // no detail
       ["seam.ran", { status: "ok" }], // no seam
       ["health.changed", { detail: "x" }], // no status
+      ["mode.changed", { pending: "auto" }], // no value
+      ["mode.changed", { value: "manual" }], // value outside the vocabulary
+      ["decision.decided", { decision_id: "decision-1" }], // no chosen
+      ["decision.decided", { decision_id: "decision-1", chosen: "a third option" }], // not an option
+      ["decision.decided", { decision_id: "d-9", chosen: "a" }], // unknown and not whole
+      ["review.outcome", { status: "accepted" }], // no decision id
+      ["review.outcome", { decision_id: "decision-2", status: "seen" }], // outside the vocabulary
+      ["review.outcome", { decision_id: "d-9", status: "accepted" }], // unknown decision
+      ["review.reply", { decision_id: "decision-2", in_reply_to: "m" }], // no text
+      ["gate.provisional", { cases: [] }], // no gate_id
+      ["gate.provisional", { gate_id: "gate-after-b" }], // no cases
+      ["gate.provisional", { gate_id: "gate-after-b", cases: [{ case: "DEMO-TC-001", mark: "passed" }] }],
+      ["gate.confirmed", { cases: ["DEMO-TC-001"] }], // no gate_id
+      ["gate.confirmed", { gate_id: "gate-after-b" }], // not provisional
     );
     const before = foldDelivery({ record, events: [] });
     const snapshot = foldDelivery({ record, events });
-    expect(snapshot.seq).toBe(15);
+    expect(snapshot.seq).toBe(29);
     expect({ ...snapshot, seq: 7 }).toEqual(before);
+  });
+});
+
+describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
+  it("mode.changed sets the mode in effect and clears or sets the pending mode", () => {
+    const record = fixtureRecord();
+    const asked = foldDelivery({
+      record,
+      events: stream(["mode.changed", { value: "auto", pending: "attended" }]),
+    });
+    expect(asked.mode).toEqual({ value: "auto", pending: "attended" });
+    const landed = foldDelivery({
+      record,
+      events: stream(
+        ["mode.changed", { value: "auto", pending: "attended" }],
+        ["mode.changed", { value: "attended", control_seq: 3 }],
+      ),
+    });
+    expect(landed.mode).toEqual({ value: "attended", pending: null });
+    expect(record.mode).toEqual({ value: "auto", pending: null });
+  });
+
+  it("decision.decided settles a raised decision with the agent's choice and queues it for review", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: stream([
+        "decision.decided",
+        {
+          decision_id: "decision-1",
+          chosen: "one file per stack",
+          rationale: "The cache is per stack.",
+          affected_units: ["B", "C"],
+        },
+      ]),
+    });
+    expect(snapshot.decisionsById["decision-1"]).toEqual({
+      ...record.decisions[0],
+      status: "decided",
+      author: "agent",
+      chosen: "one file per stack",
+      rationale: "The cache is per stack.",
+      affected_units: ["B", "C"],
+      review: { status: "unreviewed" },
+      decided_at: "2026-10-16T10:00:00Z",
+    });
+    expect(isDecisionOpen(snapshot.decisionsById["decision-1"])).toBe(false);
+    expect(snapshot.review).toEqual({ status: "pending", unreviewed: ["decision-2", "decision-1"] });
+    expect(record.decisions[0].status).toBe("open");
+    expect(record.review.unreviewed).toEqual(["decision-2"]);
+  });
+
+  it("decision.decided by a named author is an answer, not a review item", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: stream([
+        "decision.decided",
+        { decision_id: "decision-1", chosen: "one file per unit", author: "Ada", status: "answered" },
+      ]),
+    });
+    const decision = snapshot.decisionsById["decision-1"];
+    expect(decision.author).toBe("Ada");
+    expect(decision.status).toBe("answered");
+    expect(decision.review).toBeUndefined();
+    expect(snapshot.review.unreviewed).toEqual(["decision-2"]);
+  });
+
+  it("decision.decided adds a decision the stream never raised when it comes whole", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: stream([
+        "decision.decided",
+        {
+          decision_id: "decision-3",
+          question: "Tabs or spaces?",
+          options: ["tabs", "spaces"],
+          default: "spaces",
+          chosen: "spaces",
+          author: "agent",
+        },
+        "C",
+      ]),
+    });
+    expect(snapshot.decisionsById["decision-3"]).toEqual({
+      id: "decision-3",
+      question: "Tabs or spaces?",
+      options: ["tabs", "spaces"],
+      default: "spaces",
+      status: "decided",
+      raised_at: "2026-10-16T10:00:00Z",
+      unit_id: "C",
+      author: "agent",
+      chosen: "spaces",
+      review: { status: "unreviewed" },
+      decided_at: "2026-10-16T10:00:00Z",
+    });
+    expect(snapshot.review.unreviewed).toEqual(["decision-2", "decision-3"]);
+  });
+
+  it("review.opened opens the review with its trigger and list", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: stream(["review.opened", { trigger: "boundary", unreviewed: ["decision-2"] }]),
+    });
+    expect(snapshot.review).toEqual({
+      status: "open",
+      trigger: "boundary",
+      unreviewed: ["decision-2"],
+    });
+  });
+
+  it("review.outcome records the operator's verdict, applies an overturn's option and settles the review", () => {
+    const record = fixtureRecord();
+    const accepted = foldDelivery({
+      record,
+      events: stream(
+        ["review.opened", { trigger: "boundary" }],
+        [
+          "review.outcome",
+          { decision_id: "decision-2", status: "accepted", reviewer: "Ada", summary: "Strict is right.", control_seq: 4 },
+        ],
+      ),
+    });
+    expect(accepted.decisionsById["decision-2"].review).toEqual({
+      status: "accepted",
+      reviewer: "Ada",
+      summary: "Strict is right.",
+    });
+    expect(accepted.decisionsById["decision-2"].chosen).toBe("reject it");
+    // gate-after-c is still provisional, so the review stays open.
+    expect(accepted.review).toEqual({ status: "open", trigger: "boundary", unreviewed: [] });
+
+    const overturned = foldDelivery({
+      record,
+      events: stream(
+        ["gate.confirmed", { gate_id: "gate-after-c" }],
+        ["review.outcome", { decision_id: "decision-2", status: "overturned", chosen: "accept it" }],
+      ),
+    });
+    expect(overturned.decisionsById["decision-2"].review).toEqual({ status: "overturned" });
+    expect(overturned.decisionsById["decision-2"].chosen).toBe("accept it");
+    // Nothing waits any more: the review is none.
+    expect(overturned.review).toEqual({ status: "none", unreviewed: [] });
+
+    const badOption = foldDelivery({
+      record,
+      events: stream([
+        "review.outcome",
+        { decision_id: "decision-2", status: "overturned", chosen: "ignore it" },
+      ]),
+    });
+    expect(badOption.decisionsById["decision-2"].chosen).toBe("reject it");
+    expect(badOption.decisionsById["decision-2"].review?.status).toBe("overturned");
+  });
+
+  it("review.reply appends to the decision's thread in stream order, with the read-back keys", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: stream(
+        ["review.reply", { decision_id: "decision-2", text: "Why?", author: "Ada", control_seq: 5 }],
+        ["review.reply", { decision_id: "decision-2", text: "Strict grammar.", in_reply_to: "5" }],
+        ["review.reply", { decision_id: "decision-1", text: "Hm.", author: "Ada", control_seq: 6 }],
+      ),
+    });
+    expect(snapshot.threadsByDecisionId["decision-2"]).toEqual([
+      {
+        seq: 8,
+        decisionId: "decision-2",
+        text: "Why?",
+        author: "Ada",
+        ts: "2026-10-16T10:00:00Z",
+        controlSeq: 5,
+      },
+      {
+        seq: 9,
+        decisionId: "decision-2",
+        text: "Strict grammar.",
+        author: "agent",
+        ts: "2026-10-16T10:00:00Z",
+        inReplyTo: "5",
+      },
+    ]);
+    expect(snapshot.threadsByDecisionId["decision-1"]).toHaveLength(1);
+  });
+
+  it("gate.provisional marks the gate provisional with its cases and dates it from the event", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: stream([
+        "gate.provisional",
+        {
+          gate_id: "gate-after-b",
+          cases: [
+            { case: "DEMO-TC-001", mark: "met", evidence: "The suite row passed." },
+            { case: "DEMO-TC-002", mark: "not_met" },
+          ],
+        },
+      ]),
+    });
+    const view = snapshot.gatesById["gate-after-b"];
+    expect(view.gate).toEqual({
+      ...record.stack.gates[0],
+      status: "provisional",
+      provisional: true,
+      provisionalCases: [
+        { case: "DEMO-TC-001", mark: "met", evidence: "The suite row passed.", confirmed: false },
+        { case: "DEMO-TC-002", mark: "not_met", evidence: "", confirmed: false },
+      ],
+    });
+    expect(view.provisionalAt).toBe("2026-10-16T10:00:00Z");
+    expect(record.stack.gates[0].provisional).toBeUndefined();
+  });
+
+  it("gate.confirmed confirms the named cases, and the gate leaves the provisional state once all are", () => {
+    const record = fixtureRecord();
+    const partial = foldDelivery({
+      record,
+      events: stream(
+        [
+          "gate.provisional",
+          {
+            gate_id: "gate-after-b",
+            cases: [
+              { case: "DEMO-TC-001", mark: "met" },
+              { case: "DEMO-TC-002", mark: "met" },
+            ],
+          },
+        ],
+        ["gate.confirmed", { gate_id: "gate-after-b", cases: ["DEMO-TC-001"], control_seq: 9 }],
+      ),
+    });
+    const partialGate = partial.gatesById["gate-after-b"].gate;
+    expect(partialGate.provisional).toBe(true);
+    expect(partialGate.status).toBe("provisional");
+    expect(partialGate.provisionalCases?.map((entry) => entry.confirmed)).toEqual([true, false]);
+    expect(partial.gatesById["gate-after-b"].provisionalAt).toBe("2026-10-16T10:00:00Z");
+
+    const all = foldDelivery({
+      record,
+      events: stream(["gate.confirmed", { gate_id: "gate-after-c" }]),
+    });
+    const gate = all.gatesById["gate-after-c"].gate;
+    expect(gate.provisional).toBe(false);
+    expect(gate.status).toBe("confirmed");
+    expect(gate.provisionalCases).toEqual([
+      { ...record.stack.gates[1].provisionalCases![0], confirmed: true },
+    ]);
+    expect(all.gatesById["gate-after-c"].provisionalAt).toBeNull();
+    // decision-2 still waits, so the review stays pending.
+    expect(all.review.status).toBe("pending");
+
+    const withStatus = foldDelivery({
+      record,
+      events: stream(["gate.confirmed", { gate_id: "gate-after-c", status: "passed" }]),
+    });
+    expect(withStatus.gatesById["gate-after-c"].gate.status).toBe("passed");
   });
 });
 
