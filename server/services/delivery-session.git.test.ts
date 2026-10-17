@@ -101,7 +101,12 @@ import {
   type DeliveryLaunchRequest,
 } from "./delivery-session-launcher.js";
 import { hashDeliveryToken } from "./delivery-token-registry.js";
-import { DELIVERY_EVENT_HOOK_PATH, DELIVERY_EVENT_LOG_MAX } from "@roubo/shared/delivery-bench";
+import {
+  DELIVERY_EVENT_HOOK_PATH,
+  DELIVERY_EVENT_LOG_MAX,
+  DELIVERY_EVENT_SPILL_CHUNK,
+  DELIVERY_EVENT_SPILL_FILE,
+} from "@roubo/shared/delivery-bench";
 import { deliveryAcceptedSeq, forgetDeliveryEventLog } from "./delivery-event-log.js";
 
 const FIXTURE_RECORD = fileURLToPath(
@@ -973,25 +978,100 @@ describe("Event ingest", () => {
     expect(first.body).toEqual({ acceptedSeq: 2 });
   });
 
-  it(`holds at most ${DELIVERY_EVENT_LOG_MAX} events above the record's last_event_seq`, async () => {
-    const { bench, token } = await benchWithRecord(0);
-    const chunk = 100;
-    for (let start = 1; start <= DELIVERY_EVENT_LOG_MAX; start += chunk) {
-      const batch = Array.from({ length: chunk }, (_, i) => event(start + i));
+  // The spill file: beside the record in the bench workspace.
+  function spillPath(bench: Bench): string {
+    return path.join(path.dirname(workspaceRecordPath(bench)), DELIVERY_EVENT_SPILL_FILE);
+  }
+
+  function spilledSeqs(bench: Bench): number[] {
+    return fs
+      .readFileSync(spillPath(bench), "utf8")
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => (JSON.parse(line) as { seq: number }).seq);
+  }
+
+  // Posts the events from..to in batches of 100.
+  async function postRange(bench: Bench, token: string, from: number, to: number): Promise<void> {
+    for (let start = from; start <= to; start += 100) {
+      const batch = Array.from({ length: Math.min(100, to - start + 1) }, (_, i) =>
+        event(start + i),
+      );
       const res = await postEvents(bench, token, batch);
       expect(res.status).toBe(202);
     }
-    const full = await postEvents(bench, token, event(DELIVERY_EVENT_LOG_MAX + 1));
-    expect(full.status).toBe(429);
-    expect(full.headers["retry-after"]).toBe("1");
-    expect(full.body).toMatchObject({ code: "EVENT_LOG_FULL", acceptedSeq: DELIVERY_EVENT_LOG_MAX });
+  }
 
-    // Once the record carries the first 500, room opens and the log keeps
-    // only the events above it.
-    writeRecord(bench, { ...fixtureRecord(), last_event_seq: 500 });
+  it(`moves the oldest ${DELIVERY_EVENT_SPILL_CHUNK} events to the spill file when the log holds ${DELIVERY_EVENT_LOG_MAX}, and accepts the batch`, async () => {
+    const { bench, token } = await benchWithRecord(0);
+    await postRange(bench, token, 1, DELIVERY_EVENT_LOG_MAX);
+    expect(fs.existsSync(spillPath(bench))).toBe(false);
+
     const next = await postEvents(bench, token, event(DELIVERY_EVENT_LOG_MAX + 1));
     expect(next.status).toBe(202);
+    expect(next.headers["retry-after"]).toBeUndefined();
     expect(next.body).toEqual({ acceptedSeq: DELIVERY_EVENT_LOG_MAX + 1 });
+    expect(spilledSeqs(bench)).toEqual(
+      Array.from({ length: DELIVERY_EVENT_SPILL_CHUNK }, (_, i) => i + 1),
+    );
+    // The file is in the workspace only, never in the project checkout.
+    expect(fs.existsSync(path.join(specFolder, DELIVERY_EVENT_SPILL_FILE))).toBe(false);
+
+    // The snapshot folds the spilled events and the ones in memory in seq
+    // order: a hole at any seq would stop the fold short of the last one.
+    expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX + 1);
+
+    // A full batch on top of a full log moves every event in memory out.
+    const fullBatch = Array.from({ length: DELIVERY_EVENT_LOG_MAX }, (_, i) =>
+      event(DELIVERY_EVENT_LOG_MAX + 2 + i),
+    );
+    // Under the production body parsers, so a full batch fits.
+    const big = await request(productionBodyLimitApp())
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send({ events: fullBatch });
+    expect(big.status).toBe(202);
+    expect(spilledSeqs(bench)).toEqual(
+      Array.from({ length: DELIVERY_EVENT_LOG_MAX + 1 }, (_, i) => i + 1),
+    );
+    expect(await snapshotSeq(bench)).toBe(2 * DELIVERY_EVENT_LOG_MAX + 1);
+
+    // Once the record carries the spilled events, the read skips them.
+    writeRecord(bench, { ...fixtureRecord(), last_event_seq: 500 });
+    expect(await snapshotSeq(bench)).toBe(2 * DELIVERY_EVENT_LOG_MAX + 1);
+  });
+
+  it("reads the spilled events again after a server restart", async () => {
+    const { bench, token } = await benchWithRecord(0);
+    await postRange(bench, token, 1, DELIVERY_EVENT_LOG_MAX + 1);
+    restartServer(bench);
+    const live = benchManager.getBench("demo", bench.id);
+    if (!live) throw new Error("bench vanished");
+    // Memory is gone; the spill file still carries 1..500 above the record.
+    expect(await snapshotSeq(live)).toBe(DELIVERY_EVENT_SPILL_CHUNK);
+  });
+
+  it("answers a 5xx and applies nothing when the spill file cannot be written", async () => {
+    const { bench, token } = await benchWithRecord(0);
+    await postRange(bench, token, 1, DELIVERY_EVENT_LOG_MAX);
+    vi.mocked(sse.broadcastDeliveryFrame).mockClear();
+    // A folder in the spill file's place makes the append fail.
+    fs.mkdirSync(spillPath(bench));
+
+    const refused = await postEvents(bench, token, event(DELIVERY_EVENT_LOG_MAX + 1));
+    expect(refused.status).toBeGreaterThanOrEqual(500);
+    expect(refused.body).toMatchObject({
+      code: "EVENT_LOG_SPILL_FAILED",
+      acceptedSeq: DELIVERY_EVENT_LOG_MAX,
+    });
+    expect(deliveryAcceptedSeq("demo", bench.id)).toBe(DELIVERY_EVENT_LOG_MAX);
+    expect(sse.broadcastDeliveryFrame).not.toHaveBeenCalled();
+
+    fs.rmdirSync(spillPath(bench));
+    expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX);
+    const retried = await postEvents(bench, token, event(DELIVERY_EVENT_LOG_MAX + 1));
+    expect(retried.status).toBe(202);
+    expect(spilledSeqs(bench)).toHaveLength(DELIVERY_EVENT_SPILL_CHUNK);
     expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX + 1);
   });
 
@@ -1048,11 +1128,13 @@ describe("Event ingest", () => {
     expect(await snapshotSeq(bench)).toBe(7);
   });
 
-  it("drops the bench's events when the bench is cleared", async () => {
-    const { bench, token } = await benchWithRecord();
-    await postEvents(bench, token, event(8));
+  it("drops the bench's events, the spill file included, when the bench is cleared", async () => {
+    const { bench, token } = await benchWithRecord(0);
+    await postRange(bench, token, 1, DELIVERY_EVENT_LOG_MAX + 1);
+    expect(fs.existsSync(spillPath(bench))).toBe(true);
     benchManager.teardownBench("demo", bench.id, true);
     await cleared("demo", bench.id);
     expect(deliveryAcceptedSeq("demo", bench.id)).toBeUndefined();
+    expect(fs.existsSync(spillPath(bench))).toBe(false);
   });
 });

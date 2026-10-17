@@ -4,7 +4,8 @@
 // Endpoints (mounted under /api/projects):
 //   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
 //                                                    with the accepted events above its
-//                                                    last_event_seq folded over it
+//                                                    last_event_seq (in memory and in the
+//                                                    spill file) folded over it
 //                                                    404 not a Spec Bench
 //                                                    409 DeliveryReadError: the record is
 //                                                        missing, at an unknown major,
@@ -52,7 +53,10 @@
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import type { Bench } from "@roubo/shared";
-import { loadBenchDeliveryRecord } from "../lib/delivery-record-loader.js";
+import {
+  benchDeliveryEventSpillPath,
+  loadBenchDeliveryRecord,
+} from "../lib/delivery-record-loader.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import * as benchManager from "../services/bench-manager.js";
 import { deliveryEventsAfterRecord } from "../services/delivery-event-log.js";
@@ -126,7 +130,12 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
   }
   // Reading the events also seeds the bench's accepted seq from the record, so
   // after a restart the bench goes on from the record's last_event_seq.
-  const events = deliveryEventsAfterRecord(bench.projectId, bench.id, loaded.record);
+  const events = deliveryEventsAfterRecord(
+    bench.projectId,
+    bench.id,
+    loaded.record,
+    benchDeliveryEventSpillPath(bench),
+  );
   res.json(foldDeliverySnapshot({ record: loaded.record, events, now: Date.now() }));
 });
 

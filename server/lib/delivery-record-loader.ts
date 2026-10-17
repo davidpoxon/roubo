@@ -5,7 +5,8 @@
 // checkout, but the record in that checkout folder is never read or written:
 // the record lives only in the workspace and goes with it when Clear bench or
 // Cleanup & Retry removes it. A record placed in the checkout reaches the bench
-// only as a committed file that the worktree checks out.
+// only as a committed file that the worktree checks out. The spill file of the
+// bench's event log sits beside the record and goes with the workspace too.
 //
 // Nothing is cached: every read goes back to the file and checks it against the
 // record schema, so a record edited on disk, or read again after a restart, is
@@ -15,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Bench } from "@roubo/shared";
 import {
+  DELIVERY_EVENT_SPILL_FILE,
   DELIVERY_RECORD_FILE,
   checkDeliveryRecord,
   type DeliveryRecordCheck,
@@ -70,6 +72,20 @@ export function loadBenchDeliveryRecord(
     throw err;
   }
   return loadDeliveryRecord(folder);
+}
+
+/**
+ * The spill file of a Spec Bench's delivery event log: beside the record in
+ * the spec folder of the bench workspace, so it goes with the workspace. Throws
+ * UnsafePathError when the path would leave the workspace.
+ */
+export function benchDeliveryEventSpillPath(
+  bench: Pick<Bench, "workspacePath" | "focusedSpecPath">,
+): string {
+  const folder = deliverySpecFolder(bench);
+  const spill = resolveWithin(folder, DELIVERY_EVENT_SPILL_FILE);
+  assertRealpathWithin(folder, spill, "delivery event spill path");
+  return spill;
 }
 
 /** The absolute path of the record in a spec folder. */
