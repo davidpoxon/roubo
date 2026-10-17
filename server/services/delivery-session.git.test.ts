@@ -992,7 +992,7 @@ describe("Event ingest", () => {
     }));
   }
 
-  it(`SB-TC-012: a batch of ${DELIVERY_EVENT_LOG_MAX} events in sequence is accepted under the production body limit`, async () => {
+  it(`accepts a batch of ${DELIVERY_EVENT_LOG_MAX} events in sequence under the production body limit`, async () => {
     const { bench, token } = await benchWithRecord(0);
     const batch = fullBatch();
     // The batch is over the global limit, so the route's own parser is what
