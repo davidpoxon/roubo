@@ -67,6 +67,12 @@ import NotificationIndicator from "./NotificationIndicator";
 import { useBenchViewState, type BenchTabId } from "../hooks/useBenchViewState";
 import { isDirtyBenchError, isMissingPluginError, isConsentError } from "../lib/api";
 import ClearBenchDirtyDialog from "./ClearBenchDirtyDialog";
+import ConfirmDialog, { DIALOG_ACTIONS_CLASS } from "./ui/Dialog";
+import {
+  CLEAR_DELIVERY_RECORD_WARNING,
+  RETRY_DELIVERY_RECORD_WARNING,
+  holdsDeliveryRecord,
+} from "../lib/delivery-record-warning";
 import MissingPluginDialog from "./MissingPluginDialog";
 import ConsentReviewDialog from "./settings/plugins/ConsentReviewDialog";
 import { recordProvenance } from "./marketplace/plugin-provenance";
@@ -518,6 +524,7 @@ export default function BenchDetail() {
 
   const [showTeardown, setShowTeardown] = useState(false);
   const [removeWorkspace, setRemoveWorkspace] = useState(true);
+  const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
   const [dirtyReasons, setDirtyReasons] = useState<DirtyReason[] | null>(null);
   const [forceError, setForceError] = useState<string | null>(null);
   const [expandedErrorKey, setExpandedErrorKey] = useState<string | null>(null);
@@ -528,6 +535,20 @@ export default function BenchDetail() {
   const isBusy = bench?.status === "preparing" || bench?.status === "clearing";
   const isProvisioning = bench?.status === "preparing";
   const canTeardown = bench?.status !== "clearing";
+  // A Spec Bench's delivery record goes with its workspace, so removing the
+  // workspace is confirmed with a warning first.
+  const warnsOfRecordLoss = bench !== undefined && holdsDeliveryRecord(bench);
+
+  const runCleanupAndRetry = () =>
+    cleanupAndRetry.mutate(
+      { projectId, benchId },
+      {
+        onError: (err) =>
+          addToast(err instanceof Error && err.message ? err.message : "Cleanup failed", {
+            duration: 8000,
+          }),
+      },
+    );
   const isTearingDown = bench?.status === "clearing" && (bench?.teardownSteps?.length ?? 0) > 0;
   const showSteps =
     (bench?.provisioningSteps.length ?? 0) > 0 &&
@@ -783,17 +804,10 @@ export default function BenchDetail() {
           )}
           <Button
             isDisabled={cleanupAndRetry.isPending}
-            onPress={() =>
-              cleanupAndRetry.mutate(
-                { projectId, benchId },
-                {
-                  onError: (err) =>
-                    addToast(err instanceof Error && err.message ? err.message : "Cleanup failed", {
-                      duration: 8000,
-                    }),
-                },
-              )
-            }
+            onPress={() => {
+              if (warnsOfRecordLoss) setRetryConfirmOpen(true);
+              else runCleanupAndRetry();
+            }}
             className="flex items-center gap-1.5 mt-3 px-3 py-1.5 text-12 font-medium border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary rounded-control transition-colors outline-none disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
             <RotateCcw size={12} className={cleanupAndRetry.isPending ? "animate-spin" : ""} />
@@ -1010,6 +1024,11 @@ export default function BenchDetail() {
                       )}
                     </Checkbox>
                   )}
+                  {warnsOfRecordLoss && (isProvisioning || removeWorkspace) && (
+                    <p className="text-13 text-danger-text" data-testid="delivery-record-warning">
+                      {CLEAR_DELIVERY_RECORD_WARNING}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
                   <Button
@@ -1046,6 +1065,39 @@ export default function BenchDetail() {
           </Dialog>
         </Modal>
       </ModalOverlay>
+
+      <ConfirmDialog
+        isOpen={retryConfirmOpen}
+        onOpenChange={setRetryConfirmOpen}
+        isDismissable
+        widthClassName="max-w-sm"
+        title="Cleanup & Retry"
+      >
+        {({ close }) => (
+          <>
+            <p className="text-13 text-text-body" data-testid="delivery-record-warning">
+              {RETRY_DELIVERY_RECORD_WARNING}
+            </p>
+            <div className={DIALOG_ACTIONS_CLASS}>
+              <Button
+                onPress={close}
+                className="px-3 py-1.5 text-13 text-text-secondary hover:text-text-primary transition-colors rounded-control outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              >
+                Cancel
+              </Button>
+              <Button
+                onPress={() => {
+                  runCleanupAndRetry();
+                  close();
+                }}
+                className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none not-disabled:active:bg-danger-active focus-visible:ring-2 focus-visible:ring-focus-ring"
+              >
+                Delete record and retry
+              </Button>
+            </div>
+          </>
+        )}
+      </ConfirmDialog>
 
       <ClearBenchDirtyDialog
         isOpen={dirtyReasons !== null}

@@ -813,4 +813,57 @@ describe("BenchCard", () => {
       expect(screen.queryByTestId("previous-integration-badge")).not.toBeInTheDocument();
     });
   });
+
+  describe("Spec Bench delivery record warning", () => {
+    const specBench = (overrides: Partial<Bench> = {}) =>
+      makeBench({
+        variant: "specbench",
+        focusedSpecPath: "/repo/.specifications/fixture-spec",
+        deliveryBindMode: "launch",
+        ...overrides,
+      });
+
+    it("warns in the Clear bench dialog that the delivery record goes with the workspace", async () => {
+      const { teardownMutate } = makeDefaultMutations();
+      renderCard(specBench({ status: "idle" }));
+      const buttons = screen.getAllByRole("button");
+      await userEvent.click(buttons[buttons.length - 1]);
+      expect(screen.getByTestId("delivery-record-warning")).toHaveTextContent(
+        /delivery record .* will be deleted with it/,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Clear bench" }));
+      expect(teardownMutate).toHaveBeenCalled();
+    });
+
+    it("asks for a confirmation before Cleanup & Retry, and retries only once confirmed", async () => {
+      const { cleanupMutate } = makeDefaultMutations();
+      renderCard(specBench({ id: 3, projectId: "proj-x", status: "error", error: "oops" }));
+
+      await userEvent.click(screen.getByText("Cleanup & Retry"));
+      expect(cleanupMutate).not.toHaveBeenCalled();
+      expect(screen.getByRole("dialog")).toHaveTextContent(/delivery record .* will be deleted/);
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(cleanupMutate).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByText("Cleanup & Retry"));
+      await userEvent.click(screen.getByRole("button", { name: "Delete record and retry" }));
+      expect(cleanupMutate).toHaveBeenCalledWith(
+        { projectId: "proj-x", benchId: 3 },
+        expect.objectContaining({ onError: expect.any(Function) }),
+      );
+    });
+
+    it("shows no warning for a plain bench, which retries on one press", async () => {
+      const { cleanupMutate } = makeDefaultMutations();
+      renderCard(makeBench({ status: "error", error: "oops" }));
+      await userEvent.click(screen.getByText("Cleanup & Retry"));
+      expect(cleanupMutate).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+      const buttons = screen.getAllByRole("button");
+      await userEvent.click(buttons[buttons.length - 1]);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.queryByTestId("delivery-record-warning")).not.toBeInTheDocument();
+    });
+  });
 });

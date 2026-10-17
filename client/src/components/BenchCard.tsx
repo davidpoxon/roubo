@@ -24,6 +24,11 @@ import Dialog, { DIALOG_ACTIONS_CLASS } from "./ui/Dialog";
 import StatusIndicator from "./ui/StatusIndicator";
 import type { StatusTone } from "./ui/styles";
 import { focusRingOffset } from "./ui/focus-ring";
+import {
+  CLEAR_DELIVERY_RECORD_WARNING,
+  RETRY_DELIVERY_RECORD_WARNING,
+  holdsDeliveryRecord,
+} from "../lib/delivery-record-warning";
 
 // DESIGN.md Bench card: the border is the bench status. Clearing is work in
 // progress, so it shares `status-preparing` with preparing.
@@ -63,6 +68,7 @@ export default function BenchCard({
   const { register: registerTeardown } = useTeardownTracker();
   const { addToast } = useToast();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
   const [dirtyReasons, setDirtyReasons] = useState<DirtyReason[] | null>(null);
   const [forceError, setForceError] = useState<string | null>(null);
 
@@ -79,6 +85,20 @@ export default function BenchCard({
     (bench.status === "preparing" || bench.status === "error");
   const showTeardownSteps = (bench.teardownSteps?.length ?? 0) > 0 && bench.status === "clearing";
   const statusTone: StatusTone = bench.error ? "error" : (STATUS_TONE[bench.status] ?? "idle");
+  // A Spec Bench's delivery record goes with its workspace, so removing the
+  // workspace is confirmed with a warning first.
+  const warnsOfRecordLoss = holdsDeliveryRecord(bench);
+
+  const runCleanupAndRetry = () =>
+    cleanupAndRetry.mutate(
+      { projectId: bench.projectId, benchId: bench.id },
+      {
+        onError: (err) =>
+          addToast(err instanceof Error && err.message ? err.message : "Cleanup failed", {
+            duration: 8000,
+          }),
+      },
+    );
 
   const componentEntries = Object.entries(bench.components);
   const matchedPorts = new Map<string, number>();
@@ -201,18 +221,10 @@ export default function BenchCard({
               <div onClick={(e) => e.stopPropagation()} className="mt-2 shrink-0">
                 <Button
                   isDisabled={cleanupAndRetry.isPending}
-                  onPress={() =>
-                    cleanupAndRetry.mutate(
-                      { projectId: bench.projectId, benchId: bench.id },
-                      {
-                        onError: (err) =>
-                          addToast(
-                            err instanceof Error && err.message ? err.message : "Cleanup failed",
-                            { duration: 8000 },
-                          ),
-                      },
-                    )
-                  }
+                  onPress={() => {
+                    if (warnsOfRecordLoss) setRetryConfirmOpen(true);
+                    else runCleanupAndRetry();
+                  }}
                   className="w-full outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
                   <RotateCcw
@@ -275,6 +287,11 @@ export default function BenchCard({
                 ? "This will cancel preparing and clean up any resources created so far. This action cannot be undone."
                 : "This will stop all components, remove Docker volumes (including any database data), remove the workspace, and delete the branch. This action cannot be undone."}
             </p>
+            {warnsOfRecordLoss && (
+              <p className="text-13 text-danger-text" data-testid="delivery-record-warning">
+                {CLEAR_DELIVERY_RECORD_WARNING}
+              </p>
+            )}
             <div className={DIALOG_ACTIONS_CLASS}>
               <Button onPress={close}>Cancel</Button>
               <Button
@@ -293,6 +310,34 @@ export default function BenchCard({
                 }}
               >
                 {isProvisioning ? "Cancel preparing" : "Clear bench"}
+              </Button>
+            </div>
+          </>
+        )}
+      </Dialog>
+
+      <Dialog
+        isOpen={retryConfirmOpen}
+        onOpenChange={setRetryConfirmOpen}
+        isDismissable
+        widthClassName="max-w-sm"
+        title="Cleanup & Retry"
+      >
+        {({ close }) => (
+          <>
+            <p className="text-13 text-text-body" data-testid="delivery-record-warning">
+              {RETRY_DELIVERY_RECORD_WARNING}
+            </p>
+            <div className={DIALOG_ACTIONS_CLASS}>
+              <Button onPress={close}>Cancel</Button>
+              <Button
+                variant="danger"
+                onPress={() => {
+                  runCleanupAndRetry();
+                  close();
+                }}
+              >
+                Delete record and retry
               </Button>
             </div>
           </>
