@@ -15,6 +15,7 @@ import {
   DELIVERY_RECORD_SCHEMA_ID,
   DELIVERY_RECORD_SCHEMA_VERSION,
   validateDeliveryRecord,
+  type DeliveryEvent,
   type DeliveryRecord,
 } from "./delivery-observation-contract";
 
@@ -23,6 +24,8 @@ import {
 // The operator's delivery routes of a bench hang off one base path:
 //
 //   GET  <base>          the folded snapshot, or a named read error
+//   GET  <base>/events   the accepted events above a seq, for one unit or all
+//                        (DeliveryEventsResponse), or the same named read error
 //   POST <base>/launch   launch a launch-mode bench's session again while it has no record
 //   POST <base>/resume   launch the session again with the record's resume argument
 //
@@ -69,6 +72,19 @@ export interface DeliveryStreamFrame {
   benchId: number;
   change: "snapshot";
   seq: number;
+}
+
+// ── Events read ──
+//
+// The body of GET <base>/events?after=<seq>&unit=<id>. `events` are the
+// accepted events above `after` (absent: every accepted event above the
+// record's `last_event_seq`), those of the unit named by `unit` when it is
+// given (the envelope's `unit_id`), in seq order. Only the events above the
+// record's `last_event_seq` are kept, so an `after` below it reads from there.
+// `acceptedSeq` is the bench's accepted seq, the seq a later read goes on from.
+export interface DeliveryEventsResponse {
+  events: DeliveryEvent[];
+  acceptedSeq: number;
 }
 
 // The most events a bench keeps in memory above its record's `last_event_seq`,
