@@ -6,6 +6,8 @@ import {
   validateDeliveryRecord,
   type DeliveryEvent,
   type DeliveryRecord,
+  type DeliverySeam,
+  type DeliveryUnit,
 } from "./delivery-observation-contract.js";
 import {
   classifyUnitStatus,
@@ -13,6 +15,7 @@ import {
   foldDelivery,
   isDecisionOpen,
   type DeliveryFoldInputs,
+  type DeliveryGateView,
   type DeliveryResults,
 } from "./delivery-reducer.js";
 import type { GateLifecycle } from "./gate-evaluator.js";
@@ -208,6 +211,92 @@ describe("foldDelivery", () => {
     expect(snapshot.gap).toBeUndefined();
     expect(snapshot.unitsById.B.status).toBe("done");
     expect({ ...snapshot, seq: 7, unitsById: before.unitsById }).toEqual(before);
+  });
+
+  it("skips an event whose type names an Object.prototype member and still accepts its seq", () => {
+    const record = fixtureRecord();
+    const events = stream(
+      ["toString", { status: "done" }, "B"],
+      ["__proto__", { status: "done" }, "B"],
+      ["hasOwnProperty", { status: "done" }, "B"],
+      ["valueOf", { status: "done" }, "B"],
+      ["constructor", { status: "done" }, "B"],
+      ["unit.changed", { status: "done" }, "B"],
+    );
+    const before = foldDelivery({ record, events: [] });
+    const snapshot = foldDelivery({ record, events });
+    expect(snapshot.seq).toBe(13);
+    expect(snapshot.gap).toBeUndefined();
+    expect(snapshot.unitsById.B.status).toBe("done");
+    expect({ ...snapshot, seq: 7, unitsById: before.unitsById }).toEqual(before);
+  });
+
+  it("ignores an event that addresses a unit, decision or seam by an Object.prototype name", () => {
+    const record = fixtureRecord();
+    const events = stream(
+      ["unit.changed", { status: "done" }, "toString"],
+      ["unit.changed", { status: "done" }, "__proto__"],
+      ["decision.answered", { decision_id: "constructor", answer: "a" }],
+      ["decision.answered", { decision_id: "hasOwnProperty" }],
+    );
+    const before = foldDelivery({ record, events: [] });
+    const snapshot = foldDelivery({ record, events });
+    expect(snapshot.seq).toBe(11);
+    expect(Object.keys(snapshot.unitsById)).toEqual(["A", "B", "C", "D"]);
+    expect(Object.getPrototypeOf(snapshot.unitsById)).toBe(Object.prototype);
+    expect({ ...snapshot, seq: 7 }).toEqual(before);
+  });
+
+  it("keeps an entity whose id is an Object.prototype name as an own key", () => {
+    const record = fixtureRecord();
+    const events = stream(
+      [
+        "delivery.planned",
+        {
+          units: [
+            {
+              id: "__proto__",
+              title: "P",
+              status: "pending",
+              stack: "toString",
+              layer: 0,
+              depends_on: [],
+            },
+            {
+              id: "constructor",
+              title: "C",
+              status: "running",
+              stack: "toString",
+              layer: 1,
+              depends_on: ["__proto__"],
+            },
+          ],
+          stacks: { toString: ["__proto__", "constructor"] },
+          gates: [{ id: "hasOwnProperty", after: ["constructor"], status: "pending", cases: [] }],
+          roles: { valueOf: { tier: "fast" } },
+        },
+      ],
+      ["seam.ran", { seam: "toString", status: "ok" }],
+      ["unit.changed", { status: "done" }, "constructor"],
+    );
+    const snapshot = foldDelivery({ record, events });
+    expect(snapshot.seq).toBe(10);
+    expect(Object.keys(snapshot.unitsById)).toEqual(["__proto__", "constructor"]);
+    expect(Object.getPrototypeOf(snapshot.unitsById)).toBe(Object.prototype);
+    expect(Object.hasOwn(snapshot.unitsById, "constructor")).toBe(true);
+    const own = (table: object, key: string): unknown =>
+      Object.getOwnPropertyDescriptor(table, key)?.value;
+    expect((own(snapshot.unitsById, "constructor") as DeliveryUnit).status).toBe("done");
+    expect(Object.keys(snapshot.gatesById)).toEqual(["hasOwnProperty"]);
+    expect((own(snapshot.gatesById, "hasOwnProperty") as DeliveryGateView).state.status).toBe(
+      "no_gating_cases",
+    );
+    expect(Object.hasOwn(snapshot.roles, "valueOf")).toBe(true);
+    expect((own(snapshot.seams, "toString") as DeliverySeam).status).toBe("ok");
+    expect(snapshot.edges).toEqual([
+      { from: "__proto__", to: "constructor", kind: "depends_on" },
+      { from: "__proto__", to: "constructor", kind: "stack" },
+    ]);
   });
 
   it("ignores a known event whose payload lacks the keys it needs", () => {
@@ -619,6 +708,14 @@ describe("classifyUnitStatus", () => {
     expect(classifyUnitStatus("skipped")).toBe("skipped");
     expect(classifyUnitStatus("pending")).toBe("pending");
     expect(classifyUnitStatus("reviewing")).toBe("other");
+  });
+
+  it("reads a word that names an Object.prototype member as other", () => {
+    expect(classifyUnitStatus("constructor")).toBe("other");
+    expect(classifyUnitStatus("toString")).toBe("other");
+    expect(classifyUnitStatus("__proto__")).toBe("other");
+    expect(classifyUnitStatus("hasOwnProperty")).toBe("other");
+    expect(classifyUnitStatus("valueOf")).toBe("other");
   });
 });
 

@@ -15,6 +15,8 @@ import {
 } from "@roubo/shared/delivery-observation-contract";
 import {
   createDeliveryReducer,
+  ownValue,
+  setOwnValue,
   type DeliveryFoldInputs,
   type DeliveryGap,
   type DeliveryProgress,
@@ -67,7 +69,10 @@ export function foldDeliveryJson(
   return { ok: true, snapshot: reducer.fold({ ...rest, record: record.data, events }) };
 }
 
-// A compact reading of a snapshot for a log line or a list row.
+// A compact reading of a snapshot for a log line or a list row. `byStatus` and
+// `gates` are keyed by open strings (a status word, a gate id), so they are
+// read and written as own keys only: a unit whose status is `toString` counts
+// as one unit with that status, not as a string appended to a function.
 export interface DeliverySummary {
   deliveryId: string;
   seq: number;
@@ -87,11 +92,11 @@ export function summarizeDelivery(snapshot: DeliverySnapshot): DeliverySummary {
   const byStatus: Record<string, number> = {};
   const units = Object.values(snapshot.unitsById);
   for (const unit of units) {
-    byStatus[unit.status] = (byStatus[unit.status] ?? 0) + 1;
+    setOwnValue(byStatus, unit.status, (ownValue(byStatus, unit.status) ?? 0) + 1);
   }
   const gates: DeliverySummary["gates"] = {};
   for (const [id, view] of Object.entries(snapshot.gatesById)) {
-    gates[id] = { status: view.gate.status, evaluated: view.state.status };
+    setOwnValue(gates, id, { status: view.gate.status, evaluated: view.state.status });
   }
   const boundary = selectNextBoundary(snapshot);
   return {

@@ -4,9 +4,12 @@
 // is a pure function of the snapshot; none reads a clock or fetches.
 //
 // Status words are open strings, read through `classifyUnitStatus` and
-// `isDecisionOpen` from the reducer, each with an "other" fallback. The module
-// is open to the later decision-mode selectors (mode, review stack, thread,
-// provisional marks): they are more functions over the same snapshot.
+// `isDecisionOpen` from the reducer, each with an "other" fallback. An id or a
+// stack name is an open string too, so every `byId` or `stacks` read goes
+// through the reducer's `ownValue`: a unit called `toString` is a unit, and a
+// stack called `constructor` that the snapshot does not list has no members. The
+// module is open to the later decision-mode selectors (mode, review stack,
+// thread, provisional marks): they are more functions over the same snapshot.
 
 import type {
   DeliveryDecision,
@@ -16,6 +19,7 @@ import type {
 import {
   classifyUnitStatus,
   isDecisionOpen,
+  ownValue,
   type DeliveryGateView,
   type DeliveryProgress,
   type DeliverySnapshot,
@@ -31,7 +35,7 @@ export interface UnitStatusView {
 }
 
 export function selectUnitStatus(snapshot: DeliverySnapshot, unitId: string): UnitStatusView {
-  const unit = snapshot.unitsById[unitId];
+  const unit = ownValue(snapshot.unitsById, unitId);
   if (unit === undefined) {
     return { status: null, kind: null };
   }
@@ -48,11 +52,11 @@ export interface UnitStackView {
 }
 
 export function selectUnitStack(snapshot: DeliverySnapshot, unitId: string): UnitStackView | null {
-  const unit = snapshot.unitsById[unitId];
+  const unit = ownValue(snapshot.unitsById, unitId);
   if (unit === undefined) {
     return null;
   }
-  const members = snapshot.stacks[unit.stack] ?? [];
+  const members = ownValue(snapshot.stacks, unit.stack) ?? [];
   return { stack: unit.stack, layer: unit.layer, members, index: members.indexOf(unitId) };
 }
 
@@ -60,7 +64,7 @@ export function selectGateState(
   snapshot: DeliverySnapshot,
   gateId: string,
 ): DeliveryGateView | null {
-  return snapshot.gatesById[gateId] ?? null;
+  return ownValue(snapshot.gatesById, gateId) ?? null;
 }
 
 export function selectProgress(snapshot: DeliverySnapshot): DeliveryProgress {
@@ -74,7 +78,7 @@ export function selectUnitsInStackOrder(snapshot: DeliverySnapshot): DeliveryUni
   const ordered: DeliveryUnit[] = [];
   for (const members of Object.values(snapshot.stacks)) {
     for (const id of members) {
-      const unit = snapshot.unitsById[id];
+      const unit = ownValue(snapshot.unitsById, id);
       if (unit !== undefined && !seen.has(id)) {
         seen.add(id);
         ordered.push(unit);
