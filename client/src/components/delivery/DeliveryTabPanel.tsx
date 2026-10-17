@@ -4,14 +4,21 @@ import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { selectOpenDecisions, selectUnitsInStackOrder } from "@roubo/shared/delivery-selectors";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
-import { useDelivery, useDeliverySessionLive, useResumeDelivery } from "../../hooks/useDelivery";
+import {
+  useDelivery,
+  useDeliverySessionLive,
+  useLaunchDelivery,
+  useResumeDelivery,
+} from "../../hooks/useDelivery";
 import { deliveryReadErrorOf } from "../../lib/api";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot and its
 // controls when the record conforms, or the named error when it does not. No
 // decision, steering, role or lifecycle control renders until the record
-// conforms, so nothing can act on a record the bench cannot read.
+// conforms, so nothing can act on a record the bench cannot read. The one
+// exception is a launch-mode bench with no record yet: it offers to launch its
+// session again, since no record means no session has run the delivery yet.
 export default function DeliveryTabPanel({ bench }: { bench: Bench }) {
   const specFolder = bench.focusedSpecPath;
   const slug = specFolder?.split("/").filter(Boolean).pop();
@@ -39,7 +46,7 @@ export default function DeliveryTabPanel({ bench }: { bench: Bench }) {
           Reading the delivery record...
         </p>
       )}
-      {delivery.isError && readError && <DeliveryReadErrorCallout error={readError} />}
+      {delivery.isError && readError && <DeliveryReadErrorCallout bench={bench} error={readError} />}
       {delivery.isError && !readError && (
         <Callout role="alert" title="The delivery could not be read" data-testid="delivery-error">
           {delivery.error.message}
@@ -65,7 +72,14 @@ function readErrorTitle(error: DeliveryReadError): string {
   }
 }
 
-function DeliveryReadErrorCallout({ error }: { error: DeliveryReadError }) {
+// The server refuses a new session while the bench's session runs or the bench
+// is going (409), so a button that starts one says the same before it is pressed.
+function useSessionStartBlocked(bench: Bench): boolean {
+  const sessionLive = useDeliverySessionLive(bench);
+  return bench.status === "clearing" || bench.status === "error" || sessionLive;
+}
+
+function DeliveryReadErrorCallout({ bench, error }: { bench: Bench; error: DeliveryReadError }) {
   const waiting = error.code === "DELIVERY_RECORD_MISSING";
   return (
     <Callout
@@ -77,9 +91,29 @@ function DeliveryReadErrorCallout({ error }: { error: DeliveryReadError }) {
       {waiting ? (
         <p>The delivery session writes it when it starts.</p>
       ) : (
-        <p>Fix the record in the spec folder. The tab reads it again on its own.</p>
+        <p>
+          Fix the record in the spec folder of the bench workspace. The tab reads it again on its
+          own.
+        </p>
       )}
+      {waiting && bench.deliveryBindMode === "launch" && <LaunchDeliveryControl bench={bench} />}
     </Callout>
+  );
+}
+
+// A launch-mode bench whose record is missing: the create-time launch may have
+// failed, or the session ended before it wrote the record, so the operator can
+// launch it again.
+function LaunchDeliveryControl({ bench }: { bench: Bench }) {
+  const launch = useLaunchDelivery(bench.projectId, bench.id);
+  const blocked = useSessionStartBlocked(bench);
+  return (
+    <div data-testid="delivery-launch-control" className="space-y-2">
+      <Button onPress={() => launch.mutate()} isDisabled={launch.isPending || blocked}>
+        Launch the delivery session
+      </Button>
+      {launch.isError && <p role="alert">{launch.error.message}</p>}
+    </div>
   );
 }
 
@@ -88,10 +122,7 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
   const decisions = selectOpenDecisions(snapshot);
   const roles = Object.entries(snapshot.roles);
   const resume = useResumeDelivery(bench.projectId, bench.id);
-  // The server refuses a resume while the bench's session runs or the bench is
-  // going (409), so the button says the same before it is pressed.
-  const sessionLive = useDeliverySessionLive(bench);
-  const resumeBlocked = bench.status === "clearing" || bench.status === "error" || sessionLive;
+  const resumeBlocked = useSessionStartBlocked(bench);
 
   return (
     <div data-testid="delivery-snapshot" className="space-y-4">

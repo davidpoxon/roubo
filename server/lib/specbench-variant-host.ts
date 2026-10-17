@@ -10,8 +10,11 @@
 //     session, then revokes the delivery token; the bench manager removes the
 //     workspace after that (SB-TC-005).
 //
-// Nothing here ever writes to or removes the spec folder: the delivery record and
-// test-results.json in it belong to the project checkout and outlive the bench.
+// Nothing here ever writes to or removes the focused spec folder in the project
+// checkout: test-results.json in it belongs to the checkout and outlives the
+// bench. The delivery record is not in that folder: the session writes it to
+// `.specifications/<slug>/` inside the bench workspace, which goes with the
+// workspace when the bench manager removes it.
 import fs from "node:fs";
 import type { Bench } from "@roubo/shared";
 import { assertSafeWorkspacePath, UnsafePathError } from "./safe-path.js";

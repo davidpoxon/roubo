@@ -46,6 +46,12 @@ describe("buildDeliveryLaunchDescriptor", () => {
   it("encodes the project id into the paths", () => {
     expect(deliveryRoutePaths("a b", 1).base).toBe("/api/projects/a%20b/benches/1/delivery");
   });
+
+  it("names the launch route beside resume", () => {
+    const paths = deliveryRoutePaths("demo", 4);
+    expect(paths.launch).toBe("/api/projects/demo/benches/4/delivery/launch");
+    expect(paths.resume).toBe("/api/projects/demo/benches/4/delivery/resume");
+  });
 });
 
 describe("checkDeliveryRecord", () => {

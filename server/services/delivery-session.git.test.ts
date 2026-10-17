@@ -1,5 +1,8 @@
 // A Spec Bench's delivery session, its token and its record end to end against
 // a real git repository (SB-FR-002, SB-FR-003, SB-FR-009, SB-US-001, SB-US-002).
+// The record is read from `.specifications/<slug>/` inside the bench workspace,
+// so each test writes it there once the workspace exists, or commits it to the
+// project so the worktree checks it out.
 // The create route, the bench manager, the delivery routes, the token registry
 // and the record loader are real; the agent launch executor is a recording
 // stand-in, so each test sees exactly the launch requests that reached it.
@@ -78,6 +81,7 @@ vi.mock("./claude-settings-local.js", () => ({ injectPermissions: vi.fn() }));
 
 import * as state from "./state.js";
 import * as terminal from "./terminal.js";
+import * as notification from "./notification.js";
 import * as benchManager from "./bench-manager.js";
 import benchesRouter from "../routes/benches.js";
 import deliveryRouter from "../routes/delivery.js";
@@ -103,7 +107,6 @@ function git(cwd: string, ...args: string[]): string {
 let tmp: string;
 let repo: string;
 let specFolder: string;
-let recordPath: string;
 let app: express.Express;
 let launches: DeliveryLaunchRequest[];
 
@@ -111,8 +114,29 @@ function fixtureRecord(): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(FIXTURE_RECORD, "utf8")) as Record<string, unknown>;
 }
 
-function writeRecord(record: unknown): void {
-  fs.writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+// The record's place: `.specifications/fixture-spec/` inside the bench workspace.
+function workspaceRecordPath(bench: Bench): string {
+  return path.join(
+    bench.workspacePath,
+    ".specifications",
+    "fixture-spec",
+    "delivery-observation.json",
+  );
+}
+
+function writeRecord(bench: Bench, record: unknown): void {
+  fs.writeFileSync(workspaceRecordPath(bench), `${JSON.stringify(record, null, 2)}\n`);
+}
+
+// Places the record in the project's spec folder and commits it, so a bench
+// created after this checks it out into its workspace.
+function commitRecordToProject(record: unknown): void {
+  fs.writeFileSync(
+    path.join(specFolder, "delivery-observation.json"),
+    `${JSON.stringify(record, null, 2)}\n`,
+  );
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "record");
 }
 
 function event(seq: number, type = "unit.changed"): Record<string, unknown> {
@@ -137,7 +161,6 @@ beforeEach(() => {
   fs.mkdirSync(hoisted.workspaces);
 
   specFolder = path.join(repo, ".specifications", "fixture-spec");
-  recordPath = path.join(specFolder, "delivery-observation.json");
   fs.mkdirSync(specFolder, { recursive: true });
   fs.writeFileSync(path.join(specFolder, "test-cases.json"), '{"cases":[]}\n');
   git(repo, "init", "-q", "-b", "main");
@@ -166,6 +189,7 @@ beforeEach(() => {
     },
   });
   vi.mocked(state.updateBench).mockClear();
+  vi.mocked(notification.createNotification).mockClear();
   registerSpecbenchVariantHost();
   app = express();
   app.use(express.json());
@@ -277,8 +301,8 @@ describe("Launch mode", () => {
   });
 
   it("folds posted events over the record in GET /delivery", async () => {
-    writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("launch");
+    writeRecord(bench, fixtureRecord());
     const token = launches[0].descriptor.token;
     await request(app)
       .post(`/demo/benches/${bench.id}/delivery/events`)
@@ -309,9 +333,11 @@ describe("Launch mode", () => {
 
 describe("Attach mode", () => {
   it("SB-TC-004: Attach adopts an existing delivery record without launching a session", async () => {
-    // Step 1: the record is in the spec folder; attach answers 201 and launches nothing.
-    writeRecord(fixtureRecord());
+    // Step 1: the record is committed to the project's spec folder, so the
+    // bench workspace checks it out; attach answers 201 and launches nothing.
+    commitRecordToProject(fixtureRecord());
     const { status, bench } = await createSpecBench("attach");
+    expect(fs.existsSync(workspaceRecordPath(bench))).toBe(true);
     expect(status).toBe(201);
     expect(bench.deliveryBindMode).toBe("attach");
     expect(launches).toHaveLength(0);
@@ -344,8 +370,8 @@ describe("Attach mode", () => {
   });
 
   it("the attach handout gives the attached session a token it can post events with, and launches nothing", async () => {
-    writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("attach");
+    writeRecord(bench, fixtureRecord());
     // Nothing is minted until the handout: no one would hold the token.
     expect(bench.deliveryTokenHash).toBeUndefined();
 
@@ -376,8 +402,8 @@ describe("Attach mode", () => {
   it("refuses resume while the record does not conform, and launches nothing", async () => {
     const record = fixtureRecord();
     delete record.budget;
-    writeRecord(record);
     const { bench } = await createSpecBench("attach");
+    writeRecord(bench, record);
 
     const resumed = await request(app).post(`/demo/benches/${bench.id}/delivery/resume`).send({});
     expect(resumed.status).toBe(409);
@@ -388,8 +414,8 @@ describe("Attach mode", () => {
 
 describe("One delivery session per bench", () => {
   it("answers 409 DELIVERY_SESSION_LIVE to a resume while the launched session still runs", async () => {
-    writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("launch");
+    writeRecord(bench, fixtureRecord());
     expect(launches).toHaveLength(1);
     const token = launches[0].descriptor.token;
     const hashBefore = bench.deliveryTokenHash;
@@ -408,8 +434,8 @@ describe("One delivery session per bench", () => {
   });
 
   it("resumes once the launched session has ended, and records the new session", async () => {
-    writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("launch");
+    writeRecord(bench, fixtureRecord());
     hoisted.liveSessions.delete("session-1");
 
     const resumed = await request(app).post(`/demo/benches/${bench.id}/delivery/resume`).send({});
@@ -420,8 +446,8 @@ describe("One delivery session per bench", () => {
   });
 
   it("launches one session when two resumes arrive together", async () => {
-    writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("attach");
+    writeRecord(bench, fixtureRecord());
     const url = `/demo/benches/${bench.id}/delivery/resume`;
 
     const answers = await Promise.all([
@@ -435,8 +461,8 @@ describe("One delivery session per bench", () => {
   it.each(["clearing", "error"] as const)(
     "answers 409 BENCH_UNAVAILABLE to a resume while the bench is %s, and mints nothing",
     async (status) => {
-      writeRecord(fixtureRecord());
       const { bench } = await createSpecBench("attach");
+      writeRecord(bench, fixtureRecord());
       bench.status = status;
 
       const resumed = await request(app).post(`/demo/benches/${bench.id}/delivery/resume`).send({});
@@ -472,8 +498,8 @@ describe("Record loading", () => {
     // Step 1: remove the budget section and load the bench.
     const record = fixtureRecord();
     delete record.budget;
-    writeRecord(record);
     const { bench } = await createSpecBench("attach");
+    writeRecord(bench, record);
 
     // Step 2: the read is a 409 naming the section.
     const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
@@ -483,7 +509,7 @@ describe("Record loading", () => {
     expect(read.body.error).toMatch(/budget/);
 
     // Step 4: restore the section and read again.
-    writeRecord(fixtureRecord());
+    writeRecord(bench, fixtureRecord());
     const restored = await request(app).get(`/demo/benches/${bench.id}/delivery`);
     expect(restored.status).toBe(200);
     expect(restored.body.budget.estimate_usd).toBe(3.2);
@@ -493,8 +519,8 @@ describe("Record loading", () => {
     // Step 1: units as an object.
     const record = fixtureRecord();
     record.units = { A: (record.units as unknown[])[0] };
-    writeRecord(record);
     const { bench } = await createSpecBench("attach");
+    writeRecord(bench, record);
 
     const invalid = await request(app).get(`/demo/benches/${bench.id}/delivery`);
     expect(invalid.status).toBe(409);
@@ -503,7 +529,7 @@ describe("Record loading", () => {
     expect(invalid.body.error).toMatch(/units/);
 
     // Step 2: an unknown contract major version.
-    writeRecord({
+    writeRecord(bench, {
       ...fixtureRecord(),
       $schema: "https://roubo.dev/schema/delivery-record/v2.0.0.json",
       schemaVersion: "2.0.0",
@@ -517,8 +543,8 @@ describe("Record loading", () => {
   });
 
   it("validates the record again after a restart, and the persisted token still works", async () => {
-    writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("launch");
+    writeRecord(bench, fixtureRecord());
     const token = launches[0].descriptor.token;
 
     // The restart: the bench comes back from its persisted record only.
@@ -531,7 +557,7 @@ describe("Record loading", () => {
 
     const record = fixtureRecord();
     delete record.lifecycle;
-    writeRecord(record);
+    writeRecord(bench, record);
     const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
     expect(read.status).toBe(409);
     expect(read.body).toMatchObject({ code: "DELIVERY_NONCONFORMANT", section: "lifecycle" });
@@ -541,6 +567,23 @@ describe("Record loading", () => {
       .set("Authorization", `Bearer ${token}`)
       .send(event(8));
     expect(posted.status).toBe(202);
+  });
+
+  it("reads the record from the bench workspace, not from the spec folder of the project checkout", async () => {
+    const { bench } = await createSpecBench("attach");
+    // A record written to the checkout after the workspace exists never reaches it.
+    fs.writeFileSync(
+      path.join(specFolder, "delivery-observation.json"),
+      `${JSON.stringify(fixtureRecord(), null, 2)}\n`,
+    );
+    const missing = await request(app).get(`/demo/benches/${bench.id}/delivery`);
+    expect(missing.status).toBe(409);
+    expect(missing.body.code).toBe("DELIVERY_RECORD_MISSING");
+
+    writeRecord(bench, fixtureRecord());
+    const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
+    expect(read.status).toBe(200);
+    expect(read.body.budget.estimate_usd).toBe(3.2);
   });
 
   it("answers 409 DELIVERY_RECORD_MISSING before the session writes a record", async () => {
@@ -559,6 +602,113 @@ describe("Record loading", () => {
     expect(read.status).toBe(404);
     expect(read.body.code).toBe("NOT_SPEC_BENCH");
     expect((await request(app).get("/demo/benches/99/delivery")).status).toBe(404);
+    expect(launches).toHaveLength(0);
+  });
+});
+
+describe("Launching again without a record", () => {
+  function failFirstLaunch(): void {
+    let calls = 0;
+    setDeliveryLaunchExecutor({
+      launch: async (req) => {
+        calls += 1;
+        if (calls === 1) throw new Error("no agent plugin is installed");
+        launches.push(req);
+        const sessionId = `session-${launches.length}`;
+        hoisted.liveSessions.add(sessionId);
+        return { sessionId };
+      },
+    });
+  }
+
+  it("launches a launch-mode bench whose create-time launch failed, with no resume argument", async () => {
+    failFirstLaunch();
+    const { bench } = await createSpecBench("launch");
+    expect(launches).toHaveLength(0);
+    expect(notification.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ id: bench.id }),
+      "agent-launch-failed",
+      undefined,
+      expect.objectContaining({ message: expect.stringMatching(/no agent plugin/) }),
+    );
+    const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
+    expect(read.body.code).toBe("DELIVERY_RECORD_MISSING");
+
+    const launched = await request(app).post(`/demo/benches/${bench.id}/delivery/launch`).send({});
+    expect(launched.status).toBe(202);
+    expect(launched.body).toEqual({ sessionId: "session-1" });
+    expect(launches).toHaveLength(1);
+    expect(launches[0].descriptor).not.toHaveProperty("resume");
+    expect(launches[0].workspacePath).toBe(bench.workspacePath);
+    expect(bench.deliverySessionId).toBe("session-1");
+    expect(bench.deliveryTokenHash).toBe(hashDeliveryToken(launches[0].descriptor.token));
+  });
+
+  it("refuses a launch while the launched session runs, once a record exists, and on an attached bench", async () => {
+    const { bench } = await createSpecBench("launch");
+    expect(launches).toHaveLength(1);
+    const url = `/demo/benches/${bench.id}/delivery/launch`;
+
+    const live = await request(app).post(url).send({});
+    expect(live.status).toBe(409);
+    expect(live.body).toMatchObject({ code: "DELIVERY_SESSION_LIVE", sessionId: "session-1" });
+
+    hoisted.liveSessions.clear();
+    writeRecord(bench, fixtureRecord());
+    const present = await request(app).post(url).send({});
+    expect(present.status).toBe(409);
+    expect(present.body.code).toBe("DELIVERY_RECORD_PRESENT");
+
+    const record = fixtureRecord();
+    delete record.budget;
+    writeRecord(bench, record);
+    const nonconformant = await request(app).post(url).send({});
+    expect(nonconformant.status).toBe(409);
+    expect(nonconformant.body).toMatchObject({ code: "DELIVERY_NONCONFORMANT", section: "budget" });
+
+    const { bench: attached } = await createSpecBench("attach");
+    const refused = await request(app)
+      .post(`/demo/benches/${attached.id}/delivery/launch`)
+      .send({});
+    expect(refused.status).toBe(409);
+    expect(refused.body.code).toBe("DELIVERY_NOT_LAUNCH_MODE");
+    expect(launches).toHaveLength(1);
+  });
+
+  it("launches the session again once Cleanup & Retry re-provisions a launch-mode bench", async () => {
+    const { bench } = await createSpecBench("launch");
+    expect(launches).toHaveLength(1);
+    // The bench ends in error, and its session with it.
+    hoisted.liveSessions.clear();
+    bench.status = "error";
+    bench.error = "provisioning failed";
+
+    const retried = await request(app)
+      .post(`/demo/benches/${bench.id}/cleanup-and-retry`)
+      .send({});
+    expect(retried.status).toBe(200);
+    await benchManager.whenWorkspaceProvisioned("demo", bench.id);
+    await whenDeliveryBound("demo", bench.id);
+
+    const live = benchManager.getBench("demo", bench.id);
+    expect(live?.status).not.toBe("error");
+    expect(launches).toHaveLength(2);
+    expect(launches[1].descriptor).not.toHaveProperty("resume");
+    expect(live?.deliverySessionId).toBe("session-2");
+    expect(live?.deliveryTokenHash).toBe(hashDeliveryToken(launches[1].descriptor.token));
+  });
+
+  it("launches nothing after Cleanup & Retry of an attached bench", async () => {
+    const { bench } = await createSpecBench("attach");
+    bench.status = "error";
+    bench.error = "provisioning failed";
+
+    const retried = await request(app)
+      .post(`/demo/benches/${bench.id}/cleanup-and-retry`)
+      .send({});
+    expect(retried.status).toBe(200);
+    await benchManager.whenWorkspaceProvisioned("demo", bench.id);
+    await whenDeliveryBound("demo", bench.id);
     expect(launches).toHaveLength(0);
   });
 });

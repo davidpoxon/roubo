@@ -24,12 +24,17 @@ export function useDelivery(projectId: string, benchId: number) {
   });
 }
 
-export function useResumeDelivery(projectId: string, benchId: number) {
+function useDeliverySessionMutation<T>(
+  projectId: string,
+  benchId: number,
+  start: () => Promise<T>,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.resumeDelivery(projectId, benchId),
-    // A resume records a new session on the bench and starts a terminal, so the
-    // bench list and the bench's terminal sessions are read again too.
+    mutationFn: start,
+    // A launch or a resume records a new session on the bench and starts a
+    // terminal, so the bench list and the bench's terminal sessions are read
+    // again too.
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
@@ -37,6 +42,19 @@ export function useResumeDelivery(projectId: string, benchId: number) {
         queryClient.invalidateQueries({ queryKey: ["terminals", projectId, benchId] }),
       ]),
   });
+}
+
+export function useResumeDelivery(projectId: string, benchId: number) {
+  return useDeliverySessionMutation(projectId, benchId, () =>
+    api.resumeDelivery(projectId, benchId),
+  );
+}
+
+/** Launches a launch-mode bench's session again while it has no record yet. */
+export function useLaunchDelivery(projectId: string, benchId: number) {
+  return useDeliverySessionMutation(projectId, benchId, () =>
+    api.launchDelivery(projectId, benchId),
+  );
 }
 
 /**
