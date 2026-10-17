@@ -102,7 +102,7 @@ describe("Spec Bench host: verifyVariantState", () => {
 });
 
 describe("Spec Bench host: beforeTeardown", () => {
-  it("removes the pin before it stops the session, and never removes the spec folder", async () => {
+  it("removes the pin before it stops the session, and never touches the spec folder", async () => {
     const pin = path.join(tmp, "ws", "bench-1-pin");
     const bench = specBench({
       gatePin: { gateId: "G1", workspacePath: pin, createdAt: "now" },
@@ -144,41 +144,33 @@ describe("Spec Bench host: beforeTeardown", () => {
     expect(bench.gatePin).toBeDefined();
   });
 
-  it("copies the workspace delivery record into the checkout's spec folder after the session stops", async () => {
+  it("leaves the checkout's spec folder and its files untouched, and never copies the workspace record there", async () => {
     const bench = specBench({
       deliverySitting: { gateId: "G1", sessionId: "s-1", openedAt: "now" },
     });
+    const checkout = bench.focusedSpecPath ?? "";
+    fs.writeFileSync(path.join(checkout, "test-results.json"), '{"results":[]}\n');
+    fs.writeFileSync(path.join(checkout, "delivery-observation.json"), '{"checkout":1}\n');
     const workspaceFolder = path.join(bench.workspacePath, ".specifications", "fixture-spec");
     fs.mkdirSync(workspaceFolder, { recursive: true });
     fs.writeFileSync(path.join(workspaceFolder, "delivery-observation.json"), '{"seq":7}\n');
-    const checkoutRecord = path.join(bench.focusedSpecPath ?? "", "delivery-observation.json");
-    const seenAtStop: boolean[] = [];
 
     await specbenchVariantHost.beforeTeardown(bench, {
       project: undefined,
       removeWorktree: vi.fn(),
-      stopSession: () => {
-        seenAtStop.push(fs.existsSync(checkoutRecord));
-      },
+      stopSession: vi.fn(),
     });
 
-    expect(seenAtStop).toEqual([false]);
-    expect(fs.readFileSync(checkoutRecord, "utf8")).toBe('{"seq":7}\n');
-  });
-
-  it("copies the workspace delivery record into the checkout before Cleanup & Retry removes the workspace", () => {
-    registerSpecbenchVariantHost();
-    const bench = specBench();
-    const workspaceFolder = path.join(bench.workspacePath, ".specifications", "fixture-spec");
-    fs.mkdirSync(workspaceFolder, { recursive: true });
-    fs.writeFileSync(path.join(workspaceFolder, "delivery-observation.json"), '{"seq":3}\n');
-
-    registry.beforeWorkspaceRemoval(bench);
-
-    expect(
-      fs.readFileSync(path.join(bench.focusedSpecPath ?? "", "delivery-observation.json"), "utf8"),
-    ).toBe('{"seq":3}\n');
-    expect(() => registry.beforeWorkspaceRemoval(makeBench())).not.toThrow();
+    expect(fs.readdirSync(checkout).sort()).toEqual([
+      "delivery-observation.json",
+      "test-results.json",
+    ]);
+    expect(fs.readFileSync(path.join(checkout, "delivery-observation.json"), "utf8")).toBe(
+      '{"checkout":1}\n',
+    );
+    expect(fs.readFileSync(path.join(checkout, "test-results.json"), "utf8")).toBe(
+      '{"results":[]}\n',
+    );
   });
 
   it("does nothing beyond clearing the fields when no sitting is open", async () => {
