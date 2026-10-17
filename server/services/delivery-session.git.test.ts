@@ -94,7 +94,6 @@ import {
   type DeliveryLaunchRequest,
 } from "./delivery-session-launcher.js";
 import { hashDeliveryToken } from "./delivery-token-registry.js";
-import { forgetDeliveryEvents } from "./delivery-event-store.js";
 
 const FIXTURE_RECORD = fileURLToPath(
   new URL("../../shared/__fixtures__/delivery-record.json", import.meta.url),
@@ -201,7 +200,6 @@ afterEach(() => {
   benchManager.dropProjectBenches("demo");
   unregisterVariantHost("specbench");
   resetDeliveryLaunchExecutor();
-  forgetDeliveryEvents();
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -298,21 +296,6 @@ describe("Launch mode", () => {
     expect(malformed.status).toBe(400);
     expect(malformed.body.code).toBe("INVALID_EVENT");
     expect(malformed.body.error).toMatch(/seq/);
-  });
-
-  it("folds posted events over the record in GET /delivery", async () => {
-    const { bench } = await createSpecBench("launch");
-    writeRecord(bench, fixtureRecord());
-    const token = launches[0].descriptor.token;
-    await request(app)
-      .post(`/demo/benches/${bench.id}/delivery/events`)
-      .set("Authorization", `Bearer ${token}`)
-      .send(event(8));
-
-    const res = await request(app).get(`/demo/benches/${bench.id}/delivery`);
-    expect(res.status).toBe(200);
-    expect(res.body.seq).toBe(8);
-    expect(res.body.unitsById.C.status).toBe("running");
   });
 
   it("revokes the delivery token when the bench is cleared", async () => {

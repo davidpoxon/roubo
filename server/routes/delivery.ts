@@ -10,7 +10,10 @@
 //                                                        or invalid (DELIVERY_INVALID + field)
 //   POST /:projectId/benches/:id/delivery/events  -> 202 one event from the session,
 //                                                    which presents its delivery token
-//                                                    as a bearer token; 401 without it
+//                                                    as a bearer token; 401 without it,
+//                                                    400 for a malformed event. The event
+//                                                    is accepted but not yet stored or
+//                                                    folded into GET /delivery
 //   POST /:projectId/benches/:id/delivery/launch  -> 202 a launch-mode bench's session
 //                                                    launched again with no resume
 //                                                    argument, while no record exists
@@ -56,7 +59,6 @@ import { loadBenchDeliveryRecord } from "../lib/delivery-record-loader.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import * as benchManager from "../services/bench-manager.js";
 import { verifyDeliveryToken } from "../services/delivery-token-registry.js";
-import { appendDeliveryEvent, listDeliveryEvents } from "../services/delivery-event-store.js";
 import {
   DeliveryLaunchBlockedError,
   deliveryLaunchBlock,
@@ -138,8 +140,8 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
     res.status(409).json(loaded.error);
     return;
   }
-  const events = listDeliveryEvents(bench.projectId, bench.id, loaded.record.delivery_id);
-  res.json(foldDeliverySnapshot({ record: loaded.record, events, now: Date.now() }));
+  // No posted event is held yet, so the snapshot is the record's own state.
+  res.json(foldDeliverySnapshot({ record: loaded.record, events: [], now: Date.now() }));
 });
 
 router.post("/:projectId/benches/:id/delivery/events", deliveryEventRateLimiter, (req, res) => {
@@ -160,8 +162,9 @@ router.post("/:projectId/benches/:id/delivery/events", deliveryEventRateLimiter,
     });
     return;
   }
-  const added = appendDeliveryEvent(bench.projectId, bench.id, event.data);
-  res.status(202).json({ seq: event.data.seq, duplicate: !added });
+  // The event is accepted and not yet stored: ingestion, with its seq checks,
+  // comes in a later slice.
+  res.status(202).json({ seq: event.data.seq });
 });
 
 function sendLaunchFailed(res: Response, err: unknown): void {

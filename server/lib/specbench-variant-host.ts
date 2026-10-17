@@ -25,7 +25,6 @@ import {
   type VariantTeardownContext,
 } from "../services/variant-host-registry.js";
 import { revokeDeliveryToken } from "../services/delivery-token-registry.js";
-import { forgetDeliveryEvents } from "../services/delivery-event-store.js";
 
 /** The pin path of a bench when it passes the safe-path allowlist, else undefined. */
 function safePinPath(bench: Bench): string | undefined {
@@ -78,11 +77,10 @@ export const specbenchVariantHost: VariantHost = {
       ctx.stopSession(sessionId);
     }
     bench.deliverySitting = undefined;
-    // 3. The delivery token and the events held for the bench (SB-FR-003). The
-    // bench manager persists the bench right after this step, so the revoked
-    // hash is written down before the workspace goes.
+    // 3. The delivery token (SB-FR-003). The bench manager persists the bench
+    // right after this step, so the revoked hash is written down before the
+    // workspace goes.
     revokeDeliveryToken(bench);
-    forgetDeliveryEvents(bench.projectId, bench.id);
   },
 };
 
