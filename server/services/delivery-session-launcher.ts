@@ -4,10 +4,17 @@
 //   launch  Once the bench workspace exists, mint a delivery token, build the
 //           launch descriptor and pass it to the agent launch executor, which
 //           starts the main delivery session in the bench workspace.
-//   attach  Adopt the delivery whose record is already in the spec folder. A
-//           token is minted, so a session the operator points at the bench can
-//           post events, but nothing is launched.
+//   attach  Adopt the delivery whose record is already in the spec folder, and
+//           launch nothing. The token of the session that already runs the
+//           delivery is minted on request, by POST /delivery/attach, which
+//           hands that session's operator the descriptor with the plain token.
 //   resume  Launch again with the record's resume argument, on a fresh token.
+//
+// One main session per bench: the bench keeps the id of the session it last
+// launched as `deliverySessionId`, and neither a resume nor an attach handout
+// goes ahead while that session is live, while a launch is in flight, or while
+// the bench is clearing or in error (deliveryLaunchBlock). A new mint revokes
+// the token before it, so going ahead then would cut off the live session.
 //
 // The executor is a port. The default one starts an AI coding agent session
 // through the terminal service with the descriptor in its environment; a test,
@@ -132,41 +139,104 @@ function specSlugOf(bench: Bench): string {
   return folder.split(/[\\/]/).filter(Boolean).pop() ?? "";
 }
 
+function bindingKey(projectId: string, benchId: number): string {
+  return `${projectId}:${benchId}`;
+}
+
+// The benches whose launch is in flight: the executor has not answered yet, so
+// no session id is recorded, but a second launch must still wait.
+const launching = new Set<string>();
+
+/** Why a new delivery token cannot be minted for a bench now. */
+export type DeliveryLaunchBlock = "clearing" | "error" | "session_live";
+
 /**
- * Mints a token and launches the main delivery session in the bench workspace.
- * `resume` is the record's resume argument when the session continues a
- * delivery.
+ * The block on minting a new delivery token for the bench, or undefined when
+ * there is none: the bench is clearing or in error, or the main session it
+ * launched is still live or still starting.
+ */
+export function deliveryLaunchBlock(bench: Bench): DeliveryLaunchBlock | undefined {
+  if (bench.status === "clearing" || bench.status === "error") return bench.status;
+  if (launching.has(bindingKey(bench.projectId, bench.id))) return "session_live";
+  const sessionId = bench.deliverySessionId;
+  if (sessionId !== undefined && terminalService.getSession(sessionId)?.status === "live") {
+    return "session_live";
+  }
+  return undefined;
+}
+
+/** Thrown by launchDeliverySession when deliveryLaunchBlock refuses the launch. */
+export class DeliveryLaunchBlockedError extends Error {
+  constructor(readonly block: DeliveryLaunchBlock) {
+    super(
+      block === "session_live"
+        ? "The delivery session of this bench is still running"
+        : `The bench is ${block === "clearing" ? "being cleared" : "in error"}`,
+    );
+    this.name = "DeliveryLaunchBlockedError";
+  }
+}
+
+function descriptorFor(bench: Bench, token: string, resume?: string): DeliveryLaunchDescriptor {
+  return buildDeliveryLaunchDescriptor({
+    origin: deliveryOrigin(),
+    projectId: bench.projectId,
+    benchId: bench.id,
+    token,
+    ...(resume !== undefined && { resume }),
+  });
+}
+
+/**
+ * Mints a token and launches the main delivery session in the bench workspace,
+ * then records the launched session's id on the bench. `resume` is the
+ * record's resume argument when the session continues a delivery. Throws
+ * DeliveryLaunchBlockedError, launching nothing and minting nothing, when
+ * deliveryLaunchBlock refuses.
  */
 export async function launchDeliverySession(
   bench: Bench,
   options: { resume?: string } = {},
 ): Promise<DeliveryLaunchResult> {
-  const token = mintDeliveryToken(bench);
-  const descriptor = buildDeliveryLaunchDescriptor({
-    origin: deliveryOrigin(),
-    projectId: bench.projectId,
-    benchId: bench.id,
-    token,
-    ...(options.resume !== undefined && { resume: options.resume }),
-  });
-  return executor.launch({
-    projectId: bench.projectId,
-    benchId: bench.id,
-    workspacePath: bench.workspacePath,
-    specSlug: specSlugOf(bench),
-    descriptor,
-  });
+  const block = deliveryLaunchBlock(bench);
+  if (block !== undefined) throw new DeliveryLaunchBlockedError(block);
+  const k = bindingKey(bench.projectId, bench.id);
+  launching.add(k);
+  try {
+    const token = mintDeliveryToken(bench);
+    const result = await executor.launch({
+      projectId: bench.projectId,
+      benchId: bench.id,
+      workspacePath: bench.workspacePath,
+      specSlug: specSlugOf(bench),
+      descriptor: descriptorFor(bench, token, options.resume),
+    });
+    bench.deliverySessionId = result.sessionId;
+    return result;
+  } finally {
+    launching.delete(k);
+  }
+}
+
+/**
+ * Attach mode's token handout: mints a token for the session that already runs
+ * the delivery and returns its descriptor, which carries the plain token, so
+ * the operator can hand it to that session. Launches nothing. Throws
+ * DeliveryLaunchBlockedError when deliveryLaunchBlock refuses, since the new
+ * mint would revoke the token of the session the bench launched.
+ */
+export function handOutDeliveryToken(bench: Bench): DeliveryLaunchDescriptor {
+  const block = deliveryLaunchBlock(bench);
+  if (block !== undefined) throw new DeliveryLaunchBlockedError(block);
+  return descriptorFor(bench, mintDeliveryToken(bench));
 }
 
 const bindings = new Map<string, Promise<void>>();
 
-function bindingKey(projectId: string, benchId: number): string {
-  return `${projectId}:${benchId}`;
-}
-
 /**
  * Binds a newly created Spec Bench to its delivery, once its workspace is
- * provisioned: launch mode launches, attach mode only mints the token. A
+ * provisioned: launch mode launches, attach mode launches nothing and mints
+ * nothing (its token is minted when POST /delivery/attach hands it out). A
  * launch that fails leaves a notification on the bench; it never fails the
  * create, which has already answered.
  */
@@ -177,13 +247,14 @@ export function bindDeliveryOnCreate(bench: Bench): Promise<void> {
     const live = benchManager.getBench(bench.projectId, bench.id);
     if (!live || live.variant !== "specbench") return;
     if (live.status === "error" || live.status === "clearing") return;
-    if (live.deliveryBindMode === "attach") {
-      mintDeliveryToken(live);
-      return;
-    }
+    if (live.deliveryBindMode === "attach") return;
     try {
       await launchDeliverySession(live);
     } catch (err) {
+      // The status was checked above and nothing else launches before this
+      // binding settles, so a block here means a session already runs or is
+      // starting: that is no failure to report.
+      if (err instanceof DeliveryLaunchBlockedError) return;
       const reason = err instanceof Error && err.message ? err.message : String(err);
       console.warn(`[delivery] the delivery session of bench ${live.id} did not start:`, err);
       createNotification(live, "agent-launch-failed", undefined, {

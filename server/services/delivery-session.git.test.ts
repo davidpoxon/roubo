@@ -23,6 +23,8 @@ const hoisted = vi.hoisted(() => ({
   project: undefined as RegisteredProject | undefined,
   workspaces: "",
   persisted: [] as PersistedBench[],
+  // The terminal sessions that are live; any other session id reads as ended.
+  liveSessions: new Set<string>(),
 }));
 
 vi.mock("./state.js", async (importOriginal) => {
@@ -60,6 +62,7 @@ vi.mock("./terminal.js", () => ({
   destroyBenchSessions: vi.fn(),
   destroySession: vi.fn(() => true),
   createAgentSession: vi.fn(),
+  getSession: vi.fn((id: string) => ({ id, status: hoisted.liveSessions.has(id) ? "live" : "ended" })),
 }));
 vi.mock("./notification.js", () => ({
   createNotification: vi.fn(),
@@ -153,10 +156,13 @@ beforeEach(() => {
   } as RegisteredProject;
 
   launches = [];
+  hoisted.liveSessions.clear();
   setDeliveryLaunchExecutor({
     launch: async (req) => {
       launches.push(req);
-      return { sessionId: `session-${launches.length}` };
+      const sessionId = `session-${launches.length}`;
+      hoisted.liveSessions.add(sessionId);
+      return { sessionId };
     },
   });
   vi.mocked(state.updateBench).mockClear();
@@ -230,6 +236,7 @@ describe("Launch mode", () => {
     expect(fs.existsSync(launch.workspacePath)).toBe(true);
     expect(launch.specSlug).toBe("fixture-spec");
     expect(terminal.createAgentSession).not.toHaveBeenCalled();
+    expect(bench.deliverySessionId).toBe("session-1");
 
     // Step 2: the persisted bench carries the hash and never the plain token.
     const persisted = lastPersisted(bench.id);
@@ -309,8 +316,6 @@ describe("Attach mode", () => {
     expect(bench.deliveryBindMode).toBe("attach");
     expect(launches).toHaveLength(0);
     expect(terminal.createAgentSession).not.toHaveBeenCalled();
-    // Attach mints a token too: only its hash is on the bench.
-    expect(bench.deliveryTokenHash).toMatch(/^[0-9a-f]{64}$/);
 
     // Step 2: the snapshot reflects the record.
     const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
@@ -322,8 +327,12 @@ describe("Attach mode", () => {
     expect(read.body.budget).toEqual({ estimate_usd: 3.2, soft_budget_usd: 5, spent_usd: 0.42 });
     expect(read.body.lifecycle).toMatchObject({ state: "running", armed: true });
 
-    // Step 3: resume launches with the record's resume argument.
+    // Step 3: resume launches with the record's resume argument, on a token
+    // that replaces the one the attach handout gave out.
+    const handout = await request(app).post(`/demo/benches/${bench.id}/delivery/attach`).send({});
+    expect(handout.status).toBe(201);
     const hashBefore = bench.deliveryTokenHash;
+    expect(hashBefore).toMatch(/^[0-9a-f]{64}$/);
     const resumed = await request(app).post(`/demo/benches/${bench.id}/delivery/resume`).send({});
     expect(resumed.status).toBe(202);
     expect(launches).toHaveLength(1);
@@ -332,6 +341,36 @@ describe("Attach mode", () => {
     // Resume mints a fresh token.
     expect(bench.deliveryTokenHash).toBe(hashDeliveryToken(launches[0].descriptor.token));
     expect(bench.deliveryTokenHash).not.toBe(hashBefore);
+  });
+
+  it("SB-TC-004: the attach handout gives the attached session a token it can post events with, and launches nothing", async () => {
+    writeRecord(fixtureRecord());
+    const { bench } = await createSpecBench("attach");
+    // Nothing is minted until the handout: no one would hold the token.
+    expect(bench.deliveryTokenHash).toBeUndefined();
+
+    const handout = await request(app).post(`/demo/benches/${bench.id}/delivery/attach`).send({});
+    expect(handout.status).toBe(201);
+    expect(handout.headers["cache-control"]).toBe("no-store");
+    expect(handout.body.eventUrl).toMatch(
+      new RegExp(`/api/projects/demo/benches/${bench.id}/delivery/events$`),
+    );
+    expect(handout.body.controlsUrl).toMatch(/\/delivery\/controls$/);
+    expect(handout.body).not.toHaveProperty("resume");
+    const token = handout.body.token as string;
+    expect(token.length).toBeGreaterThanOrEqual(32);
+    expect(launches).toHaveLength(0);
+
+    // Only the hash is on the bench and in its persisted record.
+    expect(bench.deliveryTokenHash).toBe(hashDeliveryToken(token));
+    expect(JSON.stringify(lastPersisted(bench.id))).not.toContain(token);
+    expect(JSON.stringify(bench)).not.toContain(token);
+
+    const posted = await request(app)
+      .post(`/demo/benches/${bench.id}/delivery/events`)
+      .set("Authorization", `Bearer ${token}`)
+      .send(event(8));
+    expect(posted.status).toBe(202);
   });
 
   it("refuses resume while the record does not conform, and launches nothing", async () => {
@@ -344,6 +383,87 @@ describe("Attach mode", () => {
     expect(resumed.status).toBe(409);
     expect(resumed.body).toMatchObject({ code: "DELIVERY_NONCONFORMANT", section: "budget" });
     expect(launches).toHaveLength(0);
+  });
+});
+
+describe("One delivery session per bench", () => {
+  it("SB-TC-004: answers 409 DELIVERY_SESSION_LIVE to a resume while the launched session still runs", async () => {
+    writeRecord(fixtureRecord());
+    const { bench } = await createSpecBench("launch");
+    expect(launches).toHaveLength(1);
+    const token = launches[0].descriptor.token;
+    const hashBefore = bench.deliveryTokenHash;
+
+    const resumed = await request(app).post(`/demo/benches/${bench.id}/delivery/resume`).send({});
+    expect(resumed.status).toBe(409);
+    expect(resumed.body).toMatchObject({ code: "DELIVERY_SESSION_LIVE", sessionId: "session-1" });
+    // No second session, and the running session keeps its token.
+    expect(launches).toHaveLength(1);
+    expect(bench.deliveryTokenHash).toBe(hashBefore);
+    const posted = await request(app)
+      .post(`/demo/benches/${bench.id}/delivery/events`)
+      .set("Authorization", `Bearer ${token}`)
+      .send(event(8));
+    expect(posted.status).toBe(202);
+  });
+
+  it("SB-TC-004: resumes once the launched session has ended, and records the new session", async () => {
+    writeRecord(fixtureRecord());
+    const { bench } = await createSpecBench("launch");
+    hoisted.liveSessions.delete("session-1");
+
+    const resumed = await request(app).post(`/demo/benches/${bench.id}/delivery/resume`).send({});
+    expect(resumed.status).toBe(202);
+    expect(resumed.body).toMatchObject({ resume: "demo-delivery-1", sessionId: "session-2" });
+    expect(launches).toHaveLength(2);
+    expect(bench.deliverySessionId).toBe("session-2");
+  });
+
+  it("SB-TC-004: launches one session when two resumes arrive together", async () => {
+    writeRecord(fixtureRecord());
+    const { bench } = await createSpecBench("attach");
+    const url = `/demo/benches/${bench.id}/delivery/resume`;
+
+    const answers = await Promise.all([
+      request(app).post(url).send({}),
+      request(app).post(url).send({}),
+    ]);
+    expect(answers.map((a) => a.status).sort()).toEqual([202, 409]);
+    expect(launches).toHaveLength(1);
+  });
+
+  it.each(["clearing", "error"] as const)(
+    "SB-TC-004: answers 409 BENCH_UNAVAILABLE to a resume while the bench is %s, and mints nothing",
+    async (status) => {
+      writeRecord(fixtureRecord());
+      const { bench } = await createSpecBench("attach");
+      bench.status = status;
+
+      const resumed = await request(app).post(`/demo/benches/${bench.id}/delivery/resume`).send({});
+      expect(resumed.status).toBe(409);
+      expect(resumed.body).toMatchObject({ code: "BENCH_UNAVAILABLE", status });
+      expect(launches).toHaveLength(0);
+      expect(bench.deliveryTokenHash).toBeUndefined();
+    },
+  );
+
+  it("SB-TC-004: refuses the attach handout while the launched session runs or the bench is clearing", async () => {
+    const { bench } = await createSpecBench("launch");
+    const hashBefore = bench.deliveryTokenHash;
+
+    const live = await request(app).post(`/demo/benches/${bench.id}/delivery/attach`).send({});
+    expect(live.status).toBe(409);
+    expect(live.body.code).toBe("DELIVERY_SESSION_LIVE");
+    expect(live.body).not.toHaveProperty("token");
+
+    hoisted.liveSessions.clear();
+    const statusBefore = bench.status;
+    bench.status = "clearing";
+    const clearing = await request(app).post(`/demo/benches/${bench.id}/delivery/attach`).send({});
+    expect(clearing.status).toBe(409);
+    expect(clearing.body).toMatchObject({ code: "BENCH_UNAVAILABLE", status: "clearing" });
+    expect(bench.deliveryTokenHash).toBe(hashBefore);
+    bench.status = statusBefore;
   });
 });
 

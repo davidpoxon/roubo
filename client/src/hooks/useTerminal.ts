@@ -1,11 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "../lib/api";
 
-export function useTerminalSessions(projectId: string, benchId: number) {
+export function useTerminalSessions(
+  projectId: string,
+  benchId: number,
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["terminals", projectId, benchId],
     queryFn: () => api.fetchTerminals(projectId, benchId),
     refetchInterval: 5000,
+    enabled: options.enabled ?? true,
   });
 }
 
