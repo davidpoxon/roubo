@@ -67,7 +67,10 @@ vi.mock("./terminal.js", () => ({
   destroyBenchSessions: vi.fn(),
   destroySession: vi.fn(() => true),
   createAgentSession: vi.fn(),
-  getSession: vi.fn((id: string) => ({ id, status: hoisted.liveSessions.has(id) ? "live" : "ended" })),
+  getSession: vi.fn((id: string) => ({
+    id,
+    status: hoisted.liveSessions.has(id) ? "live" : "ended",
+  })),
 }));
 vi.mock("./notification.js", () => ({
   createNotification: vi.fn(),
@@ -208,13 +211,11 @@ afterEach(() => {
 async function createSpecBench(
   mode: "launch" | "attach",
 ): Promise<{ status: number; bench: Bench }> {
-  const res = await request(app)
-    .post("/demo/benches")
-    .send({
-      variant: "specbench",
-      focusedSpecPath: ".specifications/fixture-spec",
-      delivery: { mode },
-    });
+  const res = await request(app).post("/demo/benches").send({
+    variant: "specbench",
+    focusedSpecPath: ".specifications/fixture-spec",
+    delivery: { mode },
+  });
   const created = res.body as Bench;
   if (res.status !== 201) return { status: res.status, bench: created };
   await benchManager.whenWorkspaceProvisioned("demo", created.id);
@@ -683,9 +684,7 @@ describe("Launching again without a record", () => {
     bench.status = "error";
     bench.error = "provisioning failed";
 
-    const retried = await request(app)
-      .post(`/demo/benches/${bench.id}/cleanup-and-retry`)
-      .send({});
+    const retried = await request(app).post(`/demo/benches/${bench.id}/cleanup-and-retry`).send({});
     expect(retried.status).toBe(200);
     await benchManager.whenWorkspaceProvisioned("demo", bench.id);
     await whenDeliveryBound("demo", bench.id);
@@ -708,9 +707,7 @@ describe("Launching again without a record", () => {
     bench.status = "error";
     bench.error = "provisioning failed";
 
-    const retried = await request(app)
-      .post(`/demo/benches/${bench.id}/cleanup-and-retry`)
-      .send({});
+    const retried = await request(app).post(`/demo/benches/${bench.id}/cleanup-and-retry`).send({});
     expect(retried.status).toBe(200);
     await benchManager.whenWorkspaceProvisioned("demo", bench.id);
     await whenDeliveryBound("demo", bench.id);
@@ -740,9 +737,7 @@ describe("Launching again without a record", () => {
     bench.error = "provisioning failed";
     vi.mocked(notification.createNotification).mockClear();
 
-    const retried = await request(app)
-      .post(`/demo/benches/${bench.id}/cleanup-and-retry`)
-      .send({});
+    const retried = await request(app).post(`/demo/benches/${bench.id}/cleanup-and-retry`).send({});
     expect(retried.status).toBe(200);
     await benchManager.whenWorkspaceProvisioned("demo", bench.id);
     await whenDeliveryBound("demo", bench.id);
@@ -761,9 +756,7 @@ describe("Launching again without a record", () => {
     bench.status = "error";
     bench.error = "provisioning failed";
 
-    const retried = await request(app)
-      .post(`/demo/benches/${bench.id}/cleanup-and-retry`)
-      .send({});
+    const retried = await request(app).post(`/demo/benches/${bench.id}/cleanup-and-retry`).send({});
     expect(retried.status).toBe(200);
     await benchManager.whenWorkspaceProvisioned("demo", bench.id);
     await whenDeliveryBound("demo", bench.id);

@@ -285,9 +285,7 @@ describe("DeliveryTabPanel", () => {
       { queryClient },
     );
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Resume" })).toBeDisabled(),
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resume" })).toBeDisabled());
     expect(api.fetchTerminals).toHaveBeenCalledWith("demo", 3);
 
     vi.mocked(api.fetchTerminals).mockResolvedValue([

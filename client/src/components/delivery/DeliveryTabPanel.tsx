@@ -46,7 +46,9 @@ export default function DeliveryTabPanel({ bench }: { bench: Bench }) {
           Reading the delivery record...
         </p>
       )}
-      {delivery.isError && readError && <DeliveryReadErrorCallout bench={bench} error={readError} />}
+      {delivery.isError && readError && (
+        <DeliveryReadErrorCallout bench={bench} error={readError} />
+      )}
       {delivery.isError && !readError && (
         <Callout role="alert" title="The delivery could not be read" data-testid="delivery-error">
           {delivery.error.message}
