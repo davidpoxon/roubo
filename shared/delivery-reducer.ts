@@ -561,7 +561,7 @@ function applyEvents(state: FoldState, events: readonly DeliveryEvent[]): FoldSt
     if (event.seq !== next.seq + 1) {
       return { ...next, gap: { expected: next.seq + 1, got: event.seq } };
     }
-    const handler = EVENT_HANDLERS[event.type];
+    const handler: EventHandler | undefined = EVENT_HANDLERS[event.type];
     // Copy before stamping the seq: `next` may still be the caller's (or the
     // memo's) state when the handler changed nothing.
     next = { ...(handler ? handler(next, event) : next), seq: event.seq };
