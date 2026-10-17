@@ -346,9 +346,9 @@ describe("delivery control contract: validation", () => {
         body: { text: "x".repeat(DELIVERY_TEXT_MAX_LENGTH) },
       }).ok,
     ).toBe(true);
-    expect(validateDeliveryControl({ ...controlOf("mode_switch"), body: { mode: "auto" } }).ok).toBe(
-      true,
-    );
+    expect(
+      validateDeliveryControl({ ...controlOf("mode_switch"), body: { mode: "auto" } }).ok,
+    ).toBe(true);
   });
 
   it("lets an overturn target an agent decision with another option", () => {
@@ -391,7 +391,11 @@ describe("delivery control contract: validation", () => {
     for (const [raw, prefix] of cases) {
       const result = validateDeliveryControlReadResponse(raw);
       expect(result.ok, prefix).toBe(false);
-      if (!result.ok) expect(result.errors.some((e) => e.startsWith(prefix)), prefix).toBe(true);
+      if (!result.ok)
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          prefix,
+        ).toBe(true);
     }
   });
 
