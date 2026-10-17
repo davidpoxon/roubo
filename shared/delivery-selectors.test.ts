@@ -80,6 +80,44 @@ describe("delivery selectors", () => {
     expect(selectUnitStack(snapshot, "ZZ")).toBeNull();
   });
 
+  it("selectors read ids and stack names that are Object.prototype member names as absent", () => {
+    const snapshot = foldDelivery({ record: fixtureRecord(), events: [] });
+    expect(selectUnitStatus(snapshot, "toString")).toEqual({ status: null, kind: null });
+    expect(selectUnitStatus(snapshot, "__proto__")).toEqual({ status: null, kind: null });
+    expect(selectUnitStack(snapshot, "constructor")).toBeNull();
+    expect(selectGateState(snapshot, "hasOwnProperty")).toBeNull();
+    expect(selectGateState(snapshot, "valueOf")).toBeNull();
+  });
+
+  it("selectUnitStack gives no members for a stack named after an Object.prototype member", () => {
+    const snapshot = foldDelivery({
+      record: fixtureRecord(),
+      events: [
+        event(8, "unit.changed", { stack: "toString" }, "D"),
+        event(9, "unit.changed", { stack: "constructor" }, "C"),
+      ],
+    });
+    expect(selectUnitStack(snapshot, "D")).toEqual({
+      stack: "toString",
+      layer: 0,
+      members: [],
+      index: -1,
+    });
+    expect(selectUnitStack(snapshot, "C")).toEqual({
+      stack: "constructor",
+      layer: 2,
+      members: [],
+      index: -1,
+    });
+  });
+
+  it("selectUnitsInStackOrder skips a listed id that only Object.prototype knows", () => {
+    const record = fixtureRecord();
+    record.stack.stacks = { A: ["A", "toString", "B", "constructor", "C"] };
+    const snapshot = foldDelivery({ record, events: [] });
+    expect(selectUnitsInStackOrder(snapshot).map((unit) => unit.id)).toEqual(["A", "B", "C", "D"]);
+  });
+
   it("selectGateState gives the record's gate and its evaluated state", () => {
     const snapshot = foldDelivery({ record: fixtureRecord(), events: [] });
     const view = selectGateState(snapshot, "gate-after-b");

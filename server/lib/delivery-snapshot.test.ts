@@ -124,6 +124,39 @@ describe("summarizeDelivery", () => {
     });
   });
 
+  it("counts a status word that names an Object.prototype member as its own key", () => {
+    const result = foldDeliveryJson(rawRecord(), [
+      rawEvent(8, "unit.changed", { status: "toString" }, "B"),
+      rawEvent(9, "unit.changed", { status: "__proto__" }, "C"),
+      rawEvent(10, "unit.changed", { status: "constructor" }, "D"),
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const { byStatus, total } = summarizeDelivery(result.snapshot).units;
+    expect(total).toBe(4);
+    expect(Object.getPrototypeOf(byStatus)).toBe(Object.prototype);
+    expect(Object.keys(byStatus).sort()).toEqual(["__proto__", "constructor", "done", "toString"]);
+    expect(Object.getOwnPropertyDescriptor(byStatus, "toString")?.value).toBe(1);
+    expect(Object.getOwnPropertyDescriptor(byStatus, "__proto__")?.value).toBe(1);
+    expect(Object.getOwnPropertyDescriptor(byStatus, "constructor")?.value).toBe(1);
+    expect(byStatus.done).toBe(1);
+  });
+
+  it("folds an event typed after an Object.prototype member as an unknown type", () => {
+    const result = foldDeliveryJson(rawRecord(), [
+      rawEvent(8, "toString", { status: "done" }, "B"),
+      rawEvent(9, "__proto__", {}),
+      rawEvent(10, "hasOwnProperty", {}),
+      rawEvent(11, "unit.changed", { status: "done" }, "B"),
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const summary = summarizeDelivery(result.snapshot);
+    expect(summary.seq).toBe(11);
+    expect(summary.gap).toBeNull();
+    expect(summary.units.byStatus).toEqual({ done: 2, pending: 2 });
+  });
+
   it("carries the gap through", () => {
     const result = foldDeliveryJson(rawRecord(), [
       rawEvent(10, "unit.changed", { status: "done" }, "B"),
