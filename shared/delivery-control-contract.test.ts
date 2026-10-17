@@ -12,28 +12,37 @@ import {
 } from "../scripts/contract-compatibility.js";
 import { scanFiles } from "../scripts/agent-identifier-guard.mjs";
 import {
+  DELIVERY_CONTROL_DURABILITY,
   DELIVERY_CONTROL_KINDS,
   DELIVERY_CONTROL_SCHEMA_ID,
   DELIVERY_CONTROL_SCHEMA_VERSION,
   DELIVERY_CONTROL_STATUSES,
+  DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID,
+  DeliveryControlReadResponseSchema,
   DeliveryControlSchema,
   DeliveryControlStatusSchema,
   validateDeliveryControl,
+  validateDeliveryControlReadResponse,
   type DeliveryControlKind,
 } from "./delivery-control-contract.js";
+import { DELIVERY_TEXT_MAX_LENGTH } from "./delivery-observation-contract.js";
 
 const FILE = "delivery-control.schema.json";
 const SOURCE = join(repoRoot, "shared", "delivery-control-contract.ts");
 const baselineDir = join(repoRoot, "shared", "__fixtures__", "contract-baselines");
 
-function artifact() {
-  const found = artifacts.find((a) => a.outPath.endsWith(FILE));
-  if (!found) throw new Error(`no generated artifact for ${FILE}`);
+// The control read response is its own generated artifact, with its own
+// baseline and pin, checked by the same gate as the control.
+const READ_RESPONSE_FILE = "delivery-control-read-response.schema.json";
+
+function artifact(file = FILE) {
+  const found = artifacts.find((a) => a.outPath.endsWith(`/${file}`));
+  if (!found) throw new Error(`no generated artifact for ${file}`);
   return found;
 }
 
-async function liveSchema(): Promise<JsonSchema> {
-  const a = artifact();
+async function liveSchema(file = FILE): Promise<JsonSchema> {
+  const a = artifact(file);
   return JSON.parse(await renderSchema(a.schema, a.outPath));
 }
 
@@ -42,24 +51,24 @@ interface PublishedPin {
   sha256: string;
 }
 
-function publishedPin(): PublishedPin {
+function publishedPin(file = FILE): PublishedPin {
   const pins: Record<string, PublishedPin> = JSON.parse(
     readFileSync(join(baselineDir, "published.json"), "utf8"),
   );
-  const pin = pins[FILE];
-  if (!pin) throw new Error(`published.json pins no baseline for ${FILE}`);
+  const pin = pins[file];
+  if (!pin) throw new Error(`published.json pins no baseline for ${file}`);
   return pin;
 }
 
-function baselineBytes(): string {
+function baselineBytes(file = FILE): string {
   return readFileSync(
-    join(baselineDir, FILE.replace(".schema.json", ".baseline.schema.json")),
+    join(baselineDir, file.replace(".schema.json", ".baseline.schema.json")),
     "utf8",
   );
 }
 
-function baselineSchema(): JsonSchema {
-  return JSON.parse(baselineBytes());
+function baselineSchema(file = FILE): JsonSchema {
+  return JSON.parse(baselineBytes(file));
 }
 
 function sha256(text: string): string {
@@ -92,11 +101,28 @@ const REQUIRED_FIELDS = [
   "control_seq",
   "kind",
   "body",
+  "durability",
   "issued_at",
   "status",
 ];
 
 const FIELD_ORDER = [...REQUIRED_FIELDS.slice(0, 5), "target_id", ...REQUIRED_FIELDS.slice(5)];
+
+const ALL_KINDS = [
+  "decision-answer",
+  "overturn",
+  "steering-note",
+  "role-change",
+  "pause",
+  "wind-down",
+  "resume",
+  "approval",
+  "mode_switch",
+  "review_accept",
+  "thread_message",
+];
+
+const ALL_STATUSES = ["pending", "queued", "delivered", "applied", "rejected", "superseded"];
 
 // One well-formed body per kind, and the body fields each kind requires.
 const bodies: Record<DeliveryControlKind, Record<string, unknown>> = {
@@ -108,6 +134,9 @@ const bodies: Record<DeliveryControlKind, Record<string, unknown>> = {
   "wind-down": { reason: "budget" },
   resume: {},
   approval: { reason: "reviewed" },
+  mode_switch: { mode: "attended" },
+  review_accept: {},
+  thread_message: { text: "Why reject the trailing comma?" },
 };
 const requiredBodyFields: Record<DeliveryControlKind, string[]> = {
   "decision-answer": ["option"],
@@ -118,12 +147,17 @@ const requiredBodyFields: Record<DeliveryControlKind, string[]> = {
   "wind-down": [],
   resume: [],
   approval: [],
+  mode_switch: ["mode"],
+  review_accept: [],
+  thread_message: ["text"],
 };
 const targets: Partial<Record<DeliveryControlKind, string>> = {
   "decision-answer": "demo-decision-1",
   overturn: "demo-decision-1",
   "role-change": "unit-coder",
   approval: "demo-unit-2",
+  review_accept: "demo-decision-2",
+  thread_message: "demo-decision-2",
 };
 
 function controlOf(kind: DeliveryControlKind, control_seq = 1): Record<string, unknown> {
@@ -135,6 +169,7 @@ function controlOf(kind: DeliveryControlKind, control_seq = 1): Record<string, u
     kind,
     ...(targets[kind] ? { target_id: targets[kind] } : {}),
     body: bodies[kind],
+    durability: DELIVERY_CONTROL_DURABILITY[kind],
     issued_at: "2026-10-16T09:00:00Z",
     status: "pending",
   };
@@ -161,16 +196,7 @@ describe("delivery control contract: generated schema", () => {
     expect(live.$id).toBe(DELIVERY_CONTROL_SCHEMA_ID);
     expect(live.properties).toBeUndefined();
     const kinds = options(live).map((o) => optionProps(o).kind.const);
-    expect(kinds).toEqual([
-      "decision-answer",
-      "overturn",
-      "steering-note",
-      "role-change",
-      "pause",
-      "wind-down",
-      "resume",
-      "approval",
-    ]);
+    expect(kinds).toEqual(ALL_KINDS);
     expect(DELIVERY_CONTROL_KINDS).toEqual(kinds);
     for (const option of options(live)) {
       const props = optionProps(option);
@@ -178,13 +204,10 @@ describe("delivery control contract: generated schema", () => {
       expect(props.schemaVersion.const).toBe(DELIVERY_CONTROL_SCHEMA_VERSION);
       expect(option.required).toEqual(REQUIRED_FIELDS);
       expect(Object.keys(props)).toEqual(FIELD_ORDER);
-      expect(props.status.enum).toEqual([
-        "pending",
-        "delivered",
-        "applied",
-        "rejected",
-        "superseded",
-      ]);
+      expect(props.status.enum).toEqual(ALL_STATUSES);
+      expect(props.durability.const).toBe(
+        DELIVERY_CONTROL_DURABILITY[props.kind.const as DeliveryControlKind],
+      );
       // Loose: the option and its body keep an unknown key.
       expect(option.additionalProperties).toEqual({});
       expect(props.body.additionalProperties).toEqual({});
@@ -212,13 +235,27 @@ describe("delivery control contract: generated schema", () => {
     ]);
     expect(Object.keys(optionProps(roleChange).body.properties as JsonSchema)).toEqual(["tier"]);
     expect(Object.keys(optionProps(pause).body.properties as JsonSchema)).toEqual(["reason"]);
+    const [modeSwitch, reviewAccept, threadMessage] = options(live).slice(8);
+    const modeProps = optionProps(modeSwitch).body.properties as Record<string, JsonSchema>;
+    expect(Object.keys(modeProps)).toEqual(["mode"]);
+    expect(modeProps.mode.enum).toEqual(["attended", "auto"]);
+    const acceptProps = optionProps(reviewAccept).body.properties as Record<string, JsonSchema>;
+    expect(Object.keys(acceptProps)).toEqual(["summary"]);
+    expect(acceptProps.summary.maxLength).toBe(DELIVERY_TEXT_MAX_LENGTH);
+    const threadProps = optionProps(threadMessage).body.properties as Record<string, JsonSchema>;
+    expect(Object.keys(threadProps)).toEqual(["text"]);
+    expect(threadProps.text).toEqual({
+      type: "string",
+      minLength: 1,
+      maxLength: DELIVERY_TEXT_MAX_LENGTH,
+    });
   });
 });
 
 describe("delivery control contract: validation", () => {
-  it("accepts a control of each of the eight kinds with its own body", () => {
-    expect(DELIVERY_CONTROL_KINDS).toHaveLength(8);
-    expect(DeliveryControlSchema.options).toHaveLength(8);
+  it("accepts a control of each of the eleven kinds with its own body", () => {
+    expect(DELIVERY_CONTROL_KINDS).toHaveLength(11);
+    expect(DeliveryControlSchema.options).toHaveLength(11);
     DELIVERY_CONTROL_KINDS.forEach((kind, index) => {
       const result = validateDeliveryControl(controlOf(kind, index + 1));
       expect(result, kind).toEqual(expect.objectContaining({ ok: true }));
@@ -249,22 +286,161 @@ describe("delivery control contract: validation", () => {
     }
   });
 
-  it("rejects a kind outside the eight with an error at kind", () => {
+  it("rejects a kind outside the eleven with an error at kind", () => {
     const result = validateDeliveryControl({ ...minimalControl, kind: "nudge" });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errors).toEqual([
-        "kind: unknown control kind: expected one of decision-answer, overturn, steering-note, role-change, pause, wind-down, resume, approval",
+        `kind: unknown control kind: expected one of ${ALL_KINDS.join(", ")}`,
       ]);
     }
+  });
+
+  it("SB-TC-098: mode_switch, review_accept and thread_message each validate and carry their durability", () => {
+    const expected: Record<string, "durable" | "volatile"> = {
+      mode_switch: "durable",
+      review_accept: "durable",
+      thread_message: "volatile",
+    };
+    for (const [kind, durability] of Object.entries(expected)) {
+      const result = validateDeliveryControl(controlOf(kind as DeliveryControlKind));
+      expect(result, kind).toEqual(expect.objectContaining({ ok: true }));
+      if (result.ok) {
+        expect(result.data.kind).toBe(kind);
+        expect(result.data.durability).toBe(durability);
+        expect(result.data.body).toEqual(bodies[kind as DeliveryControlKind]);
+      }
+      // The durability is pinned per kind: the other value fails at durability.
+      const other = durability === "durable" ? "volatile" : "durable";
+      const wrong = validateDeliveryControl({
+        ...controlOf(kind as DeliveryControlKind),
+        durability: other,
+      });
+      expect(wrong.ok, `${kind} as ${other}`).toBe(false);
+      if (!wrong.ok) expect(wrong.errors).toEqual([expect.stringMatching(/^durability: /)]);
+    }
+    // Every control of the eight delivery kinds is durable.
+    for (const kind of DELIVERY_CONTROL_KINDS.slice(0, 8)) {
+      expect(DELIVERY_CONTROL_DURABILITY[kind], kind).toBe("durable");
+    }
+    const missing = Object.fromEntries(
+      Object.entries(controlOf("thread_message")).filter(([k]) => k !== "durability"),
+    );
+    const result = validateDeliveryControl(missing);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors).toEqual([expect.stringMatching(/^durability: /)]);
+  });
+
+  it("SB-TC-098: a mode_switch names a mode, a thread_message a bounded non-empty text", () => {
+    const cases: [DeliveryControlKind, Record<string, unknown>, string][] = [
+      ["mode_switch", {}, "body.mode:"],
+      ["mode_switch", { mode: "manual" }, "body.mode:"],
+      ["thread_message", {}, "body.text:"],
+      ["thread_message", { text: "" }, "body.text:"],
+      ["thread_message", { text: "x".repeat(DELIVERY_TEXT_MAX_LENGTH + 1) }, "body.text:"],
+      ["thread_message", { text: { rich: true } }, "body.text:"],
+      ["review_accept", { summary: 7 }, "body.summary:"],
+    ];
+    for (const [kind, body, prefix] of cases) {
+      const result = validateDeliveryControl({ ...controlOf(kind), body });
+      expect(result.ok, `${kind} ${prefix}`).toBe(false);
+      if (!result.ok) expect(result.errors).toEqual([expect.stringMatching(`^${prefix}`)]);
+    }
+    expect(
+      validateDeliveryControl({
+        ...controlOf("thread_message"),
+        body: { text: "x".repeat(DELIVERY_TEXT_MAX_LENGTH) },
+      }).ok,
+    ).toBe(true);
+    expect(
+      validateDeliveryControl({ ...controlOf("mode_switch"), body: { mode: "auto" } }).ok,
+    ).toBe(true);
+  });
+
+  it("lets an overturn target an agent decision with another option", () => {
+    const result = validateDeliveryControl({
+      ...controlOf("overturn"),
+      target_id: "demo-decision-2",
+      body: { option: "accept it", reason: "the fixtures will carry one" },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.kind).toBe("overturn");
+      expect(result.data.target_id).toBe("demo-decision-2");
+      expect(result.data.durability).toBe("durable");
+    }
+  });
+
+  it("sb_tc_098 the control read response validates the normal reply {controls, latestSeq}", () => {
+    const controls = [controlOf("mode_switch", 3), controlOf("thread_message", 4)];
+    const full = validateDeliveryControlReadResponse({ controls, latestSeq: 4 });
+    expect(full).toEqual(expect.objectContaining({ ok: true }));
+    if (full.ok) {
+      expect(full.data.controls.map((c) => c.kind)).toEqual(["mode_switch", "thread_message"]);
+      expect(full.data.latestSeq).toBe(4);
+      expect(full.data.superseded).toBeUndefined();
+    }
+    const empty = validateDeliveryControlReadResponse({ controls: [], latestSeq: 0 });
+    expect(empty.ok).toBe(true);
+    if (empty.ok) expect(empty.data.superseded).toBeUndefined();
+  });
+
+  it("sb_tc_098 the control read response validates the superseded reply {controls: [], superseded: true}", () => {
+    const result = validateDeliveryControlReadResponse({ controls: [], superseded: true });
+    expect(result).toEqual({ ok: true, data: { controls: [], superseded: true } });
+    if (result.ok) expect(result.data.latestSeq).toBeUndefined();
+  });
+
+  it("sb_tc_098 the control read response rejects a malformed body and names the field", () => {
+    const cases: [unknown, string][] = [
+      // superseded is a boolean, never a list of control_seqs
+      [{ controls: [], latestSeq: 1, superseded: [2] }, "superseded:"],
+      [{ controls: [], superseded: [2] }, "superseded:"],
+      [{ controls: [], superseded: false }, "superseded:"],
+      // the normal reply requires latestSeq
+      [{ controls: [] }, "latestSeq:"],
+      [{ controls: [controlOf("pause", 1)] }, "latestSeq:"],
+      [{ latestSeq: 0 }, "controls:"],
+      [{ controls: [], latestSeq: -1 }, "latestSeq:"],
+      [{ controls: [], latestSeq: 1.5 }, "latestSeq:"],
+      [{ controls: [{ ...controlOf("pause"), kind: "nudge" }], latestSeq: 1 }, "controls.0.kind:"],
+      // the superseded reply carries no controls and no latestSeq
+      [{ controls: [controlOf("pause", 1)], superseded: true }, "controls:"],
+      [{ controls: [], superseded: true, latestSeq: 3 }, "latestSeq:"],
+      [{ superseded: true }, "controls:"],
+    ];
+    for (const [raw, prefix] of cases) {
+      const result = validateDeliveryControlReadResponse(raw);
+      expect(result.ok, `${JSON.stringify(raw)} ${prefix}`).toBe(false);
+      if (!result.ok)
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          `${JSON.stringify(raw)}: ${result.errors.join("; ")}`,
+        ).toBe(true);
+    }
+    for (const value of [null, undefined, "reply", 7, []]) {
+      expect(validateDeliveryControlReadResponse(value).ok).toBe(false);
+    }
+  });
+
+  it("sb_tc_098 the zod union accepts exactly the two reply bodies", () => {
+    expect(
+      DeliveryControlReadResponseSchema.safeParse({ controls: [], latestSeq: 0 }).success,
+    ).toBe(true);
+    expect(
+      DeliveryControlReadResponseSchema.safeParse({ controls: [], superseded: true }).success,
+    ).toBe(true);
+    expect(
+      DeliveryControlReadResponseSchema.safeParse({ controls: [], latestSeq: 0, superseded: [1] })
+        .success,
+    ).toBe(false);
+    expect(DeliveryControlReadResponseSchema.safeParse({ controls: [] }).success).toBe(false);
   });
 
   it("rejects a body that misses a required field of its kind, at body.<field>", () => {
     for (const kind of DELIVERY_CONTROL_KINDS) {
       for (const field of requiredBodyFields[kind]) {
-        const body = Object.fromEntries(
-          Object.entries(bodies[kind]).filter(([k]) => k !== field),
-        );
+        const body = Object.fromEntries(Object.entries(bodies[kind]).filter(([k]) => k !== field));
         const result = validateDeliveryControl({ ...controlOf(kind), body });
         expect(result.ok, `${kind} without ${field}`).toBe(false);
         if (!result.ok) {
@@ -307,14 +483,8 @@ describe("delivery control contract: validation", () => {
     }
   });
 
-  it("accepts the five statuses, in outbox order, and rejects any other at status", () => {
-    expect(DELIVERY_CONTROL_STATUSES).toEqual([
-      "pending",
-      "delivered",
-      "applied",
-      "rejected",
-      "superseded",
-    ]);
+  it("accepts the six statuses, in outbox order, and rejects any other at status", () => {
+    expect(DELIVERY_CONTROL_STATUSES).toEqual(ALL_STATUSES);
     expect(DeliveryControlStatusSchema.options).toEqual(DELIVERY_CONTROL_STATUSES);
     for (const status of DELIVERY_CONTROL_STATUSES) {
       expect(validateDeliveryControl({ ...minimalControl, status }).ok, status).toBe(true);
@@ -410,7 +580,7 @@ describe("delivery control contract: compatibility", () => {
     expect(report.message).toBe("no change at 1.0.0");
   });
 
-  it("a ninth kind, as a ninth option on the root oneOf, is additive and needs a minor bump", () => {
+  it("a twelfth kind, as a twelfth option on the root oneOf, is additive and needs a minor bump", () => {
     const baseline = baselineSchema();
     const template = options(baseline)[4];
     const ninth = {
@@ -479,7 +649,10 @@ describe("delivery control contract: compatibility", () => {
           ...first,
           properties: {
             ...props,
-            status: { ...props.status, enum: ["pending", "delivered", "applied", "rejected"] },
+            status: {
+              ...props.status,
+              enum: (props.status.enum as string[]).filter((s) => s !== "superseded"),
+            },
           },
         },
         ...rest,
@@ -495,6 +668,62 @@ describe("delivery control contract: compatibility", () => {
       oneOf: [{ ...first, required: [...(first.required as string[]), "target_id"] }, ...rest],
     };
     expect(classifySchemaChange(baseline, nowRequired).change).toBe("breaking");
+    expect(checkContractCompatibility(baseline, bumped(nowRequired, "major")).ok).toBe(true);
+  });
+});
+
+describe("delivery control read response: generated artifact", () => {
+  it("sb_tc_098 the read response is a generated artifact with a versioned $id at 1.0.0", async () => {
+    const live = await liveSchema(READ_RESPONSE_FILE);
+    expect(live.$id).toBe(DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID);
+    expect(parseSchemaVersion(live.$id)).toEqual({ major: 1, minor: 0, patch: 0 });
+    const [reply, superseded] = live.anyOf as JsonSchema[];
+    expect(reply.required).toEqual(["controls", "latestSeq"]);
+    expect(superseded.required).toEqual(["controls", "superseded"]);
+    expect(optionProps(superseded).superseded).toEqual({ type: "boolean", const: true });
+    expect(optionProps(superseded).controls.maxItems).toBe(0);
+  });
+
+  it("sb_tc_098 the schema generator produces no difference against the committed read response file", async () => {
+    const a = artifact(READ_RESPONSE_FILE);
+    expect(readFileSync(a.outPath, "utf8")).toBe(await renderSchema(a.schema, a.outPath));
+  });
+
+  it("sb_tc_098 the committed read response baseline is the pinned published render", () => {
+    const pin = publishedPin(READ_RESPONSE_FILE);
+    expect(
+      sha256(baselineBytes(READ_RESPONSE_FILE)),
+      `the baseline of ${READ_RESPONSE_FILE} is not the pinned render of ${pin.version}: a baseline refresh publishes a version, so bump the contract version and re-pin version and sha256 in published.json`,
+    ).toBe(pin.sha256);
+    const [major, minor, patch] = pin.version.split(".").map(Number);
+    expect(parseSchemaVersion(baselineSchema(READ_RESPONSE_FILE).$id)).toEqual({
+      major,
+      minor,
+      patch,
+    });
+  });
+
+  it("sb_tc_098 the live read response obeys the semver rule against its published baseline", async () => {
+    const report = checkContractCompatibility(
+      baselineSchema(READ_RESPONSE_FILE),
+      await liveSchema(READ_RESPONSE_FILE),
+    );
+    expect(report.ok, `${report.message}\n${report.reasons.join("\n")}`).toBe(true);
+    expect(report.message).toBe("no change at 1.0.0");
+  });
+
+  it("sb_tc_098 requiring latestSeq of the superseded reply is breaking and needs a major bump", () => {
+    const baseline = baselineSchema(READ_RESPONSE_FILE);
+    const [reply, superseded] = baseline.anyOf as JsonSchema[];
+    const nowRequired = {
+      ...baseline,
+      anyOf: [
+        reply,
+        { ...superseded, required: [...(superseded.required as string[]), "latestSeq"] },
+      ],
+    };
+    expect(classifySchemaChange(baseline, nowRequired).change).toBe("breaking");
+    expect(checkContractCompatibility(baseline, bumped(nowRequired, "minor")).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(nowRequired, "major")).ok).toBe(true);
   });
 });
