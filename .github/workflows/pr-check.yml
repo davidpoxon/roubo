@@ -170,6 +170,9 @@ jobs:
       # The #822 drift guard digests a source-only view, so build residue does
       # not make it flaky.
       - run: npm run build
+      # exec-timeout-zsh.e2e.test.ts drives a real interactive zsh and skips
+      # when none is on PATH, so install one to make it run here (#1488).
+      - run: sudo apt-get update && sudo apt-get install -y zsh
       - run: npm run coverage
 
   e2e:

@@ -90,22 +90,112 @@ describe("runCommand", () => {
     expect(result.stdout).toBe("line1\nline2\n");
   });
 
-  it("kills process when timeout expires", async () => {
-    vi.useFakeTimers();
-    const proc = createMockChild();
-    vi.mocked(spawn).mockReturnValue(proc);
+  describe("timeoutMs (#1488)", () => {
+    const posix = process.platform !== "win32";
+    let killSpy: ReturnType<typeof vi.spyOn>;
 
-    const promise = runCommand("slow", [], "/tmp", undefined, 5000);
+    beforeEach(() => {
+      vi.useFakeTimers();
+      // The command runs in its own group, so the kill goes to process.kill(-pid).
+      killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    });
 
-    vi.advanceTimersByTime(5000);
-    expect(proc.kill).toHaveBeenCalledWith("SIGTERM");
+    afterEach(() => {
+      killSpy.mockRestore();
+      vi.useRealTimers();
+    });
 
-    proc.emit("close", null);
-    const result = await promise;
+    const expectSignal = (proc: ReturnType<typeof createMockChild>, sig: NodeJS.Signals) => {
+      if (posix) {
+        expect(killSpy).toHaveBeenCalledWith(-4321, sig);
+      } else {
+        expect(proc.kill).toHaveBeenCalledWith(sig);
+      }
+    };
 
-    expect(result.code).toBe(1);
-    expect(result.stderr).toContain("Process timed out after 5000ms");
-    vi.useRealTimers();
+    it("starts a timeout-limited command in its own process group", () => {
+      const proc = createMockChild();
+      vi.mocked(spawn).mockReturnValue(proc);
+
+      void runCommand("slow", [], "/tmp", undefined, 5000);
+
+      expect(vi.mocked(spawn).mock.calls[0][2]).toMatchObject({ detached: posix });
+      proc.emit("close", 0);
+    });
+
+    it("kills the group when the timeout expires", async () => {
+      const proc = createMockChild(4321);
+      vi.mocked(spawn).mockReturnValue(proc);
+
+      const promise = runCommand("slow", [], "/tmp", undefined, 5000);
+
+      vi.advanceTimersByTime(5000);
+      expectSignal(proc, "SIGTERM");
+
+      proc.emit("close", null);
+      const result = await promise;
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("Process timed out after 5000ms");
+    });
+
+    it("escalates to SIGKILL when a timed-out command outlives the grace period", async () => {
+      const proc = createMockChild(4321);
+      vi.mocked(spawn).mockReturnValue(proc);
+
+      const promise = runCommand("zsh", ["-ilc", "npm i"], "/tmp", undefined, 1000);
+
+      vi.advanceTimersByTime(1000);
+      expectSignal(proc, "SIGTERM");
+      vi.advanceTimersByTime(4999);
+      expect(killSpy).not.toHaveBeenCalledWith(expect.anything(), "SIGKILL");
+      expect(proc.kill).not.toHaveBeenCalledWith("SIGKILL");
+      vi.advanceTimersByTime(1);
+      expectSignal(proc, "SIGKILL");
+
+      proc.emit("close", null);
+      const result = await promise;
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("Process timed out after 1000ms");
+    });
+
+    it("reports a failure when a timed-out shell exits 0 after its child is killed", async () => {
+      const proc = createMockChild(4321);
+      vi.mocked(spawn).mockReturnValue(proc);
+
+      const promise = runCommand("zsh", ["-ilc", "npm i ; :"], "/tmp", undefined, 1000);
+      vi.advanceTimersByTime(1000);
+      proc.emit("close", 0);
+
+      const result = await promise;
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("Process timed out after 1000ms");
+    });
+
+    it("keeps a timed-out command's own nonzero exit code", async () => {
+      const proc = createMockChild(4321);
+      vi.mocked(spawn).mockReturnValue(proc);
+
+      const promise = runCommand("slow", [], "/tmp", undefined, 1000);
+      vi.advanceTimersByTime(1000);
+      proc.emit("close", 143);
+
+      expect((await promise).code).toBe(143);
+    });
+
+    it("sends no SIGKILL when a timed-out command exits within the grace period", async () => {
+      const proc = createMockChild(4321);
+      vi.mocked(spawn).mockReturnValue(proc);
+
+      const promise = runCommand("slow", [], "/tmp", undefined, 1000);
+      vi.advanceTimersByTime(1000);
+      proc.emit("close", null);
+      await promise;
+      vi.advanceTimersByTime(10_000);
+
+      expect(killSpy).not.toHaveBeenCalledWith(expect.anything(), "SIGKILL");
+      expect(proc.kill).not.toHaveBeenCalledWith("SIGKILL");
+    });
   });
 
   it("clears timeout when process completes before timeout", async () => {

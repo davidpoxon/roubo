@@ -104,7 +104,8 @@ export function shellHintForCommand(command: string): string | undefined {
   );
 }
 
-/** Time an aborted command gets to exit on SIGTERM before it is sent SIGKILL. */
+/** Time a stopped command (an abort, an idle timeout, or `timeoutMs`) gets to
+ *  exit on SIGTERM before it is sent SIGKILL. */
 const ABORT_KILL_GRACE_MS = 5000;
 
 export interface RunCommandOptions {
@@ -148,6 +149,8 @@ export function runCommand(
 ): Promise<RunCommandResult> {
   const { signal, idleTimeoutMs } = options;
   const idleLimited = idleTimeoutMs !== undefined && idleTimeoutMs > 0;
+  const timeLimited = timeoutMs !== undefined && timeoutMs > 0;
+  const stoppable = signal !== undefined || idleLimited || timeLimited;
   if (signal?.aborted) {
     return Promise.resolve({ code: 1, stdout: "", stderr: "Aborted", aborted: true });
   }
@@ -157,14 +160,15 @@ export function runCommand(
   // value into a new path expression that CodeQL flags at the spawn site
   // (js/path-injection) without actually narrowing the trust boundary.
   return new Promise((resolve) => {
-    // A new process group lets an abort or an idle kill reach the command's own
-    // children. Only then, so every other caller's spawn stays exactly as before.
-    const ownGroup = (signal !== undefined || idleLimited) && process.platform !== "win32";
+    // A new process group lets an abort, an idle kill or a timeout reach the
+    // command's own children. Only then, so every other caller's spawn stays
+    // exactly as before.
+    const ownGroup = stoppable && process.platform !== "win32";
     const proc = spawn(cmd, args, {
       cwd,
       env: { ...cleanEnv(), ...env },
       stdio: [stdin !== undefined ? "pipe" : "ignore", "pipe", "pipe"],
-      ...(signal !== undefined || idleLimited ? { detached: ownGroup } : {}),
+      ...(stoppable ? { detached: ownGroup } : {}),
     });
 
     let aborted = false;
@@ -220,12 +224,14 @@ export function runCommand(
     let timedOut = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    if (timeoutMs && timeoutMs > 0) {
+    if (timeLimited) {
       timer = setTimeout(() => {
         timedOut = true;
         // The whole group, as for an abort: a child that holds the output pipes
-        // open would otherwise keep 'close' from ever firing.
-        signalGroup("SIGTERM");
+        // open would otherwise keep 'close' from ever firing. SIGKILL follows,
+        // since an interactive zsh (the login shell bench setup runs in) ignores
+        // SIGTERM (#1488).
+        stopGroup();
       }, timeoutMs);
     }
 
@@ -249,7 +255,9 @@ export function runCommand(
       if (idleTimedOut) {
         stderr += `\nProcess produced no output for ${idleTimeoutMs}ms`;
       }
-      settle({ code: code ?? 1, stdout, stderr });
+      // A shell that ignores SIGTERM can outlive the kill of its current child
+      // and exit 0, so a timed-out command never reports success (#1488).
+      settle({ code: timedOut && !code ? 1 : (code ?? 1), stdout, stderr });
     });
   });
 }
