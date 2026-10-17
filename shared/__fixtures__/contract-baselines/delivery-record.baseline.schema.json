@@ -22,6 +22,50 @@
       "type": "string",
       "minLength": 1
     },
+    "mode": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "enum": ["attended", "auto"]
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["attended", "auto"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["value"],
+      "additionalProperties": {}
+    },
+    "review": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["none", "pending", "open"]
+        },
+        "trigger": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unreviewed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": ["status", "unreviewed"],
+      "additionalProperties": {}
+    },
     "stack": {
       "type": "object",
       "properties": {
@@ -66,6 +110,34 @@
                 "items": {
                   "type": "string",
                   "minLength": 1
+                }
+              },
+              "provisional": {
+                "type": "boolean"
+              },
+              "provisionalCases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "case": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mark": {
+                      "type": "string",
+                      "enum": ["met", "not_met"]
+                    },
+                    "evidence": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "confirmed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["case", "mark", "evidence", "confirmed"],
+                  "additionalProperties": {}
                 }
               }
             },
@@ -158,6 +230,49 @@
             "minLength": 1
           },
           "raised_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "author": {
+            "type": "string",
+            "minLength": 1
+          },
+          "chosen": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "affected_units": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "review": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["unreviewed", "accepted", "overturned"]
+              },
+              "reviewer": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "maxLength": 4000
+              }
+            },
+            "required": ["status"],
+            "additionalProperties": {}
+          },
+          "decided_at": {
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
@@ -354,6 +469,8 @@
     "delivery_id",
     "spec_slug",
     "plan_hash",
+    "mode",
+    "review",
     "stack",
     "units",
     "decisions",
