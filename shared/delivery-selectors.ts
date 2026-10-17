@@ -12,7 +12,7 @@ import type {
   DeliveryDecision,
   DeliverySteering,
   DeliveryUnit,
-} from "@roubo/shared/delivery-observation-contract";
+} from "./delivery-observation-contract";
 import {
   classifyUnitStatus,
   isDecisionOpen,
@@ -20,9 +20,9 @@ import {
   type DeliveryProgress,
   type DeliverySnapshot,
   type UnitStatusKind,
-} from "@roubo/shared/delivery-reducer";
+} from "./delivery-reducer";
 
-export { classifyUnitStatus, isDecisionOpen } from "@roubo/shared/delivery-reducer";
+export { classifyUnitStatus, isDecisionOpen } from "./delivery-reducer";
 
 export interface UnitStatusView {
   // The record's own status word, or null for a unit the snapshot does not carry.
