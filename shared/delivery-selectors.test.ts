@@ -307,7 +307,12 @@ describe("delivery selectors: decision mode (SB-FR-040)", () => {
     const snapshot = foldDelivery({
       record: fixtureRecord(),
       events: [
-        event(8, "review.reply", { decision_id: "decision-2", text: "Why?", author: "Ada", control_seq: 2 }),
+        event(8, "review.reply", {
+          decision_id: "decision-2",
+          text: "Why?",
+          author: "Ada",
+          control_seq: 2,
+        }),
         event(9, "review.reply", { decision_id: "decision-2", text: "Strict.", in_reply_to: "2" }),
       ],
     });
