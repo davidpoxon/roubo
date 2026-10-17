@@ -2446,6 +2446,10 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
 
   extractWorkspacePermissions(projectId, bench.workspacePath);
 
+  // The variant's own work before its workspace goes: a Spec Bench copies its
+  // delivery record into the project checkout here (SB-FR-004).
+  variantHosts.beforeWorkspaceRemoval(bench);
+
   // A directory rmSync cannot remove is logged by the helper; the re-provision's
   // own pre-flight then retries it, so it is not fatal here.
   await removeBenchWorktree(project.repoPath, bench.workspacePath, {

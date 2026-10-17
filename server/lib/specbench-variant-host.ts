@@ -7,14 +7,18 @@
 //   - verifyVariantState: the focused spec folder, and the pin when one is
 //     recorded, must still be on disk.
 //   - beforeTeardown: Clear bench removes the pin first, then stops the sitting's
-//     session, then revokes the delivery token; the bench manager removes the
-//     workspace after that (SB-TC-005).
+//     session, then copies the delivery record into the checkout, then revokes
+//     the delivery token; the bench manager removes the workspace after that
+//     (SB-TC-005).
+//   - beforeWorkspaceRemoval: Cleanup & Retry copies the delivery record into
+//     the checkout before it removes the workspace to provision it again.
 //
-// Nothing here ever writes to or removes the focused spec folder in the project
-// checkout: test-results.json in it belongs to the checkout and outlives the
-// bench. The delivery record is not in that folder: the session writes it to
-// `.specifications/<slug>/` inside the bench workspace, which goes with the
-// workspace when the bench manager removes it.
+// The session writes the delivery record to `.specifications/<slug>/` inside the
+// bench workspace, and the workspace goes when the bench is cleared or retried.
+// So before it goes, the record is copied into the focused spec folder of the
+// project checkout, which keeps it (SB-FR-004). That one file is the only thing
+// written there, and nothing is ever removed from that folder: test-results.json
+// in it belongs to the checkout and outlives the bench.
 import fs from "node:fs";
 import type { Bench } from "@roubo/shared";
 import { assertSafeWorkspacePath, UnsafePathError } from "./safe-path.js";
@@ -25,6 +29,7 @@ import {
   type VariantTeardownContext,
 } from "../services/variant-host-registry.js";
 import { revokeDeliveryToken } from "../services/delivery-token-registry.js";
+import { preserveDeliveryRecord } from "./delivery-record-loader.js";
 
 /** The pin path of a bench when it passes the safe-path allowlist, else undefined. */
 function safePinPath(bench: Bench): string | undefined {
@@ -77,10 +82,19 @@ export const specbenchVariantHost: VariantHost = {
       ctx.stopSession(sessionId);
     }
     bench.deliverySitting = undefined;
-    // 3. The delivery token (SB-FR-003). The bench manager persists the bench
+    // 3. The delivery record. No session of the bench writes it any more, and
+    // the workspace that holds it goes next, so the checkout keeps a copy. A
+    // copy that fails throws, so the teardown stops with the workspace still
+    // there instead of losing the record.
+    preserveDeliveryRecord(bench);
+    // 4. The delivery token (SB-FR-003). The bench manager persists the bench
     // right after this step, so the revoked hash is written down before the
     // workspace goes.
     revokeDeliveryToken(bench);
+  },
+
+  beforeWorkspaceRemoval(bench: Bench): void {
+    preserveDeliveryRecord(bench);
   },
 };
 
