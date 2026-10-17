@@ -84,6 +84,8 @@ import type {
   CaseStatus,
 } from "@roubo/shared/testbench-contracts";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
+import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
+import { isDeliveryReadError, type DeliveryReadError } from "@roubo/shared/delivery-bench";
 import { resolvedTheme } from "./theme";
 
 const BASE = "/api";
@@ -540,6 +542,29 @@ export function destroyTerminal(
   return requestVoid(`/projects/${projectId}/benches/${benchId}/terminals/${sessionId}`, {
     method: "DELETE",
   });
+}
+
+// Spec Bench delivery (SB-FR-009). The read answers the folded snapshot, or a
+// 409 whose body is a DeliveryReadError naming the section or field of a record
+// that does not conform; `request` puts that body on `ApiError.details`.
+export function fetchDelivery(projectId: string, benchId: number): Promise<DeliverySnapshot> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery`);
+}
+
+export function resumeDelivery(
+  projectId: string,
+  benchId: number,
+): Promise<{ resume: string; sessionId?: string }> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/resume`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+/** The named read error of a delivery record, when an error carries one. */
+export function deliveryReadErrorOf(err: unknown): DeliveryReadError | undefined {
+  if (!(err instanceof ApiError)) return undefined;
+  return isDeliveryReadError(err.details) ? err.details : undefined;
 }
 
 // TestBench
