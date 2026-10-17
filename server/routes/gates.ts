@@ -36,7 +36,7 @@ import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
-import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
+import { resolveTestbenchHost } from "../services/testbench-host-resolver.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
 import { WorkUnitsValidationError } from "../services/work-unit-loader.js";
 import type { InvalidSpec, LoadedVerifyUnit } from "../services/work-unit-loader.js";
@@ -173,7 +173,8 @@ function handleError(res: Response, err: unknown): void {
 // project repoPath. If a gate always read the project repo it would never see the
 // operator's in-UI marks, and an all-passed batch would stay pending forever
 // (#910). So when a live TestBench is focused on this gate's slug, read from
-// that bench's worktree; otherwise fall back to the project repoPath.
+// that bench's worktree; otherwise fall back to the project repoPath. Which
+// benches host a TestBench, and where, is the TestbenchHostResolver's answer.
 //
 // The fallback is fail-closed (VG-NFR-007): a project with no focused TestBench (or a
 // worktree that was later cleared) reads the project repo copy, which reads
@@ -187,20 +188,13 @@ function handleError(res: Response, err: unknown): void {
 // reasonable pick (the repoPath fallback still applies if it is later cleared).
 function resolveResultsRoot(projectId: string, repoPath: string, slug: string): string {
   for (const bench of benchManager.getBenches(projectId)) {
-    if (bench.variant !== "testbench") continue;
-    const workspacePath = bench.workspacePath;
-    if (typeof workspacePath !== "string" || workspacePath.trim().length === 0) continue;
-    if (bench.focusedSpecPath === undefined) continue;
-    let benchSlug: string;
-    try {
-      benchSlug = resolveFocusedSpec(repoPath, bench.focusedSpecPath).slug;
-    } catch {
-      // A malformed / escaping focusedSpecPath just means this bench contributes
-      // no results root; skip it rather than fail the whole gate read.
-      continue;
-    }
-    if (benchSlug === slug) {
-      return workspacePath;
+    // A bench whose variant hosts no TestBench, with no usable worktree, or with
+    // a malformed / escaping focusedSpecPath just contributes no results root;
+    // skip it rather than fail the whole gate read.
+    const resolved = resolveTestbenchHost(bench, "gate", repoPath);
+    if (!resolved.ok) continue;
+    if (resolved.host.slug === slug) {
+      return resolved.host.rootPath;
     }
   }
   return repoPath;
