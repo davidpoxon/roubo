@@ -17,6 +17,8 @@ import type {
   ProvisioningStepStatus,
   RegisteredProject,
   RouboConfig,
+  BenchVariant,
+  SpecBenchDeliveryRequest,
 } from "@roubo/shared";
 import { COMPONENT_STEP_PREFIX, FIRST_PARTY_SOURCE_ID, declaredCategories } from "@roubo/shared";
 import type { PermissionCategory } from "@roubo/shared";
@@ -54,6 +56,8 @@ import {
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
+import { resolveSpecFolder } from "../lib/spec-folder.js";
+import * as variantHosts from "./variant-host-registry.js";
 import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
 import { injectPermissions } from "./claude-settings-local.js";
 import { filterSafeRules } from "./permission-rule-guard.js";
@@ -277,6 +281,19 @@ export function initialize() {
       injectedJigSource: ps.injectedJigSource,
       variant: ps.variant,
       focusedSpecPath: ps.focusedSpecPath,
+      // The Spec Bench fields come back only when the record carries them, so a
+      // bench of any other variant gains no delivery key (SB-TC-008). A pin path
+      // is vetted by the safe-path allowlist wherever it is used, not here.
+      ...(ps.deliveryBindMode !== undefined && { deliveryBindMode: ps.deliveryBindMode }),
+      ...(ps.gatePin !== undefined && { gatePin: ps.gatePin }),
+      ...(ps.deliveryTokenHash !== undefined && { deliveryTokenHash: ps.deliveryTokenHash }),
+      ...(ps.deliverySitting !== undefined && { deliverySitting: ps.deliverySitting }),
+      ...(ps.deliveryLastViewedSeq !== undefined && {
+        deliveryLastViewedSeq: ps.deliveryLastViewedSeq,
+      }),
+      ...(ps.deliveryFirstSeenBlocking !== undefined && {
+        deliveryFirstSeenBlocking: ps.deliveryFirstSeenBlocking,
+      }),
       // Benches persisted before this field existed (pre-#997) were provisioned
       // under the old flow, which always ran `benches.setup`, so treat a missing
       // flag as complete rather than re-running setup on their next Start.
@@ -308,6 +325,16 @@ export async function reconcile() {
 
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
+
+    // The variant's own state (a Spec Bench's spec folder and gate pin) is its
+    // domain's to judge, through the VariantHostRegistry. A bench with no
+    // variant host is always sound here.
+    const variantState = variantHosts.verifyVariantState(bench);
+    if (!variantState.ok) {
+      bench.status = "error";
+      bench.error = variantState.error;
+      continue;
+    }
 
     // Verify git actually tracks this worktree (directory may exist but be orphaned)
     if (!workspaceCache.has(project.repoPath)) {
@@ -1209,13 +1236,16 @@ function releaseComposeProjectFromLedger(benchId: number, composeProject: string
 }
 
 export interface CreateBenchOptions {
-  // TestBench variant discriminator. When "testbench", focusedSpecPath is
+  // Variant discriminator. For "testbench" and "specbench", focusedSpecPath is
   // required and validated for containment before the bench is reserved.
-  variant?: "testbench";
-  // Absolute (or repo-relative) path to the spec's test-cases.json the TestBench
-  // focuses on. Validated against the project repo via resolveFocusedSpec; an
-  // out-of-repo or malformed path throws BenchError("INVALID_FOCUS").
+  variant?: BenchVariant;
+  // Absolute (or repo-relative) path to the focused spec: the test-cases.json a
+  // TestBench focuses on (resolveFocusedSpec), or the `.specifications/<slug>`
+  // folder a Spec Bench delivers (resolveSpecFolder). An out-of-repo, malformed
+  // or missing path throws BenchError("INVALID_FOCUS").
   focusedSpecPath?: string;
+  // Spec Bench only, and required for it: how the bench binds to its delivery.
+  delivery?: SpecBenchDeliveryRequest;
 }
 
 export function createBench(
@@ -1248,6 +1278,31 @@ export function createBench(
     } catch (err) {
       throw new BenchError(`Invalid focusedSpecPath: ${(err as Error).message}`, "INVALID_FOCUS");
     }
+  } else if (options.variant === "specbench") {
+    // A Spec Bench needs its domain's host: without it the bench manager could
+    // not root its components or tear its pin down, so refuse it up front.
+    if (variantHosts.getVariantHost("specbench") === undefined) {
+      throw new BenchError("variant specbench has no registered host", "INVALID_VARIANT");
+    }
+    if (options.delivery?.mode !== "launch" && options.delivery?.mode !== "attach") {
+      throw new BenchError(
+        "delivery.mode must be launch or attach for a specbench variant",
+        "INVALID_DELIVERY",
+      );
+    }
+    if (options.focusedSpecPath === undefined) {
+      throw new BenchError("focusedSpecPath is required for a specbench variant", "INVALID_FOCUS");
+    }
+    try {
+      resolvedFocusedSpecPath = resolveSpecFolder(
+        project.repoPath,
+        options.focusedSpecPath,
+      ).resolvedPath;
+    } catch (err) {
+      throw new BenchError(`Invalid focusedSpecPath: ${(err as Error).message}`, "INVALID_FOCUS");
+    }
+  } else if (options.variant !== undefined) {
+    throw new BenchError(`Unknown variant '${String(options.variant)}'`, "INVALID_VARIANT");
   }
 
   const config = project.config;
@@ -1306,6 +1361,8 @@ export function createBench(
     notifications: [],
     variant: options.variant,
     focusedSpecPath: resolvedFocusedSpecPath,
+    ...(options.variant === "specbench" &&
+      options.delivery && { deliveryBindMode: options.delivery.mode }),
     // Seeded false even when the project defines no `benches.setup`, so that a
     // setup command added to roubo.yaml later still runs once on this bench
     // (#997). Recording `true` here would be indistinguishable from a genuine
@@ -1961,6 +2018,12 @@ export function teardownBench(projectId: string, benchId: number, removeWorkspac
 
   bench.status = "clearing";
   bench.teardownSteps = makeTeardownSteps(components, hasDockerComponents, removeWorkspace);
+  // A bench whose variant has a host shows that host's teardown as its first
+  // step. Every other bench keeps exactly the steps it had before.
+  const variantTeardownLabel = variantHosts.teardownLabel(bench);
+  if (variantTeardownLabel !== undefined) {
+    bench.teardownSteps.unshift({ id: "variant", label: variantTeardownLabel, status: "pending" });
+  }
   // Stop in-flight worktree provisioning now; runTeardownBackground waits for it
   // to settle before removing anything (#1433).
   provisioningAborts.get(key)?.abort();
@@ -2002,6 +2065,35 @@ async function runTeardownBackground(
   if (provisioning) await settleWithin(provisioning, PROVISIONING_STOP_WAIT_MS);
 
   try {
+    // Step 0: the variant's own teardown, through the VariantHostRegistry. For a
+    // Spec Bench that removes the gate pin and then stops the sitting's session,
+    // before the terminals, the components and, last, the workspace below
+    // (SB-TC-005). It goes first because the pin is where the components ran.
+    if (bench.teardownSteps.some((s) => s.id === "variant")) {
+      updateStep(bench.teardownSteps, "variant", "running");
+      await variantHosts.beforeTeardown(bench, {
+        project,
+        removeWorktree: async (worktreePath) => {
+          if (!project) return;
+          const { leftoverReason } = await removeBenchWorktree(project.repoPath, worktreePath, {
+            benchId,
+            strict: true,
+            label: "Teardown",
+          });
+          if (leftoverReason !== undefined) {
+            throw new Error(`could not remove worktree ${worktreePath}: ${leftoverReason}`);
+          }
+        },
+        stopSession: (sessionId) => {
+          terminalService.destroySession(sessionId);
+        },
+      });
+      // The pin and the sitting are gone: write that down now, so a later step
+      // that fails keeps a record that no longer names them.
+      stateService.updateBench(stateService.toPersistedBench(bench));
+      updateStep(bench.teardownSteps, "variant", "done");
+    }
+
     // Step 1: Close terminals
     updateStep(bench.teardownSteps, "terminals", "running");
     terminalService.destroyBenchSessions(projectId, benchId);
@@ -2604,7 +2696,8 @@ async function getOrResolveDescriptor(
   if (!componentConfig) return undefined;
 
   try {
-    const tplCtx = buildTemplateContext(project.config, benchId, bench.workspacePath);
+    const root = variantHosts.componentRoot(bench);
+    const tplCtx = buildTemplateContext(project.config, benchId, root);
     const ports = tplCtx?.ports ?? bench.ports;
     const resolvedEnv = resolveServiceEnv(
       (componentConfig.config?.env as Record<string, string> | undefined) ?? {},
@@ -2635,7 +2728,7 @@ async function getOrResolveDescriptor(
         projectId,
         benchId,
         componentName,
-        workspacePath: bench.workspacePath,
+        workspacePath: root,
         ports,
         env: resolvedEnv,
       },
@@ -2853,7 +2946,10 @@ async function provisionComponent(
 
   // Resolve the per-bench env (templates filled, e.g. {{ports.x}}) the engine
   // needs in the BenchContext, preserving FR-005/FR-007 env injection parity.
-  const tplCtx = buildTemplateContext(project.config, benchId, bench.workspacePath);
+  // Where the component runs is the variant's to say (SB-FR-004): a Spec Bench
+  // with a gate pin runs it there. Every other bench runs it in its workspace.
+  const root = variantHosts.componentRoot(bench);
+  const tplCtx = buildTemplateContext(project.config, benchId, root);
   const resolvedEnv = resolveServiceEnv(
     (componentConfig.config?.env as Record<string, string> | undefined) ?? {},
     tplCtx,
@@ -2878,14 +2974,7 @@ async function provisionComponent(
       componentName,
       binding.pluginId,
       bench,
-      buildBenchContext(
-        projectId,
-        benchId,
-        componentName,
-        bench.workspacePath,
-        tplCtx.ports,
-        resolvedEnv,
-      ),
+      buildBenchContext(projectId, benchId, componentName, root, tplCtx.ports, resolvedEnv),
       componentStatus,
     );
     return;
@@ -2927,7 +3016,7 @@ async function provisionComponent(
           projectId,
           benchId,
           componentName,
-          workspacePath: bench.workspacePath,
+          workspacePath: root,
           ports: tplCtx.ports,
           env: resolvedEnv,
         },
@@ -2957,7 +3046,7 @@ async function provisionComponent(
     projectId,
     benchId,
     componentName,
-    workspacePath: bench.workspacePath,
+    workspacePath: root,
     ports: tplCtx.ports,
     reportStatus: buildReportStatus(projectId, benchId),
     // Forward the engine-driven compose / init / migration output into the
@@ -3205,7 +3294,7 @@ export async function stopComponent(
     await dockerService.composeStop(
       projectName,
       descriptor.composeFile,
-      bench.workspacePath,
+      variantHosts.componentRoot(bench),
       descriptor.service,
     );
   }
@@ -3285,7 +3374,7 @@ async function stopImperativeComponent(
   let resolvedEnv: Record<string, string> = {};
   if (config) {
     const componentConfig = config.components[componentName];
-    const tplCtx = buildTemplateContext(config, benchId, bench.workspacePath);
+    const tplCtx = buildTemplateContext(config, benchId, variantHosts.componentRoot(bench));
     ports = tplCtx.ports;
     resolvedEnv = resolveServiceEnv(
       (componentConfig?.config?.env as Record<string, string> | undefined) ?? {},
@@ -3299,7 +3388,7 @@ async function stopImperativeComponent(
     projectId,
     benchId,
     componentName,
-    bench.workspacePath,
+    variantHosts.componentRoot(bench),
     ports,
     resolvedEnv,
   );
@@ -3844,7 +3933,8 @@ async function refreshImperativeComponentStatus(
 ): Promise<void> {
   try {
     const componentConfig = config.components[componentName];
-    const tplCtx = buildTemplateContext(config, bench.id, bench.workspacePath);
+    const root = variantHosts.componentRoot(bench);
+    const tplCtx = buildTemplateContext(config, bench.id, root);
     const resolvedEnv = resolveServiceEnv(
       (componentConfig?.config?.env as Record<string, string> | undefined) ?? {},
       tplCtx,
@@ -3853,14 +3943,7 @@ async function refreshImperativeComponentStatus(
     const health = await pluginManager.invoke<unknown>(
       pluginId,
       "health",
-      buildBenchContext(
-        bench.projectId,
-        bench.id,
-        componentName,
-        bench.workspacePath,
-        tplCtx.ports,
-        resolvedEnv,
-      ),
+      buildBenchContext(bench.projectId, bench.id, componentName, root, tplCtx.ports, resolvedEnv),
     );
     const status = (health as { status?: unknown } | undefined)?.status;
     if (isComponentStatusValue(status)) {

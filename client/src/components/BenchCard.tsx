@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import type { Bench, DirtyReason } from "@roubo/shared";
 import ComponentStatusDot from "./ComponentStatusDot";
 import NotificationIndicator from "./NotificationIndicator";
+import VariantBadge from "./VariantBadge";
 import ToolButtons from "./ToolButtons";
 import {
   useStartBench,
@@ -115,6 +116,7 @@ export default function BenchCard({
               )}
               <div className="flex items-center gap-2">
                 <p className="text-14 font-semibold text-text-primary">Bench {bench.id}</p>
+                <VariantBadge variant={bench.variant} />
                 <NotificationIndicator notifications={bench.notifications} />
                 <StatusIndicator
                   tone={statusTone}
