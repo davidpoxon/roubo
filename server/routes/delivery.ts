@@ -74,10 +74,7 @@ import {
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import * as benchManager from "../services/bench-manager.js";
 import type { DeliveryEventsResponse } from "@roubo/shared/delivery-bench";
-import {
-  deliveryAcceptedSeq,
-  deliveryEventsAfterRecord,
-} from "../services/delivery-event-log.js";
+import { deliveryAcceptedSeq, deliveryEventsAfterRecord } from "../services/delivery-event-log.js";
 import {
   DeliveryLaunchBlockedError,
   deliveryLaunchBlock,
@@ -200,8 +197,7 @@ router.get("/:projectId/benches/:id/delivery/events", deliveryReadRateLimiter, (
   );
   const body: DeliveryEventsResponse = {
     events,
-    acceptedSeq:
-      deliveryAcceptedSeq(bench.projectId, bench.id) ?? loaded.record.last_event_seq,
+    acceptedSeq: deliveryAcceptedSeq(bench.projectId, bench.id) ?? loaded.record.last_event_seq,
   };
   res.json(body);
 });
