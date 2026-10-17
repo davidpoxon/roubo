@@ -49,8 +49,10 @@ import type {
 } from "./delivery-observation-contract";
 import type { BenchResults, TestCasesPlan } from "./testbench-contracts";
 import {
-  effectiveCaseStatus,
   evaluateGate,
+  indexResolutions,
+  isCaseMet,
+  readCaseResult,
   type GateLifecycle,
   type GateState,
   type VerifyUnit,
@@ -67,10 +69,12 @@ export interface DeliveryFoldInputs {
   // The event stream after the record, in seq order. Events at or below
   // `record.last_event_seq` are ignored, so a caller may pass the whole stream.
   events: readonly DeliveryEvent[];
-  // The spec's test plan. Absent, gate state fails closed to `stale` and progress
-  // reports nothing met.
+  // The spec's test plan. Absent, every gate fails closed to `stale` (even when
+  // results are present: without the plan the gating set cannot be narrowed, so
+  // the results are not read) and progress reports nothing met and no totals.
   plan?: TestCasesPlan;
-  // The spec's recorded results. Absent, same fail-closed reading.
+  // The spec's recorded results. Absent, every gate is `stale` and nothing is
+  // met; the totals still come from the plan.
   results?: DeliveryResults;
   // The caller-threaded lifecycle resolutions, as `evaluateGate` takes them.
   lifecycle?: GateLifecycle;
@@ -103,8 +107,9 @@ export interface DeliveryEdge {
 export interface DeliveryGateView {
   // The gate as the record carries it, with its own `status` word.
   gate: DeliveryGate;
-  // The evaluated state over the plan and results (fail-closed to `stale` when
-  // either is absent).
+  // The evaluated state over the plan and results. Fail-closed to `stale` when
+  // either is absent: the fold passes `evaluateGate` null results until it has
+  // both.
   state: GateState;
 }
 
@@ -604,10 +609,13 @@ function verifyUnitOf(gate: DeliveryGate): VerifyUnit {
 
 // Progress (SB-FR-011). Totals come from the plan when present. A case counts as
 // met when the results are current (their planHash matches the record's) and
-// its effective status is `passed`, the same reading `evaluateGate` applies: an
-// override wins over the derived status, and an orphaned or absent result is not
-// met. A case the lifecycle resolutions retire leaves both totals. A requirement
-// is covered when every counted case that links it is met.
+// the result it is read by is `passed`, exactly as `evaluateGate` reads a gating
+// case: the lifecycle resolutions decide which result that is (`readCaseResult`:
+// a superseded case reads the case its chain resolved to, an unresolvable one
+// reads nothing), an override wins over the derived status, and an orphaned or
+// absent result is not met (`isCaseMet`). A case the lifecycle resolutions retire
+// leaves both totals, as it leaves the gating set. A requirement is covered when
+// every counted case that links it is met.
 function computeProgress(
   record: DeliveryRecord,
   plan: TestCasesPlan | undefined,
@@ -617,21 +625,18 @@ function computeProgress(
   if (plan === undefined) {
     return { cases: { met: 0, total: 0 }, requirements: { met: 0, total: 0 } };
   }
-  const retired = new Set<string>();
-  for (const resolution of lifecycle?.resolutions ?? []) {
-    if (resolution.status === "retired") retired.add(resolution.origin.caseId);
-  }
+  const resolutionById = indexResolutions(lifecycle);
   const current =
     results !== undefined && results.planHash === record.plan_hash ? results : undefined;
   const requirementCases = new Map<string, { total: number; met: number }>();
   let total = 0;
   let met = 0;
   for (const planCase of plan.cases) {
-    if (retired.has(planCase.id)) continue;
+    if (resolutionById.get(planCase.id)?.status === "retired") continue;
     total += 1;
-    const result = current?.caseResults[planCase.id];
     const caseMet =
-      result !== undefined && result.orphaned !== true && effectiveCaseStatus(result) === "passed";
+      current !== undefined &&
+      isCaseMet(readCaseResult(planCase.id, current.caseResults, resolutionById, lifecycle));
     if (caseMet) met += 1;
     for (const requirementId of planCase.linked_requirement_ids) {
       const entry = requirementCases.get(requirementId) ?? { total: 0, met: 0 };
@@ -663,11 +668,16 @@ export function computeStaleness(updatedAt: string, now: number | undefined): De
 
 function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliverySnapshot {
   const { record, plan, results, lifecycle, now } = inputs;
+  // Without the plan the gate reads `stale`, whatever the results say: the
+  // evaluator would otherwise judge an un-narrowed gating set over results it
+  // cannot relate to the plan, while progress in the same snapshot reports no
+  // totals. Passing null results takes the evaluator's own STALE rung.
+  const gateResults = plan === undefined ? null : (results ?? null);
   const gatesById: Record<string, DeliveryGateView> = {};
   for (const gate of state.gates) {
     gatesById[gate.id] = {
       gate,
-      state: evaluateGate(verifyUnitOf(gate), results ?? null, record.plan_hash, plan, lifecycle),
+      state: evaluateGate(verifyUnitOf(gate), gateResults, record.plan_hash, plan, lifecycle),
     };
   }
   const jams = Object.values(state.unitsById)

@@ -15,6 +15,8 @@ import {
   type DeliveryFoldInputs,
   type DeliveryResults,
 } from "./delivery-reducer.js";
+import type { GateLifecycle } from "./gate-evaluator.js";
+import type { Resolution } from "./lifecycle-resolver.js";
 import type { Case, CaseResult, CaseStatus, TestCasesPlan } from "./testbench-contracts.js";
 
 // ── Fixtures ──
@@ -96,6 +98,31 @@ function caseResult(derived: CaseStatus, override?: CaseStatus): CaseResult {
 
 function results(planHash: string, caseResults: Record<string, CaseResult>): DeliveryResults {
   return { planHash, caseResults, updatedAt: "2026-10-16T09:30:00Z" };
+}
+
+// A lifecycle resolution for one plan case, as `resolvePlan` would return it.
+function resolution(
+  caseId: string,
+  status: Resolution["status"],
+  resolvedTo: string | null = null,
+): Resolution {
+  const origin = { slug: "demo", caseId };
+  const target = resolvedTo === null ? null : { slug: "demo", caseId: resolvedTo };
+  return {
+    origin,
+    originState: status === "live" ? "live" : status === "retired" ? "retired" : "superseded",
+    status,
+    chain: target === null ? [origin] : [origin, target],
+    resolvedTo: target,
+    reason: status === "unresolved" ? "target missing" : null,
+    targetCaseState: status === "resolved" ? "live" : status === "unresolved" ? null : "live",
+    targetSpecState: "live",
+    supersededBy: null,
+  };
+}
+
+function lifecycleOf(...resolutions: Resolution[]): GateLifecycle {
+  return { resolutions };
 }
 
 // ── The fold ──
@@ -421,6 +448,25 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
     });
   });
 
+  it("fails closed to stale without a plan even when current results are present", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: [],
+      results: results(record.plan_hash, {
+        "DEMO-TC-001": caseResult("passed"),
+        "DEMO-TC-002": caseResult("passed"),
+        "DEMO-TC-003": caseResult("failed"),
+      }),
+    });
+    expect(snapshot.gatesById["gate-after-b"].state.status).toBe("stale");
+    expect(snapshot.gatesById["gate-after-c"].state.status).toBe("stale");
+    expect(snapshot.progress).toEqual({
+      cases: { met: 0, total: 0 },
+      requirements: { met: 0, total: 0 },
+    });
+  });
+
   it("reports totals from the plan but nothing met when results are absent", () => {
     const record = fixtureRecord();
     const snapshot = foldDelivery({ record, events: [], plan: PLAN });
@@ -464,6 +510,90 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
     });
     expect(snapshot.progress.cases).toEqual({ met: 0, total: 3 });
     expect(snapshot.gatesById["gate-after-b"].state.status).toBe("stale");
+  });
+
+  describe("with lifecycle resolutions", () => {
+    it("drops a retired case from the totals as the gate drops it from its set", () => {
+      const record = fixtureRecord();
+      const snapshot = foldDelivery({
+        record,
+        events: [],
+        plan: PLAN,
+        results: results(record.plan_hash, {
+          "DEMO-TC-001": caseResult("passed"),
+          "DEMO-TC-003": caseResult("passed"),
+        }),
+        lifecycle: lifecycleOf(resolution("DEMO-TC-002", "retired")),
+      });
+      // DEMO-TC-002 leaves both totals: DEMO-FR-002 is then covered by TC-003 alone.
+      expect(snapshot.progress).toEqual({
+        cases: { met: 2, total: 2 },
+        requirements: { met: 2, total: 2 },
+      });
+      const gate = snapshot.gatesById["gate-after-b"].state;
+      expect(gate.status).toBe("passed");
+      expect(gate.gatingCaseIds).toEqual(["DEMO-TC-001"]);
+      expect(gate.lifecycleExcludedCaseIds).toEqual(["DEMO-TC-002"]);
+    });
+
+    it("reads a superseded case from the case its chain resolved to, as the gate does", () => {
+      const record = fixtureRecord();
+      const inputs: DeliveryFoldInputs = {
+        record,
+        events: [],
+        plan: PLAN,
+        // TC-001 was superseded by TC-002; it has no result of its own.
+        results: results(record.plan_hash, {
+          "DEMO-TC-002": caseResult("passed"),
+          "DEMO-TC-003": caseResult("not_started"),
+        }),
+        lifecycle: lifecycleOf(resolution("DEMO-TC-001", "resolved", "DEMO-TC-002")),
+      };
+      const snapshot = foldDelivery(inputs);
+      expect(snapshot.progress).toEqual({
+        cases: { met: 2, total: 3 },
+        requirements: { met: 1, total: 2 },
+      });
+      expect(snapshot.gatesById["gate-after-b"].state.status).toBe("passed");
+      expect(snapshot.gatesById["gate-after-c"].state.status).toBe("pending");
+
+      // The landing's own reading decides: a failed landing fails both.
+      const failedLanding = foldDelivery({
+        ...inputs,
+        results: results(record.plan_hash, {
+          "DEMO-TC-002": caseResult("failed"),
+          "DEMO-TC-003": caseResult("passed"),
+        }),
+      });
+      expect(failedLanding.progress).toEqual({
+        cases: { met: 1, total: 3 },
+        requirements: { met: 0, total: 2 },
+      });
+      expect(failedLanding.gatesById["gate-after-b"].state.status).toBe("failed");
+    });
+
+    it("counts an unresolved case as not met even when its own stale result passed", () => {
+      const record = fixtureRecord();
+      const snapshot = foldDelivery({
+        record,
+        events: [],
+        plan: PLAN,
+        results: results(record.plan_hash, {
+          "DEMO-TC-001": caseResult("passed"),
+          "DEMO-TC-002": caseResult("passed"),
+          "DEMO-TC-003": caseResult("passed"),
+        }),
+        lifecycle: lifecycleOf(resolution("DEMO-TC-001", "unresolved")),
+      });
+      expect(snapshot.progress).toEqual({
+        cases: { met: 2, total: 3 },
+        requirements: { met: 1, total: 2 },
+      });
+      const gate = snapshot.gatesById["gate-after-b"].state;
+      expect(gate.status).toBe("pending");
+      expect(gate.unresolvedCaseIds).toEqual(["DEMO-TC-001"]);
+      expect(snapshot.gatesById["gate-after-c"].state.status).toBe("passed");
+    });
   });
 });
 
