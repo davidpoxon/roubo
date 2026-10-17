@@ -497,6 +497,70 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
     expect(record.review.unreviewed).toEqual(["decision-2"]);
   });
 
+  it("decision.raised over an agent decision drops it from the unreviewed list and the stack together", () => {
+    const record = fixtureRecord();
+    expect(record.decisions[1].author).toBe("agent");
+    const raised = foldDelivery({
+      record,
+      events: stream([
+        "decision.raised",
+        {
+          decision_id: "decision-2",
+          question: "Accept the change?",
+          options: ["accept it", "reject it"],
+          default: "accept it",
+        },
+      ]),
+    });
+    const decision = raised.decisionsById["decision-2"];
+    expect(decision.author).toBeUndefined();
+    expect(decision.chosen).toBeUndefined();
+    expect(decision.review).toBeUndefined();
+    // The list, the status and the stack agree: no decision waits, the fixture's
+    // provisional gate still does.
+    expect(raised.review.unreviewed).toEqual([]);
+    expect(raised.review.status).toBe("pending");
+    expect(selectReviewStack(raised).map((card) => card.id)).toEqual(["gate-after-c"]);
+
+    const settled = foldDelivery({
+      record,
+      events: stream(
+        [
+          "decision.raised",
+          {
+            decision_id: "decision-2",
+            question: "Accept the change?",
+            options: ["accept it", "reject it"],
+            default: "accept it",
+          },
+        ],
+        ["gate.confirmed", { gate_id: "gate-after-c" }],
+      ),
+    });
+    expect(settled.review).toEqual({ status: "none", unreviewed: [] });
+    expect(selectReviewStack(settled)).toEqual([]);
+    expect(record.review.unreviewed).toEqual(["decision-2"]);
+  });
+
+  it("decision.answered over an agent decision keeps it in the unreviewed list and the stack together", () => {
+    const record = fixtureRecord();
+    const answered = foldDelivery({
+      record,
+      events: stream(["decision.answered", { decision_id: "decision-2", answer: "accept it" }]),
+    });
+    const decision = answered.decisionsById["decision-2"];
+    expect(decision.status).toBe("answered");
+    expect(decision.author).toBe("agent");
+    expect(decision.review).toEqual({ status: "unreviewed" });
+    expect(answered.review.unreviewed).toEqual(["decision-2"]);
+    expect(answered.review.status).toBe("pending");
+    expect(
+      selectReviewStack(answered)
+        .filter((card) => card.kind === "decision")
+        .map((card) => card.id),
+    ).toEqual(["decision-2"]);
+  });
+
   it("review.opened opens the review with its trigger and list", () => {
     const record = fixtureRecord();
     const snapshot = foldDelivery({
