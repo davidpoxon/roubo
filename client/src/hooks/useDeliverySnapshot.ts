@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createDeliveryReducer,
   type DeliveryFoldInputs,
@@ -29,12 +29,9 @@ export function useDeliverySnapshot(
   options: UseDeliverySnapshotOptions = {},
 ): DeliverySnapshot {
   const { onGap, now } = options;
-  // One reducer per hook instance, created on the first render only.
-  const reducerRef = useRef<DeliveryReducer | null>(null);
-  if (reducerRef.current === null) {
-    reducerRef.current = createDeliveryReducer();
-  }
-  const reducer = reducerRef.current;
+  // One reducer per hook instance: the lazy initializer runs on the first
+  // render only, so the fold state survives re-renders.
+  const [reducer] = useState<DeliveryReducer>(() => createDeliveryReducer());
   const { record, events, plan, results, lifecycle } = inputs;
 
   const snapshot = useMemo(
@@ -42,9 +39,12 @@ export function useDeliverySnapshot(
     [reducer, record, events, plan, results, lifecycle, now],
   );
 
-  // Keep the latest callback without re-running the effect for a new identity.
+  // Keep the latest callback without re-running the gap effect for a new
+  // identity. The ref is written in an effect, never during render.
   const onGapRef = useRef(onGap);
-  onGapRef.current = onGap;
+  useEffect(() => {
+    onGapRef.current = onGap;
+  });
 
   useEffect(() => {
     if (snapshot.gap !== undefined) {
