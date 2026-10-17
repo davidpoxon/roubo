@@ -9,7 +9,10 @@ import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_RECORD_SCHEMA_ID,
 } from "../shared/delivery-observation-contract.js";
-import { DELIVERY_CONTROL_SCHEMA_ID } from "../shared/delivery-control-contract.js";
+import {
+  DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID,
+  DELIVERY_CONTROL_SCHEMA_ID,
+} from "../shared/delivery-control-contract.js";
 import { STATE_RECIPE_SCHEMA_ID } from "../shared/state-recipe-contract.js";
 import { artifacts, renderSchema, generate } from "./generate-schema.js";
 
@@ -25,6 +28,10 @@ const expected = [
   { name: "delivery-record.schema.json", id: DELIVERY_RECORD_SCHEMA_ID },
   { name: "delivery-event.schema.json", id: DELIVERY_EVENT_SCHEMA_ID },
   { name: "delivery-control.schema.json", id: DELIVERY_CONTROL_SCHEMA_ID },
+  {
+    name: "delivery-control-read-response.schema.json",
+    id: DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID,
+  },
   { name: "state-recipe.schema.json", id: STATE_RECIPE_SCHEMA_ID },
 ];
 

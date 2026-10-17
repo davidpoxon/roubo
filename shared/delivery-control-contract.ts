@@ -43,6 +43,10 @@ import { DELIVERY_TEXT_MAX_LENGTH, DeliveryModeValueSchema } from "./delivery-ob
 
 export const DELIVERY_CONTROL_SCHEMA_ID = "https://roubo.dev/schema/delivery-control/v1.0.0.json";
 export const DELIVERY_CONTROL_SCHEMA_VERSION = "1.0.0";
+// The control read response is its own generated artifact at the same
+// contract version (see "The control read response" below).
+export const DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID =
+  "https://roubo.dev/schema/delivery-control-read-response/v1.0.0.json";
 
 // ── Shared scalars ──
 
@@ -300,21 +304,54 @@ export type DeliveryControl = z.infer<typeof DeliveryControlSchema>;
 
 // ── The control read response ──
 //
-// What the tooling gets when it reads the outbox (SB-FR-040): the controls
-// after the seq it asked for, in `control_seq` order, durable and volatile
-// alike; `latestSeq`, the highest `control_seq` the bench has issued (0 before
-// any), so a reader that got an empty list still knows where the outbox is;
-// and `superseded`, present only when a control the reader may hold was
-// replaced since, naming each superseded `control_seq`. Not a generated
-// artifact: it is the body of one route, defined here so the bench and the
-// tooling share one shape.
-export const DeliveryControlReadResponseSchema = z
+// What the tooling gets when it reads the outbox (SB-FR-040). The read is a
+// long poll, and its route answers with one of two bodies:
+//   the normal reply      `{controls, latestSeq}`: the controls after the seq
+//                         the reader asked for, in `control_seq` order, durable
+//                         and volatile alike, and `latestSeq`, the highest
+//                         `control_seq` the bench has issued (0 before any),
+//                         so a reader that got an empty list still knows where
+//                         the outbox is. It carries no `superseded`.
+//   the superseded reply  `{controls: [], superseded: true}`: the boolean that
+//                         ends a first read when a second read for the same
+//                         bench arrives. It carries no controls and no
+//                         `latestSeq`; the second read is the one that gets
+//                         them.
+// The schema is the union of the two, rendered into schema/ as its own
+// versioned artifact with a committed baseline and a published pin, as the
+// control itself is. Each option forbids the other's key, so a body that mixes
+// them (a `superseded` list beside `latestSeq`) matches neither.
+const NOT_IN_A_NORMAL_REPLY =
+  "a normal reply carries no superseded: only the superseded reply does, as the boolean true";
+const NOT_IN_A_SUPERSEDED_REPLY =
+  "a superseded reply carries no latestSeq: the read that superseded it gets the controls";
+
+export const DeliveryControlReadReplySchema = z
   .object({
     controls: z.array(DeliveryControlSchema),
     latestSeq: z.number().int().min(0),
-    superseded: z.array(z.number().int().min(1)).optional(),
+    superseded: z.never({ error: NOT_IN_A_NORMAL_REPLY }).optional(),
   })
   .loose();
+export type DeliveryControlReadReply = z.infer<typeof DeliveryControlReadReplySchema>;
+
+export const DeliveryControlReadSupersededSchema = z
+  .object({
+    controls: z.tuple([], { error: "a superseded reply carries no controls" }),
+    superseded: z.literal(true),
+    latestSeq: z.never({ error: NOT_IN_A_SUPERSEDED_REPLY }).optional(),
+  })
+  .loose();
+export type DeliveryControlReadSuperseded = z.infer<typeof DeliveryControlReadSupersededSchema>;
+
+export const DeliveryControlReadResponseSchema = z
+  .union([DeliveryControlReadReplySchema, DeliveryControlReadSupersededSchema])
+  .meta({
+    $id: DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID,
+    title: "Delivery control read response",
+    description:
+      "The body of one read of a spec delivery's control outbox (SB-FR-040): the normal reply {controls, latestSeq}, or the superseded reply {controls: [], superseded: true} that ends a first read when a second read for the same bench arrives.",
+  });
 export type DeliveryControlReadResponse = z.infer<typeof DeliveryControlReadResponseSchema>;
 
 // ── Runtime validator ──
@@ -344,7 +381,13 @@ export function validateDeliveryControl(raw: unknown): ValidationResult<Delivery
 export function validateDeliveryControlReadResponse(
   raw: unknown,
 ): ValidationResult<DeliveryControlReadResponse> {
-  const parsed = DeliveryControlReadResponseSchema.safeParse(raw);
+  // Pick the option by the presence of `superseded`, so an error names the
+  // field that failed rather than the union as a whole.
+  const superseded =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw) && "superseded" in raw;
+  const parsed = superseded
+    ? DeliveryControlReadSupersededSchema.safeParse(raw)
+    : DeliveryControlReadReplySchema.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, errors: zodIssuesToFieldErrors(parsed.error.issues) };
   }

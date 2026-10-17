@@ -821,6 +821,7 @@ describe("delivery observation contract: guards", () => {
       "delivery-record.schema.json",
       "delivery-event.schema.json",
       "delivery-control.schema.json",
+      "delivery-control-read-response.schema.json",
     ]) {
       const artifact = artifactFor(file);
       const rendered = await renderSchema(artifact.schema, artifact.outPath);
