@@ -4,7 +4,7 @@ import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { selectOpenDecisions, selectUnitsInStackOrder } from "@roubo/shared/delivery-selectors";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
-import { useDelivery, useResumeDelivery } from "../../hooks/useDelivery";
+import { useDelivery, useDeliverySessionLive, useResumeDelivery } from "../../hooks/useDelivery";
 import { deliveryReadErrorOf } from "../../lib/api";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
@@ -88,6 +88,10 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
   const decisions = selectOpenDecisions(snapshot);
   const roles = Object.entries(snapshot.roles);
   const resume = useResumeDelivery(bench.projectId, bench.id);
+  // The server refuses a resume while the bench's session runs or the bench is
+  // going (409), so the button says the same before it is pressed.
+  const sessionLive = useDeliverySessionLive(bench);
+  const resumeBlocked = bench.status === "clearing" || bench.status === "error" || sessionLive;
 
   return (
     <div data-testid="delivery-snapshot" className="space-y-4">
@@ -159,7 +163,7 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
         aria-label="Lifecycle"
         className="flex flex-wrap gap-2"
       >
-        <Button onPress={() => resume.mutate()} isDisabled={resume.isPending}>
+        <Button onPress={() => resume.mutate()} isDisabled={resume.isPending || resumeBlocked}>
           Resume
         </Button>
         <Button isDisabled>Pause</Button>

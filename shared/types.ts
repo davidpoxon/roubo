@@ -1752,6 +1752,13 @@ export interface Bench {
   gatePin?: BenchGatePin;
   /** Spec Bench only: hash of the token the delivery session presents. */
   deliveryTokenHash?: string;
+  /**
+   * Spec Bench only: the terminal session of the main delivery session that
+   * this bench last launched, at set-up or at resume. Runtime only and never
+   * persisted: a terminal session comes back from a restart as ended, so after
+   * one no session of this bench is live and a resume may launch again.
+   */
+  deliverySessionId?: string;
   /** Spec Bench only: the open gate sitting, if any. */
   deliverySitting?: BenchDeliverySitting;
   /** Spec Bench only: the last delivery event `seq` the operator viewed. */

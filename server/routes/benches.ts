@@ -142,7 +142,8 @@ router.post("/:projectId/benches", async (req, res) => {
       });
       res.status(201).json(bench);
       // Once the workspace exists: launch mode starts the delivery session,
-      // attach mode mints the token and launches nothing (SB-FR-002, SB-FR-003).
+      // attach mode launches nothing; its token is minted when POST
+      // /delivery/attach hands it out (SB-FR-002, SB-FR-003).
       void bindDeliveryOnCreate(bench);
     } catch (err) {
       handleCreateBenchError(res, err);

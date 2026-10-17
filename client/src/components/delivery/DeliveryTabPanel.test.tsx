@@ -14,7 +14,7 @@ import { renderWithProviders, makeQueryClient } from "../../test/renderWithProvi
 
 vi.mock("../../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/api")>();
-  return { ...actual, fetchDelivery: vi.fn(), resumeDelivery: vi.fn() };
+  return { ...actual, fetchDelivery: vi.fn(), resumeDelivery: vi.fn(), fetchTerminals: vi.fn() };
 });
 import * as api from "../../lib/api";
 import DeliveryTabPanel from "./DeliveryTabPanel";
@@ -94,6 +94,7 @@ function expectNoControls() {
 beforeEach(() => {
   vi.mocked(api.fetchDelivery).mockReset();
   vi.mocked(api.resumeDelivery).mockReset();
+  vi.mocked(api.fetchTerminals).mockReset();
 });
 
 describe("DeliveryTabPanel", () => {
@@ -181,5 +182,38 @@ describe("DeliveryTabPanel", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Resume" }));
     await waitFor(() => expect(api.resumeDelivery).toHaveBeenCalledWith("demo", 3));
+  });
+
+  it.each(["clearing", "error"] as const)(
+    "SB-TC-004: disables Resume while the bench is %s",
+    async (status) => {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+      renderWithProviders(<DeliveryTabPanel bench={{ ...bench, status }} />);
+
+      expect(await screen.findByRole("button", { name: "Resume" })).toBeDisabled();
+    },
+  );
+
+  it("SB-TC-004: disables Resume while the session the bench launched is live, and enables it once it ends", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    vi.mocked(api.fetchTerminals).mockResolvedValueOnce([
+      { id: "session-1", benchKey: "demo:3", label: "agent", createdAt: "now", status: "live" },
+    ]);
+    const queryClient = makeQueryClient();
+    renderWithProviders(
+      <DeliveryTabPanel bench={{ ...bench, status: "active", deliverySessionId: "session-1" }} />,
+      { queryClient },
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Resume" })).toBeDisabled(),
+    );
+    expect(api.fetchTerminals).toHaveBeenCalledWith("demo", 3);
+
+    vi.mocked(api.fetchTerminals).mockResolvedValue([
+      { id: "session-1", benchKey: "demo:3", label: "agent", createdAt: "now", status: "ended" },
+    ]);
+    await act(() => queryClient.invalidateQueries({ queryKey: ["terminals"] }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled());
   });
 });
