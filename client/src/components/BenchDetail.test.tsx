@@ -1010,6 +1010,55 @@ describe("BenchDetail", () => {
       expect(screen.queryByRole("tab", { name: /delivery/i })).not.toBeInTheDocument();
       expect(screen.queryByTestId("bench-variant-badge")).not.toBeInTheDocument();
     });
+
+    it("warns in the Clear bench dialog that the delivery record goes with the workspace, while the workspace is removed", async () => {
+      renderBench(specBench as never);
+      await userEvent.click(screen.getByRole("button", { name: /clear/i }));
+      expect(screen.getByTestId("delivery-record-warning")).toHaveTextContent(
+        /delivery record .* will be deleted with it/,
+      );
+      await userEvent.click(screen.getByRole("checkbox", { name: /remove git worktree/i }));
+      expect(screen.queryByTestId("delivery-record-warning")).not.toBeInTheDocument();
+    });
+
+    it("asks for a confirmation before Cleanup & Retry, and retries only once confirmed", async () => {
+      const cleanupMutate = vi.fn();
+      vi.mocked(useCleanupAndRetryBench).mockReturnValue({
+        mutate: cleanupMutate,
+        isPending: false,
+      } as never);
+      renderBench({ ...specBench, status: "error", error: "provisioning failed" } as never);
+
+      await userEvent.click(screen.getByRole("button", { name: /cleanup & retry/i }));
+      expect(cleanupMutate).not.toHaveBeenCalled();
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).toHaveTextContent(/delivery record .* will be deleted/);
+      await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(cleanupMutate).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole("button", { name: /cleanup & retry/i }));
+      await userEvent.click(screen.getByRole("button", { name: "Delete record and retry" }));
+      expect(cleanupMutate).toHaveBeenCalledWith(
+        { projectId: "proj-1", benchId: 1 },
+        expect.objectContaining({ onError: expect.any(Function) }),
+      );
+    });
+
+    it("shows no warning for a plain bench, which retries on one press", async () => {
+      const cleanupMutate = vi.fn();
+      vi.mocked(useCleanupAndRetryBench).mockReturnValue({
+        mutate: cleanupMutate,
+        isPending: false,
+      } as never);
+      renderBench({ ...baseBench, status: "error", error: "provisioning failed" } as never);
+      await userEvent.click(screen.getByRole("button", { name: /cleanup & retry/i }));
+      expect(cleanupMutate).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /clear/i }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.queryByTestId("delivery-record-warning")).not.toBeInTheDocument();
+    });
   });
 
   describe("dirty-bench confirmation", () => {
