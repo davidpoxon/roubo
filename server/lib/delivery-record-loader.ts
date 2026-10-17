@@ -44,7 +44,9 @@ export const DELIVERY_RECORD_MAX_BYTES = 8 * 1024 * 1024;
  * folder. Throws UnsafePathError when the slug fails the allowlist or the
  * folder would leave the workspace.
  */
-export function deliverySpecFolder(bench: Pick<Bench, "workspacePath" | "focusedSpecPath">): string {
+export function deliverySpecFolder(
+  bench: Pick<Bench, "workspacePath" | "focusedSpecPath">,
+): string {
   const slug = path.basename(bench.focusedSpecPath ?? "");
   assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
   const folder = resolveWithin(bench.workspacePath, ".specifications", slug);

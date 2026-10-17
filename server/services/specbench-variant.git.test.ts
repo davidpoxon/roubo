@@ -354,12 +354,10 @@ describe("Clear bench on a Spec Bench", () => {
 describe("Benches without the Spec Bench variant", () => {
   it("SB-TC-008: a plain bench and a testbench bench carry no delivery field and no variant teardown step", async () => {
     const plain = await request(app).post("/demo/benches").send({});
-    const testbench = await request(app)
-      .post("/demo/benches")
-      .send({
-        variant: "testbench",
-        focusedSpecPath: ".specifications/fixture-spec/test-cases.json",
-      });
+    const testbench = await request(app).post("/demo/benches").send({
+      variant: "testbench",
+      focusedSpecPath: ".specifications/fixture-spec/test-cases.json",
+    });
     expect(plain.status).toBe(201);
     expect(testbench.status).toBe(201);
     expect(testbench.body.variant).toBe("testbench");

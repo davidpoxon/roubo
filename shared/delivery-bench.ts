@@ -143,8 +143,7 @@ export function isDeliveryReadError(value: unknown): value is DeliveryReadError 
 }
 
 export type DeliveryRecordCheck =
-  | { ok: true; record: DeliveryRecord }
-  | { ok: false; error: DeliveryReadError };
+  { ok: true; record: DeliveryRecord } | { ok: false; error: DeliveryReadError };
 
 const SUPPORTED_MAJOR = DELIVERY_RECORD_SCHEMA_VERSION.split(".")[0];
 
