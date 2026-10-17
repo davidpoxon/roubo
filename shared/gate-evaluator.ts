@@ -166,6 +166,71 @@ export function effectiveCaseStatus(result: CaseResult): CaseStatus {
   return result.statusOverride?.status ?? result.derivedStatus;
 }
 
+// Index the threaded resolutions by the case they are about. First entry wins
+// for a duplicated origin id (a plan cannot hold two cases with one id, so this
+// only guards a malformed caller). Shared with the delivery reducer so both read
+// the same resolution for a case.
+export function indexResolutions(
+  lifecycle: GateLifecycle | undefined,
+): ReadonlyMap<string, Resolution> {
+  const resolutionById = new Map<string, Resolution>();
+  for (const resolution of lifecycle?.resolutions ?? []) {
+    if (!resolutionById.has(resolution.origin.caseId)) {
+      resolutionById.set(resolution.origin.caseId, resolution);
+    }
+  }
+  return resolutionById;
+}
+
+// Where a case's result is actually read from, given its lifecycle resolution.
+// A superseded case whose chain resolved keeps its DECLARED id (the gate still
+// gates on the obligation it declared) while its result comes from the case the
+// chain landed on (SATCA-FR-009): the gate's own `caseResults` for a same-spec
+// landing, `lifecycle.resultsBySlug` for a cross-spec one. An unresolvable
+// pointer, a malformed resolution with no landing, or a landing in a spec whose
+// results the caller did not thread in, reads as `undefined`: unverified, so it
+// can never reach `passed` (SATCA-FR-010, VG-NFR-007). A case with no resolution,
+// or a live one, reads its own result.
+//
+// Exported so the delivery reducer's progress count (SB-FR-011) reads each case
+// from the same place the gate does; the two must never disagree on which result
+// a case is judged by.
+export function readCaseResult(
+  id: string,
+  caseResults: BenchResults["caseResults"],
+  resolutionById: ReadonlyMap<string, Resolution>,
+  lifecycle: GateLifecycle | undefined,
+): CaseResult | undefined {
+  const resolution = resolutionById.get(id);
+  if (resolution === undefined || resolution.status === "live") {
+    return caseResults[id];
+  }
+  if (resolution.status !== "resolved") {
+    return undefined;
+  }
+  // `resolvedTo` is non-null on a "resolved" status by the resolver's own
+  // contract; the guard keeps a malformed input failing closed rather than
+  // silently reading the origin's own (stale) result.
+  const target = resolution.resolvedTo;
+  if (target === null) {
+    return undefined;
+  }
+  if (target.slug === resolution.origin.slug) {
+    return caseResults[target.caseId];
+  }
+  return lifecycle?.resultsBySlug?.get(target.slug)?.caseResults[target.caseId];
+}
+
+// A case is met when it has a result, that result is not orphaned, and its
+// effective status is `passed`: the one reading of "passed" the gate's PASSED rung
+// and the delivery reducer's progress count both apply (VG-FR-004, VG-NFR-007,
+// SB-FR-011).
+export function isCaseMet(result: CaseResult | undefined): boolean {
+  return (
+    result !== undefined && result.orphaned !== true && effectiveCaseStatus(result) === "passed"
+  );
+}
+
 // Evaluate a verify gate's state. Pure and synchronous: no I/O, no clock, no
 // input mutation (VG-NFR-007).
 //
@@ -200,15 +265,7 @@ export function evaluateGate(
 ): GateState {
   const coveringUnitIds = gate.covers ?? [];
 
-  // Index the threaded resolutions by the case they are about. First entry wins
-  // for a duplicated origin id (a plan cannot hold two cases with one id, so this
-  // only guards a malformed caller).
-  const resolutionById = new Map<string, Resolution>();
-  for (const resolution of lifecycle?.resolutions ?? []) {
-    if (!resolutionById.has(resolution.origin.caseId)) {
-      resolutionById.set(resolution.origin.caseId, resolution);
-    }
-  }
+  const resolutionById = indexResolutions(lifecycle);
 
   // Narrow the gating set: the gate's declared test case ids, minus what
   // lifecycle retires and what the default level/type policy excludes. Both rules
@@ -302,45 +359,12 @@ export function evaluateGate(
   const unresolvedCaseIds: string[] = [];
 
   for (const id of gatingCaseIds) {
-    // Where this case's status is actually read from. A superseded case whose
-    // chain resolved keeps its DECLARED id in `gatingCaseIds` (the gate still
-    // gates on the obligation it declared) while its status comes from the case
-    // the chain landed on (SATCA-FR-009). An unresolvable pointer, or a landing in
-    // a spec whose results the caller did not thread in, degrades to unresolved so
-    // the gate can never reach the PASSED rung (SATCA-FR-010, VG-NFR-007).
-    const resolution = resolutionById.get(id);
-    let result: CaseResult | undefined;
-    if (resolution !== undefined && resolution.status === "unresolved") {
-      anyPending = true;
-      unresolvedCaseIds.push(id);
-      continue;
-    } else if (resolution !== undefined && resolution.status === "resolved") {
-      // `resolvedTo` is non-null on a "resolved" status by the resolver's own
-      // contract; the guard keeps a malformed input failing closed rather than
-      // silently reading the origin's own (stale) result.
-      const target = resolution.resolvedTo;
-      if (target === null) {
-        anyPending = true;
-        unresolvedCaseIds.push(id);
-        continue;
-      }
-      if (target.slug === resolution.origin.slug) {
-        result = caseResults[target.caseId];
-      } else {
-        const foreign = lifecycle?.resultsBySlug?.get(target.slug);
-        if (foreign === undefined) {
-          anyPending = true;
-          unresolvedCaseIds.push(id);
-          continue;
-        }
-        result = foreign.caseResults[target.caseId];
-      }
-    } else {
-      result = caseResults[id];
-    }
+    // Where this case's status is read from follows its lifecycle resolution
+    // (see `readCaseResult`): an unresolvable pointer reads as absent.
+    const result = readCaseResult(id, caseResults, resolutionById, lifecycle);
 
-    // Absent from results, or retained-but-orphaned, reads as pending: the case
-    // is unverified, never passed (VG-FR-004, VG-NFR-007).
+    // Absent from results (or unresolvable), or retained-but-orphaned, reads as
+    // pending: the case is unverified, never passed (VG-FR-004, VG-NFR-007).
     if (result === undefined || result.orphaned === true) {
       anyPending = true;
       unresolvedCaseIds.push(id);
