@@ -20,6 +20,7 @@ import { sendPluginRpcError } from "./plugin-rpc-error.js";
 import { ServiceError } from "../services/service-error.js";
 import { isAlertExternalId } from "../services/alert-external-id.js";
 import { assignedIssueFetchId } from "../services/issue-formatting.js";
+import { bindDeliveryOnCreate } from "../services/delivery-session-launcher.js";
 import { BENCH_VARIANTS, SPEC_BENCH_BIND_MODES, isBenchVariant } from "@roubo/shared";
 import type {
   CreateBenchRequest,
@@ -140,6 +141,9 @@ router.post("/:projectId/benches", async (req, res) => {
         delivery: { mode: mode as SpecBenchBindMode },
       });
       res.status(201).json(bench);
+      // Once the workspace exists: launch mode starts the delivery session,
+      // attach mode mints the token and launches nothing (SB-FR-002, SB-FR-003).
+      void bindDeliveryOnCreate(bench);
     } catch (err) {
       handleCreateBenchError(res, err);
     }

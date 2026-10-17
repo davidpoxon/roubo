@@ -94,6 +94,12 @@ vi.mock("./settings/plugins/ConsentReviewDialog", () => ({
 vi.mock("./testbench/TestBenchPanel", () => ({
   default: () => <div data-testid="testbench-panel" />,
 }));
+// The Delivery tab reads the delivery through React Query, which this file does
+// not provide; its own suite covers the read. Here it stays pending.
+vi.mock("../hooks/useDelivery", () => ({
+  useDelivery: () => ({ isPending: true, isError: false, isSuccess: false }),
+  useResumeDelivery: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+}));
 import { useBenchIssue } from "../hooks/useBenchIssue";
 const mockUseBenchIssue = vi.mocked(useBenchIssue);
 

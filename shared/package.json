@@ -29,6 +29,7 @@
     "./spec-lifecycle-schema": "./spec-lifecycle-schema.ts",
     "./delivery-observation-contract": "./delivery-observation-contract.ts",
     "./delivery-control-contract": "./delivery-control-contract.ts",
+    "./delivery-bench": "./delivery-bench.ts",
     "./state-recipe-contract": "./state-recipe-contract.ts",
     "./lifecycle-resolver": "./lifecycle-resolver.ts",
     "./gate-evaluator": "./gate-evaluator.ts",

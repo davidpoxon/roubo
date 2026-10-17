@@ -706,6 +706,12 @@ export interface CreateAgentSessionOptions {
    * agent's own theme mechanism.
    */
   appTheme?: ResolvedTheme;
+  /**
+   * Env core itself hands the session, layered over the descriptor's env. A
+   * Spec Bench passes its delivery launch descriptor this way (SB-FR-002). The
+   * host-internal keys stay withheld here too.
+   */
+  env?: Record<string, string>;
   onAgentExit?: (sessionId: string) => void;
 }
 
@@ -889,6 +895,12 @@ export async function createAgentSession(
   for (const [key, value] of Object.entries(descriptor.env ?? {})) {
     if (HOST_INTERNAL_ENV_KEYS.has(key)) continue;
     env[key] = resolveTemplate(value, ctx);
+  }
+  // Core's own env goes on last and is never template-resolved: it is data, not
+  // a template a plugin wrote.
+  for (const [key, value] of Object.entries(opts.env ?? {})) {
+    if (HOST_INTERNAL_ENV_KEYS.has(key)) continue;
+    env[key] = value;
   }
   // Prepended AFTER the descriptor's env layering so a descriptor cannot displace
   // it: a carrier naming the notifier by bare name has to resolve to the program
