@@ -1029,7 +1029,7 @@ function stateFromRecord(record: DeliveryRecord): FoldState {
   for (const gate of record.stack.gates) {
     if (isProvisionalGate(gate)) setOwnValue(provisionalAt, gate.id, record.updated_at);
   }
-  return {
+  const state: FoldState = {
     seq: record.last_event_seq,
     mode: record.mode,
     review: record.review,
@@ -1047,6 +1047,16 @@ function stateFromRecord(record: DeliveryRecord): FoldState {
     lifecycle: record.lifecycle,
     seams: record.seams,
   };
+  // A valid record can still carry a review section that disagrees with its
+  // decisions and gates: a list that names an accepted decision, or a `none`
+  // status while a card waits. Bring it into line here, with the helpers the
+  // event handlers use, so the list, the status and the review stack agree from
+  // the first snapshot on.
+  state.review = settleReview(state, {
+    ...record.review,
+    unreviewed: reconcileUnreviewed(state, record.review.unreviewed),
+  });
+  return state;
 }
 
 // Apply `events` on top of `state`, in list order. Returns a new state; the
