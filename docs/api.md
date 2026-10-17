@@ -496,7 +496,7 @@ Reports server-level conditions that are settled before the server listens and h
 }
 ```
 
-`loginShellImport` is the outcome of importing the login-shell environment at boot. The server runs `env -0` through the login shell, with a 15 s timeout per attempt and one retry. When `state` is `failed`, terminals and agent sessions run with the launch environment's PATH until Roubo restarts, and the app shows a banner that names the cause. `ok` and `not-run` carry no other fields.
+`loginShellImport` is the outcome of importing the login-shell environment at boot. The server runs `env -0` through the login shell, with a 15 s timeout per attempt and one retry after a timeout. `reason` is `timeout` when both attempts timed out, and `error` when the shell could not be run or exited non-zero. When `state` is `failed`, terminals and agent sessions run with the launch environment's PATH until Roubo restarts, and the app shows a banner that names the cause. `ok` and `not-run` carry no other fields.
 
 ---
 

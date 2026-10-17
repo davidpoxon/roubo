@@ -2905,7 +2905,7 @@ export type LoginShellImportStatus =
   | { state: "ok" }
   | {
       state: "failed";
-      /** `timeout` when the shell outlived `timeoutMs`; `error` for any other failure. */
+      /** `timeout` when the shell outlived `timeoutMs`; `error` when it could not be run or exited non-zero. */
       reason: "timeout" | "error";
       /** The login shell that was run. */
       shell: string;

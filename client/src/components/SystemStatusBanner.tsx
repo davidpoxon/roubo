@@ -22,7 +22,7 @@ const STRINGS = {
   cause: (status: FailedImport) =>
     status.reason === "timeout"
       ? `Roubo could not load your shell environment: ${status.shell} did not start within ${Math.round(status.timeoutMs / 1000)} s.`
-      : `Roubo could not load your shell environment: ${status.shell} could not be run.`,
+      : `Roubo could not load your shell environment: running ${status.shell} failed.`,
   effect:
     "Terminals and AI coding agent sessions are running with a minimal PATH, so tools that your shell profile sets up may be missing.",
   cure: "Quit and reopen Roubo to load it again. If this keeps happening, check that your shell profile starts quickly and without errors.",

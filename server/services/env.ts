@@ -76,7 +76,7 @@ const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
  */
 const LOGIN_SHELL_IMPORT_TIMEOUT_MS = 15_000;
 
-/** The first attempt plus one retry. */
+/** The first attempt plus one retry, taken only after a timeout. */
 const LOGIN_SHELL_IMPORT_ATTEMPTS = 2;
 
 let loginShellImportStatus: LoginShellImportStatus = { state: "not-run" };
@@ -111,11 +111,15 @@ export function getLoginShellImportStatus(): LoginShellImportStatus {
  * the well-known macOS GUI CLI dirs appended, so tools installed there are found
  * even when the user's profile does not export them.
  *
- * Each attempt gets LOGIN_SHELL_IMPORT_TIMEOUT_MS, and a failed attempt is
+ * Each attempt gets LOGIN_SHELL_IMPORT_TIMEOUT_MS, and a timed-out attempt is
  * retried once (#1487): after a cold reboot, a profile that loads nvm can take
  * longer than the old 5 s limit, and the second attempt runs against a warm
- * disk cache. The call is synchronous and runs before the server listens, so a
- * shell that never answers delays boot by up to the two timeouts combined.
+ * disk cache. Any other failure is not retried, since running the profile again
+ * would not change it. The shell is killed with SIGKILL when the timeout fires,
+ * because an interactive zsh ignores the default SIGTERM and spawnSync would
+ * otherwise wait for the profile to finish on its own. The call is synchronous
+ * and runs before the server listens, so a shell that never answers delays boot
+ * by up to the two timeouts combined.
  *
  * If every attempt fails, the existing environment is kept, a warning is
  * logged, and the outcome is recorded for `getLoginShellImportStatus()`, which
@@ -126,17 +130,21 @@ export function getLoginShellImportStatus(): LoginShellImportStatus {
 export function importLoginShellEnv(): void {
   const shell = getLoginShell();
   let lastError: unknown;
+  let timedOut = false;
   let output: string | undefined;
   for (let attempt = 1; attempt <= LOGIN_SHELL_IMPORT_ATTEMPTS; attempt++) {
     try {
       output = execFileSync(shell, loginShellScriptArgs("env -0"), {
         timeout: LOGIN_SHELL_IMPORT_TIMEOUT_MS,
+        killSignal: "SIGKILL",
         encoding: "utf-8",
         stdio: ["ignore", "pipe", "ignore"],
       });
       break;
     } catch (err) {
       lastError = err;
+      timedOut = (err as { code?: unknown }).code === "ETIMEDOUT";
+      if (!timedOut) break;
     }
   }
 
@@ -148,8 +156,7 @@ export function importLoginShellEnv(): void {
     }
     loginShellImportStatus = {
       state: "failed",
-      reason:
-        (lastError as { code?: unknown } | undefined)?.code === "ETIMEDOUT" ? "timeout" : "error",
+      reason: timedOut ? "timeout" : "error",
       shell,
       timeoutMs: LOGIN_SHELL_IMPORT_TIMEOUT_MS,
       detail: lastError instanceof Error ? lastError.message : String(lastError),

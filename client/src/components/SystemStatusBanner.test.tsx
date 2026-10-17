@@ -50,7 +50,7 @@ describe("SystemStatusBanner", () => {
     expect(banner).toHaveTextContent("spawnSync /bin/zsh ETIMEDOUT");
   });
 
-  it("names a shell that could not be run", () => {
+  it("names a shell that failed to run", () => {
     withStatus({
       state: "failed",
       reason: "error",
@@ -59,7 +59,7 @@ describe("SystemStatusBanner", () => {
       detail: "spawnSync /bin/zsh ENOENT",
     });
     render(<SystemStatusBanner />);
-    expect(screen.getByRole("status")).toHaveTextContent("/bin/zsh could not be run");
+    expect(screen.getByRole("status")).toHaveTextContent("running /bin/zsh failed");
   });
 
   it("hides when dismissed", async () => {

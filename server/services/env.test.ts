@@ -441,6 +441,17 @@ describe("importLoginShellEnv on a slow login shell (#1487)", () => {
     );
   });
 
+  it("kills the shell with SIGKILL on timeout, since an interactive zsh ignores SIGTERM", async () => {
+    vi.mocked(execFileSync).mockReturnValue(envOutput({ PATH: "/usr/bin" }));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(execFileSync).toHaveBeenCalledWith(
+      "/bin/zsh",
+      ["-ilc", "env -0"],
+      expect.objectContaining({ killSignal: "SIGKILL" }),
+    );
+  });
+
   it("retries once after a timed-out first attempt and merges the login-shell PATH", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.mocked(execFileSync)
@@ -487,6 +498,8 @@ describe("importLoginShellEnv on a slow login shell (#1487)", () => {
     });
     const { importLoginShellEnv, getLoginShellImportStatus } = await import("./env.js");
     importLoginShellEnv();
+    // Running the profile again would not change a failure that is not a timeout.
+    expect(execFileSync).toHaveBeenCalledTimes(1);
     expect(getLoginShellImportStatus()).toMatchObject({
       state: "failed",
       reason: "error",
