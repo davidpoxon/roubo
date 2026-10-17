@@ -98,7 +98,7 @@ beforeEach(() => {
 });
 
 describe("DeliveryTabPanel", () => {
-  it("SB-TC-015: shows the conformance error naming budget and no control, then the snapshot and controls once restored", async () => {
+  it("shows the conformance error naming budget and no control, then the snapshot and controls once restored", async () => {
     vi.mocked(api.fetchDelivery).mockRejectedValueOnce(
       readError({
         code: "DELIVERY_NONCONFORMANT",
@@ -132,7 +132,7 @@ describe("DeliveryTabPanel", () => {
     expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled();
   });
 
-  it("SB-TC-016: shows the validation error naming units and exposes no control", async () => {
+  it("shows the validation error naming units and exposes no control", async () => {
     vi.mocked(api.fetchDelivery).mockRejectedValueOnce(
       readError({
         code: "DELIVERY_INVALID",
@@ -148,7 +148,7 @@ describe("DeliveryTabPanel", () => {
     expectNoControls();
   });
 
-  it("SB-TC-016: shows the version mismatch and exposes no control", async () => {
+  it("shows the version mismatch and exposes no control", async () => {
     vi.mocked(api.fetchDelivery).mockRejectedValueOnce(
       readError({
         code: "DELIVERY_VERSION_MISMATCH",
@@ -185,7 +185,7 @@ describe("DeliveryTabPanel", () => {
   });
 
   it.each(["clearing", "error"] as const)(
-    "SB-TC-004: disables Resume while the bench is %s",
+    "disables Resume while the bench is %s",
     async (status) => {
       vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
       renderWithProviders(<DeliveryTabPanel bench={{ ...bench, status }} />);
@@ -194,7 +194,7 @@ describe("DeliveryTabPanel", () => {
     },
   );
 
-  it("SB-TC-004: disables Resume while the session the bench launched is live, and enables it once it ends", async () => {
+  it("disables Resume while the session the bench launched is live, and enables it once it ends", async () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
     vi.mocked(api.fetchTerminals).mockResolvedValueOnce([
       { id: "session-1", benchKey: "demo:3", label: "agent", createdAt: "now", status: "live" },
