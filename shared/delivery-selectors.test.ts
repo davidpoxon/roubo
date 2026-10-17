@@ -9,10 +9,15 @@ import {
 } from "./delivery-observation-contract.js";
 import { foldDelivery } from "./delivery-reducer.js";
 import {
+  selectDecisionThread,
   selectGateState,
+  selectMode,
   selectNextBoundary,
   selectOpenDecisions,
   selectProgress,
+  selectProvisionalMarks,
+  selectReview,
+  selectReviewStack,
   selectStalenessAge,
   selectSteeringFor,
   selectUnitStack,
@@ -213,5 +218,122 @@ describe("delivery selectors", () => {
     expect(selectStalenessAge(foldDelivery({ record, events: [] }))).toBeNull();
     const now = Date.parse("2026-10-16T09:31:00Z");
     expect(selectStalenessAge(foldDelivery({ record, events: [], now }))).toBe(60_000);
+  });
+});
+
+describe("delivery selectors: decision mode (SB-FR-040)", () => {
+  it("selectMode and selectReview read the mode and the review section", () => {
+    const snapshot = foldDelivery({
+      record: fixtureRecord(),
+      events: [event(8, "mode.changed", { value: "auto", pending: "attended" })],
+    });
+    expect(selectMode(snapshot)).toEqual({ value: "auto", pending: "attended" });
+    expect(selectReview(snapshot)).toEqual({ status: "pending", unreviewed: ["decision-2"] });
+  });
+
+  it("selectReviewStack lists unreviewed agent cards and provisional gate cards, oldest first", () => {
+    const snapshot = foldDelivery({
+      record: fixtureRecord(),
+      events: [
+        // Decided at 10:00: younger than the record's provisional gate (09:30)
+        // and than decision-2 (decided 09:15).
+        event(8, "decision.decided", { decision_id: "decision-1", chosen: "one file per unit" }),
+        {
+          ...event(9, "gate.provisional", {
+            gate_id: "gate-after-b",
+            cases: [{ case: "DEMO-TC-001", mark: "met", evidence: "Passed." }],
+          }),
+          ts: "2026-10-16T09:45:00Z",
+        },
+      ],
+    });
+    const stack = selectReviewStack(snapshot);
+    expect(stack.map((card) => [card.kind, card.id, card.at])).toEqual([
+      ["decision", "decision-2", "2026-10-16T09:15:00Z"],
+      ["gate", "gate-after-c", "2026-10-16T09:30:00Z"],
+      ["gate", "gate-after-b", "2026-10-16T09:45:00Z"],
+      ["decision", "decision-1", "2026-10-16T10:00:00Z"],
+    ]);
+    const first = stack[0];
+    if (first.kind === "decision") expect(first.decision.chosen).toBe("reject it");
+    const gate = stack[1];
+    if (gate.kind === "gate") {
+      expect(gate.gate.provisionalCases?.[0].case).toBe("DEMO-TC-003");
+      expect(gate.view.state.status).toBe("stale");
+    }
+  });
+
+  it("selectReviewStack drops a reviewed decision, a confirmed gate and an operator's answer", () => {
+    const snapshot = foldDelivery({
+      record: fixtureRecord(),
+      events: [
+        event(8, "review.outcome", { decision_id: "decision-2", status: "accepted" }),
+        event(9, "gate.confirmed", { gate_id: "gate-after-c" }),
+        event(10, "decision.decided", {
+          decision_id: "decision-1",
+          chosen: "one file per unit",
+          author: "Ada",
+        }),
+      ],
+    });
+    expect(selectReviewStack(snapshot)).toEqual([]);
+    expect(selectReview(snapshot).status).toBe("none");
+  });
+
+  it("selectReviewStack keeps a partly confirmed gate and orders an unparseable time first", () => {
+    const record = fixtureRecord();
+    record.decisions[1].decided_at = "sometime";
+    const snapshot = foldDelivery({
+      record,
+      events: [
+        event(8, "gate.provisional", {
+          gate_id: "gate-after-b",
+          cases: [
+            { case: "DEMO-TC-001", mark: "met" },
+            { case: "DEMO-TC-002", mark: "not_met" },
+          ],
+        }),
+        event(9, "gate.confirmed", { gate_id: "gate-after-b", cases: ["DEMO-TC-001"] }),
+      ],
+    });
+    expect(selectReviewStack(snapshot).map((card) => card.id)).toEqual([
+      "decision-2",
+      "gate-after-c",
+      "gate-after-b",
+    ]);
+  });
+
+  it("selectDecisionThread gives the thread in stream order, empty when there is none", () => {
+    const snapshot = foldDelivery({
+      record: fixtureRecord(),
+      events: [
+        event(8, "review.reply", { decision_id: "decision-2", text: "Why?", author: "Ada", control_seq: 2 }),
+        event(9, "review.reply", { decision_id: "decision-2", text: "Strict.", in_reply_to: "2" }),
+      ],
+    });
+    expect(selectDecisionThread(snapshot, "decision-2").map((m) => [m.author, m.text])).toEqual([
+      ["Ada", "Why?"],
+      ["agent", "Strict."],
+    ]);
+    expect(selectDecisionThread(snapshot, "decision-1")).toEqual([]);
+    expect(selectDecisionThread(snapshot, "toString")).toEqual([]);
+    expect(selectDecisionThread(snapshot, "__proto__")).toEqual([]);
+  });
+
+  it("selectProvisionalMarks gives a provisional gate's marks and nothing for any other gate", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({ record, events: [] });
+    expect(selectProvisionalMarks(snapshot, "gate-after-c")).toEqual(
+      record.stack.gates[1].provisionalCases,
+    );
+    expect(selectProvisionalMarks(snapshot, "gate-after-b")).toEqual([]);
+    expect(selectProvisionalMarks(snapshot, "nope")).toEqual([]);
+    expect(selectProvisionalMarks(snapshot, "constructor")).toEqual([]);
+    const confirmed = foldDelivery({
+      record,
+      events: [event(8, "gate.confirmed", { gate_id: "gate-after-c" })],
+    });
+    // Once confirmed the gate is no longer provisional, so it has no marks to review.
+    expect(selectProvisionalMarks(confirmed, "gate-after-c")).toEqual([]);
   });
 });

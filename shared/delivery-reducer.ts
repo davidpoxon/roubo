@@ -42,19 +42,29 @@
 // `setOwnValue`, which see own keys only. An event typed `toString` is then an
 // unknown type like any other, and a unit whose id is `constructor` is a unit.
 
-import type {
-  DeliveryBudget,
-  DeliveryDecision,
-  DeliveryDrift,
-  DeliveryEvent,
-  DeliveryGate,
-  DeliveryHealth,
-  DeliveryLifecycle,
-  DeliveryRecord,
-  DeliveryRole,
-  DeliverySeam,
-  DeliverySteering,
-  DeliveryUnit,
+import {
+  AGENT_AUTHOR,
+  DECISION_REVIEW_STATUSES,
+  DELIVERY_MODES,
+  PROVISIONAL_MARKS,
+  type DecisionReview,
+  type DeliveryBudget,
+  type DeliveryDecision,
+  type DeliveryDrift,
+  type DeliveryEvent,
+  type DeliveryGate,
+  type DeliveryHealth,
+  type DeliveryLifecycle,
+  type DeliveryMode,
+  type DeliveryModeValue,
+  type DeliveryRecord,
+  type DeliveryReview,
+  type DeliveryRole,
+  type DeliverySeam,
+  type DeliverySteering,
+  type DeliveryUnit,
+  type ProvisionalCase,
+  type ProvisionalMark,
 } from "./delivery-observation-contract";
 import type { BenchResults, TestCasesPlan } from "./testbench-contracts";
 import {
@@ -114,12 +124,33 @@ export interface DeliveryEdge {
 }
 
 export interface DeliveryGateView {
-  // The gate as the record carries it, with its own `status` word.
+  // The gate as the record carries it, with its own `status` word and, in auto
+  // mode, its provisional marks.
   gate: DeliveryGate;
   // The evaluated state over the plan and results. Fail-closed to `stale` when
   // either is absent: the fold passes `evaluateGate` null results until it has
   // both.
   state: GateState;
+  // When the gate became provisional: the `ts` of the `gate.provisional` event,
+  // or the record's `updated_at` for a gate the record already carried as
+  // provisional. Null for a gate that is not provisional. The review stack
+  // orders its cards by it.
+  provisionalAt: string | null;
+}
+
+// One message of a decision's thread, from a `review.reply` event: the
+// session's reply, or the tooling's read-back of an operator's thread message
+// (then `controlSeq` names the control). The thread is not in the record: a
+// thread message is volatile, so the fold builds it from the stream alone.
+export interface DeliveryThreadMessage {
+  seq: number;
+  decisionId: string;
+  text: string;
+  // The author as the payload names it, or `agent` when it names none.
+  author: string;
+  ts: string;
+  inReplyTo?: string;
+  controlSeq?: number;
 }
 
 export interface DeliveryProgressCount {
@@ -147,12 +178,16 @@ export interface DeliverySnapshot {
   // The last accepted seq.
   seq: number;
   gap?: DeliveryGap;
+  mode: DeliveryMode;
+  review: DeliveryReview;
   unitsById: Record<string, DeliveryUnit>;
   // Stack name to its ordered unit ids, base first (from the record).
   stacks: Record<string, string[]>;
   edges: DeliveryEdge[];
   gatesById: Record<string, DeliveryGateView>;
   decisionsById: Record<string, DeliveryDecision>;
+  // Decision id to its thread, in stream order.
+  threadsByDecisionId: Record<string, DeliveryThreadMessage[]>;
   steeringById: Record<string, DeliverySteering>;
   budget: DeliveryBudget;
   roles: Record<string, DeliveryRole>;
@@ -219,6 +254,9 @@ export function classifyUnitStatus(status: string): UnitStatusKind {
 
 const CLOSED_DECISION_STATUSES: ReadonlySet<string> = new Set([
   "answered",
+  "decided",
+  "accepted",
+  "overturned",
   "closed",
   "resolved",
   "declined",
@@ -227,9 +265,43 @@ const CLOSED_DECISION_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 // A decision is open unless its status word says it was settled. An unknown word
-// reads as open, so a decision never silently leaves the queue.
+// reads as open, so a decision never silently leaves the queue. A decision the
+// session decided on its own (`decided`) is settled: it waits on the review
+// stack, not in the open queue (see `isUnreviewedAgentDecision`).
 export function isDecisionOpen(decision: DeliveryDecision): boolean {
   return !CLOSED_DECISION_STATUSES.has(decision.status.toLowerCase());
+}
+
+// A decision the session decided on its own that the operator has not reviewed:
+// its author is `agent`, it carries a chosen option, and its review is absent or
+// still `unreviewed`.
+export function isUnreviewedAgentDecision(decision: DeliveryDecision): boolean {
+  return (
+    decision.author === AGENT_AUTHOR &&
+    decision.chosen !== undefined &&
+    (decision.review?.status ?? "unreviewed") === "unreviewed"
+  );
+}
+
+// A provisional gate the operator has not confirmed in full: it is flagged
+// provisional and at least one of its marks is unconfirmed (a provisional gate
+// with no marks listed counts as unconfirmed).
+export function isUnconfirmedProvisionalGate(gate: DeliveryGate): boolean {
+  if (gate.provisional !== true) return false;
+  const cases = gate.provisionalCases ?? [];
+  return cases.length === 0 || cases.some((entry) => !entry.confirmed);
+}
+
+const MODE_VALUES: ReadonlySet<string> = new Set(DELIVERY_MODES);
+const PROVISIONAL_MARK_VALUES: ReadonlySet<string> = new Set(PROVISIONAL_MARKS);
+const DECISION_REVIEW_STATUS_VALUES: ReadonlySet<string> = new Set(DECISION_REVIEW_STATUSES);
+
+function isModeValue(value: unknown): value is DeliveryModeValue {
+  return typeof value === "string" && MODE_VALUES.has(value);
+}
+
+function isProvisionalMark(value: unknown): value is ProvisionalMark {
+  return typeof value === "string" && PROVISIONAL_MARK_VALUES.has(value);
 }
 
 // ── Event payload views ──
@@ -281,6 +353,68 @@ export interface SeamRanPayload extends Partial<DeliverySeam> {
   seam?: string;
 }
 
+// The decision-mode payloads (SB-FR-040). The contract types them (see the
+// `*PayloadSchema` exports of delivery-observation-contract.ts) and the
+// validator checks them before the fold sees them; the handlers still read
+// each key defensively, as every other handler does.
+
+export interface ReadBackPayload {
+  control_seq?: number;
+  in_reply_to?: string;
+}
+
+export interface ModeChangedPayload extends ReadBackPayload {
+  value?: string;
+  pending?: string | null;
+}
+
+export interface DecisionDecidedPayload extends ReadBackPayload {
+  decision_id?: string;
+  id?: string;
+  chosen?: string;
+  author?: string;
+  rationale?: string;
+  affected_units?: string[];
+  status?: string;
+  decided_at?: string;
+  question?: string;
+  options?: string[];
+  default?: string;
+}
+
+export interface ReviewOpenedPayload extends ReadBackPayload {
+  trigger?: string;
+  unreviewed?: string[];
+}
+
+export interface ReviewOutcomePayload extends ReadBackPayload {
+  decision_id?: string;
+  id?: string;
+  status?: string;
+  reviewer?: string;
+  summary?: string;
+  chosen?: string;
+}
+
+export interface ReviewReplyPayload extends ReadBackPayload {
+  decision_id?: string;
+  id?: string;
+  text?: string;
+  author?: string;
+}
+
+export interface GateProvisionalPayload extends ReadBackPayload {
+  gate_id?: string;
+  cases?: Array<Partial<ProvisionalCase>>;
+  status?: string;
+}
+
+export interface GateConfirmedPayload extends ReadBackPayload {
+  gate_id?: string;
+  cases?: string[];
+  status?: string;
+}
+
 // ── The fold state ──
 //
 // The part of the snapshot the events move. Everything else (edges, jams, gate
@@ -290,10 +424,15 @@ export interface SeamRanPayload extends Partial<DeliverySeam> {
 interface FoldState {
   seq: number;
   gap?: DeliveryGap;
+  mode: DeliveryMode;
+  review: DeliveryReview;
   unitsById: Record<string, DeliveryUnit>;
   stacks: Record<string, string[]>;
   gates: DeliveryGate[];
+  // Gate id to the time it became provisional (see DeliveryGateView).
+  provisionalAt: Record<string, string>;
   decisionsById: Record<string, DeliveryDecision>;
+  threadsByDecisionId: Record<string, DeliveryThreadMessage[]>;
   steeringById: Record<string, DeliverySteering>;
   budget: DeliveryBudget;
   roles: Record<string, DeliveryRole>;
@@ -547,6 +686,207 @@ const onSeamRan: EventHandler = (state, event) => {
   return { ...state, seams: { ...state.seams, [payload.seam]: seam } };
 };
 
+// ── Decision-mode handlers (SB-FR-040) ──
+
+const onModeChanged: EventHandler = (state, event) => {
+  const payload = event.payload as ModeChangedPayload;
+  if (!isModeValue(payload.value)) return state;
+  const mode: DeliveryMode = { ...state.mode, value: payload.value };
+  if (isModeValue(payload.pending)) {
+    mode.pending = payload.pending;
+  } else if (payload.pending === null || payload.pending === undefined) {
+    // The switch landed: nothing is pending any more unless the payload says so.
+    mode.pending = null;
+  }
+  return { ...state, mode };
+};
+
+// The review section after a decision joined or left the unreviewed list, or
+// a gate became provisional or confirmed. `none` when nothing waits, else
+// `pending` until a `review.opened` sets `open`; an open review stays open
+// while anything waits.
+function settleReview(state: FoldState, review: DeliveryReview): DeliveryReview {
+  const anyGate = state.gates.some(isUnconfirmedProvisionalGate);
+  const waiting = review.unreviewed.length > 0 || anyGate;
+  if (!waiting) return { ...review, status: "none" };
+  if (review.status === "none") return { ...review, status: "pending" };
+  return review;
+}
+
+const onDecisionDecided: EventHandler = (state, event) => {
+  const payload = event.payload as DecisionDecidedPayload;
+  const id = isString(payload.decision_id) ? payload.decision_id : payload.id;
+  if (!isString(id) || !isString(payload.chosen)) return state;
+  let current = ownValue(state.decisionsById, id);
+  if (current === undefined) {
+    // A decision the stream never raised comes whole, or not at all.
+    if (
+      !isString(payload.question) ||
+      !isStringArray(payload.options) ||
+      payload.options.length < 2 ||
+      !isString(payload.default) ||
+      !payload.options.includes(payload.default)
+    ) {
+      return state;
+    }
+    const unitId = event.unit_id;
+    current = {
+      id,
+      question: payload.question,
+      options: [...payload.options],
+      default: payload.default,
+      status: "open",
+      raised_at: event.ts,
+      ...(isString(unitId) ? { unit_id: unitId } : {}),
+    };
+  }
+  if (!current.options.includes(payload.chosen)) return state;
+  const author = isString(payload.author) ? payload.author : AGENT_AUTHOR;
+  const patch: Record<string, unknown> = {
+    status: isString(payload.status) ? payload.status : "decided",
+    author,
+    chosen: payload.chosen,
+    decided_at: isString(payload.decided_at) ? payload.decided_at : event.ts,
+  };
+  if (typeof payload.rationale === "string") patch.rationale = payload.rationale;
+  if (isStringArray(payload.affected_units)) patch.affected_units = [...payload.affected_units];
+  if (author === AGENT_AUTHOR) {
+    patch.review = { status: "unreviewed" } satisfies DecisionReview;
+  }
+  const decision = merge(current, patch as Partial<DeliveryDecision>);
+  const next = { ...state, decisionsById: { ...state.decisionsById } };
+  setOwnValue(next.decisionsById, id, decision);
+  if (author === AGENT_AUTHOR && !state.review.unreviewed.includes(id)) {
+    next.review = settleReview(next, {
+      ...state.review,
+      unreviewed: [...state.review.unreviewed, id],
+    });
+  }
+  return next;
+};
+
+const onReviewOpened: EventHandler = (state, event) => {
+  const payload = event.payload as ReviewOpenedPayload;
+  const review: DeliveryReview = { ...state.review, status: "open" };
+  if (isString(payload.trigger)) review.trigger = payload.trigger;
+  if (isStringArray(payload.unreviewed)) review.unreviewed = [...payload.unreviewed];
+  return { ...state, review };
+};
+
+const onReviewOutcome: EventHandler = (state, event) => {
+  const payload = event.payload as ReviewOutcomePayload;
+  const id = isString(payload.decision_id) ? payload.decision_id : payload.id;
+  if (!isString(id)) return state;
+  const current = ownValue(state.decisionsById, id);
+  if (current === undefined) return state;
+  const status = payload.status;
+  if (
+    !isString(status) ||
+    !DECISION_REVIEW_STATUS_VALUES.has(status) ||
+    status === "unreviewed"
+  ) {
+    return state;
+  }
+  const review: DecisionReview = { status: status as DecisionReview["status"] };
+  if (isString(payload.reviewer)) review.reviewer = payload.reviewer;
+  if (typeof payload.summary === "string") review.summary = payload.summary;
+  const patch: Record<string, unknown> = { review };
+  if (status === "overturned" && isString(payload.chosen) && current.options.includes(payload.chosen)) {
+    patch.chosen = payload.chosen;
+  }
+  const decision = merge(current, patch as Partial<DeliveryDecision>);
+  const next = { ...state, decisionsById: { ...state.decisionsById } };
+  setOwnValue(next.decisionsById, id, decision);
+  next.review = settleReview(next, {
+    ...state.review,
+    unreviewed: state.review.unreviewed.filter((entry) => entry !== id),
+  });
+  return next;
+};
+
+const onReviewReply: EventHandler = (state, event) => {
+  const payload = event.payload as ReviewReplyPayload;
+  const id = isString(payload.decision_id) ? payload.decision_id : payload.id;
+  if (!isString(id) || !isString(payload.text)) return state;
+  const message: DeliveryThreadMessage = {
+    seq: event.seq,
+    decisionId: id,
+    text: payload.text,
+    author: isString(payload.author) ? payload.author : AGENT_AUTHOR,
+    ts: event.ts,
+  };
+  if (isString(payload.in_reply_to)) message.inReplyTo = payload.in_reply_to;
+  if (isNumber(payload.control_seq)) message.controlSeq = payload.control_seq;
+  const thread = [...(ownValue(state.threadsByDecisionId, id) ?? []), message];
+  const threadsByDecisionId = { ...state.threadsByDecisionId };
+  setOwnValue(threadsByDecisionId, id, thread);
+  return { ...state, threadsByDecisionId };
+};
+
+function looksLikeProvisionalCase(value: unknown): value is Partial<ProvisionalCase> & {
+  case: string;
+  mark: ProvisionalMark;
+} {
+  return isRecord(value) && isString(value.case) && isProvisionalMark(value.mark);
+}
+
+const onGateProvisional: EventHandler = (state, event) => {
+  const payload = event.payload as GateProvisionalPayload;
+  if (!isString(payload.gate_id)) return state;
+  const index = state.gates.findIndex((gate) => gate.id === payload.gate_id);
+  if (index < 0) return state;
+  if (!Array.isArray(payload.cases) || !payload.cases.every(looksLikeProvisionalCase)) {
+    return state;
+  }
+  const provisionalCases: ProvisionalCase[] = payload.cases.map((entry) => ({
+    case: entry.case,
+    mark: entry.mark,
+    evidence: typeof entry.evidence === "string" ? entry.evidence : "",
+    confirmed: entry.confirmed === true,
+  }));
+  const gates = [...state.gates];
+  gates[index] = merge(state.gates[index], {
+    status: isString(payload.status) ? payload.status : "provisional",
+    provisional: true,
+    provisionalCases,
+  });
+  const provisionalAt = { ...state.provisionalAt };
+  setOwnValue(provisionalAt, payload.gate_id, event.ts);
+  const next = { ...state, gates, provisionalAt };
+  next.review = settleReview(next, state.review);
+  return next;
+};
+
+const onGateConfirmed: EventHandler = (state, event) => {
+  const payload = event.payload as GateConfirmedPayload;
+  if (!isString(payload.gate_id)) return state;
+  const index = state.gates.findIndex((gate) => gate.id === payload.gate_id);
+  if (index < 0) return state;
+  const gate = state.gates[index];
+  if (gate.provisional !== true) return state;
+  const named = isStringArray(payload.cases) ? new Set(payload.cases) : null;
+  const provisionalCases = (gate.provisionalCases ?? []).map((entry) =>
+    named === null || named.has(entry.case) ? { ...entry, confirmed: true } : entry,
+  );
+  const allConfirmed = provisionalCases.every((entry) => entry.confirmed);
+  const patch: Partial<DeliveryGate> = { provisionalCases, provisional: !allConfirmed };
+  if (isString(payload.status)) {
+    patch.status = payload.status;
+  } else if (allConfirmed && gate.status === "provisional") {
+    patch.status = "confirmed";
+  }
+  const gates = [...state.gates];
+  gates[index] = merge(gate, patch);
+  const next = { ...state, gates };
+  if (allConfirmed) {
+    const provisionalAt = { ...state.provisionalAt };
+    delete provisionalAt[payload.gate_id];
+    next.provisionalAt = provisionalAt;
+  }
+  next.review = settleReview(next, state.review);
+  return next;
+};
+
 // The handler table. Adding an event type is adding a row; a type with no row is
 // skipped (its seq is still accepted). The fold reads it through `ownValue`, so
 // a type that names an `Object.prototype` member has no row either.
@@ -562,6 +902,13 @@ export const EVENT_HANDLERS: Readonly<Record<string, EventHandler>> = {
   "health.changed": onHealthChanged,
   "drift.detected": onDriftDetected,
   "seam.ran": onSeamRan,
+  "mode.changed": onModeChanged,
+  "decision.decided": onDecisionDecided,
+  "review.opened": onReviewOpened,
+  "review.outcome": onReviewOutcome,
+  "review.reply": onReviewReply,
+  "gate.provisional": onGateProvisional,
+  "gate.confirmed": onGateConfirmed,
 };
 
 export const DELIVERY_EVENT_TYPES: readonly string[] = Object.keys(EVENT_HANDLERS);
@@ -569,12 +916,22 @@ export const DELIVERY_EVENT_TYPES: readonly string[] = Object.keys(EVENT_HANDLER
 // ── The fold ──
 
 function stateFromRecord(record: DeliveryRecord): FoldState {
+  // A gate the record carries as provisional became so before any event the
+  // fold applies: the record's `updated_at` is the time the fold knows.
+  const provisionalAt: Record<string, string> = {};
+  for (const gate of record.stack.gates) {
+    if (gate.provisional === true) setOwnValue(provisionalAt, gate.id, record.updated_at);
+  }
   return {
     seq: record.last_event_seq,
+    mode: record.mode,
+    review: record.review,
     unitsById: indexById(record.units),
     stacks: { ...record.stack.stacks },
     gates: [...record.stack.gates],
+    provisionalAt,
     decisionsById: indexById(record.decisions),
+    threadsByDecisionId: {},
     steeringById: indexById(record.steering),
     budget: record.budget,
     roles: record.roles,
@@ -708,6 +1065,7 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
     setOwnValue(gatesById, gate.id, {
       gate,
       state: evaluateGate(verifyUnitOf(gate), gateResults, record.plan_hash, plan, lifecycle),
+      provisionalAt: gate.provisional === true ? (ownValue(state.provisionalAt, gate.id) ?? null) : null,
     });
   }
   const jams = Object.values(state.unitsById)
@@ -716,11 +1074,14 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
   const snapshot: DeliverySnapshot = {
     deliveryId: record.delivery_id,
     seq: state.seq,
+    mode: state.mode,
+    review: state.review,
     unitsById: state.unitsById,
     stacks: state.stacks,
     edges: buildEdges(state.unitsById, state.stacks),
     gatesById,
     decisionsById: state.decisionsById,
+    threadsByDecisionId: state.threadsByDecisionId,
     steeringById: state.steeringById,
     budget: state.budget,
     roles: state.roles,
