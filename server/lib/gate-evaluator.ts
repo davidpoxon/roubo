@@ -4,11 +4,3 @@
 // `server/lib`, so the function lives there and this module keeps every existing
 // `server/lib/gate-evaluator` importer compiling unchanged.
 export * from "@roubo/shared/gate-evaluator";
-export type {
-  GateEmptyReason,
-  GateLifecycle,
-  GateResults,
-  GateState,
-  GateStatus,
-  VerifyUnit,
-} from "@roubo/shared/gate-evaluator";
