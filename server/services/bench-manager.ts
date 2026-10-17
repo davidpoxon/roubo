@@ -56,6 +56,7 @@ import {
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
+import { resolveTestbenchHost } from "./testbench-host-resolver.js";
 import { resolveSpecFolder } from "../lib/spec-folder.js";
 import * as variantHosts from "./variant-host-registry.js";
 import { isBenchOperable, benchNotOperableMessage } from "./bench-operability.js";
@@ -4081,7 +4082,8 @@ export async function unassignContainer(
  * and returns the updated bench. The prior spec's test-results.json is untouched:
  * results are keyed per spec, so re-pointing loses nothing and staleness is
  * re-evaluated on the next plan load. Rejects with BenchError when the bench is
- * not found, is not a testbench variant, or the path fails validation/containment.
+ * not found, its variant hosts no re-pointable TestBench (the TestbenchHostResolver's
+ * focus answer), or the path fails validation/containment.
  */
 export function setFocusedSpecPath(
   projectId: string,
@@ -4090,8 +4092,9 @@ export function setFocusedSpecPath(
 ): Bench {
   const bench = getBench(projectId, benchId);
   if (!bench) throw new BenchError("Bench not found", "NOT_FOUND");
-  if (bench.variant !== "testbench") {
-    throw new BenchError("Bench is not a testbench variant", "NOT_TESTBENCH");
+  const host = resolveTestbenchHost(bench, "focus");
+  if (!host.ok) {
+    throw new BenchError(host.error, host.code ?? "NOT_TESTBENCH");
   }
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) {
