@@ -46,15 +46,15 @@ import type {
   DeliverySeam,
   DeliverySteering,
   DeliveryUnit,
-} from "@roubo/shared/delivery-observation-contract";
-import type { BenchResults, TestCasesPlan } from "@roubo/shared/testbench-contracts";
+} from "./delivery-observation-contract";
+import type { BenchResults, TestCasesPlan } from "./testbench-contracts";
 import {
   effectiveCaseStatus,
   evaluateGate,
   type GateLifecycle,
   type GateState,
   type VerifyUnit,
-} from "@roubo/shared/gate-evaluator";
+} from "./gate-evaluator";
 
 // ── Inputs ──
 

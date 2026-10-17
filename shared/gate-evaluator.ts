@@ -44,9 +44,9 @@ import type {
   CaseResult,
   CaseStatus,
   TestCasesPlan,
-} from "@roubo/shared/testbench-contracts";
-import type { Resolution } from "@roubo/shared/lifecycle-resolver";
-import type { Unit } from "@roubo/shared/work-units-contract";
+} from "./testbench-contracts";
+import type { Resolution } from "./lifecycle-resolver";
+import type { Unit } from "./work-units-contract";
 
 // A VerifyUnit is a work unit whose durable semantic role is `verify`: its
 // `implements.test_case_ids` is the gating set and `covers` lists the WU- ids it
