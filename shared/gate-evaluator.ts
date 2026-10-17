@@ -159,10 +159,9 @@ function caseGatesByDefaultPolicy(level: number, category: string): boolean {
 }
 
 // Effective status = the override when present, else the derived status (VG-FR-005,
-// VG-NFR-007). An override always wins over the derived value. Exported so the
-// delivery reducer's progress count (SB-FR-011) reads a case exactly as the gate
-// does.
-export function effectiveCaseStatus(result: CaseResult): CaseStatus {
+// VG-NFR-007). An override always wins over the derived value. Read by `isCaseMet`
+// and by `evaluateGate` below; nothing outside this module imports it.
+function effectiveCaseStatus(result: CaseResult): CaseStatus {
   return result.statusOverride?.status ?? result.derivedStatus;
 }
 
