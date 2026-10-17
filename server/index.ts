@@ -15,6 +15,7 @@ import { isAgentNotAvailable, listAgents, resolveAgent } from "./services/agent-
 import * as projectRegistry from "./services/project-registry.js";
 import { initializeIntegrationMigrations } from "./services/integration-migrations.js";
 import * as benchManager from "./services/bench-manager.js";
+import { registerSpecbenchVariantHost } from "./lib/specbench-variant-host.js";
 import { isAlertExternalId } from "./services/alert-external-id.js";
 import * as processManager from "./services/process-manager.js";
 import * as terminalService from "./services/terminal.js";
@@ -272,6 +273,10 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
       socket.destroy();
     }
   });
+
+  // The delivery domain registers its Spec Bench host before the bench manager
+  // hydrates and reconciles any Spec Bench (SB-FR-004).
+  registerSpecbenchVariantHost();
 
   console.log("Initializing bench manager...");
   benchManager.initialize();
