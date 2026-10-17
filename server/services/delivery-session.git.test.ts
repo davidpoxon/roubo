@@ -343,7 +343,7 @@ describe("Attach mode", () => {
     expect(bench.deliveryTokenHash).not.toBe(hashBefore);
   });
 
-  it("SB-TC-004: the attach handout gives the attached session a token it can post events with, and launches nothing", async () => {
+  it("the attach handout gives the attached session a token it can post events with, and launches nothing", async () => {
     writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("attach");
     // Nothing is minted until the handout: no one would hold the token.
@@ -387,7 +387,7 @@ describe("Attach mode", () => {
 });
 
 describe("One delivery session per bench", () => {
-  it("SB-TC-004: answers 409 DELIVERY_SESSION_LIVE to a resume while the launched session still runs", async () => {
+  it("answers 409 DELIVERY_SESSION_LIVE to a resume while the launched session still runs", async () => {
     writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("launch");
     expect(launches).toHaveLength(1);
@@ -407,7 +407,7 @@ describe("One delivery session per bench", () => {
     expect(posted.status).toBe(202);
   });
 
-  it("SB-TC-004: resumes once the launched session has ended, and records the new session", async () => {
+  it("resumes once the launched session has ended, and records the new session", async () => {
     writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("launch");
     hoisted.liveSessions.delete("session-1");
@@ -419,7 +419,7 @@ describe("One delivery session per bench", () => {
     expect(bench.deliverySessionId).toBe("session-2");
   });
 
-  it("SB-TC-004: launches one session when two resumes arrive together", async () => {
+  it("launches one session when two resumes arrive together", async () => {
     writeRecord(fixtureRecord());
     const { bench } = await createSpecBench("attach");
     const url = `/demo/benches/${bench.id}/delivery/resume`;
@@ -433,7 +433,7 @@ describe("One delivery session per bench", () => {
   });
 
   it.each(["clearing", "error"] as const)(
-    "SB-TC-004: answers 409 BENCH_UNAVAILABLE to a resume while the bench is %s, and mints nothing",
+    "answers 409 BENCH_UNAVAILABLE to a resume while the bench is %s, and mints nothing",
     async (status) => {
       writeRecord(fixtureRecord());
       const { bench } = await createSpecBench("attach");
@@ -447,7 +447,7 @@ describe("One delivery session per bench", () => {
     },
   );
 
-  it("SB-TC-004: refuses the attach handout while the launched session runs or the bench is clearing", async () => {
+  it("refuses the attach handout while the launched session runs or the bench is clearing", async () => {
     const { bench } = await createSpecBench("launch");
     const hashBefore = bench.deliveryTokenHash;
 

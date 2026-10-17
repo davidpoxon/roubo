@@ -17,7 +17,7 @@ function fixture(): Record<string, unknown> {
 }
 
 describe("buildDeliveryLaunchDescriptor", () => {
-  it("SB-TC-003: carries eventUrl, controlsUrl and the token as data", () => {
+  it("carries eventUrl, controlsUrl and the token as data", () => {
     const descriptor = buildDeliveryLaunchDescriptor({
       origin: "http://localhost:3335/",
       projectId: "demo",
@@ -59,7 +59,7 @@ describe("checkDeliveryRecord", () => {
     expect(check.ok).toBe(true);
   });
 
-  it("SB-TC-015: names the missing budget section as DELIVERY_NONCONFORMANT", () => {
+  it("names the missing budget section as DELIVERY_NONCONFORMANT", () => {
     const record = fixture();
     delete record.budget;
     const check = checkDeliveryRecord(record);
@@ -73,7 +73,7 @@ describe("checkDeliveryRecord", () => {
     expect(isDeliveryReadError(check.error)).toBe(true);
   });
 
-  it("SB-TC-016: reports units as an object as a validation error naming units", () => {
+  it("reports units as an object as a validation error naming units", () => {
     const record = fixture();
     record.units = { A: {} };
     const check = checkDeliveryRecord(record);
@@ -85,7 +85,7 @@ describe("checkDeliveryRecord", () => {
     expect(check.error.errors?.some((e) => e.startsWith("units"))).toBe(true);
   });
 
-  it("SB-TC-016: reports an unknown contract major version as a version mismatch", () => {
+  it("reports an unknown contract major version as a version mismatch", () => {
     const check = checkDeliveryRecord({
       ...fixture(),
       $schema: "https://roubo.dev/schema/delivery-record/v2.0.0.json",
