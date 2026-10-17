@@ -1,5 +1,5 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
-// SB-FR-009).
+// SB-FR-009, SB-FR-013).
 //
 // Endpoints (mounted under /api/projects):
 //   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
@@ -12,6 +12,20 @@
 //                                                        missing a section
 //                                                        (DELIVERY_NONCONFORMANT + section)
 //                                                        or invalid (DELIVERY_INVALID + field)
+//   GET  /:projectId/benches/:id/delivery/events?after=<seq>&unit=<id>
+//                                                 -> 200 DeliveryEventsResponse
+//                                                    {events, acceptedSeq}: the accepted
+//                                                    events above `after` (absent: every
+//                                                    one above the record's
+//                                                    last_event_seq, in memory and in the
+//                                                    spill file), only those whose
+//                                                    envelope unit_id is `unit` when it
+//                                                    is given, in seq order; acceptedSeq
+//                                                    is the bench's accepted seq
+//                                                    400 INVALID_QUERY + field: `after`
+//                                                        is not a non-negative integer,
+//                                                        or `unit` is not one id
+//                                                    404 and 409 as the snapshot read
 //   POST /:projectId/benches/:id/delivery/launch  -> 202 a launch-mode bench's session
 //                                                    launched again with no resume
 //                                                    argument, while no record exists
@@ -59,7 +73,11 @@ import {
 } from "../lib/delivery-record-loader.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import * as benchManager from "../services/bench-manager.js";
-import { deliveryEventsAfterRecord } from "../services/delivery-event-log.js";
+import type { DeliveryEventsResponse } from "@roubo/shared/delivery-bench";
+import {
+  deliveryAcceptedSeq,
+  deliveryEventsAfterRecord,
+} from "../services/delivery-event-log.js";
 import {
   DeliveryLaunchBlockedError,
   deliveryLaunchBlock,
@@ -137,6 +155,55 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
     benchDeliveryEventSpillPath(bench),
   );
   res.json(foldDeliverySnapshot({ record: loaded.record, events, now: Date.now() }));
+});
+
+function sendInvalidQuery(res: Response, field: string, error: string): void {
+  res.status(400).json({ error, code: "INVALID_QUERY", field });
+}
+
+router.get("/:projectId/benches/:id/delivery/events", deliveryReadRateLimiter, (req, res) => {
+  const bench = specBenchOf(req, res);
+  if (!bench) return;
+  const { after: rawAfter, unit } = req.query;
+  let after: number | undefined;
+  if (rawAfter !== undefined) {
+    if (typeof rawAfter !== "string" || !/^\d+$/.test(rawAfter)) {
+      sendInvalidQuery(res, "after", "after must be a non-negative integer seq");
+      return;
+    }
+    after = Number(rawAfter);
+    if (!Number.isSafeInteger(after)) {
+      sendInvalidQuery(res, "after", "after must be a non-negative integer seq");
+      return;
+    }
+  }
+  if (unit !== undefined && (typeof unit !== "string" || unit.length === 0)) {
+    sendInvalidQuery(res, "unit", "unit must name one unit id");
+    return;
+  }
+  const loaded = loadBenchDeliveryRecord(bench);
+  if (!loaded.ok) {
+    res.status(409).json(loaded.error);
+    return;
+  }
+  // The log keeps the events above the record's last_event_seq only, already
+  // in seq order, so the filters keep that order.
+  const accepted = deliveryEventsAfterRecord(
+    bench.projectId,
+    bench.id,
+    loaded.record,
+    benchDeliveryEventSpillPath(bench),
+  );
+  const events = accepted.filter(
+    (event) =>
+      (after === undefined || event.seq > after) && (unit === undefined || event.unit_id === unit),
+  );
+  const body: DeliveryEventsResponse = {
+    events,
+    acceptedSeq:
+      deliveryAcceptedSeq(bench.projectId, bench.id) ?? loaded.record.last_event_seq,
+  };
+  res.json(body);
 });
 
 function sendLaunchFailed(res: Response, err: unknown): void {
