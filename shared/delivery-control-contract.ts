@@ -37,10 +37,7 @@
 // here; the routes that serve them come with a later unit.
 
 import { z } from "zod";
-import {
-  DELIVERY_TEXT_MAX_LENGTH,
-  DeliveryModeValueSchema,
-} from "./delivery-observation-contract";
+import { DELIVERY_TEXT_MAX_LENGTH, DeliveryModeValueSchema } from "./delivery-observation-contract";
 
 // ── Versioned schema identifier ──
 

@@ -346,9 +346,9 @@ describe("delivery control contract: validation", () => {
         body: { text: "x".repeat(DELIVERY_TEXT_MAX_LENGTH) },
       }).ok,
     ).toBe(true);
-    expect(validateDeliveryControl({ ...controlOf("mode_switch"), body: { mode: "auto" } }).ok).toBe(
-      true,
-    );
+    expect(
+      validateDeliveryControl({ ...controlOf("mode_switch"), body: { mode: "auto" } }).ok,
+    ).toBe(true);
   });
 
   it("lets an overturn target an agent decision with another option", () => {
@@ -391,16 +391,18 @@ describe("delivery control contract: validation", () => {
     for (const [raw, prefix] of cases) {
       const result = validateDeliveryControlReadResponse(raw);
       expect(result.ok, prefix).toBe(false);
-      if (!result.ok) expect(result.errors.some((e) => e.startsWith(prefix)), prefix).toBe(true);
+      if (!result.ok)
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          prefix,
+        ).toBe(true);
     }
   });
 
   it("rejects a body that misses a required field of its kind, at body.<field>", () => {
     for (const kind of DELIVERY_CONTROL_KINDS) {
       for (const field of requiredBodyFields[kind]) {
-        const body = Object.fromEntries(
-          Object.entries(bodies[kind]).filter(([k]) => k !== field),
-        );
+        const body = Object.fromEntries(Object.entries(bodies[kind]).filter(([k]) => k !== field));
         const result = validateDeliveryControl({ ...controlOf(kind), body });
         expect(result.ok, `${kind} without ${field}`).toBe(false);
         if (!result.ok) {
