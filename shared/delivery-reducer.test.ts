@@ -557,6 +557,74 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
     expect(selectReviewStack(nothing)).toEqual([]);
   });
 
+  it("SB-TC-098: a record whose review says none while a card waits folds to a review that names the card", () => {
+    const record = fixtureRecord();
+    const stale: DeliveryRecord = { ...record, review: { status: "none", unreviewed: [] } };
+    // The record is valid as written: the validator checks only that each listed id exists.
+    expect(validateDeliveryRecord(stale).ok).toBe(true);
+    const snapshot = foldDelivery({ record: stale, events: [] });
+    const stack = selectReviewStack(snapshot);
+    expect(stack.map((card) => card.id)).toEqual(["decision-2", "gate-after-c"]);
+    expect(snapshot.review.unreviewed).toEqual(["decision-2"]);
+    expect(snapshot.review.status).not.toBe("none");
+    expect(snapshot.review.status).toBe("pending");
+    // The list names exactly the decision cards of the stack.
+    expect(snapshot.review.unreviewed).toEqual(
+      stack.filter((card) => card.kind === "decision").map((card) => card.id),
+    );
+    expect(stale.review).toEqual({ status: "none", unreviewed: [] });
+  });
+
+  it("SB-TC-098: a record whose review lists an accepted decision folds to a list without it", () => {
+    const record = fixtureRecord();
+    const decisions = record.decisions.map((decision) =>
+      decision.id === "decision-2"
+        ? { ...decision, review: { status: "accepted" as const, reviewer: "David" } }
+        : decision,
+    );
+    const stale: DeliveryRecord = {
+      ...record,
+      decisions,
+      review: { status: "open", trigger: "boundary", unreviewed: ["decision-2"] },
+    };
+    expect(validateDeliveryRecord(stale).ok).toBe(true);
+    const snapshot = foldDelivery({ record: stale, events: [] });
+    expect(snapshot.review.unreviewed).toEqual([]);
+    // The provisional gate still waits, so the open review stays open.
+    expect(snapshot.review).toEqual({ status: "open", trigger: "boundary", unreviewed: [] });
+    expect(selectReviewStack(snapshot).map((card) => card.id)).toEqual(["gate-after-c"]);
+
+    // With the gate confirmed too, nothing waits and the review settles to none.
+    const gates = stale.stack.gates.map((gate) =>
+      gate.id === "gate-after-c"
+        ? {
+            ...gate,
+            provisionalCases: (gate.provisionalCases ?? []).map((entry) => ({
+              ...entry,
+              confirmed: true,
+            })),
+          }
+        : gate,
+    );
+    const settled = foldDelivery({
+      record: { ...stale, stack: { ...stale.stack, gates } },
+      events: [],
+    });
+    expect(settled.review).toEqual({ status: "none", trigger: "boundary", unreviewed: [] });
+    expect(selectReviewStack(settled)).toEqual([]);
+  });
+
+  it("SB-TC-098: the committed record fixture's review section names what its review stack shows", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({ record, events: [] });
+    expect(snapshot.review).toEqual(record.review);
+    expect(record.review.unreviewed).toEqual(
+      selectReviewStack(snapshot)
+        .filter((card) => card.kind === "decision")
+        .map((card) => card.id),
+    );
+  });
+
   it("review.outcome records the operator's verdict, applies an overturn's option and settles the review", () => {
     const record = fixtureRecord();
     const accepted = foldDelivery({
