@@ -662,9 +662,20 @@ const onDecisionRaised: EventHandler = (state, event) => {
     raised_at: isString(payload.raised_at) ? payload.raised_at : event.ts,
     ...(isString(unitId) ? { unit_id: unitId } : {}),
   };
-  return { ...state, decisionsById: { ...state.decisionsById, [id]: decision } };
+  const next = { ...state, decisionsById: { ...state.decisionsById, [id]: decision } };
+  // A raise replaces the decision whole, so an agent's earlier choice and its
+  // review state go with it: bring the list into line with the decisions, so
+  // the list, the status and the review stack agree.
+  next.review = settleReview(next, {
+    ...state.review,
+    unreviewed: reconcileUnreviewed(next, state.review.unreviewed),
+  });
+  return next;
 };
 
+// A `decision.answered` merges its patch over the decision and keeps its
+// author, choice and review state, so an unreviewed agent decision stays one
+// and the review section needs no change.
 const onDecisionAnswered: EventHandler = (state, event) => {
   const payload = event.payload as DecisionAnsweredPayload;
   const id = isString(payload.decision_id) ? payload.decision_id : payload.id;
