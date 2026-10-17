@@ -742,4 +742,34 @@ describe("Launching again without a record", () => {
     await whenDeliveryBound("demo", bench.id);
     expect(launches).toHaveLength(0);
   });
+
+  it("checks the committed record out again on Cleanup & Retry of an attached bench and leaves a newer uncommitted checkout record untouched", async () => {
+    // A is committed; the checkout then holds B, uncommitted.
+    const committed = fixtureRecord();
+    commitRecordToProject(committed);
+    const committedText = `${JSON.stringify(committed, null, 2)}\n`;
+    const edited = fixtureRecord();
+    (edited.budget as Record<string, unknown>).estimate_usd = 9.9;
+    const editedText = `${JSON.stringify(edited, null, 2)}\n`;
+    const checkoutRecord = path.join(specFolder, "delivery-observation.json");
+    fs.writeFileSync(checkoutRecord, editedText);
+
+    const { bench } = await createSpecBench("attach");
+    bench.status = "error";
+    bench.error = "provisioning failed";
+
+    const retried = await request(app).post(`/demo/benches/${bench.id}/cleanup-and-retry`).send({});
+    expect(retried.status).toBe(200);
+    await benchManager.whenWorkspaceProvisioned("demo", bench.id);
+    await whenDeliveryBound("demo", bench.id);
+
+    const live = benchManager.getBench("demo", bench.id);
+    if (!live) throw new Error("bench vanished");
+    expect(fs.readFileSync(workspaceRecordPath(live), "utf8")).toBe(committedText);
+    expect(fs.readFileSync(checkoutRecord, "utf8")).toBe(editedText);
+    const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
+    expect(read.status).toBe(200);
+    expect(read.body.budget.estimate_usd).toBe(3.2);
+    expect(launches).toHaveLength(0);
+  });
 });
