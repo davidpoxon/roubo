@@ -17,6 +17,8 @@ import {
   DELIVERY_CONTROL_SCHEMA_ID,
   DELIVERY_CONTROL_SCHEMA_VERSION,
   DELIVERY_CONTROL_STATUSES,
+  DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID,
+  DeliveryControlReadResponseSchema,
   DeliveryControlSchema,
   DeliveryControlStatusSchema,
   validateDeliveryControl,
@@ -29,14 +31,18 @@ const FILE = "delivery-control.schema.json";
 const SOURCE = join(repoRoot, "shared", "delivery-control-contract.ts");
 const baselineDir = join(repoRoot, "shared", "__fixtures__", "contract-baselines");
 
-function artifact() {
-  const found = artifacts.find((a) => a.outPath.endsWith(FILE));
-  if (!found) throw new Error(`no generated artifact for ${FILE}`);
+// The control read response is its own generated artifact, with its own
+// baseline and pin, checked by the same gate as the control.
+const READ_RESPONSE_FILE = "delivery-control-read-response.schema.json";
+
+function artifact(file = FILE) {
+  const found = artifacts.find((a) => a.outPath.endsWith(`/${file}`));
+  if (!found) throw new Error(`no generated artifact for ${file}`);
   return found;
 }
 
-async function liveSchema(): Promise<JsonSchema> {
-  const a = artifact();
+async function liveSchema(file = FILE): Promise<JsonSchema> {
+  const a = artifact(file);
   return JSON.parse(await renderSchema(a.schema, a.outPath));
 }
 
@@ -45,24 +51,24 @@ interface PublishedPin {
   sha256: string;
 }
 
-function publishedPin(): PublishedPin {
+function publishedPin(file = FILE): PublishedPin {
   const pins: Record<string, PublishedPin> = JSON.parse(
     readFileSync(join(baselineDir, "published.json"), "utf8"),
   );
-  const pin = pins[FILE];
-  if (!pin) throw new Error(`published.json pins no baseline for ${FILE}`);
+  const pin = pins[file];
+  if (!pin) throw new Error(`published.json pins no baseline for ${file}`);
   return pin;
 }
 
-function baselineBytes(): string {
+function baselineBytes(file = FILE): string {
   return readFileSync(
-    join(baselineDir, FILE.replace(".schema.json", ".baseline.schema.json")),
+    join(baselineDir, file.replace(".schema.json", ".baseline.schema.json")),
     "utf8",
   );
 }
 
-function baselineSchema(): JsonSchema {
-  return JSON.parse(baselineBytes());
+function baselineSchema(file = FILE): JsonSchema {
+  return JSON.parse(baselineBytes(file));
 }
 
 function sha256(text: string): string {
@@ -365,38 +371,70 @@ describe("delivery control contract: validation", () => {
     }
   });
 
-  it("defines the control read response: controls, latestSeq and an optional superseded list", () => {
+  it("sb_tc_098 the control read response validates the normal reply {controls, latestSeq}", () => {
     const controls = [controlOf("mode_switch", 3), controlOf("thread_message", 4)];
-    const full = validateDeliveryControlReadResponse({
-      controls,
-      latestSeq: 4,
-      superseded: [2],
-    });
+    const full = validateDeliveryControlReadResponse({ controls, latestSeq: 4 });
     expect(full).toEqual(expect.objectContaining({ ok: true }));
     if (full.ok) {
       expect(full.data.controls.map((c) => c.kind)).toEqual(["mode_switch", "thread_message"]);
       expect(full.data.latestSeq).toBe(4);
-      expect(full.data.superseded).toEqual([2]);
+      expect(full.data.superseded).toBeUndefined();
     }
     const empty = validateDeliveryControlReadResponse({ controls: [], latestSeq: 0 });
     expect(empty.ok).toBe(true);
     if (empty.ok) expect(empty.data.superseded).toBeUndefined();
-    const cases: [Record<string, unknown>, string][] = [
-      [{ latestSeq: 0 }, "controls:"],
+  });
+
+  it("sb_tc_098 the control read response validates the superseded reply {controls: [], superseded: true}", () => {
+    const result = validateDeliveryControlReadResponse({ controls: [], superseded: true });
+    expect(result).toEqual({ ok: true, data: { controls: [], superseded: true } });
+    if (result.ok) expect(result.data.latestSeq).toBeUndefined();
+  });
+
+  it("sb_tc_098 the control read response rejects a malformed body and names the field", () => {
+    const cases: [unknown, string][] = [
+      // superseded is a boolean, never a list of control_seqs
+      [{ controls: [], latestSeq: 1, superseded: [2] }, "superseded:"],
+      [{ controls: [], superseded: [2] }, "superseded:"],
+      [{ controls: [], superseded: false }, "superseded:"],
+      // the normal reply requires latestSeq
       [{ controls: [] }, "latestSeq:"],
+      [{ controls: [controlOf("pause", 1)] }, "latestSeq:"],
+      [{ latestSeq: 0 }, "controls:"],
       [{ controls: [], latestSeq: -1 }, "latestSeq:"],
-      [{ controls: [], latestSeq: 1, superseded: [0] }, "superseded.0:"],
+      [{ controls: [], latestSeq: 1.5 }, "latestSeq:"],
       [{ controls: [{ ...controlOf("pause"), kind: "nudge" }], latestSeq: 1 }, "controls.0.kind:"],
+      // the superseded reply carries no controls and no latestSeq
+      [{ controls: [controlOf("pause", 1)], superseded: true }, "controls:"],
+      [{ controls: [], superseded: true, latestSeq: 3 }, "latestSeq:"],
+      [{ superseded: true }, "controls:"],
     ];
     for (const [raw, prefix] of cases) {
       const result = validateDeliveryControlReadResponse(raw);
-      expect(result.ok, prefix).toBe(false);
+      expect(result.ok, `${JSON.stringify(raw)} ${prefix}`).toBe(false);
       if (!result.ok)
         expect(
           result.errors.some((e) => e.startsWith(prefix)),
-          prefix,
+          `${JSON.stringify(raw)}: ${result.errors.join("; ")}`,
         ).toBe(true);
     }
+    for (const value of [null, undefined, "reply", 7, []]) {
+      expect(validateDeliveryControlReadResponse(value).ok).toBe(false);
+    }
+  });
+
+  it("sb_tc_098 the zod union accepts exactly the two reply bodies", () => {
+    expect(
+      DeliveryControlReadResponseSchema.safeParse({ controls: [], latestSeq: 0 }).success,
+    ).toBe(true);
+    expect(
+      DeliveryControlReadResponseSchema.safeParse({ controls: [], superseded: true }).success,
+    ).toBe(true);
+    expect(
+      DeliveryControlReadResponseSchema.safeParse({ controls: [], latestSeq: 0, superseded: [1] })
+        .success,
+    ).toBe(false);
+    expect(DeliveryControlReadResponseSchema.safeParse({ controls: [] }).success).toBe(false);
   });
 
   it("rejects a body that misses a required field of its kind, at body.<field>", () => {
@@ -630,6 +668,62 @@ describe("delivery control contract: compatibility", () => {
       oneOf: [{ ...first, required: [...(first.required as string[]), "target_id"] }, ...rest],
     };
     expect(classifySchemaChange(baseline, nowRequired).change).toBe("breaking");
+    expect(checkContractCompatibility(baseline, bumped(nowRequired, "major")).ok).toBe(true);
+  });
+});
+
+describe("delivery control read response: generated artifact", () => {
+  it("sb_tc_098 the read response is a generated artifact with a versioned $id at 1.0.0", async () => {
+    const live = await liveSchema(READ_RESPONSE_FILE);
+    expect(live.$id).toBe(DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID);
+    expect(parseSchemaVersion(live.$id)).toEqual({ major: 1, minor: 0, patch: 0 });
+    const [reply, superseded] = live.anyOf as JsonSchema[];
+    expect(reply.required).toEqual(["controls", "latestSeq"]);
+    expect(superseded.required).toEqual(["controls", "superseded"]);
+    expect(optionProps(superseded).superseded).toEqual({ type: "boolean", const: true });
+    expect(optionProps(superseded).controls.maxItems).toBe(0);
+  });
+
+  it("sb_tc_098 the schema generator produces no difference against the committed read response file", async () => {
+    const a = artifact(READ_RESPONSE_FILE);
+    expect(readFileSync(a.outPath, "utf8")).toBe(await renderSchema(a.schema, a.outPath));
+  });
+
+  it("sb_tc_098 the committed read response baseline is the pinned published render", () => {
+    const pin = publishedPin(READ_RESPONSE_FILE);
+    expect(
+      sha256(baselineBytes(READ_RESPONSE_FILE)),
+      `the baseline of ${READ_RESPONSE_FILE} is not the pinned render of ${pin.version}: a baseline refresh publishes a version, so bump the contract version and re-pin version and sha256 in published.json`,
+    ).toBe(pin.sha256);
+    const [major, minor, patch] = pin.version.split(".").map(Number);
+    expect(parseSchemaVersion(baselineSchema(READ_RESPONSE_FILE).$id)).toEqual({
+      major,
+      minor,
+      patch,
+    });
+  });
+
+  it("sb_tc_098 the live read response obeys the semver rule against its published baseline", async () => {
+    const report = checkContractCompatibility(
+      baselineSchema(READ_RESPONSE_FILE),
+      await liveSchema(READ_RESPONSE_FILE),
+    );
+    expect(report.ok, `${report.message}\n${report.reasons.join("\n")}`).toBe(true);
+    expect(report.message).toBe("no change at 1.0.0");
+  });
+
+  it("sb_tc_098 requiring latestSeq of the superseded reply is breaking and needs a major bump", () => {
+    const baseline = baselineSchema(READ_RESPONSE_FILE);
+    const [reply, superseded] = baseline.anyOf as JsonSchema[];
+    const nowRequired = {
+      ...baseline,
+      anyOf: [
+        reply,
+        { ...superseded, required: [...(superseded.required as string[]), "latestSeq"] },
+      ],
+    };
+    expect(classifySchemaChange(baseline, nowRequired).change).toBe("breaking");
+    expect(checkContractCompatibility(baseline, bumped(nowRequired, "minor")).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(nowRequired, "major")).ok).toBe(true);
   });
 });
