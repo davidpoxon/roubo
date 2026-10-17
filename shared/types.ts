@@ -1743,7 +1743,9 @@ export interface Bench {
    * retargeted at a different spec over its lifetime, and it is re-validated
    * with resolveWithin when loaded (enforcement lives in the testbench store).
    * For a Spec Bench it is the spec folder `.specifications/<slug>` in the
-   * project checkout. Absent on a normal bench.
+   * project checkout; the bench reads its delivery record from the folder of
+   * the same slug inside its workspace, never from this folder, and the record
+   * goes with the workspace. Absent on a normal bench.
    */
   focusedSpecPath?: string;
   /** Spec Bench only: how the bench binds to its delivery. */
@@ -1752,6 +1754,14 @@ export interface Bench {
   gatePin?: BenchGatePin;
   /** Spec Bench only: hash of the token the delivery session presents. */
   deliveryTokenHash?: string;
+  /**
+   * Spec Bench only: the terminal session of the main delivery session that
+   * this bench last launched, at set-up, at a launch again or at resume.
+   * Runtime only and never persisted: a terminal session comes back from a
+   * restart as ended, so after one no session of this bench is live and a
+   * resume may launch again.
+   */
+  deliverySessionId?: string;
   /** Spec Bench only: the open gate sitting, if any. */
   deliverySitting?: BenchDeliverySitting;
   /** Spec Bench only: the last delivery event `seq` the operator viewed. */

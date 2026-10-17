@@ -20,6 +20,7 @@ import { sendPluginRpcError } from "./plugin-rpc-error.js";
 import { ServiceError } from "../services/service-error.js";
 import { isAlertExternalId } from "../services/alert-external-id.js";
 import { assignedIssueFetchId } from "../services/issue-formatting.js";
+import { bindDeliveryOnCreate } from "../services/delivery-session-launcher.js";
 import { BENCH_VARIANTS, SPEC_BENCH_BIND_MODES, isBenchVariant } from "@roubo/shared";
 import type {
   CreateBenchRequest,
@@ -140,6 +141,10 @@ router.post("/:projectId/benches", async (req, res) => {
         delivery: { mode: mode as SpecBenchBindMode },
       });
       res.status(201).json(bench);
+      // Once the workspace exists: launch mode starts the delivery session,
+      // attach mode launches nothing; its token is minted when POST
+      // /delivery/attach hands it out (SB-FR-002, SB-FR-003).
+      void bindDeliveryOnCreate(bench);
     } catch (err) {
       handleCreateBenchError(res, err);
     }
@@ -373,6 +378,11 @@ router.post("/:projectId/benches/:id/cleanup-and-retry", async (req, res) => {
     const benchId = parseIntParam(req.params.id, "bench id");
     const bench = await benchManager.cleanupAndRetryBench(req.params.projectId, benchId);
     res.json(bench);
+    // The retry re-provisions the workspace from scratch, so a Spec Bench binds
+    // to its delivery again once it exists: launch mode starts the session that
+    // the failed round never started (SB-FR-002). The delivery record went with
+    // the old workspace.
+    if (bench.variant === "specbench") void bindDeliveryOnCreate(bench);
   } catch (err) {
     if (err instanceof RouteError) {
       res.status(err.statusCode).json({ error: err.message });
