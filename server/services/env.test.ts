@@ -411,6 +411,105 @@ describe("importLoginShellEnv", () => {
   });
 });
 
+describe("importLoginShellEnv on a slow login shell (#1487)", () => {
+  const originalEnv = { ...process.env };
+
+  /** The error execFileSync throws when the child outlives its timeout. */
+  function timedOut(): Error {
+    return Object.assign(new Error("spawnSync /bin/zsh ETIMEDOUT"), { code: "ETIMEDOUT" });
+  }
+
+  beforeEach(() => {
+    process.env = { ...originalEnv, SHELL: "/bin/zsh", PATH: "/usr/bin:/bin" };
+    delete process.env.ROUBO_QUIET;
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.restoreAllMocks();
+  });
+
+  it("gives the login shell 15 s to start", async () => {
+    vi.mocked(execFileSync).mockReturnValue(envOutput({ PATH: "/usr/bin" }));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(execFileSync).toHaveBeenCalledWith(
+      "/bin/zsh",
+      ["-ilc", "env -0"],
+      expect.objectContaining({ timeout: 15_000 }),
+    );
+  });
+
+  it("retries once after a timed-out first attempt and merges the login-shell PATH", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(execFileSync)
+      .mockImplementationOnce(() => {
+        throw timedOut();
+      })
+      .mockReturnValueOnce(envOutput({ PATH: "/opt/homebrew/bin:/usr/bin:/bin" }));
+    const { importLoginShellEnv, getLoginShellImportStatus } = await import("./env.js");
+    importLoginShellEnv();
+    expect(execFileSync).toHaveBeenCalledTimes(2);
+    expect(process.env.PATH?.split(":").slice(0, 3)).toEqual([
+      "/opt/homebrew/bin",
+      "/usr/bin",
+      "/bin",
+    ]);
+    expect(getLoginShellImportStatus()).toEqual({ state: "ok" });
+    // A failure that the retry recovered from is not worth a warning.
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("reports a final timeout through the system status, after exactly two attempts", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw timedOut();
+    });
+    const { importLoginShellEnv, getLoginShellImportStatus } = await import("./env.js");
+    importLoginShellEnv();
+    expect(execFileSync).toHaveBeenCalledTimes(2);
+    expect(process.env.PATH?.split(":").slice(0, 2)).toEqual(["/usr/bin", "/bin"]);
+    expect(getLoginShellImportStatus()).toEqual({
+      state: "failed",
+      reason: "timeout",
+      shell: "/bin/zsh",
+      timeoutMs: 15_000,
+      detail: "spawnSync /bin/zsh ETIMEDOUT",
+    });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a shell that cannot be run as an error, not a timeout", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw Object.assign(new Error("spawnSync /bin/zsh ENOENT"), { code: "ENOENT" });
+    });
+    const { importLoginShellEnv, getLoginShellImportStatus } = await import("./env.js");
+    importLoginShellEnv();
+    expect(getLoginShellImportStatus()).toMatchObject({
+      state: "failed",
+      reason: "error",
+      shell: "/bin/zsh",
+      detail: "spawnSync /bin/zsh ENOENT",
+    });
+  });
+
+  it("clears an earlier failure once an import succeeds", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw timedOut();
+    });
+    const { importLoginShellEnv, getLoginShellImportStatus } = await import("./env.js");
+    importLoginShellEnv();
+    vi.mocked(execFileSync)
+      .mockReset()
+      .mockReturnValue(envOutput({ PATH: "/usr/bin" }));
+    importLoginShellEnv();
+    expect(getLoginShellImportStatus()).toEqual({ state: "ok" });
+  });
+});
+
 describe("importLoginShellEnv well-known CLI dirs", () => {
   const originalEnv = { ...process.env };
   const originalPlatform = process.platform;

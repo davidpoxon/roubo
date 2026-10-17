@@ -28,6 +28,7 @@ import type {
   JigPreviewResponse,
   UserPreferences,
   SettingsResponse,
+  SystemStatusResponse,
   BenchNotification,
   ProjectPermissions,
   PermissionsResyncResult,
@@ -1106,6 +1107,11 @@ export function updateSettings(settings: UserPreferences): Promise<UserPreferenc
     method: "PUT",
     body: JSON.stringify(settings),
   });
+}
+
+// System status
+export function fetchSystemStatus(): Promise<SystemStatusResponse> {
+  return request("/system/status");
 }
 
 export function fetchEnvKeys(): Promise<{ keys: string[] }> {

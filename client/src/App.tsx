@@ -18,6 +18,7 @@ import { useDeepLink } from "./hooks/useDeepLink";
 import { RegisterProjectModalProvider } from "./components/RegisterProjectModalProvider";
 import { DeclinedSourceOffersProvider } from "./components/DeclinedSourceOffersProvider";
 import ProjectDeclaredSourceOffer from "./components/marketplace/ProjectDeclaredSourceOffer";
+import SystemStatusBanner from "./components/SystemStatusBanner";
 
 export default function App() {
   useThemeSync();
@@ -36,6 +37,7 @@ export default function App() {
       <RegisterProjectModalProvider>
         <div className="flex flex-col h-screen">
           <TitleBar projectName={projectName} />
+          <SystemStatusBanner />
           {projectId && (
             <ProjectDeclaredSourceOffer projectId={projectId} project={currentProject} />
           )}
